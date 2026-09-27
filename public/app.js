@@ -4599,8 +4599,9 @@ function applyFreshBuild(matches, generatedAt, scheduleCoverage = null) {
     // unhidden for it to actually show up.
     appEl.hidden = !state.tbdMatches.length;
     emptyState.hidden = !!state.tbdMatches.length;
-    // Nothing with logos to wait for here - drop the loading screen now.
-    if (loadingStateEl) loadingStateEl.hidden = true;
+    // Nothing with logos to wait for here - drop the loading screen once
+    // the pass's data is in.
+    if (loadingStateEl) quadraReady().then(() => (loadingStateEl.hidden = true));
     // A genuine build (even an empty one) means the fetch itself didn't
     // fail - clear any stale error message a PRIOR failed refresh left up,
     // same as the non-empty branch below already does. Without this, a
@@ -4711,13 +4712,20 @@ function imageReady(img) {
   return loaded.then(() => (img.naturalWidth ? img.decode().catch(() => {}) : undefined));
 }
 
+// The Quadra Pass's wallet (pins, slips, the pool), fetched first thing: the
+// loading screen waits for it (at most QUADRA_BOOT_WAIT_MS), so the page
+// never opens without the viewer's own data.
+const QUADRA_BOOT_WAIT_MS = 8000;
+let quadraFirst = Promise.resolve();
+const quadraReady = () => Promise.race([quadraFirst, new Promise(resolve => setTimeout(resolve, QUADRA_BOOT_WAIT_MS))]);
+
 function revealApp() {
   if (appRevealStarted || !loadingStateEl || loadingStateEl.hidden) return;
   appRevealStarted = true;
   const images = [...appEl.querySelectorAll('img')].filter(img => img.getAttribute('src'));
-  Promise.race([
-    Promise.all(images.map(imageReady)),
-    new Promise(resolve => setTimeout(resolve, FIRST_REVEAL_IMAGE_WAIT_MS))
+  Promise.all([
+    Promise.race([Promise.all(images.map(imageReady)), new Promise(resolve => setTimeout(resolve, FIRST_REVEAL_IMAGE_WAIT_MS))]),
+    quadraReady()
   ]).then(() => {
     loadingStateEl.hidden = true;
   });
@@ -5559,7 +5567,20 @@ async function init() {
   // Phones and tablets: from the home screen only (see quadra.mjs).
   installGate('match', getLocale() === 'en' ? 'en' : 'zh');
   state.proxyUrl = PROXY_URL;
-  // Sportsbook's odds and leagues, and the pass's pins, once the page is up.
+  // The pass's wallet right away (the loading screen waits for it), then
+  // Sportsbook's odds and leagues once the page is up.
+  if (state.quadra.pass) {
+    quadraFirst = readWalletPins(ECO_URL, state.quadra.pass)
+      .then(wallet => {
+        if (!wallet) return;
+        state.quadra.wallet = wallet;
+        state.quadra.pins = wallet.pins || {};
+        state.quadra.syncedAt = Date.now();
+        updateTabBadge();
+        if (state.allRawMatches.length) applyEnabledSportsAndRender();
+      })
+      .catch(() => {});
+  }
   setTimeout(() => refreshQuadra({ force: true }), 2500);
   setInterval(() => document.visibilityState === 'visible' && refreshQuadra(), QUADRA_REFRESH_MS);
   // #loading-state (visible by default in index.html - not touched at
