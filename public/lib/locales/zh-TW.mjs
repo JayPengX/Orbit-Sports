@@ -18,12 +18,6 @@ export default {
   resetPriorityBtn: '重設為預設順序',
   enabledSportsHeading: '已啟用的運動',
   enabledSportsHint: '關閉的運動不會出現在網站上。',
-  updateHeading: '更新',
-  updateStatusDefault: '資料會持續自動更新。',
-  refreshNowBtn: '立即重新整理',
-  wipeReloadBtn: '清除資料並重新載入',
-  wipeReloadHint: '清除本機儲存的所有資料（偏好、滑選、快取），並重新下載最新版本。',
-  wipeReloadConfirm: '要清除所有本機資料（包含你的偏好設定與滑選）並重新載入最新版本嗎？',
 
   // ---- Page chrome / sections ----
   loadingAriaLabel: '載入中',
@@ -113,11 +107,9 @@ export default {
 
   // ---- Footer / data-refresh status ----
   generatedNote: '資料最後更新於 {day} {time}（你的當地時間）',
-  newVersionAvailable: '有新版本可用，將在你離開此頁籤時自動更新，或點擊「{refreshBtn}」立即更新。',
   refreshing: '重新整理中…',
   dataUpdated: '資料已更新。',
   refreshFailed: '重新整理失敗，請稍後再試。',
-  checkingVersion: '檢查版本中…',
   nextUpdateIn: '下次更新：{secs} 秒後',
   updatingNow: '更新中…',
   quadraHeading: '四方通行碼',

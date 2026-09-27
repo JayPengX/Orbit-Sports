@@ -781,9 +781,6 @@ const settingsPanel = document.getElementById('settings-panel');
 const settingsResetBtn = document.getElementById('settings-reset-btn');
 const settingsSportList = document.getElementById('settings-sport-list');
 const settingsEnabledSports = document.getElementById('settings-enabled-sports');
-const updateStatusText = document.getElementById('update-status-text');
-const refreshDataBtn = document.getElementById('refresh-data-btn');
-const wipeReloadBtn = document.getElementById('wipe-reload-btn');
 
 // ---- Static UI copy (index.html) --------------------------------------
 //
@@ -837,11 +834,6 @@ function applyStaticTranslations() {
     state.quadra.panel = null;
     renderQuadraSettings();
   }
-  setText('settings-update-heading', 'updateHeading');
-  updateStatusText.textContent = t('updateStatusDefault');
-  refreshDataBtn.textContent = t('refreshNowBtn');
-  setText('wipe-reload-hint', 'wipeReloadHint');
-  wipeReloadBtn.textContent = t('wipeReloadBtn');
 
   setAria(loadingStateEl, 'loadingAriaLabel');
   setAria(dayScrollerEl, 'daySelectorAriaLabel');
@@ -5071,7 +5063,6 @@ async function checkForAppVersionUpdate() {
     return;
   }
   newAppVersionPending = true;
-  updateStatusText.textContent = t('newVersionAvailable', { refreshBtn: t('refreshNowBtn') });
 }
 
 // `silent` keeps the background timer from fighting with a viewer who just
@@ -5151,58 +5142,6 @@ function scheduleFullRefresh() {
     scheduleFullRefresh();
   }, FULL_REFRESH_MS);
 }
-
-// One button now does both jobs a separate "click to update" button used to
-// split across two clicks (and which, even after fixing the check and the
-// reload itself, kept getting live-reported as broken because a THIRD,
-// unrelated CSS cascade bug was showing it unconditionally regardless of
-// either fix - see this repo's own git history). Checking first means the
-// common case (no new deploy) costs nothing extra: the check is a single
-// small HEAD-adjacent fetch of the live app.js, done before the heavier
-// buildMatches() fetch, not after it.
-refreshDataBtn.addEventListener('click', async () => {
-  refreshDataBtn.disabled = true;
-  updateStatusText.textContent = t('checkingVersion');
-  const hasNewVersion = await checkForNewAppVersion().catch(() => false);
-  if (hasNewVersion) {
-    reloadOntoNewAppVersion();
-    return;
-  }
-  await refreshFullWindow({ statusEl: updateStatusText, button: refreshDataBtn });
-});
-
-// A manual escape hatch for when this device is stuck on stale state: wipes
-// everything this site stores (localStorage, sessionStorage, the service
-// worker and its caches), then reloads from the network with a cache-busting
-// URL, so the next load is exactly what a first-time visitor gets. Any
-// query string (e.g. ?debug=taps) is kept.
-async function wipeLocalDataAndReload() {
-  try {
-    clearOwnStorage(localStorage);
-  } catch {}
-  try {
-    clearOwnStorage(sessionStorage);
-  } catch {}
-  if ('serviceWorker' in navigator) {
-    // Only this app's service worker: the other Quadra apps' share the origin.
-    const registrations = (await navigator.serviceWorker.getRegistrations().catch(() => [])).filter(r => new URL(r.scope).pathname.startsWith(location.pathname.replace(/[^/]*$/, '')));
-    await Promise.all(registrations.map(registration => registration.unregister().catch(() => {})));
-  }
-  if ('caches' in window) {
-    const names = (await caches.keys().catch(() => [])).filter(name => OWN_STORAGE.test(name));
-    await Promise.all(names.map(name => caches.delete(name).catch(() => {})));
-  }
-  const params = new URLSearchParams(window.location.search);
-  params.set('_', String(Date.now()));
-  window.location.replace(`${window.location.pathname}?${params}${window.location.hash}`);
-}
-wipeReloadBtn.addEventListener('click', async () => {
-  if (!window.confirm(t('wipeReloadConfirm'))) return;
-  wipeReloadBtn.disabled = true;
-  refreshDataBtn.disabled = true;
-  tapLog('[app] wipe local data and reload');
-  await wipeLocalDataAndReload();
-});
 
 // ---- Live score/odds polling (see ./lib/espn.mjs and ./lib/polymarket.mjs) -
 //

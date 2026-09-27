@@ -25,12 +25,6 @@ export default {
   resetPriorityBtn: 'Reset to Default Order',
   enabledSportsHeading: 'Enabled Sports',
   enabledSportsHint: 'Disabled sports will not appear on the site.',
-  updateHeading: 'Updates',
-  updateStatusDefault: 'Data updates automatically.',
-  refreshNowBtn: 'Refresh Now',
-  wipeReloadBtn: 'Clear Data & Reload',
-  wipeReloadHint: 'Wipes everything stored on this device (settings, swipes, cached app) and loads the latest version fresh.',
-  wipeReloadConfirm: 'Clear all data stored on this device (including your settings and swipes) and reload the latest version?',
 
   loadingAriaLabel: 'Loading',
   daySelectorAriaLabel: 'Select date',
@@ -111,12 +105,9 @@ export default {
   switchToAria: 'Switch to {name}',
 
   generatedNote: 'Data last updated {day} {time} (your local time)',
-  newVersionAvailable:
-    'A new version is available. It will update automatically when you leave this tab, or click "{refreshBtn}" to update now.',
   refreshing: 'Refreshing…',
   dataUpdated: 'Data updated.',
   refreshFailed: 'Refresh failed — please try again.',
-  checkingVersion: 'Checking for updates…',
   nextUpdateIn: 'Next update in {secs}s',
   updatingNow: 'Updating…',
   quadraHeading: 'Quadra Pass',

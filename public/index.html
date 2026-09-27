@@ -18,7 +18,7 @@
      ancestor chain, on a browser this sandbox has no way to verify
      directly (no real Safari/WebKit available here - see app.js's own
      comment on buildMatchStack for the fuller context). -->
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <!-- Traditional Chinese text below is this document's static, no-JS
      fallback/initial paint only. This is a plain static file with no
      per-request templating (see scripts/build-data.mjs's own top comment -
@@ -175,18 +175,6 @@
       <p id="settings-quadra-hint" class="settings-hint">在四方運彩釘選的比賽，會加進你的賽程和推薦。</p>
       <div id="settings-quadra-panel"></div>
       <p id="settings-quadra-status" class="settings-hint"></p>
-    </section>
-
-    <section class="settings-section">
-      <h3 id="settings-update-heading">更新</h3>
-      <p id="update-status-text" class="settings-hint">資料會持續自動更新。</p>
-      <div class="settings-btn-row">
-        <button id="refresh-data-btn" type="button" class="settings-action-btn">立即重新整理</button>
-      </div>
-      <p id="wipe-reload-hint" class="settings-hint">清除本機儲存的所有資料（偏好、滑選、快取），並重新下載最新版本。</p>
-      <div class="settings-btn-row">
-        <button id="wipe-reload-btn" type="button" class="settings-action-btn is-secondary">清除資料並重新載入</button>
-      </div>
     </section>
 
   </section>
