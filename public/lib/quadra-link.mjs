@@ -205,3 +205,41 @@ export async function readWalletPins(ecoUrl, passcode) {
   const data = await res.json();
   return data.exists ? data.wallet || {} : null;
 }
+
+// Every league Sportsbook prices, by its key: this app's own four and the
+// extra ones, for the 運彩 view's names and filters.
+const NATIVE_NAMES = { epl: { zh: '英超', en: 'Premier League', sport: 'Premier League' }, mlb: { zh: 'MLB', en: 'MLB', sport: 'MLB' }, nba: { zh: 'NBA', en: 'NBA', sport: 'NBA' }, f1: { zh: 'F1', en: 'F1', sport: 'F1' } };
+export function leagueName(key, lang = 'zh') {
+  const info = NATIVE_NAMES[key] || EXTRA_SPORTS[key];
+  return info ? info[lang === 'en' ? 'en' : 'zh'] : key;
+}
+export const leagueSport = key => (NATIVE_NAMES[key] || EXTRA_SPORTS[key])?.sport || null;
+
+// A pin for one of the board's games, as Sportsbook writes it.
+export const pinFor = (g, on) => ({ t: Date.now(), on, sport: g.key, start: g.startUtc, home: g.home.en, away: g.away.en, homeZh: g.home.zh || g.home.en, awayZh: g.away.zh || g.away.en });
+
+// Pins (or unpins) a game on the pass: the wallet (merged by the Worker)
+// comes back.
+export async function writeWalletPin(ecoUrl, passcode, id, pin) {
+  const res = await fetch(`${ecoUrl}?passcode=${encodeURIComponent(passcode)}&app=match`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ wallet: { pins: { [id]: pin } } }),
+    signal: AbortSignal.timeout(20_000)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+  return data.wallet || null;
+}
+
+// Sportsbook's open picks (the wallet's snap.odds.bets, see its openPicks),
+// by game id.
+export function picksByGame(wallet) {
+  const out = new Map();
+  for (const pick of wallet?.snap?.odds?.bets || []) {
+    if (!pick?.g) continue;
+    if (!out.has(pick.g)) out.set(pick.g, []);
+    out.get(pick.g).push(pick);
+  }
+  return out;
+}

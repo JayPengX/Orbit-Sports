@@ -123,8 +123,8 @@ import { isPlayInRound, localizePlayoffRound, playoffSeriesState } from './lib/p
 import { installTapLog, isTapLogOn, setTapLogHeader, tapLog } from './lib/tap-log.mjs';
 // Quadra: Sportsbook's odds and leagues, bet links and pinned matches (see
 // quadra-link.mjs), and the shared shell (home screen only, updates).
-import { EXTRA_SPORTS, EXTRA_SPORT_NAMES, extraInfo, loadOddsBoard, oddsGameFor, matchFromOddsGame, matchFromPin, readWalletPins, betUrl } from './lib/quadra-link.mjs';
-import { ECO_URL, storedPass, storePass, installGate, passPanel, ecoCreate, poolBalance } from './lib/quadra.mjs';
+import { EXTRA_SPORTS, EXTRA_SPORT_NAMES, extraInfo, loadOddsBoard, oddsGameFor, matchFromOddsGame, matchFromPin, readWalletPins, betUrl, leagueName, leagueSport, pinFor, writeWalletPin, picksByGame } from './lib/quadra-link.mjs';
+import { ECO_URL, storedPass, storePass, installGate, passPanel, ecoCreate, poolBalance, appUrl } from './lib/quadra.mjs';
 
 // JayPengX/shared-proxy's dedicated `sports-proxy` Worker - a plain,
 // public value, not a secret (a static site's own client bundle can't keep
@@ -394,17 +394,24 @@ const APP_BUILD_ID = '__BUILD_ID__';
 // this file needs its own reasoning about which deploy wrote what it just
 // read back out of localStorage.
 //
-// Everything, not just this app's own `matchfind-` keys: the whole of
-// localStorage and sessionStorage, every IndexedDB database, and every
-// Cache Storage cache except the one the new deploy's service worker just
-// filled (sw.js's `matchfind-shell-<build id>` - deleting it would only
-// make the next load go back to the network for the shell). Direct
+// Everything this app keeps (every `matchfind` key in localStorage and
+// sessionStorage, and every cache but the one the new deploy's service
+// worker just filled, sw.js's `matchfind-shell-<build id>`). Direct
 // instruction: "existing browser often keep shit, please let it wipe
-// everything every version".
+// everything every version" - but only this app's own:
+// this app's own storage only: the four Quadra apps share one origin
+// (jaypengx.github.io), so in a browser their localStorage, sessionStorage
+// and caches are shared too. A wipe here must never touch the others'
+// accounts, or the Quadra Pass (quadra.*), which stays across builds.
+const OWN_STORAGE = /^matchfind/;
+function clearOwnStorage(store) {
+  for (const key of Object.keys(store)) if (OWN_STORAGE.test(key)) store.removeItem(key);
+}
+
 (function wipeStorageOnNewBuild() {
   try {
     if (localStorage.getItem('matchfind-app-build-id') === APP_BUILD_ID) return;
-    localStorage.clear();
+    clearOwnStorage(localStorage);
     localStorage.setItem('matchfind-app-build-id', APP_BUILD_ID);
   } catch {
     // Private browsing / blocked storage - every load below already
@@ -413,20 +420,14 @@ const APP_BUILD_ID = '__BUILD_ID__';
     return;
   }
   try {
-    sessionStorage.clear();
+    clearOwnStorage(sessionStorage);
   } catch {}
   // Async, and nothing below reads either store, so no need to wait.
   if (typeof caches !== 'undefined') {
     const currentShellCache = `matchfind-shell-${APP_BUILD_ID}`;
     caches
       .keys()
-      .then(names => Promise.all(names.filter(name => name !== currentShellCache).map(name => caches.delete(name))))
-      .catch(() => {});
-  }
-  if (typeof indexedDB !== 'undefined' && typeof indexedDB.databases === 'function') {
-    indexedDB
-      .databases()
-      .then(databases => databases.forEach(({ name }) => name && indexedDB.deleteDatabase(name)))
+      .then(names => Promise.all(names.filter(name => OWN_STORAGE.test(name) && name !== currentShellCache).map(name => caches.delete(name))))
       .catch(() => {});
   }
 })();
@@ -833,6 +834,7 @@ function applyStaticTranslations() {
   setText('settings-enabled-hint', 'enabledSportsHint');
   setText('settings-quadra-heading', 'quadraHeading');
   setText('settings-quadra-hint', 'quadraHint');
+  for (const label of document.querySelectorAll('[data-tab-label]')) label.textContent = t(label.dataset.tabLabel);
   // The pass panel is rebuilt in the new language.
   if (state.quadra?.panel) {
     state.quadra.panel = null;
@@ -1020,9 +1022,11 @@ async function refreshQuadra({ force = false } = {}) {
   if (!force && state.quadra.board && Date.now() - state.quadra.board.at < QUADRA_REFRESH_MS) return null;
   state.quadra.loading = (async () => {
     try {
-      const extras = [...state.enabledSports].some(sport => extraInfo(sport));
+      const extras = state.quadra.everything || [...state.enabledSports].some(sport => extraInfo(sport));
       const board = await loadOddsBoard({ extras: extras || Object.keys(state.quadra.pins || {}).length > 0 });
       state.quadra.board = board;
+      // Every league loaded (the 運彩 tab wants them all), or only the followed ones.
+      board.everything = Boolean(state.quadra.everything);
       for (const [sport, logo] of Object.entries(board.logos)) if (logo && !LEAGUE_LOGOS[sport]) LEAGUE_LOGOS[sport] = logo;
     } catch (error) {
       console.warn('Quadra Sportsbook board unavailable', error);
@@ -1043,11 +1047,15 @@ async function refreshQuadra({ force = false } = {}) {
       applyQuadraPins();
     }
     renderQuadraSettings();
+    renderSportsbookView();
+    updateTabBadge();
   })().finally(() => (state.quadra.loading = null));
   return state.quadra.loading;
 }
 
-// The card's Sportsbook line: its estimated lottery odds and a link to bet.
+// The card's Sportsbook box: its estimated lottery odds for each side (each
+// one a link to bet on it there, already signed in), what you've bet on it
+// there, and pinning it (to this schedule and Sportsbook's list).
 function updateQuadraOdds(node, match) {
   const box = node.querySelector('.quadra-odds');
   if (!box) return;
@@ -1058,19 +1066,266 @@ function updateQuadraOdds(node, match) {
     return;
   }
   box.hidden = false;
-  const pinned = quadraPinnedGameIds().has(id);
-  box.querySelector('.quadra-odds-label').textContent = `${pinned ? '📌 ' : ''}${t('quadraOddsLabel')}`;
-  const o = game?.odds || {};
+  box.querySelector('.quadra-odds-label').textContent = t('quadraOddsLabel');
   const name = side => {
     const c = match.competitors?.find(x => x.homeAway === side);
     return c ? (getLocale() === 'en' ? c.name : c.nameZh || c.name) : '';
   };
-  const parts = ['away', 'draw', 'home'].filter(side => o[side]).map(side => `${side === 'draw' ? t('quadraDraw') : name(side)} ${o[side].toFixed(2)}`);
-  box.querySelector('.quadra-odds-prices').textContent = parts.join(' · ') || t('quadraNoOdds');
-  const link = box.querySelector('.quadra-bet');
-  link.href = betUrl(id);
-  link.textContent = t('quadraBet');
+  box.querySelector('.quadra-odds-prices').replaceChildren(...quadraPriceLinks(id, game?.odds || {}, side => (side === 'draw' ? t('quadraDraw') : name(side))));
+  const picks = picksByGame(state.quadra.wallet).get(id) || [];
+  const mine = box.querySelector('.quadra-mybet');
+  mine.hidden = !picks.length;
+  mine.textContent = picks.map(p => t('quadraMyBet', { pick: p.p, odds: Number(p.o).toFixed(2) })).join(' · ');
+  const pin = box.querySelector('.quadra-pin');
+  const pinned = quadraPinnedGameIds().has(id);
+  pin.textContent = t(pinned ? 'sbPinned' : 'sbPin');
+  pin.classList.toggle('on', pinned);
+  pin.setAttribute('aria-pressed', String(pinned));
+  pin.onclick = event => {
+    event.stopPropagation();
+    toggleQuadraPin(game || { id, ...pinGameFromPin(id) });
+  };
 }
+
+// Each side's odds as a link that opens it in Sportsbook, signed in; or a
+// plain note when Sportsbook has no odds for it yet.
+function quadraPriceLinks(id, odds, label) {
+  const sides = ['away', 'draw', 'home'].filter(side => odds[side]);
+  if (!sides.length) {
+    const none = document.createElement('span');
+    none.className = 'quadra-none';
+    none.textContent = t('quadraNoOdds');
+    const go = document.createElement('a');
+    go.className = 'quadra-price';
+    go.href = betUrl(id);
+    go.textContent = t('quadraBet');
+    return [none, go];
+  }
+  return sides.map(side => {
+    const a = document.createElement('a');
+    a.className = 'quadra-price';
+    a.href = betUrl(id);
+    a.addEventListener('click', event => event.stopPropagation());
+    const who = document.createElement('span');
+    who.textContent = label(side);
+    const price = document.createElement('strong');
+    price.textContent = odds[side].toFixed(2);
+    a.append(who, price);
+    return a;
+  });
+}
+
+// A pinned game's details from its pin (when the board no longer has it).
+function pinGameFromPin(id) {
+  const p = state.quadra.pins?.[id];
+  return p ? { key: p.sport, startUtc: p.start, away: { en: p.away, zh: p.awayZh }, home: { en: p.home, zh: p.homeZh } } : {};
+}
+
+// Pins or unpins one of Sportsbook's games on the pass. It shows at once;
+// the Worker's merged wallet then replaces the guess.
+async function toggleQuadraPin(game) {
+  if (!state.quadra.pass) {
+    alert(t('sbPinNeedPass'));
+    openSettingsPanel();
+    return;
+  }
+  if (!game?.id || !game.key) return;
+  const on = !quadraPinnedGameIds().has(game.id);
+  const pin = pinFor(game, on);
+  state.quadra.pins = { ...(state.quadra.pins || {}), [game.id]: pin };
+  rerenderQuadra();
+  try {
+    const wallet = await writeWalletPin(ECO_URL, state.quadra.pass, game.id, pin);
+    if (wallet) {
+      state.quadra.wallet = wallet;
+      state.quadra.pins = wallet.pins || {};
+    }
+    if (on) applyQuadraPins();
+  } catch (error) {
+    console.error('quadra pin', error);
+    alert(t('quadraPassFailed'));
+  }
+  rerenderQuadra();
+}
+function rerenderQuadra() {
+  if (state.allRawMatches.length) applyEnabledSportsAndRender();
+  renderSportsbookView();
+}
+
+// ---- 運彩: Quadra Sportsbook inside Fixtures ------------------------------------
+//
+// The second tab: the pool and what's riding in Sportsbook, your open picks
+// there (from the wallet), and Sportsbook's whole board (every league it
+// prices, followed or not) by day and league, each game with its odds (one
+// tap to bet on it there) and a pin.
+const quadraViewEl = document.getElementById('quadra-view');
+state.quadra.league = 'all';
+const fmtMoneyTw = v => `NT$${Math.round(v).toLocaleString('en-US')}`;
+function mk(tag, props = {}, children = []) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k === 'text') el.textContent = v;
+    else if (k === 'class') el.className = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of children) if (c) el.append(c);
+  return el;
+}
+const zhLocale = () => getLocale() !== 'en';
+const teamLabel = side => (zhLocale() ? side.zh || side.en : side.en);
+const dayLabel = iso => new Date(iso).toLocaleDateString(zhLocale() ? 'zh-TW' : 'en-US', { month: 'numeric', day: 'numeric', weekday: 'short' });
+const timeLabel = iso => new Date(iso).toLocaleTimeString(zhLocale() ? 'zh-TW' : 'en-US', { hour: 'numeric', minute: '2-digit' });
+
+function renderSportsbookView() {
+  if (!quadraViewEl || quadraViewEl.hidden) return;
+  const board = state.quadra.board;
+  const wallet = state.quadra.wallet;
+  const picks = wallet?.snap?.odds?.bets || [];
+  const games = (board?.games || []).filter(g => Date.parse(g.startUtc) > Date.now() - 3 * 3_600_000).sort((a, b) => a.startUtc.localeCompare(b.startUtc));
+  const byId = new Map(games.map(g => [g.id, g]));
+
+  // The account: pool, what's riding, and Sportsbook itself.
+  const head = mk('div', { class: 'qv-card qv-head' }, [
+    mk('div', { class: 'qv-head-top' }, [
+      mk('img', { class: 'qv-icon', src: '/Quadra-Sportsbook/favicon.svg', alt: '' }),
+      mk('div', {}, [mk('h2', { id: 'quadra-view-title', class: 'qv-title', text: t('sbTitle') }), mk('p', { class: 'qv-sub', text: t('sbSub') })])
+    ]),
+    state.quadra.pass
+      ? mk('div', { class: 'qv-stats' }, [
+          mk('div', {}, [mk('small', { text: t('sbPool') }), mk('strong', { text: wallet ? fmtMoneyTw(poolBalance(wallet)) : '…' })]),
+          mk('div', {}, [mk('small', { text: t('sbOpenStake') }), mk('strong', { text: fmtMoneyTw(wallet?.snap?.odds?.open || 0) })])
+        ])
+      : mk('p', { class: 'qv-note', text: t('sbSignIn') }),
+    mk('div', { class: 'qv-actions' }, [
+      mk('a', { class: 'qv-btn primary', href: appUrl('odds'), text: t('sbOpenApp') }),
+      state.quadra.pass ? null : mk('button', { class: 'qv-btn', type: 'button', text: t('sbSignInBtn'), onclick: openSettingsPanel })
+    ])
+  ]);
+
+  // Your open picks in Sportsbook.
+  const mine = state.quadra.pass
+    ? mk('div', { class: 'qv-card' }, [
+        mk('h3', { class: 'qv-h', text: `${t('sbMyBets')}${picks.length ? ` · ${picks.length}` : ''}` }),
+        picks.length
+          ? mk(
+              'ul',
+              { class: 'qv-list' },
+              picks.map(p => {
+                const g = byId.get(p.g);
+                return mk('li', {}, [
+                  mk('a', { class: 'qv-row', href: betUrl(p.g) }, [
+                    mk('span', { class: 'qv-when', text: p.s ? `${dayLabel(p.s)} ${timeLabel(p.s)}` : '' }),
+                    mk('span', { class: 'qv-what' }, [
+                      mk('strong', { text: p.p }),
+                      g ? mk('small', { text: `${teamLabel(g.away)} @ ${teamLabel(g.home)} · ${leagueName(g.key, getLocale())}` }) : p.k ? mk('small', { text: leagueName(p.k, getLocale()) }) : null
+                    ]),
+                    mk('span', { class: 'qv-odds', text: `@${Number(p.o).toFixed(2)}` })
+                  ])
+                ]);
+              })
+            )
+          : mk('p', { class: 'qv-note', text: t('sbNoBets') })
+      ])
+    : null;
+
+  // The board: filter by league, then by day.
+  const leagues = [...new Set(games.map(g => g.key))];
+  if (state.quadra.league !== 'all' && !leagues.includes(state.quadra.league)) state.quadra.league = 'all';
+  const chips = mk(
+    'div',
+    { class: 'qv-chips', role: 'group', 'aria-label': t('sbBoard') },
+    ['all', ...leagues].map(key =>
+      mk('button', {
+        class: `qv-chip${state.quadra.league === key ? ' on' : ''}`,
+        type: 'button',
+        'aria-pressed': String(state.quadra.league === key),
+        text: key === 'all' ? `${t('sbAll')} · ${games.length}` : `${leagueName(key, getLocale())} · ${games.filter(g => g.key === key).length}`,
+        onclick: () => {
+          state.quadra.league = key;
+          renderSportsbookView();
+        }
+      })
+    )
+  );
+  const shown = games.filter(g => state.quadra.league === 'all' || g.key === state.quadra.league);
+  const pinned = quadraPinnedGameIds();
+  const mineByGame = picksByGame(wallet);
+  const days = [];
+  for (const g of shown) {
+    const day = new Date(g.startUtc).toDateString();
+    if (!days.length || days[days.length - 1].day !== day) days.push({ day, label: dayLabel(g.startUtc), games: [] });
+    days[days.length - 1].games.push(g);
+  }
+  const boardBody = !board
+    ? mk('p', { class: 'qv-note', text: t('sbLoading') })
+    : !games.length
+      ? mk('p', { class: 'qv-note', text: t('sbNone') })
+      : mk(
+          'div',
+          {},
+          days.map(d =>
+            mk('div', { class: 'qv-day' }, [
+              mk('h4', { class: 'qv-day-label', text: d.label }),
+              ...d.games.map(g => {
+                const logo = board.logos?.[leagueSport(g.key)] || LEAGUE_LOGOS[leagueSport(g.key)] || '';
+                const isPinned = pinned.has(g.id);
+                const mineHere = mineByGame.get(g.id) || [];
+                return mk('article', { class: `qv-game${isPinned ? ' pinned' : ''}` }, [
+                  mk('div', { class: 'qv-game-top' }, [
+                    logo ? mk('img', { class: 'qv-league-logo', src: logo, alt: '', onerror: event => event.target.remove() }) : null,
+                    mk('span', { class: 'qv-league', text: leagueName(g.key, getLocale()) }),
+                    mk('span', { class: 'qv-time', text: timeLabel(g.startUtc) }),
+                    mk('button', { class: `qv-pin${isPinned ? ' on' : ''}`, type: 'button', 'aria-pressed': String(isPinned), text: t(isPinned ? 'sbPinned' : 'sbPin'), onclick: () => toggleQuadraPin(g) })
+                  ]),
+                  mk('p', { class: 'qv-teams', text: `${teamLabel(g.away)} @ ${teamLabel(g.home)}` }),
+                  mk('div', { class: 'quadra-odds-prices' }, quadraPriceLinks(g.id, g.odds, side => (side === 'draw' ? t('quadraDraw') : teamLabel(g[side])))),
+                  mineHere.length ? mk('p', { class: 'quadra-mybet', text: mineHere.map(p => t('quadraMyBet', { pick: p.p, odds: Number(p.o).toFixed(2) })).join(' · ') }) : null
+                ]);
+              })
+            ])
+          )
+        );
+  quadraViewEl.replaceChildren(...[head, mine, mk('div', { class: 'qv-card' }, [mk('h3', { class: 'qv-h', text: t('sbBoard') }), mk('p', { class: 'qv-note', text: t('sbBetHint') }), chips, boardBody])].filter(Boolean));
+}
+
+// ---- The bottom tabs: 賽程, 運彩, 設定 --------------------------------------------
+const fixturesTabs = document.getElementById('fixtures-tabs');
+state.view = 'schedule';
+function showView(view) {
+  if (view === 'settings') {
+    openSettingsPanel();
+    markTab('settings');
+    return;
+  }
+  state.view = view;
+  document.body.classList.toggle('fx-view-sportsbook', view === 'sportsbook');
+  if (quadraViewEl) quadraViewEl.hidden = view !== 'sportsbook';
+  markTab(view);
+  if (view === 'sportsbook') {
+    state.quadra.everything = true;
+    renderSportsbookView();
+    Promise.resolve(state.quadra.loading).then(() => {
+      if (!state.quadra.board?.everything) refreshQuadra({ force: true });
+    });
+  }
+  window.scrollTo(0, 0);
+}
+function markTab(view) {
+  for (const btn of fixturesTabs?.querySelectorAll('.q-tab') || []) btn.setAttribute('aria-selected', String(btn.dataset.view === view));
+}
+function updateTabBadge() {
+  const badge = fixturesTabs?.querySelector('.q-tab-badge');
+  if (!badge) return;
+  const n = (state.quadra.wallet?.snap?.odds?.bets || []).length;
+  badge.hidden = !n;
+  badge.textContent = String(n);
+}
+fixturesTabs?.addEventListener('click', event => {
+  const btn = event.target.closest('.q-tab');
+  if (btn) showView(btn.dataset.view);
+});
 
 // The Quadra Pass: the same panel as in the other Quadra apps.
 function renderQuadraSettings() {
@@ -1438,6 +1693,7 @@ function openSettingsPanel() {
 function closeSettingsPanel() {
   settingsPanel.hidden = true;
   settingsBackdrop.hidden = true;
+  markTab(state.view);
 }
 settingsBtn.addEventListener('click', openSettingsPanel);
 settingsCloseBtn.addEventListener('click', closeSettingsPanel);
@@ -4308,8 +4564,8 @@ function applyEnabledSportsAndRender() {
 // The first render used to lift the loading screen the instant the cards
 // existed, and their team/league logos then popped in a moment later -
 // visibly, since they only start downloading once their <img> exists. Now
-// the first render happens UNDER the loading screen (switched to a
-// full-screen cover, see .loading-state.is-covering) and the screen lifts
+// the first render happens UNDER the loading screen (the Quadra loading
+// screen covers the whole page, see quadra.css) and the screen lifts
 // once every image in the page has loaded and decoded - capped at
 // FIRST_REVEAL_IMAGE_WAIT_MS, so a slow or broken image can never hold the
 // page back for more than a moment. Later renders never wait on anything.
@@ -4331,14 +4587,12 @@ function imageReady(img) {
 function revealApp() {
   if (appRevealStarted || !loadingStateEl || loadingStateEl.hidden) return;
   appRevealStarted = true;
-  loadingStateEl.classList.add('is-covering');
   const images = [...appEl.querySelectorAll('img')].filter(img => img.getAttribute('src'));
   Promise.race([
     Promise.all(images.map(imageReady)),
     new Promise(resolve => setTimeout(resolve, FIRST_REVEAL_IMAGE_WAIT_MS))
   ]).then(() => {
     loadingStateEl.hidden = true;
-    loadingStateEl.classList.remove('is-covering');
   });
 }
 
@@ -4812,17 +5066,18 @@ refreshDataBtn.addEventListener('click', async () => {
 // query string (e.g. ?debug=taps) is kept.
 async function wipeLocalDataAndReload() {
   try {
-    localStorage.clear();
+    clearOwnStorage(localStorage);
   } catch {}
   try {
-    sessionStorage.clear();
+    clearOwnStorage(sessionStorage);
   } catch {}
   if ('serviceWorker' in navigator) {
-    const registrations = await navigator.serviceWorker.getRegistrations().catch(() => []);
+    // Only this app's service worker: the other Quadra apps' share the origin.
+    const registrations = (await navigator.serviceWorker.getRegistrations().catch(() => [])).filter(r => new URL(r.scope).pathname.startsWith(location.pathname.replace(/[^/]*$/, '')));
     await Promise.all(registrations.map(registration => registration.unregister().catch(() => {})));
   }
   if ('caches' in window) {
-    const names = await caches.keys().catch(() => []);
+    const names = (await caches.keys().catch(() => [])).filter(name => OWN_STORAGE.test(name));
     await Promise.all(names.map(name => caches.delete(name).catch(() => {})));
   }
   const params = new URLSearchParams(window.location.search);

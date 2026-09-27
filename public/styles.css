@@ -1259,37 +1259,7 @@ main#app {
   padding: 40px 16px;
 }
 
-/* Visible the instant the page paints (no `hidden` in index.html), unlike
-   #app/#empty-state/#error-state which all start hidden - without this,
-   the gap before the first real content lands (a first-ever visit with no
-   instant-paint snapshot yet, or one wiped by APP_BUILD_ID after a deploy -
-   see app.js's own comment) rendered as a totally blank page with no
-   indication anything was happening at all, live-reported as "confusing".
-   applyFreshBuild (the one function both the snapshot paint and the real
-   fetch funnel through) hides this the moment either produces something to
-   show; init()'s own total-failure path hides it too, in favor of
-   #error-state's own explicit message - a spinner that never resolves
-   would be worse than the blank page it replaces.
-
-   `:not([hidden])` matters here, not just style - a plain `.loading-state`
-   selector has the SAME specificity as the browser's own built-in
-   `[hidden] { display: none }` rule, but an author stylesheet's normal
-   rules always beat the user-agent stylesheet's, specificity tie or not -
-   so setting `display: flex` unconditionally here silently overrode
-   `loadingStateEl.hidden = true` in app.js: the attribute got set, but the
-   element never actually disappeared. Live-reported as "the spinner is
-   still up even after everything's loaded" - this is that bug. */
-.loading-state:not([hidden]) {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 96px 16px;
-  color: var(--text-muted);
-  font-size: 0.88rem;
-}
+/* The first-load screen is the Quadra one (quadra.css .loading). */
 .loading-spinner {
   width: 34px;
   height: 34px;
@@ -1305,39 +1275,6 @@ main#app {
   .loading-spinner { animation-duration: 2.4s; }
 }
 
-/* The app's own icon (favicon.svg) in place of the initial-load spinner -
-   a gentle scale/opacity "breathe" rather than a spin, since a logo
-   rotating reads as broken/tumbling, not "working" the way a spinner's
-   circular motion does. Its own rounded-square shape already fills the
-   same visual role a spinner did (something alive on an otherwise static
-   page) without borrowing a generic spinner shape that has nothing to do
-   with this app. */
-.loading-logo {
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  animation: loading-logo-pulse 1.6s ease-in-out infinite;
-}
-/* While the first render finishes loading its logos (see revealApp in
-   app.js), the loading screen covers the already-laid-out page instead of
-   sitting above it - the page underneath needs real layout (the day
-   scroller centers its selected pill), so it can't just stay hidden.
-   Same look as the in-flow version: same padding, same centered column. */
-.loading-state.is-covering:not([hidden]) {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  max-width: none;
-  margin: 0;
-  background: var(--bg);
-}
-@keyframes loading-logo-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.92); opacity: 0.7; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .loading-logo { animation: none; }
-}
 #recommended-empty, #all-empty {
   padding: 18px 4px;
   text-align: left;
@@ -1348,11 +1285,10 @@ main#app {
    the full window has confirmed whether it actually has anything on it -
    see app.js's isDayPending. Deliberately styled like a quieter sibling of
    #recommended-empty/#all-empty (same padding/font-size/left alignment),
-   not the big centered full-page .loading-state - this is one section on
+   not the full-page Quadra loading screen - this is one section on
    an otherwise-already-usable page, not the whole app still starting up.
 
-   `:not([hidden])` matters here, not just style - see .loading-state's own
-   comment above for exactly why: a bare `.section-loading` selector has
+   `:not([hidden])` matters here, not just style: a bare `.section-loading` selector has
    the SAME specificity as the browser's own `[hidden] { display: none }`
    rule, but an author stylesheet's normal rules always beat the
    user-agent stylesheet's, tie or not - so `display: flex` unconditionally
@@ -1407,11 +1343,69 @@ main#app {
 }
 
 /* ---- Quadra: Sportsbook's odds on a card, and the pass in Settings ---- */
-.quadra-odds { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(37, 99, 235, 0.12); font-size: 0.85rem; }
+/* ---- Quadra Sportsbook on the cards and in the 運彩 tab ---- */
+.quadra-odds { margin-top: 10px; padding: 10px 12px; border-radius: var(--q-radius-sm); background: color-mix(in srgb, var(--quadra-odds) 9%, transparent); border: 1px solid color-mix(in srgb, var(--quadra-odds) 22%, transparent); display: grid; gap: 8px; font-size: 0.85rem; }
 .quadra-odds[hidden] { display: none; }
-.quadra-odds-label { font-weight: 700; color: #4f8ff7; }
-.quadra-odds-prices { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.quadra-bet { font-weight: 700; color: #4f8ff7; text-decoration: none; white-space: nowrap; }
-.quadra-bet:hover { text-decoration: underline; }
-.settings-quadra-form { display: flex; gap: 8px; }
-.settings-quadra-form input { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(127, 127, 127, 0.35); background: transparent; color: inherit; text-transform: uppercase; letter-spacing: 0.05em; }
+.quadra-odds-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.quadra-odds-label { font-weight: 800; color: color-mix(in srgb, var(--quadra-odds) 80%, var(--q-text)); }
+.quadra-odds-prices { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; }
+.quadra-price { display: grid; gap: 1px; justify-items: center; padding: 7px 6px; border-radius: 10px; background: var(--q-surface); border: 1px solid var(--q-border); color: var(--q-text); text-decoration: none; text-align: center; min-width: 0; }
+.quadra-price span { font-size: 0.72rem; color: var(--q-text-2); overflow-wrap: anywhere; line-height: 1.25; }
+.quadra-price strong { font-size: 1.02rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.quadra-price:active { transform: scale(0.97); }
+.quadra-none { align-self: center; color: var(--q-muted); }
+.quadra-mybet { margin: 0; font-weight: 700; color: var(--q-good); font-size: 0.82rem; overflow-wrap: anywhere; }
+.quadra-mybet[hidden] { display: none; }
+.quadra-pin, .qv-pin { flex: none; border: 1px solid var(--q-border); background: var(--q-surface); color: var(--q-text-2); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 0.75rem; font-weight: 700; cursor: pointer; }
+.quadra-pin.on, .qv-pin.on { background: var(--q-accent); border-color: var(--q-accent); color: var(--q-accent-ink); }
+
+body.fx-view-sportsbook #app,
+body.fx-view-sportsbook .page-footer,
+body.fx-view-sportsbook #empty-state,
+body.fx-view-sportsbook #error-state { display: none !important; }
+.quadra-view { max-width: 760px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 16px 24px; display: grid; gap: 14px; }
+.quadra-view[hidden] { display: none; }
+.qv-card { background: var(--q-surface); border: 1px solid var(--q-border); border-radius: var(--q-radius); box-shadow: var(--q-shadow-sm); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.qv-head-top { display: flex; align-items: center; gap: 12px; }
+.qv-icon { width: 44px; height: 44px; border-radius: 12px; flex: none; }
+.qv-title { margin: 0; font-size: 1.15rem; font-weight: 800; }
+.qv-sub, .qv-note { margin: 0; color: var(--q-text-2); font-size: 0.85rem; line-height: 1.5; }
+.qv-h { margin: 0; font-size: 1rem; font-weight: 800; }
+.qv-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.qv-stats > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: var(--q-radius-sm); background: var(--q-surface-2); border: 1px solid var(--q-border); min-width: 0; }
+.qv-stats small { color: var(--q-muted); font-size: 0.75rem; }
+.qv-stats strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.qv-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.qv-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text); font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+.qv-btn.primary { background: var(--quadra-odds); border-color: var(--quadra-odds); color: #fff; }
+.qv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.qv-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: var(--q-radius-sm); background: var(--q-surface-2); color: var(--q-text); text-decoration: none; }
+.qv-when { font-size: 0.75rem; color: var(--q-muted); font-variant-numeric: tabular-nums; }
+.qv-what { display: grid; min-width: 0; }
+.qv-what strong { overflow-wrap: anywhere; }
+.qv-what small { color: var(--q-text-2); font-size: 0.75rem; overflow-wrap: anywhere; }
+.qv-odds { font-weight: 800; font-variant-numeric: tabular-nums; }
+.qv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.qv-chip { border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text-2); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+.qv-chip.on { background: var(--q-accent); border-color: var(--q-accent); color: var(--q-accent-ink); }
+.qv-day { display: grid; gap: 8px; margin-top: 4px; }
+.qv-day-label { margin: 8px 0 0; font-size: 0.8rem; color: var(--q-muted); font-weight: 700; letter-spacing: 0.04em; }
+.qv-game { display: grid; gap: 8px; padding: 12px; border-radius: var(--q-radius-sm); background: var(--q-surface-2); border: 1px solid var(--q-border); }
+.qv-game.pinned { border-color: var(--q-accent); }
+.qv-game-top { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--q-text-2); }
+.qv-league-logo { width: 18px; height: 18px; object-fit: contain; flex: none; }
+.qv-league { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.qv-time { margin-left: auto; font-variant-numeric: tabular-nums; }
+.qv-teams { margin: 0; font-weight: 700; font-size: 0.95rem; overflow-wrap: anywhere; }
+
+/* The bottom tabs: phones get the Quadra bar (quadra.css); wider screens
+   a floating one, and the page keeps room for it. */
+body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+.q-tab-badge { position: absolute; top: 3px; left: calc(50% + 8px); min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; background: var(--q-bad); color: #fff; font-size: 10px; line-height: 17px; font-weight: 800; }
+.q-tab-badge[hidden] { display: none; }
+@media (min-width: 721px) {
+  .fixtures-tabs { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 60; display: flex; gap: 4px; padding: 5px; border-radius: 18px; background: var(--q-bar); border: 1px solid var(--q-border); box-shadow: var(--q-shadow); -webkit-backdrop-filter: saturate(1.6) blur(16px); backdrop-filter: saturate(1.6) blur(16px); }
+  .fixtures-tabs .q-tab { position: relative; display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: 0; border-radius: 13px; background: none; color: var(--q-muted); font: 600 14px/1.2 var(--q-font); cursor: pointer; }
+  .fixtures-tabs .q-tab svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .fixtures-tabs .q-tab[aria-selected='true'] { background: var(--q-accent-wash); color: var(--q-accent); }
+}
