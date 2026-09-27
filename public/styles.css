@@ -607,9 +607,7 @@ main#app {
 }
 .match-stack-hint {
   display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
   margin: 0 0 6px 2px;
   font-size: 0.72rem;
   font-weight: 600;
@@ -703,6 +701,21 @@ main#app {
   gap: 8px;
   min-width: 0;
 }
+/* A two-team row: the Chinese name under the English one (both wrap if they
+   must, never cut off), the side tag and logo on the left and the score on
+   the right, whatever the names' length. */
+.team-row:not(.is-solo) {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 0;
+}
+.team-row:not(.is-solo) > .team-side { grid-column: 1; grid-row: 1 / span 2; }
+.team-row:not(.is-solo) > .team-logo,
+.team-row:not(.is-solo) > .team-logo-fallback { grid-column: 2; grid-row: 1 / span 2; }
+.team-row:not(.is-solo) > .team-name-en { grid-column: 3; grid-row: 1; max-width: none; }
+.team-row:not(.is-solo) > .team-name-zh { grid-column: 3; grid-row: 2; }
+.team-row:not(.is-solo) > .team-score { grid-column: 4; grid-row: 1 / span 2; }
 .team-side {
   flex: none;
   font-size: 0.66rem;
@@ -754,17 +767,13 @@ main#app {
 }
 .team-name-en,
 .team-name-zh {
+  /* Never cut off (Quadra: no text is ever hidden on a phone): a long name
+     wraps onto a second line instead, and the score keeps its place. */
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .team-name-en {
-  /* Never shrinks (even a sub-pixel shrink shows an ellipsis) - capped
-     instead at the row minus the side tag, logo, score and gaps, so only a
-     genuinely too-long English name is ever cut. */
-  flex: none;
-  max-width: calc(100% - 104px);
+  flex: 0 1 auto;
   font-weight: 600;
   font-size: 0.95rem;
 }
@@ -794,20 +803,14 @@ main#app {
    point is staying compact so an away/home pair lines up predictably),
    this solo row already accepted a variable, wrapping height for the
    Chinese name the moment flex-wrap was added, so letting English wrap
-   too costs nothing further. Capped at 2 lines (line-clamp), not
-   unlimited, as a backstop against a genuinely pathological name rather
-   than because 2 is expected to matter in practice - every real name
-   checked fits on one. */
+   too costs nothing further. (No line cap either: nothing is ever cut
+   off on a phone.) */
 .team-row.is-solo {
   flex-wrap: wrap;
   row-gap: 2px;
 }
 .team-row.is-solo .team-name-en {
   max-width: calc(100% - 29px);
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 .team-row.is-solo .team-name-zh {
   flex-basis: 100%;
