@@ -4717,6 +4717,21 @@ function imageReady(img) {
 // never opens without the viewer's own data.
 const QUADRA_BOOT_WAIT_MS = 8000;
 let quadraFirst = Promise.resolve();
+// Just the pass's wallet (pins, slips, the pool): quick, no odds board.
+async function refreshWallet() {
+  if (!state.quadra.pass) return;
+  try {
+    const wallet = await readWalletPins(ECO_URL, state.quadra.pass);
+    if (!wallet) return;
+    state.quadra.wallet = wallet;
+    state.quadra.pins = wallet.pins || {};
+    state.quadra.syncedAt = Date.now();
+    updateTabBadge();
+    renderQuadraSettings();
+    renderSportsbookView();
+    if (state.allRawMatches.length) applyEnabledSportsAndRender();
+  } catch {}
+}
 const quadraReady = () => Promise.race([quadraFirst, new Promise(resolve => setTimeout(resolve, QUADRA_BOOT_WAIT_MS))]);
 
 function revealApp() {
@@ -5569,18 +5584,15 @@ async function init() {
   state.proxyUrl = PROXY_URL;
   // The pass's wallet right away (the loading screen waits for it), then
   // Sportsbook's odds and leagues once the page is up.
-  if (state.quadra.pass) {
-    quadraFirst = readWalletPins(ECO_URL, state.quadra.pass)
-      .then(wallet => {
-        if (!wallet) return;
-        state.quadra.wallet = wallet;
-        state.quadra.pins = wallet.pins || {};
-        state.quadra.syncedAt = Date.now();
-        updateTabBadge();
-        if (state.allRawMatches.length) applyEnabledSportsAndRender();
-      })
-      .catch(() => {});
-  }
+  if (state.quadra.pass) quadraFirst = refreshWallet();
+  // Back from Sportsbook (a bet just placed there): the wallet again at once,
+  // and once more a moment later in case its sync was still on the way.
+  const onReturn = () => {
+    refreshWallet();
+    setTimeout(refreshWallet, 3000);
+  };
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && onReturn());
+  addEventListener('pageshow', event => event.persisted && onReturn());
   setTimeout(() => refreshQuadra({ force: true }), 2500);
   setInterval(() => document.visibilityState === 'visible' && refreshQuadra(), QUADRA_REFRESH_MS);
   // #loading-state (visible by default in index.html - not touched at
