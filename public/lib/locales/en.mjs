@@ -37,7 +37,7 @@ export default {
   sportFilterAriaLabel: 'Filter by sport',
   appTagline: 'What\'s worth watching tonight',
   recommendedHeading: 'Recommended Matches',
-  recommendedEmpty: 'No standout matches recommended today.',
+  recommendedEmpty: 'No standout matches recommended for this day.',
   allMatchesHeading: 'All Matches',
   allEmpty: 'No matches on this day.',
   tbdHeading: 'Time TBD',

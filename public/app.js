@@ -440,6 +440,8 @@ const state = {
   matches: [], // every fetched (non-TBD), enabled-sport match, mutated in place with .recommended/.overlappingIds
   days: [], // [{key: 'YYYY-MM-DD', date: Date}, ...] - every calendar day the fetched window covers
   selectedDayKey: null,
+  // A day tab was tapped: refreshes keep it.
+  dayPicked: false,
   // False from the moment the page opens until the full DEFAULT_DAYS_AHEAD
   // window has landed at least once (see refreshFullWindow) - lets
   // visibleDays()/renderRecommendedSection tell "this far-future day
@@ -3320,6 +3322,7 @@ function renderDayScroller() {
     btn.addEventListener('click', () => {
       tapLog(`[app] day tab handler ${day.key}`);
       state.selectedDayKey = day.key;
+      state.dayPicked = true;
       renderDayScroller();
       renderDayLabels();
       renderSections();
@@ -4541,7 +4544,10 @@ function applyEnabledSportsAndRender() {
   // fresh default when their previous selection no longer has a match at
   // all (e.g. it aged out of the rolling window, or its only sport just
   // got disabled).
-  if (!state.selectedDayKey || !state.days.some(d => d.key === state.selectedDayKey && isDisplayableDay(d))) {
+  // Until a day is tapped, the default follows the data: the first
+  // (partial) load can lack today's leagues and would otherwise leave the
+  // page on tomorrow once they arrive.
+  if (!state.dayPicked || !state.selectedDayKey || !state.days.some(d => d.key === state.selectedDayKey && isDisplayableDay(d))) {
     state.selectedDayKey = pickInitialDay(state.days, state.matches);
   }
 

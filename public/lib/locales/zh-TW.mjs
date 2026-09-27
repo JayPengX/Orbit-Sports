@@ -31,7 +31,7 @@ export default {
   sportFilterAriaLabel: '依運動篩選',
   appTagline: '今晚看什麼',
   recommendedHeading: '推薦賽事',
-  recommendedEmpty: '今天沒有特別推薦的賽事。',
+  recommendedEmpty: '這天沒有特別推薦的賽事。',
   allMatchesHeading: '所有賽事',
   allEmpty: '這一天沒有賽事。',
   tbdHeading: '時間未定',
