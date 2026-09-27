@@ -1347,14 +1347,14 @@ body.fx-view-sportsbook #error-state { display: none !important; }
 .qv-search { width: 100%; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text); font: inherit; font-size: 16px; }
 .qv-search:focus { outline: 2px solid var(--q-accent); outline-offset: 0; border-color: transparent; }
 .qv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.qv-chips.qv-scroll { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 2px 16px; scrollbar-width: none; scroll-snap-type: x proximity; }
+.qv-chips.qv-scroll { flex-wrap: nowrap; overflow-x: auto; margin: 0; padding: 2px 0; scrollbar-width: none; }
 .qv-chips.qv-scroll::-webkit-scrollbar { display: none; }
-.qv-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text-2); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; white-space: nowrap; scroll-snap-align: start; }
+.qv-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text-2); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .qv-chip.on { background: var(--q-accent); border-color: var(--q-accent); color: var(--q-accent-ink); }
 .qv-chip-logo { width: 16px; height: 16px; object-fit: contain; }
 .qv-days .qv-chip { padding: 8px 14px; }
 .qv-board-list { display: grid; gap: 10px; }
-.qv-rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 86%); gap: 10px; overflow-x: auto; margin: 0 -16px; padding: 2px 16px 4px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.qv-rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 86%); gap: 10px; overflow-x: auto; margin: 0; padding: 2px 0 4px; scroll-snap-type: x mandatory; scrollbar-width: none; }
 .qv-rail::-webkit-scrollbar { display: none; }
 .qv-rail > * { scroll-snap-align: start; }
 @media (min-width: 700px) { .qv-rail { grid-auto-columns: calc((100% - 20px) / 3); } }
@@ -1427,3 +1427,11 @@ body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
 .qv-leg.lost .qv-leg-pick strong { text-decoration: line-through; color: var(--q-text-2); }
 .qv-slip-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; padding-top: 6px; border-top: 1px solid var(--q-border); font-size: 0.78rem; color: var(--q-text-2); font-variant-numeric: tabular-nums; }
 .qv-more { justify-self: start; font-size: 0.85rem; font-weight: 700; color: var(--quadra-odds); text-decoration: none; }
+/* Game cards as in Sportsbook itself: each side a row (logo, name, odds
+   pill), a dashed line between, no chance bar. */
+.qv-board .qv-bar, .qv-rail .qv-bar { display: none; }
+.qv-team + .qv-team { border-top: 1px dashed var(--q-border); padding-top: 6px; }
+.qv-team-pct { display: none; }
+.qv-price { border-radius: 999px; min-width: 76px; background: var(--q-surface-2); border-color: var(--q-border); }
+.qv-game { background: var(--q-surface); }
+.qv-team-logo { width: 32px; height: 32px; }
