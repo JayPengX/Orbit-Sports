@@ -1327,8 +1327,6 @@ body.fx-view-sportsbook #error-state { display: none !important; }
 .qv-stats > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: var(--q-radius-sm); background: var(--q-surface-2); border: 1px solid var(--q-border); min-width: 0; }
 .qv-stats small { color: var(--q-muted); font-size: 0.75rem; }
 .qv-stats strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.qv-stats.three strong { font-size: clamp(0.9rem, 4.2vw, 1.1rem); white-space: nowrap; overflow-wrap: normal; }
-.qv-stats.three > div { padding: 10px; }
 .qv-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .qv-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text); font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
 .qv-btn.primary { background: var(--quadra-odds); border-color: var(--quadra-odds); color: #fff; }
@@ -1341,7 +1339,11 @@ body.fx-view-sportsbook #error-state { display: none !important; }
 .qv-odds { font-weight: 800; font-variant-numeric: tabular-nums; }
 .qv-card-head { display: grid; gap: 4px; }
 .qv-head-text { min-width: 0; }
-.qv-stats.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.qv-stats strong { white-space: nowrap; }
+/* The pool on its own row, what's riding and the slips below: three money
+   figures side by side don't fit a phone's width on one line each. */
+.qv-stats.three > div:first-child { grid-column: 1 / -1; }
+.qv-stats.three > div:first-child strong { font-size: 1.45rem; }
 .qv-search { width: 100%; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text); font: inherit; font-size: 16px; }
 .qv-search:focus { outline: 2px solid var(--q-accent); outline-offset: 0; border-color: transparent; }
 .qv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
