@@ -93,11 +93,69 @@
 <link rel="modulepreload" href="./lib/locales/en.mjs" />
 </head>
 <body>
-  <div id="settings-backdrop" class="settings-backdrop" hidden></div>
-  <div id="settings-panel" class="settings-panel" hidden role="dialog" aria-label="設定">
-    <div class="settings-panel-header">
+  <div id="loading-state" class="loading" role="status" aria-live="polite" aria-label="載入中">
+    <div class="loading-box">
+      <img class="loading-logo" src="./favicon.svg" alt="" width="76" height="76" aria-hidden="true" />
+      <p class="loading-brand">四方 QUADRA</p>
+      <p class="loading-title">四方賽程</p>
+      <div class="spinner" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <main id="app" hidden>
+    <!-- Pinned to the top as one grouped unit (see .control-bar in styles.css) - on a
+         phone, "which day" and "which sport" are the two controls a viewer
+         reaches for again and again while scrolling a long match list;
+         pinning them to the top instead of leaving them to scroll away
+         with the first section is the actual mobile-centric fix (see
+         styles.css's own comment for why this beats a plain static row). -->
+    <div class="control-bar">
+      <!-- Desktop only (see .app-header) - on a phone the installed app's own
+           icon/title already says what this is, and every pixel of the
+           pinned bar is better spent on the day/sport controls. -->
+      <header class="app-header">
+        <img class="app-header-logo" src="./favicon.svg" alt="" width="36" height="36" />
+        <span class="app-header-name">四方賽程</span>
+        <span class="app-header-tagline" id="app-header-tagline">今晚看什麼</span>
+      </header>
+      <section id="day-scroller-section">
+        <div id="day-scroller" class="day-scroller" role="tablist" aria-label="選擇日期"></div>
+      </section>
+
+      <section id="filters-section">
+        <div class="filter-row">
+          <div id="sport-filters" role="group" aria-label="依運動篩選"></div>
+        </div>
+      </section>
+    </div>
+
+    <section id="recommended-section">
+      <h2 class="section-label"><span data-day-label></span><span id="recommended-heading-text">推薦賽事</span></h2>
+      <div id="recommended-list"></div>
+      <p id="recommended-empty" class="empty-state" hidden>今天沒有特別推薦的賽事。</p>
+      <p id="recommended-loading" class="section-loading" hidden aria-label="載入中"><span class="loading-spinner" aria-hidden="true"></span></p>
+    </section>
+
+    <section id="all-matches-section">
+      <h2 class="section-label"><span data-day-label></span><span id="all-matches-heading-text">所有賽事</span></h2>
+      <div id="all-match-list"></div>
+      <p id="all-empty" class="empty-state" hidden>這一天沒有賽事。</p>
+      <p id="all-loading" class="section-loading" hidden aria-label="載入中"><span class="loading-spinner" aria-hidden="true"></span></p>
+    </section>
+
+    <section id="tbd-section" hidden>
+      <h2 class="section-label" id="tbd-heading">時間未定</h2>
+      <div id="tbd-list"></div>
+    </section>
+  </main>
+
+  <!-- 運彩: Quadra Sportsbook inside Fixtures (renderSportsbookView in app.js). -->
+  <section id="quadra-view" class="quadra-view" hidden aria-labelledby="quadra-view-title"></section>
+
+  <!-- 設定: a page of its own (the third tab), like 賽程 and 運彩. -->
+  <section id="settings-panel" class="settings-page" hidden aria-labelledby="settings-heading">
+    <div class="settings-page-header">
       <h2 id="settings-heading">設定</h2>
-      <button id="settings-close-btn" type="button" aria-label="關閉">✕</button>
     </div>
 
     <section class="settings-section">
@@ -131,67 +189,7 @@
       </div>
     </section>
 
-  </div>
-
-  <div id="loading-state" class="loading" role="status" aria-live="polite" aria-label="載入中">
-    <div class="loading-box">
-      <img class="loading-logo" src="./favicon.svg" alt="" width="76" height="76" aria-hidden="true" />
-      <p class="loading-brand">四方 QUADRA</p>
-      <p class="loading-title">四方賽程</p>
-      <div class="spinner" aria-hidden="true"></div>
-    </div>
-  </div>
-
-  <main id="app" hidden>
-    <!-- Pinned to the top as one grouped unit (see .control-bar in styles.css) - on a
-         phone, "which day" and "which sport" are the two controls a viewer
-         reaches for again and again while scrolling a long match list;
-         pinning them to the top instead of leaving them to scroll away
-         with the first section is the actual mobile-centric fix (see
-         styles.css's own comment for why this beats a plain static row). -->
-    <div class="control-bar">
-      <!-- Desktop only (see .app-header) - on a phone the installed app's own
-           icon/title already says what this is, and every pixel of the
-           pinned bar is better spent on the day/sport controls. -->
-      <header class="app-header">
-        <img class="app-header-logo" src="./favicon.svg" alt="" width="36" height="36" />
-        <span class="app-header-name">四方賽程</span>
-        <span class="app-header-tagline" id="app-header-tagline">今晚看什麼</span>
-      </header>
-      <section id="day-scroller-section">
-        <div id="day-scroller" class="day-scroller" role="tablist" aria-label="選擇日期"></div>
-      </section>
-
-      <section id="filters-section">
-        <div class="filter-row">
-          <div id="sport-filters" role="group" aria-label="依運動篩選"></div>
-          <button id="settings-btn" class="settings-chip-btn" type="button" aria-label="設定">⚙</button>
-        </div>
-      </section>
-    </div>
-
-    <section id="recommended-section">
-      <h2 class="section-label"><span data-day-label></span><span id="recommended-heading-text">推薦賽事</span></h2>
-      <div id="recommended-list"></div>
-      <p id="recommended-empty" class="empty-state" hidden>今天沒有特別推薦的賽事。</p>
-      <p id="recommended-loading" class="section-loading" hidden aria-label="載入中"><span class="loading-spinner" aria-hidden="true"></span></p>
-    </section>
-
-    <section id="all-matches-section">
-      <h2 class="section-label"><span data-day-label></span><span id="all-matches-heading-text">所有賽事</span></h2>
-      <div id="all-match-list"></div>
-      <p id="all-empty" class="empty-state" hidden>這一天沒有賽事。</p>
-      <p id="all-loading" class="section-loading" hidden aria-label="載入中"><span class="loading-spinner" aria-hidden="true"></span></p>
-    </section>
-
-    <section id="tbd-section" hidden>
-      <h2 class="section-label" id="tbd-heading">時間未定</h2>
-      <div id="tbd-list"></div>
-    </section>
-  </main>
-
-  <!-- 運彩: Quadra Sportsbook inside Fixtures (renderSportsbookView in app.js). -->
-  <section id="quadra-view" class="quadra-view" hidden aria-labelledby="quadra-view-title"></section>
+  </section>
 
   <!-- The bottom tab bar, the same as the other Quadra apps' (quadra.css .q-tabbar). -->
   <nav id="fixtures-tabs" class="q-tabbar fixtures-tabs" role="tablist">

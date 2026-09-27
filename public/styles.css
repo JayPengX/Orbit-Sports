@@ -82,11 +82,8 @@ button {
    bar already carries the app's identity, so a masthead there would just be
    empty space repeating it. On a desktop browser tab there's room to spare
    and no home-screen icon, so a slim brand row sits at the top of the
-   pinned control bar instead (see .app-header). Settings now lives as a plain chip button
-   inline with the sport filter row instead (see .settings-chip-btn) -
-   tried as a floating corner button first, moved here since it reads as
-   a more deliberate part of the row of controls rather than a stray
-   overlay competing with the cards underneath it. */
+   pinned control bar instead (see .app-header). Settings is
+   the 設定 tab (see .settings-page). */
 
 .app-header { display: none; }
 @media (min-width: 761px) {
@@ -110,50 +107,22 @@ button {
   }
 }
 
-.settings-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 19;
-}
-.settings-panel {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(420px, calc(100vw - 32px));
-  max-height: min(600px, calc(100vh - 64px));
-  overflow-y: auto;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-pinned);
-  padding: 22px;
-  z-index: 20;
-}
-.settings-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.settings-panel-header h2 {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 700;
-}
-.settings-panel-header button {
-  border: none;
-  background: transparent;
-  color: var(--text-faint);
-  font-size: 1.3rem;
-  cursor: pointer;
-  padding: 8px;
-  width: var(--tap);
-  height: var(--tap);
-}
+/* 設定 is a page of its own (the third tab), laid out like 運彩: one card per group. */
+.settings-page { max-width: 760px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 16px 24px; display: grid; gap: 14px; }
+.settings-page[hidden] { display: none; }
+.settings-page-header h2 { margin: 4px 4px 0; font-size: 1.4rem; font-weight: 800; }
 .settings-section {
-  margin-top: 26px;
+  background: var(--q-surface);
+  border: 1px solid var(--q-border);
+  border-radius: var(--q-radius);
+  box-shadow: var(--q-shadow-sm);
+  padding: 16px;
+  min-width: 0;
 }
+body.fx-view-settings #app,
+body.fx-view-settings .page-footer,
+body.fx-view-settings #empty-state,
+body.fx-view-settings #error-state { display: none !important; }
 .settings-section h3 {
   margin: 0 0 4px;
   font-size: 0.98rem;
@@ -402,28 +371,11 @@ main#app {
 }
 .filter-row::-webkit-scrollbar { display: none; }
 /* Keeps #sport-filters as a real element (app.js's renderFilters targets it
-   with replaceChildren without disturbing the settings button, a fixed
-   sibling) while contributing nothing of its own to the box tree - its
+   with replaceChildren) while contributing nothing of its own to the box tree - its
    chip children lay out directly in .filter-row's own flex row. */
 #sport-filters {
   display: contents;
 }
-.settings-chip-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  border-radius: 50%;
-  font-size: 1.05rem;
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-.settings-chip-btn:hover { color: var(--accent); border-color: var(--accent); }
 .filter-chip {
   flex: none;
   display: inline-flex;
@@ -1385,18 +1337,57 @@ body.fx-view-sportsbook #error-state { display: none !important; }
 .qv-what strong { overflow-wrap: anywhere; }
 .qv-what small { color: var(--q-text-2); font-size: 0.75rem; overflow-wrap: anywhere; }
 .qv-odds { font-weight: 800; font-variant-numeric: tabular-nums; }
+.qv-card-head { display: grid; gap: 4px; }
+.qv-head-text { min-width: 0; }
+.qv-stats.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.qv-search { width: 100%; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text); font: inherit; font-size: 16px; }
+.qv-search:focus { outline: 2px solid var(--q-accent); outline-offset: 0; border-color: transparent; }
 .qv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.qv-chip { border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text-2); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+.qv-chips.qv-scroll { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 2px 16px; scrollbar-width: none; scroll-snap-type: x proximity; }
+.qv-chips.qv-scroll::-webkit-scrollbar { display: none; }
+.qv-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text-2); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; white-space: nowrap; scroll-snap-align: start; }
 .qv-chip.on { background: var(--q-accent); border-color: var(--q-accent); color: var(--q-accent-ink); }
-.qv-day { display: grid; gap: 8px; margin-top: 4px; }
-.qv-day-label { margin: 8px 0 0; font-size: 0.8rem; color: var(--q-muted); font-weight: 700; letter-spacing: 0.04em; }
-.qv-game { display: grid; gap: 8px; padding: 12px; border-radius: var(--q-radius-sm); background: var(--q-surface-2); border: 1px solid var(--q-border); }
+.qv-chip-logo { width: 16px; height: 16px; object-fit: contain; }
+.qv-days .qv-chip { padding: 8px 14px; }
+.qv-board-list { display: grid; gap: 10px; }
+.qv-rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 86%); gap: 10px; overflow-x: auto; margin: 0 -16px; padding: 2px 16px 4px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.qv-rail::-webkit-scrollbar { display: none; }
+.qv-rail > * { scroll-snap-align: start; }
+@media (min-width: 700px) { .qv-rail { grid-auto-columns: calc((100% - 20px) / 3); } }
+.qv-game { display: grid; gap: 10px; padding: 12px; border-radius: var(--q-radius-sm); background: var(--q-surface-2); border: 1px solid var(--q-border); min-width: 0; }
 .qv-game.pinned { border-color: var(--q-accent); }
-.qv-game-top { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--q-text-2); }
+.qv-game.has-bet { box-shadow: inset 3px 0 0 var(--q-good); }
+.qv-game-top { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--q-text-2); min-width: 0; }
 .qv-league-logo { width: 18px; height: 18px; object-fit: contain; flex: none; }
 .qv-league { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
-.qv-time { margin-left: auto; font-variant-numeric: tabular-nums; }
-.qv-teams { margin: 0; font-weight: 700; font-size: 0.95rem; overflow-wrap: anywhere; }
+.qv-time { margin-left: auto; font-variant-numeric: tabular-nums; flex: none; }
+.qv-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.qv-tag { font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: var(--q-surface); border: 1px solid var(--q-border); color: var(--q-text-2); }
+.qv-tag.live { color: #fff; background: #e5484d; border-color: #e5484d; }
+.qv-tag.rec { color: var(--q-accent); border-color: var(--q-accent); }
+.qv-tag.plan { color: var(--q-good); border-color: var(--q-good); }
+.qv-tag.even { color: var(--quadra-odds); border-color: var(--quadra-odds); }
+.qv-teams { display: grid; gap: 4px; }
+.qv-team { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 44px; }
+.qv-team-logo { width: 26px; height: 26px; object-fit: contain; flex: none; }
+.qv-team-dot { display: inline-grid; place-items: center; border-radius: 50%; background: var(--q-surface); border: 1px solid var(--q-border); font-size: 0.75rem; font-weight: 800; color: var(--q-text-2); }
+.qv-team-name { flex: 1 1 auto; min-width: 0; font-weight: 700; font-size: 0.95rem; overflow-wrap: anywhere; }
+.qv-team.fav .qv-team-name { font-weight: 800; }
+.qv-team-pct { flex: none; min-width: 2.6em; text-align: right; font-size: 0.8rem; font-weight: 700; color: var(--q-text-2); font-variant-numeric: tabular-nums; }
+.qv-team.fav .qv-team-pct { color: var(--q-text); }
+.qv-bar { display: flex; height: 6px; border-radius: 999px; overflow: hidden; background: var(--q-border); gap: 2px; }
+.qv-bar-away { background: var(--quadra-odds); }
+.qv-bar-draw { background: var(--q-muted); }
+.qv-bar-home { background: color-mix(in srgb, var(--quadra-odds) 45%, var(--q-surface)); }
+.qv-team.draw .qv-team-name { color: var(--q-text-2); font-weight: 600; }
+.qv-price { flex: none; display: inline-grid; place-items: center; min-width: 64px; min-height: 40px; padding: 0 10px; border-radius: 10px; background: var(--q-surface); border: 1px solid var(--q-border); color: var(--q-text); text-decoration: none; }
+.qv-price strong { font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.qv-team.fav .qv-price { border-color: color-mix(in srgb, var(--quadra-odds) 55%, var(--q-border)); }
+.qv-price:active { transform: scale(0.97); }
+.qv-game.compact .qv-team-pct { display: none; }
+.qv-game.compact .qv-price { min-width: 56px; }
+.qv-game-top .qv-pin { padding: 2px 8px; font-size: 0.8rem; opacity: 0.55; }
+.qv-game-top .qv-pin.on { opacity: 1; }
 
 /* The bottom tabs: phones get the Quadra bar (quadra.css); wider screens
    a floating one, and the page keeps room for it. */

@@ -777,10 +777,7 @@ const tbdListEl = document.getElementById('tbd-list');
 const cardTemplate = document.getElementById('match-card-template');
 const teamRowTemplate = document.getElementById('team-row-template');
 
-const settingsBtn = document.getElementById('settings-btn');
 const settingsPanel = document.getElementById('settings-panel');
-const settingsBackdrop = document.getElementById('settings-backdrop');
-const settingsCloseBtn = document.getElementById('settings-close-btn');
 const settingsResetBtn = document.getElementById('settings-reset-btn');
 const settingsSportList = document.getElementById('settings-sport-list');
 const settingsEnabledSports = document.getElementById('settings-enabled-sports');
@@ -826,9 +823,7 @@ function applyStaticTranslations() {
     if (el) el.setAttribute('aria-label', t(key));
   };
 
-  setAria(settingsPanel, 'settingsAriaLabel');
   setText('settings-heading', 'settingsHeading');
-  setAria(settingsCloseBtn, 'closeAriaLabel');
   setText('settings-priority-heading', 'sportPriorityHeading');
   setText('settings-priority-hint', 'sportPriorityHint');
   settingsResetBtn.textContent = t('resetPriorityBtn');
@@ -851,7 +846,6 @@ function applyStaticTranslations() {
   setAria(loadingStateEl, 'loadingAriaLabel');
   setAria(dayScrollerEl, 'daySelectorAriaLabel');
   setAria(filtersRow, 'sportFilterAriaLabel');
-  setAria(settingsBtn, 'settingsAriaLabel');
   setText('app-header-tagline', 'appTagline');
   setText('recommended-heading-text', 'recommendedHeading');
   setText('recommended-empty', 'recommendedEmpty');
@@ -1128,7 +1122,7 @@ function pinGameFromPin(id) {
 async function toggleQuadraPin(game) {
   if (!state.quadra.pass) {
     alert(t('sbPinNeedPass'));
-    openSettingsPanel();
+    showView('settings');
     return;
   }
   if (!game?.id || !game.key) return;
@@ -1162,6 +1156,8 @@ function rerenderQuadra() {
 // tap to bet on it there) and a pin.
 const quadraViewEl = document.getElementById('quadra-view');
 state.quadra.league = 'all';
+state.quadra.day = null;
+state.quadra.q = '';
 const fmtMoneyTw = v => `NT$${Math.round(v).toLocaleString('en-US')}`;
 function mk(tag, props = {}, children = []) {
   const el = document.createElement(tag);
@@ -1180,6 +1176,85 @@ const teamLabel = side => (zhLocale() ? side.zh || side.en : side.en);
 const dayLabel = iso => new Date(iso).toLocaleDateString(zhLocale() ? 'zh-TW' : 'en-US', { month: 'numeric', day: 'numeric', weekday: 'short' });
 const timeLabel = iso => new Date(iso).toLocaleTimeString(zhLocale() ? 'zh-TW' : 'en-US', { hour: 'numeric', minute: '2-digit' });
 
+// This schedule's own matches by their Sportsbook game: which ones are on
+// your plan (recommended or picked) and which are live right now.
+function scheduleByGame(board) {
+  const out = new Map();
+  if (!board) return out;
+  for (const m of state.matches || []) {
+    if (m.isFinished) continue;
+    const id = m.quadraGameId || oddsGameFor(m, board)?.id;
+    if (id && !out.has(id)) out.set(id, m);
+  }
+  return out;
+}
+// How even a game is, 0 (one-sided) to 1 (a coin flip), from its fair chances.
+function evenness(g) {
+  const a = g.chance?.away;
+  const h = g.chance?.home;
+  if (!(a > 0) || !(h > 0)) return 0;
+  return 1 - Math.abs(a - h) / (a + h);
+}
+const pctText = x => `${Math.round(x * 100)}%`;
+const leagueLogo = (board, key) => board?.logos?.[leagueSport(key)] || LEAGUE_LOGOS[leagueSport(key)] || '';
+const logoImg = (src, cls) => (src ? mk('img', { class: cls, src, alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer', onerror: event => event.target.remove() }) : null);
+
+// One side of a game: its logo and name, its chance, and its odds (a link
+// that opens the game in Sportsbook to bet on it).
+function sbSideRow(g, side, fav) {
+  const team = side === 'draw' ? null : g[side];
+  const name = team ? teamLabel(team) : t('quadraDraw');
+  const chance = g.chance?.[side];
+  const odds = g.odds?.[side];
+  return mk('div', { class: `qv-team${fav ? ' fav' : ''}${team ? '' : ' draw'}` }, [
+    team ? logoImg(team.logo, 'qv-team-logo') || mk('span', { class: 'qv-team-logo qv-team-dot', 'aria-hidden': 'true', text: (name || '?').slice(0, 1) }) : mk('span', { class: 'qv-team-logo', 'aria-hidden': 'true' }),
+    mk('span', { class: 'qv-team-name', text: name }),
+    chance > 0 ? mk('span', { class: 'qv-team-pct', text: pctText(chance) }) : null,
+    odds
+      ? mk('a', { class: 'qv-price', href: betUrl(g.id), 'aria-label': `${name} ${odds.toFixed(2)}` }, [mk('strong', { text: odds.toFixed(2) })])
+      : null
+  ]);
+}
+
+// One game: league and time, both teams with logos and their chances, a bar
+// of those chances, the odds (each a link to bet on it), and your bets on it.
+function sbGameCard(g, { board, pinned, mineByGame, onPlan, compact = false }) {
+  const started = Date.parse(g.startUtc) <= Date.now();
+  const isPinned = pinned.has(g.id);
+  const mineHere = mineByGame.get(g.id) || [];
+  const match = onPlan.get(g.id);
+  const live = started || match?.live;
+  const even = evenness(g);
+  const tags = [
+    live ? mk('span', { class: 'qv-tag live', text: t('sbLive') }) : null,
+    match?.recommended ? mk('span', { class: 'qv-tag rec', text: t('sbRecommended') }) : match ? mk('span', { class: 'qv-tag plan', text: t('sbOnSchedule') }) : null,
+    even >= 0.85 ? mk('span', { class: 'qv-tag even', text: t('sbEven') }) : null
+  ].filter(Boolean);
+  const a = g.chance?.away || 0;
+  const h = g.chance?.home || 0;
+  const d = g.chance?.draw || 0;
+  const total = a + h + d;
+  const bar = total > 0
+    ? mk('div', { class: 'qv-bar', 'aria-hidden': 'true' }, [
+        mk('span', { class: 'qv-bar-away', style: `flex:${a / total}` }),
+        d ? mk('span', { class: 'qv-bar-draw', style: `flex:${d / total}` }) : null,
+        mk('span', { class: 'qv-bar-home', style: `flex:${h / total}` })
+      ])
+    : null;
+  return mk('article', { class: `qv-game${isPinned ? ' pinned' : ''}${compact ? ' compact' : ''}${mineHere.length ? ' has-bet' : ''}` }, [
+    mk('div', { class: 'qv-game-top' }, [
+      logoImg(leagueLogo(board, g.key), 'qv-league-logo'),
+      mk('span', { class: 'qv-league', text: leagueName(g.key, getLocale()) }),
+      mk('span', { class: 'qv-time', text: compact ? `${dayLabel(g.startUtc)} ${timeLabel(g.startUtc)}` : timeLabel(g.startUtc) }),
+      compact ? null : mk('button', { class: `qv-pin${isPinned ? ' on' : ''}`, type: 'button', 'aria-pressed': String(isPinned), 'aria-label': t(isPinned ? 'sbPinned' : 'sbPin'), title: t(isPinned ? 'sbPinned' : 'sbPin'), text: '📌', onclick: () => toggleQuadraPin(g) })
+    ]),
+    tags.length ? mk('div', { class: 'qv-tags' }, tags) : null,
+    mk('div', { class: 'qv-teams' }, [sbSideRow(g, 'away', a > h && a > d), d ? sbSideRow(g, 'draw', false) : null, sbSideRow(g, 'home', h > a && h > d)]),
+    bar,
+    mineHere.length ? mk('p', { class: 'quadra-mybet', text: mineHere.map(p => t('quadraMyBet', { pick: p.p, odds: Number(p.o).toFixed(2) })).join(' · ') }) : null
+  ]);
+}
+
 function renderSportsbookView() {
   if (!quadraViewEl || quadraViewEl.hidden) return;
   const board = state.quadra.board;
@@ -1187,123 +1262,168 @@ function renderSportsbookView() {
   const picks = wallet?.snap?.odds?.bets || [];
   const games = (board?.games || []).filter(g => Date.parse(g.startUtc) > Date.now() - 3 * 3_600_000).sort((a, b) => a.startUtc.localeCompare(b.startUtc));
   const byId = new Map(games.map(g => [g.id, g]));
+  const pinned = quadraPinnedGameIds();
+  const mineByGame = picksByGame(wallet);
+  const onPlan = scheduleByGame(board);
+  const ctx = { board, pinned, mineByGame, onPlan };
 
-  // The account: pool, what's riding, and Sportsbook itself.
+  // The account: the pool, what's riding, how many bets; or signing in.
   const head = mk('div', { class: 'qv-card qv-head' }, [
     mk('div', { class: 'qv-head-top' }, [
       mk('img', { class: 'qv-icon', src: '/Quadra-Sportsbook/favicon.svg', alt: '' }),
-      mk('div', {}, [mk('h2', { id: 'quadra-view-title', class: 'qv-title', text: t('sbTitle') }), mk('p', { class: 'qv-sub', text: t('sbSub') })])
+      mk('div', { class: 'qv-head-text' }, [mk('h2', { id: 'quadra-view-title', class: 'qv-title', text: t('sbTitle') }), mk('p', { class: 'qv-sub', text: t('sbSub') })])
     ]),
     state.quadra.pass
-      ? mk('div', { class: 'qv-stats' }, [
+      ? mk('div', { class: 'qv-stats three' }, [
           mk('div', {}, [mk('small', { text: t('sbPool') }), mk('strong', { text: wallet ? fmtMoneyTw(poolBalance(wallet)) : '…' })]),
-          mk('div', {}, [mk('small', { text: t('sbOpenStake') }), mk('strong', { text: fmtMoneyTw(wallet?.snap?.odds?.open || 0) })])
+          mk('div', {}, [mk('small', { text: t('sbOpenStake') }), mk('strong', { text: fmtMoneyTw(wallet?.snap?.odds?.open || 0) })]),
+          mk('div', {}, [mk('small', { text: t('sbBetCount') }), mk('strong', { text: String(picks.length) })])
         ])
       : mk('p', { class: 'qv-note', text: t('sbSignIn') }),
     mk('div', { class: 'qv-actions' }, [
       mk('a', { class: 'qv-btn primary', href: appUrl('odds'), text: t('sbOpenApp') }),
-      state.quadra.pass ? null : mk('button', { class: 'qv-btn', type: 'button', text: t('sbSignInBtn'), onclick: openSettingsPanel })
+      state.quadra.pass ? null : mk('button', { class: 'qv-btn', type: 'button', text: t('sbSignInBtn'), onclick: () => showView('settings') })
     ])
   ]);
 
-  // Your open picks in Sportsbook.
-  const mine = state.quadra.pass
+  // Your open bets, each a link to its game in Sportsbook.
+  const mine = state.quadra.pass && picks.length
     ? mk('div', { class: 'qv-card' }, [
-        mk('h3', { class: 'qv-h', text: `${t('sbMyBets')}${picks.length ? ` · ${picks.length}` : ''}` }),
-        picks.length
-          ? mk(
-              'ul',
-              { class: 'qv-list' },
-              picks.map(p => {
-                const g = byId.get(p.g);
-                return mk('li', {}, [
-                  mk('a', { class: 'qv-row', href: betUrl(p.g) }, [
-                    mk('span', { class: 'qv-when', text: p.s ? `${dayLabel(p.s)} ${timeLabel(p.s)}` : '' }),
-                    mk('span', { class: 'qv-what' }, [
-                      mk('strong', { text: p.p }),
-                      g ? mk('small', { text: `${teamLabel(g.away)} @ ${teamLabel(g.home)} · ${leagueName(g.key, getLocale())}` }) : p.k ? mk('small', { text: leagueName(p.k, getLocale()) }) : null
-                    ]),
-                    mk('span', { class: 'qv-odds', text: `@${Number(p.o).toFixed(2)}` })
-                  ])
-                ]);
-              })
-            )
-          : mk('p', { class: 'qv-note', text: t('sbNoBets') })
+        mk('h3', { class: 'qv-h', text: `${t('sbMyBets')} · ${picks.length}` }),
+        mk(
+          'ul',
+          { class: 'qv-list' },
+          picks.map(p => {
+            const g = byId.get(p.g);
+            return mk('li', {}, [
+              mk('a', { class: 'qv-row', href: betUrl(p.g) }, [
+                mk('span', { class: 'qv-when', text: p.s ? `${dayLabel(p.s)} ${timeLabel(p.s)}` : '' }),
+                mk('span', { class: 'qv-what' }, [
+                  mk('strong', { text: p.p }),
+                  g ? mk('small', { text: `${teamLabel(g.away)} @ ${teamLabel(g.home)} · ${leagueName(g.key, getLocale())}` }) : p.k ? mk('small', { text: leagueName(p.k, getLocale()) }) : null
+                ]),
+                mk('span', { class: 'qv-odds', text: `@${Number(p.o).toFixed(2)}` })
+              ])
+            ]);
+          })
+        )
       ])
     : null;
 
-  // The board: filter by league, then by day.
-  const leagues = [...new Set(games.map(g => g.key))];
-  if (state.quadra.league !== 'all' && !leagues.includes(state.quadra.league)) state.quadra.league = 'all';
-  const chips = mk(
-    'div',
-    { class: 'qv-chips', role: 'group', 'aria-label': t('sbBoard') },
-    ['all', ...leagues].map(key =>
-      mk('button', {
-        class: `qv-chip${state.quadra.league === key ? ' on' : ''}`,
-        type: 'button',
-        'aria-pressed': String(state.quadra.league === key),
-        text: key === 'all' ? `${t('sbAll')} · ${games.length}` : `${leagueName(key, getLocale())} · ${games.filter(g => g.key === key).length}`,
-        onclick: () => {
-          state.quadra.league = key;
-          renderSportsbookView();
-        }
-      })
-    )
-  );
-  const shown = games.filter(g => state.quadra.league === 'all' || g.key === state.quadra.league);
-  const pinned = quadraPinnedGameIds();
-  const mineByGame = picksByGame(wallet);
-  const days = [];
-  for (const g of shown) {
-    const day = new Date(g.startUtc).toDateString();
-    if (!days.length || days[days.length - 1].day !== day) days.push({ day, label: dayLabel(g.startUtc), games: [] });
-    days[days.length - 1].games.push(g);
+  // Spotlight: the next day's games worth a bet - on your schedule's plan
+  // first, then the closest matchups - side by side.
+  const soon = games.filter(g => {
+    const start = Date.parse(g.startUtc);
+    return start > Date.now() && start < Date.now() + 36 * 3_600_000;
+  });
+  const score = g => (onPlan.get(g.id)?.recommended ? 2 : onPlan.has(g.id) ? 1 : 0) + evenness(g);
+  const spot = soon.slice().sort((a, b) => score(b) - score(a)).slice(0, 6);
+  const spotlight = spot.length
+    ? mk('div', { class: 'qv-card' }, [
+        mk('div', { class: 'qv-card-head' }, [mk('h3', { class: 'qv-h', text: t('sbSpotlight') }), mk('p', { class: 'qv-note', text: t('sbSpotlightNote') })]),
+        mk('div', { class: 'qv-rail' }, spot.map(g => sbGameCard(g, { ...ctx, compact: true })))
+      ])
+    : null;
+
+  // The board: a day, a league, a search, then that day's games.
+  const dayKey = iso => new Date(iso).toDateString();
+  const days = [...new Set(games.map(g => dayKey(g.startUtc)))];
+  if (!state.quadra.dayPicked || !days.includes(state.quadra.day)) {
+    state.quadra.day = days[0] || null;
+    state.quadra.dayPicked = false;
   }
-  const boardBody = !board
-    ? mk('p', { class: 'qv-note', text: t('sbLoading') })
-    : !games.length
-      ? mk('p', { class: 'qv-note', text: t('sbNone') })
-      : mk(
-          'div',
-          {},
-          days.map(d =>
-            mk('div', { class: 'qv-day' }, [
-              mk('h4', { class: 'qv-day-label', text: d.label }),
-              ...d.games.map(g => {
-                const logo = board.logos?.[leagueSport(g.key)] || LEAGUE_LOGOS[leagueSport(g.key)] || '';
-                const isPinned = pinned.has(g.id);
-                const mineHere = mineByGame.get(g.id) || [];
-                return mk('article', { class: `qv-game${isPinned ? ' pinned' : ''}` }, [
-                  mk('div', { class: 'qv-game-top' }, [
-                    logo ? mk('img', { class: 'qv-league-logo', src: logo, alt: '', onerror: event => event.target.remove() }) : null,
-                    mk('span', { class: 'qv-league', text: leagueName(g.key, getLocale()) }),
-                    mk('span', { class: 'qv-time', text: timeLabel(g.startUtc) }),
-                    mk('button', { class: `qv-pin${isPinned ? ' on' : ''}`, type: 'button', 'aria-pressed': String(isPinned), text: t(isPinned ? 'sbPinned' : 'sbPin'), onclick: () => toggleQuadraPin(g) })
-                  ]),
-                  mk('p', { class: 'qv-teams', text: `${teamLabel(g.away)} @ ${teamLabel(g.home)}` }),
-                  mk('div', { class: 'quadra-odds-prices' }, quadraPriceLinks(g.id, g.odds, side => (side === 'draw' ? t('quadraDraw') : teamLabel(g[side])))),
-                  mineHere.length ? mk('p', { class: 'quadra-mybet', text: mineHere.map(p => t('quadraMyBet', { pick: p.p, odds: Number(p.o).toFixed(2) })).join(' · ') }) : null
-                ]);
-              })
-            ])
-          )
-        );
-  quadraViewEl.replaceChildren(...[head, mine, mk('div', { class: 'qv-card' }, [mk('h3', { class: 'qv-h', text: t('sbBoard') }), mk('p', { class: 'qv-note', text: t('sbBetHint') }), chips, boardBody])].filter(Boolean));
+  const today = new Date().toDateString();
+  const tomorrow = new Date(Date.now() + 86_400_000).toDateString();
+  const dayName = key => (key === today ? t('sbToday') : key === tomorrow ? t('sbTomorrow') : dayLabel(new Date(key).toISOString()));
+  const list = mk('div', { class: 'qv-board-list' });
+  const leaguesRow = mk('div', { class: 'qv-chips qv-scroll', role: 'group', 'aria-label': t('sbBoard') });
+  const daysRow = mk('div', { class: 'qv-chips qv-scroll qv-days', role: 'group' });
+
+  function fill() {
+    const q = (state.quadra.q || '').trim().toLowerCase();
+    const inDay = q ? games : games.filter(g => dayKey(g.startUtc) === state.quadra.day);
+    const leagues = [...new Set(inDay.map(g => g.key))];
+    if (state.quadra.league !== 'all' && !leagues.includes(state.quadra.league)) state.quadra.league = 'all';
+    daysRow.replaceChildren(
+      ...days.map(key =>
+        mk('button', {
+          class: `qv-chip${!q && state.quadra.day === key ? ' on' : ''}`,
+          type: 'button',
+          'aria-pressed': String(!q && state.quadra.day === key),
+          text: `${dayName(key)} · ${games.filter(g => dayKey(g.startUtc) === key).length}`,
+          onclick: () => {
+            state.quadra.day = key;
+            state.quadra.dayPicked = true;
+            state.quadra.q = '';
+            search.value = '';
+            fill();
+          }
+        })
+      )
+    );
+    leaguesRow.replaceChildren(
+      ...['all', ...leagues].map(key =>
+        mk('button', {
+          class: `qv-chip${state.quadra.league === key ? ' on' : ''}`,
+          type: 'button',
+          'aria-pressed': String(state.quadra.league === key),
+          onclick: () => {
+            state.quadra.league = key;
+            fill();
+          }
+        }, [
+          key === 'all' ? null : logoImg(leagueLogo(board, key), 'qv-chip-logo'),
+          mk('span', { text: key === 'all' ? `${t('sbAll')} · ${inDay.length}` : `${leagueName(key, getLocale())} · ${inDay.filter(g => g.key === key).length}` })
+        ])
+      )
+    );
+    const hit = g => !q || [g.away.en, g.away.zh, g.home.en, g.home.zh, leagueName(g.key, getLocale())].some(x => x && String(x).toLowerCase().includes(q));
+    const shown = inDay.filter(g => (state.quadra.league === 'all' || g.key === state.quadra.league) && hit(g));
+    list.replaceChildren(
+      ...(shown.length
+        ? shown.map(g => sbGameCard(g, ctx))
+        : [mk('p', { class: 'qv-note', text: q ? t('sbNoMatch') : t('sbNone') })])
+    );
+  }
+  const search = mk('input', {
+    class: 'qv-search',
+    type: 'search',
+    inputmode: 'search',
+    autocomplete: 'off',
+    placeholder: t('sbSearch'),
+    'aria-label': t('sbSearch'),
+    oninput: event => {
+      state.quadra.q = event.target.value;
+      fill();
+    }
+  });
+  search.value = state.quadra.q || '';
+
+  const boardCard = mk('div', { class: 'qv-card qv-board' }, [
+    mk('div', { class: 'qv-card-head' }, [mk('h3', { class: 'qv-h', text: t('sbBoard') }), mk('p', { class: 'qv-note', text: t('sbBetHint') })]),
+    ...(!board
+      ? [mk('p', { class: 'qv-note', text: t('sbLoading') })]
+      : !games.length
+        ? [mk('p', { class: 'qv-note', text: t('sbNone') })]
+        : [search, daysRow, leaguesRow, list])
+  ]);
+  if (board && games.length) fill();
+  quadraViewEl.replaceChildren(...[head, mine, spotlight, boardCard].filter(Boolean));
 }
 
 // ---- The bottom tabs: 賽程, 運彩, 設定 --------------------------------------------
 const fixturesTabs = document.getElementById('fixtures-tabs');
 state.view = 'schedule';
 function showView(view) {
-  if (view === 'settings') {
-    openSettingsPanel();
-    markTab('settings');
-    return;
-  }
   state.view = view;
   document.body.classList.toggle('fx-view-sportsbook', view === 'sportsbook');
+  document.body.classList.toggle('fx-view-settings', view === 'settings');
   if (quadraViewEl) quadraViewEl.hidden = view !== 'sportsbook';
+  settingsPanel.hidden = view !== 'settings';
+  if (view === 'settings') {
+    renderSettingsPanel();
+    renderQuadraSettings();
+  }
   markTab(view);
   if (view === 'sportsbook') {
     state.quadra.everything = true;
@@ -1686,20 +1806,6 @@ function renderEnabledSportsPanel() {
   );
 }
 
-function openSettingsPanel() {
-  renderSettingsPanel();
-  renderQuadraSettings();
-  settingsPanel.hidden = false;
-  settingsBackdrop.hidden = false;
-}
-function closeSettingsPanel() {
-  settingsPanel.hidden = true;
-  settingsBackdrop.hidden = true;
-  markTab(state.view);
-}
-settingsBtn.addEventListener('click', openSettingsPanel);
-settingsCloseBtn.addEventListener('click', closeSettingsPanel);
-settingsBackdrop.addEventListener('click', closeSettingsPanel);
 settingsResetBtn.addEventListener('click', () => {
   state.priorityOrder = DEFAULT_SPORT_ORDER.slice();
   persistSettings();
