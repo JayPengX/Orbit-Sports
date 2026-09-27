@@ -40,19 +40,19 @@
 <meta property="og:site_name" content="四方賽程 Quadra Fixtures" />
 <meta property="og:title" content="四方賽程 Quadra Fixtures — 今晚看什麼" />
 <meta property="og:description" content="英超、MLB、NBA、F1 賽程，依精彩程度推薦，換算成你的當地時間。" />
-<meta property="og:image" content="https://jaypengx.github.io/Match-Find/og-image.jpg" />
+<meta property="og:image" content="https://jaypengx.github.io/Quadra-Fixtures/og-image.jpg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content="四方賽程 Quadra Fixtures — 今晚看什麼" />
-<meta property="og:image" content="https://jaypengx.github.io/Match-Find/og-image-square.jpg" />
+<meta property="og:image" content="https://jaypengx.github.io/Quadra-Fixtures/og-image-square.jpg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="1200" />
 <meta property="og:image:alt" content="四方賽程 Quadra Fixtures — 今晚看什麼" />
-<meta property="og:url" content="https://jaypengx.github.io/Match-Find/" />
+<meta property="og:url" content="https://jaypengx.github.io/Quadra-Fixtures/" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="四方賽程 Quadra Fixtures — 今晚看什麼" />
 <meta name="twitter:description" content="英超、MLB、NBA、F1 賽程，依精彩程度推薦，換算成你的當地時間。" />
-<meta name="twitter:image" content="https://jaypengx.github.io/Match-Find/og-image.jpg" />
+<meta name="twitter:image" content="https://jaypengx.github.io/Quadra-Fixtures/og-image.jpg" />
 <meta name="twitter:image:alt" content="四方賽程 Quadra Fixtures — 今晚看什麼" />
 <!-- Opens the connections every first load needs while app.js is still
      downloading: the sports proxy (every match/odds request - crossorigin,
@@ -63,16 +63,8 @@
      starts downloading immediately, alongside app.js, instead of only once
      all the code has loaded and run - app.js's own fetch of the same URL
      then picks up this response. Keep the URL in sync with app.js. -->
-<link rel="preload" as="fetch" crossorigin href="https://raw.githubusercontent.com/JayPengX/Match-Find/data/matches.json" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<!-- Loaded without blocking: a normal stylesheet <link> holds back every
-     script after it until it arrives, so a slow connection to Google Fonts
-     used to delay app.js - and with it the whole match fetch - for nothing.
-     Text draws in the system font until Noto Sans TC arrives (same as
-     display=swap already did); <noscript> keeps it for no-JS loads. -->
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
-<noscript><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet" /></noscript>
+<link rel="preload" as="fetch" crossorigin href="https://raw.githubusercontent.com/JayPengX/Quadra-Fixtures/data/matches.json" />
+<!-- Type: the system font, like the other Quadra apps (see quadra.css). -->
 <link rel="stylesheet" href="./styles.css" />
 <link rel="stylesheet" href="./quadra.css" />
 <!-- Every module app.js imports, directly or through another module.
@@ -122,12 +114,8 @@
     </section>
 
     <section class="settings-section">
-      <h3 id="settings-quadra-heading">四方通行碼</h3>
-      <p id="settings-quadra-hint" class="settings-hint">輸入四方通行碼，在四方運彩釘選的比賽就會加進你的賽程。</p>
-      <form id="settings-quadra-form" class="settings-quadra-form">
-        <input id="settings-quadra-input" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX" aria-label="四方通行碼" />
-        <button id="settings-quadra-btn" type="submit" class="settings-action-btn">連結</button>
-      </form>
+      <p id="settings-quadra-hint" class="settings-hint">在四方運彩釘選的比賽，會加進你的賽程和推薦。</p>
+      <div id="settings-quadra-panel"></div>
       <p id="settings-quadra-status" class="settings-hint"></p>
     </section>
 

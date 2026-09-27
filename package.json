@@ -1,5 +1,5 @@
 {
-  "name": "match-find",
+  "name": "quadra-fixtures",
   "private": true,
   "type": "module",
   "description": "Static \"what's worth watching\" site - see README.md. No runtime dependencies; scripts/build-data.mjs and public/app.js run as plain ESM against Node's/the browser's own built-ins.",

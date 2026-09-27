@@ -4,12 +4,14 @@
 // with its own scoring. Sportsbook covers many more: every one of its
 // leagues is on offer here too, as fixtures to follow (Settings), with
 // Sportsbook's own estimated lottery odds on every card and a one-tap link
-// to bet on it there (/Odds-Study/#game=<id>).
+// to bet on it there (/Quadra-Sportsbook/#game=<id>).
 //
 // Sportsbook's board isn't copied: the two apps are one site, so this loads
 // Sportsbook's own published modules (its sources and board pricing) and
 // builds the same board it shows. On a Quadra Pass, matches pinned in
 // Sportsbook come from the pass's wallet and join the viewing plan.
+
+import { appUrl } from './quadra.mjs';
 
 // The extra leagues: Sportsbook's key -> this app's sport name, labels,
 // the sport's family (for durations) and the length of a game (minutes).
@@ -50,9 +52,10 @@ export const extraInfo = sport => BY_SPORT[sport] || null;
 
 // Where Sportsbook lives on this site (its published modules sit under
 // lib/; a local checkout serves them under public/lib/).
-const ODDS_ROOTS = ['/Odds-Study/lib/', '/Odds-Study/public/lib/'];
-export const ODDS_PAGE = '/Odds-Study/';
-export const betUrl = gameId => `${ODDS_PAGE}#game=${encodeURIComponent(gameId)}`;
+const ODDS_ROOTS = ['/Quadra-Sportsbook/lib/', '/Quadra-Sportsbook/public/lib/'];
+export const ODDS_PAGE = '/Quadra-Sportsbook/';
+// Signed in already: the link carries this browser's Quadra Pass (appUrl).
+export const betUrl = gameId => appUrl('odds', `game=${encodeURIComponent(gameId)}`);
 
 let modules = null;
 async function oddsModules() {
@@ -195,10 +198,10 @@ export function matchFromPin(id, pin) {
   );
 }
 
-// Reads the Quadra Pass's wallet (for its pins).
+// Reads the Quadra Pass's wallet (its pins, its pool); null if there's no such pass.
 export async function readWalletPins(ecoUrl, passcode) {
   const res = await fetch(`${ecoUrl}?passcode=${encodeURIComponent(passcode)}&app=match`, { signal: AbortSignal.timeout(20_000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  return data.exists ? data.wallet?.pins || {} : null;
+  return data.exists ? data.wallet || {} : null;
 }

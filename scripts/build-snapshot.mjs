@@ -20,7 +20,7 @@ import path from 'node:path';
 import { buildMatches, enrichWithPolymarketOdds, DEFAULT_DAYS_AHEAD } from '../public/lib/match-builder.mjs';
 import { updatePlanHistory } from './plan-history.mjs';
 
-const FETCH_USER_AGENT = 'Match-Find-Bot/1.0 (+https://github.com/JayPengX/Match-Find)';
+const FETCH_USER_AGENT = 'Quadra-Fixtures-Bot/1.0 (+https://github.com/JayPengX/Quadra-Fixtures)';
 
 async function fetchJson(url) {
   const response = await fetch(url, {

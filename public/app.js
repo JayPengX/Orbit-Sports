@@ -124,7 +124,7 @@ import { installTapLog, isTapLogOn, setTapLogHeader, tapLog } from './lib/tap-lo
 // Quadra: Sportsbook's odds and leagues, bet links and pinned matches (see
 // quadra-link.mjs), and the shared shell (home screen only, updates).
 import { EXTRA_SPORTS, EXTRA_SPORT_NAMES, extraInfo, loadOddsBoard, oddsGameFor, matchFromOddsGame, matchFromPin, readWalletPins, betUrl } from './lib/quadra-link.mjs';
-import { ECO_URL, storedPass, isPass, cleanCode, storePass, formatPass, installGate, APPS } from './lib/quadra.mjs';
+import { ECO_URL, storedPass, storePass, installGate, passPanel, ecoCreate, poolBalance } from './lib/quadra.mjs';
 
 // JayPengX/shared-proxy's dedicated `sports-proxy` Worker - a plain,
 // public value, not a secret (a static site's own client bundle can't keep
@@ -833,7 +833,11 @@ function applyStaticTranslations() {
   setText('settings-enabled-hint', 'enabledSportsHint');
   setText('settings-quadra-heading', 'quadraHeading');
   setText('settings-quadra-hint', 'quadraHint');
-  setText('settings-quadra-btn', 'quadraLink');
+  // The pass panel is rebuilt in the new language.
+  if (state.quadra?.panel) {
+    state.quadra.panel = null;
+    renderQuadraSettings();
+  }
   setText('settings-update-heading', 'updateHeading');
   updateStatusText.textContent = t('updateStatusDefault');
   refreshDataBtn.textContent = t('refreshNowBtn');
@@ -1025,9 +1029,11 @@ async function refreshQuadra({ force = false } = {}) {
     }
     if (state.quadra.pass) {
       try {
-        const pins = await readWalletPins(ECO_URL, state.quadra.pass);
-        state.quadra.pins = pins || {};
-        state.quadra.status = pins ? '' : t('quadraPassNotFound');
+        const wallet = await readWalletPins(ECO_URL, state.quadra.pass);
+        state.quadra.wallet = wallet;
+        state.quadra.pins = wallet?.pins || {};
+        state.quadra.status = wallet ? '' : t('quadraPassNotFound');
+        if (wallet) state.quadra.syncedAt = Date.now();
       } catch (error) {
         state.quadra.status = t('quadraPassFailed');
       }
@@ -1066,28 +1072,42 @@ function updateQuadraOdds(node, match) {
   link.textContent = t('quadraBet');
 }
 
+// The Quadra Pass: the same panel as in the other Quadra apps.
 function renderQuadraSettings() {
-  const input = document.getElementById('settings-quadra-input');
+  const slot = document.getElementById('settings-quadra-panel');
   const status = document.getElementById('settings-quadra-status');
-  if (!input || !status) return;
-  if (document.activeElement !== input) input.value = state.quadra.pass ? formatPass(state.quadra.pass) : '';
-  const pins = quadraPinnedGameIds().size;
-  status.textContent = state.quadra.status || (state.quadra.pass ? t('quadraLinked', { n: pins }) : t('quadraNotLinked'));
-}
-document.getElementById('settings-quadra-form')?.addEventListener('submit', event => {
-  event.preventDefault();
-  const code = cleanCode(document.getElementById('settings-quadra-input').value);
-  if (code && !isPass(code)) {
-    state.quadra.status = t('quadraBadPass');
-    return renderQuadraSettings();
+  if (!slot || !status) return;
+  if (!state.quadra.panel) {
+    state.quadra.panel = passPanel({
+      app: 'match',
+      lang: getLocale() === 'en' ? 'en' : 'zh',
+      enter: async code => {
+        const wallet = await readWalletPins(ECO_URL, code);
+        if (!wallet) throw new Error(t('quadraPassNotFound'));
+        useQuadraPass(code, wallet);
+      },
+      create: async () => {
+        const made = await ecoCreate({ app: 'match' });
+        useQuadraPass(made.passcode, made.wallet || null);
+      },
+      sync: () => refreshQuadra({ force: true }),
+      signOut: () => useQuadraPass('', null)
+    });
+    slot.replaceChildren(state.quadra.panel.el);
   }
+  state.quadra.panel.update({ pass: state.quadra.pass, error: state.quadra.status, syncedAt: state.quadra.syncedAt || 0, pool: state.quadra.wallet ? poolBalance(state.quadra.wallet) : null });
+  const pins = quadraPinnedGameIds().size;
+  status.textContent = state.quadra.pass ? t('quadraLinked', { n: pins }) : '';
+}
+function useQuadraPass(code, wallet) {
   state.quadra.pass = code;
-  state.quadra.pins = {};
+  state.quadra.wallet = wallet;
+  state.quadra.pins = wallet?.pins || {};
   state.quadra.status = '';
   storePass(code);
   renderQuadraSettings();
-  refreshQuadra({ force: true });
-});
+  if (code) refreshQuadra({ force: true });
+}
 
 // ---- Enabled sports / subscribed services settings ------------------------
 //
@@ -4028,7 +4048,7 @@ function loadMatchSnapshot() {
 // deploy's rendering code another deploy's data shape) and is recent
 // enough. Ignored entirely in a local checkout (no real build id), so
 // local changes to the pipeline are never masked by the published data.
-const SERVER_SNAPSHOT_URL = 'https://raw.githubusercontent.com/JayPengX/Match-Find/data/matches.json';
+const SERVER_SNAPSHOT_URL = 'https://raw.githubusercontent.com/JayPengX/Quadra-Fixtures/data/matches.json';
 const SERVER_SNAPSHOT_MAX_AGE_MS = 45 * 60_000;
 const SERVER_SNAPSHOT_TIMEOUT_MS = 6_000;
 const IS_DEPLOYED_BUILD = !APP_BUILD_ID.startsWith('__');

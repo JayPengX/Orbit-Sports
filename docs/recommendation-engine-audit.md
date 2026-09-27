@@ -1365,8 +1365,8 @@ directly, repeatably confirmed. **Fix**: every ESPN fetch in
 fetch goes through) and, for defense in depth, every fetch in
 `scripts/sport-signals.mjs` (MLB Stats API, Jolpica F1 - not currently
 affected, but free to fix preemptively) now sends an honest,
-self-identifying `User-Agent: Match-Find-Bot/1.0 (+https://github.com/
-JayPengX/Match-Find)` - confirmed live to return a normal 200 with
+self-identifying `User-Agent: Quadra-Fixtures-Bot/1.0 (+https://github.com/
+JayPengX/Quadra-Fixtures)` - confirmed live to return a normal 200 with
 real fixture data. Verified end to end after the fix: a real run wrote
 **135 matches** with a real score spread (min 1, max 10, avg 7.24) and
 legible, factor-grounded reason text for every one, entirely without
@@ -1381,7 +1381,7 @@ default string a fetch call happens to send.
 
 ### Known limitations after Round 11
 
-- The `Match-Find-Bot/1.0` UA fix was verified against a live 403 in THIS
+- The `Quadra-Fixtures-Bot/1.0` UA fix was verified against a live 403 in THIS
   session's own environment - it is not confirmed whether GitHub Actions'
   own runners were ever actually hitting this block in production (the
   site's own history of real recommended fixtures suggests they likely
@@ -2174,7 +2174,7 @@ present) and after (bug confirmed gone) the fix, as documented above.
   try/catch swallows a failed fetch with no visible symptom, since the
   card's initial (Node-fetched, build-time) numbers already looked
   correct. Fixed in `JayPengX/Shared-Proxy` by adding the same
-  `Match-Find-Bot/1.0` UA to the Worker's own outbound fetch, deployed,
+  `Quadra-Fixtures-Bot/1.0` UA to the Worker's own outbound fetch, deployed,
   and re-verified live (HTTP 403 → HTTP 200, real MLB scoreboard JSON back)
   before relying on it for this round's own architecture.
 

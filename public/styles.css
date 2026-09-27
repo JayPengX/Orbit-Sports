@@ -1,11 +1,14 @@
 :root {
-  --bg: #0b0d12;
-  --bg-elevated: #14171f;
-  --bg-raised: #1a1e28;
-  --border: #262b38;
-  --text: #f1f3f9;
-  --text-muted: #99a2b6;
-  --text-faint: #6b7386;
+  /* Quadra 四方: the shared neutrals, type and shapes (quadra.css) with this app's own colour. */
+  --q-accent: var(--accent);
+  --q-accent-ink: #ffffff;
+  --bg: var(--q-page);
+  --bg-elevated: var(--q-surface);
+  --bg-raised: var(--q-surface);
+  --border: var(--q-border);
+  --text: var(--q-text);
+  --text-muted: var(--q-text-2);
+  --text-faint: var(--q-muted);
   --accent: #d97706;
   --accent-soft: rgba(217, 119, 6, 0.18);
   --good: #3ddc97;
@@ -19,8 +22,8 @@
   --warn-soft: rgba(255, 184, 77, 0.16);
   --danger: #ff6b6b;
   --danger-soft: rgba(255, 107, 107, 0.16);
-  --radius: 20px;
-  --radius-sm: 12px;
+  --radius: var(--q-radius);
+  --radius-sm: var(--q-radius-sm);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px -12px rgba(0, 0, 0, 0.45);
   --shadow-pinned: 0 1px 2px rgba(0, 0, 0, 0.25), 0 16px 32px -14px rgba(217, 119, 6, 0.35);
   --sport-epl: #5b8cff;
@@ -28,23 +31,16 @@
   --sport-nba: #ff9f4d;
   --sport-f1: #b98bff;
   --tap: 44px;
-  --font-sans: "Noto Sans TC", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: var(--q-font);
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #f4f5f9;
     /* --warn itself is too pale for text on white. */
     --warn-text: #b86e00;
     --warn-soft: rgba(255, 170, 40, 0.16);
     --danger: #d63b3b;
     --danger-soft: rgba(214, 59, 59, 0.1);
-    --bg-elevated: #ffffff;
-    --bg-raised: #ffffff;
-    --border: #e6e8f0;
-    --text: #14161c;
-    --text-muted: #5c6270;
-    --text-faint: #8890a0;
     --accent-soft: rgba(217, 119, 6, 0.12);
     --good-soft: rgba(26, 160, 100, 0.12);
     --good-text: #11774a;

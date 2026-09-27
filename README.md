@@ -14,8 +14,8 @@ This app is part of **Quadra 四方**, four apps sharing one account:
 | **四方單字 Quadra Words** | Orbit Vocab 英單力 | A big mini game with real benefit: English words that pay |
 
 - **The Quadra Pass 四方通行碼**: one 10-character code for all four apps and
-  every device (Shared-Proxy's `/eco` route). New syncs are passes only; an
-  old app-only code still works until it's upgraded or merged.
+  every device (Shared-Proxy's `/eco` route). Passes are the only kind of
+  code; an old app-only code is upgraded to one the next time its app opens.
 - **One money pool**: Securities' NT$ cash and Sportsbook's balance are the
   same money. Sportsbook's bets and winnings, Words' study rewards and
   transfers between passes all land in it, with records on every side.
@@ -25,15 +25,17 @@ This app is part of **Quadra 四方**, four apps sharing one account:
   right answer and NT$20 a newly mastered word (NT$800 a day at most);
   Securities' and Sportsbook's mini games pay for skill, up to NT$1,000 and
   NT$1,500 a day. Sportsbook has a weekly betting limit you can set.
-- **Merge tool** (`/Stock-Study/merge.html`): every old code in, one new
-  pass out; the old codes and their data are removed.
+- **One pass, signed in everywhere**: the same Quadra Pass panel in all four
+  apps; links between the apps carry the pass (in the address's #hash), so
+  the app they open is already signed in, even in the iPhone pop-up browser.
+  An old one-app code turns into a pass by itself.
 - **Installed only** on phones and tablets (added to the home screen), and
   every app checks for a new deploy on opening, on coming back and every
   five minutes, clearing old cached files before it reloads.
 - `quadra.mjs` and `quadra.css` are the same file in all four apps; the
   icons and link cards come from Shared-Proxy's `brand/generate.mjs`.
 
-**Live site: [https://jaypengx.github.io/Match-Find/](https://jaypengx.github.io/Match-Find/)**
+**Live site: [https://jaypengx.github.io/Quadra-Fixtures/](https://jaypengx.github.io/Quadra-Fixtures/)**
 
 ---
 
@@ -2364,11 +2366,11 @@ infrastructure in the `JayPengX` GitHub account:
   depends on for all live data (see [The Shared Proxy
   Architecture](#the-shared-proxy-architecture)).
 - **[Orbit Class](https://github.com/JayPengX/Orbit-Class)** and
-  **[Orbit-Vocab](https://github.com/JayPengX/Orbit-Vocab)** —
+  **[Quadra Words](https://github.com/JayPengX/Quadra-Words)** —
   sibling sites that share the same Worker infrastructure (a different,
   Gemini-backed deployment of it), though not Match Find's own
   `/sports-proxy` Worker specifically.
 
 ---
 
-**Live site: [https://jaypengx.github.io/Match-Find/](https://jaypengx.github.io/Match-Find/)**
+**Live site: [https://jaypengx.github.io/Quadra-Fixtures/](https://jaypengx.github.io/Quadra-Fixtures/)**
