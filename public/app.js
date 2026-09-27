@@ -123,7 +123,7 @@ import { isPlayInRound, localizePlayoffRound, playoffSeriesState } from './lib/p
 import { installTapLog, isTapLogOn, setTapLogHeader, tapLog } from './lib/tap-log.mjs';
 // Quadra: Sportsbook's odds and leagues, bet links and pinned matches (see
 // quadra-link.mjs), and the shared shell (home screen only, updates).
-import { EXTRA_SPORTS, EXTRA_SPORT_NAMES, extraInfo, loadOddsBoard, oddsGameFor, matchFromOddsGame, matchFromPin, readWalletPins, betUrl, leagueName, leagueSport, pinFor, writeWalletPin, picksByGame } from './lib/quadra-link.mjs';
+import { EXTRA_SPORTS, EXTRA_SPORT_NAMES, extraInfo, loadOddsBoard, oddsGameFor, matchFromOddsGame, matchFromPin, readWalletPins, betUrl, leagueName, leagueSport, pinFor, writeWalletPin, picksByGame, openSlips, openSlipCount, marketName } from './lib/quadra-link.mjs';
 import { ECO_URL, storedPass, storePass, installGate, passPanel, ecoCreate, poolBalance, appUrl } from './lib/quadra.mjs';
 
 // JayPengX/shared-proxy's dedicated `sports-proxy` Worker - a plain,
@@ -1247,11 +1247,47 @@ function sbGameCard(g, { board, pinned, mineByGame, onPlan, compact = false }) {
   ]);
 }
 
+const LEG_ICON = { won: '✓', lost: '✗', void: '↺', live: '●', waiting: '⏳' };
+function sbSlipCard(slip, wallet, byId) {
+  const n = slip.l.length;
+  const mode = slip.m === 'system'
+    ? (slip.z || []).map(k => (k === n || k === 'all' ? t('sbSlipAll') : t('sbSlipSize', { k }))).join('、') || t('sbSlipSystem')
+    : slip.m === 'parlay' ? t('sbSlipParlay') : t('sbSlipSingle');
+  const total = slip.m === 'parlay' ? slip.l.reduce((x, leg) => x * (Number(leg.o) || 1), 1) : null;
+  const lang = getLocale() === 'en' ? 'en' : 'zh';
+  return mk('a', { class: 'qv-slip', href: appUrl('odds', 'history') }, [
+    mk('div', { class: 'qv-slip-head' }, [
+      mk('span', { class: 'qv-slip-mode', text: mode }),
+      mk('strong', { text: t('sbSlipLegs', { n }) }),
+      slip.x ? mk('span', { class: 'qv-slip-max', text: t('sbSlipMax', { v: fmtMoneyTw(slip.x) }) }) : null
+    ]),
+    mk('ul', { class: 'qv-slip-legs' }, slip.l.map(leg => {
+      const st = leg.r || (leg.live || (leg.s && Date.parse(leg.s) <= Date.now()) ? 'live' : 'waiting');
+      const g = byId.get(leg.g);
+      const market = marketName(wallet, leg.k, lang);
+      const where = [g ? `${teamLabel(g.away)} @ ${teamLabel(g.home)}` : leg.sp ? leagueName(leg.sp, getLocale()) : '', leg.s ? `${dayLabel(leg.s)} ${timeLabel(leg.s)}` : ''].filter(Boolean).join(' · ');
+      return mk('li', { class: `qv-leg ${st}` }, [
+        mk('span', { class: 'qv-leg-state', 'aria-hidden': 'true', text: LEG_ICON[st] || '' }),
+        mk('span', { class: 'qv-leg-main' }, [
+          mk('span', { class: 'qv-leg-pick' }, [market ? mk('span', { class: 'qv-mk', text: market }) : null, mk('strong', { text: leg.p })]),
+          where ? mk('small', { text: where }) : null
+        ]),
+        mk('span', { class: 'qv-leg-odds', text: `@${Number(leg.o).toFixed(2)}` })
+      ]);
+    })),
+    mk('div', { class: 'qv-slip-foot' }, [
+      mk('span', { text: t('sbSlipCost', { v: fmtMoneyTw(slip.c || 0) }) }),
+      total ? mk('span', { text: t('sbSlipOdds', { v: total.toFixed(2) }) }) : null
+    ])
+  ]);
+}
+
 function renderSportsbookView() {
   if (!quadraViewEl || quadraViewEl.hidden) return;
   const board = state.quadra.board;
   const wallet = state.quadra.wallet;
-  const picks = wallet?.snap?.odds?.bets || [];
+  const slips = openSlips(wallet);
+  const slipCount = openSlipCount(wallet);
   const games = (board?.games || []).filter(g => Date.parse(g.startUtc) > Date.now() - 3 * 3_600_000).sort((a, b) => a.startUtc.localeCompare(b.startUtc));
   const byId = new Map(games.map(g => [g.id, g]));
   const pinned = quadraPinnedGameIds();
@@ -1269,7 +1305,7 @@ function renderSportsbookView() {
       ? mk('div', { class: 'qv-stats three' }, [
           mk('div', {}, [mk('small', { text: t('sbPool') }), mk('strong', { text: wallet ? fmtMoneyTw(poolBalance(wallet)) : '…' })]),
           mk('div', {}, [mk('small', { text: t('sbOpenStake') }), mk('strong', { text: fmtMoneyTw(wallet?.snap?.odds?.open || 0) })]),
-          mk('div', {}, [mk('small', { text: t('sbBetCount') }), mk('strong', { text: String(picks.length) })])
+          mk('div', {}, [mk('small', { text: t('sbBetCount') }), mk('strong', { text: String(slipCount) })])
         ])
       : mk('p', { class: 'qv-note', text: t('sbSignIn') }),
     mk('div', { class: 'qv-actions' }, [
@@ -1278,29 +1314,16 @@ function renderSportsbookView() {
     ])
   ]);
 
-  // Your open bets, each a link to its game in Sportsbook.
-  const mine = state.quadra.pass && picks.length
-    ? mk('div', { class: 'qv-card' }, [
-        mk('h3', { class: 'qv-h', text: `${t('sbMyBets')} · ${picks.length}` }),
-        mk(
-          'ul',
-          { class: 'qv-list' },
-          picks.map(p => {
-            const g = byId.get(p.g);
-            return mk('li', {}, [
-              mk('a', { class: 'qv-row', href: betUrl(p.g) }, [
-                mk('span', { class: 'qv-when', text: p.s ? `${dayLabel(p.s)} ${timeLabel(p.s)}` : '' }),
-                mk('span', { class: 'qv-what' }, [
-                  mk('strong', { text: p.p }),
-                  g ? mk('small', { text: `${teamLabel(g.away)} @ ${teamLabel(g.home)} · ${leagueName(g.key, getLocale())}` }) : p.k ? mk('small', { text: leagueName(p.k, getLocale()) }) : null
-                ]),
-                mk('span', { class: 'qv-odds', text: `@${Number(p.o).toFixed(2)}` })
-              ])
-            ]);
-          })
-        )
-      ])
-    : null;
+  // Your open slips, as Sportsbook shows them: the play (一關, 全部過關, a
+  // system's sizes), each pick with its market and where it stands, the
+  // stake and the most it can pay. Each opens your slips in Sportsbook.
+  const mine = state.quadra.pass && slips.length ? mk('div', { class: 'qv-card' }, [
+    mk('h3', { class: 'qv-h', text: `${t('sbMyBets')} · ${slipCount}` }),
+    mk('div', { class: 'qv-slips' }, slips.map(slip => sbSlipCard(slip, wallet, byId))),
+    slipCount > slips.length
+      ? mk('a', { class: 'qv-more', href: appUrl('odds', 'history'), text: t('sbSlipMore', { n: slipCount - slips.length }) })
+      : null
+  ]) : null;
 
   // Spotlight: the next day's games worth a bet - on your schedule's plan
   // first, then the closest matchups - side by side.
@@ -1432,7 +1455,7 @@ function markTab(view) {
 function updateTabBadge() {
   const badge = fixturesTabs?.querySelector('.q-tab-badge');
   if (!badge) return;
-  const n = (state.quadra.wallet?.snap?.odds?.bets || []).length;
+  const n = openSlipCount(state.quadra.wallet);
   badge.hidden = !n;
   badge.textContent = String(n);
 }

@@ -112,6 +112,13 @@ jobs:
         # install the new deploy's worker (see that file's own top comment).
         run: |
           sed -i "s|__BUILD_ID__|${{ github.sha }}|" public/app.js public/sw.js
+      - name: Tag every module import with this build's id
+        # app.js is already fetched by a new URL each deploy (above); the
+        # modules it imports (lib/, lib/locales/) need the same, or a
+        # browser can pair the new app.js with an old module for up to 10
+        # minutes - an old locale file shows raw text keys. See
+        # scripts/stamp-modules.mjs.
+        run: node scripts/stamp-modules.mjs ${{ github.sha }}
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

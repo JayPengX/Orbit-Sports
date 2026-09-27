@@ -236,14 +236,29 @@ export async function writeWalletPin(ecoUrl, passcode, id, pin) {
   return data.wallet || null;
 }
 
-// Sportsbook's open picks (the wallet's snap.odds.bets, see its openPicks),
-// by game id.
+// Sportsbook's open slips (the wallet's snap.odds.slips, see its
+// openSlips): each with its play (m), sizes (z), cost (c), most it can pay
+// (x) and picks (l). A wallet from before slips were shared has only the
+// picks (snap.odds.bets): each becomes a one-pick slip.
+export function openSlips(wallet) {
+  const odds = wallet?.snap?.odds;
+  if (Array.isArray(odds?.slips)) return odds.slips.filter(slip => Array.isArray(slip?.l));
+  return (odds?.bets || []).filter(pick => pick?.g).map(pick => ({ m: 'single', c: pick.c, l: [{ g: pick.g, p: pick.p, o: pick.o, s: pick.s, sp: pick.k }] }));
+}
+// How many slips are open (more than openSlips has, when they didn't all fit).
+export const openSlipCount = wallet => wallet?.snap?.odds?.n ?? openSlips(wallet).length;
+// A market's name from the wallet (Sportsbook sends them in both languages).
+export const marketName = (wallet, kind, lang = 'zh') => wallet?.snap?.odds?.kinds?.[kind]?.[lang === 'en' ? 1 : 0] || '';
+
+// Sportsbook's open picks (still undecided), by game id.
 export function picksByGame(wallet) {
   const out = new Map();
-  for (const pick of wallet?.snap?.odds?.bets || []) {
-    if (!pick?.g) continue;
-    if (!out.has(pick.g)) out.set(pick.g, []);
-    out.get(pick.g).push(pick);
+  for (const slip of openSlips(wallet)) {
+    for (const leg of slip.l) {
+      if (!leg?.g || leg.r) continue;
+      if (!out.has(leg.g)) out.set(leg.g, []);
+      out.get(leg.g).push({ ...leg, c: slip.c });
+    }
   }
   return out;
 }
