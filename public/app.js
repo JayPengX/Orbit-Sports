@@ -256,8 +256,8 @@ function noticeChanges(events) {
     lastState.set(key, e.status.state);
     if (!was || was === e.status.state) continue;
     const title = `${e.away.short || e.away.name} vs ${e.home.short || e.home.name}`;
-    if (e.status.state === 'in') notify(q, { title: `${t('startedNow')} · ${leagueName(e.league, locale)}`, body: title, tag: `start:${key}`, hash: 'home' });
-    if (e.status.state === 'post') notify(q, { title: `${t('final')} · ${leagueName(e.league, locale)}`, body: `${e.away.short || e.away.name} ${e.away.score} - ${e.home.score} ${e.home.short || e.home.name}`, tag: `end:${key}`, hash: 'home' });
+    if (e.status.state === 'in') notify(q, { title: `${t('startedNow')} · ${leagueName(e.league, locale)}`, body: title, tag: `start:${key}`, hash: 'home', kind: 'start' });
+    if (e.status.state === 'post') notify(q, { title: `${t('final')} · ${leagueName(e.league, locale)}`, body: `${e.away.short || e.away.name} ${e.away.score} - ${e.home.score} ${e.home.short || e.home.name}`, tag: `end:${key}`, hash: 'home', kind: 'end' });
   }
 }
 
