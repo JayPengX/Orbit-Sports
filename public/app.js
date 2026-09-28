@@ -194,8 +194,12 @@ function segmented(options, current, onPick) {
   );
 }
 
+// The first match opened today counts for Rewards' daily mission.
+let openedToday = '';
 function openEvent(e) {
-  track(null, eventKeys(e), 1);
+  const day = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
+  track(openedToday === day ? null : 'open', eventKeys(e), 1);
+  openedToday = day;
   if (e.kind === 'match') return openMatch(e);
   return openFieldEvent(e);
 }
