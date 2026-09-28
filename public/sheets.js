@@ -2,7 +2,7 @@
 // by section), a race / tournament / fight card, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { appUrl } from './lib/quadra.mjs';
-import { summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playGameId, STANDING_COLUMNS, COMPACT_COLUMNS } from './lib/espn.mjs';
+import { summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playGameId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { statName } from './lib/statnames.mjs';
 import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
@@ -16,7 +16,7 @@ const T = (k, v) => ctx.t(k, v);
 // ---- A match ----------------------------------------------------------------------------
 
 export async function openMatch(e) {
-  const s = sheet(leagueName(e.league, L()));
+  const s = sheet(leagueName(e.league, L()), { league: e.league });
   const header = el('div', { class: 'match-head' });
   const sections = el('div', { class: 'match-tabs' });
   const content = el('div', { class: 'match-content' }, [spinner()]);
@@ -234,12 +234,12 @@ function overview(d, e, table, nameOf) {
   const sm = side => d?.byId?.[side.id] || side;
   const compareRows = [
     [T('record'), ...sides.map(s => sm(s).record || s.record || '—')],
-    places.some(Boolean) ? [T('standing'), ...places.map(p => (p ? `${T('placeN', { n: p.pos })}${p.group && (table?.length || 0) > 1 ? ` · ${p.group}` : ''}` : '—'))] : null,
+    places.some(Boolean) ? [T('standing'), ...places.map(p => (p ? placeCell(p, (table?.length || 0) > 1) : '—'))] : null,
     ...(places.every(Boolean) ? keyStats(e.league, places) : [])
   ].filter(Boolean);
   const compare = el('div', { class: 'compare' }, [
     el('div', { class: 'cmp-head' }, [cmpTeam(e.away, 'away'), el('span', { class: 'cmp-vs', text: 'vs' }), cmpTeam(e.home, 'home')]),
-    ...compareRows.map(([label, a, h]) => el('div', { class: 'cmp-row' }, [el('strong', { class: 'num', text: a }), el('span', { text: label }), el('strong', { class: 'num', text: h })])),
+    ...compareRows.map(([label, a, h]) => el('div', { class: 'cmp-row' }, [cmpValue(a), el('span', { text: label }), cmpValue(h)])),
     forms.some(f => f.length)
       ? el('div', { class: 'cmp-row form' }, [formPills(forms[0]), el('span', { text: T('form') }), formPills(forms[1])])
       : null
@@ -270,7 +270,7 @@ function overview(d, e, table, nameOf) {
             leadersBy.map((list, i) =>
               el('div', {}, [
                 el('p', { class: 'mini-h', text: sides[i].short || sides[i].name }),
-                ...list.map(l => el('div', { class: 'leader' }, [el('small', { text: statName(l.stat, L()) }), el('span', {}, [el('strong', { text: l.name }), el('b', { class: 'num', text: ` ${l.value}` })])]))
+                ...list.map(l => el('div', { class: 'leader' }, [el('small', { text: statName(l.stat, L()) }), el('span', {}, [el('strong', { text: l.name }), el('b', { class: 'num', text: l.value })])]))
               ])
             )
           )
@@ -299,6 +299,15 @@ function keyStats(league, places) {
   const want = { soccer: ['P', 'GD', 'F', 'A'], baseball: ['PCT', 'GB', 'STRK'], basketball: ['PCT', 'GB', 'STRK'], football: ['PCT', 'STRK'], hockey: ['PTS', 'STRK'], rugby: ['PTS'], aussie: ['PTS'] }[sport] || [];
   return want.filter(k => places.every(p => p.row.stats[k] != null && p.row.stats[k] !== '')).map(k => [T(`col_${k}`) === `col_${k}` ? k : T(`col_${k}`), places[0].row.stats[k], places[1].row.stats[k]]);
 }
+// A long group name to its initials ("National Football Conference" → NFC).
+export const groupShort = name => {
+  const n = String(name || '').trim();
+  if (n.length <= 12) return n;
+  const caps = n.split(/[\s-]+/).filter(w => /^[A-Z]/.test(w)).map(w => w[0]).join('');
+  return caps.length >= 2 ? caps : n;
+};
+const placeCell = (p, grouped) => [T('placeN', { n: p.pos }), grouped && p.group ? groupShort(p.group) : ''];
+const cmpValue = v => (Array.isArray(v) ? el('strong', { class: 'cmp-val' }, [el('span', { class: 'num', text: v[0] }), v[1] ? el('small', { text: v[1] }) : null]) : el('strong', { class: 'cmp-val num', text: v }));
 const cmpTeam = (s, cls) => el('div', { class: `cmp-team ${cls}` }, [logo(s.logo, s.name, 'sm'), el('span', { text: s.short || s.name })]);
 const formPills = games => el('div', { class: 'form-pills' }, games.slice(-5).map(g => el('span', { class: `pill ${g.result}`, title: `${g.opp} ${g.score}`, text: g.result })));
 
@@ -333,7 +342,7 @@ function twCard(league) {
 }
 
 export function openFieldEvent(e) {
-  const s = sheet(leagueName(e.league, L()));
+  const s = sheet(leagueName(e.league, L()), { league: e.league });
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('h3', { class: 'field-title', text: e.name }), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') })]));
   if (e.kind === 'field') {
     // The weekend's (or week's) sessions, then the chosen one's order.
@@ -345,18 +354,18 @@ export function openFieldEvent(e) {
           el(
             'ul',
             { class: 'info-list sessions' },
-            sessions.map(x => el('li', {}, [el('span', { class: 'info-k', text: x.name || x.abbr }), el('span', { class: `info-v num${x.status.state === 'in' ? ' live-text' : ''}`, text: x.status.state === 'post' ? `${T('final')} · ${dayLabel(localDate(Date.parse(x.start)))}` : x.status.state === 'in' ? T('live') : whenText(x.start) })]))
+            sessions.map(x => el('li', {}, [el('span', { class: 'info-k', text: sessionName(x, L()) }), el('span', { class: `info-v num${x.status.state === 'in' ? ' live-text' : ''}`, text: x.status.state === 'post' ? `${T('final')} · ${dayLabel(localDate(Date.parse(x.start)))}` : x.status.state === 'in' ? T('live') : whenText(x.start) })]))
           )
         )
       );
-    let pick = Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
+    let pick = e.sessionKey ? Math.max(0, sessions.findIndex(x => x.abbr === e.sessionKey)) : Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
     const box = el('div');
     const paint = () => {
       const ss = sessions[pick];
       put(
         box,
-        sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), x.abbr || x.name]), String(pick), v => ((pick = Number(v)), paint())) : null,
-        el('p', { class: 'muted small', text: `${ss.name} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
+        sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,
+        el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
         ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), logo(c.logo, c.name, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField'))
       );
     };
@@ -403,7 +412,7 @@ export function openFieldEvent(e) {
 
 export async function openTeam(league, id, fallback = {}) {
   if (!id || !hasTeams(league)) return;
-  const s = sheet(leagueName(league, L()));
+  const s = sheet(leagueName(league, L()), { league });
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   ctx.track(null, [teamKey(league, fallback.name || ''), `league:${leagueKey(league)}`].filter(k => !k.endsWith(':')), 1.5);
@@ -461,7 +470,7 @@ const individual = league => LEAGUES[league]?.kind !== 'match';
 
 export async function openPlayer(league, id, fallback = {}) {
   if (!id) return;
-  const s = sheet(leagueName(league, L()));
+  const s = sheet(leagueName(league, L()), { league });
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   try {

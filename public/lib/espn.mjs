@@ -10,6 +10,7 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
+import { teamBadge } from './logos.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
@@ -104,7 +105,7 @@ const withLogo = (league, side) => (side && !side.logo ? { ...side, logo: fallba
 // day). Other events unchanged.
 const SESSION_MS = 4 * 3_600_000;
 export function settleField(e, now = Date.now()) {
-  if (!e?.sessions) return e;
+  if (!e?.sessions || e.sessionKey) return e;
   const sessions = e.sessions.filter(x => x.start).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   const live = sessions.find(x => x.status.state === 'in' && Date.parse(x.start) + SESSION_MS > now);
   const next = sessions.find(x => x.status.state === 'pre' && Date.parse(x.start) + SESSION_MS > now);
@@ -114,6 +115,39 @@ export function settleField(e, now = Date.now()) {
   if (over) return { ...e, at: last?.start || e.start, status: { ...e.status, state: 'post', completed: true } };
   const on = live || next;
   return { ...e, at: on?.start || e.start, session: on?.name || '', status: live ? { ...e.status, state: 'in' } : e.status.state === 'in' ? { ...e.status, state: 'pre' } : e.status };
+}
+
+// A race weekend's sessions by their feed code. The ones that count
+// (qualifying, the sprint's qualifying, the sprint, the race) are listed as
+// events of their own; practice stays inside the weekend.
+export const SESSION_NAMES = {
+  FP1: { zh: '第一次練習', en: 'Practice 1', short: { zh: '一練', en: 'FP1' } },
+  FP2: { zh: '第二次練習', en: 'Practice 2', short: { zh: '二練', en: 'FP2' } },
+  FP3: { zh: '第三次練習', en: 'Practice 3', short: { zh: '三練', en: 'FP3' } },
+  SS: { zh: '衝刺排位賽', en: 'Sprint qualifying', short: { zh: '衝刺排位', en: 'SQ' } },
+  SQ: { zh: '衝刺排位賽', en: 'Sprint qualifying', short: { zh: '衝刺排位', en: 'SQ' } },
+  SR: { zh: '衝刺賽', en: 'Sprint', short: { zh: '衝刺賽', en: 'Sprint' } },
+  Qual: { zh: '排位賽', en: 'Qualifying', short: { zh: '排位', en: 'Quali' } },
+  Race: { zh: '正賽', en: 'Race', short: { zh: '正賽', en: 'Race' } }
+};
+const MAIN_SESSIONS = ['SS', 'SQ', 'SR', 'Qual', 'Race'];
+export const sessionName = (x, lang = 'zh', short = false) => {
+  const n = SESSION_NAMES[x?.abbr];
+  if (!n) return x?.name || x?.abbr || '';
+  return short ? n.short[lang === 'en' ? 'en' : 'zh'] : n[lang === 'en' ? 'en' : 'zh'];
+};
+// A race weekend as its main sessions, each an event (the weekend's other
+// fields kept, so its sheet opens on that session). Anything else as it is.
+export function splitWeekend(e, now = Date.now(), lang = 'zh') {
+  if (e?.kind !== 'field' || LEAGUES[e.league]?.sport !== 'racing' || e.sessionKey) return [e];
+  const main = (e.sessions || []).filter(x => x.start && MAIN_SESSIONS.includes(x.abbr));
+  if (main.length < 2) return [settleField(e, now)];
+  return main.map(x => {
+    // The feed can leave a session "on" (or "to come") long after it ended.
+    const done = Date.parse(x.start) + SESSION_MS < now;
+    const status = done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true } : x.status;
+    return { ...e, id: `${e.id}~${x.abbr}`, weekend: e.id, start: x.start, at: x.start, end: null, session: sessionName(x, lang), sessionKey: x.abbr, status };
+  });
 }
 
 // A playoff series: its summary ("LAL lead series 2-1") and each side's wins.
@@ -276,7 +310,7 @@ export function parseKambi(data, league) {
       name,
       short: name,
       abbr: name.slice(0, 3).toUpperCase(),
-      logo: null,
+      logo: teamBadge(league, name),
       color: null,
       score: live?.score?.[key] ?? '',
       winner: false,

@@ -5,7 +5,7 @@ import { stageFrom, stageTag, roundName } from '../public/lib/stage.mjs';
 import { nearestDay } from '../public/lib/days.mjs';
 import { withGaps, parseSeries, parseScoreboard } from '../public/lib/espn.mjs';
 import { broadcastsOf } from '../public/lib/broadcast.mjs';
-import { statValue } from '../public/sheets.js';
+import { statValue, groupShort } from '../public/sheets.js';
 
 test('stages: preseason, regular, cup, All-Star, playoffs and finals', () => {
   assert.equal(stageFrom({ seasonType: 1, seasonSlug: 'preseason' }).key, 'pre');
@@ -79,4 +79,10 @@ test('stat bars read rates, times and made-attempted as numbers', () => {
 test('Taiwan broadcasts for the big leagues', () => {
   for (const k of ['mlb', 'nba', 'epl', 'cpbl', 'f1', 'laliga']) assert.ok(broadcastsOf(k).length, k);
   assert.ok(broadcastsOf('laliga').some(b => /DAZN/.test(b.zh)));
+});
+
+test('a long conference name fits the comparison as its initials', () => {
+  assert.equal(groupShort('National Football Conference'), 'NFC');
+  assert.equal(groupShort('American League East'), 'ALE');
+  assert.equal(groupShort('Eastern'), 'Eastern');
 });

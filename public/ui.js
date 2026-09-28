@@ -1,7 +1,7 @@
 // Quadra Fixtures' shared pieces: small DOM helpers, days and times, event
 // rows, sheets. `ctx` is filled by app.js (the text, the state and the
 // actions rows and sheets call).
-import { LEAGUES, SPORTS, leagueName } from './lib/leagues.mjs';
+import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { broadcastsOf } from './lib/broadcast.mjs';
 
@@ -65,7 +65,16 @@ export function logo(url, name, cls = '') {
   return img;
 }
 export const sportIcon = league => SPORTS[LEAGUES[league]?.sport]?.icon || '';
-export const leagueChip = key => el('span', { class: 'league-tag', text: `${sportIcon(key)} ${leagueName(key, ctx.locale)}` });
+// A league's mark: its logo, else its sport's icon.
+export function leagueMark(key, cls = 'lg-mark') {
+  const url = leagueLogo(key);
+  const icon = () => el('span', { class: `${cls} emoji`, 'aria-hidden': 'true', text: sportIcon(key) });
+  if (!url) return icon();
+  const img = el('img', { class: cls, src: url, alt: '', loading: 'lazy', decoding: 'async' });
+  img.addEventListener('error', () => img.replaceWith(icon()), { once: true });
+  return img;
+}
+export const leagueChip = key => el('span', { class: 'league-tag' }, [leagueMark(key), el('span', { text: leagueName(key, ctx.locale) })]);
 
 // ---- Events --------------------------------------------------------------------------
 
@@ -117,7 +126,8 @@ export function eventRow(e, { league = true, day = true } = {}) {
     ]);
   }
   // Races, tournaments, fight cards: one row for the whole event.
-  const sub = e.kind === 'field' ? (e.status.state === 'post' && e.sessions?.at(-1)?.field?.[0]?.name ? `🏆 ${e.sessions.at(-1).field[0].name}` : [e.session, e.venue].filter(Boolean).join(' · ')) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
+  const ended = e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1);
+  const sub = e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [e.session, `🏆 ${ended.field[0].name}`].filter(Boolean).join(' · ') : [e.session, e.venue].filter(Boolean).join(' · ')) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
   return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day), league ? leagueChip(e.league) : null]),
     el('div', { class: 'event-title' }, [el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null])
@@ -133,11 +143,11 @@ export function twChips(league, n = 3) {
 
 // ---- Sheets and sections ----------------------------------------------------------------
 
-export function sheet(title, { accent } = {}) {
+export function sheet(title, { accent, league } = {}) {
   const dialog = el('dialog', { class: 'q-sheet fx-sheet' });
   const body = el('div', { class: 'sheet-body' });
   const close = () => dialog.close();
-  dialog.append(el('div', { class: 'q-sheet-head' }, [el('h2', { text: title }), el('button', { class: 'q-close', type: 'button', text: '×', 'aria-label': ctx.t('close'), onclick: close })]), body);
+  dialog.append(el('div', { class: 'q-sheet-head' }, [league ? el('h2', { class: 'sheet-lg' }, [leagueMark(league), el('span', { text: title })]) : el('h2', { text: title }), el('button', { class: 'q-close', type: 'button', text: '×', 'aria-label': ctx.t('close'), onclick: close })]), body);
   dialog.addEventListener('click', e => e.target === dialog && close());
   dialog.addEventListener('close', () => dialog.remove());
   if (accent) dialog.style.setProperty('--q-accent', accent);
