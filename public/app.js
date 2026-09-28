@@ -9,7 +9,7 @@
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
 import { quadraSession, accountButton, installGate, watchUpdates, recordAffinity, affinityPatch, activityPatch, affinity, appUrl, fitNumbers, settingPatch, notify, helpUrl } from './lib/quadra.mjs';
-import { useSession, scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd } from './lib/espn.mjs';
+import { useSession, scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField } from './lib/espn.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, TOP_LEAGUES, hasStandings, hasTeams, leagueLogo } from './lib/leagues.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
@@ -193,9 +193,15 @@ function homeLeagues() {
     .sort((a, b) => b[1] - a[1])
     .map(([k]) => byPlay[k.slice(7)])
     .filter(Boolean);
-  const followedSportsTop = state.prefs.sports.flatMap(sp => leaguesOf(sp).filter(k => LEAGUES[k].top));
-  const set = new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league), ...followedSportsTop, ...liked.slice(0, 5), ...(state.prefs.sports.length ? [] : TOP_LEAGUES)]);
-  return [...set].filter(k => LEAGUES[k]).slice(0, 18);
+  const mine = pickLeagues();
+  // Someone who follows leagues or teams sees those; the rest (a sport's
+  // headline leagues, what they bet on) only fill in for someone who hasn't.
+  const extra = mine.length ? [] : [...state.prefs.sports.flatMap(sp => leaguesOf(sp).filter(k => LEAGUES[k].top)), ...liked.slice(0, 5), ...(state.prefs.sports.length ? [] : TOP_LEAGUES)];
+  return [...new Set([...mine, ...extra])].filter(k => LEAGUES[k]).slice(0, 18);
+}
+// The leagues the picks come from: followed ones and followed teams'.
+function pickLeagues() {
+  return [...new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)])].filter(k => LEAGUES[k]);
 }
 const espnDaysOf = date => {
   const start = new Date(`${date}T00:00:00`).getTime();
@@ -207,7 +213,8 @@ async function loadHome() {
   state.home.loading = true;
   const d0 = today();
   const d1 = addDays(d0, 1);
-  const dates = [...new Set([...espnDaysOf(d0), ...espnDaysOf(d1)])];
+  const d2 = addDays(d0, 2);
+  const dates = [...new Set([...espnDaysOf(d0), ...espnDaysOf(d1), ...espnDaysOf(d2)])];
   const leagues = homeLeagues();
   const [lists] = await Promise.all([
     Promise.all(leagues.map(k => scoreboard(k, LEAGUES[k].espn && LEAGUES[k].kind === 'match' ? dates : undefined).catch(() => []))),
@@ -223,7 +230,14 @@ async function loadHome() {
         )
     )
   ]);
-  const events = lists.flat().filter(e => e.kind !== 'match' || onDay(e, d0) || onDay(e, d1) || e.status.state === 'in');
+  // A race weekend or tournament counts on the day of its session that's on
+  // or next (and not once it's over).
+  const now = Date.now();
+  const events = lists
+    .flat()
+    .map(e => (e.sessions ? settleField(e, now) : e))
+    .map(e => (e.at ? { ...e, start: e.at } : e))
+    .filter(e => e.status.state === 'in' || (e.status.state !== 'post' && [d0, d1, d2].some(d => onDay(e, d))) || (e.kind === 'match' && [d0, d1].some(d => onDay(e, d))));
   noticeChanges(events);
   state.home.events = events;
   state.home.at = Date.now();
@@ -269,7 +283,7 @@ function pickCard(item, n) {
     el('div', { class: 'pick-time' }, [el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : clock(e.start) }), el('small', { text: e.status.state === 'in' ? statusText(e) : n === 0 ? t('firstUp') : '' })]),
     el('div', { class: 'pick-body' }, [
       leagueChip(e.league),
-      e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : el('strong', { class: 'pick-title', text: e.name }),
+      e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : el('strong', { class: 'pick-title', text: e.session ? `${e.name} · ${e.session}` : e.name }),
       reasons.length ? el('div', { class: 'why-row' }, reasons.map(r => el('span', { class: 'why', text: r }))) : null
     ])
   ]);
@@ -282,12 +296,19 @@ function renderHome() {
   const now = Date.now();
   const d0 = today();
   const pctx = { sports: state.prefs.sports, leagues: state.prefs.leagues, follows: state.prefs.follows, tables: state.home.tables, aff: affinity(state.wallet), now };
-  let day = d0;
-  let { plan, also } = dayPlan(events.filter(e => onDay(e, d0) || e.status.state === 'in'), pctx);
-  if (!plan.length) {
-    day = addDays(d0, 1);
-    ({ plan, also } = dayPlan(events.filter(e => onDay(e, day)), pctx));
+  // The picks: from the followed leagues and teams (everything, for someone
+  // who follows none); today, and the next days too while today is thin.
+  const mine = new Set(pickLeagues());
+  const pool = mine.size ? events.filter(e => mine.has(e.league)) : events;
+  const days = [];
+  let count = 0;
+  for (const [i, day] of [d0, addDays(d0, 1), addDays(d0, 2)].entries()) {
+    if (count >= 4) break;
+    const { plan, also } = dayPlan(pool.filter(e => onDay(e, day) || (i === 0 && e.status.state === 'in')), pctx);
+    if (plan.length) days.push({ day, plan, also: i === 0 ? also : [] });
+    count += plan.length;
   }
+  const also = days[0]?.day === d0 ? days[0].also : [];
   const live = events.filter(e => e.status.state === 'in');
   // Followed teams: each one's next game, or its last result.
   const teamRows = state.prefs.follows.map(f => {
@@ -313,7 +334,7 @@ function renderHome() {
       ])
     );
   // Today by league, in the person's order.
-  const todays = events.filter(e => e.kind !== 'match' || onDay(e, d0));
+  const todays = events.filter(e => onDay(e, d0) || e.status.state === 'in');
   const byLeague = new Map();
   for (const k of homeLeagues()) byLeague.set(k, []);
   for (const e of todays) byLeague.get(e.league)?.push(e);
@@ -325,9 +346,11 @@ function renderHome() {
       el('button', { class: 'q-btn small', type: 'button', text: hasFollows ? t('editFollows') : t('pickSports'), onclick: openFollowEditor })
     ]),
     !hasFollows ? sportPicker() : null,
-    plan.length
-      ? section(day === d0 ? t('todayPicks') : t('tomorrowPicks'), el('div', { class: 'pick-list' }, plan.map(pickCard)), { sub: t('picksSub') })
-      : section(t('todayPicks'), empty(t('noPicks'))),
+    ...(days.length
+      ? days.map((d, i) =>
+          section(d.day === d0 ? t('todayPicks') : d.day === addDays(d0, 1) ? t('tomorrowPicks') : `${dayLabel(d.day)} · ${t('picksOn')}`, el('div', { class: 'pick-list' }, d.plan.map(pickCard)), { sub: i === 0 ? t('picksSub') : '' })
+        )
+      : [section(t('todayPicks'), empty(t(mine.size ? 'noPicksMine' : 'noPicks')))]),
     also.length ? section(t('alsoToday'), el('div', { class: 'q-card list' }, also.map(x => eventRow(x.event)))) : null,
     live.length ? section(`${t('liveNow')} · ${live.length}`, el('div', { class: 'q-card list' }, live.slice(0, 12).map(e => eventRow(e)))) : null,
     state.prefs.follows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null,

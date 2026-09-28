@@ -112,6 +112,41 @@ function parseSide(c) {
 
 // ---- Scoreboards -------------------------------------------------------------------
 
+// A logo where the feed left one out: ESPN's CDN by the team's (or the
+// athlete's) id or abbreviation. A guess, so the picture falls back to the
+// initial when it isn't there.
+const CDN = 'https://a.espncdn.com/i';
+const HEADSHOTS = { racing: 'rpm', tennis: 'tennis', golf: 'golf', mma: 'mma' };
+export function fallbackLogo(league, side) {
+  if (!side || side.logo || !side.id) return side?.logo || null;
+  const path = LEAGUES[league]?.espn || '';
+  const [sport, code] = path.split('/');
+  if (side.athlete) return HEADSHOTS[sport] ? `${CDN}/headshots/${HEADSHOTS[sport]}/players/full/${side.id}.png` : null;
+  if (sport === 'soccer') return `${CDN}/teamlogos/soccer/500/${side.id}.png`;
+  if (/college/.test(code || '')) return `${CDN}/teamlogos/ncaa/500/${side.id}.png`;
+  if (['nba', 'wnba', 'nfl', 'mlb', 'nhl'].includes(code) && side.abbr) return `${CDN}/teamlogos/${code}/500/${side.abbr.toLowerCase()}.png`;
+  return null;
+}
+const withLogo = (league, side) => (side && !side.logo ? { ...side, logo: fallbackLogo(league, side) } : side);
+
+// A race weekend or a tournament, as of `now`: over once its last session
+// has had its time (the feed can keep a weekend "in progress" for days), and
+// `at` the session that's on or next (the weekend's own date is its first
+// day). Other events unchanged.
+const SESSION_MS = 4 * 3_600_000;
+export function settleField(e, now = Date.now()) {
+  if (!e?.sessions) return e;
+  const sessions = e.sessions.filter(x => x.start).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const live = sessions.find(x => x.status.state === 'in' && Date.parse(x.start) + SESSION_MS > now);
+  const next = sessions.find(x => x.status.state === 'pre' && Date.parse(x.start) + SESSION_MS > now);
+  const last = sessions.at(-1);
+  const endAt = Math.max(last ? Date.parse(last.start) + SESSION_MS : 0, e.end ? Date.parse(e.end) + 24 * 3_600_000 : 0);
+  const over = (sessions.length && sessions.every(x => x.status.state === 'post')) || (!live && !next && endAt && endAt < now);
+  if (over) return { ...e, at: last?.start || e.start, status: { ...e.status, state: 'post', completed: true } };
+  const on = live || next;
+  return { ...e, at: on?.start || e.start, session: on?.name || '', status: live ? { ...e.status, state: 'in' } : e.status.state === 'in' ? { ...e.status, state: 'pre' } : e.status };
+}
+
 export function parseScoreboard(data, league) {
   const kind = LEAGUES[league]?.kind || 'match';
   const out = [];
@@ -134,7 +169,7 @@ export function parseScoreboard(data, league) {
       const home = parseSide(comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0]);
       const away = parseSide(comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1]);
       if (!home || !away) continue;
-      out.push({ ...base, home, away, neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '' });
+      out.push({ ...base, home: withLogo(league, home), away: withLogo(league, away), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '' });
     } else if (kind === 'draw') {
       // A tennis tournament: its singles draws' matches.
       const draws = (e.groupings || []).map(g => ({
@@ -144,8 +179,8 @@ export function parseScoreboard(data, league) {
           round: m.round?.displayName || m.type?.text || '',
           start: m.date || m.startDate,
           status: parseStatus(m.status),
-          a: parseSide(m.competitors?.[0]),
-          b: parseSide(m.competitors?.[1])
+          a: withLogo(league, parseSide(m.competitors?.[0])),
+          b: withLogo(league, parseSide(m.competitors?.[1]))
         }))
       }));
       out.push({ ...base, draws });
@@ -155,8 +190,8 @@ export function parseScoreboard(data, league) {
         weight: m.type?.text || m.note || '',
         start: m.date,
         status: parseStatus(m.status),
-        a: parseSide(m.competitors?.[0]),
-        b: parseSide(m.competitors?.[1])
+        a: withLogo(league, parseSide(m.competitors?.[0])),
+        b: withLogo(league, parseSide(m.competitors?.[1]))
       }));
       out.push({ ...base, bouts });
     } else {
@@ -168,7 +203,7 @@ export function parseScoreboard(data, league) {
         abbr: m.type?.abbreviation || '',
         start: m.date,
         status: parseStatus(m.status),
-        field: [...(m.competitors || [])].sort((a, b) => (a.order ?? 999) - (b.order ?? 999)).map(parseSide)
+        field: [...(m.competitors || [])].sort((a, b) => (a.order ?? 999) - (b.order ?? 999)).map(c => withLogo(league, parseSide(c)))
       }));
       out.push({ ...base, sessions });
     }
@@ -427,8 +462,8 @@ export async function team(league, id) {
 export function parseSchedule(data, league) {
   return (data?.events || []).map(e => {
     const comp = e.competitions?.[0];
-    const home = parseSide(comp?.competitors?.find(c => c.homeAway === 'home'));
-    const away = parseSide(comp?.competitors?.find(c => c.homeAway === 'away'));
+    const home = withLogo(league, parseSide(comp?.competitors?.find(c => c.homeAway === 'home')));
+    const away = withLogo(league, parseSide(comp?.competitors?.find(c => c.homeAway === 'away')));
     return { id: String(e.id), league, kind: 'match', name: e.name, short: e.shortName, start: e.date, status: parseStatus(comp?.status), home, away, venue: comp?.venue?.fullName || '' };
   });
 }

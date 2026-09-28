@@ -70,7 +70,7 @@ img { max-width: 100%; }
 
 /* ---- App bar and tabs ---- */
 .appbar {
-  position: sticky; top: 0; z-index: 10; padding-top: env(safe-area-inset-top);
+  position: sticky; top: 0; z-index: 10; padding-top: var(--q-top, env(safe-area-inset-top));
   background: var(--q-bar); -webkit-backdrop-filter: saturate(1.6) blur(14px); backdrop-filter: saturate(1.6) blur(14px);
   border-bottom: 1px solid var(--q-border);
 }
@@ -96,7 +96,7 @@ h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.
   .appbar { position: static; height: 0; padding: 0; border: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
   .appbar-inner { padding: 0; }
   .brand { display: none; }
-  .mobile-bar { display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top) + 6px) 0 10px; }
+  .mobile-bar { display: flex; align-items: center; gap: 10px; padding: calc(var(--q-top, env(safe-area-inset-top)) + 6px) 0 10px; }
   .brand-mini { flex: 1 1 auto; }
 }
 

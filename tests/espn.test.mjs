@@ -100,3 +100,24 @@ test('Kambi leagues: schedule and live score', () => {
   assert.equal(e.status.state, 'in');
   assert.equal(e.home.score, '3');
 });
+
+test('a race weekend is over once its last session has had its time, and counts on its next session', async () => {
+  const { settleField } = await import('../public/lib/espn.mjs');
+  const h = 3_600_000;
+  const now = Date.parse('2026-09-28T04:00:00Z');
+  const s = (name, start, state) => ({ name, start, status: { state } });
+  const old = { kind: 'field', start: '2026-09-25T08:00:00Z', end: '2026-09-26T13:00:00Z', status: { state: 'in' }, sessions: [s('FP1', '2026-09-25T08:00:00Z', 'post'), s('Race', '2026-09-26T11:00:00Z', 'in')] };
+  assert.equal(settleField(old, now).status.state, 'post');
+  const next = { kind: 'field', start: '2026-10-09T02:30:00Z', status: { state: 'pre' }, sessions: [s('FP1', '2026-10-09T02:30:00Z', 'pre'), s('Race', '2026-10-11T05:00:00Z', 'pre')] };
+  const n = settleField(next, Date.parse('2026-10-10T00:00:00Z'));
+  assert.equal(n.at, '2026-10-11T05:00:00Z');
+  assert.equal(n.session, 'Race');
+  assert.equal(n.status.state, 'pre');
+  assert.equal(settleField(next, now - h).at, '2026-10-09T02:30:00Z');
+});
+
+test('a missing logo falls back to ESPN\'s CDN', async () => {
+  const { fallbackLogo } = await import('../public/lib/espn.mjs');
+  assert.match(fallbackLogo('f1', { id: '5503', athlete: true }), /headshots\/rpm\/players\/full\/5503\.png$/);
+  assert.equal(fallbackLogo('f1', { id: '1', logo: 'x' }), 'x');
+});
