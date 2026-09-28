@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseArticle, playGameId, espnDatesFor, parseKambi } from '../public/lib/espn.mjs';
+import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar, playGameId, espnDatesFor, parseKambi } from '../public/lib/espn.mjs';
 import { LEAGUES, SPORTS } from '../public/lib/leagues.mjs';
 
 const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url)));
@@ -64,7 +64,7 @@ test('standings: soccer table and baseball leagues', () => {
   assert.ok(mlb[0].rows[0].stats.PCT);
 });
 
-test('team, schedule, roster, player and news', () => {
+test('team, schedule, roster and player', () => {
   const t = parseTeam(fx('mlb-team'));
   assert.ok(t.name && t.record && t.logo);
   const sched = parseSchedule(fx('mlb-team-schedule'), 'mlb');
@@ -74,8 +74,16 @@ test('team, schedule, roster, player and news', () => {
   const a = parseAthlete(fx('mlb-athlete'));
   assert.equal(a.name, 'Aaron Judge');
   assert.ok(a.stats.list.length > 0);
-  const n = fx('epl-news').articles.map(parseArticle);
-  assert.ok(n[0].title && n[0].url);
+});
+
+test('a season calendar: game days, days off, or weeks', () => {
+  const white = parseCalendar({ leagues: [{ calendarIsWhitelist: true, calendar: ['2026-10-03T07:00Z', '2026-10-04T07:00Z'] }] });
+  assert.deepEqual(white.days, ['20261003', '20261004']);
+  const black = parseCalendar({ leagues: [{ calendarIsWhitelist: false, calendarStartDate: '2026-09-28T07:00Z', calendarEndDate: '2026-10-02T06:59Z', calendar: ['2026-09-29T07:00Z'] }] });
+  assert.deepEqual(black.days, ['20260928', '20260930', '20261001']);
+  const weeks = parseCalendar({ leagues: [{ calendar: [{ value: '2', entries: [{ label: 'Week 4', value: '4', startDate: 'a', endDate: 'b' }] }] }] });
+  assert.deepEqual(weeks.weeks[0], { label: 'Week 4', detail: '', seasontype: '2', week: '4', start: 'a', end: 'b' });
+  assert.equal(parseCalendar({ leagues: [{}] }), null);
 });
 
 test('Quadra Play ids for the "bet on this" link, and Taiwan days', () => {

@@ -1,0 +1,46 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { scoreMatch, dayPlan, clash, tableIndex } from '../public/lib/picks.mjs';
+
+const at = h => new Date(Date.UTC(2026, 9, 3, h)).toISOString();
+const side = (id, name) => ({ id, name, short: name });
+const match = (league, id, h, away, home, extra = {}) => ({ id, league, kind: 'match', start: at(h), status: { state: 'pre' }, away, home, ...extra });
+const NOW = Date.UTC(2026, 9, 3, 0);
+
+test('a followed team outweighs everything; the first sport counts more', () => {
+  const ctx = { sports: ['baseball', 'soccer'], leagues: ['mlb', 'epl'], follows: [{ league: 'epl', id: '1', name: 'Arsenal' }], now: NOW };
+  const ars = scoreMatch(match('epl', 'a', 11, side('1', 'Arsenal'), side('2', 'Fulham')), ctx);
+  const mlb = scoreMatch(match('mlb', 'b', 11, side('3', 'Mets'), side('4', 'Braves')), ctx);
+  const epl = scoreMatch(match('epl', 'c', 11, side('5', 'Brentford'), side('6', 'Everton')), ctx);
+  assert.ok(ars.score > mlb.score);
+  assert.equal(ars.reasons[0], 'team');
+  assert.ok(mlb.score > epl.score, 'baseball comes first for this person');
+  assert.ok(mlb.reasons.includes('priority'));
+});
+
+test('the table: a meeting at the top beats the bottom', () => {
+  const tables = { epl: tableIndex([{ rows: Array.from({ length: 20 }, (_, i) => ({ id: String(i + 1) })) }]) };
+  const ctx = { sports: ['soccer'], tables, now: NOW };
+  const top = scoreMatch(match('epl', 'a', 11, side('1', 'A'), side('2', 'B')), ctx);
+  const low = scoreMatch(match('epl', 'b', 11, side('19', 'S'), side('20', 'T')), ctx);
+  assert.ok(top.score > low.score);
+  assert.ok(top.reasons.includes('topClash'));
+  assert.ok(low.reasons.includes('close'));
+});
+
+test('the plan never clashes, and runs in time order', () => {
+  const ctx = { sports: ['soccer', 'basketball'], now: NOW };
+  const events = [
+    match('epl', 'a', 11, side('1', 'A'), side('2', 'B')),
+    match('epl', 'b', 11, side('3', 'C'), side('4', 'D')),
+    match('epl', 'c', 14, side('5', 'E'), side('6', 'F')),
+    match('nba', 'd', 23, side('7', 'G'), side('8', 'H')),
+    match('epl', 'x', 9, side('9', 'I'), side('10', 'J'), { status: { state: 'post' } })
+  ];
+  const { plan, also } = dayPlan(events, ctx);
+  for (let i = 0; i < plan.length; i++) for (let j = i + 1; j < plan.length; j++) assert.equal(clash(plan[i].event, plan[j].event), false);
+  assert.deepEqual(plan.map(p => p.event.start), [...plan.map(p => p.event.start)].sort());
+  assert.equal(plan.length, 3);
+  assert.equal(also.length, 1);
+  assert.ok(!plan.concat(also).some(p => p.event.id === 'x'), 'finished games are not picks');
+});

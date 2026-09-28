@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#c2410c" />
 <meta name="build-version" content="dev" />
 <title>Quadra Fixtures</title>
-<meta name="description" content="所有運動的賽程、比分、排名、球員數據與新聞。" />
+<meta name="description" content="所有運動的賽程、比分、排名與球員數據，還有依你追蹤的運動排好的今日推薦。" />
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-title" content="Fixtures" />
@@ -18,7 +18,7 @@
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Quadra Fixtures" />
 <meta property="og:title" content="Quadra Fixtures" />
-<meta property="og:description" content="所有運動的賽程、比分、排名、球員數據與新聞。" />
+<meta property="og:description" content="所有運動的賽程、比分、排名與球員數據，還有依你追蹤的運動排好的今日推薦。" />
 <meta property="og:url" content="https://jaypengx.github.io/Quadra-Fixtures/" />
 <meta property="og:image" content="https://jaypengx.github.io/Quadra-Fixtures/og-image.jpg" />
 <meta property="og:image:width" content="1200" />
@@ -72,19 +72,21 @@
     <nav id="tabs" class="tabs q-tabbar" role="tablist">
       <button id="tab-home" class="tab q-tab" role="tab" type="button" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span></span></button>
       <button id="tab-scores" class="tab q-tab" role="tab" type="button" data-tab="scores"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span></span></button>
+      <button id="tab-following" class="tab q-tab" role="tab" type="button" data-tab="following"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span></span></button>
       <button id="tab-standings" class="tab q-tab" role="tab" type="button" data-tab="standings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span></span></button>
-      <button id="tab-news" class="tab q-tab" role="tab" type="button" data-tab="news"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg><span></span></button>
     </nav>
+    <a id="help-link" class="help-link" href="#" aria-label="說明">?</a>
     <div id="account-slot" class="account-slot"></div>
   </div>
 </header>
-
 <main class="page">
-  <div id="mobile-bar" class="mobile-bar"></div>
+  <div id="mobile-bar" class="mobile-bar">
+    <div id="brand-mini" class="brand-mini"><img src="./favicon.svg" alt="" width="30" height="30" /><div><strong>Fixtures</strong><span id="status-mini" class="status"></span></div></div>
+  </div>
   <div id="panel-home" class="tab-panel" role="tabpanel"></div>
   <div id="panel-scores" class="tab-panel" role="tabpanel" hidden></div>
+  <div id="panel-following" class="tab-panel" role="tabpanel" hidden></div>
   <div id="panel-standings" class="tab-panel" role="tabpanel" hidden></div>
-  <div id="panel-news" class="tab-panel" role="tabpanel" hidden></div>
 </main>
 <div id="toasts" class="toasts" aria-live="polite"></div>
 <script type="module" src="./app.js" onerror="window.__fxFail()"></script>

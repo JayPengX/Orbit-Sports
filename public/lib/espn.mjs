@@ -188,6 +188,46 @@ export async function scoreboard(league, dates) {
     .filter(e => !seen.has(e.id) && seen.add(e.id));
 }
 
+// ---- The season's calendar: which days (or weeks) a league plays -------------------
+//
+// ESPN's scoreboard carries the season's calendar: for most leagues the US
+// dates with games (a whitelist), for MLB the days without (a blacklist
+// between the season's start and end), for American football its weeks.
+// { days: ['YYYYMMDD'…] } or { weeks: [{ label, seasontype, week, start, end }] }, or
+// null when there's none.
+export function parseCalendar(data) {
+  const l = data?.leagues?.[0];
+  const cal = l?.calendar;
+  if (!Array.isArray(cal) || !cal.length) return null;
+  const us = iso => String(iso).slice(0, 10).replaceAll('-', '');
+  if (typeof cal[0] === 'object') {
+    const weeks = cal.flatMap(type =>
+      (type.entries || []).map(w => ({ label: w.label || w.alternateLabel || '', detail: w.detail || '', seasontype: String(type.value), week: String(w.value), start: w.startDate, end: w.endDate }))
+    );
+    return weeks.length ? { weeks } : null;
+  }
+  if (l.calendarIsWhitelist !== false) return { days: cal.map(us) };
+  // A blacklist: every day from the start to the end but those.
+  const off = new Set(cal.map(us));
+  const days = [];
+  const end = Date.parse(l.calendarEndDate);
+  for (let t = Date.parse(l.calendarStartDate); t <= end && days.length < 400; t += 86_400_000) {
+    const d = us(new Date(t).toISOString());
+    if (!off.has(d)) days.push(d);
+  }
+  return { days };
+}
+export async function seasonCalendar(league) {
+  const l = LEAGUES[league];
+  if (!l?.espn) return null;
+  return parseCalendar(await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: 20_000 }));
+}
+export async function weekScoreboard(league, seasontype, week) {
+  const l = LEAGUES[league];
+  const data = await getJson(`${SITE}/${l.espn}/scoreboard?seasontype=${seasontype}&week=${week}&limit=300`, { ttl: 20_000 });
+  return parseScoreboard(data, league);
+}
+
 // ---- Kambi (NPB, KBO, CPBL, EuroLeague, B.League, racket sports) --------------------
 
 export function parseKambi(data, league) {
@@ -317,8 +357,7 @@ export function parseSummary(data, league) {
     city: [info.venue?.address?.city, info.venue?.address?.state || info.venue?.address?.country].filter(Boolean).join(', '),
     attendance: info.attendance || null,
     officials: (info.officials || []).map(o => o.displayName || o.fullName).filter(Boolean),
-    weather: info.weather ? `${info.weather.temperature ?? ''}° ${info.weather.displayValue || ''}`.trim() : '',
-    news: (data?.news?.articles || []).slice(0, 6).map(parseArticle)
+    weather: info.weather ? `${info.weather.temperature ?? ''}° ${info.weather.displayValue || ''}`.trim() : ''
   };
 }
 export async function summary(league, id) {
@@ -360,7 +399,7 @@ export const STANDING_COLUMNS = {
   aussie: ['GP', 'W', 'L', 'PTS']
 };
 
-// ---- Teams, schedules, rosters, players, news -------------------------------------------
+// ---- Teams, schedules, rosters, players -------------------------------------------
 
 export function parseTeam(data) {
   const t = data?.team || {};
@@ -418,27 +457,11 @@ export function parseAthlete(data) {
     weight: a.displayWeight || '',
     status: a.status?.name || '',
     injuries: (a.injuries || []).map(i => i.status || i.type?.description).filter(Boolean),
-    stats: { title: a.statsSummary?.displayName || '', list: (a.statsSummary?.statistics || []).map(s => ({ label: s.shortDisplayName || s.abbreviation, name: s.displayName, value: s.displayValue, rank: s.rankDisplayValue || '' })) },
-    news: (Array.isArray(data?.news) ? data.news : data?.news?.articles || []).slice(0, 5).map(parseArticle)
+    stats: { title: a.statsSummary?.displayName || '', list: (a.statsSummary?.statistics || []).map(s => ({ label: s.shortDisplayName || s.abbreviation, name: s.displayName, value: s.displayValue, rank: s.rankDisplayValue || '' })) }
   };
 }
 export async function athlete(league, id) {
   return parseAthlete(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}`, { ttl: 60 * 60_000 }));
-}
-export function parseArticle(a) {
-  return {
-    id: String(a.id ?? a.headline),
-    title: a.headline || '',
-    text: a.description || '',
-    at: a.published || a.lastModified || '',
-    image: a.images?.[0]?.url || null,
-    url: a.links?.web?.href || a.links?.mobile?.href || null,
-    byline: a.byline || ''
-  };
-}
-export async function news(league) {
-  const data = await getJson(`${SITE}/${LEAGUES[league].espn}/news`, { ttl: 15 * 60_000 });
-  return (data?.articles || []).map(parseArticle);
 }
 export async function teamsOf(league) {
   const data = await getJson(`${SITE}/${LEAGUES[league].espn}/teams`, { ttl: 24 * 3_600_000 });

@@ -2,7 +2,7 @@
 // and, when Quadra Play sells it, Play's key for it (the "bet on this" link).
 //
 //   espn    ESPN's site API path (scoreboards, match summaries, teams,
-//           rosters, standings, news, players)
+//           rosters, standings, players)
 //   kambi   Kambi's list view path, for the leagues ESPN doesn't carry
 //           (schedules and live scores only)
 //   play    Quadra Play's league key
@@ -117,7 +117,6 @@ export const leaguesOf = sport => Object.keys(LEAGUES).filter(k => LEAGUES[k].sp
 export const TOP_LEAGUES = Object.keys(LEAGUES).filter(k => LEAGUES[k].top);
 // Kinds of data each source has.
 export const hasStandings = key => Boolean(LEAGUES[key]?.espn) && ['match'].includes(LEAGUES[key].kind) && !LEAGUES[key].cup;
-export const hasNews = key => Boolean(LEAGUES[key]?.espn);
 export const hasTeams = key => Boolean(LEAGUES[key]?.espn) && LEAGUES[key].kind === 'match';
 export const leagueLogo = key => {
   const l = LEAGUES[key];
