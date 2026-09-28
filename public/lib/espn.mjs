@@ -11,6 +11,8 @@
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
 import { LEAGUES } from './leagues.mjs';
+import { proxyJson } from './quadra.mjs';
+import { stageFrom } from './stage.mjs';
 
 export const PROXY = 'https://sports-proxy.pengzjay.workers.dev/sports-proxy';
 export const SITE = 'https://site.api.espn.com/apis/site/v2/sports';
@@ -23,43 +25,10 @@ export const useSession = s => (session = s);
 
 // ---- Fetching ------------------------------------------------------------------
 
-const MAX = 6;
-let running = 0;
-const waiting = [];
-async function slot(task) {
-  if (running >= MAX) await new Promise(resolve => waiting.push(resolve));
-  running++;
-  try {
-    return await task();
-  } finally {
-    running--;
-    waiting.shift()?.();
-  }
-}
-const memo = new Map();
-// A short memory on top of the proxy's cache: a sheet opened twice doesn't
-// fetch twice (live data is kept only 20 seconds).
-export async function getJson(url, { ttl = 60_000, trim = '' } = {}) {
-  const hit = memo.get(url);
-  if (hit && Date.now() - hit.at < ttl) return hit.promise;
-  const promise = slot(async () => {
-    const token = session ? await session.ensureToken().catch(() => session.token) : '';
-    for (let attempt = 0; ; attempt++) {
-      try {
-        const res = await fetch(`${PROXY}?url=${encodeURIComponent(url)}${trim ? `&trim=${trim}` : ''}${token ? `&qt=${encodeURIComponent(token)}` : ''}`, { signal: AbortSignal.timeout(20_000) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return await res.json();
-      } catch (error) {
-        if (attempt >= 1) throw error;
-        await new Promise(r => setTimeout(r, 700));
-      }
-    }
-  });
-  memo.set(url, { at: Date.now(), promise });
-  promise.catch(() => memo.delete(url));
-  if (memo.size > 400) memo.delete(memo.keys().next().value);
-  return promise;
-}
+// The kit's proxyJson: requests made together go as one batch, answers are
+// remembered in memory and on the device (a list younger than `ttl` is
+// never asked for again, even after the app was closed).
+export const getJson = (url, { ttl = 60_000, trim = '' } = {}) => proxyJson(url, { ttl, trim });
 
 export const yyyymmdd = date => date.toISOString().slice(0, 10).replaceAll('-', '');
 // ESPN files a game under the US date; a Taiwan day spans two of them.
@@ -147,6 +116,12 @@ export function settleField(e, now = Date.now()) {
   return { ...e, at: on?.start || e.start, session: on?.name || '', status: live ? { ...e.status, state: 'in' } : e.status.state === 'in' ? { ...e.status, state: 'pre' } : e.status };
 }
 
+// A playoff series: its summary ("LAL lead series 2-1") and each side's wins.
+export function parseSeries(s) {
+  if (!s || s.type !== 'playoff') return null;
+  return { summary: s.summary || '', completed: Boolean(s.completed), games: s.totalCompetitions || 0, wins: Object.fromEntries((s.competitors || []).map(c => [String(c.id), c.wins ?? 0])) };
+}
+
 export function parseScoreboard(data, league) {
   const kind = LEAGUES[league]?.kind || 'match';
   const out = [];
@@ -163,7 +138,9 @@ export function parseScoreboard(data, league) {
       status: parseStatus(e.status || comp?.status),
       venue: comp?.venue?.fullName || e.venue?.fullName || e.circuit?.fullName || '',
       tv: [...new Set((comp?.broadcasts || []).flatMap(b => b.names || []))].join(' · '),
-      note: comp?.notes?.[0]?.headline || e.competitions?.[0]?.series?.summary || ''
+      note: comp?.notes?.[0]?.headline || '',
+      series: parseSeries(comp?.series),
+      stage: stageFrom({ seasonType: e.season?.type, seasonSlug: e.season?.slug, typeAbbr: comp?.type?.abbreviation, note: comp?.notes?.[0]?.headline || '', name: e.name, cup: LEAGUES[league]?.cup })
     };
     if (kind === 'match' && comp) {
       const home = parseSide(comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0]);
@@ -221,6 +198,24 @@ export async function scoreboard(league, dates) {
     .filter(Boolean)
     .flatMap(p => parseScoreboard(p, league))
     .filter(e => !seen.has(e.id) && seen.add(e.id));
+}
+
+// A whole season of a race series, tour or fight promotion (ESPN answers
+// `dates=<year>` with every event of that year): past results and every
+// future event, not only the current one. Late in the year, next year's too.
+export async function seasonEvents(league, now = Date.now()) {
+  const l = LEAGUES[league];
+  if (l?.kambi) return kambiEvents(league);
+  const d = new Date(now);
+  const years = [d.getUTCFullYear(), ...(d.getUTCMonth() >= 10 ? [d.getUTCFullYear() + 1] : [])];
+  const pages = await Promise.all(years.map(y => getJson(`${SITE}/${l.espn}/scoreboard?dates=${y}&limit=400`, { ttl: 5 * 60_000 }).catch(() => null)));
+  const seen = new Set();
+  const events = pages
+    .filter(Boolean)
+    .flatMap(p => parseScoreboard(p, league))
+    .filter(e => !seen.has(e.id) && seen.add(e.id))
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  return events.length ? events : scoreboard(league);
 }
 
 // ---- The season's calendar: which days (or weeks) a league plays -------------------
@@ -426,19 +421,64 @@ export function parseStandings(data) {
 }
 export async function standings(league) {
   const l = LEAGUES[league];
-  return parseStandings(await getJson(`${STANDINGS}/${l.espn}/standings`, { ttl: 10 * 60_000 }));
+  return withGaps(parseStandings(await getJson(`${STANDINGS}/${l.espn}/standings`, { ttl: 10 * 60_000 })), l.sport);
 }
 // Which columns a table shows, by sport (only those present).
 export const STANDING_COLUMNS = {
-  soccer: ['GP', 'W', 'D', 'L', 'GD', 'P'],
+  soccer: ['GP', 'W', 'D', 'L', 'GD', 'P', 'GAP'],
   baseball: ['W', 'L', 'PCT', 'GB', 'STRK'],
   basketball: ['W', 'L', 'PCT', 'GB', 'STRK'],
-  football: ['W', 'L', 'T', 'PCT', 'STRK'],
-  hockey: ['GP', 'W', 'L', 'OTL', 'PTS'],
-  rugby: ['GP', 'W', 'L', 'PTS'],
-  aussie: ['GP', 'W', 'L', 'PTS'],
-  racing: ['PTS']
+  football: ['W', 'L', 'T', 'PCT', 'GB', 'STRK'],
+  hockey: ['GP', 'W', 'L', 'OTL', 'PTS', 'GAP'],
+  rugby: ['GP', 'W', 'L', 'PTS', 'GAP'],
+  aussie: ['GP', 'W', 'L', 'PTS', 'GAP'],
+  racing: ['PTS', 'GAP']
 };
+// The columns that matter most on a narrow screen.
+export const COMPACT_COLUMNS = {
+  soccer: ['GP', 'GD', 'P', 'GAP'],
+  baseball: ['W', 'L', 'PCT', 'GB'],
+  basketball: ['W', 'L', 'PCT', 'GB'],
+  football: ['W', 'L', 'PCT', 'GB'],
+  hockey: ['GP', 'PTS', 'GAP'],
+  rugby: ['GP', 'PTS', 'GAP'],
+  aussie: ['GP', 'PTS', 'GAP'],
+  racing: ['PTS', 'GAP']
+};
+
+// The gap to the top of each table: points behind the leader (soccer,
+// hockey, rugby, racing…) as GAP, and games behind (GB) where the feed
+// leaves it out for a win-loss table (American football). The leader shows
+// "-".
+const num = v => {
+  const n = parseFloat(String(v ?? '').replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+};
+export function withGaps(groups, sport) {
+  const pointsKey = { soccer: 'P', hockey: 'PTS', rugby: 'PTS', aussie: 'PTS', racing: 'PTS' }[sport];
+  return (groups || []).map(g => {
+    const rows = g.rows;
+    if (!rows.length) return g;
+    if (pointsKey) {
+      const top = num(rows[0].stats[pointsKey]);
+      if (top == null) return g;
+      return { ...g, rows: rows.map((r, i) => ({ ...r, stats: { ...r.stats, GAP: i === 0 ? '-' : num(r.stats[pointsKey]) == null ? '' : String(Math.round((top - num(r.stats[pointsKey])) * 10) / 10) } })) };
+    }
+    if (['baseball', 'basketball', 'football'].includes(sport) && rows.some(r => r.stats.GB == null || r.stats.GB === '')) {
+      const w0 = num(rows[0].stats.W);
+      const l0 = num(rows[0].stats.L);
+      if (w0 == null || l0 == null) return g;
+      return {
+        ...g,
+        rows: rows.map((r, i) => {
+          const gb = ((w0 - num(r.stats.W)) + (num(r.stats.L) - l0)) / 2;
+          return { ...r, stats: { ...r.stats, GB: i === 0 || !(gb > 0) ? '-' : String(gb) } };
+        })
+      };
+    }
+    return g;
+  });
+}
 
 // ---- Teams, schedules, rosters, players -------------------------------------------
 
@@ -498,11 +538,32 @@ export function parseAthlete(data) {
     weight: a.displayWeight || '',
     status: a.status?.name || '',
     injuries: (a.injuries || []).map(i => i.status || i.type?.description).filter(Boolean),
-    stats: { title: a.statsSummary?.displayName || '', list: (a.statsSummary?.statistics || []).map(s => ({ label: s.shortDisplayName || s.abbreviation, name: s.displayName, value: s.displayValue, rank: s.rankDisplayValue || '' })) }
+    stats: { title: a.statsSummary?.displayName || '', list: (a.statsSummary?.statistics || []).map(s => ({ label: s.shortDisplayName || s.abbreviation, name: s.displayName, value: s.displayValue, rank: s.rankDisplayValue || '' })) },
+    // Individual sports: the country, and what each sport adds.
+    country: a.flag?.alt || a.citizenship || a.citizenshipCountry?.abbreviation || '',
+    flag: a.flag?.href || '',
+    hand: a.hand?.displayValue || '',
+    turnedPro: a.turnedPro || a.debutYear || '',
+    weightClass: a.weightClass?.text || '',
+    stance: a.stance?.text || '',
+    record: (a.statsSummary?.statistics || []).find(s => /wins-losses/i.test(s.displayName || ''))?.displayValue || ''
   };
 }
 export async function athlete(league, id) {
   return parseAthlete(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}`, { ttl: 60 * 60_000 }));
+}
+// An individual's season and form (golf, tennis, racing, fighting): season
+// numbers, rankings, the next and last events.
+export function parseOverview(data) {
+  const st = data?.statistics;
+  const season = st?.labels?.length && st.splits?.length ? { title: st.displayName || '', rows: st.splits.map(sp => ({ name: sp.displayName, cells: (sp.stats || []).map((v, i) => ({ label: st.labels[i], value: v })) })) } : null;
+  const rankings = (data?.seasonRankings?.categories || []).slice(0, 8).map(c => ({ label: c.shortDisplayName || c.displayName, value: c.displayValue, rank: c.rankDisplayValue || '' }));
+  const fight = data?.upcomingFight?.league?.events?.[0];
+  const recent = (data?.recentTournaments?.[0]?.eventsStats || []).slice(0, 6).map(ev => ({ id: String(ev.id), name: ev.name, date: ev.date, score: ev.competitions?.[0]?.competitors?.[0]?.score?.displayValue || '', place: ev.competitions?.[0]?.competitors?.[0]?.status?.position?.displayName || '' }));
+  return { season, rankings, fight: fight ? { title: data.upcomingFight.displayName || '', name: fight.name, date: fight.date, where: fight.location || '' } : null, recent };
+}
+export async function athleteOverview(league, id) {
+  return parseOverview(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }));
 }
 export async function teamsOf(league) {
   const data = await getJson(`${SITE}/${LEAGUES[league].espn}/teams`, { ttl: 24 * 3_600_000 });

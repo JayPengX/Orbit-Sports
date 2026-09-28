@@ -9,23 +9,41 @@ you follow, and the way into
 
 ## What's in it
 
-- **Today**: Today's picks, a plan of the day's best matches for you with no
-  time clashes (`lib/picks.mjs`), what else is worth a look, live now, your
-  teams' next or last game, your open bets in Play, and today's games in
-  your leagues, in your order.
-- **Scores**: every sport and league; the date strip lists only the days a
-  league plays (from ESPN's season calendar, then the viewer's own days),
-  with the latest and next rounds even across a break; more with ‹ and ›.
-- **Following**: your sports in priority order; for each followed league its
-  live and next games, latest results, your teams and the top of the table.
-  "Edit follows" orders sports, picks leagues and removes teams.
-- **Match sheets**: score, line score and the Bet in Play link, then the
-  overview (the two sides compared: record, place, key table figures, form;
-  win probability; each side's leaders; season series; injuries; match
-  info), team stats, player box scores, plays, line-ups and the table.
-- **Teams and players**: place and key figures, schedule, recent results,
-  roster, follow; player bio and season stats.
-- **Standings** for every league that has a table, followed ones first.
+Five tabs:
+
+- **推薦 For you**: any day (a strip from three days back to a week ahead),
+  every match of it ranked for you: a no-clash plan of the best (with the
+  reasons), then every other match in order ("show more"). Filters: all,
+  what you follow, your teams only, or one sport. Your teams' next or last
+  game and your open bets in Play (today).
+- **賽事 Matches**: every sport and league. Team sports open on the game day
+  nearest to now (a live one first) with a strip of the league's game days;
+  a filter by stage when the season has more than one (preseason, playoffs,
+  the NBA Cup…). Races, tours and fight promotions show their whole season:
+  live, coming up (every future event, e.g. the rest of the F1 calendar) and
+  results.
+- **直播 Live**: everything in progress now, by sport (followed first), and
+  what starts in the next three hours. The tab shows the live count.
+- **追蹤 Following**: your sports in priority order; for each followed league
+  its live and next games, latest results, your teams and the top of the
+  table; the players you follow (individual sports).
+- **排名 Tables** for every league that has one, followed ones first, with the
+  gap to the top (points behind the leader, or games behind), full team
+  names where they fit and the short ones on a phone.
+- **Match sheets**: score, stage and playoff series ("Series tied 1-1"),
+  line score, the Bet in Play link, then the overview, team stats (each
+  side's own bar against the larger value, so averages and rates read
+  right), player box scores, plays, line-ups and the table.
+- **Where to watch in Taiwan** (`lib/broadcast.mjs`, checked 2026-09): ELTA
+  (愛爾達), Videoland (緯來), DAZN, Sportcast (博斯), league passes… on match
+  sheets, pick cards and the matches tab. ESPN's US networks aren't shown.
+- **Stages** (`lib/stage.mjs`): preseason, regular season, NBA Cup, All-Star,
+  play-in, playoffs with their rounds in Chinese (外卡賽, 分區系列賽…), finals.
+- **Teams and players**: place and key figures, schedule, results, roster,
+  follow. Individual sports (tennis, golf, F1, UFC) get a player page too:
+  country, age, plays, division, season numbers and rankings, the next
+  fight, recent events, and a follow button; names in draws, fields, fight
+  cards and the drivers' table open it.
 - **Notices**: a followed team's game starting and its final score.
 
 ## Today's picks
@@ -52,8 +70,12 @@ A static site (GitHub Pages) with no build step.
 - Data comes from ESPN's site API (Kambi's list views for the leagues ESPN
   doesn't carry), read through the Quadra data proxy
   (`sports-proxy.pengzjay.workers.dev`, in Shared-Proxy), which needs the
-  Quadra Pass session token (`lib/espn.mjs`).
-- A Quadra Pass is required: the sign-in, the balance chip, the account sheet
+  Quadra Pass session token (`lib/espn.mjs`), with the kit's `proxyJson`:
+  lists asked for together go as one batch, and answers are kept on the
+  device for their lifetime, so reopening the app doesn't ask again. The
+  last day read and the follows are kept too: a signed-in phone opens on
+  them at once while fresh ones load.
+- A Quadra Pass is required: the sign-in, the account button, the account sheet
   and the one-app-at-a-time session are the shared kit
   (`public/lib/quadra.mjs` and `public/quadra.css`, copied from
   `Shared-Proxy/kit` by `node kit/sync.mjs`; don't edit the copies).
@@ -66,12 +88,15 @@ A static site (GitHub Pages) with no build step.
 ```
 public/
   index.html, styles.css, sw.js, manifest.webmanifest
-  app.js            tabs: Today, Scores, Following, Standings; follows
+  app.js            tabs: For you, Matches, Live, Following, Tables; follows
   sheets.js         match, event, team and player sheets; standings tables
   ui.js             shared DOM helpers, rows, days and times
   lib/leagues.mjs   every league: sport, source, Play key, kind
   lib/espn.mjs      fetching and parsing scoreboards, calendars, summaries, standings, teams, players
-  lib/picks.mjs     Today's picks: scoring and the day's plan
+  lib/picks.mjs     the day's picks: scoring and the no-clash plan
+  lib/stage.mjs     season stages and playoff rounds
+  lib/broadcast.mjs where to watch in Taiwan, by league
+  lib/days.mjs      the nearest game day
   lib/foryou.mjs    the keys a match is about (shared with Play)
   lib/i18n.mjs      Traditional Chinese and English
   lib/quadra.mjs    shared Quadra kit (copy)

@@ -2,10 +2,12 @@
 // by section), a race / tournament / fight card, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { appUrl } from './lib/quadra.mjs';
-import { summary, standings, team, teamSchedule, roster, athlete, playGameId, STANDING_COLUMNS } from './lib/espn.mjs';
+import { summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playGameId, STANDING_COLUMNS, COMPACT_COLUMNS } from './lib/espn.mjs';
+import { stageTag } from './lib/stage.mjs';
+import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeams, hasStandings } from './lib/leagues.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, put, spinner, empty, logo, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented } from './ui.js';
+import { ctx, el, put, spinner, empty, logo, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -42,6 +44,7 @@ export async function openMatch(e) {
         ]),
         side(home, e.home)
       ]),
+      stageTag(e, L()) || seriesText(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null]) : null,
       linescore(sm, e),
       playId && e.status.state !== 'post' && !e.status.void
         ? el('a', { class: 'q-btn primary block play-link', href: appUrl('odds', `game=${playId}`), onclick: ev => (ev.preventDefault(), ctx.track('toPlay', eventKeys(e), 2), ctx.q.go('odds', `game=${playId}`)) }, [document.createTextNode(`🎟️ ${T('betInPlay')}`)])
@@ -103,6 +106,17 @@ function linescore(sm, e) {
   return el('div', { class: 'table-wrap' }, [el('table', { class: 'linescore' }, [el('thead', {}, [el('tr', {}, [el('th'), ...head, el('th', { text: 'T' })])]), el('tbody', {}, [row(away), row(home)])])]);
 }
 
+// A stat's number: "12-25" (made-attempted) is its rate, "45%" and ".271" as they are.
+export function statValue(text) {
+  const t = String(text ?? '').trim();
+  const pair = /^(\d+(?:\.\d+)?)\s*[-/]\s*(\d+(?:\.\d+)?)$/.exec(t);
+  if (pair) return Number(pair[2]) > 0 ? Number(pair[1]) / Number(pair[2]) : 0;
+  const time = /^(\d+):(\d{2})$/.exec(t);
+  if (time) return Number(time[1]) * 60 + Number(time[2]);
+  const n = parseFloat(t.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
 const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [el('span', { text: title }), sub ? el('small', { text: sub }) : null]), body]);
 
 // A side's row in the league's table: [place, row, group size].
@@ -127,12 +141,15 @@ function matchSection(view, d, e, table) {
             .filter(s => !/games played/i.test(s.label) && !(Number(s.home) === 0 && Number(s.away) === 0))
             .slice(0, 40)
             .map(s => {
-              const h = parseFloat(String(s.home).replace(/[^\d.-]/g, ''));
-              const a = parseFloat(String(s.away).replace(/[^\d.-]/g, ''));
-              const total = Math.abs(h) + Math.abs(a);
+              const [a, h] = [statValue(s.away), statValue(s.home)];
+              const top = Math.max(Math.abs(a ?? 0), Math.abs(h ?? 0));
+              // Each side's own bar, measured against the larger of the two
+              // (never a split of one line: an average or a rate doesn't add
+              // up to a whole with the other side's).
+              const bar = (v, cls) => el('div', { class: `sb-half ${cls}` }, [el('i', { style: `width:${top > 0 && v != null ? Math.max(3, (Math.abs(v) / top) * 100) : 0}%` })]);
               return el('div', { class: 'stat-bar' }, [
                 el('div', { class: 'sb-top' }, [el('strong', { class: `num${a > h ? ' lead' : ''}`, text: s.away }), el('span', { text: s.label }), el('strong', { class: `num${h > a ? ' lead' : ''}`, text: s.home })]),
-                total > 0 ? el('div', { class: 'sb-track' }, [el('i', { class: 'away', style: `flex:${Math.abs(a)}` }), el('i', { class: 'home', style: `flex:${Math.abs(h)}` })]) : null
+                top > 0 ? el('div', { class: 'sb-track' }, [bar(a, 'away'), bar(h, 'home')]) : null
               ]);
             })
         )
@@ -230,12 +247,15 @@ function overview(d, e, table, nameOf) {
   const info = [
     ['🕒', T('kickoff'), `${dayLabel(localDate(when.getTime()), { long: true })} ${clock(e.start)}`],
     ['📍', T('venue'), [d?.venue || e.venue, d?.city].filter(Boolean).join(' · ')],
-    ['📺', T('tv'), e.tv],
+    ['📺', T('tv'), broadcastsOf(e.league).map(b => (L() === 'en' ? b.en : b.zh)).join('、') || T('noTw')],
+    stageTag(e, L()) ? ['🏅', T('stage'), [stageTag(e, L()), seriesText(e)].filter(Boolean).join(' · ')] : null,
     ['🌤', T('weather'), d?.weather],
     ['👥', T('attendance'), d?.attendance ? Number(d.attendance).toLocaleString(L() === 'en' ? 'en-US' : 'zh-TW') : ''],
     ['🧑‍⚖️', T('officials'), (d?.officials || []).slice(0, 3).join('、')],
     ['🏆', T('competition'), [leagueName(e.league, L()), e.note].filter(Boolean).join(' · ')]
-  ].filter(([, , v]) => v);
+  ]
+    .filter(Boolean)
+    .filter(([, , v]) => v);
   const leadersBy = sides.map(s => (d?.leaders || []).filter(l => l.team === s.id).slice(0, 4));
   return el('div', { class: 'stack' }, [
     card(T('matchup'), compare),
@@ -296,19 +316,47 @@ function winProbCard(d, e) {
 
 // ---- Races, tournaments, fight cards ---------------------------------------------------
 
+// A person in a race, tournament or fight: their page, where ESPN has one.
+function personName(league, p, cls = 'field-name') {
+  if (!p) return el('span', { class: cls });
+  const can = p.id && LEAGUES[league]?.espn && !/^k/.test(String(p.id));
+  return can ? el('button', { class: `link ${cls}`, type: 'button', text: p.name, onclick: () => ctx.openPlayer(league, p.id, p) }) : el('span', { class: cls, text: p.name });
+}
+function twCard(league) {
+  const list = broadcastsOf(league);
+  return card(
+    T('watchTw'),
+    list.length ? el('div', { class: 'tw-list' }, list.map(b => el('span', { class: `tw-chip ${b.kind}`, text: L() === 'en' ? b.en : b.zh }))) : el('p', { class: 'muted small', text: T('noTw') }),
+    { sub: CHECKED }
+  );
+}
+
 export function openFieldEvent(e) {
   const s = sheet(leagueName(e.league, L()));
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('h3', { class: 'field-title', text: e.name }), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') })]));
   if (e.kind === 'field') {
-    let pick = e.sessions.length - 1;
+    // The weekend's (or week's) sessions, then the chosen one's order.
+    const sessions = [...e.sessions].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    if (sessions.length > 1)
+      s.body.append(
+        card(
+          T('schedule'),
+          el(
+            'ul',
+            { class: 'info-list sessions' },
+            sessions.map(x => el('li', {}, [el('span', { class: 'info-k', text: x.name || x.abbr }), el('span', { class: `info-v num${x.status.state === 'in' ? ' live-text' : ''}`, text: x.status.state === 'post' ? `${T('final')} · ${dayLabel(localDate(Date.parse(x.start)))}` : x.status.state === 'in' ? T('live') : whenText(x.start) })]))
+          )
+        )
+      );
+    let pick = Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
     const box = el('div');
     const paint = () => {
-      const ss = e.sessions[pick];
+      const ss = sessions[pick];
       put(
         box,
-        e.sessions.length > 1 ? segmented(e.sessions.map((x, i) => [String(i), x.abbr || x.name]), String(pick), v => ((pick = Number(v)), paint())) : null,
+        sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), x.abbr || x.name]), String(pick), v => ((pick = Number(v)), paint())) : null,
         el('p', { class: 'muted small', text: `${ss.name} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
-        ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', {}, [el('span', { class: 'pos num', text: String(i + 1) }), logo(c.logo, c.name, 'sm round'), el('span', { class: 'field-name', text: c.name }), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField'))
+        ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), logo(c.logo, c.name, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField'))
       );
     };
     paint();
@@ -322,9 +370,9 @@ export function openFieldEvent(e) {
           el('div', { class: 'q-card pad bout' }, [
             el('small', { class: 'muted', text: [b.weight, statusText({ ...e, start: b.start, status: b.status })].filter(Boolean).join(' · ') }),
             el('div', { class: 'bout-row' }, [
-              el('span', { class: b.a?.winner ? 'win' : '' }, [logo(b.a?.logo, b.a?.name, 'sm round'), document.createTextNode(` ${b.a?.name || ''}`)]),
+              el('span', { class: b.a?.winner ? 'win' : '' }, [logo(b.a?.logo, b.a?.name, 'sm round'), personName(e.league, b.a, 'bout-name')]),
               el('span', { class: 'vs', text: 'vs' }),
-              el('span', { class: b.b?.winner ? 'win' : '' }, [document.createTextNode(`${b.b?.name || ''} `), logo(b.b?.logo, b.b?.name, 'sm round')])
+              el('span', { class: b.b?.winner ? 'win' : '' }, [personName(e.league, b.b, 'bout-name'), logo(b.b?.logo, b.b?.name, 'sm round')])
             ])
           ])
         )
@@ -340,13 +388,14 @@ export function openFieldEvent(e) {
           dr.matches.map(m =>
             el('div', { class: 'q-card pad bout' }, [
               el('small', { class: 'muted', text: [m.round, statusText({ ...e, start: m.start, status: m.status })].filter(Boolean).join(' · ') }),
-              ...[m.a, m.b].filter(Boolean).map(p => el('div', { class: `draw-row${p.winner ? ' win' : ''}` }, [logo(p.logo, p.name, 'sm round'), el('span', { class: 'field-name', text: p.name }), el('span', { class: 'num sets', text: p.lines.join(' ') })]))
+              ...[m.a, m.b].filter(Boolean).map(p => el('div', { class: `draw-row${p.winner ? ' win' : ''}` }, [logo(p.logo, p.name, 'sm round'), personName(e.league, p), el('span', { class: 'num sets', text: p.lines.join(' ') })]))
             ])
           )
         )
       );
     }
   }
+  s.body.append(twCard(e.league));
 }
 
 // ---- A team -------------------------------------------------------------------------------
@@ -406,28 +455,57 @@ const tile = (label, value, sub = '') => el('div', { class: 'stat-tile' }, [el('
 
 // ---- A player -----------------------------------------------------------------------------
 
-export async function openPlayer(league, id) {
+// Individual sports (races, tours, fights): the person is followed like a team.
+const individual = league => LEAGUES[league]?.kind !== 'match';
+
+export async function openPlayer(league, id, fallback = {}) {
   if (!id) return;
   const s = sheet(leagueName(league, L()));
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   try {
-    const a = await athlete(league, id);
+    const [a, ov] = await Promise.all([athlete(league, id), individual(league) ? athleteOverview(league, id).catch(() => null) : null]);
     const facts = [
       [T('team'), a.team],
+      [T('country'), a.country],
       [T('position'), a.position],
+      [T('weightClass'), a.weightClass],
       [T('age'), a.age ? String(a.age) : ''],
       [T('height'), a.height],
       [T('weight'), a.weight],
+      [T('hand'), a.hand],
+      [T('stance'), a.stance],
+      [T('turnedPro'), a.turnedPro ? String(a.turnedPro) : ''],
       [T('born'), a.born],
       [T('birthPlace'), a.birthPlace]
     ].filter(([, v]) => v);
+    let followBtn = null;
+    if (individual(league)) {
+      followBtn = el('button', { class: 'q-btn', type: 'button' });
+      const paintFollow = () => {
+        const on = ctx.isFollowed(league, id);
+        followBtn.textContent = on ? `✓ ${T('following')}` : `+ ${T('follow')}`;
+        followBtn.classList.toggle('primary', !on);
+      };
+      followBtn.addEventListener('click', () => (ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true }), paintFollow()));
+      paintFollow();
+    }
+    const sub = [a.position || a.weightClass, a.team || a.country, a.record].filter(Boolean).join(' · ');
     put(
       content,
-      el('div', { class: 'team-head' }, [logo(a.headshot, a.name, 'xl round'), el('div', {}, [el('h3', { text: `${a.name}${a.jersey ? ` #${a.jersey}` : ''}` }), el('p', { class: 'muted', text: [a.position, a.team].filter(Boolean).join(' · ') })])]),
+      el('div', { class: 'team-head' }, [logo(a.headshot || fallback.logo, a.name, 'xl round'), el('div', {}, [el('h3', { text: `${a.name}${a.jersey ? ` #${a.jersey}` : ''}` }), el('p', { class: 'muted', text: sub })]), followBtn]),
       a.stats.list.length ? card(a.stats.title || T('season'), el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(x.label, x.value, x.rank)))) : null,
+      ov?.fight ? card(ov.fight.title || T('nextEvent'), el('p', { class: 'series-text', text: [ov.fight.name, ov.fight.date ? whenText(ov.fight.date) : '', ov.fight.where].filter(Boolean).join(' · ') })) : null,
+      ov?.season
+        ? card(
+            ov.season.title || T('season'),
+            el('div', { class: 'stack' }, ov.season.rows.map(r => el('div', {}, [el('p', { class: 'mini-h', text: r.name }), el('div', { class: 'stat-grid' }, r.cells.map(c => tile(c.label, c.value)))])))
+          )
+        : null,
+      ov?.rankings?.length ? card(T('rankings'), el('div', { class: 'stat-grid' }, ov.rankings.map(x => tile(x.label, x.value, x.rank)))) : null,
+      ov?.recent?.length ? card(T('recentEvents'), el('ul', { class: 'info-list' }, ov.recent.map(x => el('li', {}, [el('span', { class: 'info-k', text: x.name }), el('span', { class: 'info-v num', text: [x.place, x.score].filter(Boolean).join(' · ') || dayLabel(localDate(Date.parse(x.date))) })])))) : null,
       facts.length ? card(T('profile'), el('ul', { class: 'info-list' }, facts.map(([k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v', text: v })])))) : null,
-      a.teamId ? el('button', { class: 'q-btn block', type: 'button', text: a.team, onclick: () => openTeam(league, a.teamId, { name: a.team }) }) : null
+      a.teamId && !individual(league) ? el('button', { class: 'q-btn block', type: 'button', text: a.team, onclick: () => openTeam(league, a.teamId, { name: a.team }) }) : null
     );
   } catch {
     put(content, empty(T('failed')));
@@ -437,33 +515,36 @@ export async function openPlayer(league, id) {
 // ---- Standings tables -----------------------------------------------------------------------
 
 // mark: team ids to highlight (a match's two sides); followed teams always are.
-export function standingsTables(groups, league, { mark = [], top = 0 } = {}) {
+export function standingsTables(groups, league, { mark = [], top = 0, compact = false } = {}) {
   const sport = LEAGUES[league]?.sport;
   const want = STANDING_COLUMNS[sport] || ['W', 'L'];
+  const small = COMPACT_COLUMNS[sport] || want;
+  const colName = c => (T(`col_${c}`) === `col_${c}` ? c : c === 'GAP' ? T('col_GAP') : c);
   return el(
     'div',
     { class: 'stack' },
     groups.map(g => {
       const cols = want.filter(c => g.rows.some(r => r.stats[c] != null && r.stats[c] !== ''));
       const rows = top ? g.rows.filter((r, i) => i < top || ctx.isFollowed(league, r.id)) : g.rows;
+      // Columns beyond the essentials go on narrow screens (and in compact tables).
+      const cls = c => `num${!small.includes(c) ? ' extra' : ''}${c === 'GAP' || c === 'GB' ? ' gap' : ''}`;
       return el('div', { class: 'q-card pad fx-card' }, [
         g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
         el('div', { class: 'table-wrap' }, [
-          el('table', { class: 'data standings' }, [
-            el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: '#' }), el('th', { class: 'left' }), ...cols.map(c => el('th', { text: c }))])]),
+          el('table', { class: `data standings${compact ? ' compact' : ''}` }, [
+            el('thead', {}, [el('tr', {}, [el('th', { class: 'left rank-cell', text: '#' }), el('th', { class: 'left name-cell' }), ...cols.map(c => el('th', { class: cls(c), text: c === 'GAP' ? colName(c) : c }))])]),
             el(
               'tbody',
               {},
               rows.map(r => {
                 const i = g.rows.indexOf(r);
+                const name = [el('span', { class: 'nm-full', text: r.name }), el('span', { class: 'nm-short', text: r.short || r.name })];
                 return el('tr', { class: ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '' }, [
                   el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null, text: String(i + 1) }),
-                  el('th', { class: 'left' }, [
-                    r.athlete
-                      ? el('span', { class: 'team-link' }, [logo(r.logo, r.name, 'xs'), document.createTextNode(` ${r.name}`)])
-                      : el('button', { class: 'link team-link', type: 'button', onclick: () => r.id && openTeam(league, r.id, r) }, [logo(r.logo, r.name, 'xs'), document.createTextNode(` ${r.short || r.name}`)])
+                  el('th', { class: 'left name-cell' }, [
+                    el('button', { class: 'link team-link', type: 'button', onclick: () => (r.athlete ? r.id && ctx.openPlayer(league, r.id, r) : r.id && openTeam(league, r.id, r)) }, [logo(r.logo, r.name, `xs${r.athlete ? ' round' : ''}`), el('span', { class: 'nm' }, name)])
                   ]),
-                  ...cols.map(c => el('td', { class: 'num', text: r.stats[c] ?? '' }))
+                  ...cols.map(c => el('td', { class: cls(c), text: r.stats[c] ?? '' }))
                 ]);
               })
             )

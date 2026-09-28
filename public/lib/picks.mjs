@@ -19,10 +19,12 @@
 
 import { LEAGUES, TOP_LEAGUES } from './leagues.mjs';
 import { eventKeys, teamKey } from './foryou.mjs';
+import { broadcastsOf } from './broadcast.mjs';
 
 // Minutes a match usually takes, by sport.
 export const DURATION = { soccer: 115, baseball: 185, basketball: 145, football: 195, hockey: 155, tennis: 120, racket: 80, racing: 120, golf: 300, mma: 240, rugby: 110, aussie: 140 };
-const NATIONAL_TV = /\b(ESPN|ABC|FOX|NBC|CBS|TNT|TBS|Prime Video|Peacock|Apple TV|Netflix|DAZN|Sky Sports|TNT Sports|beIN|ELTA|愛爾達|緯來|博斯)\b/i;
+// On a Taiwan channel or streaming service (lib/broadcast.mjs), not a league pass only.
+const onTaiwanTv = league => broadcastsOf(league).some(b => b.kind !== 'pass');
 const BIG_GAME = /final|semi|play-?off|postseason|wild ?card|series|championship|derby|決賽|季後/i;
 
 // A side's strength, 0 (last) to 1 (first), from the league's tables.
@@ -74,13 +76,14 @@ export function scoreMatch(e, { sports = [], leagues = [], follows = [], tables 
       reasons.push('topClash');
     } else if (Math.abs(a - h) < 0.12) reasons.push('close');
   }
-  if (BIG_GAME.test(`${e.note || ''} ${e.name || ''}`)) {
+  if (['post', 'final', 'playin'].includes(e.stage?.key) || BIG_GAME.test(`${e.note || ''} ${e.name || ''}`)) {
     score += 0.3;
     reasons.push('stakes');
   }
   // Fame.
   if (TOP_LEAGUES.includes(e.league)) score += 0.12;
-  if (NATIONAL_TV.test(e.tv || '')) {
+  if (e.stage?.key === 'final') score += 0.25;
+  if (onTaiwanTv(e.league)) {
     score += 0.08;
     reasons.push('tv');
   }

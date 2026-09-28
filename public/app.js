@@ -8,28 +8,32 @@
 // What the person follows lives on the pass (this app's payload): sports in
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
-import { quadraSession, accountButton, installGate, watchUpdates, recordAffinity, affinityPatch, activityPatch, affinity, appUrl, fitNumbers, settingPatch, notify, helpUrl } from './lib/quadra.mjs';
-import { useSession, scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField } from './lib/espn.mjs';
+import { quadraSession, accountButton, installGate, watchUpdates, recordAffinity, affinityPatch, activityPatch, affinity, appUrl, fitNumbers, settingPatch, notify, helpUrl, cachedPayload, cachedWallet, restorePlace } from './lib/quadra.mjs';
+import { useSession, scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField, seasonEvents } from './lib/espn.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, TOP_LEAGUES, hasStandings, hasTeams, leagueLogo } from './lib/leagues.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { dayPlan, tableIndex } from './lib/picks.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, onDay, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip } from './ui.js';
+import { dayPlan, tableIndex, scoreMatch } from './lib/picks.mjs';
+import { stageOf } from './lib/stage.mjs';
+import { nearestDay } from './lib/days.mjs';
+import { ctx, el, put, spinner, empty, $, localDate, today, addDays, onDay, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, twChips, seriesText, segmented } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, standingsTables } from './sheets.js';
 
 const locale = detectLocale();
 const t = makeT(locale);
 const L = obj => (locale === 'en' ? obj.en : obj.zh);
 document.documentElement.lang = locale === 'zh' ? 'zh-Hant' : 'en';
-const TABS = ['home', 'scores', 'following', 'standings'];
+const TABS = ['home', 'matches', 'live', 'following', 'standings'];
 
 const state = {
   tab: 'home',
   prefs: { sports: [], leagues: [], follows: [] },
   prefsLoaded: false,
   wallet: null,
-  home: { events: [], loading: false, at: 0, teams: new Map(), tables: {} },
-  scores: { sport: 'soccer', league: 'epl', date: today(), byDay: null, days: [], extra: 0, loading: false, mode: 'days' },
+  // The days read so far: date -> { events, at, loading }.
+  days: new Map(),
+  home: { date: today(), filter: 'all', shown: 20, teams: new Map(), tables: {} },
+  scores: { sport: 'soccer', league: 'epl', date: null, byDay: null, days: [], extra: 0, loading: false, mode: 'days', stage: 'all' },
   following: new Map(),
   standings: { league: null, groups: null }
 };
@@ -68,13 +72,16 @@ function isFollowed(league, id) {
   return state.prefs.follows.some(f => f.league === league && f.id === id);
 }
 function isFollowedEvent(e) {
-  return e.kind === 'match' && (isFollowed(e.league, e.home?.id) || isFollowed(e.league, e.away?.id));
+  if (e.kind === 'match') return isFollowed(e.league, e.home?.id) || isFollowed(e.league, e.away?.id);
+  // A race, tournament or fight card with a followed player in it.
+  const people = [...(e.sessions || []).flatMap(x => x.field || []), ...(e.bouts || []).flatMap(b => [b.a, b.b]), ...(e.draws || []).flatMap(d => d.matches.flatMap(m => [m.a, m.b]))];
+  return people.some(p => p && isFollowed(e.league, p.id));
 }
 function toggleFollow(league, side) {
   const p = state.prefs;
   if (isFollowed(league, side.id)) p.follows = p.follows.filter(f => !(f.league === league && f.id === side.id));
   else {
-    p.follows = [...p.follows, { league, id: side.id, name: side.name, logo: side.logo }];
+    p.follows = [...p.follows, { league, id: side.id, name: side.name, logo: side.logo, ...(side.athlete ? { athlete: true } : {}) }];
     // Following a team follows its league and sport too.
     if (!p.leagues.includes(league)) p.leagues = [...p.leagues, league];
     if (!p.sports.includes(LEAGUES[league].sport)) p.sports = [...p.sports, LEAGUES[league].sport];
@@ -114,9 +121,9 @@ function moveSport(sport, by) {
 }
 function changed() {
   savePrefs();
-  state.home.at = 0;
+  state.days.clear();
   state.following.clear();
-  if (state.tab === 'home') loadHome();
+  if (state.tab === 'home' || state.tab === 'live') loadDay(state.tab === 'live' ? today() : state.home.date);
   if (state.tab === 'following') renderFollowing();
 }
 function track(action, keys = [], weight = 1) {
@@ -162,7 +169,7 @@ function openFollowEditor() {
       ),
       el('h3', { class: 'section-h', text: t('yourTeams') }),
       p.follows.length
-        ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${f.name} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
+        ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [logo(f.logo, f.name, `sm${f.athlete ? ' round' : ''}`), el('span', { class: 'order-name', text: `${f.name} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
         : el('p', { class: 'muted small', text: t('teamsHint') })
     );
   };
@@ -181,11 +188,13 @@ function openEvent(e) {
   return openFieldEvent(e);
 }
 
-// ---- Home: the day planned around what you follow ----------------------------------------
+// ---- A day's matches, for 推薦 and 直播 --------------------------------------------------
 
-// The leagues home reads: followed ones first (in priority order), then the
-// ones the person is into (every app's affinity), then the headline ones.
-function homeLeagues() {
+// The leagues a day is read from: followed ones (in priority order) and the
+// followed teams', each followed sport's headline leagues, what the person
+// is into in every Quadra app, and the headline leagues: as many as can be
+// recommended, the filter narrows them.
+function dayLeagues() {
   const aff = affinity(state.wallet);
   const byPlay = Object.fromEntries(Object.entries(LEAGUES).map(([k, l]) => [l.play || k, k]));
   const liked = Object.entries(aff)
@@ -193,13 +202,16 @@ function homeLeagues() {
     .sort((a, b) => b[1] - a[1])
     .map(([k]) => byPlay[k.slice(7)])
     .filter(Boolean);
-  const mine = pickLeagues();
-  // Someone who follows leagues or teams sees those; the rest (a sport's
-  // headline leagues, what they bet on) only fill in for someone who hasn't.
-  const extra = mine.length ? [] : [...state.prefs.sports.flatMap(sp => leaguesOf(sp).filter(k => LEAGUES[k].top)), ...liked.slice(0, 5), ...(state.prefs.sports.length ? [] : TOP_LEAGUES)];
-  return [...new Set([...mine, ...extra])].filter(k => LEAGUES[k]).slice(0, 18);
+  const sportsTop = state.prefs.sports.flatMap(sp => {
+    const all = leaguesOf(sp);
+    const tops = all.filter(k => LEAGUES[k].top);
+    return (tops.length ? tops : all).concat(all.slice(0, 4));
+  });
+  // Someone who follows nothing yet: every sport's main leagues.
+  const everyone = state.prefs.sports.length ? [] : Object.keys(SPORTS).flatMap(sp => leaguesOf(sp).slice(0, sp === 'soccer' ? 8 : 3));
+  return [...new Set([...pickLeagues(), ...sportsTop, ...liked.slice(0, 6), ...TOP_LEAGUES, ...everyone])].filter(k => LEAGUES[k]).slice(0, 36);
 }
-// The leagues the picks come from: followed ones and followed teams'.
+// The leagues the person picked: followed ones and followed teams'.
 function pickLeagues() {
   return [...new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)])].filter(k => LEAGUES[k]);
 }
@@ -208,16 +220,36 @@ const espnDaysOf = date => {
   return [...new Set([yyyymmdd(new Date(start - 11 * 3_600_000)), yyyymmdd(new Date(start + 12 * 3_600_000)), yyyymmdd(new Date(start + 23 * 3_600_000))])];
 };
 
-async function loadHome() {
-  if (state.home.loading) return;
-  state.home.loading = true;
-  const d0 = today();
-  const d1 = addDays(d0, 1);
-  const d2 = addDays(d0, 2);
-  const dates = [...new Set([...espnDaysOf(d0), ...espnDaysOf(d1), ...espnDaysOf(d2)])];
-  const leagues = homeLeagues();
+// The last day read is kept on the device, so the app opens on it at once.
+const DAY_KEY = 'fx.day.v2';
+function saveDay(date, slot) {
+  try {
+    localStorage.setItem(DAY_KEY, JSON.stringify({ date, at: slot.at, events: slot.events.slice(0, 400) }));
+  } catch {}
+}
+function restoreDay() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DAY_KEY) || 'null');
+    if (saved?.date === today() && Date.now() - saved.at < 6 * 3_600_000) state.days.set(saved.date, { events: saved.events, at: saved.at, loading: false, stale: true });
+  } catch {}
+}
+
+async function loadDay(date) {
+  const slot = state.days.get(date) || { events: [], at: 0, loading: false };
+  if (slot.loading) return;
+  slot.loading = true;
+  state.days.set(date, slot);
+  const leagues = dayLeagues();
+  const dates = espnDaysOf(date);
+  const isToday = date === today();
   const [lists] = await Promise.all([
-    Promise.all(leagues.map(k => scoreboard(k, LEAGUES[k].espn && LEAGUES[k].kind === 'match' ? dates : undefined).catch(() => []))),
+    Promise.all(
+      leagues.map(k => {
+        const l = LEAGUES[k];
+        if (l.kind !== 'match') return (isToday ? scoreboard(k) : seasonEvents(k)).catch(() => []);
+        return scoreboard(k, l.espn ? dates : undefined).catch(() => []);
+      })
+    ),
     // The followed leagues' tables, for the picks.
     Promise.all(
       followedLeagues()
@@ -230,27 +262,25 @@ async function loadHome() {
         )
     )
   ]);
-  // A race weekend or tournament counts on the day of its session that's on
-  // or next (and not once it's over).
   const now = Date.now();
   const events = lists
     .flat()
     .map(e => (e.sessions ? settleField(e, now) : e))
     .map(e => (e.at ? { ...e, start: e.at } : e))
-    .filter(e => e.status.state === 'in' || (e.status.state !== 'post' && [d0, d1, d2].some(d => onDay(e, d))) || (e.kind === 'match' && [d0, d1].some(d => onDay(e, d))));
-  noticeChanges(events);
-  state.home.events = events;
-  state.home.at = Date.now();
-  state.home.loading = false;
+    .filter(e => (isToday && e.status.state === 'in') || onDay(e, date) || (e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
+  if (isToday) noticeChanges(events);
+  Object.assign(slot, { events, at: Date.now(), loading: false, stale: false });
+  if (isToday) saveDay(date, slot);
   paintStatus();
-  if (state.tab === 'home') renderHome();
+  if (state.tab === 'home' && state.home.date === date) renderHome();
+  if (state.tab === 'live' && isToday) renderLive();
   loadFollowedTeams();
 }
 // Followed teams' schedules (their next and last games).
 async function loadFollowedTeams() {
   for (const f of state.prefs.follows.slice(0, 10)) {
     const key = `${f.league}:${f.id}`;
-    if (state.home.teams.has(key) || !hasTeams(f.league)) continue;
+    if (f.athlete || state.home.teams.has(key) || !hasTeams(f.league)) continue;
     state.home.teams.set(key, null);
     teamSchedule(f.league, f.id)
       .then(list => {
@@ -264,7 +294,7 @@ async function loadFollowedTeams() {
 const lastState = new Map();
 function noticeChanges(events) {
   for (const e of events) {
-    if (!isFollowedEvent(e)) continue;
+    if (e.kind !== 'match' || !isFollowedEvent(e)) continue;
     const key = `${e.league}:${e.id}`;
     const was = lastState.get(key);
     lastState.set(key, e.status.state);
@@ -275,54 +305,111 @@ function noticeChanges(events) {
   }
 }
 
+// A sideways row of chips scrolled so the chosen one sits in the middle
+// (the row only, never the page).
+function centerChosen(box) {
+  for (const chip of box.querySelectorAll('.q-chips [aria-pressed="true"], .segmented [aria-pressed="true"]')) {
+    const row = chip.parentElement;
+    if (row.scrollWidth > row.clientWidth) row.scrollLeft = chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2;
+  }
+}
+
+// ---- 推薦: every match of the chosen day, ranked for this person ---------------------------
+
 const REASON = r => t(`why_${r}`);
 function pickCard(item, n) {
   const e = item.event;
-  const reasons = item.reasons.slice(0, 2).map(r => (r === 'priority' ? `${SPORTS[LEAGUES[e.league].sport].icon} ${REASON(r)}` : REASON(r)));
+  const reasons = item.reasons.filter(r => r !== 'tv').slice(0, 2).map(r => (r === 'priority' ? `${SPORTS[LEAGUES[e.league].sport].icon} ${REASON(r)}` : REASON(r)));
+  const tag = stageOf(e).special ? (stageOf(e).round?.[locale === 'en' ? 'en' : 'zh'] || stageOf(e)[locale === 'en' ? 'en' : 'zh']) : '';
+  const series = seriesText(e);
   return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => openEvent(e) }, [
-    el('div', { class: 'pick-time' }, [el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : clock(e.start) }), el('small', { text: e.status.state === 'in' ? statusText(e) : n === 0 ? t('firstUp') : '' })]),
+    el('div', { class: 'pick-time' }, [el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : clock(e.start) }), el('small', { text: e.status.state === 'in' ? statusText(e) : n === 0 ? t('firstUp') : '' })]),
     el('div', { class: 'pick-body' }, [
-      leagueChip(e.league),
+      el('div', { class: 'pick-top' }, [leagueChip(e.league), tag ? el('span', { class: 'stage-tag', text: tag }) : null]),
       e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : el('strong', { class: 'pick-title', text: e.session ? `${e.name} · ${e.session}` : e.name }),
-      reasons.length ? el('div', { class: 'why-row' }, reasons.map(r => el('span', { class: 'why', text: r }))) : null
+      series ? el('small', { class: 'series-line', text: series }) : null,
+      reasons.length ? el('div', { class: 'why-row' }, reasons.map(r => el('span', { class: 'why', text: r }))) : null,
+      twChips(e.league, 2)
     ])
   ]);
 }
 
+// What the filter keeps: everything, the followed leagues and teams, only
+// the followed teams' games, or one sport.
+function filtered(events) {
+  const f = state.home.filter;
+  if (f === 'all') return events;
+  if (f === 'mine') {
+    const mine = new Set(pickLeagues());
+    return events.filter(e => mine.has(e.league) || isFollowedEvent(e));
+  }
+  if (f === 'teams') return events.filter(isFollowedEvent);
+  return events.filter(e => LEAGUES[e.league]?.sport === f);
+}
+
+function dateStrip(current, onPick, { from = -3, to = 7 } = {}) {
+  const days = [];
+  for (let i = from; i <= to; i++) days.push(addDays(today(), i));
+  return el(
+    'div',
+    { class: 'q-chips day-strip' },
+    days.map(d => {
+      const dt = new Date(`${d}T12:00:00`);
+      return el('button', { class: `q-chip day${d === today() ? ' is-today' : ''}`, type: 'button', 'aria-pressed': String(d === current), onclick: () => onPick(d) }, [
+        el('span', { text: d === today() ? t('today') : d === addDays(today(), 1) ? t('tomorrow') : d === addDays(today(), -1) ? t('yesterday') : dt.toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { weekday: 'short' }) }),
+        el('small', { class: 'num', text: `${dt.getMonth() + 1}/${dt.getDate()}` })
+      ]);
+    })
+  );
+}
+
 function renderHome() {
   const box = $('panel-home');
-  if (!state.home.at) return put(box, spinner());
-  const events = state.home.events;
-  const now = Date.now();
-  const d0 = today();
-  const pctx = { sports: state.prefs.sports, leagues: state.prefs.leagues, follows: state.prefs.follows, tables: state.home.tables, aff: affinity(state.wallet), now };
-  // The picks: from the followed leagues and teams (everything, for someone
-  // who follows none); today, and the next days too while today is thin.
-  const mine = new Set(pickLeagues());
-  const pool = mine.size ? events.filter(e => mine.has(e.league)) : events;
-  const days = [];
-  let count = 0;
-  for (const [i, day] of [d0, addDays(d0, 1), addDays(d0, 2)].entries()) {
-    if (count >= 4) break;
-    const { plan, also } = dayPlan(pool.filter(e => onDay(e, day) || (i === 0 && e.status.state === 'in')), pctx);
-    if (plan.length) days.push({ day, plan, also: i === 0 ? also : [] });
-    count += plan.length;
+  const h = state.home;
+  const slot = state.days.get(h.date);
+  if (!slot?.at) {
+    if (!slot?.loading) loadDay(h.date);
+    put(box, homeHead(), spinner());
+    centerChosen(box);
+    return;
   }
-  const also = days[0]?.day === d0 ? days[0].also : [];
-  const live = events.filter(e => e.status.state === 'in');
-  // Followed teams: each one's next game, or its last result.
-  const teamRows = state.prefs.follows.map(f => {
-    const list = state.home.teams.get(`${f.league}:${f.id}`) || [];
-    const next = list.find(x => x.status.state !== 'post' && Date.parse(x.start) > now - 4 * 3_600_000);
-    const last = [...list].reverse().find(x => x.status.state === 'post');
-    const e = next || last;
-    return el('div', { class: 'follow-row' }, [
-      el('button', { class: 'follow-team', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [logo(f.logo, f.name, 'sm'), el('span', { text: f.name })]),
-      e ? eventRow(e, { league: false }) : el('small', { class: 'muted', text: leagueName(f.league, locale) })
-    ]);
-  });
-  // Bets in Play on games of the next days (the wallet carries the open slips).
-  const bets = (state.wallet?.snap?.odds?.slips || []).flatMap(slip => slip.l.map(leg => ({ ...leg, slip })));
+  const now = Date.now();
+  const pctx = { sports: state.prefs.sports, leagues: state.prefs.leagues, follows: state.prefs.follows, tables: h.tables, aff: affinity(state.wallet), now };
+  const all = slot.events;
+  const pool = filtered(all);
+  const past = h.date < today();
+  const { plan, also } = dayPlan(past ? pool.map(e => ({ ...e, status: { ...e.status, state: 'pre' } })) : pool, pctx, { n: 6, also: 999 });
+  // A past day: the same ranking, with the real results.
+  const real = new Map(all.map(e => [`${e.league}:${e.id}`, e]));
+  const fix = items => items.map(x => ({ ...x, event: real.get(`${x.event.league}:${x.event.id}`) || x.event }));
+  const planList = fix(plan);
+  const more = fix(also);
+  const sportsHere = [...new Set(all.map(e => LEAGUES[e.league]?.sport))].filter(Boolean).sort((a, b) => (state.prefs.sports.indexOf(a) + 1 || 99) - (state.prefs.sports.indexOf(b) + 1 || 99));
+  const chips = el(
+    'div',
+    { class: 'q-chips small filter-chips' },
+    [
+      ['all', t('f_all')],
+      ...(state.prefs.sports.length || state.prefs.leagues.length ? [['mine', `★ ${t('f_mine')}`]] : []),
+      ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []),
+      ...sportsHere.map(sp => [sp, `${SPORTS[sp].icon} ${L(SPORTS[sp])}`])
+    ].map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => ((h.filter = k), (h.shown = 20), renderHome()) }))
+  );
+  // Followed teams: each one's next game, or its last result (today only).
+  const isToday = h.date === today();
+  const teamRows = isToday
+    ? state.prefs.follows.map(f => {
+        const list = state.home.teams.get(`${f.league}:${f.id}`) || [];
+        const next = list.find(x => x.status.state !== 'post' && Date.parse(x.start) > now - 4 * 3_600_000);
+        const last = [...list].reverse().find(x => x.status.state === 'post');
+        const e = next || last;
+        return el('div', { class: 'follow-row' }, [
+          el('button', { class: 'follow-team', type: 'button', onclick: () => (f.athlete ? openPlayer(f.league, f.id) : openTeam(f.league, f.id, f)) }, [logo(f.logo, f.name, `sm${f.athlete ? ' round' : ''}`), el('span', { text: f.name })]),
+          e ? eventRow(e, { league: false }) : el('small', { class: 'muted', text: leagueName(f.league, locale) })
+        ]);
+      })
+    : [];
+  const bets = isToday ? (state.wallet?.snap?.odds?.slips || []).flatMap(slip => slip.l.map(leg => ({ ...leg, slip }))) : [];
   const betRows = bets
     .filter(b => b.s && Date.parse(b.s) > now - 4 * 3_600_000)
     .slice(0, 6)
@@ -333,36 +420,40 @@ function renderHome() {
         el('strong', { class: 'num', text: `@${b.o}` })
       ])
     );
-  // Today by league, in the person's order.
-  const todays = events.filter(e => onDay(e, d0) || e.status.state === 'in');
-  const byLeague = new Map();
-  for (const k of homeLeagues()) byLeague.set(k, []);
-  for (const e of todays) byLeague.get(e.league)?.push(e);
   const hasFollows = state.prefs.sports.length > 0;
+  const shownMore = more.slice(0, h.shown);
   put(
     box,
+    homeHead(),
+    !hasFollows ? sportPicker() : null,
+    chips,
+    planList.length
+      ? section(isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${t('picksOn')}`, el('div', { class: 'pick-list' }, planList.map(pickCard)), { sub: t('recsN', { n: planList.length + more.length }) })
+      : section(t('todayPicks'), empty(t(h.filter === 'all' ? 'noRecs' : 'noPicksMine'))),
+    shownMore.length
+      ? section(t('moreRecs'), el('div', { class: 'q-card list' }, shownMore.map(x => eventRow(x.event))), {
+          action: null
+        })
+      : null,
+    more.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${more.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null,
+    teamRows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null,
+    betRows.length ? section(t('yourBets'), el('div', { class: 'q-card list' }, betRows)) : null
+  );
+  centerChosen(box);
+}
+function homeHead() {
+  const hasFollows = state.prefs.sports.length > 0;
+  return el('div', {}, [
     el('div', { class: 'home-hero' }, [
-      el('div', {}, [el('p', { class: 'hero-kicker', text: dayLabel(d0, { long: true }) }), el('h2', { class: 'hero-title', text: hasFollows ? t('heroTitle') : t('heroTitleNew') })]),
+      el('div', {}, [el('p', { class: 'hero-kicker', text: dayLabel(state.home.date, { long: true }) }), el('h2', { class: 'hero-title', text: hasFollows ? t('heroTitle') : t('heroTitleNew') })]),
       el('button', { class: 'q-btn small', type: 'button', text: hasFollows ? t('editFollows') : t('pickSports'), onclick: openFollowEditor })
     ]),
-    !hasFollows ? sportPicker() : null,
-    ...(days.length
-      ? days.map((d, i) =>
-          section(d.day === d0 ? t('todayPicks') : d.day === addDays(d0, 1) ? t('tomorrowPicks') : `${dayLabel(d.day)} · ${t('picksOn')}`, el('div', { class: 'pick-list' }, d.plan.map(pickCard)), { sub: i === 0 ? t('picksSub') : '' })
-        )
-      : [section(t('todayPicks'), empty(t(mine.size ? 'noPicksMine' : 'noPicks')))]),
-    also.length ? section(t('alsoToday'), el('div', { class: 'q-card list' }, also.map(x => eventRow(x.event)))) : null,
-    live.length ? section(`${t('liveNow')} · ${live.length}`, el('div', { class: 'q-card list' }, live.slice(0, 12).map(e => eventRow(e)))) : null,
-    state.prefs.follows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null,
-    betRows.length ? section(t('yourBets'), el('div', { class: 'q-card list' }, betRows)) : null,
-    ...[...byLeague]
-      .filter(([, list]) => list.length)
-      .map(([league, list]) =>
-        section(leagueName(league, locale), el('div', { class: 'q-card list' }, list.slice(0, 6).map(e => eventRow(e, { league: false }))), {
-          action: moreButton(list.length > 6 ? t('allN', { n: list.length }) : t('scores'), () => openScores(league, d0))
-        })
-      )
-  );
+    dateStrip(state.home.date, d => {
+      state.home.date = d;
+      state.home.shown = 20;
+      renderHome();
+    })
+  ]);
 }
 
 // First run: the sports, tapped in order of priority.
@@ -380,15 +471,47 @@ function sportPicker() {
   ]);
 }
 
-// ---- Scores: a league's game days -----------------------------------------------------------
+// ---- 直播: what's on now, and what starts in the next hours ------------------------------------
+
+function renderLive() {
+  const box = $('panel-live');
+  const slot = state.days.get(today());
+  if (!slot?.at) {
+    if (!slot?.loading) loadDay(today());
+    put(box, spinner());
+    return;
+  }
+  const now = Date.now();
+  const live = slot.events.filter(e => e.status.state === 'in');
+  const soon = slot.events.filter(e => e.status.state === 'pre' && !e.status.void && Date.parse(e.start) - now < 3 * 3_600_000 && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
+  const bySport = list => {
+    const groups = new Map();
+    for (const e of list) {
+      const sp = LEAGUES[e.league]?.sport;
+      if (!groups.has(sp)) groups.set(sp, []);
+      groups.get(sp).push(e);
+    }
+    return [...groups].sort(([a], [b]) => (state.prefs.sports.indexOf(a) + 1 || 99) - (state.prefs.sports.indexOf(b) + 1 || 99));
+  };
+  const mineFirst = list => [...list].sort((a, b) => isFollowedEvent(b) - isFollowedEvent(a));
+  put(
+    box,
+    el('div', { class: 'home-hero' }, [el('div', {}, [el('p', { class: 'hero-kicker live-kicker', text: `● ${t('liveNow')}` }), el('h2', { class: 'hero-title', text: live.length ? `${live.length} ${locale === 'en' ? 'live' : '場進行中'}` : t('liveEmpty') })])]),
+    ...bySport(mineFirst(live)).map(([sp, list]) => section(`${SPORTS[sp]?.icon || ''} ${L(SPORTS[sp] || { zh: '', en: '' })}`, el('div', { class: 'q-card list' }, list.map(e => eventRow(e))))),
+    soon.length ? section(t('startingSoon'), el('div', { class: 'q-card list' }, mineFirst(soon).slice(0, 30).map(e => eventRow(e)))) : null
+  );
+}
+
+// ---- 賽事: every sport, league and game day ------------------------------------------------------
 
 function openScores(league, date) {
-  state.scores = { ...state.scores, sport: LEAGUES[league].sport, league, date: date || today(), byDay: null, days: [], extra: 0 };
-  showTab('scores');
+  state.scores = { ...state.scores, sport: LEAGUES[league].sport, league, date: date || null, byDay: null, days: [], extra: 0, stage: 'all' };
+  showTab('matches');
 }
 
 // Which days (or weeks) to read, then the games of each, grouped by the
-// viewer's own day: the strip shows only days with games.
+// viewer's own day: the strip shows only days with games. Races, tours and
+// fight promotions: the whole season, past and to come.
 async function loadScores() {
   const sc = state.scores;
   const league = sc.league;
@@ -402,7 +525,11 @@ async function loadScores() {
   try {
     if (l.kind !== 'match') {
       sc.mode = 'event';
-      events = await scoreboard(league);
+      // The season's schedule, with the current event's live copy on top.
+      const [season, current] = await Promise.all([seasonEvents(league), scoreboard(league).catch(() => [])]);
+      const byId = new Map(season.map(e => [e.id, e]));
+      for (const e of current) byId.set(e.id, e);
+      events = [...byId.values()];
     } else if (l.kambi) {
       sc.mode = 'days';
       events = await scoreboard(league);
@@ -435,6 +562,8 @@ async function loadScores() {
   if (sc.loadingKey !== key) return;
   sc.loading = false;
   if (sc.byDay !== 'failed' || events.length) {
+    const now = Date.now();
+    events = events.map(e => (e.sessions ? settleField(e, now) : e));
     const byDay = new Map();
     for (const e of events.filter(x => !x.status.void || x.kind === 'match')) {
       const d = localDate(Date.parse(e.start));
@@ -442,21 +571,23 @@ async function loadScores() {
       byDay.get(d).push(e);
     }
     sc.byDay = byDay;
+    sc.all = events;
     sc.days = [...byDay.keys()].sort();
-    // The day shown: the one asked for, else today, else the next game day, else the last.
-    if (!byDay.has(sc.date)) sc.date = byDay.has(today()) ? today() : sc.days.find(d => d >= today()) || sc.days.at(-1) || today();
+    // The day shown: the one asked for, else one with a game on now, else the nearest game day.
+    const liveDay = sc.days.find(d => byDay.get(d).some(e => e.status.state === 'in'));
+    if (!sc.date || !byDay.has(sc.date)) sc.date = liveDay || (byDay.has(today()) ? today() : nearestDay(sc.days)) || today();
   }
   renderScores();
 }
 
 function renderScores() {
-  const box = $('panel-scores');
+  const box = $('panel-matches');
   const sc = state.scores;
   const followed = new Set(state.prefs.sports);
-  const sports = Object.keys(SPORTS).sort((a, b) => (followed.has(b) - followed.has(a)) || (state.prefs.sports.indexOf(a) - state.prefs.sports.indexOf(b)));
+  const sports = Object.keys(SPORTS).sort((a, b) => followed.has(b) - followed.has(a) || state.prefs.sports.indexOf(a) - state.prefs.sports.indexOf(b));
   const sportChips = el(
     'div',
-    { class: 'q-chips' },
+    { class: 'q-chips sport-chips' },
     sports.map(key =>
       el('button', {
         class: 'q-chip',
@@ -464,8 +595,8 @@ function renderScores() {
         'aria-pressed': String(sc.sport === key),
         text: `${SPORTS[key].icon} ${L(SPORTS[key])}`,
         onclick: () => {
-          const first = followedLeagues().find(k => LEAGUES[k].sport === key) || leaguesOf(key)[0];
-          state.scores = { ...sc, sport: key, league: first, byDay: null, days: [], extra: 0 };
+          const first = followedLeagues().find(k => LEAGUES[k].sport === key) || leaguesOf(key).find(k => LEAGUES[k].top) || leaguesOf(key)[0];
+          state.scores = { ...sc, sport: key, league: first, date: null, byDay: null, days: [], extra: 0, stage: 'all' };
           loadScores();
         }
       })
@@ -477,15 +608,26 @@ function renderScores() {
     { class: 'q-chips small' },
     leaguesOf(sc.sport)
       .sort((a, b) => mine.has(b) - mine.has(a))
-      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), text: `${mine.has(k) ? '★ ' : ''}${leagueName(k, locale)}`, onclick: () => ((state.scores = { ...sc, league: k, byDay: null, days: [], extra: 0 }), loadScores()) }))
+      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), text: `${mine.has(k) ? '★ ' : ''}${leagueName(k, locale)}`, onclick: () => ((state.scores = { ...sc, league: k, date: null, byDay: null, days: [], extra: 0, stage: 'all' }), loadScores()) }))
   );
   let strip = null;
   let list;
+  let stages = null;
   if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
   else if (sc.mode === 'event') {
-    const events = [...sc.byDay.values()].flat();
-    list = events.length ? el('div', { class: 'q-card list' }, events.map(e => eventRow(e, { league: false }))) : empty(t('noEvents'));
+    const events = [...sc.byDay.values()].flat().sort((a, b) => a.start.localeCompare(b.start));
+    const now = Date.now();
+    const current = events.filter(e => e.status.state === 'in');
+    const next = events.filter(e => e.status.state === 'pre' && Date.parse(e.end || e.start) > now - 86_400_000);
+    const past = events.filter(e => e.status.state === 'post').reverse();
+    list = events.length
+      ? el('div', {}, [
+          current.length ? section(t('liveNow'), el('div', { class: 'q-card list' }, current.map(e => eventRow(e, { league: false })))) : null,
+          next.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, next.map(e => eventRow(e, { league: false })))) : null,
+          past.length ? section(t('pastEvents'), el('div', { class: 'q-card list' }, past.slice(0, 12).map(e => eventRow(e, { league: false })))) : null
+        ])
+      : empty(t('noEvents'));
   } else if (!sc.days.length) list = empty(t('noGamesSeason'));
   else {
     strip = el('div', { class: 'q-chips day-strip' }, [
@@ -497,32 +639,39 @@ function renderScores() {
     ]);
     const order = { in: 0, pre: 1, post: 2 };
     const games = [...(sc.byDay.get(sc.date) || [])].sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
-    list = el('div', {}, [el('p', { class: 'day-head', text: `${dayLabel(sc.date, { long: true })} · ${t('gamesN', { n: games.length })}` }), el('div', { class: 'q-card list' }, games.map(e => eventRow(e, { league: false, day: false })))]);
+    // The season's stages on show (preseason, playoffs, a cup…), as a filter.
+    const keys = [...new Set((sc.all || []).map(e => stageOf(e).key).filter(Boolean))];
+    if (keys.length > 1) {
+      stages = segmented([['all', t('f_all')], ...keys.map(k => [k, stageOf((sc.all || []).find(e => stageOf(e).key === k))[locale === 'en' ? 'en' : 'zh']])], sc.stage, v => ((sc.stage = v), renderScores()), 'scroll stage-filter');
+    }
+    const shown = sc.stage === 'all' ? games : games.filter(e => stageOf(e).key === sc.stage);
+    list = el('div', {}, [el('p', { class: 'day-head', text: `${dayLabel(sc.date, { long: true })} · ${t('gamesN', { n: shown.length })}` }), shown.length ? el('div', { class: 'q-card list' }, shown.map(e => eventRow(e, { league: false, day: false }))) : empty(t('noGames'))]);
   }
   const tools = el('div', { class: 'league-tools' }, [
     el('button', { class: `q-chip small${mine.has(sc.league) ? ' on' : ''}`, type: 'button', text: mine.has(sc.league) ? `✓ ${t('following')}` : `+ ${t('followLeague')}`, onclick: () => (!state.prefs.sports.includes(sc.sport) && toggleSport(sc.sport), toggleLeague(sc.league), renderScores()) }),
-    hasStandings(sc.league) ? el('button', { class: 'q-chip small', type: 'button', text: t('table'), onclick: () => ((state.standings = { league: sc.league, groups: null }), showTab('standings')) }) : null
+    hasStandings(sc.league) ? el('button', { class: 'q-chip small', type: 'button', text: t('table'), onclick: () => ((state.standings = { league: sc.league, groups: null }), showTab('standings')) }) : null,
+    twChips(sc.league, 4)
   ]);
-  put(box, sportChips, leagueChips, tools, strip, list);
-  box.querySelector('.day-strip [aria-pressed="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
-  box.querySelector('.q-chips.small [aria-pressed="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  put(box, sportChips, leagueChips, tools, strip, stages, list);
+  centerChosen(box);
 }
 
-// ---- Following: everything about what you follow ---------------------------------------------
+// ---- 追蹤: everything about what you follow ------------------------------------------------------
 
 async function loadFollowing(league) {
   const l = LEAGUES[league];
   const slot = { events: null, groups: null };
   state.following.set(league, slot);
   const [events, groups] = await Promise.all([
-    scoreboard(league).catch(() => []),
+    (l.kind === 'match' ? scoreboard(league) : seasonEvents(league)).catch(() => []),
     hasStandings(league) ? standings(league).catch(() => []) : Promise.resolve(null)
   ]);
   const now = Date.now();
+  const settled = events.map(e => (e.sessions ? settleField(e, now) : e));
   // Live, then the next games, then the latest results.
-  const upcoming = events.filter(e => e.status.state === 'in' || (e.status.state === 'pre' && Date.parse(e.start) > now - 3_600_000)).sort((a, b) => a.start.localeCompare(b.start));
-  const recent = events.filter(e => e.status.state === 'post').sort((a, b) => b.start.localeCompare(a.start));
-  slot.events = l.kind === 'match' ? [...upcoming, ...recent].slice(0, 6) : events.slice(0, 3);
+  const upcoming = settled.filter(e => e.status.state === 'in' || (e.status.state === 'pre' && Date.parse(e.end || e.start) > now - 3_600_000)).sort((a, b) => a.start.localeCompare(b.start));
+  const recent = settled.filter(e => e.status.state === 'post').sort((a, b) => b.start.localeCompare(a.start));
+  slot.events = l.kind === 'match' ? [...upcoming, ...recent].slice(0, 6) : [...upcoming.slice(0, 2), ...recent.slice(0, 1)];
   slot.groups = groups;
   if (state.tab === 'following') renderFollowing();
 }
@@ -538,6 +687,7 @@ function renderFollowing() {
     el('div', {}, [el('p', { class: 'hero-kicker', text: t('yourSports') }), el('div', { class: 'prio-row' }, p.sports.map((sp, i) => el('span', { class: 'prio', text: `${i + 1} ${SPORTS[sp].icon} ${L(SPORTS[sp])}` })))]),
     el('button', { class: 'q-btn small', type: 'button', text: t('editFollows'), onclick: openFollowEditor })
   ]);
+  const people = p.follows.filter(f => f.athlete);
   const blocks = p.sports.map(sp => {
     const leagues = followedLeagues().filter(k => LEAGUES[k].sport === sp);
     return el('section', { class: 'q-section follow-sport' }, [
@@ -546,28 +696,33 @@ function renderFollowing() {
       ...leagues.map(k => leagueBlock(k))
     ]);
   });
-  put(box, head, ...blocks);
+  put(
+    box,
+    head,
+    people.length ? section(t('yourPlayers'), el('div', { class: 'team-chips loose' }, people.map(f => el('button', { class: 'team-chip', type: 'button', onclick: () => openPlayer(f.league, f.id) }, [logo(f.logo, f.name, 'xs round'), el('span', { text: f.name })])))) : null,
+    ...blocks
+  );
 }
 
 function leagueBlock(league) {
   if (!state.following.has(league)) loadFollowing(league);
   const slot = state.following.get(league);
-  const teams = state.prefs.follows.filter(f => f.league === league);
+  const teams = state.prefs.follows.filter(f => f.league === league && !f.athlete);
   const lg = leagueLogo(league);
   return el('div', { class: 'q-card league-card' }, [
     el('div', { class: 'league-card-head' }, [
       lg ? logo(lg, leagueName(league, locale), 'sm') : el('span', { class: 'league-emoji', text: SPORTS[LEAGUES[league].sport].icon }),
       el('strong', { text: leagueName(league, locale) }),
-      el('button', { class: 'section-more', type: 'button', text: t('scores'), onclick: () => openScores(league) }),
+      el('button', { class: 'section-more', type: 'button', text: t('tab_matches'), onclick: () => openScores(league) }),
       hasStandings(league) ? el('button', { class: 'section-more', type: 'button', text: t('table'), onclick: () => ((state.standings = { league, groups: null }), showTab('standings')) }) : null
     ]),
     teams.length ? el('div', { class: 'team-chips' }, teams.map(f => el('button', { class: 'team-chip', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [logo(f.logo, f.name, 'xs'), el('span', { text: f.name })]))) : null,
     !slot?.events ? spinner() : slot.events.length ? el('div', { class: 'list' }, slot.events.map(e => eventRow(e, { league: false }))) : empty(t('noUpcoming')),
-    slot?.groups?.length ? el('div', { class: 'mini-table' }, [standingsTables(slot.groups.slice(0, 2), league, { top: 5 })]) : null
+    slot?.groups?.length ? el('div', { class: 'mini-table' }, [standingsTables(slot.groups.slice(0, 2), league, { top: 5, compact: true })]) : null
   ]);
 }
 
-// ---- Standings ------------------------------------------------------------------------------
+// ---- 排名 ------------------------------------------------------------------------------------
 
 async function renderStandings() {
   const box = $('panel-standings');
@@ -580,8 +735,10 @@ async function renderStandings() {
     { class: 'q-chips' },
     leagues.map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(st.league === k), text: `${mine.includes(k) ? '★ ' : ''}${leagueName(k, locale)}`, onclick: () => ((st.league = k), (st.groups = null), renderStandings()) }))
   );
+  const center = () => centerChosen(box);
   if (!st.groups) {
     put(box, chips, spinner());
+    center();
     const want = st.league;
     try {
       const groups = await standings(want);
@@ -591,8 +748,8 @@ async function renderStandings() {
       st.groups = [];
     }
   }
-  put(box, chips, st.groups.length ? standingsTables(st.groups, st.league) : empty(t('noStandings')));
-  box.querySelector('.q-chips [aria-pressed="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  put(box, chips, st.groups.length ? standingsTables(st.groups, st.league) : empty(t('noStandings')), st.groups.length ? el('p', { class: 'muted small table-note', text: t('gapHint') }) : null);
+  center();
 }
 
 // ---- Tabs, refresh, start ---------------------------------------------------------------------
@@ -604,37 +761,53 @@ function renderTabs() {
     b.querySelector('span').textContent = t(`tab_${tab}`);
     $(`panel-${tab}`).hidden = state.tab !== tab;
   }
+  const live = state.days.get(today())?.events?.filter(e => e.status.state === 'in').length || 0;
+  const badge = $('tab-live').querySelector('.tab-badge');
+  if (badge) {
+    badge.textContent = live ? String(live) : '';
+    badge.hidden = !live;
+  }
 }
+// Each tab keeps its place: switching back returns to where it was.
+const scrollOf = {};
 function showTab(tab) {
+  if (state.tab !== tab) scrollOf[state.tab] = window.scrollY;
+  const same = state.tab === tab;
   state.tab = tab;
   try {
     history.replaceState(null, '', `#${tab}`);
   } catch {}
   renderTabs();
-  window.scrollTo({ top: 0 });
-  if (tab === 'home') {
-    renderHome();
-    if (Date.now() - state.home.at > 60_000) loadHome();
+  if (tab === 'home') renderHome();
+  if (tab === 'matches') state.scores.byDay ? renderScores() : loadScores();
+  if (tab === 'live') {
+    renderLive();
+    if (Date.now() - (state.days.get(today())?.at || 0) > 30_000) loadDay(today());
   }
-  if (tab === 'scores') state.scores.byDay ? renderScores() : loadScores();
   if (tab === 'following') renderFollowing();
   if (tab === 'standings') renderStandings();
+  window.scrollTo({ top: same ? 0 : scrollOf[tab] || 0 });
 }
 for (const b of document.querySelectorAll('#tabs .tab')) b.addEventListener('click', () => showTab(b.dataset.tab));
 
-// Live games refresh every 30 seconds while on screen; home every 2 minutes
+// Live games refresh every 30 seconds while on screen; today every 2 minutes
 // in any case (so a followed team's start and finish are noticed).
 setInterval(() => {
   if (document.visibilityState !== 'visible' || !q.active) return;
-  const liveHome = state.home.events.some(e => e.status.state === 'in');
-  if (state.tab === 'home' && (liveHome || Date.now() - state.home.at > 120_000)) loadHome();
-  else if (Date.now() - state.home.at > 120_000) loadHome();
-  if (state.tab === 'scores' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in')) loadScores();
+  const day = state.days.get(today());
+  const live = day?.events?.some(e => e.status.state === 'in');
+  const age = Date.now() - (day?.at || 0);
+  if (((state.tab === 'home' && state.home.date === today()) || state.tab === 'live') && live && age > 25_000) loadDay(today());
+  else if (age > 120_000) loadDay(today());
+  if (state.tab === 'home' && state.home.date !== today() && Date.now() - (state.days.get(state.home.date)?.at || 0) > 10 * 60_000) loadDay(state.home.date);
+  if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in')) loadScores();
   paintStatus();
+  renderTabs();
 }, 30_000);
 
 function paintStatus() {
-  const text = state.home.at ? t('updated', { time: clock(new Date(state.home.at).toISOString()) }) : '';
+  const at = state.days.get(today())?.at;
+  const text = at ? t('updated', { time: clock(new Date(at).toISOString()) }) : '';
   $('status').textContent = text;
   $('status-mini').textContent = text;
 }
@@ -657,18 +830,40 @@ $('account-slot').append(accountButton(q));
 $('help-link').href = helpUrl('match');
 q.on('wallet', w => {
   state.wallet = w;
-  if (state.tab === 'home' && state.home.at) renderHome();
+  if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
 });
-q.on('active', live => live && loadHome());
+q.on('active', live => live && loadDay(today()));
 
+function firstTab() {
+  const hash = location.hash.slice(1);
+  return TABS.includes(hash) ? hash : hash === 'scores' ? 'matches' : 'home';
+}
 async function boot() {
+  // A signed-in device opens at once on what it had: the follows and the
+  // day it last read, while the Worker is asked for the fresh ones.
+  const quick = cachedPayload('match');
+  if (quick != null) {
+    state.wallet = cachedWallet();
+    applyPrefs(quick);
+    restoreDay();
+    $('loading').hidden = true;
+    showTab(firstTab());
+    restorePlace();
+  }
   const first = await q.start();
   state.wallet = first.wallet || q.wallet;
-  applyPrefs(first?.payload);
+  const before = JSON.stringify(state.prefs);
+  if (first?.payload != null || quick == null) applyPrefs(first?.payload);
   $('loading').hidden = true;
-  const hash = location.hash.slice(1);
-  showTab(TABS.includes(hash) ? hash : 'home');
-  await loadHome();
+  if (quick == null) {
+    restoreDay();
+    showTab(firstTab());
+    restorePlace();
+  } else if (JSON.stringify(state.prefs) !== before) {
+    state.days.clear();
+    showTab(state.tab);
+  }
+  await loadDay(today());
 }
 if (!gated) boot();
 setTimeout(() => ($('loading').hidden = true), 8000);

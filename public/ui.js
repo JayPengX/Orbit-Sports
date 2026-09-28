@@ -2,6 +2,8 @@
 // rows, sheets. `ctx` is filled by app.js (the text, the state and the
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName } from './lib/leagues.mjs';
+import { stageTag } from './lib/stage.mjs';
+import { broadcastsOf } from './lib/broadcast.mjs';
 
 export const ctx = { t: k => k, locale: 'zh', state: null, openEvent: () => {}, openTeam: () => {}, openPlayer: () => {} };
 
@@ -95,22 +97,38 @@ export function winners(e) {
     away: decided && (e.away.winner || Number(e.away.score) > Number(e.home.score))
   };
 }
+// A playoff series line under a match: "LAL lead series 2-1".
+export const seriesText = e => (e.series?.summary && !/^series starts/i.test(e.series.summary) ? e.series.summary : '');
 export function eventRow(e, { league = true, day = true } = {}) {
   const { t } = ctx;
   const mine = ctx.isFollowedEvent?.(e);
+  const tag = stageTag(e, ctx.locale);
   if (e.kind === 'match') {
     const w = winners(e);
+    const series = seriesText(e);
     return el('button', { class: `event-row${e.status.state === 'in' ? ' live' : ''}${mine ? ' mine' : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
       el('div', { class: 'event-meta' }, [statusEl(e, day), league ? leagueChip(e.league) : null]),
-      el('div', { class: 'event-sides' }, [sideLine(e.away, e, w.away), sideLine(e.home, e, w.home)])
+      el('div', { class: 'event-sides' }, [
+        tag ? el('span', { class: 'stage-tag', text: tag }) : null,
+        sideLine(e.away, e, w.away),
+        sideLine(e.home, e, w.home),
+        series ? el('small', { class: 'series-line', text: series }) : null
+      ])
     ]);
   }
   // Races, tournaments, fight cards: one row for the whole event.
-  const sub = e.kind === 'field' ? (e.sessions?.at(-1)?.field?.[0]?.name ? `🏆 ${e.sessions.at(-1).field[0].name}` : e.venue) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
+  const sub = e.kind === 'field' ? (e.status.state === 'post' && e.sessions?.at(-1)?.field?.[0]?.name ? `🏆 ${e.sessions.at(-1).field[0].name}` : [e.session, e.venue].filter(Boolean).join(' · ')) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
   return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day), league ? leagueChip(e.league) : null]),
     el('div', { class: 'event-title' }, [el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null])
   ]);
+}
+
+// Where to watch it in Taiwan: small chips (the first few).
+export function twChips(league, n = 3) {
+  const list = broadcastsOf(league);
+  if (!list.length) return null;
+  return el('div', { class: 'tw-chips' }, list.slice(0, n).map(b => el('span', { class: `tw-chip ${b.kind}`, text: ctx.locale === 'en' ? b.en : b.zh })));
 }
 
 // ---- Sheets and sections ----------------------------------------------------------------
