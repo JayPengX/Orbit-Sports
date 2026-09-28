@@ -2,256 +2,91 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8" />
-<!-- maximum-scale=1/user-scalable=no: this page is built entirely around
-     custom touch-driven gestures (the swipeable match stack, see
-     buildMatchStack in app.js) that assume touch coordinates map 1:1 to
-     layout pixels - a mid-gesture pinch/double-tap zoom (iOS Safari's own
-     default, otherwise on by default even with touch-action: pan-y set on
-     the swipe surface itself, since that only constrains the ELEMENT the
-     gesture starts on, not a zoom that begins to intersects the page
-     shell around it) throws that mapping off entirely: reported live as
-     the page rendering "bigger" mid-swipe and every following interaction
-     reading as "stuck", both consistent with the page having silently
-     zoomed rather than the swipe itself failing. Blocking zoom at the
-     viewport level is the one fix that can't depend on a touch-action
-     value being honored correctly on every element in the swipe's own
-     ancestor chain, on a browser this sandbox has no way to verify
-     directly (no real Safari/WebKit available here - see app.js's own
-     comment on buildMatchStack for the fuller context). -->
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<!-- Traditional Chinese text below is this document's static, no-JS
-     fallback/initial paint only. This is a plain static file with no
-     per-request templating (see scripts/build-data.mjs's own top comment -
-     it never touches this file), so the REAL displayed language - title,
-     meta tags, every label below - is decided client-side by
-     applyStaticTranslations() in app.js, from public/lib/i18n.mjs's
-     detectLocale()/t(), the moment the page's script runs. Every element
-     that function targets by id below gets its text/aria-label overwritten
-     before #app or #settings-panel (both `hidden` by default) are ever
-     shown, so there's no real flash-of-wrong-language for anything except
-     the browser tab's own <title>, which cannot be hidden. -->
-<title>四方賽程 Quadra Fixtures — 今晚看什麼</title>
-<meta name="description" content="英超、MLB、NBA、F1 賽程，依精彩程度推薦，換算成你的當地時間。" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#c2410c" />
+<meta name="build-version" content="dev" />
+<title>Quadra Fixtures</title>
+<meta name="description" content="所有運動的賽程、比分、排名、球員數據與新聞。" />
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-<link rel="apple-touch-icon" href="./icons/icon-180.png" />
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-title" content="Fixtures" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="application-name" content="Quadra Fixtures" />
 <link rel="manifest" href="./manifest.webmanifest" />
-<meta name="theme-color" content="#0b0d12" />
 <meta property="og:type" content="website" />
-<meta property="og:site_name" content="四方賽程 Quadra Fixtures" />
-<meta property="og:title" content="四方賽程 Quadra Fixtures — 今晚看什麼" />
-<meta property="og:description" content="英超、MLB、NBA、F1 賽程，依精彩程度推薦，換算成你的當地時間。" />
+<meta property="og:site_name" content="Quadra Fixtures" />
+<meta property="og:title" content="Quadra Fixtures" />
+<meta property="og:description" content="所有運動的賽程、比分、排名、球員數據與新聞。" />
+<meta property="og:url" content="https://jaypengx.github.io/Quadra-Fixtures/" />
 <meta property="og:image" content="https://jaypengx.github.io/Quadra-Fixtures/og-image.jpg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="四方賽程 Quadra Fixtures — 今晚看什麼" />
 <meta property="og:image" content="https://jaypengx.github.io/Quadra-Fixtures/og-image-square.jpg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="1200" />
-<meta property="og:image:alt" content="四方賽程 Quadra Fixtures — 今晚看什麼" />
-<meta property="og:url" content="https://jaypengx.github.io/Quadra-Fixtures/" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="四方賽程 Quadra Fixtures — 今晚看什麼" />
-<meta name="twitter:description" content="英超、MLB、NBA、F1 賽程，依精彩程度推薦，換算成你的當地時間。" />
-<meta name="twitter:image" content="https://jaypengx.github.io/Quadra-Fixtures/og-image.jpg" />
-<meta name="twitter:image:alt" content="四方賽程 Quadra Fixtures — 今晚看什麼" />
-<!-- Opens the connections every first load needs while app.js is still
-     downloading: the sports proxy (every match/odds request - crossorigin,
-     since those are CORS fetches) and ESPN's image CDN (every logo). -->
 <link rel="preconnect" href="https://sports-proxy.pengzjay.workers.dev" crossorigin />
-<link rel="preconnect" href="https://a.espncdn.com" />
-<!-- The prebuilt match-list snapshot (see app.js, SERVER_SNAPSHOT_URL):
-     starts downloading immediately, alongside app.js, instead of only once
-     all the code has loaded and run - app.js's own fetch of the same URL
-     then picks up this response. Keep the URL in sync with app.js. -->
-<link rel="preload" as="fetch" crossorigin href="https://raw.githubusercontent.com/JayPengX/Quadra-Fixtures/data/matches.json" />
-<!-- Type: the system font, like the other Quadra apps (see quadra.css). -->
+<link rel="preconnect" href="https://a.espncdn.com" crossorigin />
 <link rel="stylesheet" href="./styles.css" />
 <link rel="stylesheet" href="./quadra.css" />
-<!-- Every module app.js imports, directly or through another module.
-     Without these the browser only learns about each module after
-     downloading the one that imports it - three rounds of downloads in a
-     row before any match data can be requested. Listed here, they all load
-     in parallel with app.js itself. Keep in sync with the import graph. -->
-<link rel="modulepreload" href="./lib/recommendation.mjs" />
-<link rel="modulepreload" href="./lib/preferences.mjs" />
-<link rel="modulepreload" href="./lib/espn.mjs" />
-<link rel="modulepreload" href="./lib/color.mjs" />
-<link rel="modulepreload" href="./lib/playoff.mjs" />
-<link rel="modulepreload" href="./lib/polymarket.mjs" />
-<link rel="modulepreload" href="./lib/match-builder.mjs" />
-<link rel="modulepreload" href="./lib/i18n.mjs" />
-<link rel="modulepreload" href="./lib/tap-log.mjs" />
-<link rel="modulepreload" href="./lib/team-names.mjs" />
-<link rel="modulepreload" href="./lib/sport-duration.mjs" />
-<link rel="modulepreload" href="./lib/sport-signals.mjs" />
-<link rel="modulepreload" href="./lib/sportsbook-odds.mjs" />
-<link rel="modulepreload" href="./lib/objective-score.mjs" />
-<link rel="modulepreload" href="./lib/percent.mjs" />
-<link rel="modulepreload" href="./lib/quadra-link.mjs" />
-<link rel="modulepreload" href="./lib/quadra.mjs" />
-<link rel="modulepreload" href="./lib/locales/zh-TW.mjs" />
-<link rel="modulepreload" href="./lib/locales/en.mjs" />
 </head>
 <body>
-  <div id="loading-state" class="loading" role="status" aria-live="polite" aria-label="載入中">
-    <div class="loading-box">
-      <img class="loading-logo" src="./favicon.svg" alt="" width="76" height="76" aria-hidden="true" />
-      <p class="loading-brand">四方 QUADRA</p>
-      <p class="loading-title">四方賽程</p>
-      <div class="spinner" aria-hidden="true"></div>
+<div id="loading" class="loading" role="status" aria-live="polite">
+  <div class="loading-box">
+    <img class="loading-logo" src="./favicon.svg" alt="" width="72" height="72" />
+    <p class="loading-brand">QUADRA</p>
+    <p class="loading-title">Quadra Fixtures</p>
+    <div id="loading-spinner" class="spinner" aria-hidden="true"></div>
+    <div id="loading-error" class="loading-error" hidden>
+      <p id="loading-error-text"></p>
+      <button id="loading-reload" class="q-btn" type="button">重新整理 · Reload</button>
     </div>
   </div>
-
-  <main id="app" hidden>
-    <!-- Pinned to the top as one grouped unit (see .control-bar in styles.css) - on a
-         phone, "which day" and "which sport" are the two controls a viewer
-         reaches for again and again while scrolling a long match list;
-         pinning them to the top instead of leaving them to scroll away
-         with the first section is the actual mobile-centric fix (see
-         styles.css's own comment for why this beats a plain static row). -->
-    <div class="control-bar">
-      <!-- Desktop only (see .app-header) - on a phone the installed app's own
-           icon/title already says what this is, and every pixel of the
-           pinned bar is better spent on the day/sport controls. -->
-      <header class="app-header">
-        <img class="app-header-logo" src="./favicon.svg" alt="" width="36" height="36" />
-        <span class="app-header-name">四方賽程</span>
-        <span class="app-header-tagline" id="app-header-tagline">今晚看什麼</span>
-      </header>
-      <section id="day-scroller-section">
-        <div id="day-scroller" class="day-scroller" role="tablist" aria-label="選擇日期"></div>
-      </section>
-
-      <section id="filters-section">
-        <div class="filter-row">
-          <div id="sport-filters" role="group" aria-label="依運動篩選"></div>
-        </div>
-      </section>
+</div>
+<script>
+  (function () {
+    var zh = /^zh/i.test(navigator.language || '');
+    function $(id) { return document.getElementById(id); }
+    window.__fxFail = function (message) {
+      if ($('loading').hidden) return;
+      $('loading-error-text').textContent = message || (zh ? '頁面沒有正常啟動，可能是網路不穩。' : "The page didn't start, maybe a network hiccup.");
+      $('loading-error').hidden = false;
+      $('loading-spinner').hidden = true;
+    };
+    $('loading-reload').onclick = function () { location.reload(); };
+    window.addEventListener('error', function () { if (!window.__fxStarted) window.__fxFail(); });
+    setTimeout(function () { if (!window.__fxStarted) window.__fxFail(); }, 15000);
+  })();
+</script>
+<header class="appbar">
+  <div class="appbar-inner">
+    <div class="brand">
+      <img class="brand-logo" src="./favicon.svg" alt="" width="34" height="34" />
+      <div class="brand-text">
+        <h1>Quadra Fixtures</h1>
+        <p id="status" class="status" aria-live="polite"></p>
+      </div>
     </div>
+    <nav id="tabs" class="tabs q-tabbar" role="tablist">
+      <button id="tab-home" class="tab q-tab" role="tab" type="button" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span></span></button>
+      <button id="tab-scores" class="tab q-tab" role="tab" type="button" data-tab="scores"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span></span></button>
+      <button id="tab-standings" class="tab q-tab" role="tab" type="button" data-tab="standings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span></span></button>
+      <button id="tab-news" class="tab q-tab" role="tab" type="button" data-tab="news"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg><span></span></button>
+    </nav>
+    <div id="account-slot" class="account-slot"></div>
+  </div>
+</header>
 
-    <section id="recommended-section">
-      <h2 class="section-label"><span data-day-label></span><span id="recommended-heading-text">推薦賽事</span></h2>
-      <div id="recommended-list"></div>
-      <p id="recommended-empty" class="empty-state" hidden>今天沒有特別推薦的賽事。</p>
-      <p id="recommended-loading" class="section-loading" hidden aria-label="載入中"><span class="loading-spinner" aria-hidden="true"></span></p>
-    </section>
-
-    <section id="all-matches-section">
-      <h2 class="section-label"><span data-day-label></span><span id="all-matches-heading-text">所有賽事</span></h2>
-      <div id="all-match-list"></div>
-      <p id="all-empty" class="empty-state" hidden>這一天沒有賽事。</p>
-      <p id="all-loading" class="section-loading" hidden aria-label="載入中"><span class="loading-spinner" aria-hidden="true"></span></p>
-    </section>
-
-    <section id="tbd-section" hidden>
-      <h2 class="section-label" id="tbd-heading">時間未定</h2>
-      <div id="tbd-list"></div>
-    </section>
-  </main>
-
-  <!-- 運彩: Quadra Sportsbook inside Fixtures (renderSportsbookView in app.js). -->
-  <section id="quadra-view" class="quadra-view" hidden aria-labelledby="quadra-view-title"></section>
-
-  <!-- 設定: a page of its own (the third tab), like 賽程 and 運彩. -->
-  <section id="settings-panel" class="settings-page" hidden aria-labelledby="settings-heading">
-    <div class="settings-page-header">
-      <h2 id="settings-heading">設定</h2>
-    </div>
-
-    <section class="settings-section">
-      <h3 id="settings-priority-heading">賽事優先順序</h3>
-      <p id="settings-priority-hint" class="settings-hint">時間衝突時，排名較前的優先。</p>
-      <div id="settings-sport-list" class="settings-sport-list"></div>
-      <button id="settings-reset-btn" type="button" class="settings-reset">重設為預設順序</button>
-    </section>
-
-    <section class="settings-section">
-      <h3 id="settings-enabled-heading">已啟用的運動</h3>
-      <p id="settings-enabled-hint" class="settings-hint">關閉的運動不會出現在網站上。</p>
-      <div id="settings-enabled-sports" class="settings-chip-list"></div>
-    </section>
-
-    <section class="settings-section">
-      <p id="settings-quadra-hint" class="settings-hint">在四方運彩釘選的比賽，會加進你的賽程和推薦。</p>
-      <div id="settings-quadra-panel"></div>
-      <p id="settings-quadra-status" class="settings-hint"></p>
-    </section>
-
-  </section>
-
-  <!-- The bottom tab bar, the same as the other Quadra apps' (quadra.css .q-tabbar). -->
-  <nav id="fixtures-tabs" class="q-tabbar fixtures-tabs" role="tablist">
-    <button class="q-tab" role="tab" type="button" data-view="schedule" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M8 14h3v3H8z"/></svg><span class="q-tab-label" data-tab-label="tabSchedule">賽程</span></button>
-    <button class="q-tab" role="tab" type="button" data-view="sportsbook" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 0 0 4v0a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v0a2 2 0 0 0 0-4v-3a2 2 0 0 0 0-4z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span class="q-tab-label" data-tab-label="tabSportsbook">運彩</span><span class="q-tab-badge" hidden></span></button>
-    <button class="q-tab" role="tab" type="button" data-view="settings" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="q-tab-label" data-tab-label="tabSettings">設定</span></button>
-  </nav>
-
-  <p id="empty-state" class="empty-state" hidden>近期沒有賽事，請稍後再回來看看。</p>
-  <p id="error-state" class="empty-state" hidden>無法載入資料，請稍後再試一次。</p>
-
-  <footer class="page-footer">
-    <p id="generated-note"></p>
-    <p id="next-update-note" class="next-update-note"></p>
-  </footer>
-
-  <template id="match-card-template">
-    <article class="match-card">
-      <div class="match-top">
-        <span class="match-time-range"></span>
-        <span class="match-time-relative"></span>
-      </div>
-      <div class="match-heading">
-        <span class="sport-badge"><span class="sport-icon"></span><span class="sport-badge-text"></span></span>
-        <span class="playoff-tag" hidden></span>
-        <span class="recommended-tag" hidden>推薦</span>
-      </div>
-      <p class="match-playoff" hidden></p>
-      <div class="teams" data-teams></div>
-      <p class="match-live-status" hidden></p>
-      <div class="match-odds" hidden>
-        <span class="match-odds-pct match-odds-away"></span>
-        <span class="match-odds-bar">
-          <span class="match-odds-seg match-odds-seg-away"></span>
-          <span class="match-odds-seg match-odds-seg-draw" hidden><em class="match-odds-seg-label"></em></span>
-          <span class="match-odds-seg match-odds-seg-home"></span>
-        </span>
-        <span class="match-odds-pct match-odds-home"></span>
-        <span class="match-odds-source"></span>
-      </div>
-      <div class="match-odds-outright" hidden>
-        <span class="match-odds-outright-label">奪冠機率</span>
-        <span class="match-odds-outright-item"></span>
-        <span class="match-odds-outright-item"></span>
-        <span class="match-odds-outright-item"></span>
-      </div>
-      <p class="match-live-leaderboard" hidden></p>
-      <p class="match-venue"></p>
-      <p class="match-watch" hidden><span class="watch-badge" hidden><img class="watch-logo" alt="" hidden decoding="sync" referrerpolicy="no-referrer" /><span class="watch-badge-text"></span></span><span class="watch-text"></span></p>
-      <p class="match-reason"></p>
-      <p class="conflict-note" hidden></p>
-      <div class="quadra-odds" hidden>
-        <div class="quadra-odds-head">
-          <span class="quadra-odds-label"></span>
-          <button type="button" class="quadra-pin"></button>
-        </div>
-        <div class="quadra-odds-prices"></div>
-        <p class="quadra-mybet" hidden></p>
-      </div>
-      <button type="button" class="match-prefer-btn" hidden>設為偏好</button>
-    </article>
-  </template>
-
-  <template id="team-row-template">
-    <div class="team-row">
-      <span class="team-side"></span>
-      <img class="team-logo" alt="" decoding="sync" referrerpolicy="no-referrer" />
-      <span class="team-logo-fallback" aria-hidden="true" hidden></span>
-      <span class="team-name-en"></span>
-      <span class="team-name-zh"></span>
-      <span class="team-score" hidden></span>
-    </div>
-  </template>
-
-  <script type="module" src="./app.js"></script>
+<main class="page">
+  <div id="mobile-bar" class="mobile-bar"></div>
+  <div id="panel-home" class="tab-panel" role="tabpanel"></div>
+  <div id="panel-scores" class="tab-panel" role="tabpanel" hidden></div>
+  <div id="panel-standings" class="tab-panel" role="tabpanel" hidden></div>
+  <div id="panel-news" class="tab-panel" role="tabpanel" hidden></div>
+</main>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<script type="module" src="./app.js" onerror="window.__fxFail()"></script>
 </body>
 </html>

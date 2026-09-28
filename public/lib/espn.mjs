@@ -1,292 +1,465 @@
-// ---- public/lib/espn.mjs ----
+// Sports data for Quadra Fixtures: ESPN's public site API (and Kambi's feed
+// for the leagues ESPN doesn't carry), through the Quadra data proxy, which
+// caches every answer for every viewer and answers signed-in apps only.
 //
-// The small, pure, browser-safe half of talking to ESPN's public scoreboard
-// API that app.js's own live-score/live-odds polling needs (see that file's
-// pollLiveMatches) - kept separate from public/lib/match-builder.mjs's own (much
-// larger) ESPN-fetching logic since the build script's job is building the
-// whole matches.json from scratch (every league, every day, TBD handling,
-// objective scoring, ...) while this module's only job is "given a fixture
-// that's already in the page, get its CURRENT score/status again" - a much
-// narrower, purely client-side concern. Nothing here computes a score or
-// duration; it only extracts the same live fields ESPN already reports.
+// Everything is normalized into a few shapes the page draws:
 //
-// Every fetch this module builds a URL for goes through the shared proxy's
-// /sports-proxy route (see app.js), never straight to ESPN - browsers can't
-// read a cross-origin response ESPN itself sends no CORS headers for.
-//
-// The win% odds bar reads Polymarket first - see ./polymarket.mjs (ESPN's
-// own sportsbook feed doesn't cover every sport this app tracks, F1 in
-// particular, and moves slower). The sportsbook moneyline read below is
-// only its pre-game fallback (see ./sportsbook-odds.mjs). Score/status and
-// the spread/over-under signal the scoring engine uses also come from here.
+//   event   { id, league, kind, name, short, start, status, venue, tv,
+//             home, away (kind 'match'), field (kind 'field'),
+//             bouts (kind 'card'), draws (kind 'draw'), note }
+//   side    { id, name, short, abbr, logo, color, score, winner, record,
+//             lines (each period's score), rank }
+//   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
+import { LEAGUES } from './leagues.mjs';
 
-import { parsePlayoffInfo } from './playoff.mjs';
-import { parseSportsbookWinPct } from './sportsbook-odds.mjs';
+export const PROXY = 'https://sports-proxy.pengzjay.workers.dev/sports-proxy';
+export const SITE = 'https://site.api.espn.com/apis/site/v2/sports';
+export const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
+export const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
+const KAMBI = 'https://eu-offering-api.kambicdn.com/offering/v2018/ub';
 
-export function espnScoreboardUrl(sportKey, leagueKey, datesParam) {
-  const base = `https://site.api.espn.com/apis/site/v2/sports/${sportKey}/${leagueKey}/scoreboard`;
-  return datesParam ? `${base}?dates=${datesParam}` : base;
-}
+let session = null;
+export const useSession = s => (session = s);
 
-// Mirrors public/lib/match-builder.mjs's own TEAM_LEAGUES table (sportKey/
-// leagueKey) plus the id prefix that table's own `league.id` contributes to
-// every fixture's own `id` (`${league.id}-${event.id}`, see that script's
-// fetchTeamLeagueMatches) - kept as a small, separate, browser-safe copy
-// rather than importing the Node script directly, since that script also
-// pulls in fs/duration-prediction/objective-scoring modules this client
-// bundle has no reason to ship. F1 has no entry here - it has no live
-// score to poll (see pollLiveMatches's own comment on why F1 is excluded).
-export const TEAM_LEAGUE_ESPN = {
-  'Premier League': { id: 'epl', sportKey: 'soccer', leagueKey: 'eng.1' },
-  MLB: { id: 'mlb', sportKey: 'baseball', leagueKey: 'mlb' },
-  NBA: { id: 'nba', sportKey: 'basketball', leagueKey: 'nba' }
-};
+// ---- Fetching ------------------------------------------------------------------
 
-function yyyymmddUtc(date) {
-  return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}${String(date.getUTCDate()).padStart(2, '0')}`;
-}
-
-// The ESPN scoreboard requests needed to catch every currently-live fixture
-// of one league - today AND yesterday (UTC), by the same reasoning as
-// match-builder.mjs's own lookback (a live fixture can still be grouped
-// under ESPN's own PREVIOUS calendar day depending on the league's home
-// timezone), which is all a LIVE-only poll ever needs (a fixture that's
-// actually live right now cannot be further than one ESPN calendar day off
-// from "now").
-//
-// TWO single-date requests, never one `dates=YYYYMMDD-YYYYMMDD` range
-// request - live-confirmed (2026-09-20, a real 400 from
-// baseball/mlb/scoreboard?dates=20260920-20260921, caught only because this
-// app's own live-poll silently swallows a failed fetch per league and
-// nothing had ever surfaced it) that ESPN's TEAM-SPORT scoreboard endpoint
-// rejects a multi-day range outright, unlike its racing/f1 endpoint (see
-// f1LiveScoreboardUrl below, and match-builder.mjs's own fetchTeamLeagueMatches
-// for the exact same fix applied to the full-window build fetch). Every
-// team-sport live poll had been silently failing outright before this fix -
-// not a partial/degraded result, a 400 on every single tick.
-export function liveScoreboardUrls(sport, now = new Date()) {
-  const league = TEAM_LEAGUE_ESPN[sport];
-  if (!league) return [];
-  return [new Date(now.getTime() - 86_400_000), now].map(date =>
-    espnScoreboardUrl(league.sportKey, league.leagueKey, yyyymmddUtc(date))
-  );
-}
-
-// Extracts {id -> {isLive, isFinished, scores: [awayScore, homeScore],
-// oddsSpread, oddsOverUnder}} from one league's scoreboard response - `id` matches Match Find's own fixture id
-// convention exactly
-// (`${league.id}-${event.id}`) so app.js can merge this straight into
-// state.allRawMatches by id with no extra lookup table. Scores are read as
-// plain numbers (or null when ESPN hasn't posted one yet, e.g. a scoreless
-// 'pre' fixture) - never guessed or defaulted to 0, since a real 0-0 score
-// is a genuine, different fact from "not started/not reported".
-//
-// `situation` (baseball only - MLB's own live at-bat context: balls,
-// strikes, outs, who's on base) is read straight off ESPN's own
-// `competition.situation` object, live-confirmed against real in-progress
-// games (2026-09-20's Tigers @ White Sox and Brewers @ Orioles) rather
-// than guessed from documentation - null whenever that object is absent
-// (a 'pre'/'post' fixture, or a sport ESPN doesn't report it for at all),
-// never a guessed/defaulted "no runners on" for a game that just hasn't
-// reported yet.
-export function extractLiveUpdates(sport, scoreboardJson) {
-  const league = TEAM_LEAGUE_ESPN[sport];
-  const updates = new Map();
-  if (!league) return updates;
-  for (const event of scoreboardJson?.events || []) {
-    const competition = event.competitions?.[0];
-    const statusType = competition?.status?.type;
-    if (!competition || !statusType) continue;
-    const rawCompetitors = competition.competitors || [];
-    const away = rawCompetitors.find(c => c.homeAway === 'away');
-    const home = rawCompetitors.find(c => c.homeAway === 'home');
-    const toScore = c => {
-      const n = Number(c?.score);
-      return Number.isFinite(n) ? n : null;
-    };
-    const odds = competition.odds?.[0];
-    const spread = Number(odds?.spread);
-    const overUnder = Number(odds?.overUnder);
-    const rawSituation = competition.situation;
-    const situation =
-      rawSituation && (rawSituation.outs != null || rawSituation.balls != null)
-        ? {
-            balls: Number.isFinite(rawSituation.balls) ? rawSituation.balls : null,
-            strikes: Number.isFinite(rawSituation.strikes) ? rawSituation.strikes : null,
-            outs: Number.isFinite(rawSituation.outs) ? rawSituation.outs : null,
-            onFirst: !!rawSituation.onFirst,
-            onSecond: !!rawSituation.onSecond,
-            onThird: !!rawSituation.onThird
-          }
-        : null;
-    updates.set(`${league.id}-${event.id}`, {
-      isLive: statusType.state === 'in',
-      isFinished: statusType.state === 'post',
-      scores: [toScore(away), toScore(home)],
-      period: competition.status?.period ?? null,
-      displayClock: typeof competition.status?.displayClock === 'string' ? competition.status.displayClock : '',
-      shortDetail: statusType.shortDetail || '',
-      situation,
-      oddsSpread: Number.isFinite(spread) ? spread : null,
-      oddsOverUnder: Number.isFinite(overUnder) ? overUnder : null,
-      // Pre-game only (null once 'in'/'post' - ESPN drops the line then).
-      bookOdds: statusType.state === 'pre' ? parseSportsbookWinPct(competition, { hasDraw: sport === 'Premier League' }) : null,
-      // The series score moves the moment a playoff game ends - carried
-      // here so the card's series line updates with the final score
-      // instead of waiting for the next full rebuild.
-      playoff: event.season?.type === 3 || event.season?.type === 5 ? parsePlayoffInfo(competition) : null
-    });
+const MAX = 6;
+let running = 0;
+const waiting = [];
+async function slot(task) {
+  if (running >= MAX) await new Promise(resolve => waiting.push(resolve));
+  running++;
+  try {
+    return await task();
+  } finally {
+    running--;
+    waiting.shift()?.();
   }
-  return updates;
+}
+const memo = new Map();
+// A short memory on top of the proxy's cache: a sheet opened twice doesn't
+// fetch twice (live data is kept only 20 seconds).
+export async function getJson(url, { ttl = 60_000, trim = '' } = {}) {
+  const hit = memo.get(url);
+  if (hit && Date.now() - hit.at < ttl) return hit.promise;
+  const promise = slot(async () => {
+    const token = session ? await session.ensureToken().catch(() => session.token) : '';
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await fetch(`${PROXY}?url=${encodeURIComponent(url)}${trim ? `&trim=${trim}` : ''}${token ? `&qt=${encodeURIComponent(token)}` : ''}`, { signal: AbortSignal.timeout(20_000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } catch (error) {
+        if (attempt >= 1) throw error;
+        await new Promise(r => setTimeout(r, 700));
+      }
+    }
+  });
+  memo.set(url, { at: Date.now(), promise });
+  promise.catch(() => memo.delete(url));
+  if (memo.size > 400) memo.delete(memo.keys().next().value);
+  return promise;
 }
 
-// F1's own live in-race context - same shape of problem as extractLiveUpdates
-// above but a completely different ESPN response shape (see
-// match-builder.mjs's own comment on fetchF1Matches: one event is a whole
-// race weekend, its `competitions` are the individual sessions, and THOSE
-// carry a `competitors` array of drivers - ordered by current/final
-// classification via `order` - rather than two team sides). Only the
-// session types this app actually tracks as matches (Race/Qual/Sprint -
-// see match-builder.mjs's F1_SESSION_TYPES) are extracted; ids are built
-// with the exact same `f1-${event.id}-${abbreviation.toLowerCase()}`
-// convention that module uses so this merges straight into
-// state.allRawMatches by id.
-const F1_LIVE_SESSION_ABBREVIATIONS = ['Race', 'Qual', 'SR'];
+export const yyyymmdd = date => date.toISOString().slice(0, 10).replaceAll('-', '');
+// ESPN files a game under the US date; a Taiwan day spans two of them.
+export function espnDatesFor(taipeiDate) {
+  const d = new Date(`${taipeiDate}T00:00:00+08:00`);
+  return [...new Set([yyyymmdd(new Date(d.getTime() - 12 * 3_600_000)), yyyymmdd(new Date(d.getTime() + 11 * 3_600_000))])];
+}
+export const taipeiDate = t => new Date(new Date(t).getTime() + 8 * 3_600_000).toISOString().slice(0, 10);
 
-export function f1LiveScoreboardUrl(now = new Date()) {
-  const dates = `${yyyymmddUtc(new Date(now.getTime() - 86_400_000))}-${yyyymmddUtc(now)}`;
-  return espnScoreboardUrl('racing', 'f1', dates);
+// ---- Parsing: statuses and sides --------------------------------------------------
+
+const VOID = /POSTPONED|CANCELED|CANCELLED|SUSPENDED|FORFEIT|ABANDONED|DELAYED/;
+export function parseStatus(s) {
+  const type = s?.type || {};
+  return {
+    state: type.state || 'pre',
+    detail: type.detail || type.description || '',
+    short: type.shortDetail || type.detail || '',
+    completed: Boolean(type.completed),
+    void: VOID.test(type.name || ''),
+    clock: s?.displayClock || '',
+    period: s?.period || 0
+  };
 }
 
-// Top three by `order` (ESPN's own current-classification field - live
-// running order during the race itself, final finishing order once it's
-// over) as {name, position, flagUrl, flagAlt, interval} - just enough for a
-// short "誰目前領先" line alongside this sport's own Polymarket
-// outright-winner odds (see app.js's f1LeaderboardLine), not a full
-// 20-driver standings table. flagUrl/flagAlt come from ESPN's own
-// `athlete.flag` (a small nationality-flag image ESPN already serves for
-// every driver) - the only per-driver "icon" this API actually has; ESPN's
-// F1 competitor object has no headshot and no constructor/team field at
-// all (live-checked against several real race weekends, finished and
-// upcoming), so a flag is the one real, non-fabricated visual this can show
-// per driver rather than a generic silhouette. `interval` is read from
-// `competitor.statistics` on a best-effort basis ONLY - live-checked
-// against several real race weekends (both finished and in the days
-// immediately around one) and this array was empty([]) every single time,
-// suggesting ESPN's public site API may never actually populate a
-// live gap/interval figure here at all (that level of live timing detail
-// looks like it may be exclusive to F1's own timing feed, not ESPN's) -
-// this still reads it defensively (never guessed/computed locally) so it
-// picks it up automatically the moment ESPN ever does report it, rather
-// than requiring another code change later.
-function f1DriverInterval(statistics) {
-  const stat = (statistics || []).find(s =>
-    ['GAP', 'INTERVAL', 'TIME'].includes(String(s?.abbreviation || s?.name || '').toUpperCase())
-  );
-  return typeof stat?.displayValue === 'string' && stat.displayValue ? stat.displayValue : null;
+const logoOf = team => team?.logo || team?.logos?.[0]?.href || null;
+function parseSide(c) {
+  if (!c) return null;
+  const team = c.team || {};
+  const athlete = c.athlete || {};
+  const who = c.team ? team : athlete;
+  const record = Array.isArray(c.records) ? c.records.find(r => r.type === 'total' || r.name === 'overall')?.summary || c.records[0]?.summary : Array.isArray(c.record) ? c.record[0]?.displayValue : '';
+  return {
+    id: String(who.id ?? c.id ?? ''),
+    athlete: !c.team && Boolean(c.athlete),
+    name: who.displayName || who.fullName || who.name || '',
+    short: who.shortDisplayName || who.shortName || who.displayName || '',
+    abbr: who.abbreviation || (who.shortName || '').slice(0, 3).toUpperCase(),
+    logo: logoOf(team) || athlete.flag?.href || athlete.headshot?.href || null,
+    color: team.color ? `#${team.color}` : null,
+    score: c.score?.displayValue ?? (typeof c.score === 'string' || typeof c.score === 'number' ? String(c.score) : ''),
+    winner: Boolean(c.winner),
+    record: record || '',
+    rank: c.curatedRank?.current && c.curatedRank.current < 99 ? c.curatedRank.current : null,
+    lines: (c.linescores || []).map(l => l.displayValue ?? String(l.value ?? '')),
+    homeAway: c.homeAway || null,
+    order: c.order ?? null
+  };
 }
 
-// A session's top 3 by ESPN's own `order` (see the comment above) - shared
-// by the live poll here and match-builder.mjs's schedule, which keeps it on
-// a finished session as its final result.
-export function f1TopThree(session) {
-  const top = (session?.competitors || [])
-    .slice()
-    .sort((a, b) => (Number(a.order) || 999) - (Number(b.order) || 999))
-    .slice(0, 3)
-    .map(c => ({
-      name: c.athlete?.shortName || c.athlete?.fullName || '',
-      position: Number(c.order) || null,
-      flagUrl: c.athlete?.flag?.href || '',
-      flagAlt: c.athlete?.flag?.alt || '',
-      interval: f1DriverInterval(c.statistics)
-    }));
-  return top.length ? top : null;
-}
+// ---- Scoreboards -------------------------------------------------------------------
 
-// ESPN's scoreboard keeps a just-ended session at state 'in' with
-// STATUS_SESSION_COMPLETE ("End of Session") for a good while - live-
-// checked (2026 Azerbaijan GP qualifying) 30+ minutes after the core API
-// already called it Final. It's over, so it counts as finished.
-export function isF1SessionOver(statusType) {
-  return statusType?.state === 'post' || statusType?.name === 'STATUS_SESSION_COMPLETE';
-}
-
-export function extractF1LiveUpdates(scoreboardJson) {
-  const updates = new Map();
-  for (const event of scoreboardJson?.events || []) {
-    for (const abbreviation of F1_LIVE_SESSION_ABBREVIATIONS) {
-      const session = (event.competitions || []).find(c => c.type?.abbreviation === abbreviation);
-      const statusType = session?.status?.type;
-      if (!session || !statusType) continue;
-      const leaderboard = f1TopThree(session);
-      // `period` is only a real race lap for the Race/Sprint. Qualifying
-      // has no shared lap count - live-checked (2026 Azerbaijan GP) ESPN
-      // still fills `period` there (26 mid-Q2, i.e. some driver's own lap
-      // tally), which read as a bogus "第 26 圈" on the card.
-      const lap = abbreviation === 'Qual' ? NaN : Number(session.status?.period);
-      // ESPN's bare generic "In Progress" status (Qualifying never gets
-      // anything more specific) says nothing the card's own LIVE badge
-      // doesn't already, and it's untranslated English - dropped, while
-      // real detail like "Lap 23/53 - Safety Car" still comes through.
-      // Only a live session's detail means anything: a 'pre' one's is just
-      // its scheduled start ("9/25 - 8:00 AM EDT"), a finished one's is
-      // "Final"/"End of Session".
-      const isFinished = isF1SessionOver(statusType);
-      const isLive = statusType.state === 'in' && !isFinished;
-      const detail = isLive ? statusType.shortDetail || statusType.detail || '' : '';
-      updates.set(`f1-${event.id}-${abbreviation.toLowerCase()}`, {
-        isLive,
-        isFinished,
-        lap: Number.isFinite(lap) && lap > 0 ? lap : null,
-        statusDetail: /^in progress$/i.test(detail.trim()) ? '' : detail,
-        leaderboard
-      });
+export function parseScoreboard(data, league) {
+  const kind = LEAGUES[league]?.kind || 'match';
+  const out = [];
+  for (const e of data?.events || []) {
+    const comp = e.competitions?.[0];
+    const base = {
+      id: String(e.id),
+      league,
+      kind,
+      name: e.name || '',
+      short: e.shortName || '',
+      start: e.date,
+      end: e.endDate || null,
+      status: parseStatus(e.status || comp?.status),
+      venue: comp?.venue?.fullName || e.venue?.fullName || e.circuit?.fullName || '',
+      tv: [...new Set((comp?.broadcasts || []).flatMap(b => b.names || []))].join(' · '),
+      note: comp?.notes?.[0]?.headline || e.competitions?.[0]?.series?.summary || ''
+    };
+    if (kind === 'match' && comp) {
+      const home = parseSide(comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0]);
+      const away = parseSide(comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1]);
+      if (!home || !away) continue;
+      out.push({ ...base, home, away, neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '' });
+    } else if (kind === 'draw') {
+      // A tennis tournament: its singles draws' matches.
+      const draws = (e.groupings || []).map(g => ({
+        name: g.grouping?.displayName || '',
+        matches: (g.competitions || []).map(m => ({
+          id: String(m.id),
+          round: m.round?.displayName || m.type?.text || '',
+          start: m.date || m.startDate,
+          status: parseStatus(m.status),
+          a: parseSide(m.competitors?.[0]),
+          b: parseSide(m.competitors?.[1])
+        }))
+      }));
+      out.push({ ...base, draws });
+    } else if (kind === 'card') {
+      const bouts = (e.competitions || []).map(m => ({
+        id: String(m.id),
+        weight: m.type?.text || m.note || '',
+        start: m.date,
+        status: parseStatus(m.status),
+        a: parseSide(m.competitors?.[0]),
+        b: parseSide(m.competitors?.[1])
+      }));
+      out.push({ ...base, bouts });
+    } else {
+      // A race weekend (its sessions) or a tournament: each competition's
+      // field in finishing order.
+      const sessions = (e.competitions || []).map(m => ({
+        id: String(m.id),
+        name: m.type?.text || m.type?.abbreviation || '',
+        abbr: m.type?.abbreviation || '',
+        start: m.date,
+        status: parseStatus(m.status),
+        field: [...(m.competitors || [])].sort((a, b) => (a.order ?? 999) - (b.order ?? 999)).map(parseSide)
+      }));
+      out.push({ ...base, sessions });
     }
   }
-  return updates;
+  return out;
 }
 
-// ESPN keeps a dark-theme twin of every team crest under `500-dark/`
-// (white Yankees NY, white Tigers D, ...) - the navy/black originals vanish
-// into a dark card. Only team logos have one; anything else is returned
-// untouched. Some teams have no twin (404) - callers fall back to the
-// original (see app.js's updateTeamRow).
-export function darkEspnLogoUrl(url) {
-  if (!url) return url;
-  return url.replace(/(a\.espncdn\.com(?:\/combiner\/i\?img=)?\/i\/teamlogos\/[^/?&]+\/500)\//, '$1-dark/');
+export async function scoreboard(league, dates) {
+  const l = LEAGUES[league];
+  if (l?.kambi) return kambiEvents(league);
+  const list = [].concat(dates || []);
+  const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: 20_000 }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: 20_000 })];
+  const seen = new Set();
+  return pages
+    .filter(Boolean)
+    .flatMap(p => parseScoreboard(p, league))
+    .filter(e => !seen.has(e.id) && seen.add(e.id));
 }
 
-// ESPN serves every team/league logo as a 500px PNG (20-45KB each, live-
-// measured) while this page only ever draws them at 16-22px - so a first
-// visit spent most of its image bandwidth on pixels nobody sees, and the
-// crests visibly popped in seconds after the cards themselves. ESPN's own
-// `combiner` resizer (the same CDN host) returns the same image at any size
-// (a 64px copy is 2-5KB), so every logo is requested through it instead.
-// 64px covers a 21px slot on a 3x display. A URL that isn't on
-// a.espncdn.com is returned untouched.
-export function sizedEspnLogoUrl(url, px = 64) {
-  if (!url) return url;
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return url;
+// ---- Kambi (NPB, KBO, CPBL, EuroLeague, B.League, racket sports) --------------------
+
+export function parseKambi(data, league) {
+  const out = [];
+  for (const item of data?.events || []) {
+    const e = item.event;
+    if (!e?.homeName || !e?.awayName) continue;
+    const live = item.liveData;
+    const state = e.state === 'STARTED' ? 'in' : e.state === 'FINISHED' ? 'post' : 'pre';
+    // Set scores (tennis, volleyball…) or, for baseball, the innings in the score's info ("1-0 | 0-2 | …").
+    const info = String(live?.score?.info || '').split('|').map(x => x.trim().split('-'));
+    const innings = info.length > 1 && info.every(x => x.length === 2) ? { home: info.map(x => x[0]), away: info.map(x => x[1]) } : null;
+    const sets = live?.statistics?.sets;
+    const side = (name, key) => ({
+      id: name,
+      name,
+      short: name,
+      abbr: name.slice(0, 3).toUpperCase(),
+      logo: null,
+      color: null,
+      score: live?.score?.[key] ?? '',
+      winner: false,
+      record: '',
+      rank: null,
+      lines: sets ? sets[key].filter(x => x >= 0).map(String) : innings ? innings[key] : [],
+      homeAway: key
+    });
+    out.push({
+      id: `k${e.id}`,
+      league,
+      kind: 'match',
+      name: `${e.awayName} @ ${e.homeName}`,
+      short: e.name,
+      start: e.start,
+      status: { state, detail: state === 'in' ? live?.matchClock?.minute != null ? `${live.matchClock.minute}'` : '' : '', short: '', completed: state === 'post', void: false },
+      venue: '',
+      tv: '',
+      note: e.group || '',
+      home: side(e.homeName, 'home'),
+      away: side(e.awayName, 'away'),
+      kambi: true
+    });
   }
-  if (parsed.hostname !== 'a.espncdn.com') return url;
-  if (parsed.pathname === '/combiner/i') {
-    if (!parsed.searchParams.get('img')) return url;
-    // Already sized (e.g. a deliberate crop - see app.js's LEAGUE_LOGOS):
-    // leave its own dimensions alone.
-    if (parsed.searchParams.get('w') && parsed.searchParams.get('h')) return url;
-  } else {
-    const img = parsed.pathname;
-    parsed = new URL('https://a.espncdn.com/combiner/i');
-    parsed.searchParams.set('img', img);
-  }
-  parsed.searchParams.set('w', String(px));
-  parsed.searchParams.set('h', String(px));
-  // `img` stays a readable path (the combiner accepts it unescaped, and
-  // that's the form ESPN's own site uses).
-  return parsed.toString().replace(/img=([^&]*)/, (_, v) => `img=${decodeURIComponent(v)}`);
+  return out.sort((a, b) => a.start.localeCompare(b.start));
+}
+export async function kambiEvents(league) {
+  const parts = LEAGUES[league].kambi.split('/');
+  while (parts.length < 4) parts.push('all');
+  const data = await getJson(`${KAMBI}/listView/${parts.join('/')}/matches.json?lang=en_GB&market=GB&useCombined=true`, { ttl: 60_000, trim: 'kambi-events' });
+  return parseKambi(data, league);
+}
+
+// ---- A match's summary --------------------------------------------------------------
+
+export function parseSummary(data, league) {
+  const header = data?.header?.competitions?.[0];
+  const sides = (header?.competitors || []).map(parseSide);
+  const byId = Object.fromEntries(sides.map(s => [s.id, s]));
+  const box = data?.boxscore || {};
+  // Team stats, paired: [{ label, home, away }].
+  const teamStats = [];
+  const home = box.teams?.find(t => t.homeAway === 'home') || box.teams?.[1];
+  const away = box.teams?.find(t => t.homeAway === 'away') || box.teams?.[0];
+  const flat = t => {
+    const out = new Map();
+    for (const s of t?.statistics || []) {
+      if (Array.isArray(s.stats)) for (const x of s.stats) out.set(x.name, { label: x.displayName || x.label || x.name, value: x.displayValue });
+      else out.set(s.name, { label: s.label || s.displayName || s.name, value: s.displayValue });
+    }
+    return out;
+  };
+  const hs = flat(home);
+  const as = flat(away);
+  for (const [key, h] of hs) if (as.has(key) && h.value !== undefined) teamStats.push({ key, label: h.label, home: h.value, away: as.get(key).value });
+  // Player tables per team: [{ team, tables: [{ name, labels, rows: [{ id, name, stats }] }] }].
+  const players = (box.players || []).map(p => ({
+    team: String(p.team?.id ?? ''),
+    tables: (p.statistics || []).map(st => ({
+      name: st.name || st.type || st.text || '',
+      labels: st.labels || st.names || [],
+      rows: (st.athletes || []).map(a => ({ id: String(a.athlete?.id ?? ''), name: a.athlete?.shortName || a.athlete?.displayName || '', pos: a.position?.abbreviation || '', starter: Boolean(a.starter), stats: a.stats || [] })),
+      totals: st.totals || []
+    }))
+  }));
+  // Scoring and key moments.
+  const plays = (data?.scoringPlays || data?.plays?.filter(p => p.scoringPlay) || [])
+    .slice(-60)
+    .map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore }));
+  const keyEvents = (data?.keyEvents || [])
+    .filter(k => k.type?.type !== 'kickoff' && k.type?.type !== 'halftime' && k.type?.type !== 'end-regular-time')
+    .map(k => ({ text: k.text || k.type?.text || '', type: k.type?.type || '', clock: k.clock?.displayValue || '', team: String(k.team?.id ?? ''), scoring: Boolean(k.scoringPlay) }));
+  const rosters = (data?.rosters || []).map(r => ({
+    team: String(r.team?.id ?? ''),
+    formation: r.formation || '',
+    players: (r.roster || []).map(x => ({ id: String(x.athlete?.id ?? ''), name: x.athlete?.displayName || '', jersey: x.jersey || '', pos: x.position?.abbreviation || '', starter: Boolean(x.starter) }))
+  }));
+  const leaders = (data?.leaders || []).flatMap(t =>
+    (t.leaders || []).map(l => ({ team: String(t.team?.id ?? ''), stat: l.displayName || l.name, name: l.leaders?.[0]?.athlete?.shortName || l.leaders?.[0]?.athlete?.displayName || '', value: l.leaders?.[0]?.displayValue || '' }))
+  );
+  const injuries = (data?.injuries || []).map(t => ({ team: String(t.team?.id ?? ''), list: (t.injuries || []).map(i => ({ name: i.athlete?.displayName || '', status: i.status || i.type?.description || '', detail: i.details?.type || '' })) }));
+  const winProb = (data?.winprobability || []).map(w => w.homeWinPercentage).filter(x => Number.isFinite(x));
+  const series = (data?.seasonseries || []).map(s => ({ summary: s.summary || s.description || '', events: (s.events || []).map(ev => ({ id: String(ev.id), date: ev.date, score: (ev.competitors || []).map(c => `${c.team?.abbreviation || ''} ${c.score ?? ''}`).join(' · ') })) }));
+  const form = (data?.lastFiveGames || []).map(t => ({ team: String(t.team?.id ?? ''), games: (t.events || []).map(ev => ({ result: ev.gameResult || '', score: ev.score || '', opp: ev.opponent?.abbreviation || ev.opponent?.displayName || '', date: ev.gameDate })) }));
+  const table = (data?.standings?.groups || []).flatMap(g =>
+    (g.standings?.entries || []).map(en => ({ team: en.team, id: String(en.id ?? ''), stats: Object.fromEntries((en.stats || []).map(s => [s.name || s.abbreviation, s.displayValue])) }))
+  );
+  const info = data?.gameInfo || {};
+  return {
+    league,
+    status: parseStatus(header?.status),
+    sides,
+    home: sides.find(s => s.homeAway === 'home') || sides[0] || null,
+    away: sides.find(s => s.homeAway === 'away') || sides[1] || null,
+    byId,
+    teamStats,
+    players,
+    plays,
+    keyEvents,
+    rosters,
+    leaders,
+    injuries,
+    winProb,
+    series,
+    form,
+    table,
+    venue: info.venue?.fullName || '',
+    city: [info.venue?.address?.city, info.venue?.address?.state || info.venue?.address?.country].filter(Boolean).join(', '),
+    attendance: info.attendance || null,
+    officials: (info.officials || []).map(o => o.displayName || o.fullName).filter(Boolean),
+    weather: info.weather ? `${info.weather.temperature ?? ''}° ${info.weather.displayValue || ''}`.trim() : '',
+    news: (data?.news?.articles || []).slice(0, 6).map(parseArticle)
+  };
+}
+export async function summary(league, id) {
+  const l = LEAGUES[league];
+  return parseSummary(await getJson(`${SITE}/${l.espn}/summary?event=${encodeURIComponent(id)}`, { ttl: 20_000 }), league);
+}
+
+// ---- Standings ------------------------------------------------------------------------
+
+// Groups (a league table, conferences, divisions): [{ name, rows: [{ id, name,
+// logo, rank, stats: { key: value } }], columns: [key…] }].
+export function parseStandings(data) {
+  const groups = [];
+  const walk = node => {
+    if (node?.standings?.entries?.length) {
+      const rows = node.standings.entries.map(en => {
+        const stats = Object.fromEntries((en.stats || []).map(s => [s.abbreviation || s.name, s.displayValue]));
+        return { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note?.color || '', stats };
+      });
+      groups.push({ name: node.name || node.displayName || '', rows });
+    }
+    for (const child of node?.children || []) walk(child);
+  };
+  walk(data);
+  return groups;
+}
+export async function standings(league) {
+  const l = LEAGUES[league];
+  return parseStandings(await getJson(`${STANDINGS}/${l.espn}/standings`, { ttl: 10 * 60_000 }));
+}
+// Which columns a table shows, by sport (only those present).
+export const STANDING_COLUMNS = {
+  soccer: ['GP', 'W', 'D', 'L', 'GD', 'P'],
+  baseball: ['W', 'L', 'PCT', 'GB', 'STRK'],
+  basketball: ['W', 'L', 'PCT', 'GB', 'STRK'],
+  football: ['W', 'L', 'T', 'PCT', 'STRK'],
+  hockey: ['GP', 'W', 'L', 'OTL', 'PTS'],
+  rugby: ['GP', 'W', 'L', 'PTS'],
+  aussie: ['GP', 'W', 'L', 'PTS']
+};
+
+// ---- Teams, schedules, rosters, players, news -------------------------------------------
+
+export function parseTeam(data) {
+  const t = data?.team || {};
+  return {
+    id: String(t.id ?? ''),
+    name: t.displayName || '',
+    short: t.shortDisplayName || t.abbreviation || '',
+    abbr: t.abbreviation || '',
+    logo: logoOf(t),
+    color: t.color ? `#${t.color}` : null,
+    record: t.record?.items?.[0]?.summary || '',
+    standing: t.standingSummary || '',
+    next: (t.nextEvent || []).map(e => ({ id: String(e.id), name: e.name, short: e.shortName, start: e.date }))
+  };
+}
+export async function team(league, id) {
+  return parseTeam(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}`, { ttl: 10 * 60_000 }));
+}
+export function parseSchedule(data, league) {
+  return (data?.events || []).map(e => {
+    const comp = e.competitions?.[0];
+    const home = parseSide(comp?.competitors?.find(c => c.homeAway === 'home'));
+    const away = parseSide(comp?.competitors?.find(c => c.homeAway === 'away'));
+    return { id: String(e.id), league, kind: 'match', name: e.name, short: e.shortName, start: e.date, status: parseStatus(comp?.status), home, away, venue: comp?.venue?.fullName || '' };
+  });
+}
+export async function teamSchedule(league, id) {
+  return parseSchedule(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}/schedule`, { ttl: 10 * 60_000 }), league);
+}
+export function parseRoster(data) {
+  const groups = Array.isArray(data?.athletes?.[0]?.items) ? data.athletes : [{ position: '', items: data?.athletes || [] }];
+  return groups.map(g => ({
+    name: g.position || '',
+    players: (g.items || []).map(a => ({ id: String(a.id), name: a.displayName || a.fullName, jersey: a.jersey || '', pos: a.position?.abbreviation || '', age: a.age || null, headshot: a.headshot?.href || null, injured: Boolean(a.injuries?.length) }))
+  }));
+}
+export async function roster(league, id) {
+  return parseRoster(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}/roster`, { ttl: 60 * 60_000 }));
+}
+export function parseAthlete(data) {
+  const a = data?.athlete || {};
+  return {
+    id: String(a.id ?? ''),
+    name: a.displayName || '',
+    headshot: a.headshot?.href || null,
+    jersey: a.jersey || '',
+    position: a.position?.displayName || '',
+    team: a.team?.displayName || '',
+    teamId: String(a.team?.id ?? ''),
+    teamLogo: logoOf(a.team),
+    age: a.age || null,
+    born: a.displayDOB || '',
+    birthPlace: a.displayBirthPlace || '',
+    height: a.displayHeight || '',
+    weight: a.displayWeight || '',
+    status: a.status?.name || '',
+    injuries: (a.injuries || []).map(i => i.status || i.type?.description).filter(Boolean),
+    stats: { title: a.statsSummary?.displayName || '', list: (a.statsSummary?.statistics || []).map(s => ({ label: s.shortDisplayName || s.abbreviation, name: s.displayName, value: s.displayValue, rank: s.rankDisplayValue || '' })) },
+    news: (Array.isArray(data?.news) ? data.news : data?.news?.articles || []).slice(0, 5).map(parseArticle)
+  };
+}
+export async function athlete(league, id) {
+  return parseAthlete(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}`, { ttl: 60 * 60_000 }));
+}
+export function parseArticle(a) {
+  return {
+    id: String(a.id ?? a.headline),
+    title: a.headline || '',
+    text: a.description || '',
+    at: a.published || a.lastModified || '',
+    image: a.images?.[0]?.url || null,
+    url: a.links?.web?.href || a.links?.mobile?.href || null,
+    byline: a.byline || ''
+  };
+}
+export async function news(league) {
+  const data = await getJson(`${SITE}/${LEAGUES[league].espn}/news`, { ttl: 15 * 60_000 });
+  return (data?.articles || []).map(parseArticle);
+}
+export async function teamsOf(league) {
+  const data = await getJson(`${SITE}/${LEAGUES[league].espn}/teams`, { ttl: 24 * 3_600_000 });
+  return (data?.sports?.[0]?.leagues?.[0]?.teams || []).map(x => ({ id: String(x.team.id), name: x.team.displayName, short: x.team.shortDisplayName, logo: logoOf(x.team), league }));
+}
+
+// ---- Quadra Play's id for a match (its "bet on this" link) ---------------------------------
+
+export function normalizeTeamName(name) {
+  return (name || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/&/g, ' ')
+    .replace(/\b(fc|afc|cf|sc|and)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+// Play's own id for the same match: league, the start's UTC hour, the two sides.
+export function playGameId(event) {
+  const key = LEAGUES[event.league]?.play;
+  if (!key || event.kind !== 'match' || !event.home || !event.away) return null;
+  return `${key}_${new Date(event.start).toISOString().slice(0, 13)}_${normalizeTeamName(event.away.name)}_${normalizeTeamName(event.home.name)}`.replaceAll(' ', '');
 }

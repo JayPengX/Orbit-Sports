@@ -1,195 +1,92 @@
-// ---- public/sw.js ----
-// Keeps this site's own code (the "app shell": index.html, app.js,
-// styles.css, every module, icons) on the device, so opening the page -
-// the home-screen app especially, which iOS cold-starts far more often than
-// a Safari tab and which shares no cache with Safari - no longer waits on
-// GitHub Pages for anything before it can start fetching match data.
-// Everything live (match data, odds, fonts) is left alone and goes to the
-// network exactly as without this file; team and league logos are kept on
-// the device (see the end of this file).
+// Quadra Fixtures' service worker: keeps the page's own files so the app opens
+// without a connection and can be installed. Scores and news go to other
+// sites and are never touched here.
 //
-// One cache per deploy: deploy.yml stamps BUILD_ID with the commit sha (the
-// same way it stamps app.js's APP_BUILD_ID), which changes this file's
-// bytes, so the browser installs a new worker on the next visit after every
-// deploy. That worker downloads the new build's whole shell into its own
-// cache before taking over, then deletes the old cache - so the files
-// served together always come from ONE deploy, never a new app.js with an
-// old module. app.js's own new-version check (checkForAppVersionUpdate)
-// fetches app.js with `cache: 'no-store'`, which this worker deliberately
-// passes straight to the network; before the reload that follows, app.js
-// makes sure this worker has been replaced by the new deploy's (or removes
-// it) - see prepareServiceWorkerForBuild there.
-const BUILD_ID = '__BUILD_ID__';
-const CACHE_PREFIX = 'matchfind-shell-';
-const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
-
-// Keep in sync with public/ (tests/app-shell.test.mjs checks every
-// module under lib/ is listed, and that every entry exists).
-const SHELL_FILES = [
-  './',
-  './index.html',
-  './app.js',
-  './styles.css',
-  './quadra.css',
-  './favicon.svg',
-  './manifest.webmanifest',
-  './icons/icon-180.png',
-  './icons/icon-512.png',
-  './lib/color.mjs',
-  './lib/espn.mjs',
-  './lib/i18n.mjs',
-  './lib/match-builder.mjs',
-  './lib/objective-score.mjs',
-  './lib/percent.mjs',
-  './lib/playoff.mjs',
-  './lib/polymarket.mjs',
-  './lib/preferences.mjs',
-  './lib/quadra-link.mjs',
-  './lib/quadra.mjs',
-  './lib/recommendation.mjs',
-  './lib/sport-duration.mjs',
-  './lib/sport-signals.mjs',
-  './lib/sportsbook-odds.mjs',
-  './lib/tap-log.mjs',
-  './lib/team-names.mjs',
-  './lib/locales/en.mjs',
-  './lib/locales/zh-TW.mjs'
-];
+// A file with a ?v= version (every deploy stamps one) is served from the
+// cache first, since that exact version never changes; anything else (the
+// page itself) comes from the network first, the cache only when offline.
+// One copy per file is kept: a new version replaces the old one.
+const CACHE = 'quadra-fixtures-v2';
 
 self.addEventListener('install', event => {
-  event.waitUntil(
-    (async () => {
-      try {
-        const cache = await caches.open(CACHE_NAME);
-        // `cache: 'reload'` skips the HTTP cache, which could still hold the
-        // PREVIOUS deploy's copy of a file for up to GitHub Pages' 10 minutes.
-        await cache.addAll(SHELL_FILES.map(url => new Request(url, { cache: 'reload' })));
-        // Refuse to install a mixed shell: if the CDN handed back an app.js
-        // from a different deploy than this worker's own, fail - the browser
-        // simply retries on a later visit, and the old worker keeps serving
-        // its own consistent set meanwhile.
-        if (!BUILD_ID.startsWith('__')) {
-          const appJs = await cache.match('./app.js');
-          const text = appJs ? await appJs.text() : '';
-          if (!text.includes(BUILD_ID)) throw new Error('app.js in the cache is not from this build');
-        }
-      } catch (error) {
-        // A half-filled cache named after this build would look, to
-        // app.js's prepareServiceWorkerForBuild, like a finished update.
-        await caches.delete(CACHE_NAME);
-        throw error;
-      }
-      await self.skipWaiting();
-    })()
-  );
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['./'])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    (async () => {
-      const names = await caches.keys();
-      await Promise.all(names.filter(name => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME).map(name => caches.delete(name)));
-      await self.clients.claim();
-    })()
+    caches
+      .keys()
+      // Only this app's own old copies: the other Quadra apps share this site
+      // (and its caches), and the logos are kept for all of them.
+      .then(keys => Promise.all(keys.filter(k => k.startsWith('quadra-fixtures-') && k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
-async function fromCacheThenNetwork(request, fallbackKey) {
-  const cache = await caches.open(CACHE_NAME);
-  const cached = (await cache.match(request, { ignoreSearch: true })) || (fallbackKey && (await cache.match(fallbackKey)));
-  return cached || fetch(request);
+async function keep(request, response) {
+  if (!response || response.status !== 200 || response.type === 'opaque') return;
+  const cache = await caches.open(CACHE);
+  const url = new URL(request.url);
+  // Drop older versions of the same file.
+  for (const old of await cache.keys()) {
+    const o = new URL(old.url);
+    if (o.pathname === url.pathname && o.search !== url.search) await cache.delete(old);
+  }
+  await cache.put(request, response);
+}
+
+async function networkFirst(request) {
+  try {
+    // The page itself is checked with the server every time (a cheap 304
+    // when unchanged): GitHub Pages lets browsers keep it 10 minutes, which
+    // would open the last deploy's page right after a new one. By address,
+    // since a navigation can't be re-sent with options.
+    const response = request.mode === 'navigate' ? await fetch(request.url, { cache: 'no-cache', credentials: 'same-origin', redirect: 'manual' }) : await fetch(request);
+    await keep(request, response.clone());
+    return response;
+  } catch (error) {
+    const cached = (await caches.match(request, { ignoreSearch: request.mode === 'navigate' })) || (request.mode === 'navigate' && (await caches.match('./')));
+    if (cached) return cached;
+    throw error;
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  await keep(request, response.clone());
+  return response;
 }
 
 self.addEventListener('fetch', event => {
-  const { request } = event;
-  if (request.method !== 'GET') return;
+  const request = event.request;
   const url = new URL(request.url);
-  if (isLogo(request, url)) return event.respondWith(logo(event));
-  // Otherwise only this site's own files - match data, odds and fonts all
-  // come from other origins and stay untouched.
-  if (url.origin !== self.location.origin || !url.pathname.startsWith(new URL('./', self.location).pathname)) return;
-  // An explicit "don't use a cache" request (app.js's own version check)
-  // must see the real, current deploy.
-  if (request.cache === 'no-store' || request.cache === 'reload') return;
-  if (url.pathname.endsWith('/sw.js')) return;
-
-  if (request.mode === 'navigate') {
-    // Always from this worker's own cache, so the page and every file it
-    // loads come from the same deploy (see this file's top comment).
-    event.respondWith(fromCacheThenNetwork(request, './'));
-    return;
-  }
-  // Static files: the deployed index.html asks for `app.js?v=<sha>`, so
-  // the query is ignored when matching.
-  event.respondWith(fromCacheThenNetwork(request));
+  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.endsWith('/version.json')) return;
+  event.respondWith(url.searchParams.has('v') && request.mode !== 'navigate' ? cacheFirst(request) : networkFirst(request));
 });
 
-// ---- Team and league logos ----------------------------------------------------
-// ESPN tells browsers to keep a logo for 2 seconds, so without this every
-// open downloaded every logo again. Logos are kept here instead, in one
-// cache every Quadra app on this site shares (Sportsbook and Fixtures show
-// the same clubs): served straight from the device, and checked again in
-// the background once a week. Keep in sync with the other apps' sw.js.
-const LOGO_CACHE = 'quadra-logos-v1';
-const LOGO_HOSTS = ['a.espncdn.com', 'r2.thesportsdb.com'];
-const LOGO_FRESH_MS = 7 * 24 * 3600 * 1000;
-const LOGO_MAX = 800;
-const LOGO_AGE = 'x-quadra-cached-at';
+// The page lists the files it loaded before this worker was in charge, so
+// the very first visit already works offline next time.
+self.addEventListener('message', event => {
+  if (event.data?.type !== 'cache') return;
+  const urls = (event.data.urls || []).filter(u => new URL(u).origin === self.location.origin && !u.endsWith('/version.json'));
+  event.waitUntil(
+    Promise.all(
+      urls.map(u =>
+        caches.match(u).then(hit => hit || fetch(u).then(r => keep(new Request(u), r)).catch(() => {}))
+      )
+    )
+  );
+});
 
-const isLogo = (request, url) => request.method === 'GET' && request.destination === 'image' && LOGO_HOSTS.includes(url.hostname);
-// When a logo was saved: on the copy itself (ESPN's, readable), or on a
-// small note beside it (TheSportsDB's, which the page may not read).
-const logoNote = url => `${self.registration.scope}__logo-saved?u=${encodeURIComponent(url)}`;
-
-async function saveLogo(url) {
-  const cache = await caches.open(LOGO_CACHE);
-  const now = String(Date.now());
-  if (new URL(url).hostname === 'a.espncdn.com') {
-    // ESPN allows reading its logos (CORS): kept with the time saved.
-    const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
-    if (!res.ok) return null;
-    const copy = new Response(await res.blob(), { headers: { 'content-type': res.headers.get('content-type') || 'image/png', [LOGO_AGE]: now } });
-    await cache.put(url, copy.clone());
-    trimLogos(cache);
-    return copy;
-  }
-  // Not readable (TheSportsDB): kept as the page would get it.
-  const res = await fetch(url, { mode: 'no-cors', credentials: 'omit' });
-  if (res.type !== 'opaque' && !res.ok) return null;
-  await cache.put(url, res.clone());
-  await cache.put(logoNote(url), new Response(now));
-  trimLogos(cache);
-  return res;
-}
-
-async function logoAge(cache, url, hit) {
-  const saved = hit.type === 'opaque' ? await (await cache.match(logoNote(url)))?.text() : hit.headers.get(LOGO_AGE);
-  return Date.now() - (Number(saved) || 0);
-}
-
-// Oldest out first once there are too many.
-let trimming = false;
-async function trimLogos(cache) {
-  if (trimming || Math.random() > 0.05) return;
-  trimming = true;
-  try {
-    const keys = (await cache.keys()).filter(k => !k.url.includes('__logo-saved'));
-    for (const old of keys.slice(0, Math.max(0, keys.length - LOGO_MAX))) {
-      await cache.delete(old);
-      await cache.delete(logoNote(old.url));
-    }
-  } finally {
-    trimming = false;
-  }
-}
-
-async function logo(event) {
-  const url = event.request.url;
-  const cache = await caches.open(LOGO_CACHE);
-  const hit = await cache.match(url);
-  if (hit) {
-    if ((await logoAge(cache, url, hit)) > LOGO_FRESH_MS) event.waitUntil(saveLogo(url).catch(() => {}));
-    return hit;
-  }
-  return (await saveLogo(url).catch(() => null)) || fetch(event.request);
-}
+// A tap on a price alert's notification opens (or focuses) the page.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const open = list.find(c => c.url.startsWith(self.registration.scope));
+      return open ? open.focus() : self.clients.openWindow('./');
+    })
+  );
+});

@@ -1,1437 +1,300 @@
+/* Quadra Fixtures: tokens (the kit's neutrals with this app's orange), the
+   app shell, then scores, match sheets, tables, teams, players and news. */
 :root {
-  /* Quadra 四方: the shared neutrals, type and shapes (quadra.css) with this app's own colour. */
+  color-scheme: light;
+  --accent: #c2410c;
+  --accent-wash: rgba(194, 65, 12, 0.1);
+  --accent-ink: #ffffff;
   --q-accent: var(--accent);
-  --q-accent-ink: #ffffff;
-  --bg: var(--q-page);
-  --bg-elevated: var(--q-surface);
-  --bg-raised: var(--q-surface);
-  --border: var(--q-border);
-  --text: var(--q-text);
-  --text-muted: var(--q-text-2);
-  --text-faint: var(--q-muted);
-  --accent: #d97706;
-  --accent-soft: rgba(217, 119, 6, 0.18);
-  --good: #3ddc97;
-  --good-soft: rgba(61, 220, 151, 0.14);
-  /* Text on --good-soft - --good itself is fine on dark but too pale on light. */
-  --good-text: #3ddc97;
-  /* An odds-bar side with no usable team color of its own (see app.js's teamOddsColors). */
-  --odds-neutral: #5d6578;
-  --warn: #ffb84d;
-  --warn-text: #ffb84d;
-  --warn-soft: rgba(255, 184, 77, 0.16);
-  --danger: #ff6b6b;
-  --danger-soft: rgba(255, 107, 107, 0.16);
-  --radius: var(--q-radius);
-  --radius-sm: var(--q-radius-sm);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px -12px rgba(0, 0, 0, 0.45);
-  --shadow-pinned: 0 1px 2px rgba(0, 0, 0, 0.25), 0 16px 32px -14px rgba(217, 119, 6, 0.35);
-  --sport-epl: #5b8cff;
-  --sport-mlb: #ff6b6b;
-  --sport-nba: #ff9f4d;
-  --sport-f1: #b98bff;
-  --tap: 44px;
-  --font-sans: var(--q-font);
+  --q-accent-ink: var(--accent-ink);
+  --live: #dc2626;
+  --live-wash: rgba(220, 38, 38, 0.1);
+  --win: #059669;
+  --draw: #a16207;
+  --loss: #dc2626;
+  --away: #64748b;
+  --bottom-nav: 0px;
+  font-family: var(--q-font);
 }
-
-@media (prefers-color-scheme: light) {
-  :root {
-    /* --warn itself is too pale for text on white. */
-    --warn-text: #b86e00;
-    --warn-soft: rgba(255, 170, 40, 0.16);
-    --danger: #d63b3b;
-    --danger-soft: rgba(214, 59, 59, 0.1);
-    --accent-soft: rgba(217, 119, 6, 0.12);
-    --good-soft: rgba(26, 160, 100, 0.12);
-    --good-text: #11774a;
-    --odds-neutral: #b3b9c6;
-    --shadow-card: 0 1px 2px rgba(20, 22, 30, 0.04), 0 8px 20px -12px rgba(20, 22, 30, 0.12);
-    --shadow-pinned: 0 1px 2px rgba(20, 22, 30, 0.06), 0 16px 28px -14px rgba(217, 119, 6, 0.25);
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --accent: #fb923c;
+    --accent-wash: rgba(251, 146, 60, 0.14);
+    --accent-ink: #431407;
+    --live: #f87171;
+    --live-wash: rgba(248, 113, 113, 0.14);
+    --win: #34d399;
+    --draw: #fbbf24;
+    --loss: #f87171;
+    --away: #94a3b8;
   }
 }
-
-/* Deliberately no root font-size override - iPhone Safari's own default
-   (16px) is already the right baseline for a mobile-first app; a global
-   rem multiplier on top of it (an earlier version set this to 18px) made
-   every already-tuned size below too big at once instead of fixing the
-   handful that actually read small. Each element below is sized on its
-   own merits against a real iPhone viewport instead. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --accent: #fb923c;
+  --accent-wash: rgba(251, 146, 60, 0.14);
+  --accent-ink: #431407;
+  --live: #f87171;
+  --live-wash: rgba(248, 113, 113, 0.14);
+  --win: #34d399;
+  --draw: #fbbf24;
+  --loss: #f87171;
+  --away: #94a3b8;
+}
 
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; background: var(--q-page); color: var(--q-text); line-height: 1.45; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: none) and (pointer: coarse) { button:focus-visible, a:focus-visible { outline: none; } }
+[hidden] { display: none !important; }
+h1, h2, h3, h4, p { margin: 0; }
+a { color: inherit; }
+img { max-width: 100%; }
+.muted { color: var(--q-muted); }
+.small { font-size: 13px; }
+.num { font-variant-numeric: tabular-nums; }
+.empty { color: var(--q-muted); font-size: 14px; padding: 28px 8px; text-align: center; }
+.center-spin { display: grid; place-items: center; padding: 40px 0; }
+.link { border: 0; background: none; padding: 0; color: inherit; text-align: left; font-weight: 600; }
+@media (hover: hover) { .link:hover { color: var(--accent); text-decoration: underline; } }
+.pad { padding: 14px; }
+.q-card + .q-card, .q-card + .section-h { margin-top: 12px; }
+.card-h { font-size: 15px; font-weight: 750; margin-bottom: 10px; }
+.card-h.row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.card-h.row small { color: var(--q-muted); font-weight: 600; white-space: nowrap; }
+.section-h { font-size: 15px; font-weight: 800; margin: 20px 2px 8px; }
+.section-sub { color: var(--q-muted); font-size: 13px; margin: -6px 0 10px; }
 
-/* Room above the page for the fixed .control-bar (see its own comment), so
-   jumping to an element never lands it underneath the bar. */
-html {
-  scroll-padding-top: var(--control-bar-h, 130px);
+/* ---- App bar and tabs ---- */
+.appbar {
+  position: sticky; top: 0; z-index: 10; padding-top: env(safe-area-inset-top);
+  background: var(--q-bar); -webkit-backdrop-filter: saturate(1.6) blur(14px); backdrop-filter: saturate(1.6) blur(14px);
+  border-bottom: 1px solid var(--q-border);
 }
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-sans);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+@media (display-mode: standalone) { .appbar { background: var(--q-page); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+.appbar-inner { max-width: 1080px; margin: 0 auto; padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); display: flex; align-items: center; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; }
+.brand-logo { width: 34px; height: 34px; border-radius: 10px; flex: none; box-shadow: var(--q-shadow-sm); }
+.brand-text { min-width: 0; }
+h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; white-space: nowrap; }
+.status { font-size: 12px; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status:empty { display: none; }
+.tabs { display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: var(--q-sunken); }
+.tab {
+  display: flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--q-text-2);
+  padding: 7px 14px; border-radius: 11px; font-size: 14px; font-weight: 650; white-space: nowrap;
 }
-
-button {
-  font-family: inherit;
-}
-
-/* No header on a phone - an installed PWA's own home-screen icon/OS title
-   bar already carries the app's identity, so a masthead there would just be
-   empty space repeating it. On a desktop browser tab there's room to spare
-   and no home-screen icon, so a slim brand row sits at the top of the
-   pinned control bar instead (see .app-header). Settings is
-   the 設定 tab (see .settings-page). */
-
-.app-header { display: none; }
-@media (min-width: 761px) {
-  .app-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 4px 2px 12px;
-  }
-  .app-header-logo { width: 36px; height: 36px; flex: none; }
-  .app-header-name {
-    font-size: 1.2rem;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-  }
-  .app-header-tagline {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    padding-left: 12px;
-    border-left: 1px solid var(--border);
-  }
-}
-
-/* 設定 is a page of its own (the third tab), laid out like 運彩: one card per group. */
-.settings-page { max-width: 760px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 16px 24px; display: grid; gap: 14px; }
-.settings-page[hidden] { display: none; }
-.settings-page-header h2 { margin: 4px 4px 0; font-size: 1.4rem; font-weight: 800; }
-.settings-section {
-  background: var(--q-surface);
-  border: 1px solid var(--q-border);
-  border-radius: var(--q-radius);
-  box-shadow: var(--q-shadow-sm);
-  padding: 16px;
-  min-width: 0;
-}
-body.fx-view-settings #app,
-body.fx-view-settings .page-footer,
-body.fx-view-settings #empty-state,
-body.fx-view-settings #error-state { display: none !important; }
-.settings-section h3 {
-  margin: 0 0 4px;
-  font-size: 0.98rem;
-  font-weight: 700;
-}
-.settings-hint {
-  margin: 4px 0 14px;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-.settings-sport-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.settings-sport-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-}
-.settings-sport-rank {
-  flex: none;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 0.74rem;
-  font-weight: 700;
-}
-.settings-sport-label {
-  flex: 1;
-  font-weight: 600;
-  font-size: 0.94rem;
-}
-.settings-move-group {
-  flex: none;
-  display: flex;
-  gap: 6px;
-}
-.settings-move-group button {
-  border: 1px solid var(--border);
-  background: var(--bg-raised);
-  color: var(--text-muted);
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-.settings-move-group button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
-.settings-move-group button:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-.settings-reset {
-  display: block;
-  margin: 16px auto 0;
-  border: none;
-  background: transparent;
-  color: var(--text-faint);
-  font-size: 0.8rem;
-  text-decoration: underline;
-  cursor: pointer;
-  padding: 8px;
+.tab svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.tab[aria-selected='true'] { background: var(--q-surface); color: var(--accent); box-shadow: var(--q-shadow-sm); }
+.account-slot { flex: none; min-width: 0; }
+.mobile-bar { display: none; }
+@media (max-width: 720px) {
+  :root { --bottom-nav: calc(64px + env(safe-area-inset-bottom)); }
+  .appbar { position: static; height: 0; padding: 0; border: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .appbar-inner { padding: 0; }
+  .brand { display: none; }
+  .mobile-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: calc(env(safe-area-inset-top) + 4px) 0 8px; }
+  .mobile-bar .status { flex: 1 1 auto; display: block; }
 }
 
-.settings-chip-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.settings-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text-muted);
-  border-radius: 999px;
-  padding: 10px 16px;
-  font-size: 0.86rem;
-  font-weight: 600;
-  cursor: pointer;
-  min-height: var(--tap);
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-}
-.settings-chip .sport-icon { width: 20px; height: 20px; }
-.settings-chip.is-active {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-.settings-chip:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
+.page { max-width: 1080px; margin: 0 auto; padding: 12px max(16px, env(safe-area-inset-right)) calc(40px + var(--bottom-nav)) max(16px, env(safe-area-inset-left)); }
+.tab-panel > .q-section:first-child { margin-top: 6px; }
+.tab-panel > .q-chips { margin-bottom: 6px; }
+.q-chips.small .q-chip { min-height: 30px; padding: 0 12px; font-size: 13px; }
+.q-chip.small { min-height: 28px; padding: 0 11px; font-size: 12.5px; }
+.q-chip.on { background: var(--accent-wash); color: var(--accent); border-color: transparent; }
+.league-tools { display: flex; gap: 8px; justify-content: flex-end; margin: 4px 0 10px; }
+.league-tools:empty { display: none; }
+.day-strip { margin: 4px 0 2px; }
+.day-strip .q-chip { min-width: 64px; justify-content: center; }
 
-.settings-action-btn {
-  display: block;
-  width: 100%;
-  border: none;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.92rem;
-  border-radius: var(--radius-sm);
-  min-height: var(--tap);
-  padding: 12px 16px;
-  cursor: pointer;
-}
-.settings-action-btn.is-secondary {
-  background: transparent;
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1.5px var(--accent);
-}
-.settings-action-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-.settings-btn-row {
-  display: flex;
-  gap: 10px;
-}
-.settings-btn-row .settings-action-btn {
-  flex: 1;
-}
-main#app {
-  max-width: 760px;
-  margin: 0 auto;
-  /* Extra top padding replaces the header's own breathing room now that
-     there isn't one. */
-  padding: 20px 16px 40px;
-  /* The fixed .control-bar sits over the top - start the content below it. */
-  padding-top: calc(var(--control-bar-h, 130px) + 8px);
-}
+/* Sideways button groups (match sections, race sessions). */
+.segmented { display: flex; gap: 2px; padding: 3px; background: var(--q-sunken); border-radius: 12px; margin: 12px 0; }
+.segmented.scroll { overflow-x: auto; scrollbar-width: none; }
+.segmented.scroll::-webkit-scrollbar { display: none; }
+.segmented button { flex: 1 0 auto; border: 0; background: none; padding: 7px 12px; border-radius: 9px; font-size: 13.5px; font-weight: 650; color: var(--q-text-2); white-space: nowrap; }
+.segmented button[aria-pressed='true'] { background: var(--q-surface); color: var(--accent); box-shadow: var(--q-shadow-sm); }
 
-.section-label {
-  font-size: 0.86rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--text-muted);
-  margin: 28px 0 12px;
+/* ---- Logos ---- */
+.logo { width: 28px; height: 28px; flex: none; object-fit: contain; border-radius: 6px; }
+.logo.xs { width: 18px; height: 18px; vertical-align: -4px; }
+.logo.sm { width: 22px; height: 22px; }
+.logo.lg { width: 52px; height: 52px; }
+.logo.xl { width: 68px; height: 68px; }
+.logo.round { border-radius: 50%; object-fit: cover; background: var(--q-sunken); }
+.logo-fallback {
+  display: inline-grid; place-items: center; background: var(--q-sunken); color: var(--q-text-2);
+  font-weight: 800; font-size: 11px; border-radius: 50%; line-height: 1;
 }
-.section-label span { color: var(--text); }
-#recommended-section .section-label { margin-top: 4px; }
+.logo-fallback.lg, .logo-fallback.xl { font-size: 22px; }
 
-/* Groups the day-picker + sport-filter row into one persistent mobile
-   control header instead of two plain sections that scroll away with the
-   rest of the page - the two controls a viewer reaches for over and over
-   (which day, which sport) staying reachable without scrolling back to the
-   top is the actual "centric UX for mobile" fix here, not just a visual
-   restyle. Pinned to the viewport top (fixed - see below for why not
-   sticky); a solid, non-transparent background (not a blur) keeps it
-   simple and fully occludes cards scrolling underneath, and the bottom
-   border reads as a real edge once content is behind it. */
-.control-bar {
-  /* Fixed, not sticky. A sticky bar on the page's own scroller vanishes on
-     iOS WebKit (Safari, and Chrome on iPhone) while the page rubber-bands
-     past either end - reported twice with tap logs, the second time after
-     a translateZ(0) layer workaround. Turning the bounce off
-     (overscroll-behavior: none) fixed it but made scrolling feel dead, so
-     the bounce stays and the bar opts out of the scroll entirely: a fixed
-     element stays put while the page bounces under it. main#app reserves
-     its height via --control-bar-h (measured in app.js). Full-width
-     background, contents padded to line up with main#app's 760px column. */
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 5;
-  background: var(--bg);
-  padding-top: 10px;
-  padding-left: max(16px, calc((100% - 760px) / 2 + 16px));
-  padding-right: max(16px, calc((100% - 760px) / 2 + 16px));
-  border-bottom: 1px solid var(--border);
-  /* Its own compositing layer, so the date row's sideways scroller inside
-     it is drawn relative to the bar rather than the bouncing page - on iOS
-     WebKit that scroller (the only one here that actually overflows at
-     phone width; the sport row fits) went missing while the rest of the
-     fixed bar stayed. */
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
+/* ---- Event rows ---- */
+.list { overflow: hidden; }
+.event-row {
+  display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 10px;
+  width: 100%; padding: 10px 14px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none;
+  text-align: left; color: inherit;
 }
-.day-scroller {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  /* Sideways only - overflow-x alone makes the vertical axis scrollable too. */
-  overflow-y: hidden;
-  padding: 4px 2px 10px;
-  scrollbar-width: none;
-}
-.day-scroller::-webkit-scrollbar { display: none; }
-/* The row runs off the right edge on a phone with no scrollbar - a fade
-   there says "more days this way" instead of a pill just getting cut. */
-@media (max-width: 760px) {
-  .day-scroller {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-  }
-}
-.day-pill {
-  flex: none;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text);
-  border-radius: 999px;
-  padding: 13px 20px;
-  min-height: 48px;
-  font-size: 0.98rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
-}
-.day-pill:active { transform: scale(0.97); }
-.day-pill[aria-selected="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-  box-shadow: 0 6px 16px -8px rgba(217, 119, 6, 0.6);
-}
-/* One horizontal-scrolling row, never wrapping to a second line - same
-   scrollbar-hiding pattern as .day-scroller just above, for the same
-   reason (a growing sport list, e.g. F1 added alongside MLB/NBA/EPL,
-   would otherwise push the settings button around/wrap the whole bar
-   taller instead of just scrolling). The settings button sits LAST, after
-   every sport chip, not first - see index.html's own element order,
-   which this relies on directly rather than reordering with CSS `order`. */
-.filter-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 4px 2px 10px;
-  margin-bottom: 0;
-  scrollbar-width: none;
-}
-.filter-row::-webkit-scrollbar { display: none; }
-/* Keeps #sport-filters as a real element (app.js's renderFilters targets it
-   with replaceChildren) while contributing nothing of its own to the box tree - its
-   chip children lay out directly in .filter-row's own flex row. */
-#sport-filters {
-  display: contents;
-}
-.filter-chip {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  border-radius: 999px;
-  padding: 9px 15px;
-  min-height: 42px;
-  font-size: 0.84rem;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-.filter-chip[aria-pressed="true"] {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-}
+.list > .event-row:first-child, .list > :first-child .event-row { border-top: 0; }
+@media (hover: hover) { .event-row:hover { background: var(--q-sunken); } }
+.event-meta { display: grid; gap: 3px; min-width: 0; }
+.event-status { font-size: 12.5px; font-weight: 700; color: var(--q-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-status.in { color: var(--live); }
+.event-status.in::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 5px; vertical-align: 2px; animation: pulse 1.4s ease-in-out infinite; }
+.event-status.post { color: var(--q-muted); }
+@keyframes pulse { 50% { opacity: 0.3; } }
+.league-tag { font-size: 11.5px; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-sides { display: grid; gap: 5px; min-width: 0; }
+.side { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--q-text-2); }
+.side.win { color: var(--q-text); }
+.side.win .side-name { font-weight: 750; }
+.side-name { flex: 1 1 auto; min-width: 0; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-name .rank { color: var(--q-muted); font-size: 11px; margin-right: 4px; }
+.side-score { flex: none; min-width: 26px; text-align: right; font-size: 15.5px; }
+.event-row.live .side-score { color: var(--live); }
+.event-title { display: grid; gap: 2px; min-width: 0; }
+.event-title strong { font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-title small { color: var(--q-muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.match-card {
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-card);
-  margin-bottom: 12px;
-}
-.match-card.is-recommended {
-  border-color: rgba(217, 119, 6, 0.4);
-}
-.match-card.is-muted,
-.match-card.is-finished {
-  opacity: 0.55;
-  box-shadow: none;
-}
-.match-card.is-pinned {
-  background: linear-gradient(160deg, var(--accent-soft), transparent 60%), var(--bg-raised);
-  border-color: rgba(217, 119, 6, 0.45);
-  box-shadow: var(--shadow-pinned);
-  padding: 20px;
-}
-.match-card.is-live .match-time-relative {
-  color: var(--good);
-  font-weight: 700;
-}
-/* A slot with a genuinely mutually-exclusive alternative (see
-   groupIntoSlots/buildMatchStack) renders as a switchable stack instead of
-   either silently picking one or showing both at once - only one card is
-   ever on screen at a time, switched via a swipe, the prev/next arrows, or
-   a dot below it. The prev/next/dot controls commit immediately and can
-   never get stuck (an ordinary click has no "is this done yet" question).
-   The swipe gesture (see buildMatchStack's own comment) is a real touch
-   drag layered back on top of that same tap-safe foundation after an
-   earlier drag design caused three straight live-reported Safari freezes -
-   its commit point is still a synchronous call into the exact same
-   tap-safe code path, never a second state machine of its own. */
-.match-stack {
-  position: relative;
-  margin-bottom: 12px;
-  /* Belt-and-suspenders against the swiped-off-card-ghosting-on-iPad-Safari
-     bug (see buildMatchStack's own endDrag/resetDragState comment for the
-     actual JS-level fix - not touching the card's own style between its
-     last live drag frame and removal). Whatever residual paint Safari's
-     compositor might still be holding onto for an already-removed card can
-     only ever have been positioned by this exact card's own translateX
-     drag/fly-off transform, which only ever moves it horizontally within
-     (or just past) this box - clipping anything outside it here means
-     nothing can ever be VISIBLE beyond this stack's own bounds regardless
-     of what's technically still painted behind the scenes. A card actively
-     mid-drag gets clipped at this box's own edges on its way past them
-     rather than sliding fully into the neighboring content, same as most
-     swipe-to-dismiss card UIs - the card is leaving anyway at that point,
-     so it reads as exiting rather than as a visual bug. */
-  overflow: hidden;
-}
-.match-stack-viewport > .match-card {
-  margin-bottom: 0;
-  /* Tells Safari/iOS this element owns horizontal gestures itself (see
-     buildMatchStack's pointer-event handlers) while still letting a
-     vertical drag pass straight through as an ordinary page scroll -
-     the browser's own native gesture engine arbitrates that, instead of
-     a manual preventDefault() call getting it wrong. */
-  touch-action: pan-y;
-  cursor: grab;
-  user-select: none;
-}
-.match-stack-viewport > .match-card:active {
-  cursor: grabbing;
-}
-/* A card drag starting on top of a real <img> (team logos) is the
-   browser's own trigger for native HTML5 image drag-and-drop - a "ghost"
-   copy of the image that follows the cursor under the BROWSER's own drag
-   session, entirely outside buildMatchStack's pointer-event handling.
-   Live-reported as the swipe getting visibly "stuck in the background" on
-   a mouse/desktop-sized screen specifically - a real touch drag never
-   triggers this the way a mousedown-on-an-<img> does. Disabling native
-   drag on every image inside the stack (belt) plus preventDefault() in
-   the pointerdown handler itself (suspenders, for browsers that don't
-   honor -webkit-user-drag) closes it from both sides. */
-.match-stack-viewport img {
-  -webkit-user-drag: none;
-  user-drag: none;
-}
-.match-stack-nav {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-.match-stack-arrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg-raised);
-  color: var(--text);
-  font-size: 0.95rem;
-  line-height: 1;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-.match-stack-arrow:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.match-stack-dots {
-  display: flex;
-  align-items: center;
-}
-/* The real bug behind "only one blue dot shows, the rest are invisible"
-   was never just color (an earlier pass here changed --border to
-   --text-muted and it kept happening): this project's global reset puts
-   every element in box-sizing: border-box, and the previous version tried
-   to get a small visible dot with a big tap target by setting a tiny
-   width/height (6-8px) and relying on PADDING (10-11px) plus
-   `background-clip: content-box` to draw only the inner content box. Under
-   border-box, a declared width smaller than its own padding can't produce
-   a negative content area - the browser clamps the CONTENT box to 0x0, so
-   the content-clipped background painted literally nothing. The one dot
-   that WAS visible (.is-active) only worked by accident: `background:
-   var(--accent)` is shorthand, which resets background-clip back to its
-   default (border-box) on top of the base rule's content-box, so only the
-   active dot ever painted its full padded box. Fixed by decoupling the
-   visible dot from the tap target entirely - the button itself IS the tap
-   target (no padding-driven sizing to fight box-sizing over), and the
-   actual small dot is a `::after` pseudo-element sized and centered
-   independently. */
-.match-stack-dot {
-  position: relative;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-}
-.match-stack-dot::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--text-muted);
-  transform: translate(-50%, -50%);
-  transition: background-color 0.15s ease, transform 0.15s ease;
-}
-.match-stack-dot.is-active::after {
-  background-color: var(--accent);
-  transform: translate(-50%, -50%) scale(1.3);
-}
-.match-stack-hint {
-  display: block;
-  overflow-wrap: anywhere;
-  margin: 0 0 6px 2px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--accent);
-}
-/* One readable line - "7:00 下午 – 9:35 下午" plus a small relative label. */
-.match-top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.match-time-range {
-  font-weight: 700;
-  font-size: 1.1rem;
-  font-variant-numeric: tabular-nums;
-}
-.match-time-relative {
-  flex: none;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-faint);
-}
+/* For-you cards */
+.match-card .card-sides { display: grid; gap: 6px; margin: 2px 0; }
+.match-card .side-name { font-size: 14px; font-weight: 650; color: var(--q-text); }
 
-.match-heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.sport-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.86rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  padding: 5px 12px 5px 8px;
-  border-radius: 999px;
-  color: #0b0d12;
-  background: #ccc;
-}
-/* A fixed white backdrop circle behind EVERY sport icon, everywhere it
-   appears (card badge, filter chip, both Settings lists) - not just a
-   drop-shadow. A drop-shadow only helps a logo separate from a same-color
-   background; it does nothing for a logo that's mostly dark artwork sitting
-   directly on this app's dark theme (a filter chip's unselected background,
-   a Settings row), which is illegible either way without one. A plain white
-   circle guarantees contrast for any league's real logo colors, in either
-   theme, the same way a phone's own app icons get a fixed backdrop. The
-   drawn-pictogram fallback (SPORT_ICONS) uses a fixed dark stroke, not
-   currentColor, for the same reason - it also always sits on this white
-   circle now, never on whatever text color happens to surround it. */
-.sport-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
-}
-.sport-icon svg { width: 62%; height: 62%; display: block; }
-/* cover, not contain: the Premier League logo is a wide crop of just the
-   lion (see LEAGUE_LOGOS in app.js) and this trims its empty sides; every
-   other league logo is square, so it looks the same either way. */
-.sport-icon img { width: 78%; height: 78%; object-fit: cover; display: block; }
-.settings-sport-icon { width: 22px; height: 22px; }
-.sport-badge[data-sport="Premier League"] { background: var(--sport-epl); color: #0b0d12; }
-.sport-badge[data-sport="MLB"] { background: var(--sport-mlb); color: #2a0808; }
-.sport-badge[data-sport="NBA"] { background: var(--sport-nba); color: #2a1200; }
-.sport-badge[data-sport="F1"] { background: var(--sport-f1); color: #1a0d2e; }
+/* Home: followed teams, bets */
+.follow-cta { margin-top: 20px; display: grid; gap: 6px; }
+.follow-cta h3 { font-size: 16px; }
+.follow-cta p { font-size: 13.5px; }
+.follow-row { border-top: 1px solid var(--q-divider, var(--q-border)); }
+.follow-row:first-child { border-top: 0; }
+.follow-row > small { display: block; padding: 0 14px 10px; }
+.follow-team { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px 0; border: 0; background: none; font-weight: 750; font-size: 14px; text-align: left; }
+.follow-team span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.follow-row .event-row { border-top: 0; padding-top: 6px; }
+.bet-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 14px; border-top: 1px solid var(--q-divider, var(--q-border)); text-decoration: none; }
+.bet-row:first-child { border-top: 0; }
+.bet-pick { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.teams {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 11px 0 7px;
-}
-/* Always one line: a long bilingual name ("Cleveland Guardians 克里夫蘭守護者")
-   used to wrap the score onto a row of its own on a phone, leaving a big
-   gap in the card. The Chinese name gives way first (the English one is
-   the primary label and never shrinks - see .team-name-en), and the score
-   never shrinks. */
-.team-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-/* A two-team row: the Chinese name under the English one (both wrap if they
-   must, never cut off), the side tag and logo on the left and the score on
-   the right, whatever the names' length. */
-.team-row:not(.is-solo) {
-  display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
-  column-gap: 8px;
-  row-gap: 0;
-}
-.team-row:not(.is-solo) > .team-side { grid-column: 1; grid-row: 1 / span 2; }
-.team-row:not(.is-solo) > .team-logo,
-.team-row:not(.is-solo) > .team-logo-fallback { grid-column: 2; grid-row: 1 / span 2; }
-.team-row:not(.is-solo) > .team-name-en { grid-column: 3; grid-row: 1; max-width: none; }
-.team-row:not(.is-solo) > .team-name-zh { grid-column: 3; grid-row: 2; }
-.team-row:not(.is-solo) > .team-score { grid-column: 4; grid-row: 1 / span 2; }
-.team-side {
-  flex: none;
-  font-size: 0.66rem;
-  font-weight: 700;
-  line-height: 1;
-  padding: 3px 5px;
-  border-radius: 5px;
-  color: var(--text-faint);
-  background: var(--border);
-}
-.team-side.is-home {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-.team-logo {
-  width: 21px;
-  height: 21px;
-  object-fit: contain;
-  flex: none;
-}
-/* Same footprint as .team-logo, so a missing/failed logo never slides the
-   name left out of line with the other team's (see updateTeamRow). */
-.team-logo-fallback {
-  width: 21px;
-  height: 21px;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--border);
-  color: var(--text-muted);
-  font-size: 0.56rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-.team-logo-fallback[hidden] { display: none; }
-/* An F1 race row's logo is the event's own art, not a crest - initials of a
-   race name would just be noise there. */
-.team-row.is-solo .team-logo-fallback { display: none; }
-/* A dark-theme crest that fell back to ESPN's original (no dark twin, or it
-   failed to load - see updateTeamRow) keeps its navy/black artwork visible
-   with a faint light outline rather than a white disc. */
-@media not (prefers-color-scheme: light) {
-  .team-logo.is-light-crest {
-    filter: drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.9)) drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.35));
-  }
-}
-.team-name-en,
-.team-name-zh {
-  /* Never cut off (Quadra: no text is ever hidden on a phone): a long name
-     wraps onto a second line instead, and the score keeps its place. */
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.team-name-en {
-  flex: 0 1 auto;
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-/* F1's own "solo" row (.team-row.is-solo, see app.js) has neither a side
-   tag nor a score - the .team-name-en rule above still reserves 104px for
-   both anyway, since it has no way to know which sibling elements are
-   actually hidden in any given row. Live-reported bug this fixes: a real
-   race name ("Qatar Airways Azerbaijan Grand Prix Qualifying") was clipped
-   to barely more than half the card's width.
-   A first attempt just shrank the reserved budget down to the logo's own
-   real width (37px) and left the English/Chinese names competing for the
-   SAME single line, same as the two-team row above - which fixed the
-   clipping but immediately broke the Chinese name instead: with a real
-   F1 name (sponsor prefix + circuit + session suffix, routinely 35-50
-   characters) filling nearly the entire loosened budget on its own, the
-   Chinese name had only single-digit pixels of the row left and
-   effectively vanished (0-width, not merely truncated) - confirmed live.
-   A two-team row rarely hits this because team names are short; an F1
-   name hitting it is closer to the common case than the exception.
-   A second attempt gave the Chinese name its own full-width row instead
-   of making it compete with the English name at all - fixed the Chinese
-   name, but left English STILL single-line-truncated on its own now-
-   uncontested line, still cutting a real name down to "...Grand Prix
-   Q..." (confirmed live) even though nothing was competing with it for
-   space anymore. There was never a real reason for English to stay
-   single-line here either: unlike the two-team row above (whose whole
-   point is staying compact so an away/home pair lines up predictably),
-   this solo row already accepted a variable, wrapping height for the
-   Chinese name the moment flex-wrap was added, so letting English wrap
-   too costs nothing further. (No line cap either: nothing is ever cut
-   off on a phone.) */
-.team-row.is-solo {
-  flex-wrap: wrap;
-  row-gap: 2px;
-}
-.team-row.is-solo .team-name-en {
-  max-width: calc(100% - 29px);
-}
-.team-row.is-solo .team-name-zh {
-  flex-basis: 100%;
-  /* Matches the left margin below so the two together never exceed the
-     row's own width - a plain 100% here, alongside a nonzero margin,
-     would overflow the card by exactly the margin's own width. */
-  max-width: calc(100% - 29px);
-  margin-left: 29px;
-}
-.team-name-zh {
-  flex: 0 1 auto;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-.team-at {
-  color: var(--text-faint);
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding-left: 33px;
-}
-/* The actual current score - only shown while a match is genuinely LIVE/
-   ENDING_SOON or already finished (see buildMatchCard's own showScore) -
-   reported directly that the live status widget (inning/quarter/lap, see
-   .live-chip above) showed in-progress DETAIL but never the score itself,
-   so there was no way to see who was actually ahead without leaving the
-   page. Pushed to the row's own far end (margin-left: auto) rather than
-   sitting next to the name, so it reads as its own distinct number at a
-   glance rather than part of the team's own label. No `display` set here
-   deliberately - unlike .match-odds/.match-watch elsewhere in this file,
-   a plain `[hidden] { display: none }` already wins with nothing to
-   override, so this doesn't need that same cascade-specificity fix. */
-.team-score {
-  flex: none;
-  margin-left: auto;
-  font-weight: 800;
-  font-size: 1.05rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
+/* ---- Sheets ---- */
+.fx-sheet { width: min(640px, 100vw); }
+@media (max-width: 719px) { .fx-sheet { max-height: 94vh; } }
+.sheet-body { padding-bottom: 8px; }
+.match-head { display: grid; gap: 12px; padding: 4px 0 2px; }
+.mh-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 8px; }
+.mh-side { display: grid; justify-items: center; gap: 4px; min-width: 0; text-align: center; }
+.mh-side strong { font-size: 15px; line-height: 1.25; max-width: 100%; overflow-wrap: break-word; }
+.mh-side small { color: var(--q-muted); font-size: 12px; }
+.mh-side .q-chip { margin-top: 4px; }
+.mh-mid { display: grid; justify-items: center; gap: 4px; padding-top: 10px; min-width: 88px; }
+.mh-score { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; line-height: 1.1; }
+.mh-time { font-size: 26px; font-weight: 800; white-space: nowrap; }
+.play-link { text-decoration: none; display: flex; justify-content: center; align-items: center; gap: 6px; }
 
-.recommended-tag {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--good-text);
-  background: var(--good-soft);
-  border-radius: 999px;
-  padding: 3px 10px;
-}
-/* "偏好" (a viewer's own swipe choice) - accent blue, not the same green as
-   "推薦" (the system's own pick), so the two are never visually confusable -
-   see buildMatchCard's own comment on why they're different claims. */
-.recommended-tag.is-preferred {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-/* A postseason fixture's context (see app.js's renderPlayoff): a gold tag
-   beside the sport badge, then the round, the series score (green once a
-   side has won it), and tonight's stakes as a red pill. */
-.playoff-tag {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--warn-text);
-  background: var(--warn-soft);
-  border-radius: 999px;
-  padding: 3px 10px;
-}
-.playoff-tag[hidden] { display: none; }
-.match-playoff {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  margin: 8px 0 0;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-.match-playoff[hidden] { display: none; }
-.playoff-round {
-  font-weight: 700;
-  color: var(--text);
-}
-.playoff-series {
-  font-weight: 600;
-}
-.playoff-round + .playoff-series::before {
-  content: "·";
-  margin-right: 8px;
-  color: var(--text-faint);
-}
-.playoff-series.is-decided {
-  color: var(--good);
-}
-.playoff-stakes {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--danger);
-  background: var(--danger-soft);
-  border-radius: 999px;
-  padding: 2px 9px;
-}
-.match-venue {
-  margin: 4px 0 0;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-/* Devigged Polymarket win% (see public/lib/polymarket.mjs) - a track split
-   into per-team colored segments (see
-   app.js's teamOddsColor/./lib/color.mjs - each team's own real brand
-   color when it reads legibly, a tuned sport-accent fallback otherwise)
-   so which side is favored, and by whom, reads at a glance. EPL's own
-   market is a genuine three-outcome one, so a middle draw segment (plain
-   neutral gray - a draw has no "team" of its own to color it by) appears
-   whenever real draw odds exist; MLB/NBA's two-outcome market simply never
-   shows one (see .match-odds-seg-draw[hidden] taking zero space). */
-.match-odds {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: 10px 0 0;
-}
-/* Which feed the bar above is showing (Polymarket, or the ESPN sportsbook
-   fallback - see public/lib/sportsbook-odds.mjs) - its own full-width line
-   under the bar, kept faint so it never competes with the numbers. */
-.match-odds-source {
-  flex-basis: 100%;
-  margin-top: -3px;
-  text-align: center;
-  font-size: 0.62rem;
-  color: var(--text-faint);
-}
-/* Same cascade gap as .match-watch[hidden] below: an author `display: flex`
-   rule has the same specificity as the UA stylesheet's `[hidden] {
-   display: none }` and wins by cascade order, so buildMatchCard's own
-   `oddsEl.hidden = true` default (no real odds yet) rendered as an empty
-   flex row instead of actually hiding - live-reported as a blank gap where
-   the odds bar/奪冠機率 row would be. */
-.match-odds[hidden] { display: none; }
-.match-odds-pct {
-  font-size: 0.78rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  min-width: 2.4em;
-}
-.match-odds-away { text-align: right; }
-.match-odds-home { text-align: left; }
-.match-odds-bar {
-  flex: 1;
-  height: 6px;
-  display: flex;
-  /* Visible, not hidden - the draw segment's own percentage label sits
-     just above the bar (see .match-odds-seg-label below), which `overflow:
-     hidden` here would otherwise clip. Each end segment rounds its own
-     outer corner directly instead (see .match-odds-seg-away/-home). */
-  overflow: visible;
-}
-.match-odds-seg {
-  display: block;
-  height: 100%;
-}
-.match-odds-seg-away { border-radius: 999px 0 0 999px; }
-.match-odds-seg-home { border-radius: 0 999px 999px 0; }
-.match-odds-seg-draw {
-  position: relative;
-  background: var(--text-faint);
-}
-.match-odds-seg-label {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translate(-50%, -100%);
-  font-size: 0.62rem;
-  font-style: normal;
-  font-weight: 700;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
-/* F1's own odds shape: an outright winner market across ~20 drivers, not a
-   two-/three-way bar (see public/lib/polymarket.mjs's own comment on why
-   this needs an entirely different display) - just the top few favorites
-   as plain "name %" chips, in the sport's own tuned accent color rather
-   than a team color (a driver has no "team fill" concept the way a
-   two-sided match does). */
-.match-odds-outright {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-  margin: 10px 0 0;
-  font-size: 0.78rem;
-}
-/* Same cascade gap as .match-odds[hidden] above - this is the one that was
-   actually reported: a race with no Polymarket market open yet showed a
-   bare "奪冠機率" label with nothing after it instead of the whole row
-   being hidden. */
-.match-odds-outright[hidden] { display: none; }
-.match-odds-outright-label {
-  color: var(--text-faint);
-}
-.match-odds-outright-item {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--sport-f1);
-}
-/* Live score/status line (see app.js's liveStatusLineFor) - MLB's
-   inning/outs/baserunners, EPL's match clock, NBA's quarter/clock, F1's
-   lap/flag - only ever shown while matchLifecycleState is genuinely
-   LIVE/ENDING_SOON, so this never fights with the plain "已結束" final
-   score line or a pre-game card. Uses the same --good green as
-   .match-card.is-live's own "直播中" text so both read as one live signal. */
-.match-live-status {
-  display: flex;
-  margin: 6px 0 0;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--good);
-}
-.match-live-status[hidden] { display: none; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 6px 7px; text-align: right; white-space: nowrap; }
+thead th { color: var(--q-muted); font-weight: 650; font-size: 12px; border-bottom: 1px solid var(--q-border); }
+tbody tr + tr > * { border-top: 1px solid var(--q-divider, var(--q-border)); }
+th.left, td.left { text-align: left; }
+tbody th.left { font-weight: 600; position: sticky; left: 0; background: var(--q-surface); max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+tbody th.left small { color: var(--q-muted); font-weight: 500; }
+.linescore { background: var(--q-surface); border: 1px solid var(--q-border); border-radius: 12px; overflow: hidden; }
+.linescore th:first-child { text-align: left; }
+.linescore .total { font-weight: 800; }
+.standings tr.mine > * { background: var(--accent-wash); }
+.rank-cell { color: var(--q-muted); width: 28px; }
+.team-link { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* ---- Live status widgets (see app.js's buildLiveStatusNode) --------------
-   Small inline glyphs instead of a flat text line - a pulsing dot for NBA/
-   EPL, a lit-up base diamond + out dots for MLB, a colored flag for F1 -
-   each meant to be recognizable at a glance the way a TV broadcast graphic
-   already is, in a busy list of many cards. */
-.live-chip,
-.live-chip-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.live-chip-inning { font-weight: 700; }
-.live-pulse-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--good);
-  animation: live-pulse 1.6s ease-in-out infinite;
-}
-@keyframes live-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.7); }
-}
-.live-diamond {
-  width: 24px;
-  height: 21px;
-  flex: none;
-}
-.live-diamond path {
-  fill: none;
-  stroke: var(--text-faint);
-  stroke-width: 1.6;
-}
-.live-base {
-  fill: var(--bg-elevated);
-  stroke: var(--text-faint);
-  stroke-width: 1.6;
-}
-.live-base.is-on {
-  fill: var(--good);
-  stroke: var(--good);
-}
-.live-out-dots {
-  display: inline-flex;
-  gap: 3px;
-}
-.live-out-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  display: inline-block;
-  background: var(--bg-elevated);
-  border: 1.6px solid var(--text-faint);
-}
-.live-out-dot.is-out {
-  background: var(--warn);
-  border-color: var(--warn);
-}
-.live-flag {
-  width: 15px;
-  height: 15px;
-  flex: none;
-  display: inline-block;
-  border-radius: 3px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
-}
-.live-flag svg { width: 100%; height: 100%; display: block; }
-/* A caution is meant to catch the eye the same way it would on a real
-   broadcast overlay - the only two flags that ever mean "something
-   unusual is happening right now, pay attention". */
-.live-flag-safety,
-.live-flag-yellow {
-  animation: live-flag-flash 1s steps(2, jump-none) infinite;
-}
-@keyframes live-flag-flash { 50% { opacity: 0.5; } }
+.stat-bars { display: grid; gap: 12px; }
+.sb-top { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: baseline; font-size: 13.5px; }
+.sb-top span { color: var(--q-text-2); text-align: center; }
+.sb-top strong:last-child { text-align: right; }
+.sb-track { display: flex; gap: 3px; height: 6px; margin-top: 5px; }
+.sb-track i { display: block; border-radius: 3px; min-width: 2px; }
+.sb-track .away { background: var(--away); }
+.sb-track .home { background: var(--accent); }
 
-/* F1's own live running order - extra context sitting right under its
-   static outright win% odds (see .match-odds-outright above) so a viewer
-   watching an in-progress race can see at a glance who those odds are
-   currently tracking, not just who was favored before lights-out. Medal-
-   colored rank chips (gold/silver/bronze) rather than a flat "1. Name 2.
-   Name" text line - see app.js's f1LeaderboardNode. */
-.match-live-leaderboard {
-  display: flex;
-  margin: 6px 0 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-.match-live-leaderboard[hidden] { display: none; }
-.live-leaderboard {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.live-leaderboard-label { color: var(--text-faint); }
-.live-leaderboard-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 7px 1px 2px;
-  border-radius: 999px;
-  background: var(--bg-elevated);
-  color: var(--text);
-  font-weight: 600;
-}
-.live-leaderboard-rank {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  font-style: normal;
-  font-size: 0.65rem;
-  font-weight: 800;
-  background: var(--text-faint);
-  color: var(--bg);
-}
-.live-leaderboard-chip.is-gold .live-leaderboard-rank { background: #e8b923; color: #3a2a00; }
-.live-leaderboard-chip.is-silver .live-leaderboard-rank { background: #c7ccd6; color: #202430; }
-.live-leaderboard-chip.is-bronze .live-leaderboard-rank { background: #c9834a; color: #2a1300; }
-.live-leaderboard-flag {
-  width: 16px;
-  height: 11px;
-  object-fit: cover;
-  border-radius: 2px;
-  flex: none;
-}
-.live-leaderboard-interval {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  color: var(--text-faint);
-}
-.match-watch {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 5px 0 0;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-/* .match-watch's own `display: flex` above has the same specificity as the
-   UA stylesheet's `[hidden] { display: none }` and wins by cascade order,
-   so the element would otherwise render as an empty row whenever it's
-   toggled hidden (see app.js's buildMatchCard) - this explicitly restores
-   the hide. */
-.match-watch[hidden] { display: none; }
-.watch-badge {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 3px;
-  border-radius: 7px;
-  color: #fff;
-  font-size: 0.62rem;
-  font-weight: 700;
-  line-height: 1;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-}
-.watch-badge svg { width: 100%; height: 100%; display: block; }
-.watch-logo {
-  height: 14px;
-  width: auto;
-  max-width: 40px;
-  object-fit: contain;
-  display: block;
-}
-.watch-logo[hidden] { display: none; }
+.plays { list-style: none; margin: 0; padding: 0; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: var(--q-radius); }
+.plays li { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; padding: 9px 14px; font-size: 13.5px; border-top: 1px solid var(--q-divider, var(--q-border)); }
+.plays li:first-child { border-top: 0; }
+.plays li.scoring { background: var(--accent-wash); }
+.plays li.scoring .play-text { font-weight: 650; }
+.play-when { color: var(--q-muted); font-size: 12px; white-space: nowrap; }
 
-.match-reason {
-  margin: 10px 0 0;
-  font-size: 0.87rem;
-  color: var(--text-muted);
-}
+.lineups { display: grid; gap: 12px; }
+@media (min-width: 600px) { .lineups { grid-template-columns: 1fr 1fr; } .lineups .q-card + .q-card { margin-top: 0; } }
+.roster-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.roster-list li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; border-top: 1px solid var(--q-divider, var(--q-border)); }
+.roster-list li:first-child { border-top: 0; }
+.roster-list li.sub { color: var(--q-text-2); }
+.roster-list li .link { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.roster-list small { color: var(--q-muted); font-size: 12px; white-space: nowrap; }
+.jersey { color: var(--q-muted); font-size: 12.5px; text-align: right; }
 
-/* Bold + a saturated color (not the muted/faint text tones used elsewhere)
-   so this never reads as "did that text even render" the way a thinner,
-   smaller version of it did before. */
-.conflict-note {
-  margin: 8px 0 0;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--warn);
-}
-.conflict-note.is-info {
-  color: var(--text-faint);
-  font-weight: 600;
-}
+.leaders { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+@media (min-width: 520px) { .leaders { grid-template-columns: 1fr 1fr; } }
+.leaders li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 8px; }
+.leaders small { grid-column: 1 / -1; color: var(--q-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leaders strong { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leaders .num { font-weight: 700; }
+.form-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 14px; }
+.form-row > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.form-pills { display: flex; gap: 4px; flex: none; }
+.pill { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; background: var(--q-muted); }
+.pill.W { background: var(--win); }
+.pill.D, .pill.T { background: var(--draw); }
+.pill.L { background: var(--loss); }
+.facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; margin: 0; font-size: 14px; }
+.facts dt { color: var(--q-muted); white-space: nowrap; }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.wp-chart { display: block; width: 100%; height: 90px; }
+.wp-line { fill: none; stroke: var(--accent); stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+.wp-mid { stroke: var(--q-border); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
 
-/* "設為偏好" - promotes a not-currently-recommended card straight into a
-   hard pin (see app.js's preferMatch). Small and quiet by default (this is
-   an override action, not the card's main affordance) but still a real
-   44px tap target, same floor every other tappable control on a card
-   uses. */
-.match-prefer-btn {
-  margin-top: 10px;
-  padding: 8px 14px;
-  min-height: var(--tap);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--accent);
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.match-prefer-btn:hover,
-.match-prefer-btn:active {
-  background: var(--accent-soft);
-}
+/* Races, tournaments, fight cards, draws */
+.field { list-style: none; margin: 8px 0 0; padding: 0; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: var(--q-radius); }
+.field li { display: grid; grid-template-columns: 28px auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 14px; }
+.field li:first-child { border-top: 0; }
+.pos { color: var(--q-muted); font-weight: 700; text-align: right; }
+.field li:nth-child(-n + 3) .pos { color: var(--accent); }
+.field-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.field small { color: var(--q-muted); white-space: nowrap; }
+.bouts { display: grid; gap: 10px; }
+.bouts .q-card + .q-card { margin-top: 0; }
+.bout { display: grid; gap: 6px; }
+.bout-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; font-size: 14px; }
+.bout-row > span { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bout-row > span:last-child { justify-content: flex-end; }
+.bout-row .vs { color: var(--q-muted); font-size: 12px; }
+.bout-row .win, .draw-row.win { font-weight: 800; }
+.draw-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 14px; }
+.sets { letter-spacing: 0.08em; }
 
-.empty-state {
-  max-width: 760px;
-  margin: 0 auto;
-  text-align: center;
-  color: var(--text-muted);
-  padding: 40px 16px;
-}
+/* Teams and players */
+.team-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; margin: 4px 0 12px; }
+.team-head h3 { font-size: 20px; font-weight: 800; line-height: 1.2; }
+.team-head p { font-size: 13.5px; margin-top: 3px; }
+@media (max-width: 420px) { .team-head { grid-template-columns: auto minmax(0, 1fr); } .team-head .q-btn { grid-column: 1 / -1; } }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.stat-tile { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: var(--q-sunken); min-width: 0; }
+.stat-tile small { font-size: 11.5px; color: var(--q-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-tile strong { font-size: 18px; white-space: nowrap; }
+.stat-tile .muted { font-size: 11px; }
+.sheet-body > .q-btn.block { margin-top: 12px; }
 
-/* The first-load screen is the Quadra one (quadra.css .loading). */
-.loading-spinner {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 3px solid var(--border);
-  border-top-color: var(--accent);
-  animation: loading-spin 0.8s linear infinite;
-}
-@keyframes loading-spin {
-  to { transform: rotate(360deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .loading-spinner { animation-duration: 2.4s; }
-}
+/* ---- News ---- */
+.news-list { display: grid; gap: 10px; margin-top: 12px; }
+@media (min-width: 720px) { .news-list { grid-template-columns: 1fr 1fr; } }
+.news-card { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding: 10px; border: 1px solid var(--q-border); border-radius: var(--q-radius); background: var(--q-surface); box-shadow: var(--q-shadow-sm); text-decoration: none; color: inherit; }
+.news-card:not(:has(img)) { grid-template-columns: minmax(0, 1fr); }
+.news-card img { width: 96px; height: 72px; object-fit: cover; border-radius: 10px; background: var(--q-sunken); }
+.news-card > div { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.news-card strong { font-size: 14.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.news-card p { font-size: 13px; color: var(--q-text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.news-card small { font-size: 12px; }
 
-#recommended-empty, #all-empty {
-  padding: 18px 4px;
-  text-align: left;
-  font-size: 0.86rem;
-}
-
-/* A day past the near-term tier's own guaranteed coverage, shown before
-   the full window has confirmed whether it actually has anything on it -
-   see app.js's isDayPending. Deliberately styled like a quieter sibling of
-   #recommended-empty/#all-empty (same padding/font-size/left alignment),
-   not the full-page Quadra loading screen - this is one section on
-   an otherwise-already-usable page, not the whole app still starting up.
-
-   `:not([hidden])` matters here, not just style: a bare `.section-loading` selector has
-   the SAME specificity as the browser's own `[hidden] { display: none }`
-   rule, but an author stylesheet's normal rules always beat the
-   user-agent stylesheet's, tie or not - so `display: flex` unconditionally
-   here silently overrode `recommendedLoadingEl.hidden = true`/
-   `allLoadingEl.hidden = true` in app.js: the attribute got set, but the
-   element never actually disappeared. Live-reported as a stray spinner
-   still showing next to an already-loaded single match - this is that
-   same bug, just on the new per-section element instead of the original
-   page-level one. */
-.section-loading:not([hidden]) {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 4px;
-  text-align: left;
-  font-size: 0.86rem;
-  color: var(--text-muted);
-}
-.section-loading .loading-spinner {
-  width: 16px;
-  height: 16px;
-  border-width: 2px;
-  flex: none;
-}
-
-/* A day-pill for a day that hasn't been fetched yet at all - see
-   isDayPending. Dimmed rather than hidden (see visibleDays' own comment
-   on why it shows at all): still a real, clickable tap target - clicking
-   it is exactly what renderRecommendedSection/renderAllMatchesSection's
-   own isDayPending check exists to handle gracefully - just visually
-   distinct from a day that's confirmed to have (or not have) fixtures,
-   so the day-scroller's own pill COUNT never visibly changes once real
-   data lands (no more "loads a few days, then jumps" - see this repo's
-   own history) while still being honest that this pill's own label is
-   still provisional until then. */
-.day-pill--pending {
-  opacity: 0.55;
-}
-
-.page-footer {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 20px 16px 44px;
-  color: var(--text-faint);
-  font-size: 0.74rem;
-}
-.page-footer p { margin: 4px 0; }
-#next-update-note { font-variant-numeric: tabular-nums; }
-
-@media (max-width: 480px) {
-  .match-card { padding: 16px; }
-}
-
-/* ---- Quadra: Sportsbook's odds on a card, and the pass in Settings ---- */
-/* ---- Quadra Sportsbook on the cards and in the 運彩 tab ---- */
-.quadra-odds { margin-top: 10px; padding: 10px 12px; border-radius: var(--q-radius-sm); background: color-mix(in srgb, var(--quadra-odds) 9%, transparent); border: 1px solid color-mix(in srgb, var(--quadra-odds) 22%, transparent); display: grid; gap: 8px; font-size: 0.85rem; }
-.quadra-odds[hidden] { display: none; }
-.quadra-odds-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.quadra-odds-label { font-weight: 800; color: color-mix(in srgb, var(--quadra-odds) 80%, var(--q-text)); }
-.quadra-odds-prices { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; }
-.quadra-price { display: grid; gap: 1px; justify-items: center; padding: 7px 6px; border-radius: 10px; background: var(--q-surface); border: 1px solid var(--q-border); color: var(--q-text); text-decoration: none; text-align: center; min-width: 0; }
-.quadra-price span { font-size: 0.72rem; color: var(--q-text-2); overflow-wrap: anywhere; line-height: 1.25; }
-.quadra-price strong { font-size: 1.02rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.quadra-price:active { transform: scale(0.97); }
-.quadra-none { align-self: center; color: var(--q-muted); }
-.quadra-mybet { margin: 0; font-weight: 700; color: var(--q-good); font-size: 0.82rem; overflow-wrap: anywhere; }
-.quadra-mybet[hidden] { display: none; }
-.quadra-pin, .qv-pin { flex: none; border: 1px solid var(--q-border); background: var(--q-surface); color: var(--q-text-2); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 0.75rem; font-weight: 700; cursor: pointer; }
-.quadra-pin.on, .qv-pin.on { background: var(--q-accent); border-color: var(--q-accent); color: var(--q-accent-ink); }
-
-body.fx-view-sportsbook #app,
-body.fx-view-sportsbook .page-footer,
-body.fx-view-sportsbook #empty-state,
-body.fx-view-sportsbook #error-state { display: none !important; }
-.quadra-view { max-width: 760px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 16px 24px; display: grid; gap: 14px; }
-.quadra-view[hidden] { display: none; }
-.qv-card { background: var(--q-surface); border: 1px solid var(--q-border); border-radius: var(--q-radius); box-shadow: var(--q-shadow-sm); padding: 16px; display: grid; gap: 12px; min-width: 0; }
-.qv-head-top { display: flex; align-items: center; gap: 12px; }
-.qv-icon { width: 44px; height: 44px; border-radius: 12px; flex: none; }
-.qv-title { margin: 0; font-size: 1.15rem; font-weight: 800; }
-.qv-sub, .qv-note { margin: 0; color: var(--q-text-2); font-size: 0.85rem; line-height: 1.5; }
-.qv-h { margin: 0; font-size: 1rem; font-weight: 800; }
-.qv-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.qv-stats > div { display: grid; gap: 2px; padding: 10px 12px; border-radius: var(--q-radius-sm); background: var(--q-surface-2); border: 1px solid var(--q-border); min-width: 0; }
-.qv-stats small { color: var(--q-muted); font-size: 0.75rem; }
-.qv-stats strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.qv-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.qv-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text); font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
-.qv-btn.primary { background: var(--quadra-odds); border-color: var(--quadra-odds); color: #fff; }
-.qv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.qv-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: var(--q-radius-sm); background: var(--q-surface-2); color: var(--q-text); text-decoration: none; }
-.qv-when { font-size: 0.75rem; color: var(--q-muted); font-variant-numeric: tabular-nums; }
-.qv-what { display: grid; min-width: 0; }
-.qv-what strong { overflow-wrap: anywhere; }
-.qv-what small { color: var(--q-text-2); font-size: 0.75rem; overflow-wrap: anywhere; }
-.qv-odds { font-weight: 800; font-variant-numeric: tabular-nums; }
-.qv-card-head { display: grid; gap: 4px; }
-.qv-head-text { min-width: 0; }
-.qv-stats strong { white-space: nowrap; }
-/* The pool on its own row, what's riding and the slips below: three money
-   figures side by side don't fit a phone's width on one line each. */
-.qv-stats.three > div:first-child { grid-column: 1 / -1; }
-.qv-stats.three > div:first-child strong { font-size: 1.45rem; }
-.qv-search { width: 100%; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text); font: inherit; font-size: 16px; }
-.qv-search:focus { outline: 2px solid var(--q-accent); outline-offset: 0; border-color: transparent; }
-.qv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.qv-chips.qv-scroll { flex-wrap: nowrap; overflow-x: auto; margin: 0; padding: 2px 0; scrollbar-width: none; }
-.qv-chips.qv-scroll::-webkit-scrollbar { display: none; }
-.qv-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--q-border); background: var(--q-surface-2); color: var(--q-text-2); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
-.qv-chip.on { background: var(--q-accent); border-color: var(--q-accent); color: var(--q-accent-ink); }
-.qv-chip-logo { width: 16px; height: 16px; object-fit: contain; }
-.qv-days .qv-chip { padding: 8px 14px; }
-.qv-board-list { display: grid; gap: 10px; }
-.qv-rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 86%); gap: 10px; overflow-x: auto; margin: 0; padding: 2px 0 4px; scroll-snap-type: x mandatory; scrollbar-width: none; }
-.qv-rail::-webkit-scrollbar { display: none; }
-.qv-rail > * { scroll-snap-align: start; }
-@media (min-width: 700px) { .qv-rail { grid-auto-columns: calc((100% - 20px) / 3); } }
-.qv-game { display: grid; gap: 10px; padding: 12px; border-radius: var(--q-radius-sm); background: var(--q-surface-2); border: 1px solid var(--q-border); min-width: 0; }
-.qv-game.pinned { border-color: var(--q-accent); }
-.qv-game.has-bet { box-shadow: inset 3px 0 0 var(--q-good); }
-.qv-game-top { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--q-text-2); min-width: 0; }
-.qv-league-logo { width: 18px; height: 18px; object-fit: contain; flex: none; }
-.qv-league { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
-.qv-time { margin-left: auto; font-variant-numeric: tabular-nums; flex: none; }
-.qv-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.qv-tag { font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: var(--q-surface); border: 1px solid var(--q-border); color: var(--q-text-2); }
-.qv-tag.live { color: #fff; background: #e5484d; border-color: #e5484d; }
-.qv-tag.rec { color: var(--q-accent); border-color: var(--q-accent); }
-.qv-tag.plan { color: var(--q-good); border-color: var(--q-good); }
-.qv-tag.even { color: var(--quadra-odds); border-color: var(--quadra-odds); }
-.qv-teams { display: grid; gap: 4px; }
-.qv-team { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 44px; }
-.qv-team-logo { width: 26px; height: 26px; object-fit: contain; flex: none; }
-.qv-team-dot { display: inline-grid; place-items: center; border-radius: 50%; background: var(--q-surface); border: 1px solid var(--q-border); font-size: 0.75rem; font-weight: 800; color: var(--q-text-2); }
-.qv-team-name { flex: 1 1 auto; min-width: 0; font-weight: 700; font-size: 0.95rem; overflow-wrap: anywhere; }
-.qv-team.fav .qv-team-name { font-weight: 800; }
-.qv-team-pct { flex: none; min-width: 2.6em; text-align: right; font-size: 0.8rem; font-weight: 700; color: var(--q-text-2); font-variant-numeric: tabular-nums; }
-.qv-team.fav .qv-team-pct { color: var(--q-text); }
-.qv-bar { display: flex; height: 6px; border-radius: 999px; overflow: hidden; background: var(--q-border); gap: 2px; }
-.qv-bar-away { background: var(--quadra-odds); }
-.qv-bar-draw { background: var(--q-muted); }
-.qv-bar-home { background: color-mix(in srgb, var(--quadra-odds) 45%, var(--q-surface)); }
-.qv-team.draw .qv-team-name { color: var(--q-text-2); font-weight: 600; }
-.qv-price { flex: none; display: inline-grid; place-items: center; min-width: 64px; min-height: 40px; padding: 0 10px; border-radius: 10px; background: var(--q-surface); border: 1px solid var(--q-border); color: var(--q-text); text-decoration: none; }
-.qv-price strong { font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.qv-team.fav .qv-price { border-color: color-mix(in srgb, var(--quadra-odds) 55%, var(--q-border)); }
-.qv-price:active { transform: scale(0.97); }
-.qv-game.compact .qv-team-pct { display: none; }
-.qv-game.compact .qv-price { min-width: 56px; }
-.qv-game-top .qv-pin { padding: 2px 8px; font-size: 0.8rem; opacity: 0.55; }
-.qv-game-top .qv-pin.on { opacity: 1; }
-
-/* The bottom tabs: phones get the Quadra bar (quadra.css); wider screens
-   a floating one, and the page keeps room for it. */
-body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
-.q-tab-badge { position: absolute; top: 3px; left: calc(50% + 8px); min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; background: var(--q-bad); color: #fff; font-size: 10px; line-height: 17px; font-weight: 800; }
-.q-tab-badge[hidden] { display: none; }
-@media (min-width: 721px) {
-  .fixtures-tabs { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 60; display: flex; gap: 4px; padding: 5px; border-radius: 18px; background: var(--q-bar); border: 1px solid var(--q-border); box-shadow: var(--q-shadow); -webkit-backdrop-filter: saturate(1.6) blur(16px); backdrop-filter: saturate(1.6) blur(16px); }
-  .fixtures-tabs .q-tab { position: relative; display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: 0; border-radius: 13px; background: none; color: var(--q-muted); font: 600 14px/1.2 var(--q-font); cursor: pointer; }
-  .fixtures-tabs .q-tab svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .fixtures-tabs .q-tab[aria-selected='true'] { background: var(--q-accent-wash); color: var(--q-accent); }
-}
-/* 你的注單: slips as Sportsbook shows them. */
-.qv-slips { display: grid; gap: 10px; }
-.qv-slip { display: grid; gap: 8px; padding: 12px; border-radius: var(--q-radius-sm); background: var(--q-surface-2); border: 1px solid var(--q-border); color: var(--q-text); text-decoration: none; min-width: 0; }
-.qv-slip:active { transform: scale(0.99); }
-.qv-slip-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
-.qv-slip-mode { font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; color: var(--quadra-odds); border: 1px solid color-mix(in srgb, var(--quadra-odds) 55%, var(--q-border)); }
-.qv-slip-head strong { font-size: 0.9rem; }
-.qv-slip-max { margin-left: auto; font-size: 0.8rem; font-weight: 800; color: var(--q-good); font-variant-numeric: tabular-nums; }
-.qv-slip-legs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.qv-leg { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
-.qv-leg-state { flex: none; width: 1.2em; text-align: center; font-weight: 800; color: var(--q-muted); line-height: 1.5; }
-.qv-leg.won .qv-leg-state { color: var(--q-good); }
-.qv-leg.lost .qv-leg-state { color: var(--q-bad); }
-.qv-leg.live .qv-leg-state { color: #e5484d; }
-.qv-leg-main { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
-.qv-leg-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
-.qv-leg-pick strong { font-size: 0.92rem; overflow-wrap: anywhere; }
-.qv-mk { font-size: 0.68rem; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: var(--q-surface); border: 1px solid var(--q-border); color: var(--q-text-2); }
-.qv-leg-main small { color: var(--q-text-2); font-size: 0.74rem; overflow-wrap: anywhere; }
-.qv-leg-odds { flex: none; font-weight: 800; font-variant-numeric: tabular-nums; }
-.qv-leg.lost .qv-leg-pick strong { text-decoration: line-through; color: var(--q-text-2); }
-.qv-slip-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; padding-top: 6px; border-top: 1px solid var(--q-border); font-size: 0.78rem; color: var(--q-text-2); font-variant-numeric: tabular-nums; }
-.qv-more { justify-self: start; font-size: 0.85rem; font-weight: 700; color: var(--quadra-odds); text-decoration: none; }
-/* Game cards as in Sportsbook itself: each side a row (logo, name, odds
-   pill), a dashed line between, no chance bar. */
-.qv-board .qv-bar, .qv-rail .qv-bar { display: none; }
-.qv-team + .qv-team { border-top: 1px dashed var(--q-border); padding-top: 6px; }
-.qv-team-pct { display: none; }
-.qv-price { border-radius: 999px; min-width: 76px; background: var(--q-surface-2); border-color: var(--q-border); }
-.qv-game { background: var(--q-surface); }
-.qv-team-logo { width: 32px; height: 32px; }
+/* ---- Toasts ---- */
+.toasts { position: fixed; left: 50%; bottom: calc(20px + var(--bottom-nav)); transform: translateX(-50%); z-index: 100; display: grid; gap: 8px; width: min(420px, calc(100vw - 32px)); pointer-events: none; }
+.toast { background: var(--q-text); color: var(--q-page); border-radius: 12px; padding: 10px 14px; font-size: 14px; box-shadow: var(--q-shadow); }
