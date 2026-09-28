@@ -88,6 +88,9 @@ export function scoreMatch(e, { sports = [], leagues = [], follows = [], tables 
     reasons.push('tv');
   }
   if (e.home?.rank || e.away?.rank) score += 0.08;
+  // Kambi's racket and volleyball lists are mostly minor events (juniors,
+  // lower tours): below the rest unless the person follows them.
+  if (sport === 'racket' && idx < 0 && !leagues.includes(e.league)) score -= 0.35;
   // Habit: the strongest thing the person is into that this match touches.
   const max = Math.max(1, ...Object.values(aff));
   const habit = Math.max(0, ...keys.map(k => (aff[k] || 0) / max));

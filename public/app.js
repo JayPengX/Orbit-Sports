@@ -208,7 +208,7 @@ function dayLeagues() {
     return (tops.length ? tops : all).concat(all.slice(0, 4));
   });
   // Someone who follows nothing yet: every sport's main leagues.
-  const everyone = state.prefs.sports.length ? [] : Object.keys(SPORTS).flatMap(sp => leaguesOf(sp).slice(0, sp === 'soccer' ? 8 : 3));
+  const everyone = state.prefs.sports.length ? [] : Object.keys(SPORTS).filter(sp => sp !== 'racket').flatMap(sp => leaguesOf(sp).slice(0, sp === 'soccer' ? 8 : 3));
   return [...new Set([...pickLeagues(), ...sportsTop, ...liked.slice(0, 6), ...TOP_LEAGUES, ...everyone])].filter(k => LEAGUES[k]).slice(0, 36);
 }
 // The leagues the person picked: followed ones and followed teams'.

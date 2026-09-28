@@ -24,7 +24,7 @@ export const STRINGS = {
     twChecked: "台灣轉播資訊（{d} 更新）",
     stage: "階段",
     col_GAP: "落後",
-    gapHint: "落後：與第一名的積分差；勝差：與第一名的勝場差。",
+    gapHint: "落後：與第一名的積分差；勝差：與第一名差幾場勝負。",
     country: "國籍",
     hand: "持拍",
     turnedPro: "職業起始",

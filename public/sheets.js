@@ -4,6 +4,7 @@
 import { appUrl } from './lib/quadra.mjs';
 import { summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playGameId, STANDING_COLUMNS, COMPACT_COLUMNS } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
+import { statName } from './lib/statnames.mjs';
 import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeams, hasStandings } from './lib/leagues.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
@@ -146,9 +147,9 @@ function matchSection(view, d, e, table) {
               // Each side's own bar, measured against the larger of the two
               // (never a split of one line: an average or a rate doesn't add
               // up to a whole with the other side's).
-              const bar = (v, cls) => el('div', { class: `sb-half ${cls}` }, [el('i', { style: `width:${top > 0 && v != null ? Math.max(3, (Math.abs(v) / top) * 100) : 0}%` })]);
+              const bar = (v, cls) => el('div', { class: `sb-half ${cls}` }, [el('i', { style: `width:${top > 0 && v ? Math.max(3, (Math.abs(v) / top) * 100) : 0}%` })]);
               return el('div', { class: 'stat-bar' }, [
-                el('div', { class: 'sb-top' }, [el('strong', { class: `num${a > h ? ' lead' : ''}`, text: s.away }), el('span', { text: s.label }), el('strong', { class: `num${h > a ? ' lead' : ''}`, text: s.home })]),
+                el('div', { class: 'sb-top' }, [el('strong', { class: `num${a > h ? ' lead' : ''}`, text: s.away }), el('span', { text: statName(s.label, L()) }), el('strong', { class: `num${h > a ? ' lead' : ''}`, text: s.home })]),
                 top > 0 ? el('div', { class: 'sb-track' }, [bar(a, 'away'), bar(h, 'home')]) : null
               ]);
             })
@@ -269,7 +270,7 @@ function overview(d, e, table, nameOf) {
             leadersBy.map((list, i) =>
               el('div', {}, [
                 el('p', { class: 'mini-h', text: sides[i].short || sides[i].name }),
-                ...list.map(l => el('div', { class: 'leader' }, [el('small', { text: l.stat }), el('span', {}, [el('strong', { text: l.name }), el('b', { class: 'num', text: ` ${l.value}` })])]))
+                ...list.map(l => el('div', { class: 'leader' }, [el('small', { text: statName(l.stat, L()) }), el('span', {}, [el('strong', { text: l.name }), el('b', { class: 'num', text: ` ${l.value}` })])]))
               ])
             )
           )
@@ -519,7 +520,9 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
   const sport = LEAGUES[league]?.sport;
   const want = STANDING_COLUMNS[sport] || ['W', 'L'];
   const small = COMPACT_COLUMNS[sport] || want;
-  const colName = c => (T(`col_${c}`) === `col_${c}` ? c : c === 'GAP' ? T('col_GAP') : c);
+  // Short headers in the reader's language.
+  const ZH_COL = { GP: '場', W: '勝', D: '和', T: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', OTL: '延敗', GAP: '落後' };
+  const colName = c => (L() === 'en' ? (c === 'GAP' ? T('col_GAP') : c) : ZH_COL[c] || c);
   return el(
     'div',
     { class: 'stack' },
@@ -532,7 +535,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
         g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
         el('div', { class: 'table-wrap' }, [
           el('table', { class: `data standings${compact ? ' compact' : ''}` }, [
-            el('thead', {}, [el('tr', {}, [el('th', { class: 'left rank-cell', text: '#' }), el('th', { class: 'left name-cell' }), ...cols.map(c => el('th', { class: cls(c), text: c === 'GAP' ? colName(c) : c }))])]),
+            el('thead', {}, [el('tr', {}, [el('th', { class: 'left rank-cell', text: '#' }), el('th', { class: 'left name-cell' }), ...cols.map(c => el('th', { class: cls(c), text: colName(c) }))])]),
             el(
               'tbody',
               {},

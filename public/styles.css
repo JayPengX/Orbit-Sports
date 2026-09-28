@@ -375,7 +375,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .compare { display: grid; gap: 2px; }
 .cmp-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 6px; }
 .cmp-team { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 800; font-size: 14px; }
-.cmp-team span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-team span { min-width: 0; line-height: 1.25; overflow-wrap: anywhere; }
+.cmp-team { font-size: 13.5px; }
 .cmp-team.home { justify-content: flex-end; flex-direction: row-reverse; }
 .cmp-vs { font-size: 11px; color: var(--q-muted); font-weight: 700; }
 .cmp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 14px; }
@@ -469,3 +470,9 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .field .link.field-name, .draw-row .link.field-name { text-align: left; font-weight: 600; }
 .bout-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bout-row .link { font-weight: 650; }
+
+/* Sideways rows run to the screen's edges on phones (they scroll off the
+   edge instead of stopping short of it). */
+@media (max-width: 720px) {
+  .tab-panel > .q-chips:not(.wrap), .tab-panel > div > .q-chips:not(.wrap) { margin-left: calc(-1 * max(16px, env(safe-area-inset-left))); margin-right: calc(-1 * max(16px, env(safe-area-inset-right))); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); scroll-padding-inline: 16px; }
+}
