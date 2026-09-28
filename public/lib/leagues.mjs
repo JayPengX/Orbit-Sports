@@ -94,7 +94,7 @@ export const LEAGUES = {
   atp: { sport: 'tennis', espn: 'tennis/atp', zh: 'ATP 男網', en: 'ATP', play: 'tennis', kind: 'draw' },
   wta: { sport: 'tennis', espn: 'tennis/wta', zh: 'WTA 女網', en: 'WTA', play: 'wta', kind: 'draw' },
   // Racing
-  f1: { sport: 'racing', espn: 'racing/f1', zh: 'F1 一級方程式', en: 'Formula 1', play: 'f1', kind: 'field', top: true },
+  f1: { sport: 'racing', espn: 'racing/f1', zh: 'F1 一級方程式', en: 'Formula 1', play: 'f1', kind: 'field', top: true, standings: true },
   indycar: { sport: 'racing', espn: 'racing/irl', zh: 'IndyCar', en: 'IndyCar', kind: 'field' },
   nascar: { sport: 'racing', espn: 'racing/nascar-premier', zh: 'NASCAR', en: 'NASCAR Cup', kind: 'field' },
   // Golf
@@ -116,7 +116,8 @@ export const leagueName = (key, lang = 'zh') => LEAGUES[key]?.[lang === 'en' ? '
 export const leaguesOf = sport => Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport);
 export const TOP_LEAGUES = Object.keys(LEAGUES).filter(k => LEAGUES[k].top);
 // Kinds of data each source has.
-export const hasStandings = key => Boolean(LEAGUES[key]?.espn) && ['match'].includes(LEAGUES[key].kind) && !LEAGUES[key].cup;
+// Tables: every match league (not cups), and the drivers' and constructors' championship of F1.
+export const hasStandings = key => Boolean(LEAGUES[key]?.espn) && ((LEAGUES[key].kind === 'match' && !LEAGUES[key].cup) || Boolean(LEAGUES[key].standings));
 export const hasTeams = key => Boolean(LEAGUES[key]?.espn) && LEAGUES[key].kind === 'match';
 export const leagueLogo = key => {
   const l = LEAGUES[key];

@@ -375,7 +375,12 @@ export function parseStandings(data) {
     if (node?.standings?.entries?.length) {
       const rows = node.standings.entries.map(en => {
         const stats = Object.fromEntries((en.stats || []).map(s => [s.abbreviation || s.name, s.displayValue]));
-        return { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note?.color || '', stats };
+        // A championship of drivers (F1) has athletes where a league has teams.
+        if (!en.team && en.athlete) {
+          const a = en.athlete;
+          return { id: String(a.id ?? ''), name: a.displayName || a.name || '', short: a.shortName || a.displayName || '', logo: a.flag?.href || '', note: '', color: '', stats, athlete: true };
+        }
+        return { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note?.color || (en.team?.color && !en.team?.logos ? `#${en.team.color}` : ''), stats };
       });
       groups.push({ name: node.name || node.displayName || '', rows });
     }
@@ -396,7 +401,8 @@ export const STANDING_COLUMNS = {
   football: ['W', 'L', 'T', 'PCT', 'STRK'],
   hockey: ['GP', 'W', 'L', 'OTL', 'PTS'],
   rugby: ['GP', 'W', 'L', 'PTS'],
-  aussie: ['GP', 'W', 'L', 'PTS']
+  aussie: ['GP', 'W', 'L', 'PTS'],
+  racing: ['PTS']
 };
 
 // ---- Teams, schedules, rosters, players -------------------------------------------

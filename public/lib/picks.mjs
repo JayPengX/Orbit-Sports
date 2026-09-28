@@ -49,7 +49,13 @@ export function scoreMatch(e, { sports = [], leagues = [], follows = [], tables 
     score += 0.55 * (1 - idx / Math.max(3, sports.length));
     if (idx === 0) reasons.push('priority');
   }
-  if (leagues.includes(e.league)) score += 0.25;
+  // A league you follow counts nearly as much as your first sport: it's
+  // what you asked to see (a league of a followed sport you didn't pick
+  // only gets the sport's part).
+  if (leagues.includes(e.league)) {
+    score += 0.6;
+    if (!reasons.length) reasons.push('league');
+  }
   const followed = new Set(follows.map(f => teamKey(f.league, f.name)));
   const keys = eventKeys(e);
   if (keys.some(k => followed.has(k)) || follows.some(f => f.league === e.league && (f.id === e.home?.id || f.id === e.away?.id))) {

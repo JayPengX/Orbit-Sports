@@ -458,7 +458,11 @@ export function standingsTables(groups, league, { mark = [], top = 0 } = {}) {
                 const i = g.rows.indexOf(r);
                 return el('tr', { class: ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '' }, [
                   el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null, text: String(i + 1) }),
-                  el('th', { class: 'left' }, [el('button', { class: 'link team-link', type: 'button', onclick: () => r.id && openTeam(league, r.id, r) }, [logo(r.logo, r.name, 'xs'), document.createTextNode(` ${r.short || r.name}`)])]),
+                  el('th', { class: 'left' }, [
+                    r.athlete
+                      ? el('span', { class: 'team-link' }, [logo(r.logo, r.name, 'xs'), document.createTextNode(` ${r.name}`)])
+                      : el('button', { class: 'link team-link', type: 'button', onclick: () => r.id && openTeam(league, r.id, r) }, [logo(r.logo, r.name, 'xs'), document.createTextNode(` ${r.short || r.name}`)])
+                  ]),
                   ...cols.map(c => el('td', { class: 'num', text: r.stats[c] ?? '' }))
                 ]);
               })
