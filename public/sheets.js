@@ -1,7 +1,7 @@
 // Quadra Fixtures' sheets: a match (header, the way into Play, then its data
 // by section), a race / tournament / fight card, a team, a player, and the
 // standings tables they share with the Standings tab.
-import { appUrl } from './lib/quadra.mjs';
+import { APPS, appUrl } from './lib/quadra.mjs';
 import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playGameId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { possessionOf } from './lib/live.mjs';
@@ -51,7 +51,11 @@ export async function openMatch(e) {
       linescore(sm, e),
       livePanel(e),
       playId && e.status.state !== 'post' && !e.status.void
-        ? el('a', { class: 'q-btn primary block play-link', href: appUrl('odds', `game=${playId}`), onclick: ev => (ev.preventDefault(), ctx.track('toPlay', eventKeys(e), 2), ctx.q.go('odds', `game=${playId}`)) }, [document.createTextNode(`🎟️ ${T('betInPlay')}`)])
+        ? el('a', { class: 'play-link', href: appUrl('odds', `game=${playId}`), onclick: ev => (ev.preventDefault(), ctx.track('toPlay', eventKeys(e), 2), ctx.q.go('odds', `game=${playId}`)) }, [
+            el('img', { src: `${APPS.odds.path}favicon.svg`, alt: '', width: '36', height: '36' }),
+            el('span', { class: 'play-link-text' }, [el('strong', { text: T(e.status.state === 'in' ? 'betLiveTitle' : 'betTitle') }), el('small', { text: T('betSub') })]),
+            el('span', { class: 'play-link-go', text: `${T('betGo')} ›` })
+          ])
         : null
     );
   };

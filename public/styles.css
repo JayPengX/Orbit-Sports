@@ -202,7 +202,12 @@ h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.
 .mh-mid { display: grid; justify-items: center; gap: 4px; padding-top: 10px; min-width: 88px; }
 .mh-score { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; line-height: 1.1; }
 .mh-time { font-size: 26px; font-weight: 800; white-space: nowrap; }
-.play-link { text-decoration: none; display: flex; justify-content: center; align-items: center; gap: 6px; }
+.play-link { display: flex; align-items: center; gap: 12px; margin: 12px 0 0; padding: 12px 14px; border-radius: var(--q-radius); background: linear-gradient(135deg, color-mix(in srgb, var(--quadra-odds) 14%, var(--q-surface)), var(--q-surface)); border: 1px solid color-mix(in srgb, var(--quadra-odds) 30%, var(--q-border)); color: var(--q-text); text-decoration: none; }
+.play-link img { flex: none; border-radius: 10px; }
+.play-link-text { display: grid; gap: 1px; flex: 1; min-width: 0; }
+.play-link-text strong { font-size: 15px; }
+.play-link-text small { font-size: 12px; color: var(--q-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.play-link-go { flex: none; padding: 8px 14px; border-radius: 10px; background: var(--quadra-odds); color: #fff; font-weight: 800; font-size: 14px; }
 
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
