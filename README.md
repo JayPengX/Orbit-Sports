@@ -44,6 +44,9 @@ Five tabs:
   country, age, plays, division, season numbers and rankings, the next
   fight, recent events, and a follow button; names in draws, fields, fight
   cards and the drivers' table open it.
+- **Into Quadra Play**: a small outlined 投注 chip (場中 while it's on) on
+  every game Play sells, opening that game there; the match sheet's Bet in
+  Play link. No banners.
 - **Notices**: a followed team's game starting and its final score.
 
 ## Today's picks

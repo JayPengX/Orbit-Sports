@@ -119,7 +119,7 @@ export function winners(e) {
 }
 // A playoff series line under a match: "LAL lead series 2-1".
 export const seriesText = e => (e.series?.summary && !/^series starts/i.test(e.series.summary) ? e.series.summary : '');
-// 下注: straight into Quadra Play on this game (a tap on it doesn't open the game here).
+// 投注: straight into Quadra Play on this game (a tap on it doesn't open the game here).
 export function betChip(e) {
   const id = e.kind === 'match' && e.status.state !== 'post' && !e.status.void ? playGameId(e) : null;
   if (!id) return null;
@@ -129,7 +129,7 @@ export function betChip(e) {
     ctx.track?.('toPlay', [], 2);
     ctx.q.go('odds', `game=${id}`);
   };
-  return el('span', { class: 'bet-chip', role: 'link', tabindex: '0', onclick: go, onkeydown: ev => ev.key === 'Enter' && go(ev) }, [document.createTextNode(ctx.t(e.status.state === 'in' ? 'betLive' : 'betChip'))]);
+  return el('span', { class: `bet-chip${e.status.state === 'in' ? ' live' : ''}`, role: 'link', tabindex: '0', onclick: go, onkeydown: ev => ev.key === 'Enter' && go(ev) }, [document.createTextNode(ctx.t(e.status.state === 'in' ? 'betLive' : 'betChip'))]);
 }
 
 export function eventRow(e, { league = true, day = true } = {}) {

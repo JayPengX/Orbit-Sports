@@ -530,12 +530,9 @@ function renderHome() {
   // the followed teams, and no search for other games or days going on.
   h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !h.tablesPending && ![...h.teams.values()].includes(null);
   const shownMore = more.slice(0, h.shown);
-  // Quadra Play's banner: how many of the day's games take bets.
-  const bettable = dayAll(slot).filter(e => e.kind === 'match' && e.status.state !== 'post' && !e.status.void && playGameId(e)).length;
   put(
     box,
     homeHead(),
-    bettable ? el('a', { class: 'play-banner', href: appUrl('odds', 'games'), onclick: ev => (ev.preventDefault(), q.go('odds', 'games')) }, [el('span', { class: 'play-banner-icon', 'aria-hidden': 'true', text: '🎟️' }), el('div', {}, [el('strong', { text: t('playBanner', { n: bettable }) }), el('small', { text: t('playBannerSub') })]), el('span', { class: 'play-banner-go', text: '›' })]) : null,
     !hasFollows ? sportPicker() : null,
     tvRow(),
     fallback || finding ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : t('noOthers') })]) : null,
