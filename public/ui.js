@@ -6,6 +6,7 @@ import { logoPicture, countryFlag, f1Driver } from './lib/logos.mjs';
 import { liveLabel, liveNote, possessionOf } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { broadcastsOf } from './lib/broadcast.mjs';
+import { playGameId } from './lib/espn.mjs';
 
 export const ctx = { t: k => k, locale: 'zh', state: null, openEvent: () => {}, openTeam: () => {}, openPlayer: () => {} };
 
@@ -118,6 +119,19 @@ export function winners(e) {
 }
 // A playoff series line under a match: "LAL lead series 2-1".
 export const seriesText = e => (e.series?.summary && !/^series starts/i.test(e.series.summary) ? e.series.summary : '');
+// 下注: straight into Quadra Play on this game (a tap on it doesn't open the game here).
+export function betChip(e) {
+  const id = e.kind === 'match' && e.status.state !== 'post' && !e.status.void ? playGameId(e) : null;
+  if (!id) return null;
+  const go = ev => {
+    ev.stopPropagation();
+    ev.preventDefault();
+    ctx.track?.('toPlay', [], 2);
+    ctx.q.go('odds', `game=${id}`);
+  };
+  return el('span', { class: 'bet-chip', role: 'link', tabindex: '0', onclick: go, onkeydown: ev => ev.key === 'Enter' && go(ev) }, [document.createTextNode(ctx.t('betChip'))]);
+}
+
 export function eventRow(e, { league = true, day = true } = {}) {
   const { t } = ctx;
   const mine = ctx.isFollowedEvent?.(e);
@@ -133,7 +147,8 @@ export function eventRow(e, { league = true, day = true } = {}) {
         sideLine(e.home, e, w.home),
         series ? el('small', { class: 'series-line', text: series }) : null,
         liveLine(e)
-      ])
+      ]),
+      betChip(e)
     ]);
   }
   // Races, tournaments, fight cards: one row for the whole event.

@@ -571,3 +571,14 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .lh-text small { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .lh-live { color: var(--live); font-size: 12px; font-weight: 750; }
 .league-head .tw-chips { flex-wrap: wrap; overflow: visible; }
+
+/* Quadra Play's pitch: a 下注 chip on each game, and a banner on 推薦. */
+.bet-chip { align-self: center; flex: none; padding: 6px 12px; border-radius: 999px; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fff; font-size: 0.8rem; font-weight: 800; white-space: nowrap; box-shadow: 0 6px 14px -8px #4f46e5; cursor: pointer; }
+.event-row:has(.bet-chip), .pick-card:has(.bet-chip) { align-items: center; }
+.play-banner { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 14px 16px; border-radius: 18px; color: #fff; text-decoration: none; background: radial-gradient(120% 90% at 100% 0%, #a78bfa 0%, transparent 55%), linear-gradient(135deg, #2563eb, #7c3aed); box-shadow: 0 12px 24px -16px #4f46e5; }
+.play-banner-icon { font-size: 1.8rem; line-height: 1; }
+.play-banner div { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.play-banner strong { font-size: 1rem; font-weight: 900; }
+.play-banner small { font-size: 0.78rem; opacity: 0.9; }
+.play-banner-go { font-size: 1.6rem; font-weight: 800; }
+.pick-time .bet-chip { margin-top: 8px; padding: 5px 10px; font-size: 0.74rem; }
