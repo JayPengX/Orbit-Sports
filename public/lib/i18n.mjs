@@ -3,7 +3,7 @@
 export const STRINGS = {
   zh: {
     appName: "Quadra Fixtures",
-    tab_home: "推薦",
+    tab_home: "首頁",
     tab_matches: "賽事",
     tab_live: "直播",
     tab_following: "追蹤",
@@ -181,7 +181,7 @@ export const STRINGS = {
   },
   en: {
     appName: "Quadra Fixtures",
-    tab_home: "For you",
+    tab_home: "Home",
     tab_matches: "Matches",
     tab_live: "Live",
     tab_following: "Following",

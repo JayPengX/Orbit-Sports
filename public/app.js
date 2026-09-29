@@ -8,7 +8,7 @@
 // What the person follows lives on the pass (this app's payload): sports in
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
-import { quadraSession, accountButton, installGate, watchUpdates, recordAffinity, affinityPatch, activityPatch, affinity, appUrl, fitNumbers, settingPatch, notify, helpUrl, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from './lib/quadra.mjs';
+import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinityPatch, activityPatch, affinity, appUrl, fitNumbers, settingPatch, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from './lib/quadra.mjs';
 import { useSession, scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, playGameId } from './lib/espn.mjs';
 import { SERVICES, watchable, leaguesOn } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
@@ -1086,29 +1086,16 @@ function tableOf(league) {
 
 // ---- Tabs, refresh, start ---------------------------------------------------------------------
 
+const TAB_ICONS = { home: 'home', matches: 'calendar', live: 'live', following: 'star' };
+const tabNav = tabBar({ tabs: TABS.map(id => ({ id, label: t(`tab_${id}`), icon: TAB_ICONS[id] })), onSelect: (tab, { again }) => (again ? tabAgain(tab) : showTab(tab)) });
 function renderTabs() {
-  for (const tab of TABS) {
-    const b = $(`tab-${tab}`);
-    b.setAttribute('aria-selected', String(state.tab === tab));
-    b.querySelector('span').textContent = t(`tab_${tab}`);
-    $(`panel-${tab}`).hidden = state.tab !== tab;
-  }
-  const live = dayAll(state.days.get(today())).filter(e => e.status.state === 'in').length;
-  const badge = $('tab-live').querySelector('.tab-badge');
-  if (badge) {
-    badge.textContent = live ? String(live) : '';
-    badge.hidden = !live;
-  }
+  tabNav.select(state.tab);
+  tabNav.badge('live', dayAll(state.days.get(today())).filter(e => e.status.state === 'in').length);
 }
-// Each tab keeps its place: switching back returns to where it was.
-const scrollOf = {};
+// Each tab keeps its place (the kit's tab bar); a tap on the open tab
+// scrolls it up, and at the top, home goes back to today.
 function showTab(tab) {
-  if (state.tab !== tab) scrollOf[state.tab] = window.scrollY;
-  const same = state.tab === tab;
   state.tab = tab;
-  try {
-    history.replaceState(null, '', `#${tab}`);
-  } catch {}
   renderTabs();
   if (tab === 'home') renderHome();
   if (tab === 'matches') {
@@ -1122,9 +1109,23 @@ function showTab(tab) {
     if (Date.now() - (state.days.get(today())?.at || 0) > 30_000) loadDay(today());
   }
   if (tab === 'following') renderFollowing();
-  window.scrollTo({ top: same ? 0 : scrollOf[tab] || 0 });
 }
-for (const b of document.querySelectorAll('#tabs .tab')) b.addEventListener('click', () => showTab(b.dataset.tab));
+function tabAgain(tab) {
+  if (tab === 'home' && state.home.date !== today()) {
+    state.home.date = today();
+    renderHome();
+  }
+}
+// The refresh button: today (or the day on screen) and the open league again.
+async function reloadNow() {
+  actions.refresh.disabled = true;
+  try {
+    await Promise.allSettled([loadDay(state.tab === 'home' ? state.home.date : today()), state.tab === 'matches' ? loadScores() : null]);
+  } finally {
+    actions.refresh.disabled = false;
+    paintStatus();
+  }
+}
 
 // Live games refresh every 30 seconds while on screen; today every 2 minutes
 // in any case (so a followed team's start and finish are noticed).
@@ -1143,27 +1144,15 @@ setInterval(() => {
 
 function paintStatus() {
   const at = state.days.get(today())?.at;
-  const text = at ? t('updated', { time: clock(new Date(at).toISOString()) }) : '';
-  $('status').textContent = text;
-  $('status-mini').textContent = text;
-}
-{
-  const phone = matchMedia('(max-width: 720px)');
-  const place = () => {
-    if (phone.matches) $('mobile-bar').append($('help-link'), $('account-slot'));
-    else document.querySelector('.appbar-inner').append($('help-link'), $('account-slot'));
-  };
-  place();
-  phone.addEventListener('change', place);
+  $('status').textContent = at ? t('updated', { time: clock(new Date(at).toISOString()) }) : '';
 }
 new MutationObserver(() => fitNumbers([...document.querySelectorAll('.mh-score')])).observe(document.body, { childList: true, subtree: true });
 
 window.__fxStarted = true;
 const gated = installGate('match', locale);
 watchUpdates({ current: document.querySelector('meta[name="build-version"]')?.content, key: 'quadraFixtures', cachePrefix: 'quadra-fixtures-' });
+const actions = topActions(q, { refresh: reloadNow });
 renderTabs();
-$('account-slot').append(accountButton(q));
-$('help-link').href = helpUrl('match');
 q.on('wallet', w => {
   state.wallet = w;
   if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();

@@ -60,29 +60,20 @@
     setTimeout(function () { if (!window.__fxStarted) window.__fxFail(); }, 15000);
   })();
 </script>
-<header class="appbar">
-  <div class="appbar-inner">
-    <div class="brand">
-      <img class="brand-logo" src="./favicon.svg" alt="" width="34" height="34" />
-      <div class="brand-text">
-        <h1>Quadra Fixtures</h1>
-        <p id="status" class="status" aria-live="polite"></p>
+<header class="q-appbar">
+  <div class="q-appbar-inner">
+    <div class="q-brand">
+      <img class="q-brand-logo" src="./favicon.svg" alt="" width="34" height="34" />
+      <div class="q-brand-text">
+        <h1 id="title">Quadra Fixtures</h1>
+        <p id="status" class="q-status" aria-live="polite"></p>
       </div>
     </div>
-    <nav id="tabs" class="tabs q-tabbar" role="tablist">
-      <button id="tab-home" class="tab q-tab" role="tab" type="button" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span></span></button>
-      <button id="tab-matches" class="tab q-tab" role="tab" type="button" data-tab="matches"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><span></span></button>
-      <button id="tab-live" class="tab q-tab" role="tab" type="button" data-tab="live"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.5"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/></svg><span></span><b class="tab-badge num" hidden></b></button>
-      <button id="tab-following" class="tab q-tab" role="tab" type="button" data-tab="following"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span></span></button>
-    </nav>
-    <a id="help-link" class="help-link" href="#" aria-label="說明">?</a>
-    <div id="account-slot" class="account-slot"></div>
+    <nav id="tabs" class="q-tabbar" role="tablist"></nav>
+    <div id="top-actions" class="q-actions"></div>
   </div>
 </header>
 <main class="page">
-  <div id="mobile-bar" class="mobile-bar">
-    <div id="brand-mini" class="brand-mini"><div><span id="status-mini" class="status"></span></div></div>
-  </div>
   <div id="panel-home" class="tab-panel" role="tabpanel"></div>
   <div id="panel-matches" class="tab-panel" role="tabpanel" hidden></div>
   <div id="panel-live" class="tab-panel" role="tabpanel" hidden></div>
