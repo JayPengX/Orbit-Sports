@@ -236,15 +236,16 @@ const AWAKE_FROM = 5;
 const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 
 // A day's events of these leagues (races split into their sessions).
+// `current`: each league's current scoreboard (what's on now) instead of the day's dates.
 const rawDays = new Map();
-async function readDay(leagues, date) {
+async function readDay(leagues, date, { current = false } = {}) {
   const dates = espnDaysOf(date);
   const isToday = date === today();
   const lists = await Promise.all(
     leagues.map(k => {
       const l = LEAGUES[k];
       if (l.kind !== 'match') return (isToday ? scoreboard(k) : seasonEvents(k)).catch(() => []);
-      return scoreboard(k, l.espn ? dates : undefined).catch(() => []);
+      return scoreboard(k, l.espn && !current ? dates : undefined).catch(() => []);
     })
   );
   const now = Date.now();
@@ -297,8 +298,9 @@ async function loadDay(date) {
   } finally {
     slot.loading = false;
   }
-  // The others again too, once they've been read for this day.
+  // The others (and the rest) again too, once they've been read for this day.
   if (slot.othersAt) loadOthers(date);
+  if (slot.restAt) loadRest(date);
   loadFollowedTeams();
   repaintDay(date);
   if (isToday) {
@@ -317,6 +319,27 @@ async function loadOthers(date) {
   } finally {
     slot.othersLoading = false;
     slot.othersAt = Date.now();
+  }
+  repaintDay(date);
+}
+// Every other league, for 直播: what's on now anywhere, not only in the
+// followed and televised leagues (the others above). Each one's current
+// scoreboard, read once 直播 is open.
+function restLeagues() {
+  const have = new Set([...pickLeagues(), ...otherLeagues().slice(0, 24)]);
+  return Object.keys(LEAGUES).filter(k => !have.has(k));
+}
+async function loadRest(date) {
+  const slot = state.days.get(date);
+  if (!slot || slot.restLoading) return;
+  slot.restLoading = true;
+  try {
+    slot.rest = await readDay(restLeagues(), date, { current: true });
+  } catch {
+    slot.rest = slot.rest || [];
+  } finally {
+    slot.restLoading = false;
+    slot.restAt = Date.now();
   }
   repaintDay(date);
 }
@@ -689,6 +712,8 @@ function tvChanged() {
   for (const slot of state.days.values()) {
     slot.others = null;
     slot.othersAt = 0;
+    slot.rest = null;
+    slot.restAt = 0;
   }
   if (state.tab === 'home') renderHome();
 }
@@ -715,10 +740,10 @@ function sportPicker() {
 
 // ---- 直播: what's on now, and what starts in the next hours ------------------------------------
 
-// A day's events: the followed leagues' and, once read, the others'.
+// A day's events: the followed leagues' and, once read, the others' and the rest's.
 function dayAll(slot) {
   const seen = new Set();
-  return [...(slot?.events || []), ...(slot?.others || [])].filter(e => !seen.has(`${e.league}:${e.id}`) && seen.add(`${e.league}:${e.id}`));
+  return [...(slot?.events || []), ...(slot?.others || []), ...(slot?.rest || [])].filter(e => !seen.has(`${e.league}:${e.id}`) && seen.add(`${e.league}:${e.id}`));
 }
 function renderLive() {
   const box = $('panel-live');
@@ -729,12 +754,15 @@ function renderLive() {
     return;
   }
   if (!slot.othersAt && !slot.othersLoading) loadOthers(today());
+  else if (slot.othersAt && !slot.restAt && !slot.restLoading) loadRest(today());
   const now = Date.now();
   // Today's and (once read) tomorrow's games by the clock, the small hours included.
   const byKey = new Map();
   for (const d of [today(), addDays(today(), 1)]) for (const [k, e] of rawDays.get(d) || []) if (!byKey.has(k) || e.status.state === 'in') byKey.set(k, e);
-  const all = [...dayAll(slot), ...byKey.values()].filter((e, i, list) => list.findIndex(x => x.league === e.league && x.id === e.id && (x.sessionKey || '') === (e.sessionKey || '')) === i);
-  const live = all.filter(e => e.status.state === 'in');
+  const keys = new Set();
+  const all = [...dayAll(slot), ...byKey.values()].filter(e => !keys.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && keys.add(`${e.league}:${e.id}:${e.sessionKey || ''}`));
+  // Every league's games on now, the headline leagues first in each sport.
+  const live = all.filter(e => e.status.state === 'in').sort((a, b) => Boolean(LEAGUES[b.league]?.top) - Boolean(LEAGUES[a.league]?.top));
   // Nothing on: the next 24 hours, so tomorrow's too.
   const tomorrow = addDays(today(), 1);
   const next = state.days.get(tomorrow);
