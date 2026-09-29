@@ -348,11 +348,17 @@ function syncPush() {
     const start = Date.parse(e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     const league = leagueName(e.league, locale);
-    if (start > now) items.push({ at: start, title: `${t('startedNow')} · ${league}`, body: `${e.away.short || e.away.name} vs ${e.home.short || e.home.name}`, tag: `start:${key}`, hash: 'home', kind: 'start' });
-    if (LEAGUES[e.league].espn && /^\d+$/.test(e.id)) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: `${t('final')} · ${league}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id } });
+    if (start > now) items.push({ at: start, title: matchLine(e), body: `${league} ${L(NOTICE_TEXT.start)}`, tag: `start:${key}`, hash: 'home', kind: 'start' });
+    // The Worker fills in the score as the title once ESPN has the final.
+    if (LEAGUES[e.league].espn && /^\d+$/.test(e.id)) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} ${L(NOTICE_TEXT.end)}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id } });
   }
   schedulePush(q, items);
 }
+
+// A notice's words: the teams (and the score) on top, the league and what
+// happened below.
+const NOTICE_TEXT = { start: { zh: '開賽了', en: 'game started' }, end: { zh: '比賽結束', en: 'final' } };
+const matchLine = (e, score = false) => (score ? `${e.away.short || e.away.name} ${e.away.score} : ${e.home.score} ${e.home.short || e.home.name}` : `${e.away.short || e.away.name} vs ${e.home.short || e.home.name}`);
 
 // A followed team's game starting or ending: a notice.
 const lastState = new Map();
@@ -363,9 +369,9 @@ function noticeChanges(events) {
     const was = lastState.get(key);
     lastState.set(key, e.status.state);
     if (!was || was === e.status.state) continue;
-    const title = `${e.away.short || e.away.name} vs ${e.home.short || e.home.name}`;
-    if (e.status.state === 'in') notify(q, { title: `${t('startedNow')} · ${leagueName(e.league, locale)}`, body: title, tag: `start:${key}`, hash: 'home', kind: 'start' });
-    if (e.status.state === 'post') notify(q, { title: `${t('final')} · ${leagueName(e.league, locale)}`, body: `${e.away.short || e.away.name} ${e.away.score} - ${e.home.score} ${e.home.short || e.home.name}`, tag: `end:${key}`, hash: 'home', kind: 'end' });
+    const league = leagueName(e.league, locale);
+    if (e.status.state === 'in') notify(q, { title: matchLine(e), body: `${league} ${L(NOTICE_TEXT.start)}`, tag: `start:${key}`, hash: 'home', kind: 'start' });
+    if (e.status.state === 'post') notify(q, { title: matchLine(e, true), body: `${league} ${L(NOTICE_TEXT.end)}`, tag: `end:${key}`, hash: 'home', kind: 'end' });
   }
 }
 
