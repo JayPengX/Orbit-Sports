@@ -10,7 +10,8 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
-import { teamBadge, teamLogo } from './logos.mjs';
+import { teamBadge, teamLogo, raceName } from './logos.mjs';
+import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { proxyJson } from './quadra.mjs';
@@ -170,7 +171,8 @@ export function parseScoreboard(data, league) {
       id: String(e.id),
       league,
       kind,
-      name: e.name || '',
+      // An F1 race by its short name ("新加坡站"), not the sponsor's.
+      name: league === 'f1' ? raceName(e.name, detectLocale()) : e.name || '',
       short: e.shortName || '',
       start: e.date,
       end: e.endDate || null,
