@@ -120,8 +120,18 @@ export function winners(e) {
 // A playoff series line under a match: "LAL lead series 2-1".
 export const seriesText = e => (e.series?.summary && !/^series starts/i.test(e.series.summary) ? e.series.summary : '');
 // 投注: straight into Quadra Play on this game (a tap on it doesn't open the game here).
+// F1 in Play: its race board (the winner, places, flags), or pole position
+// for the qualifying; nothing for practice or a sprint (Play doesn't sell them).
+const F1_BOARD = { Qual: 'f1pole', Race: 'f1' };
+function playId(e) {
+  if (e.status.state === 'post' || e.status.void) return null;
+  if (e.league === 'f1') return e.sessionKey ? F1_BOARD[e.sessionKey] ?? null : 'f1';
+  return e.kind === 'match' ? playGameId(e) : null;
+}
 export function betChip(e) {
-  const id = e.kind === 'match' && e.status.state !== 'post' && !e.status.void ? playGameId(e) : null;
+  const id = playId(e);
+  // F1 bets close when the session starts.
+  if (e.league === 'f1' && e.status.state === 'in') return null;
   if (!id) return null;
   const go = ev => {
     ev.stopPropagation();
@@ -156,7 +166,8 @@ export function eventRow(e, { league = true, day = true } = {}) {
   const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e) : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [e.session, `🏆 ${ended.field[0].name}`].filter(Boolean).join(' · ') : [e.session, e.venue].filter(Boolean).join(' · ')) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
   return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day), league ? leagueChip(e.league) : null]),
-    el('div', { class: 'event-title' }, [el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null])
+    el('div', { class: 'event-title' }, [el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null]),
+    betChip(e)
   ]);
 }
 

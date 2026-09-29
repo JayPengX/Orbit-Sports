@@ -50,13 +50,7 @@ export async function openMatch(e) {
       stageTag(e, L()) || seriesText(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null]) : null,
       linescore(sm, e),
       livePanel(e),
-      playId && e.status.state !== 'post' && !e.status.void
-        ? el('a', { class: 'play-link', href: appUrl('odds', `game=${playId}`), onclick: ev => (ev.preventDefault(), ctx.track('toPlay', eventKeys(e), 2), ctx.q.go('odds', `game=${playId}`)) }, [
-            el('img', { src: `${APPS.odds.path}favicon.svg`, alt: '', width: '36', height: '36' }),
-            el('span', { class: 'play-link-text' }, [el('strong', { text: T(e.status.state === 'in' ? 'betLiveTitle' : 'betTitle') }), el('small', { text: T('betSub') })]),
-            el('span', { class: 'play-link-go', text: `${T('betGo')} ›` })
-          ])
-        : null
+      playId && e.status.state !== 'post' && !e.status.void ? playLink(playId, e, e.status.state === 'in' ? 'betLiveTitle' : 'betTitle') : null
     );
   };
   paintHeader(null);
@@ -405,6 +399,22 @@ function twCard(league) {
   );
 }
 
+// The Quadra Play card: this game (or F1 board) in Play, one tap.
+function playLink(id, e, title) {
+  return el('a', { class: 'play-link', href: appUrl('odds', `game=${id}`), onclick: ev => (ev.preventDefault(), ctx.track('toPlay', eventKeys(e), 2), ctx.q.go('odds', `game=${id}`)) }, [
+    el('img', { src: `${APPS.odds.path}favicon.svg`, alt: '', width: '36', height: '36' }),
+    el('span', { class: 'play-link-text' }, [el('strong', { text: T(title) }), el('small', { text: T('betSub') })]),
+    el('span', { class: 'play-link-go', text: `${T('betGo')} ›` })
+  ]);
+}
+// F1 in Play before a session starts: pole position for the qualifying, the
+// race board otherwise (practice and sprints aren't sold).
+function f1PlayId(e) {
+  if (e.league !== 'f1' || e.status.state !== 'pre' || e.status.void) return null;
+  if (!e.sessionKey) return 'f1';
+  return { Qual: 'f1pole', Race: 'f1' }[e.sessionKey] ?? null;
+}
+
 export function openFieldEvent(e) {
   const s = sheet(leagueName(e.league, L()), { league: e.league });
   fillField(s, e);
@@ -427,6 +437,8 @@ export function openFieldEvent(e) {
 }
 function fillField(s, e) {
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('h3', { class: 'field-title', text: e.name }), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') })]));
+  const f1 = f1PlayId(e);
+  if (f1) s.body.append(playLink(f1, e, f1 === 'f1pole' ? 'betPoleTitle' : 'betF1Title'));
   if (e.kind === 'field') {
     // The weekend's (or week's) sessions, then the chosen one's order.
     const sessions = [...e.sessions].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
