@@ -8,13 +8,13 @@
 // What the person follows lives on the pass (this app's payload): sports in
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
-import { quadraSession, accountButton, installGate, watchUpdates, recordAffinity, affinityPatch, activityPatch, affinity, appUrl, fitNumbers, settingPatch, notify, helpUrl, cachedPayload, cachedWallet, restorePlace } from './lib/quadra.mjs';
+import { quadraSession, accountButton, installGate, watchUpdates, recordAffinity, affinityPatch, activityPatch, affinity, appUrl, fitNumbers, settingPatch, notify, helpUrl, cachedPayload, cachedWallet, restorePlace, schedulePush } from './lib/quadra.mjs';
 import { useSession, scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend } from './lib/espn.mjs';
 import { SERVICES, watchable, leaguesOn } from './lib/broadcast.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { dayPlan, tableIndex, scoreMatch } from './lib/picks.mjs';
+import { dayPlan, tableIndex, scoreMatch, DURATION } from './lib/picks.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { ctx, el, put, spinner, empty, $, localDate, today, addDays, onDay, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow } from './ui.js';
@@ -287,6 +287,10 @@ async function loadDay(date) {
   if (slot.othersAt) loadOthers(date);
   repaintDay(date);
   loadFollowedTeams();
+  if (isToday) {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(syncPush, 1500);
+  }
 }
 async function loadOthers(date) {
   const slot = state.days.get(date);
@@ -302,6 +306,7 @@ async function loadOthers(date) {
   }
   repaintDay(date);
 }
+let pushTimer = 0;
 // Followed teams' schedules (their next and last games).
 async function loadFollowedTeams() {
   for (const f of state.prefs.follows.slice(0, 10)) {
@@ -312,10 +317,33 @@ async function loadFollowedTeams() {
       .then(list => {
         state.home.teams.set(key, list);
         if (state.tab === 'home') renderHome();
+        clearTimeout(pushTimer);
+        pushTimer = setTimeout(syncPush, 1500);
       })
       .catch(() => state.home.teams.delete(key));
   }
 }
+// Followed teams' coming games, for notices while the app is closed: the
+// start, and the final score (the Worker checks ESPN after the game's usual
+// length).
+function syncPush() {
+  const now = Date.now();
+  const items = [];
+  const seen = new Set();
+  const games = [...state.prefs.follows.flatMap(f => state.home.teams.get(`${f.league}:${f.id}`) || []), ...(state.days.get(today())?.events || []).filter(isFollowedEvent)];
+  for (const e of games) {
+    const key = `${e.league}:${e.id}`;
+    if (e.kind !== 'match' || seen.has(key) || e.status?.state === 'post' || e.status?.void) continue;
+    seen.add(key);
+    const start = Date.parse(e.start);
+    if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
+    const league = leagueName(e.league, locale);
+    if (start > now) items.push({ at: start, title: `${t('startedNow')} · ${league}`, body: `${e.away.short || e.away.name} vs ${e.home.short || e.home.name}`, tag: `start:${key}`, hash: 'home', kind: 'start' });
+    if (LEAGUES[e.league].espn && /^\d+$/.test(e.id)) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: `${t('final')} · ${league}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id } });
+  }
+  schedulePush(q, items);
+}
+
 // A followed team's game starting or ending: a notice.
 const lastState = new Map();
 function noticeChanges(events) {
