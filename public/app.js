@@ -237,6 +237,7 @@ const AWAKE_FROM = 5;
 const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 
 // A day's events of these leagues (races split into their sessions).
+const rawDays = new Map();
 async function readDay(leagues, date) {
   const dates = espnDaysOf(date);
   const isToday = date === today();
@@ -248,18 +249,22 @@ async function readDay(leagues, date) {
     })
   );
   const now = Date.now();
-  return lists
+  const raw = lists
     .flat()
     .flatMap(e => (e.sessions ? splitWeekend(e, now, locale) : [e]))
     .map(e => (e.sessions ? settleField(e, now) : e))
-    .map(e => (e.at ? { ...e, start: e.at } : e))
-    .filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
+    .map(e => (e.at ? { ...e, start: e.at } : e));
+  // Everything read, by the clock (直播 wants the small hours too).
+  const kept = rawDays.get(date) || new Map();
+  for (const e of raw) kept.set(`${e.league}:${e.id}:${e.sessionKey || ''}`, e);
+  rawDays.set(date, kept);
+  return raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
 }
 function repaintDay(date) {
   paintStatus();
   renderTabs();
   if (state.tab === 'home' && state.home.date === date) renderHome();
-  if (state.tab === 'live' && date === today()) renderLive();
+  if (state.tab === 'live' && (date === today() || date === addDays(today(), 1))) renderLive();
 }
 async function loadDay(date) {
   const slot = state.days.get(date) || { events: [], at: 0, loading: false };
@@ -725,9 +730,22 @@ function renderLive() {
   }
   if (!slot.othersAt && !slot.othersLoading) loadOthers(today());
   const now = Date.now();
-  const all = dayAll(slot);
+  // Today's and (once read) tomorrow's games by the clock, the small hours included.
+  const byKey = new Map();
+  for (const d of [today(), addDays(today(), 1)]) for (const [k, e] of rawDays.get(d) || []) if (!byKey.has(k) || e.status.state === 'in') byKey.set(k, e);
+  const all = [...dayAll(slot), ...byKey.values()].filter((e, i, list) => list.findIndex(x => x.league === e.league && x.id === e.id && (x.sessionKey || '') === (e.sessionKey || '')) === i);
   const live = all.filter(e => e.status.state === 'in');
-  const soon = all.filter(e => e.status.state === 'pre' && !e.status.void && Date.parse(e.start) - now < 3 * 3_600_000 && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
+  // Nothing on: the next 24 hours, so tomorrow's too.
+  const tomorrow = addDays(today(), 1);
+  const next = state.days.get(tomorrow);
+  if (!next?.at && !next?.loading) loadDay(tomorrow);
+  else if (next?.at && !next.othersAt && !next.othersLoading) loadOthers(tomorrow);
+  const reading = !next?.at || !slot.othersAt || !next.othersAt;
+  const ahead = all;
+  const window = (live.length ? 3 : 24) * 3_600_000;
+  const soon = ahead.filter(e => e.status.state === 'pre' && !e.status.void && Date.parse(e.start) - now < window && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
+  // Finished in the last few hours (by start: a game's end isn't known), latest first.
+  const ended = all.filter(e => e.status.state === 'post' && !e.status.void && Date.parse(e.start) > now - 8 * 3_600_000).sort((a, b) => b.start.localeCompare(a.start));
   const bySport = list => {
     const groups = new Map();
     for (const e of list) {
@@ -738,11 +756,28 @@ function renderLive() {
     return [...groups].sort(([a], [b]) => (state.prefs.sports.indexOf(a) + 1 || 99) - (state.prefs.sports.indexOf(b) + 1 || 99));
   };
   const mineFirst = list => [...list].sort((a, b) => isFollowedEvent(b) - isFollowedEvent(a));
+  // The next to start (a followed team's if one is within the hour of the first).
+  const first = soon[0];
+  const nextUp = first && (soon.find(e => isFollowedEvent(e) && Date.parse(e.start) - Date.parse(first.start) < 3_600_000) || first);
+  const wait = nextUp ? Math.max(0, Date.parse(nextUp.start) - now) : 0;
+  const waitText = wait < 60_000 ? L({ zh: '馬上', en: 'any minute' }) : wait < 3_600_000 ? L({ zh: `${Math.round(wait / 60_000)} 分鐘後`, en: `in ${Math.round(wait / 60_000)} min` }) : L({ zh: `${Math.floor(wait / 3_600_000)} 小時 ${Math.round((wait % 3_600_000) / 60_000)} 分後`, en: `in ${Math.floor(wait / 3_600_000)} h ${Math.round((wait % 3_600_000) / 60_000)} min` });
+  const hero = live.length
+    ? el('div', { class: 'home-hero' }, [el('div', {}, [el('p', { class: 'hero-kicker live-kicker', text: `● ${t('liveNow')}` }), el('h2', { class: 'hero-title', text: `${live.length} ${locale === 'en' ? 'live' : '場進行中'}` })])])
+    : el('div', { class: 'home-hero live-idle' }, [
+        el('div', {}, [
+          el('p', { class: 'hero-kicker', text: t('liveEmpty') }),
+          nextUp ? el('h2', { class: 'hero-title', text: L({ zh: `下一場 ${waitText}`, en: `Next one ${waitText}` }) }) : reading ? null : el('h2', { class: 'hero-title', text: L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })
+        ])
+      ]);
   put(
     box,
-    el('div', { class: 'home-hero' }, [el('div', {}, [el('p', { class: 'hero-kicker live-kicker', text: `● ${t('liveNow')}` }), el('h2', { class: 'hero-title', text: live.length ? `${live.length} ${locale === 'en' ? 'live' : '場進行中'}` : t('liveEmpty') })])]),
+    hero,
+    !live.length && nextUp ? el('div', { class: 'q-card list' }, [eventRow(nextUp)]) : null,
+    !live.length && !nextUp && reading ? spinner() : null,
     ...bySport(mineFirst(live)).map(([sp, list]) => section(`${SPORTS[sp]?.icon || ''} ${L(SPORTS[sp] || { zh: '', en: '' })}`, el('div', { class: 'q-card list' }, list.map(e => eventRow(e))))),
-    soon.length ? section(t('startingSoon'), el('div', { class: 'q-card list' }, mineFirst(soon).slice(0, 30).map(e => eventRow(e)))) : null
+    ended.length && !live.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(ended).slice(0, 12).map(e => eventRow(e)))) : null,
+    soon.filter(e => e !== nextUp || live.length).length ? section(live.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, (live.length ? mineFirst(soon) : soon.filter(e => e !== nextUp)).slice(0, 30).map(e => eventRow(e)))) : null,
+    ended.length && live.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(ended).slice(0, 8).map(e => eventRow(e)))) : null
   );
 }
 
