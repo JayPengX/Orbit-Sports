@@ -8,9 +8,10 @@
 // What the person follows lives on the pass (this app's payload): sports in
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
-import { quadraSession, accountButton, installGate, watchUpdates, recordAffinity, affinityPatch, activityPatch, affinity, appUrl, fitNumbers, settingPatch, notify, helpUrl, cachedPayload, cachedWallet, restorePlace, schedulePush } from './lib/quadra.mjs';
+import { quadraSession, accountButton, installGate, watchUpdates, recordAffinity, affinityPatch, activityPatch, affinity, appUrl, fitNumbers, settingPatch, notify, helpUrl, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from './lib/quadra.mjs';
 import { useSession, scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend } from './lib/espn.mjs';
 import { SERVICES, watchable, leaguesOn } from './lib/broadcast.mjs';
+import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
@@ -33,7 +34,7 @@ const state = {
   wallet: null,
   // The days read so far: date -> { events, at, loading }.
   days: new Map(),
-  home: { date: today(), filter: 'all', shown: 20, teams: new Map(), tables: {}, sportDays: new Map() },
+  home: { date: today(), filter: 'all', shown: 20, teams: new Map(), tables: {}, sportDays: new Map(), autoDay: true },
   scores: { sport: 'soccer', league: 'epl', date: null, byDay: null, days: [], extra: 0, loading: false, mode: 'days', stage: 'all', view: 'games' },
   following: new Map(),
 };
@@ -229,6 +230,10 @@ function restoreDay() {
   } catch {}
 }
 
+// A day of picks runs to 6 the next morning, like a TV guide: Europe's
+// evening games (02:00, 03:00 here) count as that night's.
+const inPickDay = (ms, date) => ms >= Date.parse(`${date}T00:00:00`) && ms < Date.parse(`${addDays(date, 1)}T06:00:00`);
+
 // A day's events of these leagues (races split into their sessions).
 async function readDay(leagues, date) {
   const dates = espnDaysOf(date);
@@ -246,7 +251,7 @@ async function readDay(leagues, date) {
     .flatMap(e => (e.sessions ? splitWeekend(e, now, locale) : [e]))
     .map(e => (e.sessions ? settleField(e, now) : e))
     .map(e => (e.at ? { ...e, start: e.at } : e))
-    .filter(e => (isToday && e.status.state === 'in') || onDay(e, date) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
+    .filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
 }
 function repaintDay(date) {
   paintStatus();
@@ -377,7 +382,10 @@ function pickCard(item, n) {
   const tag = stageOf(e).special ? (stageOf(e).round?.[locale === 'en' ? 'en' : 'zh'] || stageOf(e)[locale === 'en' ? 'en' : 'zh']) : '';
   const series = seriesText(e);
   return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => openEvent(e) }, [
-    el('div', { class: 'pick-time' }, [el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : clock(e.start) }), el('small', { text: e.status.state === 'in' ? statusText(e) : n === 0 ? t('firstUp') : '' })]),
+    el('div', { class: 'pick-time' }, [
+      el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : clock(e.start) }),
+      el('small', { text: e.status.state === 'in' ? statusText(e) : localDate(Date.parse(e.start)) > state.home.date ? t('lateNight') : n === 0 ? t('firstUp') : '' })
+    ]),
     el('div', { class: 'pick-body' }, [
       el('div', { class: 'pick-top' }, [leagueChip(e.league), tag ? el('span', { class: 'stage-tag', text: tag }) : null]),
       e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : el('strong', { class: 'pick-title', text: e.session ? `${e.name} · ${e.session}` : e.name }),
@@ -432,8 +440,8 @@ function renderHome() {
   const past = h.date < today();
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
-  const rank = (list, also = 999) => {
-    const { plan, also: rest } = dayPlan(past ? list.map(e => ({ ...e, status: { ...e.status, state: 'pre' } })) : list, pctx, { n: 6, also });
+  const rank = (list, also = 999, ctx = pctx) => {
+    const { plan, also: rest } = dayPlan(past ? list.map(e => ({ ...e, status: { ...e.status, state: 'pre' } })) : list, ctx, { n: 6, also });
     const real = new Map(list.map(e => [`${e.league}:${e.id}`, e]));
     const fix = items => items.map(x => ({ ...x, event: real.get(`${x.event.league}:${x.event.id}`) || x.event }));
     return [fix(plan), fix(rest)];
@@ -441,6 +449,16 @@ function renderHome() {
   const mine = slot.events.filter(onMyTv);
   let [planList, more] = rank(filtered(mine));
   // Nothing of theirs on (on their services): the best of the rest there.
+  // Opened on a day with nothing of theirs: the next day they have games.
+  if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.sports.length) {
+    h.autoDay = false;
+    nextPickDay().then(d => {
+      if (d && state.home.date === today()) {
+        state.home.date = d;
+        if (state.tab === 'home') renderHome();
+      }
+    });
+  }
   let fallback = false;
   let finding = false;
   if (!planList.length && h.filter === 'all') {
@@ -448,7 +466,8 @@ function renderHome() {
       finding = true;
       loadOthers(h.date);
     } else {
-      [planList, more] = rank(slot.others.filter(onMyTv), 12);
+      // Worth watching on its own: the stakes and the sides, not the person's sport order.
+      [planList, more] = rank(slot.others.filter(onMyTv), 12, { ...pctx, sports: [], leagues: [] });
       fallback = true;
     }
   }
@@ -521,6 +540,7 @@ function homeHead() {
             d => {
               h.date = d;
               h.shown = 20;
+              h.autoDay = false;
               renderHome();
             },
             { only: days }
@@ -538,6 +558,17 @@ function sportChips() {
     { class: 'q-chips small filter-chips' },
     filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => pickFilter(k) }))
   );
+}
+// The first day after today any followed sport plays (on the person's services).
+async function nextPickDay() {
+  const h = state.home;
+  const sets = await Promise.all(
+    state.prefs.sports.map(async sp => {
+      if (!h.sportDays.has(sp)) h.sportDays.set(sp, await sportDays(sp).catch(() => new Set()));
+      return h.sportDays.get(sp);
+    })
+  );
+  return [...new Set(sets.flatMap(x => [...x]))].filter(d => d > today()).sort()[0] || null;
 }
 async function pickFilter(k) {
   const h = state.home;
@@ -585,8 +616,8 @@ async function sportDays(sport) {
   const days = new Set();
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
     if (e.status?.void || !onMyTv(e)) continue;
-    const d = localDate(Date.parse(e.start));
-    if (d >= from && d <= to) days.add(d);
+    const ms = Date.parse(e.start);
+    for (const d of [localDate(ms), localDate(ms - 6 * 3_600_000)]) if (d >= from && d <= to) days.add(d);
   }
   return days;
 }
@@ -760,16 +791,68 @@ async function loadScores() {
     sc.byDay = byDay;
     sc.all = events;
     sc.days = [...byDay.keys()].sort();
-    // The day shown: the one asked for, else one with a game on now, else the nearest game day.
+    // The day shown: the one asked for, else one with a game on now, else
+    // today's or the next game day (within a few days: a break shows the
+    // latest round instead), else the nearest.
     const liveDay = sc.days.find(d => byDay.get(d).some(e => e.status.state === 'in'));
-    if (!sc.date || !byDay.has(sc.date)) sc.date = liveDay || (byDay.has(today()) ? today() : nearestDay(sc.days)) || today();
+    const next = sc.days.find(d => d >= today() && d <= addDays(today(), 4));
+    if (!sc.date || !byDay.has(sc.date)) sc.date = liveDay || next || nearestDay(sc.days) || today();
   }
   renderScores();
 }
 
+// The search box stays put (it keeps its focus and caret while typing); the
+// rest of the page is drawn under it.
+let scoresBody = null;
+function scoresShell() {
+  const panel = $('panel-matches');
+  if (scoresBody?.isConnected) return scoresBody;
+  const input = el('input', { class: 'fx-search-input', type: 'search', inputmode: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder') });
+  const clear = el('button', { class: 'fx-search-clear', type: 'button', 'aria-label': t('close'), text: '×', hidden: true });
+  let timer = 0;
+  const go = () => {
+    state.scores.q = input.value.trim();
+    clear.hidden = !input.value;
+    clearTimeout(timer);
+    timer = setTimeout(() => (state.scores.q ? runSearch(state.scores.q) : renderScores()), 280);
+  };
+  input.addEventListener('input', go);
+  clear.addEventListener('click', () => {
+    input.value = '';
+    go();
+    input.focus();
+  });
+  scoresBody = el('div', { class: 'scores-body' });
+  put(panel, el('div', { class: 'fx-search' }, [el('span', { class: 'fx-search-icon', 'aria-hidden': 'true', text: '🔍' }), input, clear]), scoresBody);
+  return scoresBody;
+}
+
+// Search: leagues by name, then ESPN's teams and players (a Chinese query is
+// read in English first: "洋基" finds the Yankees).
+let searchSeq = 0;
+async function runSearch(query) {
+  const box = scoresShell();
+  const seq = ++searchSeq;
+  const leagues = findLeagues(query);
+  const paint = (found, busy) =>
+    put(
+      box,
+      leagues.length ? section(t('leagues'), el('div', { class: 'q-card list' }, leagues.slice(0, 8).map(k => el('button', { class: 'search-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k, 'lg-mark mid'), el('span', { text: leagueName(k, locale) }), el('small', { text: `${SPORTS[LEAGUES[k].sport].icon} ${L(SPORTS[LEAGUES[k].sport])}` })])))) : null,
+      found?.teams.length ? section(t('teamsFound'), el('div', { class: 'q-card list' }, found.teams.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openTeam(x.league, x.id, x) }, [logo(x.logo, x.name, 'sm'), el('span', { text: x.name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
+      found?.players.length ? section(t('playersFound'), el('div', { class: 'q-card list' }, found.players.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openPlayer(x.league, x.id) }, [logo(x.logo, x.name, 'sm round'), el('span', { text: x.name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
+      busy ? spinner() : !leagues.length && !found?.teams.length && !found?.players.length ? empty(t('noResults')) : null
+    );
+  paint(null, true);
+  let q = query;
+  if (/[\u3400-\u9fff]/.test(query)) q = await translate(query, 'en', 'zh-TW').catch(() => query);
+  const found = await searchEspn(q).catch(() => ({ teams: [], players: [] }));
+  if (seq === searchSeq && state.scores.q === query) paint(found, false);
+}
+
 function renderScores() {
-  const box = $('panel-matches');
   const sc = state.scores;
+  if (sc.q) return runSearch(sc.q);
+  const box = scoresShell();
   const followed = new Set(state.prefs.sports);
   const sports = Object.keys(SPORTS).sort((a, b) => followed.has(b) - followed.has(a) || state.prefs.sports.indexOf(a) - state.prefs.sports.indexOf(b));
   const sportChips = el(
@@ -836,14 +919,26 @@ function renderScores() {
     const shown = sc.stage === 'all' ? games : games.filter(e => stageOf(e).key === sc.stage);
     list = el('div', {}, [el('p', { class: 'day-head', text: `${dayLabel(sc.date, { long: true })} · ${t('gamesN', { n: shown.length })}` }), shown.length ? el('div', { class: 'q-card list' }, shown.map(e => eventRow(e, { league: false, day: false }))) : empty(t('noGames'))]);
   }
-  const tools = el('div', { class: 'league-tools' }, [
-    el('button', { class: `q-chip small${mine.has(sc.league) ? ' on' : ''}`, type: 'button', text: mine.has(sc.league) ? `✓ ${t('following')}` : `+ ${t('followLeague')}`, onclick: () => (!state.prefs.sports.includes(sc.sport) && toggleSport(sc.sport), toggleLeague(sc.league), renderScores()) }),
-    twChips(sc.league, 4)
+  // The league: its logo and name, where its season is, what's on now,
+  // following it, and where to watch it in Taiwan.
+  const all = sc.all || [];
+  const liveN = all.filter(e => e.status.state === 'in').length;
+  const nextUp = all.filter(e => e.status.state !== 'post').sort((a, b) => a.start.localeCompare(b.start))[0];
+  const stage = nextUp && stageOf(nextUp).special ? stageOf(nextUp)[locale === 'en' ? 'en' : 'zh'] : '';
+  const tools = el('div', { class: 'q-card league-head' }, [
+    el('div', { class: 'lh-row' }, [
+      leagueMark(sc.league, 'lg-mark big'),
+      el('div', { class: 'lh-text' }, [el('strong', { text: leagueName(sc.league, locale) }), stage || liveN ? el('small', {}, [stage ? el('span', { class: 'stage-tag', text: stage }) : null, liveN ? el('span', { class: 'lh-live', text: `● ${t('liveN', { n: liveN })}` }) : null]) : null]),
+      el('button', { class: `q-chip small${mine.has(sc.league) ? ' on' : ''}`, type: 'button', text: mine.has(sc.league) ? `✓ ${t('following')}` : `+ ${t('followLeague')}`, onclick: () => (!state.prefs.sports.includes(sc.sport) && toggleSport(sc.sport), toggleLeague(sc.league), renderScores()) })
+    ]),
+    twChips(sc.league, 3)
   ]);
   const views = hasStandings(sc.league) ? segmented([['games', t('schedule')], ['table', t('table')]], tableView ? 'table' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
   put(box, sportChips, leagueChips, tools, views, tableView ? null : strip, tableView ? null : stages, list);
   centerChosen(box);
 }
+
+const searchEspn = q => proxyJson(`https://site.api.espn.com/apis/search/v2?query=${encodeURIComponent(q)}&limit=12`, { ttl: 10 * 60_000 }).then(parseSearch);
 
 // ---- 追蹤: everything about what you follow ------------------------------------------------------
 

@@ -56,3 +56,12 @@ test('logos for the leagues and teams the feeds leave bare', () => {
   assert.match(leagueLogo('epl'), /^https:/);
   assert.match(leagueLogo('cpbl'), /^https:/);
 });
+
+test('search: leagues by name, ESPN teams in the leagues Fixtures has', async () => {
+  const { findLeagues, parseSearch } = await import('../public/lib/search.mjs');
+  const { readFileSync } = await import('node:fs');
+  assert.ok(findLeagues('英超').includes('epl'));
+  assert.ok(findLeagues('premier').includes('epl'));
+  const found = parseSearch(JSON.parse(readFileSync(new URL('./fixtures/espn-search-yankees.json', import.meta.url))));
+  assert.deepEqual(found.teams[0], { league: 'mlb', id: '10', name: 'New York Yankees', sub: 'MLB', logo: 'https://a.espncdn.com/i/teamlogos/mlb/500/nyy.png' });
+});
