@@ -8,7 +8,7 @@
 //   play    Quadra Play's league key
 //   kind    'match' two sides; 'field' a race or tournament; 'card' a fight card;
 //           'draw' a tennis draw
-import { LEAGUE_LOGOS } from './logos.mjs';
+import { leagueLogo as kitLeagueLogo } from './logos.mjs';
 
 export const SPORTS = {
   soccer: { zh: '足球', en: 'Soccer', icon: '⚽' },
@@ -120,11 +120,5 @@ export const TOP_LEAGUES = Object.keys(LEAGUES).filter(k => LEAGUES[k].top);
 // Tables: every match league (not cups), and the drivers' and constructors' championship of F1.
 export const hasStandings = key => Boolean(LEAGUES[key]?.espn) && ((LEAGUES[key].kind === 'match' && !LEAGUES[key].cup) || Boolean(LEAGUES[key].standings));
 export const hasTeams = key => Boolean(LEAGUES[key]?.espn) && LEAGUES[key].kind === 'match';
-export const leagueLogo = key => {
-  if (LEAGUE_LOGOS[key]) return LEAGUE_LOGOS[key];
-  const l = LEAGUES[key];
-  if (!l?.espn) return null;
-  const [sport, code] = l.espn.split('/');
-  if (sport === 'soccer') return null;
-  return `https://a.espncdn.com/i/teamlogos/leagues/500/${code === 'mens-college-basketball' || code === 'womens-college-basketball' ? 'ncaa' : code === 'college-football' ? 'ncaa' : code}.png`;
-};
+// The league's logo, from the shared kit (by Quadra Play's key), or null.
+export const leagueLogo = key => (LEAGUES[key] ? kitLeagueLogo(LEAGUES[key].play || key) : null);

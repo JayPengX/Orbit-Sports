@@ -10,7 +10,8 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
-import { teamBadge } from './logos.mjs';
+import { teamBadge, teamLogo } from './logos.mjs';
+import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
@@ -50,6 +51,7 @@ export function parseStatus(s) {
     short: type.shortDetail || type.detail || '',
     completed: Boolean(type.completed),
     void: VOID.test(type.name || ''),
+    name: type.name || '',
     clock: s?.displayClock || '',
     period: s?.period || 0
   };
@@ -88,7 +90,10 @@ function parseSide(c) {
 const CDN = 'https://a.espncdn.com/i';
 const HEADSHOTS = { racing: 'rpm', tennis: 'tennis', golf: 'golf', mma: 'mma' };
 export function fallbackLogo(league, side) {
-  if (!side || side.logo || !side.id) return side?.logo || null;
+  if (!side || side.logo) return side?.logo || null;
+  // The shared kit's (Quadra Play's) logo for the club.
+  const kit = teamLogo(LEAGUES[league]?.play || league, side.name);
+  if (kit || !side.id) return kit;
   const path = LEAGUES[league]?.espn || '';
   const [sport, code] = path.split('/');
   if (side.athlete) return HEADSHOTS[sport] ? `${CDN}/headshots/${HEADSHOTS[sport]}/players/full/${side.id}.png` : null;
@@ -180,7 +185,7 @@ export function parseScoreboard(data, league) {
       const home = parseSide(comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0]);
       const away = parseSide(comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1]);
       if (!home || !away) continue;
-      out.push({ ...base, home: withLogo(league, home), away: withLogo(league, away), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '' });
+      out.push({ ...base, home: withLogo(league, home), away: withLogo(league, away), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '', live: base.status.state === 'in' ? liveOf(comp, e.status || comp.status, LEAGUES[league]?.sport) : null });
     } else if (kind === 'draw') {
       // A tennis tournament: its singles draws' matches.
       const draws = (e.groupings || []).map(g => ({
@@ -310,7 +315,7 @@ export function parseKambi(data, league) {
       name,
       short: name,
       abbr: name.slice(0, 3).toUpperCase(),
-      logo: teamBadge(league, name),
+      logo: teamBadge(LEAGUES[league]?.play || league, name),
       color: null,
       score: live?.score?.[key] ?? '',
       winner: false,
@@ -332,6 +337,7 @@ export function parseKambi(data, league) {
       note: e.group || '',
       home: side(e.homeName, 'home'),
       away: side(e.awayName, 'away'),
+      live: state === 'in' ? kambiLive(live, LEAGUES[league]?.sport) : null,
       kambi: true
     });
   }

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { splitWeekend, sessionName } from '../public/lib/espn.mjs';
 import { watchable, leaguesOn, SERVICES, BROADCAST } from '../public/lib/broadcast.mjs';
-import { teamBadge, leagueLogoOf } from '../public/lib/logos.mjs';
+import { teamBadge, leagueLogo } from '../public/lib/logos.mjs';
 
 const st = state => ({ state, detail: '', short: '', completed: state === 'post', void: false });
 const weekend = {
@@ -53,6 +53,6 @@ test('logos for the leagues and teams the feeds leave bare', () => {
   assert.match(teamBadge('npb', 'Yomiuri Giants'), /^https:/);
   assert.notEqual(teamBadge('npb', 'Yomiuri Giants'), teamBadge('kbo', 'Lotte Giants'));
   assert.equal(teamBadge('cpbl', 'Nobody FC'), null);
-  assert.match(leagueLogoOf('epl'), /^https:/);
-  assert.match(leagueLogoOf('cpbl'), /^https:/);
+  assert.match(leagueLogo('epl'), /^https:/);
+  assert.match(leagueLogo('cpbl'), /^https:/);
 });

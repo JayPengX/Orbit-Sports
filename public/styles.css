@@ -148,13 +148,17 @@ h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.
 @keyframes pulse { 50% { opacity: 0.3; } }
 .league-tag { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font-size: 11.5px; color: var(--q-muted); white-space: nowrap; overflow: hidden; }
 .league-tag > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.lg-mark { width: 16px; height: 16px; flex: none; object-fit: contain; }
-.lg-mark.emoji { width: auto; font-size: 12px; line-height: 16px; }
-.q-chip .lg-mark { width: 18px; height: 18px; margin-right: 5px; vertical-align: -4px; }
-.q-chip .lg-mark.emoji { margin-right: 3px; }
-.league-card-head .lg-mark { width: 28px; height: 28px; }
+.logo-wrap { display: inline-flex; flex: none; line-height: 0; }
+.league-badge { --s: 18px; display: inline-grid; place-items: center; flex: none; width: var(--s); height: var(--s); border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); overflow: hidden; }
+.league-badge .logo-wrap { display: grid; place-items: center; width: 78%; height: 78%; }
+.league-badge .league-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.league-badge .league-icon { display: grid; place-items: center; font-size: calc(var(--s) * 0.6); line-height: 1; }
+.q-chip .lg-mark { --s: 20px; margin-right: 6px; vertical-align: -5px; }
+.league-card-head .lg-mark { --s: 30px; }
+.logo-flag { display: inline-grid; place-items: center; font-size: 1.15em; line-height: 1; background: none; }
+.driver-badge { display: inline-grid; place-items: center; border-radius: 50%; background: var(--team, #8a8f98); color: #fff; font-weight: 800; font-size: 11px; letter-spacing: 0.02em; }
 .sheet-lg { display: inline-flex; align-items: center; gap: 8px; }
-.sheet-lg .lg-mark { width: 26px; height: 26px; }
+.sheet-lg .lg-mark { --s: 28px; }
 .event-sides { display: grid; gap: 5px; min-width: 0; }
 .side { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--q-text-2); }
 .side.win { color: var(--q-text); }
@@ -499,3 +503,50 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .leader > span strong { display: block; overflow-wrap: anywhere; }
 .leader > span b.num { display: block; white-space: normal; overflow-wrap: anywhere; font-size: 13px; line-height: 1.35; }
 .leader-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.logo-flag.lg, .logo-flag.xl { font-size: 44px; }
+.logo-flag.xs, .logo-flag.sm { font-size: 17px; }
+.driver-badge.lg, .driver-badge.xl { font-size: 20px; }
+
+/* ---- Live: the line under a game, the match sheet's panel ---- */
+.live-line { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 2px; font-size: 12px; font-weight: 650; color: var(--live); }
+.live-line span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-line .rz, .live-panel .rz { flex: none; font-size: 10.5px; font-weight: 800; color: #fff; background: var(--live); border-radius: 5px; padding: 1px 6px; }
+.side-name .ball { font-size: 11px; }
+.diamond { flex: none; width: 30px; height: 20px; }
+.diamond.big { width: 84px; height: 56px; }
+.diamond rect { fill: none; stroke: currentColor; stroke-width: 1.3; opacity: 0.55; }
+.diamond rect.on { fill: var(--live); stroke: var(--live); opacity: 1; }
+.diamond circle { fill: none; stroke: currentColor; stroke-width: 1; opacity: 0.5; }
+.diamond circle.on { fill: var(--live); stroke: var(--live); opacity: 1; }
+.live-panel { display: grid; gap: 10px; margin: 12px 0 4px; padding: 12px 14px; border-radius: 14px; background: var(--live-wash); color: var(--q-text); }
+.lp-baseball { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 14px; color: var(--q-text-2); }
+.lp-count { display: grid; gap: 4px; }
+.lp-count > span { display: flex; align-items: center; gap: 6px; }
+.lp-count small { width: 10px; font-size: 11px; font-weight: 800; color: var(--q-muted); }
+.lp-dots { display: flex; gap: 4px; }
+.lp-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--q-border); }
+.lp-dots.ball i.on { background: #16a34a; }
+.lp-dots.strike i.on, .lp-dots.out i.on { background: var(--live); }
+.lp-who { display: grid; gap: 4px; min-width: 0; }
+.lp-who p { margin: 0; display: grid; min-width: 0; }
+.lp-who small, .lp-last small { font-size: 11px; color: var(--q-muted); font-weight: 700; }
+.lp-who strong { font-size: 13.5px; overflow-wrap: anywhere; color: var(--q-text); }
+.lp-football { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14px; }
+.lp-football strong { font-size: 16px; }
+.lp-football span { color: var(--q-text-2); }
+.lp-goals { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.lp-goals ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; align-content: start; }
+.lp-goals ul.home { text-align: right; }
+.lp-goals li { display: flex; gap: 6px; min-width: 0; }
+.lp-goals ul.home li { flex-direction: row-reverse; }
+.lp-goals li .num { color: var(--q-muted); font-weight: 700; flex: none; }
+.lp-goals li span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.lp-last { margin: 0; font-size: 13px; line-height: 1.45; color: var(--q-text-2); display: grid; gap: 2px; }
+.bout.live { box-shadow: inset 3px 0 0 var(--live); }
+.bout.live > small { color: var(--live); font-weight: 750; }
+
+/* ---- 推薦: one sport's days ---- */
+.day-strip-wait { display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 0 4px; }
+.spinner.small { width: 18px; height: 18px; border-width: 2px; }
+.no-days { margin: 12px 4px; }
+.filter-chips { margin-top: 12px; }
