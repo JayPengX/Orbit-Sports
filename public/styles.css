@@ -74,8 +74,6 @@ img { max-width: 100%; }
 .q-chips.small .q-chip { min-height: 30px; padding: 0 12px; font-size: 13px; }
 .q-chip.small { min-height: 28px; padding: 0 11px; font-size: 12.5px; }
 .q-chip.on { background: var(--accent-wash); color: var(--accent); border-color: transparent; }
-.league-tools { display: flex; gap: 8px; justify-content: flex-end; margin: 4px 0 10px; }
-.league-tools:empty { display: none; }
 .day-strip { margin: 4px 0 2px; }
 .day-strip .q-chip { min-width: 64px; justify-content: center; }
 
@@ -139,14 +137,7 @@ img { max-width: 100%; }
 .event-title strong { font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .event-title small { color: var(--q-muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* For-you cards */
-.match-card .card-sides { display: grid; gap: 6px; margin: 2px 0; }
-.match-card .side-name { font-size: 14px; font-weight: 650; color: var(--q-text); }
-
 /* Home: followed teams, bets */
-.follow-cta { margin-top: 20px; display: grid; gap: 6px; }
-.follow-cta h3 { font-size: 16px; }
-.follow-cta p { font-size: 13.5px; }
 .follow-row { border-top: 1px solid var(--q-divider, var(--q-border)); }
 .follow-row:first-child { border-top: 0; }
 .follow-row > small { display: block; padding: 0 14px 10px; }
@@ -226,8 +217,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .leaders small { grid-column: 1 / -1; color: var(--q-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .leaders strong { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .leaders .num { font-weight: 700; }
-.form-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 14px; }
-.form-row > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .form-pills { display: flex; gap: 4px; flex: none; }
 .pill { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; background: var(--q-muted); }
 .pill.W { background: var(--win); }
@@ -275,8 +264,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .toasts { position: fixed; left: 50%; bottom: calc(20px + var(--q-nav)); transform: translateX(-50%); z-index: 100; display: grid; gap: 8px; width: min(420px, calc(100vw - 32px)); pointer-events: none; }
 .toast { background: var(--q-text); color: var(--q-page); border-radius: 12px; padding: 10px 14px; font-size: 14px; box-shadow: var(--q-shadow); }
 
-/* ---- Header pieces ---- */
-
 /* ---- Home: the day ---- */
 .home-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 4px 2px 14px; }
 .hero-kicker { font-size: 12.5px; font-weight: 700; color: var(--accent); letter-spacing: 0.02em; }
@@ -323,7 +310,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .day-strip .q-chip.is-today:not([aria-pressed='true']) { border-color: var(--accent); color: var(--accent); }
 .day-strip .q-chip.more { min-width: 36px; font-weight: 800; }
 .day-head { font-size: 13.5px; font-weight: 750; color: var(--q-text-2); margin: 12px 2px 8px; }
-.league-tools { justify-content: flex-start; flex-wrap: wrap; }
 
 /* ---- Following ---- */
 .prio-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
@@ -334,7 +320,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .league-card + .league-card { margin-top: 12px; }
 .league-card-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--q-divider, var(--q-border)); }
 .league-card-head strong { flex: 1 1 auto; font-size: 15px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.league-emoji { font-size: 20px; }
 .team-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px 0; }
 .team-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--q-border); background: var(--q-surface-2); border-radius: 999px; padding: 4px 10px 4px 6px; font-size: 13px; font-weight: 700; }
 .league-card .list .event-row:first-child { border-top: 0; }
@@ -410,7 +395,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .tw-chip.pass { color: var(--q-muted); }
 .tw-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .tw-list .tw-chip { font-size: 12.5px; padding: 4px 10px; }
-.league-tools .tw-chips { align-self: center; margin-left: auto; }
 .pick-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .pick-top .league-tag { flex: 0 1 auto; min-width: 0; }
 .pick-top .stage-tag { flex: none; }
@@ -423,8 +407,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .live-kicker { color: var(--live); }
 .team-chips.loose { padding: 0; }
 .table-note { margin: 10px 4px 0; }
-
-/* ---- The live tab's count ---- */
 
 /* ---- Tables: full names where they fit, the short ones where they don't ---- */
 .standings .name-cell { width: 100%; min-width: 7.5em; }

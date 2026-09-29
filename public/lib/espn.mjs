@@ -17,14 +17,11 @@ import { LEAGUES } from './leagues.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
 
-export const PROXY = 'https://sports-proxy.pengzjay.workers.dev/sports-proxy';
 export const SITE = 'https://site.api.espn.com/apis/site/v2/sports';
 export const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
 export const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
 const KAMBI = 'https://eu-offering-api.kambicdn.com/offering/v2018/ub';
 
-let session = null;
-export const useSession = s => (session = s);
 
 // ---- Fetching ------------------------------------------------------------------
 
@@ -606,10 +603,6 @@ export function parseOverview(data) {
 }
 export async function athleteOverview(league, id) {
   return parseOverview(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }));
-}
-export async function teamsOf(league) {
-  const data = await getJson(`${SITE}/${LEAGUES[league].espn}/teams`, { ttl: 24 * 3_600_000 });
-  return (data?.sports?.[0]?.leagues?.[0]?.teams || []).map(x => ({ id: String(x.team.id), name: x.team.displayName, short: x.team.shortDisplayName, logo: logoOf(x.team), league }));
 }
 
 // ---- Quadra Play's id for a match (its "bet on this" link) ---------------------------------

@@ -56,11 +56,6 @@ export const BROADCAST = {
 };
 
 export const broadcastsOf = league => BROADCAST[league] || [];
-export const broadcastText = (league, lang = 'zh', n = 3) =>
-  broadcastsOf(league)
-    .slice(0, n)
-    .map(b => (lang === 'en' ? b.en : b.zh))
-    .join('、');
 
 // The services a person can say they have (the recommendations keep to
 // those), in the order they're offered.

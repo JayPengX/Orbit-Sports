@@ -80,4 +80,3 @@ export function stageTag(e, lang = 'zh') {
   if (round && s.key === 'cup') return `${lang === 'en' ? 'NBA Cup' : 'NBA 盃'} · ${round.replace(/^NBA Cup - /i, '')}`;
   return round || stage;
 }
-export const STAGE_NAMES = STAGES;
