@@ -14,6 +14,7 @@ import { teamBadge, teamLogo, raceName } from './logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
+import { asiaMonth, asiaMonthOf } from './catalog.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
 
@@ -229,6 +230,7 @@ export function parseScoreboard(data, league) {
 export async function scoreboard(league, dates) {
   const l = LEAGUES[league];
   if (l?.kambi) return kambiEvents(league);
+  if (l?.asia) return asiaEvents(league);
   const list = [].concat(dates || []);
   const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: 20_000 }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: 20_000 })];
   const seen = new Set();
@@ -244,6 +246,7 @@ export async function scoreboard(league, dates) {
 export async function seasonEvents(league, now = Date.now()) {
   const l = LEAGUES[league];
   if (l?.kambi) return kambiEvents(league);
+  if (l?.asia) return asiaEvents(league);
   const d = new Date(now);
   const years = [d.getUTCFullYear(), ...(d.getUTCMonth() >= 10 ? [d.getUTCFullYear() + 1] : [])];
   const pages = await Promise.all(years.map(y => getJson(`${SITE}/${l.espn}/scoreboard?dates=${y}&limit=400`, { ttl: 5 * 60_000 }).catch(() => null)));
@@ -296,7 +299,7 @@ export async function weekScoreboard(league, seasontype, week) {
   return parseScoreboard(data, league);
 }
 
-// ---- Kambi (NPB, KBO, CPBL, EuroLeague, B.League, racket sports) --------------------
+// ---- Kambi (EuroLeague, B.League, badminton, table tennis, volleyball, snooker) --------
 
 export function parseKambi(data, league) {
   const out = [];
@@ -347,6 +350,59 @@ export async function kambiEvents(league) {
   while (parts.length < 4) parts.push('all');
   const data = await getJson(`${KAMBI}/listView/${parts.join('/')}/matches.json?lang=en_GB&market=GB&useCombined=true`, { ttl: 60_000, trim: 'kambi-events' });
   return parseKambi(data, league);
+}
+
+// ---- NPB, KBO, CPBL (the leagues' own sites, through the proxy) -----------------------
+
+// The shared catalogue's month lists (see catalog.mjs, asiaMonth) as events.
+export function parseAsia(games, league, lang = detectLocale()) {
+  const play = LEAGUES[league]?.play || league;
+  return (games || []).map(g => {
+    const done = g.state === 'post';
+    const side = (x, key, score, other) => ({
+      id: x.en,
+      name: lang === 'en' ? x.en : x.zh,
+      short: lang === 'en' ? x.en : x.zh,
+      en: x.en,
+      abbr: x.en.slice(0, 3).toUpperCase(),
+      logo: teamBadge(play, x.en),
+      color: null,
+      score: score ?? '',
+      winner: done && score != null && other != null && score > other,
+      record: '',
+      rank: null,
+      lines: [],
+      homeAway: key
+    });
+    return {
+      id: g.id,
+      league,
+      kind: 'match',
+      name: `${g.away.en} @ ${g.home.en}`,
+      short: `${g.away.zh} @ ${g.home.zh}`,
+      start: g.start,
+      status: { state: g.state === 'void' ? 'pre' : g.state, detail: '', short: '', completed: done, void: g.state === 'void' },
+      venue: g.venue || '',
+      tv: '',
+      note: '',
+      home: side(g.home, 'home', g.homeScore, g.awayScore),
+      away: side(g.away, 'away', g.awayScore, g.homeScore),
+      live: null,
+      asia: true
+    };
+  });
+}
+// The months around now (and `extra` more either side): a whole round of the
+// season, past games and the next ones.
+export async function asiaEvents(league, extra = 0, now = Date.now()) {
+  const [y, m] = asiaMonthOf(now).split('-').map(Number);
+  const months = [];
+  for (let d = -1 - extra; d <= 1 + extra; d++) months.push(new Date(Date.UTC(y, m - 1 + d, 1)).toISOString().slice(0, 7));
+  const lists = await Promise.all(months.map(m => asiaMonth(url => getJson(url, { ttl: 60_000 }), LEAGUES[league].asia, m).catch(() => [])));
+  const seen = new Set();
+  return parseAsia(lists.flat(), league)
+    .filter(e => !seen.has(e.id) && seen.add(e.id))
+    .sort((a, b) => a.start.localeCompare(b.start));
 }
 
 // ---- A match's summary --------------------------------------------------------------
@@ -621,5 +677,5 @@ export function normalizeTeamName(name) {
 export function playGameId(event) {
   const key = LEAGUES[event.league]?.play;
   if (!key || event.kind !== 'match' || !event.home || !event.away) return null;
-  return `${key}_${new Date(event.start).toISOString().slice(0, 13)}_${normalizeTeamName(event.away.name)}_${normalizeTeamName(event.home.name)}`.replaceAll(' ', '');
+  return `${key}_${new Date(event.start).toISOString().slice(0, 13)}_${normalizeTeamName(event.away.en || event.away.name)}_${normalizeTeamName(event.home.en || event.home.name)}`.replaceAll(' ', '');
 }

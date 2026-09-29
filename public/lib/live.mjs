@@ -89,7 +89,7 @@ export function liveLabel(e, sport, lang = 'zh') {
     if (/EXTRA/.test(code)) return en ? `ET ${m}` : `延長 ${m}`;
     return m || (en ? 'Live' : '進行中');
   }
-  if (sport === 'tennis' || sport === 'racket') {
+  if (['tennis', 'badminton', 'tabletennis', 'volleyball'].includes(sport)) {
     const set = lv.set || n;
     return set ? (en ? `Set ${set}` : `第${set}盤`) : en ? 'Live' : '進行中';
   }

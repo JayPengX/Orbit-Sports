@@ -9,10 +9,11 @@
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, activityPatch, affinity, appUrl, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, affinityPatch, settingPatch } from './lib/quadra.mjs';
-import { scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend } from './lib/espn.mjs';
+import { scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
 import { SERVICES, watchable, leaguesOn } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
+import { familyOfSport } from './lib/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION } from './lib/picks.mjs';
@@ -54,7 +55,12 @@ function applyPrefs(payload) {
       state.prefs = { sports: [...new Set(leagues.map(k => LEAGUES[k].sport))], leagues, follows: p.follows, tv: [] };
     }
   } catch {}
-  state.prefs.sports = state.prefs.sports.filter(s => SPORTS[s]);
+  // 球拍與其他 is four sports now: the ones of its leagues followed (all four if none).
+  if (state.prefs.sports.includes('racket')) {
+    const mine = [...new Set(state.prefs.leagues.map(k => LEAGUES[k]?.sport).filter(s => ['badminton', 'tabletennis', 'volleyball', 'snooker'].includes(s)))];
+    state.prefs.sports = state.prefs.sports.flatMap(s => (s === 'racket' ? (mine.length ? mine : ['badminton', 'tabletennis', 'volleyball', 'snooker']) : [s]));
+  }
+  state.prefs.sports = [...new Set(state.prefs.sports.filter(s => SPORTS[s]))];
   state.prefs.leagues = state.prefs.leagues.filter(k => LEAGUES[k]);
   state.prefs.tv = (state.prefs.tv || []).filter(id => SERVICES.some(x => x.id === id));
   state.prefsLoaded = true;
@@ -101,7 +107,7 @@ function toggleSport(sport) {
     // Its headline leagues (or its first) to start with.
     const tops = leaguesOf(sport).filter(k => LEAGUES[k].top);
     p.leagues = [...new Set([...p.leagues, ...(tops.length ? tops : leaguesOf(sport).slice(0, 1))])];
-    recordAffinity('match', [`sport:${sport === 'tennis' || sport === 'racket' ? 'sets' : sport}`], 3);
+    recordAffinity('match', [`sport:${familyOfSport(sport)}`], 3);
   }
   changed();
 }
@@ -656,7 +662,7 @@ async function sportDays(sport) {
     leagues.map(async k => {
       const l = LEAGUES[k];
       if (l.kind !== 'match') return seasonEvents(k).catch(() => []);
-      if (l.kambi) return scoreboard(k).catch(() => []);
+      if (l.kambi || l.asia) return scoreboard(k).catch(() => []);
       const cal = await seasonCalendar(k).catch(() => null);
       if (cal?.weeks) {
         const weeks = cal.weeks.filter(w => Date.parse(w.end) >= Date.parse(`${from}T00:00:00`) - 86_400_000 && Date.parse(w.start) <= Date.parse(`${to}T23:59:59`));
@@ -841,6 +847,10 @@ async function loadScores() {
     } else if (l.kambi) {
       sc.mode = 'days';
       events = await scoreboard(league);
+    } else if (l.asia) {
+      // NPB, KBO, CPBL: the months around now, more with ‹ and ›.
+      sc.mode = 'days';
+      events = await asiaEvents(league, sc.extra);
     } else {
       sc.mode = 'days';
       const cal = await seasonCalendar(league).catch(() => null);
@@ -882,10 +892,11 @@ async function loadScores() {
     sc.all = events;
     sc.days = [...byDay.keys()].sort();
     // The day shown: the one asked for, else one with a game on now, else
-    // today's or the next game day (within a few days: a break shows the
-    // latest round instead), else the nearest.
-    const liveDay = sc.days.find(d => byDay.get(d).some(e => e.status.state === 'in'));
-    const next = sc.days.find(d => d >= today() && d <= addDays(today(), 4));
+    // today's or the next game day (however far: a break opens on the next
+    // round), else the latest.
+    const liveDays = sc.days.filter(d => byDay.get(d).some(e => e.status.state === 'in'));
+    const liveDay = liveDays.includes(today()) ? today() : liveDays.at(-1);
+    const next = sc.days.find(d => d >= today() && byDay.get(d).some(e => e.status.state !== 'post' && !e.status.void));
     if (!sc.date || !byDay.has(sc.date)) sc.date = liveDay || next || nearestDay(sc.days) || today();
   }
   renderScores();
@@ -993,11 +1004,11 @@ function renderScores() {
   } else if (!sc.days.length) list = empty(t('noGamesSeason'));
   else {
     strip = el('div', { class: 'q-chips day-strip' }, [
-      LEAGUES[sc.league].espn ? el('button', { class: 'q-chip more', type: 'button', text: '‹', 'aria-label': t('moreDays'), onclick: () => ((sc.extra += 1), loadScores()) }) : null,
+      LEAGUES[sc.league].espn || LEAGUES[sc.league].asia ? el('button', { class: 'q-chip more', type: 'button', text: '‹', 'aria-label': t('moreDays'), onclick: () => ((sc.extra += 1), loadScores()) }) : null,
       ...sc.days.map(d =>
         el('button', { class: `q-chip day${d === today() ? ' is-today' : ''}`, type: 'button', 'aria-pressed': String(sc.date === d), onclick: () => ((sc.date = d), renderScores()) }, [el('span', { text: dayLabel(d) }), el('small', { class: 'num', text: String(sc.byDay.get(d).length) })])
       ),
-      LEAGUES[sc.league].espn ? el('button', { class: 'q-chip more', type: 'button', text: '›', 'aria-label': t('moreDays'), onclick: () => ((sc.extra += 1), loadScores()) }) : null
+      LEAGUES[sc.league].espn || LEAGUES[sc.league].asia ? el('button', { class: 'q-chip more', type: 'button', text: '›', 'aria-label': t('moreDays'), onclick: () => ((sc.extra += 1), loadScores()) }) : null
     ]);
     const order = { in: 0, pre: 1, post: 2 };
     const games = [...(sc.byDay.get(sc.date) || [])].sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));

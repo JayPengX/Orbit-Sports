@@ -9,7 +9,7 @@ const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, im
 test('every league has a sport, a source and names', () => {
   for (const [key, l] of Object.entries(LEAGUES)) {
     assert.ok(SPORTS[l.sport], key);
-    assert.ok(l.espn || l.kambi, key);
+    assert.ok(l.espn || l.kambi || l.asia, key);
     assert.ok(l.zh && l.en, key);
   }
   assert.ok(Object.keys(LEAGUES).length >= 60);
@@ -120,4 +120,20 @@ test('a missing logo falls back to ESPN\'s CDN', async () => {
   const { fallbackLogo } = await import('../public/lib/espn.mjs');
   assert.match(fallbackLogo('f1', { id: '5503', athlete: true }), /headshots\/rpm\/players\/full\/5503\.png$/);
   assert.equal(fallbackLogo('f1', { id: '1', logo: 'x' }), 'x');
+});
+
+test('NPB, KBO and CPBL from the proxy\'s month lists', async () => {
+  const { parseAsia } = await import('../public/lib/espn.mjs');
+  const games = [
+    { id: 'cpbl-2026-255', start: '2026-09-30T10:35:00.000Z', home: { en: 'Fubon Guardians', zh: '富邦悍將' }, away: { en: 'Uni-President Lions', zh: '統一7-ELEVEn獅' }, homeScore: 3, awayScore: 5, state: 'post', venue: '新莊' },
+    { id: 'cpbl-2026-14', start: '2026-04-04T09:05:00.000Z', home: { en: 'CTBC Brothers', zh: '中信兄弟' }, away: { en: 'Rakuten Monkeys', zh: '樂天桃猿' }, homeScore: null, awayScore: null, state: 'void', venue: '' }
+  ];
+  const [done, off] = parseAsia(games, 'cpbl', 'zh');
+  assert.equal(done.home.name, '富邦悍將');
+  assert.equal(done.away.winner, true);
+  assert.equal(done.status.state, 'post');
+  assert.ok(done.home.logo);
+  assert.equal(off.status.void, true);
+  // Play's link uses the English names.
+  assert.equal(playGameId({ ...done, status: { state: 'pre' } }), 'cpbl_2026-09-30T10_unipresidentlions_fubonguardians');
 });

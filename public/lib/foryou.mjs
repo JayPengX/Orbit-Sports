@@ -8,14 +8,13 @@
 // league, ranked or leading sides (standings), and a followed team (the
 // strongest signal, added to its affinity by following it).
 import { LEAGUES, TOP_LEAGUES } from './leagues.mjs';
+import { familyOfSport } from './catalog.mjs';
 import { normalizeTeamName } from './espn.mjs';
 import { rank } from './quadra.mjs';
 
 export const leagueKey = league => LEAGUES[league]?.play || league;
-export const familyOf = league => {
-  const s = LEAGUES[league]?.sport;
-  return s === 'tennis' || s === 'racket' ? 'sets' : s;
-};
+// Play's kind of markets: tennis, badminton, table tennis, volleyball and snooker are all 'sets'.
+export const familyOf = league => familyOfSport(LEAGUES[league]?.sport);
 export function eventKeys(e) {
   const key = leagueKey(e.league);
   const keys = [`league:${key}`, `sport:${familyOf(e.league)}`];
