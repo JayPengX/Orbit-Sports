@@ -230,9 +230,11 @@ function restoreDay() {
   } catch {}
 }
 
-// A day of picks runs to 6 the next morning, like a TV guide: Europe's
-// evening games (02:00, 03:00 here) count as that night's.
-const inPickDay = (ms, date) => ms >= Date.parse(`${date}T00:00:00`) && ms < Date.parse(`${addDays(date, 1)}T06:00:00`);
+// A day of picks is the hours Taiwan is awake, 05:00 to midnight: a game
+// starting between midnight and 5 (Europe's evenings, America's afternoons)
+// is while everyone sleeps, and isn't recommended on either day.
+const AWAKE_FROM = 5;
+const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 
 // A day's events of these leagues (races split into their sessions).
 async function readDay(leagues, date) {
@@ -384,7 +386,7 @@ function pickCard(item, n) {
   return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => openEvent(e) }, [
     el('div', { class: 'pick-time' }, [
       el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : clock(e.start) }),
-      el('small', { text: e.status.state === 'in' ? statusText(e) : localDate(Date.parse(e.start)) > state.home.date ? t('lateNight') : n === 0 ? t('firstUp') : '' })
+      el('small', { text: e.status.state === 'in' ? statusText(e) : n === 0 ? t('firstUp') : '' })
     ]),
     el('div', { class: 'pick-body' }, [
       el('div', { class: 'pick-top' }, [leagueChip(e.league), tag ? el('span', { class: 'stage-tag', text: tag }) : null]),
@@ -617,7 +619,8 @@ async function sportDays(sport) {
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
     if (e.status?.void || !onMyTv(e)) continue;
     const ms = Date.parse(e.start);
-    for (const d of [localDate(ms), localDate(ms - 6 * 3_600_000)]) if (d >= from && d <= to) days.add(d);
+    const d = localDate(ms);
+    if (inPickDay(ms, d) && d >= from && d <= to) days.add(d);
   }
   return days;
 }
