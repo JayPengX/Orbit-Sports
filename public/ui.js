@@ -129,7 +129,7 @@ export function betChip(e) {
     ctx.track?.('toPlay', [], 2);
     ctx.q.go('odds', `game=${id}`);
   };
-  return el('span', { class: 'bet-chip', role: 'link', tabindex: '0', onclick: go, onkeydown: ev => ev.key === 'Enter' && go(ev) }, [document.createTextNode(ctx.t('betChip'))]);
+  return el('span', { class: 'bet-chip', role: 'link', tabindex: '0', onclick: go, onkeydown: ev => ev.key === 'Enter' && go(ev) }, [document.createTextNode(ctx.t(e.status.state === 'in' ? 'betLive' : 'betChip'))]);
 }
 
 export function eventRow(e, { league = true, day = true } = {}) {
