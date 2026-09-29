@@ -34,7 +34,7 @@ const state = {
   wallet: null,
   // The days read so far: date -> { events, at, loading }.
   days: new Map(),
-  home: { date: today(), filter: 'all', shown: 20, teams: new Map(), tables: {}, sportDays: new Map(), autoDay: true },
+  home: { date: today(), filter: 'all', shown: 20, teams: new Map(), tables: {}, sportDays: new Map(), autoDay: true, tablesPending: 0, settled: false },
   scores: { sport: 'soccer', league: 'epl', date: null, byDay: null, days: [], extra: 0, loading: false, mode: 'days', stage: 'all', view: 'games' },
   following: new Map(),
 };
@@ -272,14 +272,16 @@ async function loadDay(date) {
     .filter(hasStandings)
     .filter(k => !state.home.tables[k])
     .slice(0, 8)
-    .forEach(k =>
+    .forEach(k => {
+      state.home.tablesPending++;
       standings(k)
         .then(g => {
           state.home.tables[k] = tableIndex(g);
           if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
         })
         .catch(() => {})
-    );
+        .finally(() => state.home.tablesPending--);
+    });
   try {
     const events = await readDay(pickLeagues(), date);
     if (isToday) noticeChanges(events);
@@ -287,13 +289,14 @@ async function loadDay(date) {
     if (isToday) saveDay(date, slot);
   } catch {
     if (!slot.at) slot.at = Date.now();
+    slot.stale = false;
   } finally {
     slot.loading = false;
   }
   // The others again too, once they've been read for this day.
   if (slot.othersAt) loadOthers(date);
-  repaintDay(date);
   loadFollowedTeams();
+  repaintDay(date);
   if (isToday) {
     clearTimeout(pushTimer);
     pushTimer = setTimeout(syncPush, 1500);
@@ -431,6 +434,7 @@ function renderHome() {
   const box = $('panel-home');
   const h = state.home;
   const slot = state.days.get(h.date);
+  h.settled = false;
   if (!slot?.at) {
     if (!slot?.loading) loadDay(h.date);
     put(box, homeHead(), spinner());
@@ -454,7 +458,9 @@ function renderHome() {
   // Opened on a day with nothing of theirs: the next day they have games.
   if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.sports.length) {
     h.autoDay = false;
+    h.jumping = true;
     nextPickDay().then(d => {
+      h.jumping = false;
       if (d && state.home.date === today()) {
         state.home.date = d;
         if (state.tab === 'home') renderHome();
@@ -499,6 +505,9 @@ function renderHome() {
       ])
     );
   const hasFollows = state.prefs.sports.length > 0;
+  // Everything the picks lean on is in: the day read fresh, the tables,
+  // the followed teams, and no search for other games or days going on.
+  h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !h.tablesPending && ![...h.teams.values()].includes(null);
   const shownMore = more.slice(0, h.shown);
   put(
     box,
@@ -1115,15 +1124,23 @@ function firstTab() {
   if (hash === 'standings') state.scores.view = 'table';
   return TABS.includes(hash) ? hash : hash === 'scores' || hash === 'standings' ? 'matches' : 'home';
 }
+// The loading screen stays up on the picks until they're settled (a few
+// seconds at most), so they don't open half-read and reshuffle.
+const BOOT_WAIT = 7000;
+async function homeReady(until) {
+  while (state.tab === 'home' && !state.home.settled && Date.now() < until) await new Promise(r => setTimeout(r, 150));
+}
 async function boot() {
+  const until = Date.now() + BOOT_WAIT;
   // A signed-in device opens at once on what it had: the follows and the
-  // day it last read, while the Worker is asked for the fresh ones.
+  // day it last read, while the Worker is asked for the fresh ones (the
+  // picks wait behind the loading screen for their fresh day).
   const quick = cachedPayload('match');
   if (quick != null) {
     state.wallet = cachedWallet();
     applyPrefs(quick);
     restoreDay();
-    $('loading').hidden = true;
+    if (firstTab() !== 'home') $('loading').hidden = true;
     showTab(firstTab());
     restorePlace();
   }
@@ -1131,7 +1148,7 @@ async function boot() {
   state.wallet = first.wallet || q.wallet;
   const before = JSON.stringify(state.prefs);
   if (first?.payload != null || quick == null) applyPrefs(first?.payload);
-  $('loading').hidden = true;
+  if (firstTab() !== 'home') $('loading').hidden = true;
   if (quick == null) {
     restoreDay();
     showTab(firstTab());
@@ -1141,8 +1158,10 @@ async function boot() {
     showTab(state.tab);
   }
   await loadDay(today());
+  await homeReady(until);
+  $('loading').hidden = true;
 }
 if (!gated) boot();
-setTimeout(() => ($('loading').hidden = true), 8000);
+setTimeout(() => ($('loading').hidden = true), BOOT_WAIT + 2000);
 
 if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('./sw.js').catch(() => {});
