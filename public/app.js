@@ -349,15 +349,24 @@ function syncPush() {
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     const league = leagueName(e.league, locale);
     if (start > now) items.push({ at: start, title: matchLine(e), body: `${league} ${L(NOTICE_TEXT.start)}`, tag: `start:${key}`, hash: 'home', kind: 'start' });
-    // The Worker fills in the score as the title once ESPN has the final.
-    if (LEAGUES[e.league].espn && /^\d+$/.test(e.id)) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} ${L(NOTICE_TEXT.end)}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id } });
+    // The Worker fills in the score (the title) and who won ({result}) once ESPN has the final.
+    if (LEAGUES[e.league].espn && /^\d+$/.test(e.id)) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} · {result}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
   }
   schedulePush(q, items);
 }
 
 // A notice's words: the teams (and the score) on top, the league and what
 // happened below.
-const NOTICE_TEXT = { start: { zh: '開賽了', en: 'game started' }, end: { zh: '比賽結束', en: 'final' } };
+const NOTICE_TEXT = { start: { zh: '開賽了', en: 'game started' } };
+// Who won, for the final's notice: "Yankees 贏了", or a draw.
+function resultLine(e) {
+  if (e.status?.void) return L({ zh: '比賽取消', en: 'Canceled' });
+  const [a, h] = [Number(e.away.score), Number(e.home.score)];
+  if (!Number.isFinite(a) || !Number.isFinite(h)) return L({ zh: '比賽結束', en: 'Final' });
+  if (a === h) return L({ zh: '平手', en: 'Draw' });
+  const w = a > h ? e.away : e.home;
+  return locale === 'en' ? `${w.short || w.name} win` : `${w.short || w.name} 贏了`;
+}
 const matchLine = (e, score = false) => (score ? `${e.away.short || e.away.name} ${e.away.score} : ${e.home.score} ${e.home.short || e.home.name}` : `${e.away.short || e.away.name} vs ${e.home.short || e.home.name}`);
 
 // A followed team's game starting or ending: a notice.
@@ -371,7 +380,7 @@ function noticeChanges(events) {
     if (!was || was === e.status.state) continue;
     const league = leagueName(e.league, locale);
     if (e.status.state === 'in') notify(q, { title: matchLine(e), body: `${league} ${L(NOTICE_TEXT.start)}`, tag: `start:${key}`, hash: 'home', kind: 'start' });
-    if (e.status.state === 'post') notify(q, { title: matchLine(e, true), body: `${league} ${L(NOTICE_TEXT.end)}`, tag: `end:${key}`, hash: 'home', kind: 'end' });
+    if (e.status.state === 'post') notify(q, { title: matchLine(e, true), body: `${league} · ${resultLine(e)}`, tag: `end:${key}`, hash: 'home', kind: 'end' });
   }
 }
 
