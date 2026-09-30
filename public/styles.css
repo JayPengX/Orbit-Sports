@@ -90,12 +90,14 @@ img { max-width: 100%; }
 .logo.sm { width: 22px; height: 22px; }
 .logo.lg { width: 52px; height: 52px; }
 .logo.xl { width: 68px; height: 68px; }
+.logo.xxl { width: 88px; height: 88px; }
+.logo.round.xxl, .logo.round.xl { object-position: center 18%; }
 .logo.round { border-radius: 50%; object-fit: cover; background: var(--q-sunken); }
 .logo-fallback {
   display: inline-grid; place-items: center; background: var(--q-sunken); color: var(--q-text-2);
   font-weight: 800; font-size: 11px; border-radius: 50%; line-height: 1;
 }
-.logo-fallback.lg, .logo-fallback.xl { font-size: 22px; }
+.logo-fallback.lg, .logo-fallback.xl, .logo-fallback.xxl { font-size: 26px; }
 
 /* ---- Event rows ---- */
 .list { overflow: hidden; }
@@ -505,7 +507,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .leader-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .logo-flag.lg, .logo-flag.xl { font-size: 44px; }
 .logo-flag.xs, .logo-flag.sm { font-size: 17px; }
-.driver-badge.lg, .driver-badge.xl { font-size: 20px; }
+.driver-badge.lg, .driver-badge.xl, .driver-badge.xxl { font-size: 24px; }
 
 /* ---- Live: the line under a game, the match sheet's panel ---- */
 .live-line { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 2px; font-size: 12px; font-weight: 650; color: var(--live); }
@@ -605,3 +607,43 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .bout-row > span { white-space: normal; }
 .bout-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; line-height: 1.25; overflow-wrap: anywhere; }
 .bout-row > span:last-child .bout-name { text-align: right; }
+
+/* ---- Player and team sheets ---- */
+/* The head in the team's colour: a soft wash, the picture on a ring of it. */
+.player-hero.tinted { padding: 14px; border-radius: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--hero) 22%, var(--q-surface)) 0%, var(--q-surface) 78%); border: 1px solid color-mix(in srgb, var(--hero) 30%, var(--q-border)); }
+.player-hero.tinted > .logo.round { box-shadow: 0 0 0 3px var(--q-surface), 0 0 0 5px var(--hero); }
+.hero-form { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.hero-form .pos-pill { font-size: 12px; padding: 1px 8px; }
+.injury-tag { margin-top: 6px; font-size: 12.5px; font-weight: 650; color: var(--loss); }
+.player-note { display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
+.player-note p { color: var(--q-text-2); display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.mate-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px 18px; font-size: 14px; }
+.mate-grid .mate-me, .mate-grid .mate-them { font-size: 12.5px; text-align: right; }
+.mate-grid .mate-them { justify-self: end; font-weight: 700; }
+.mate-grid > strong.num { text-align: right; font-size: 17px; color: var(--q-text-2); }
+.mate-grid > strong.mate-win { color: var(--q-text); }
+.mate-grid .mate-k { color: var(--q-text-2); }
+table.game-log td, table.game-log th { white-space: nowrap; }
+table.game-log .opp-cell { display: flex; align-items: center; gap: 5px; }
+table.game-log .result-pill { font-size: 12px; padding: 1px 8px; }
+.award-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.award-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; font-size: 14px; }
+.award-list small { grid-column: 1 / -1; font-size: 12px; }
+.award-count { font-weight: 800; padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, #d4a017 24%, transparent); }
+.news-list { display: grid; gap: 12px; }
+.news-item { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: center; color: inherit; text-decoration: none; }
+.news-item:not(:has(.news-img)) { grid-template-columns: minmax(0, 1fr); }
+.news-img { width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--q-sunken); }
+.news-text { display: grid; gap: 3px; min-width: 0; }
+.news-text strong { font-size: 14px; line-height: 1.4; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.news-text small { font-size: 12px; }
+.news-gap { height: 12px; }
+.roster-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.roster-name .logo.round { width: 26px; height: 26px; }
+.inj-dot { font-size: 11px; }
+.stat-grid.dense { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+.stat-grid.dense .stat-tile { padding: 8px; }
+.stat-grid.dense .stat-tile strong { font-size: 16px; }
+table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 10em; font-weight: 650; font-size: 12.5px; line-height: 1.3; }
+/* A cut-out (TheSportsDB): the whole figure, from the top, on the disc. */
+.logo.round.cutout { object-fit: cover; object-position: center top; }

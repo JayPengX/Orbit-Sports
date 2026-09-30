@@ -6,7 +6,7 @@ import { logoPicture, countryFlag, f1Driver } from './lib/logos.mjs';
 import { liveLabel, liveNote, possessionOf } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { broadcastsOf } from './lib/broadcast.mjs';
-import { playGameId } from './lib/espn.mjs';
+import { playGameId, freshHeadshot } from './lib/espn.mjs';
 import { playable, leagueOnSale } from './lib/playable.mjs';
 import { tvOf, channelsOf } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
@@ -71,13 +71,13 @@ export function logo(url, name, cls = '') {
     const flag = countryFlag(name);
     return flag ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: flag }) : el('span', { class: `logo logo-fallback ${cls}`, 'aria-hidden': 'true', text: (name || '?').trim().slice(0, 1) });
   };
-  return logoPicture(url, null, `logo ${cls}`, fallback);
+  return logoPicture(freshHeadshot(url), null, `logo ${cls}`, fallback);
 }
 // An F1 driver: their headshot, else a badge in their team's colour.
 export function driverLogo(url, name, cls = '') {
   const d = f1Driver(name);
   const initials = String(name || '').split(/\s+/).filter(w => !/^jr\.?$/i.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-  return logoPicture(url, null, `logo ${cls}`, () => el('span', { class: `logo driver-badge ${cls}`, style: `--team:${d.color}`, 'aria-hidden': 'true', text: initials }));
+  return logoPicture(freshHeadshot(url), null, `logo ${cls}`, () => el('span', { class: `logo driver-badge ${cls}`, style: `--team:${d.color}`, 'aria-hidden': 'true', text: initials }));
 }
 export const sportIcon = league => SPORTS[LEAGUES[league]?.sport]?.icon || '';
 // A league's mark: its logo, else its sport's icon.

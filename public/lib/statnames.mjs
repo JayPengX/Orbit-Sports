@@ -31,6 +31,7 @@ const ZH = {
 // A player's season line (ESPN's short labels): PPG, HR, G, SHOT…
 const SHORT = {
   ppg: '場均得分', rpg: '場均籃板', apg: '場均助攻', spg: '場均抄截', bpg: '場均阻攻', 'fg%': '投籃命中率', '3p%': '三分命中率', 'ft%': '罰球命中率', min: '上場時間', mpg: '場均時間',
+  strt: '先發', fc: '犯規', fa: '被犯規', of: '越位', ab: '打數', '2b': '二壘打', '3b': '三壘打', bb: '保送', reb: '籃板', ast: '助攻', blk: '阻攻', stl: '抄截', pf: '犯規', to: '失誤',
   g: '進球', a: '助攻', shot: '射門', sht: '射門', sog: '射正', 'strt-subin': '先發（替補）', app: '出賽', yc: '黃牌', rc: '紅牌', ga: '失球', cs: '零封',
   hr: '全壘打', r: '得分', h: '安打', sb: '盜壘', 'w-l': '勝-敗', k: '三振', so: '三振', ip: '投球局數', gp: '出賽',
   'pass yards': '傳球碼數', 'rush yards': '跑球碼數', 'rec yards': '接球碼數', touchdowns: '達陣', td: '達陣', int: '被抄截', qbr: 'QBR', rec: '接球', yds: '碼數', 'tackles': '擒抱', 'sacks': '擒殺',

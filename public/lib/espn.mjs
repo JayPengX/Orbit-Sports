@@ -63,6 +63,9 @@ export function parseStatus(s) {
 }
 
 const logoOf = team => team?.logo || team?.logos?.[0]?.href || null;
+// ESPN's F1 headshots (headshots/f1/) stopped in 2021 (a newer driver has
+// none); its racing ones (headshots/rpm/) are this season's, every driver.
+export const freshHeadshot = url => (typeof url === 'string' ? url.replace('/i/headshots/f1/players/', '/i/headshots/rpm/players/') : url);
 function parseSide(c) {
   if (!c) return null;
   const team = c.team || {};
@@ -75,7 +78,7 @@ function parseSide(c) {
     name: who.displayName || who.fullName || who.name || '',
     short: who.shortDisplayName || who.shortName || who.displayName || '',
     abbr: who.abbreviation || (who.shortName || '').slice(0, 3).toUpperCase(),
-    logo: logoOf(team) || athlete.flag?.href || athlete.headshot?.href || null,
+    logo: logoOf(team) || athlete.flag?.href || freshHeadshot(athlete.headshot?.href) || null,
     color: team.color ? `#${team.color}` : null,
     score: c.score?.displayValue ?? (typeof c.score === 'string' || typeof c.score === 'number' ? String(c.score) : ''),
     winner: Boolean(c.winner),
@@ -643,7 +646,13 @@ export function parseSchedule(data, league) {
 // all its competitions: ESPN gives the results, and the fixtures on their own.
 export async function teamSchedule(league, id) {
   const base = `${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}/schedule`;
-  if (clubPath(league) !== 'soccer/all') return parseSchedule(await getJson(base, { ttl: 10 * 60_000 }), league);
+  if (clubPath(league) !== 'soccer/all') {
+    // In the playoffs ESPN gives only the playoff games: the regular season before them too.
+    const data = await getJson(base, { ttl: 10 * 60_000 });
+    const earlier = data?.requestedSeason?.type === 3 ? await getJson(`${base}?seasontype=2`, { ttl: 60 * 60_000 }).catch(() => null) : null;
+    const seen = new Set();
+    return [...parseSchedule(earlier, league), ...parseSchedule(data, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).sort((a, b) => a.start.localeCompare(b.start));
+  }
   const [done, next] = await Promise.all([getJson(base, { ttl: 10 * 60_000 }), getJson(`${base}?fixture=true`, { ttl: 10 * 60_000 }).catch(() => null)]);
   const seen = new Set();
   return [...parseSchedule(done, league), ...parseSchedule(next, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).sort((a, b) => a.start.localeCompare(b.start));
@@ -652,7 +661,7 @@ export function parseRoster(data) {
   const groups = Array.isArray(data?.athletes?.[0]?.items) ? data.athletes : [{ position: '', items: data?.athletes || [] }];
   return groups.map(g => ({
     name: g.position || '',
-    players: (g.items || []).map(a => ({ id: String(a.id), name: a.displayName || a.fullName, jersey: a.jersey || '', pos: a.position?.abbreviation || '', age: a.age || null, headshot: a.headshot?.href || null, injured: Boolean(a.injuries?.length) }))
+    players: (g.items || []).map(a => ({ id: String(a.id), name: a.displayName || a.fullName, jersey: a.jersey || '', pos: a.position?.abbreviation || '', age: a.age || null, headshot: freshHeadshot(a.headshot?.href) || null, injured: Boolean(a.injuries?.length) }))
   }));
 }
 // The squad: a soccer club's from its own league (`home`, the team's
@@ -666,12 +675,13 @@ export function parseAthlete(data) {
   return {
     id: String(a.id ?? ''),
     name: a.displayName || '',
-    headshot: a.headshot?.href || null,
+    headshot: freshHeadshot(a.headshot?.href) || null,
     jersey: a.jersey || '',
     position: a.position?.displayName || '',
     team: a.team?.displayName || '',
     teamId: String(a.team?.id ?? ''),
     teamLogo: logoOf(a.team),
+    teamColor: a.team?.color ? `#${a.team.color}` : '',
     age: a.age || null,
     born: a.displayDOB || '',
     dob: a.dateOfBirth || '',
@@ -738,7 +748,75 @@ export function parseOverview(data) {
   const rankings = (data?.seasonRankings?.categories || []).slice(0, 8).map(c => ({ label: c.shortDisplayName || c.displayName, value: c.displayValue, rank: c.rankDisplayValue || '' }));
   const fight = data?.upcomingFight?.league?.events?.[0];
   const recent = (data?.recentTournaments?.[0]?.eventsStats || []).slice(0, 6).map(ev => ({ id: String(ev.id), name: ev.name, date: ev.date, score: ev.competitions?.[0]?.competitors?.[0]?.score?.displayValue || '', place: ev.competitions?.[0]?.competitors?.[0]?.status?.position?.displayName || '' }));
-  return { season, rankings, fight: fight ? { title: data.upcomingFight.displayName || '', name: fight.name, date: fight.date, where: fight.location || '' } : null, recent };
+  // The latest word on them (an injury, a lineup), their honours, their last
+  // games with each one's numbers, and ESPN's stories about them.
+  const note = data?.rotowire?.headline ? { headline: data.rotowire.headline, story: data.rotowire.story || '', date: usDate(data.rotowire.published) } : null;
+  const awards = (data?.awards || []).slice(0, 8).map(w => ({ name: w.name || '', count: w.displayCount || '', seasons: w.seasons || [] })).filter(w => w.name);
+  return { season, rankings, fight: fight ? { title: data.upcomingFight.displayName || '', name: fight.name, date: fight.date, where: fight.location || '' } : null, recent, note, awards, log: parseGameLog(data?.gameLog), news: parseNews(data?.news) };
+}
+// "Tue Sep 29 07:02:00 PDT 2026" (RotoWire's time) as ISO, or ''.
+const US_ZONES = { EDT: '-04:00', EST: '-05:00', CDT: '-05:00', CST: '-06:00', MDT: '-06:00', MST: '-07:00', PDT: '-07:00', PST: '-08:00', UTC: 'Z', GMT: 'Z' };
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export function usDate(text) {
+  const m = /^\w{3} (\w{3}) (\d{1,2}) (\d\d:\d\d:\d\d) (\w{3}) (\d{4})$/.exec(String(text || '').trim());
+  if (!m || !US_ZONES[m[4]] || MONTHS.indexOf(m[1]) < 0) return '';
+  const iso = `${m[5]}-${String(MONTHS.indexOf(m[1]) + 1).padStart(2, '0')}-${m[2].padStart(2, '0')}T${m[3]}${US_ZONES[m[4]]}`;
+  return Number.isNaN(Date.parse(iso)) ? '' : new Date(iso).toISOString();
+}
+// The last games (newest first): the date, the other side, the result and
+// the player's numbers. ESPN repeats a soccer player's labels (one set per
+// competition): only the first set.
+export function parseGameLog(log) {
+  const block = log?.statistics?.[0];
+  if (!block?.labels?.length || !block.events?.length) return null;
+  const end = block.labels.findIndex((l, i) => block.labels.indexOf(l) !== i);
+  const n = end > 0 ? end : block.labels.length;
+  const seen = new Set();
+  const games = block.events
+    .filter(x => !seen.has(x.eventId) && seen.add(x.eventId))
+    .map(x => {
+      const g = log.events?.[x.eventId];
+      if (!g) return null;
+      return { id: String(x.eventId), date: g.gameDate || '', at: g.atVs || 'vs', opp: { id: String(g.opponent?.id ?? ''), name: g.opponent?.displayName || '', abbr: g.opponent?.abbreviation || '', logo: logoOf(g.opponent) }, result: g.gameResult || '', score: g.score || '', stats: (x.stats || []).slice(0, n) };
+    })
+    .filter(Boolean)
+    .slice(0, 5);
+  return games.length ? { title: block.displayName || '', labels: block.labels.slice(0, n), games } : null;
+}
+// ESPN stories: the headline, a line, a picture, the page.
+export function parseNews(list) {
+  return (list || [])
+    .filter(a => a?.headline && a.links?.web?.href)
+    .slice(0, 3)
+    .map(a => ({ headline: a.headline, description: a.description || '', image: a.images?.[0]?.url || '', url: a.links.web.href, date: a.published || a.lastModified || '' }));
+}
+// A player's photo from TheSportsDB (ESPN has none for footballers): the
+// cut-out, else the portrait, when the name and the sport match. Open to
+// browsers (CORS), so not through the proxy.
+const SPORTSDB_SPORT = { soccer: 'Soccer', basketball: 'Basketball', baseball: 'Baseball', football: 'American Football', hockey: 'Ice Hockey', racing: 'Motorsport', tennis: 'Tennis', golf: 'Golf', mma: 'Fighting' };
+const photos = new Map();
+export function pickPhoto(data, name, sport) {
+  const want = normalizeTeamName(name);
+  const p = (data?.player || []).find(x => normalizeTeamName(x.strPlayer) === want && (!SPORTSDB_SPORT[sport] || x.strSport === SPORTSDB_SPORT[sport]));
+  return p?.strCutout || p?.strThumb || null;
+}
+export function playerPhoto(name, sport) {
+  if (!name) return Promise.resolve(null);
+  const key = `${sport}|${name}`;
+  if (!photos.has(key))
+    photos.set(
+      key,
+      fetch(`https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${encodeURIComponent(name)}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => pickPhoto(d, name, sport))
+        .catch(() => null)
+    );
+  return photos.get(key);
+}
+// A team's news (a soccer club's from its own league).
+export async function teamNews(league, id, home = '') {
+  const path = home && LEAGUES[league].espn.startsWith('soccer/') ? `soccer/${home}` : LEAGUES[league].espn;
+  return parseNews((await getJson(`${SITE}/${path}/news?team=${encodeURIComponent(id)}&limit=3`, { ttl: 30 * 60_000 }))?.articles);
 }
 export async function athleteOverview(league, id) {
   return parseOverview(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }));
