@@ -92,9 +92,28 @@ export function statusText(e) {
   const { t } = ctx;
   const s = e.status;
   if (s.void) return t('postponed');
-  if (s.state === 'in') return e.kind === 'match' ? liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale) : s.short || s.detail || t('live');
+  // Waiting (rain, a late start): still on, not called off.
+  if (s.delayed && s.state === 'pre') return t('delayed');
+  if (s.state === 'in') {
+    const label = e.kind === 'match' ? liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale) : fieldStatus(String(s.short || s.detail || t('live')), LEAGUES[e.league]?.sport);
+    return s.delayed ? `${label} · ${t('paused')}` : label;
+  }
   if (s.state === 'post') return s.short && !/^final$/i.test(s.short) ? s.short : t('final');
   return whenText(e.start);
+}
+// ESPN's words for a card, a tournament or a race on now, in Chinese:
+// "Walkouts", "Round 2", "End of Round 1" (回合 for fights, 輪 for golf), "In Progress".
+function fieldStatus(text, sport) {
+  if (ctx.locale === 'en') return text;
+  const round = sport === 'mma' ? '回合' : '輪';
+  return text
+    .replace(/^walkouts?$/i, '選手進場')
+    .replace(/\bEnd of Round (\d+)/i, `第$1${round}結束`)
+    .replace(/\bRound (\d+)/i, `第$1${round}`)
+    .replace(/\s*-\s*In Progress\b/i, ' 進行中')
+    .replace(/\bIn Progress\b/i, ctx.t('live'))
+    .replace(/\bLap (\d+)\s*\/\s*(\d+)/i, '第$1/$2圈')
+    .replace(/\bLap (\d+)/i, '第$1圈');
 }
 // A row's status: a game on another day shows its day above its time.
 function statusEl(e, day = true) {
@@ -122,23 +141,36 @@ export const seriesText = e => (e.series?.summary && !/^series starts/i.test(e.s
 // 投注: straight into Quadra Play on this game (a tap on it doesn't open the game here).
 // F1 in Play: its race board (the winner, places, flags), or pole position
 // for the qualifying; nothing for practice or a sprint (Play doesn't sell them).
+// A fight card or a tennis draw: the league's board in Play (each bout or
+// match is priced there on its own).
 const F1_BOARD = { Qual: 'f1pole', Race: 'f1' };
-function playId(e) {
-  if (e.status.state === 'post' || e.status.void) return null;
-  if (e.league === 'f1') return e.sessionKey ? F1_BOARD[e.sessionKey] ?? null : 'f1';
-  return e.kind === 'match' ? playGameId(e) : null;
+export function playTarget(e) {
+  if (!e || e.status.state === 'post' || e.status.void) return null;
+  if (e.league === 'f1') {
+    // F1 bets close when the session starts.
+    if (e.status.state === 'in') return null;
+    const id = e.sessionKey ? F1_BOARD[e.sessionKey] ?? null : 'f1';
+    return id ? `game=${id}` : null;
+  }
+  const play = LEAGUES[e.league]?.play;
+  if (!play) return null;
+  if (e.kind === 'match') {
+    const id = playGameId(e);
+    return id ? `game=${id}` : null;
+  }
+  return e.kind === 'card' || e.kind === 'draw' ? `league=${play}` : null;
+}
+// Into Play at `target` (a playTarget), from a tap on a chip or a card.
+export function goPlay(target, ev) {
+  ev?.stopPropagation();
+  ev?.preventDefault();
+  ctx.track?.('toPlay', [], 2);
+  ctx.q.go('odds', target);
 }
 export function betChip(e) {
-  const id = playId(e);
-  // F1 bets close when the session starts.
-  if (e.league === 'f1' && e.status.state === 'in') return null;
-  if (!id) return null;
-  const go = ev => {
-    ev.stopPropagation();
-    ev.preventDefault();
-    ctx.track?.('toPlay', [], 2);
-    ctx.q.go('odds', `game=${id}`);
-  };
+  const target = playTarget(e);
+  if (!target) return null;
+  const go = ev => goPlay(target, ev);
   return el('span', { class: `bet-chip${e.status.state === 'in' ? ' live' : ''}`, role: 'link', tabindex: '0', onclick: go, onkeydown: ev => ev.key === 'Enter' && go(ev) }, [document.createTextNode(ctx.t(e.status.state === 'in' ? 'betLive' : 'betChip'))]);
 }
 

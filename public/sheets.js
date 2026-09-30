@@ -1,15 +1,15 @@
 // Quadra Fixtures' sheets: a match (header, the way into Play, then its data
 // by section), a race / tournament / fight card, a team, a player, and the
 // standings tables they share with the Standings tab.
-import { APPS, appUrl } from './lib/quadra.mjs';
-import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playGameId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName } from './lib/espn.mjs';
+import { APPS, appUrl, translate } from './lib/quadra.mjs';
+import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playPairId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { possessionOf } from './lib/live.mjs';
 import { statName } from './lib/statnames.mjs';
 import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeams, hasStandings } from './lib/leagues.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText } from './ui.js';
+import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, playTarget, goPlay } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -36,7 +36,6 @@ export async function openMatch(e) {
         x.record || raw.record ? el('small', { text: x.record || raw.record }) : null,
         hasTeams(e.league) && !e.kambi ? followChip(e.league, x, () => paintHeader(sm)) : null
       ]);
-    const playId = playGameId(e);
     put(
       header,
       el('div', { class: 'mh-row' }, [
@@ -50,7 +49,7 @@ export async function openMatch(e) {
       stageTag(e, L()) || seriesText(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null]) : null,
       linescore(sm, e),
       livePanel(e),
-      playId && e.status.state !== 'post' && !e.status.void ? playLink(playId, e, e.status.state === 'in' ? 'betLiveTitle' : 'betTitle') : null
+      playTarget(e) ? playLink(playTarget(e), e, e.status.state === 'in' ? 'betLiveTitle' : 'betTitle') : null
     );
   };
   paintHeader(null);
@@ -136,7 +135,12 @@ function livePanel(e) {
     const col = id => lv.events.filter(x => x.team === id).map(x => el('li', {}, [el('span', { class: 'num', text: x.minute }), el('span', { text: `${x.kind === 'red' ? '🟥' : '⚽'} ${x.who}${x.kind === 'pen' ? '（PK）' : x.kind === 'own' ? (en ? ' (OG)' : '（烏龍）') : ''}` })]));
     rows.push(el('div', { class: 'lp-goals' }, [el('ul', {}, col(e.away.id)), el('ul', { class: 'home' }, col(e.home.id))]));
   }
-  if (lv.lastPlay) rows.push(el('p', { class: 'lp-last' }, [el('small', { text: T('lastPlay') }), document.createTextNode(lv.lastPlay)]));
+  if (lv.lastPlay) {
+    // ESPN writes it in English: in Chinese once translated (kept 30 days per line).
+    const text = document.createTextNode(lv.lastPlay);
+    if (!en) translate(lv.lastPlay).then(zh => (text.textContent = zh));
+    rows.push(el('p', { class: 'lp-last' }, [el('small', { text: T('lastPlay') }), text]));
+  }
   return rows.length ? el('div', { class: 'live-panel' }, rows) : null;
 }
 // A count as dots: balls of 4, strikes and outs of 3.
@@ -399,20 +403,20 @@ function twCard(league) {
   );
 }
 
-// The Quadra Play card: this game (or F1 board) in Play, one tap.
-function playLink(id, e, title) {
-  return el('a', { class: 'play-link', href: appUrl('odds', `game=${id}`), onclick: ev => (ev.preventDefault(), ctx.track('toPlay', eventKeys(e), 2), ctx.q.go('odds', `game=${id}`)) }, [
+// The Quadra Play card: this game (the F1 board, the league's board) in Play, one tap.
+function playLink(target, e, title) {
+  return el('a', { class: 'play-link', href: appUrl('odds', target), onclick: ev => (ev.preventDefault(), ctx.track('toPlay', eventKeys(e), 2), ctx.q.go('odds', target)) }, [
     el('img', { src: `${APPS.odds.path}favicon.svg`, alt: '', width: '36', height: '36' }),
     el('span', { class: 'play-link-text' }, [el('strong', { text: T(title) }), el('small', { text: T('betSub') })]),
     el('span', { class: 'play-link-go', text: `${T('betGo')} ›` })
   ]);
 }
-// F1 in Play before a session starts: pole position for the qualifying, the
-// race board otherwise (practice and sprints aren't sold).
-function f1PlayId(e) {
-  if (e.league !== 'f1' || e.status.state !== 'pre' || e.status.void) return null;
-  if (!e.sessionKey) return 'f1';
-  return { Qual: 'f1pole', Race: 'f1' }[e.sessionKey] ?? null;
+// One bout or draw match in Play: a small 投注 (場中 once on) chip, while it isn't over.
+function pairChip(e, start, a, b, status) {
+  if (status.state === 'post' || status.void) return null;
+  const id = playPairId(e.league, start, a, b);
+  if (!id) return null;
+  return el('button', { class: `bet-chip${status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: ev => goPlay(`game=${id}`, ev) }, [document.createTextNode(T(status.state === 'in' ? 'betLive' : 'betChip'))]);
 }
 
 export function openFieldEvent(e) {
@@ -437,8 +441,10 @@ export function openFieldEvent(e) {
 }
 function fillField(s, e) {
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('h3', { class: 'field-title', text: e.name }), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') })]));
-  const f1 = f1PlayId(e);
-  if (f1) s.body.append(playLink(f1, e, f1 === 'f1pole' ? 'betPoleTitle' : 'betF1Title'));
+  // F1: pole position for the qualifying, the race board otherwise (practice
+  // and sprints aren't sold); a fight card or a tennis draw: the league's board.
+  const target = playTarget(e);
+  if (target) s.body.append(playLink(target, e, target === 'game=f1pole' ? 'betPoleTitle' : target === 'game=f1' ? 'betF1Title' : e.status.state === 'in' ? 'betBoardLive' : 'betBoard'));
   if (e.kind === 'field') {
     // The weekend's (or week's) sessions, then the chosen one's order.
     const sessions = [...e.sessions].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
@@ -473,7 +479,7 @@ function fillField(s, e) {
         { class: 'bouts' },
         e.bouts.map(b =>
           el('div', { class: `q-card pad bout${b.status.state === 'in' ? ' live' : ''}` }, [
-            el('small', { class: 'muted', text: [b.weight, statusText({ ...e, start: b.start, status: b.status })].filter(Boolean).join(' · ') }),
+            el('div', { class: 'bout-top' }, [el('small', { class: 'muted', text: [b.weight, statusText({ ...e, start: b.start, status: b.status })].filter(Boolean).join(' · ') }), pairChip(e, b.start || e.start, b.a, b.b, b.status)]),
             el('div', { class: 'bout-row' }, [
               el('span', { class: b.a?.winner ? 'win' : '' }, [logo(b.a?.logo, b.a?.name, 'sm round'), personName(e.league, b.a, 'bout-name')]),
               el('span', { class: 'vs', text: 'vs' }),
@@ -493,7 +499,7 @@ function fillField(s, e) {
           { class: 'bouts' },
           dr.matches.map(m =>
             el('div', { class: `q-card pad bout${m.status.state === 'in' ? ' live' : ''}` }, [
-              el('small', { class: 'muted', text: [m.round, statusText({ ...e, start: m.start, status: m.status })].filter(Boolean).join(' · ') }),
+              el('div', { class: 'bout-top' }, [el('small', { class: 'muted', text: [m.round, statusText({ ...e, start: m.start, status: m.status })].filter(Boolean).join(' · ') }), pairChip(e, m.start || e.start, m.a, m.b, m.status)]),
               ...[m.a, m.b].filter(Boolean).map(p => el('div', { class: `draw-row${p.winner ? ' win' : ''}` }, [logo(p.logo, p.name, 'sm round'), personName(e.league, p), el('span', { class: 'num sets', text: p.lines.join(' ') })]))
             ])
           )

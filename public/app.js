@@ -16,7 +16,7 @@ import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from '
 import { familyOfSport } from './lib/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { dayPlan, tableIndex, DURATION } from './lib/picks.mjs';
+import { dayPlan, tableIndex, DURATION, scoreMatch } from './lib/picks.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, betChip, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow } from './ui.js';
@@ -208,6 +208,9 @@ function openEvent(e) {
 function pickLeagues() {
   return [...new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)])].filter(k => LEAGUES[k]);
 }
+// Which leagues a day was read for: a day read before the follows came in
+// (the pass answers after the first read) is read again, never taken for "nothing on".
+const leaguesKey = () => pickLeagues().join();
 function otherLeagues() {
   const mine = new Set(pickLeagues());
   return leaguesOn(state.prefs.tv)
@@ -231,7 +234,7 @@ function saveDay(date, slot) {
 function restoreDay() {
   try {
     const saved = JSON.parse(localStorage.getItem(DAY_KEY) || 'null');
-    if (saved?.date === today() && saved.leagues === pickLeagues().join() && Date.now() - saved.at < 6 * 3_600_000) state.days.set(saved.date, { events: saved.events, at: saved.at, loading: false, stale: true });
+    if (saved?.date === today() && saved.leagues === leaguesKey() && Date.now() - saved.at < 6 * 3_600_000) state.days.set(saved.date, { events: saved.events, at: saved.at, loading: false, stale: true, leagues: saved.leagues });
   } catch {}
 }
 
@@ -293,10 +296,11 @@ async function loadDay(date) {
         .catch(() => {})
         .finally(() => state.home.tablesPending--);
     });
+  const key = leaguesKey();
   try {
     const events = await readDay(pickLeagues(), date);
     if (isToday) noticeChanges(events);
-    Object.assign(slot, { events, at: Date.now(), stale: false });
+    Object.assign(slot, { events, at: Date.now(), stale: false, leagues: key });
     if (isToday) saveDay(date, slot);
   } catch {
     if (!slot.at) slot.at = Date.now();
@@ -304,9 +308,14 @@ async function loadDay(date) {
   } finally {
     slot.loading = false;
   }
-  // The others (and the rest) again too, once they've been read for this day.
+  // The follows changed while reading: read again for them.
+  if (key !== leaguesKey()) return loadDay(date);
+  // The others (and the rest) again too, once they've been read for this day;
+  // today's rest in any case (every league's games on now, for 直播's badge
+  // and 首頁's live games), a moment after the first read.
   if (slot.othersAt) loadOthers(date);
-  if (slot.restAt) loadRest(date);
+  if (slot.restAt && (state.tab === 'live' || Date.now() - slot.restAt > 120_000)) loadRest(date);
+  else if (!slot.restAt && isToday && !slot.restLoading) setTimeout(() => !slot.restAt && loadRest(date), 2500);
   loadFollowedTeams();
   repaintDay(date);
   if (isToday) {
@@ -484,7 +493,7 @@ function renderHome() {
   const h = state.home;
   const slot = state.days.get(h.date);
   h.settled = false;
-  if (!slot?.at) {
+  if (!slot?.at || (slot.leagues !== leaguesKey() && !slot.stale)) {
     if (!slot?.loading) loadDay(h.date);
     put(box, homeHead(), spinner());
     centerChosen(box);
@@ -504,8 +513,9 @@ function renderHome() {
   const mine = slot.events.filter(onMyTv);
   let [planList, more] = rank(filtered(mine));
   // Nothing of theirs on (on their services): the best of the rest there.
-  // Opened on a day with nothing of theirs: the next day they have games.
-  if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.sports.length) {
+  // Opened on a day with nothing of theirs: the next day they have games
+  // (only on a fresh read: a saved or half-read day can't say there's none).
+  if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.sports.length && !slot.stale && !slot.loading && !mine.some(e => e.status.state === 'in')) {
     h.autoDay = false;
     h.jumping = true;
     nextPickDay().then(d => {
@@ -530,6 +540,22 @@ function renderHome() {
   }
   // Followed teams: each one's next game, or its last result (today only).
   const isToday = h.date === today();
+  // 正在進行: today's games on now, first on 首頁 (theirs; with none of
+  // theirs on, the best of everything on now), ranked like the picks, and
+  // taken out of the lists below so no game shows twice.
+  const onNow = list => list.filter(e => e.status.state === 'in' && !e.status.void);
+  const rankLive = (list, c) => list.map(e => ({ event: e, ...scoreMatch(e, c) })).sort((x, y) => y.score - x.score);
+  let liveItems = isToday ? rankLive(onNow(filtered(mine)), pctx) : [];
+  const liveMine = liveItems.length > 0;
+  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(onMyTv)), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
+  const allLive = isToday ? onNow(dayAll(slot)).length : 0;
+  const liveShown = liveItems.slice(0, liveMine ? 5 : 3);
+  const liveKeys = new Set(liveShown.map(x => `${x.event.league}:${x.event.id}`));
+  planList = planList.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
+  more = more.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
+  const liveBlock = liveShown.length
+    ? section(`● ${t('liveNow')}`, el('div', { class: 'q-card list live-strip' }, [...liveShown.map(x => eventRow(x.event)), allLive > liveShown.length ? el('button', { class: 'live-strip-more', type: 'button', text: `${L({ zh: `全部 ${allLive} 場直播`, en: `All ${allLive} live` })} ›`, onclick: () => showTab('live') }) : null]), { sub: liveMine ? '' : L({ zh: '你追蹤的比賽都還沒開打，先看看這些', en: 'Nothing you follow is on yet: these are' }), cls: 'live-now' })
+    : null;
   const teamRows = isToday
     ? state.prefs.follows.map(f => {
         const list = state.home.teams.get(`${f.league}:${f.id}`) || [];
@@ -563,11 +589,12 @@ function renderHome() {
     homeHead(),
     !hasFollows ? sportPicker() : null,
     tvRow(),
+    liveBlock,
     fallback || finding ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : t('noOthers') })]) : null,
     finding ? spinner() : null,
     planList.length
       ? section(fallback ? t('othersPicks') : isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${t('picksOn')}`, el('div', { class: 'pick-list' }, planList.map(pickCard)), { sub: fallback ? '' : t('recsN', { n: planList.length + more.length }) })
-      : finding || fallback ? null : section(t('todayPicks'), empty(t(h.filter === 'all' ? 'noRecs' : 'noPicksMine'))),
+      : finding || fallback || liveBlock ? null : section(t('todayPicks'), empty(t(h.filter === 'all' ? 'noRecs' : 'noPicksMine'))),
     shownMore.length
       ? section(t('moreRecs'), el('div', { class: 'q-card list' }, shownMore.map(x => eventRow(x.event))), {
           action: null

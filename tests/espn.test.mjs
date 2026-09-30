@@ -90,7 +90,7 @@ test('Quadra Play ids for the "bet on this" link, and Taiwan days', () => {
   const [g] = parseScoreboard(fx('epl-scoreboard'), 'epl');
   const id = playGameId(g);
   assert.match(id, /^epl_\d{4}-\d{2}-\d{2}T\d{2}_[a-z0-9]+_[a-z0-9]+$/);
-  assert.equal(playGameId({ ...g, league: 'kleague' }), null);
+  assert.equal(playGameId({ ...g, league: 'nope' }), null);
   assert.deepEqual(espnDatesFor('2026-09-28'), ['20260927', '20260928']);
 });
 

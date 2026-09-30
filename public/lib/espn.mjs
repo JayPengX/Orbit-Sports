@@ -10,7 +10,7 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
-import { teamBadge, teamLogo, raceName } from './logos.mjs';
+import { teamBadge, teamLogo, raceName, playerFlag } from './logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -41,7 +41,10 @@ export const taipeiDate = t => new Date(new Date(t).getTime() + 8 * 3_600_000).t
 
 // ---- Parsing: statuses and sides --------------------------------------------------
 
-const VOID = /POSTPONED|CANCELED|CANCELLED|SUSPENDED|FORFEIT|ABANDONED|DELAYED/;
+// Called off. A delay (rain, a late start) or a suspension isn't: the game
+// is still on, only waiting (Play keeps it live too).
+const VOID = /POSTPONED|CANCELED|CANCELLED|FORFEIT|ABANDONED/;
+const WAITING = /DELAYED|SUSPENDED|RAIN_DELAY/;
 export function parseStatus(s) {
   const type = s?.type || {};
   return {
@@ -50,6 +53,7 @@ export function parseStatus(s) {
     short: type.shortDetail || type.detail || '',
     completed: Boolean(type.completed),
     void: VOID.test(type.name || ''),
+    delayed: WAITING.test(type.name || '') || /\bdelay/i.test(type.shortDetail || type.detail || ''),
     name: type.name || '',
     clock: s?.displayClock || '',
     period: s?.period || 0
@@ -312,12 +316,14 @@ export function parseKambi(data, league) {
     const info = String(live?.score?.info || '').split('|').map(x => x.trim().split('-'));
     const innings = info.length > 1 && info.every(x => x.length === 2) ? { home: info.map(x => x[0]), away: info.map(x => x[1]) } : null;
     const sets = live?.statistics?.sets;
+    // Players: their nation's flag (the kit's table, else the country the event is filed under).
+    const where = [e.group, ...(e.path || []).map(p => (typeof p === 'string' ? p : p?.termKey))].filter(Boolean);
     const side = (name, key) => ({
       id: name,
       name,
       short: name,
       abbr: name.slice(0, 3).toUpperCase(),
-      logo: teamBadge(LEAGUES[league]?.play || league, name),
+      logo: LEAGUES[league]?.players ? playerFlag(name, where) : teamBadge(LEAGUES[league]?.play || league, name),
       color: null,
       score: live?.score?.[key] ?? '',
       winner: false,
@@ -674,6 +680,12 @@ export function normalizeTeamName(name) {
     .trim();
 }
 // Play's own id for the same match: league, the start's UTC hour, the two sides.
+// A bout or a draw's match in Play (players, in either order there): its id from the two names.
+export function playPairId(league, start, a, b) {
+  const key = LEAGUES[league]?.play;
+  if (!key || !start || !a?.name || !b?.name) return null;
+  return `${key}_${new Date(start).toISOString().slice(0, 13)}_${normalizeTeamName(a.en || a.name)}_${normalizeTeamName(b.en || b.name)}`.replaceAll(' ', '');
+}
 export function playGameId(event) {
   const key = LEAGUES[event.league]?.play;
   if (!key || event.kind !== 'match' || !event.home || !event.away) return null;

@@ -91,7 +91,8 @@ export function liveLabel(e, sport, lang = 'zh') {
   }
   if (['tennis', 'badminton', 'tabletennis', 'volleyball'].includes(sport)) {
     const set = lv.set || n;
-    return set ? (en ? `Set ${set}` : `第${set}盤`) : en ? 'Live' : '進行中';
+    // Tennis plays sets (盤); badminton, table tennis and volleyball games (局).
+    return set ? (en ? `${sport === 'tennis' || sport === 'volleyball' ? 'Set' : 'Game'} ${set}` : `第${set}${sport === 'tennis' ? '盤' : '局'}`) : en ? 'Live' : '進行中';
   }
   if (sport === 'rugby') {
     const m = s.clock || '';
