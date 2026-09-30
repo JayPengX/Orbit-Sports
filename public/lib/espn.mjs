@@ -10,11 +10,11 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
-import { teamBadge, teamLogo, raceName, playerFlag, countryName, f1Driver } from './logos.mjs';
+import { teamBadge, teamLogo, raceName, playerFlag, countryName, countryCode, flagUrl, f1Driver } from './logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { asiaMonth, asiaMonthOf, kambiKept, CATALOG, tsdbBoxingDays, notableFight } from './catalog.mjs';
+import { asiaMonth, asiaMonthOf, kambiKept, CATALOG, tsdbBoxingDays, notableFight, learnFighterNations } from './catalog.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
 import { teamNameZh } from './names.mjs';
@@ -351,7 +351,8 @@ export function parseKambi(data, league) {
       name,
       short: name,
       abbr: name.slice(0, 3).toUpperCase(),
-      logo: LEAGUES[league]?.players ? playerFlag(name, where) : teamBadge(LEAGUES[league]?.play || league, name),
+      // Players their nation's flag; clubs their badge; a national side (rugby) its flag.
+      logo: LEAGUES[league]?.players ? playerFlag(name, where) || teamBadge(LEAGUES[league]?.play || league, name) : teamBadge(LEAGUES[league]?.play || league, name) || flagUrl(countryCode(name)),
       color: null,
       score: live?.score?.[key] ?? '',
       winner: false,
@@ -392,7 +393,11 @@ async function notableOnly(events) {
   const day = ms => new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10);
   const dayOf = e => [day(Date.parse(e.start)), day(Date.parse(e.start) - 86_400_000)];
   const cards = await tsdbBoxingDays([...new Set(events.flatMap(dayOf))].slice(0, 16)).catch(() => ({}));
-  return events.filter(e => dayOf(e).some(d => notableFight(e.home.id, e.away.id, cards[d])));
+  const kept = events.filter(e => dayOf(e).some(d => notableFight(e.home.id, e.away.id, cards[d])));
+  // The fighters' flags: their nations looked up (once a month), then the pictures again.
+  await Promise.race([learnFighterNations(kept.flatMap(e => [e.home.id, e.away.id])), new Promise(r => setTimeout(r, 2_500))]);
+  for (const e of kept) for (const side of [e.home, e.away]) side.logo ||= playerFlag(side.id);
+  return kept;
 }
 
 // ---- NPB, KBO, CPBL (the leagues' own sites, through the proxy) -----------------------
