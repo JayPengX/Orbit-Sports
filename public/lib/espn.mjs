@@ -17,7 +17,6 @@ import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf } from './catalog.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
-import { pricedIds } from './playable.mjs';
 import { teamNameZh } from './names.mjs';
 import { groupZh } from './statnames.mjs';
 
@@ -204,10 +203,7 @@ export function parseScoreboard(data, league) {
       const home = parseSide(comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0]);
       const away = parseSide(comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1]);
       if (!home || !away) continue;
-      // DraftKings' line on the game: Quadra Play prices it from this.
-      const priced = Boolean(comp.odds?.some(o => o?.moneyline || o?.homeTeamOdds?.moneyLine != null));
-      if (priced) pricedIds.add(String(e.id));
-      out.push({ ...base, priced, home: withLogo(league, home), away: withLogo(league, away), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '', live: base.status.state === 'in' ? liveOf(comp, e.status || comp.status, LEAGUES[league]?.sport) : null });
+      out.push({ ...base, home: withLogo(league, home), away: withLogo(league, away), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '', live: base.status.state === 'in' ? liveOf(comp, e.status || comp.status, LEAGUES[league]?.sport) : null });
     } else if (kind === 'draw') {
       // A tennis tournament: its singles draws' matches.
       const draws = (e.groupings || []).map(g => ({

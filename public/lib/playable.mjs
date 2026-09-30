@@ -2,32 +2,23 @@
 // the same prices Play's board is made of (Play's lib/sources.mjs), read the
 // same way.
 //
-//   ESPN-priced leagues   the game's DraftKings line on ESPN's scoreboard
-//                         (`priced`, set by parseScoreboard), within the days
-//                         Play's board reaches
+//   Every league          the game starts within Play's reach (the kit's
+//                         SOLD_DAYS), the same for all of them
+//   ESPN leagues          every game: Play prices one no bookmaker has yet
+//                         itself (Play's house.mjs)
 //   Kambi-priced leagues  the game (the two sides, near its start) with a
 //                         winner price in Kambi's list for the league
 //
 // A league's Kambi list is read once a row asks (cached a few minutes), and
 // the page is told to draw again when it comes in (`onPlayableChange`).
-import { CATALOG } from './catalog.mjs';
+import { CATALOG, SOLD_DAYS } from './catalog.mjs';
 import { proxyJson } from './quadra.mjs';
 
 const KAMBI = 'https://eu-offering-api.kambicdn.com/offering/v2018/ub';
 const DAY = 86_400_000;
 
-// Ids of ESPN games seen with a DraftKings line (a team's schedule doesn't
-// carry the line; the day's scoreboard does).
-export const pricedIds = new Set();
-
-// How far ahead Play's board reaches for a league (MLB 8 days, soccer three
-// weeks, the NFL's week, the rest a week).
-export function horizon(key) {
-  const l = CATALOG[key];
-  if (key === 'mlb') return 8 * DAY;
-  if (l?.sport === 'soccer') return 21 * DAY;
-  return 7.5 * DAY;
-}
+// How far ahead Play's board reaches: one reach for every league.
+export const REACH = SOLD_DAYS * DAY;
 
 const norm = s =>
   String(s || '')
@@ -89,22 +80,21 @@ function inKambi(key, start, a, b) {
 }
 
 // A two-sided game (a match, a bout, a draw's match): whether Play has it.
-export function playablePair(key, start, a, b, state = 'pre', id = null, priced = undefined, now = Date.now()) {
+export function playablePair(key, start, a, b, state = 'pre', now = Date.now()) {
   const l = CATALOG[key];
   if (!l?.bet || !start || !a || !b) return false;
   const t = Date.parse(start);
-  if (state === 'pre' && (t - now > horizon(key) || t < now - 5 * 60_000)) return false;
+  if (state === 'pre' && (t - now > REACH || t < now - 5 * 60_000)) return false;
   if (l.odds === 'kambi') return inKambi(key, start, a, b);
-  // ESPN's line: on the event, else seen on a scoreboard. A game on now keeps
-  // its link (Play's live board has it, or says why not).
-  if (state === 'in') return true;
-  return priced ?? (id != null && pricedIds.has(String(id)));
+  // ESPN: every game, a bookmaker's line or the house's own. A game on now
+  // keeps its link (Play's live board has it, or says why not).
+  return true;
 }
 export function playable(e, now = Date.now()) {
   if (!e || e.other || e.kind !== 'match' || e.status?.void) return false;
   const a = e.away?.en || e.away?.name;
   const b = e.home?.en || e.home?.name;
-  return playablePair(e.league, e.start, a, b, e.status?.state, e.id, e.priced, now);
+  return playablePair(e.league, e.start, a, b, e.status?.state, now);
 }
 // A league board in Play (a fight card, a tennis draw): any priced match in it.
 export function leagueOnSale(key) {
