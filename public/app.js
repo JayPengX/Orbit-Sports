@@ -1426,6 +1426,14 @@ function firstTab() {
   if (hash === 'standings') state.scores.view = 'table';
   return TABS.includes(hash) ? hash : hash === 'scores' || hash === 'standings' ? 'matches' : 'home';
 }
+// A link or a notice's tap that points at a tab while the app is open.
+window.addEventListener('hashchange', () => {
+  const hash = location.hash.slice(1);
+  if (!TABS.includes(hash) && hash !== 'scores' && hash !== 'standings') return;
+  const tab = firstTab();
+  if (tab !== state.tab) showTab(tab);
+  else if (hash === 'standings' && tab === 'matches') renderScores();
+});
 // The loading screen stays up on the picks until they're settled (a few
 // seconds at most), so they don't open half-read and reshuffle.
 const BOOT_WAIT = 7000;
