@@ -19,7 +19,6 @@ import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch } from './lib/picks.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
-import { onPlayableChange } from './lib/playable.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule } from './lib/tv.mjs';
 import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, betChip, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, standingsTables } from './sheets.js';
@@ -1322,8 +1321,7 @@ setInterval(() => {
   renderTabs();
 }, 30_000);
 
-// A league's Kambi prices (or ELTA's schedule) came in: its 投注 chips and
-// 📺 channels appear (or go) on the open tab.
+// ELTA's schedule came in: its 📺 channels appear (or go) on the open tab.
 let playableTimer = 0;
 knownEvents(() => [...state.days.values()].flatMap(slot => dayAll(slot)));
 const repaintOpen = () => {
@@ -1336,7 +1334,6 @@ const repaintOpen = () => {
     if (state.tab === 'following') renderFollowing();
   }, 250);
 };
-onPlayableChange(repaintOpen);
 onTvChange(repaintOpen);
 
 function paintStatus() {
