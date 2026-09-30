@@ -564,10 +564,12 @@ function renderHome() {
   };
   const mine = slot.events.filter(onMyTv);
   let [planList, more] = rank(filtered(mine));
+  // Today's finished games (the picks only look ahead), latest first.
+  const endedToday = h.date === today() ? filtered(mine).filter(e => e.status.state === 'post' && !e.status.void).sort((a, b) => b.start.localeCompare(a.start)) : [];
   // Nothing of theirs on (on their services): the best of the rest there.
   // Opened on a day with nothing of theirs: the next day they have games
   // (only on a fresh read: a saved or half-read day can't say there's none).
-  if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.sports.length && !slot.stale && !slot.loading && !mine.some(e => e.status.state === 'in')) {
+  if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.sports.length && !slot.stale && !slot.loading && !mine.some(e => e.status.state === 'in') && !endedToday.length) {
     h.autoDay = false;
     h.jumping = true;
     nextPickDay().then(d => {
@@ -642,7 +644,7 @@ function renderHome() {
     !hasFollows ? sportPicker() : null,
     tvRow(),
     liveBlock,
-    fallback || finding ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : t('noOthers') })]) : null,
+    (fallback || finding) && !endedToday.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : t('noOthers') })]) : null,
     finding ? spinner() : null,
     planList.length
       ? section(fallback ? t('othersPicks') : isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${t('picksOn')}`, el('div', { class: 'pick-list' }, planList.map(pickCard)), { sub: fallback ? '' : t('recsN', { n: planList.length + more.length }) })
@@ -654,6 +656,7 @@ function renderHome() {
       : null,
     more.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${more.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null,
     teamRows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null,
+    endedToday.length ? section(t('pastEvents'), el('div', { class: 'q-card list' }, endedToday.slice(0, 12).map(e => eventRow(e)))) : null,
     betRows.length ? section(t('yourBets'), el('div', { class: 'q-card list' }, betRows)) : null
   );
   centerChosen(box);
