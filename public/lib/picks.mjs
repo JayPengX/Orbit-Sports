@@ -22,7 +22,7 @@ import { eventKeys, teamKey } from './foryou.mjs';
 import { broadcastsOf } from './broadcast.mjs';
 
 // Minutes a match usually takes, by sport.
-export const DURATION = { soccer: 115, baseball: 185, basketball: 145, football: 195, hockey: 155, tennis: 120, badminton: 60, tabletennis: 40, volleyball: 110, snooker: 180, racing: 120, golf: 300, mma: 240, rugby: 110 };
+export const DURATION = { soccer: 115, baseball: 185, basketball: 145, football: 195, hockey: 155, tennis: 120, badminton: 60, tabletennis: 40, volleyball: 110, snooker: 180, racing: 120, golf: 300, mma: 240, rugby: 110, cricket: 480, boxing: 180 };
 // On a Taiwan channel or streaming service (lib/broadcast.mjs), not a league pass only.
 const onTaiwanTv = league => broadcastsOf(league).some(b => b.kind !== 'pass');
 const BIG_GAME = /final|semi|play-?off|postseason|wild ?card|series|championship|derby|決賽|季後/i;

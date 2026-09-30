@@ -14,7 +14,7 @@ import { teamBadge, teamLogo, raceName, playerFlag, countryName, f1Driver } from
 import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { asiaMonth, asiaMonthOf, kambiKept } from './catalog.mjs';
+import { asiaMonth, asiaMonthOf, kambiKept, CATALOG, tsdbBoxingDays, notableFight } from './catalog.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
 import { teamNameZh } from './names.mjs';
@@ -383,7 +383,16 @@ export async function kambiEvents(league) {
   const parts = LEAGUES[league].kambi.split('/');
   while (parts.length < 4) parts.push('all');
   const data = await getJson(`${KAMBI}/listView/${parts.join('/')}/matches.json?lang=en_GB&market=GB&useCombined=true`, { ttl: 60_000, trim: 'kambi-events' });
-  return parseKambi(data, league);
+  const events = parseKambi(data, league);
+  return CATALOG[league]?.notable ? notableOnly(events) : events;
+}
+// Boxing: only the bouts on a card TheSportsDB lists (the main events), by
+// the fight's day and the day before (Taiwan's dates; a night card runs past midnight).
+async function notableOnly(events) {
+  const day = ms => new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10);
+  const dayOf = e => [day(Date.parse(e.start)), day(Date.parse(e.start) - 86_400_000)];
+  const cards = await tsdbBoxingDays([...new Set(events.flatMap(dayOf))].slice(0, 16)).catch(() => ({}));
+  return events.filter(e => dayOf(e).some(d => notableFight(e.home.id, e.away.id, cards[d])));
 }
 
 // ---- NPB, KBO, CPBL (the leagues' own sites, through the proxy) -----------------------

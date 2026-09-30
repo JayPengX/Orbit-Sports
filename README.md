@@ -65,9 +65,10 @@ sport's usual length), and lists them by time, each with its reasons.
 Sports: soccer (each nation's first tier, the European, South American and
 Asian club competitions, the Asian Cup and the national teams), baseball
 (MLB, NPB, KBO, CPBL), basketball (NBA, WNBA, EuroLeague, Liga ACB, NBL,
-B.League), NFL and college football, NHL, ATP/WTA tennis, F1, PGA/LPGA golf,
-UFC, international rugby union, badminton, and the pro events of table
-tennis and volleyball, and snooker. The list is in
+CBA, KBL, B.League), NFL and college football, NHL, ATP/WTA tennis, F1,
+PGA/LPGA golf, UFC, boxing's big cards, international cricket, international
+rugby union, badminton, and the pro events of table tennis and volleyball,
+and snooker; the World Cup, Euro, Copa América and Club World Cup when on. The list is in
 `public/lib/leagues.mjs`.
 
 ## How it works
