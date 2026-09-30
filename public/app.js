@@ -540,6 +540,7 @@ function dateStrip(current, onPick, { only = null, grow = null } = {}) {
   return el('div', { class: 'day-strip-wrap' }, [row, cal]);
 }
 
+const ENDED_PICKS = { zh: '已結束的推薦', en: 'Picks that ended' };
 function renderHome() {
   const box = $('panel-home');
   const h = state.home;
@@ -556,20 +557,18 @@ function renderHome() {
   const past = h.date < today();
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
-  const rank = (list, also = 999, ctx = pctx) => {
-    const { plan, also: rest } = dayPlan(past ? list.map(e => ({ ...e, status: { ...e.status, state: 'pre' } })) : list, ctx, { n: 6, also });
+  const rank = (list, also = 999, ctx = pctx, before = past) => {
+    const { plan, also: rest } = dayPlan(before ? list.map(e => ({ ...e, status: { ...e.status, state: 'pre' } })) : list, ctx, { n: 6, also });
     const real = new Map(list.map(e => [`${e.league}:${e.id}`, e]));
     const fix = items => items.map(x => ({ ...x, event: real.get(`${x.event.league}:${x.event.id}`) || x.event }));
     return [fix(plan), fix(rest)];
   };
   const mine = slot.events.filter(onMyTv);
   let [planList, more] = rank(filtered(mine));
-  // Today's finished games (the picks only look ahead), latest first.
-  const endedToday = h.date === today() ? filtered(mine).filter(e => e.status.state === 'post' && !e.status.void).sort((a, b) => b.start.localeCompare(a.start)) : [];
   // Nothing of theirs on (on their services): the best of the rest there.
   // Opened on a day with nothing of theirs: the next day they have games
   // (only on a fresh read: a saved or half-read day can't say there's none).
-  if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.sports.length && !slot.stale && !slot.loading && !mine.some(e => e.status.state === 'in') && !endedToday.length) {
+  if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.sports.length && !slot.stale && !slot.loading && !mine.some(e => e.status.state === 'in' || e.status.state === 'post')) {
     h.autoDay = false;
     h.jumping = true;
     nextPickDay().then(d => {
@@ -594,6 +593,13 @@ function renderHome() {
   }
   // Followed teams: each one's next game, or its last result (today only).
   const isToday = h.date === today();
+  // Today's picks that have ended (the picks only look ahead): the day
+  // ranked as it stood before, as on a past day, and what of it was on
+  // show (the plan and the first of the rest) that's over now.
+  const ended = x => x.event.status.state === 'post' && !x.event.status.void;
+  const [wasPlan, wasMore] = isToday ? (fallback ? rank(slot.others.filter(onMyTv), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
+  const endedPlan = wasPlan.filter(ended);
+  const endedMore = wasMore.slice(0, 20).filter(ended);
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
   // theirs on, the best of everything on now), ranked like the picks, and
   // taken out of the lists below so no game shows twice.
@@ -644,10 +650,10 @@ function renderHome() {
     !hasFollows ? sportPicker() : null,
     tvRow(),
     liveBlock,
-    (fallback || finding) && !endedToday.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : t('noOthers') })]) : null,
+    (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : t('noOthers') })]) : null,
     finding ? spinner() : null,
     planList.length
-      ? section(fallback ? t('othersPicks') : isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${t('picksOn')}`, el('div', { class: 'pick-list' }, planList.map(pickCard)), { sub: fallback ? '' : t('recsN', { n: planList.length + more.length }) })
+      ? section(fallback ? t('othersPicks') : isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${L(ENDED_PICKS)}`, el('div', { class: 'pick-list' }, planList.map(pickCard)), { sub: fallback ? '' : t('recsN', { n: planList.length + more.length }) })
       : finding || fallback || liveBlock ? null : section(t('todayPicks'), empty(t(h.filter === 'all' ? 'noRecs' : 'noPicksMine'))),
     shownMore.length
       ? section(t('moreRecs'), el('div', { class: 'q-card list' }, shownMore.map(x => eventRow(x.event))), {
@@ -655,8 +661,10 @@ function renderHome() {
         })
       : null,
     more.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${more.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null,
+    endedPlan.length || endedMore.length
+      ? section(L(ENDED_PICKS), el('div', { class: 'ended-picks' }, [endedPlan.length ? el('div', { class: 'pick-list' }, endedPlan.map(pickCard)) : null, endedMore.length ? el('div', { class: 'q-card list' }, endedMore.map(x => eventRow(x.event))) : null]))
+      : null,
     teamRows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null,
-    endedToday.length ? section(t('pastEvents'), el('div', { class: 'q-card list' }, endedToday.slice(0, 12).map(e => eventRow(e)))) : null,
     betRows.length ? section(t('yourBets'), el('div', { class: 'q-card list' }, betRows)) : null
   );
   centerChosen(box);
