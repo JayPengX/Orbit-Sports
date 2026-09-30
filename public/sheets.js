@@ -5,7 +5,7 @@ import { APPS, appUrl, translate } from './lib/quadra.mjs';
 import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playPairId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, rankings, driverSeason, playerMatches } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { possessionOf } from './lib/live.mjs';
-import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue } from './lib/statnames.mjs';
+import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, countryName } from './lib/logos.mjs';
 import { playablePair } from './lib/playable.mjs';
 import { tvOf } from './lib/tv.mjs';
@@ -93,7 +93,7 @@ export async function openMatch(e) {
   s.dialog.addEventListener('close', () => clearInterval(timer));
   const paint = () => {
     const tabs = [['overview', T('overview')]];
-    if (data?.teamStats.length) tabs.push(['stats', T('stats')]);
+    if (teamStatRows(data?.teamStats, LEAGUES[e.league]?.sport, L()).length) tabs.push(['stats', T('stats')]);
     if (data?.players.some(p => p.tables.some(tb => tb.rows.length))) tabs.push(['players', T('players')]);
     if (data?.plays.length || data?.keyEvents.length) tabs.push(['plays', T('plays')]);
     if (data?.rosters.some(r => r.players.length)) tabs.push(['lineups', T('lineups')]);
@@ -215,7 +215,7 @@ const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad 
 function placeOf(groups, id) {
   for (const g of groups || []) {
     const i = g.rows.findIndex(r => r.id === id);
-    if (i >= 0) return { pos: i + 1, row: g.rows[i], n: g.rows.length, group: g.name };
+    if (i >= 0) return { pos: i + 1, row: g.rows[i], n: g.rows.length, group: g.name, lead: g.rows[0] };
   }
   return null;
 }
@@ -229,21 +229,23 @@ function matchSection(view, d, e, table) {
         'div',
         { class: 'stat-bars' },
         [el('div', { class: 'sb-legend' }, [el('span', { class: 'away', text: nameOf(e.away.id) || e.away.short }), el('span', { class: 'home', text: nameOf(e.home.id) || e.home.short })])].concat(
-          d.teamStats
-            .filter(s => !/games played/i.test(s.label) && !(Number(s.home) === 0 && Number(s.away) === 0))
-            .slice(0, 40)
-            .map(s => {
-              const [a, h] = [statValue(s.away), statValue(s.home)];
-              const top = Math.max(Math.abs(a ?? 0), Math.abs(h ?? 0));
-              // Each side's own bar, measured against the larger of the two
-              // (never a split of one line: an average or a rate doesn't add
-              // up to a whole with the other side's).
-              const bar = (v, cls) => el('div', { class: `sb-half ${cls}` }, [el('i', { style: `width:${top > 0 && v ? Math.max(3, (Math.abs(v) / top) * 100) : 0}%` })]);
-              return el('div', { class: 'stat-bar' }, [
-                el('div', { class: 'sb-top' }, [el('strong', { class: `num${a > h ? ' lead' : ''}`, text: s.away }), el('span', { text: statName(s.label, L()) }), el('strong', { class: `num${h > a ? ' lead' : ''}`, text: s.home })]),
+          teamStatRows(d.teamStats, LEAGUES[e.league]?.sport, L()).flatMap((s, i, rows) => {
+            const [a, h] = [statValue(s.away), statValue(s.home)];
+            const top = Math.max(Math.abs(a ?? 0), Math.abs(h ?? 0));
+            // Which side did better: more, or fewer for ERA, errors, fouls…
+            const better = a === h || a == null || h == null ? '' : (a > h) !== s.low ? 'away' : 'home';
+            // Each side's own bar, measured against the larger of the two
+            // (never a split of one line: an average or a rate doesn't add
+            // up to a whole with the other side's).
+            const bar = (v, cls) => el('div', { class: `sb-half ${cls}` }, [el('i', { style: `width:${top > 0 && v ? Math.max(3, (Math.abs(v) / top) * 100) : 0}%` })]);
+            return [
+              s.group && s.group !== rows[i - 1]?.group ? el('p', { class: 'mini-h sb-group', text: s.group }) : null,
+              el('div', { class: 'stat-bar' }, [
+                el('div', { class: 'sb-top' }, [el('strong', { class: `num${better === 'away' ? ' lead' : ''}`, text: s.away }), el('span', { text: s.label }), el('strong', { class: `num${better === 'home' ? ' lead' : ''}`, text: s.home })]),
                 top > 0 ? el('div', { class: 'sb-track' }, [bar(a, 'away'), bar(h, 'home')]) : null
-              ]);
-            })
+              ])
+            ];
+          })
         )
       )
     );
@@ -379,6 +381,8 @@ function overview(d, e, table, nameOf) {
             { class: 'injuries' },
             d.injuries
               .filter(i => i.list.length)
+              // Away first, as everywhere in the sheet.
+              .sort((x, y) => (x.team === e.home.id) - (y.team === e.home.id))
               .map(i => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(i.team) }), el('ul', { class: 'inj-list' }, i.list.slice(0, 8).map(x => el('li', {}, [el('span', { text: x.name }), el('small', {}, [injuryText(x.status)])])))]))
           )
         )
@@ -392,7 +396,18 @@ function overview(d, e, table, nameOf) {
 function keyStats(league, places) {
   const sport = LEAGUES[league]?.sport;
   const want = { soccer: ['P', 'GD', 'F', 'A'], baseball: ['PCT', 'GB', 'STRK'], basketball: ['PCT', 'GB', 'STRK'], football: ['PCT', 'STRK'], hockey: ['PTS', 'STRK'], rugby: ['PTS'], aussie: ['PTS'] }[sport] || [];
-  return want.filter(k => places.every(p => p.row.stats[k] != null && p.row.stats[k] !== '')).map(k => [T(`col_${k}`) === `col_${k}` ? k : T(`col_${k}`), places[0].row.stats[k], places[1].row.stats[k]]);
+  // Games behind the leader of the table shown next to it (ESPN's own figure
+  // can be against another list, such as the division, and read as nonsense).
+  const gb = p => {
+    const [w, l, lw, ll] = [p.row.stats.W, p.row.stats.L, p.lead.stats.W, p.lead.stats.L].map(Number);
+    if (![w, l, lw, ll].every(Number.isFinite)) return null;
+    const n = (lw - w + (l - ll)) / 2;
+    return n <= 0 ? '—' : String(n);
+  };
+  return want
+    .map(k => (k === 'GB' ? [k, ...places.map(gb)] : [k, ...places.map(p => p.row.stats[k])]))
+    .filter(([, a, h]) => a != null && a !== '' && h != null && h !== '')
+    .map(([k, a, h]) => [T(`col_${k}`) === `col_${k}` ? k : T(`col_${k}`), a, h]);
 }
 // A long group name to its initials ("National Football Conference" → NFC).
 export const groupShort = name => {
@@ -418,7 +433,7 @@ function winProbCard(d, e) {
     el('div', { class: 'wp-labels' }, [el('span', { class: 'away', text: `${e.away.short || e.away.name} ${100 - home}%` }), el('span', { class: 'home', text: `${e.home.short || e.home.name} ${home}%` })]),
     el('div', { class: 'wp-plot' }, [
       el('span', { class: 'wp-edge top', text: e.home.short || e.home.name }),
-      el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true"><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${path}" class="wp-line"/></svg>` }),
+      el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true"><path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${path}" class="wp-line"/></svg>` }),
       el('span', { class: 'wp-edge bottom', text: e.away.short || e.away.name })
     ])
   ]);

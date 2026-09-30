@@ -443,14 +443,15 @@ export function parseSummary(data, league) {
   const flat = t => {
     const out = new Map();
     for (const s of t?.statistics || []) {
-      if (Array.isArray(s.stats)) for (const x of s.stats) out.set(x.name, { label: x.displayName || x.label || x.name, value: x.displayValue });
+      // Grouped (baseball's batting, pitching, fielding): the same name means a different thing in each.
+      if (Array.isArray(s.stats)) for (const x of s.stats) out.set(`${s.name}.${x.name}`, { label: x.displayName || x.label || x.name, value: x.displayValue, group: s.name });
       else out.set(s.name, { label: s.label || s.displayName || s.name, value: s.displayValue });
     }
     return out;
   };
   const hs = flat(home);
   const as = flat(away);
-  for (const [key, h] of hs) if (as.has(key) && h.value !== undefined) teamStats.push({ key, label: h.label, home: h.value, away: as.get(key).value });
+  for (const [key, h] of hs) if (as.has(key) && h.value !== undefined) teamStats.push({ key, label: h.label, group: h.group || '', home: h.value, away: as.get(key).value });
   // Player tables per team: [{ team, tables: [{ name, labels, rows: [{ id, name, stats }] }] }].
   const players = (box.players || []).map(p => ({
     team: String(p.team?.id ?? ''),

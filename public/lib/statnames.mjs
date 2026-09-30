@@ -206,3 +206,81 @@ export function metric(text, lang = 'zh') {
   if (lb) return `${Math.round(Number(lb[1]) * 0.4536)} 公斤`;
   return t.replace(/\bcm\b/, '公分').replace(/\bkg\b/, '公斤');
 }
+
+// A match's team stats worth showing, by ESPN's key, in Chinese; `low` where
+// fewer is better. Baseball's are picked and ordered (ESPN sends ~150, most of
+// them sabermetrics nobody reads in a box score); the others keep ESPN's order.
+const LOW = true;
+const TEAM_PICK = {
+  baseball: [
+    ['batting.runs', '得分'], ['batting.hits', '安打'], ['batting.homeRuns', '全壘打'], ['batting.RBIs', '打點'], ['batting.doubles', '二壘安打'],
+    ['batting.walks', '保送'], ['batting.strikeouts', '被三振', LOW], ['batting.stolenBases', '盜壘'], ['batting.runnersLeftOnBase', '殘壘', LOW],
+    ['batting.avg', '打擊率'], ['batting.onBasePct', '上壘率'], ['batting.slugAvg', '長打率'], ['batting.OPS', 'OPS'],
+    ['pitching.innings', '投球局數'], ['pitching.pitches', '用球數', LOW], ['pitching.strikeouts', '奪三振'], ['pitching.walks', '投出保送', LOW],
+    ['pitching.hits', '被安打', LOW], ['pitching.homeRuns', '被全壘打', LOW], ['pitching.earnedRuns', '自責分', LOW], ['pitching.ERA', '防禦率', LOW], ['pitching.WHIP', 'WHIP', LOW],
+    ['fielding.errors', '失誤', LOW], ['fielding.doublePlays', '雙殺']
+  ]
+};
+const TEAM_KEY = {
+  // Soccer
+  possessionPct: ['控球率'], totalShots: ['射門'], shotsOnTarget: ['射正'], shotPct: ['射正率'], wonCorners: ['角球'], foulsCommitted: ['犯規', LOW],
+  offsides: ['越位', LOW], yellowCards: ['黃牌', LOW], redCards: ['紅牌', LOW], saves: ['撲救'], penaltyKickGoals: ['點球進球'], penaltyKickShots: ['點球'],
+  totalPasses: ['傳球'], accuratePasses: ['成功傳球'], passPct: ['傳球成功率'], totalCrosses: ['傳中'], accurateCrosses: ['成功傳中'], crossPct: ['傳中成功率'],
+  totalLongBalls: ['長傳'], accurateLongBalls: ['成功長傳'], longballPct: ['長傳成功率'], blockedShots: ['封阻射門'], totalTackles: ['搶斷'],
+  effectiveTackles: ['成功搶斷'], tacklePct: ['搶斷成功率'], interceptions: ['攔截'], totalClearance: ['解圍'], effectiveClearance: ['有效解圍'],
+  // Basketball
+  'fieldGoalsMade-fieldGoalsAttempted': ['投籃'], fieldGoalPct: ['投籃命中率'], 'threePointFieldGoalsMade-threePointFieldGoalsAttempted': ['三分球'],
+  threePointFieldGoalPct: ['三分命中率'], 'freeThrowsMade-freeThrowsAttempted': ['罰球'], freeThrowPct: ['罰球命中率'], totalRebounds: ['籃板'],
+  offensiveRebounds: ['進攻籃板'], defensiveRebounds: ['防守籃板'], assists: ['助攻'], steals: ['抄截'], blocks: ['阻攻'], turnovers: ['失誤', LOW],
+  totalTurnovers: ['總失誤', LOW], technicalFouls: ['技術犯規', LOW], flagrantFouls: ['惡意犯規', LOW], turnoverPoints: ['失誤被得分', LOW],
+  fastBreakPoints: ['快攻得分'], pointsInPaint: ['禁區得分'], fouls: ['犯規', LOW], largestLead: ['最大領先'], leadChanges: ['領先易手'], leadPercentage: ['領先時間比例'],
+  // Football
+  firstDowns: ['首攻'], firstDownsPassing: ['傳球首攻'], firstDownsRushing: ['跑球首攻'], firstDownsPenalty: ['犯規送首攻'], thirdDownEff: ['三檔成功'],
+  fourthDownEff: ['四檔成功'], totalOffensivePlays: ['進攻次數'], totalYards: ['總碼數'], yardsPerPlay: ['每次推進碼數'], totalDrives: ['進攻回合'],
+  netPassingYards: ['傳球碼數'], completionAttempts: ['傳球成功/次數'], yardsPerPass: ['每傳碼數'], sacksYardsLost: ['被擒殺-損失碼數', LOW],
+  rushingYards: ['跑球碼數'], rushingAttempts: ['跑球次數'], yardsPerRushAttempt: ['每跑碼數'], redZoneAttempts: ['紅區達陣/進入'],
+  totalPenaltiesYards: ['犯規-碼數', LOW], fumblesLost: ['掉球被搶', LOW], defensiveTouchdowns: ['防守/特勤達陣'], possessionTime: ['控球時間'],
+  // Hockey
+  shotsTotal: ['射門'], hits: ['衝撞'], takeaways: ['抄截'], giveaways: ['失誤傳球', LOW], powerPlayGoals: ['以多打少進球'], powerPlayOpportunities: ['以多打少機會'],
+  powerPlayPct: ['以多打少成功率'], shortHandedGoals: ['以少打多進球'], shootoutGoals: ['PK 賽進球'], faceoffsWon: ['爭球勝'], faceoffPercent: ['爭球勝率'],
+  penalties: ['犯規', LOW], penaltyMinutes: ['受罰分鐘', LOW]
+};
+// Football's list names two things "interceptions": there it's passes thrown away.
+const TEAM_SPORT = { football: { interceptions: ['被抄截', LOW], turnovers: ['失誤', LOW] } };
+const GROUP_ZH = { batting: '打擊', pitching: '投球', fielding: '守備' };
+const DULL = /^(games ?played|team games played|is qualified|games started)$/i;
+
+// A percentage as people read it: soccer's 0.4 is 40%, basketball's 51 is 51%.
+function pctText(key, a, h) {
+  if (!/pct|percent/i.test(key)) return [a, h];
+  const [x, y] = [a, h].map(v => parseFloat(v));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return [a, h];
+  const k = x <= 1 && y <= 1 ? 100 : 1;
+  return [x, y].map(v => `${Math.round(v * k)}%`);
+}
+
+// The rows of a match's 數據 tab: [{ group, label, away, home, low }]. In
+// Chinese a stat without a Chinese name is left out rather than shown in English.
+export function teamStatRows(stats, sport, lang = 'zh') {
+  const zh = lang !== 'en';
+  const byKey = new Map((stats || []).map(s => [s.key, s]));
+  const pick = TEAM_PICK[sport];
+  if (pick) {
+    return pick
+      .filter(([k]) => byKey.has(k))
+      .map(([k, name, low]) => {
+        const s = byKey.get(k);
+        return { group: zh ? GROUP_ZH[s.group] || s.group : s.group.replace(/^./, c => c.toUpperCase()), label: zh ? name : s.label, away: s.away, home: s.home, low: Boolean(low) };
+      });
+  }
+  const own = TEAM_SPORT[sport] || {};
+  return (stats || [])
+    .filter(s => !DULL.test(s.label) && !(Number(s.home) === 0 && Number(s.away) === 0 && !/:|-|\//.test(`${s.home}${s.away}`)))
+    .map(s => {
+      const [name, low] = own[s.key] || TEAM_KEY[s.key] || [statName(s.label, 'zh') !== s.label ? statName(s.label, 'zh') : ''];
+      const [away, home] = pctText(s.key, s.away, s.home);
+      return { group: '', label: zh ? name : s.label, away, home, low: Boolean(low) };
+    })
+    .filter(r => r.label)
+    .slice(0, 30);
+}
