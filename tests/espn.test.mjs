@@ -168,3 +168,13 @@ test('a player overview: the latest note, awards, the last games, news', async (
   assert.deepEqual(ov.news, [{ headline: 'A story', description: '', image: 'p.jpg', url: 'https://espn.com/s', date: '2026-09-29T00:00:00Z' }]);
   assert.equal(parseOverview({}).log, null);
 });
+
+test("a cup's calendar is its stages: read by month pages, not as weeks", async () => {
+  const { parseCalendar, monthsBetween } = await import('../public/lib/espn.mjs');
+  const cup = { leagues: [{ calendar: [{ label: 'UEFA Europa League', startDate: '2026-07-01T04:00Z', entries: [{ label: 'League Phase', value: '1', startDate: '2026-08-29T07:00Z', endDate: '2027-01-30T07:59Z' }] }] }] };
+  assert.deepEqual(parseCalendar(cup), { months: true });
+  const nfl = { leagues: [{ calendar: [{ label: 'Regular Season', value: '2', entries: [{ label: 'Week 1', value: '1', startDate: '2026-09-09T07:00Z', endDate: '2026-09-16T06:59Z' }] }] }] };
+  assert.equal(parseCalendar(nfl).weeks[0].seasontype, '2');
+  assert.deepEqual(monthsBetween(Date.parse('2026-09-15T00:00:00Z'), Date.parse('2026-11-02T00:00:00Z')), ['202609', '202610', '202611']);
+  assert.deepEqual(monthsBetween(Date.parse('2026-12-20T00:00:00Z'), Date.parse('2027-01-05T00:00:00Z')), ['202612', '202701']);
+});

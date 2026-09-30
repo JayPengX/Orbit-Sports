@@ -15,22 +15,18 @@ import { SPORTS, CATALOG } from './catalog.mjs';
 
 export { SPORTS };
 
-// A retired league (catalog.mjs) isn't listed any more.
 export const LEAGUES = Object.fromEntries(
-  Object.entries(CATALOG)
-    .filter(([, l]) => !l.retired)
-    .map(([key, l]) => {
-      const league = { sport: l.sport, zh: l.zh, en: l.en, play: l.bet ?? null, kind: l.kind };
-      if (l.data === 'espn') league.espn = l.espn;
-      if (l.data === 'kambi') league.kambi = l.kambi;
-      if (l.data === 'asia') league.asia = l.asia;
-      for (const k of ['top', 'cup', 'standings', 'players']) if (l[k]) league[k] = l[k];
-      return [key, league];
-    })
+  Object.entries(CATALOG).map(([key, l]) => {
+    const league = { sport: l.sport, zh: l.zh, en: l.en, play: l.bet ?? null, kind: l.kind };
+    if (l.data === 'espn') league.espn = l.espn;
+    if (l.data === 'kambi') league.kambi = l.kambi;
+    if (l.data === 'asia') league.asia = l.asia;
+    for (const k of ['top', 'cup', 'standings', 'players']) if (l[k]) league[k] = l[k];
+    return [key, league];
+  })
 );
 
-// A retired league's name too (a team still followed from it).
-export const leagueName = (key, lang = 'zh') => (LEAGUES[key] ?? CATALOG[key])?.[lang === 'en' ? 'en' : 'zh'] || key;
+export const leagueName = (key, lang = 'zh') => LEAGUES[key]?.[lang === 'en' ? 'en' : 'zh'] || key;
 export const leaguesOf = sport => Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport);
 export const TOP_LEAGUES = Object.keys(LEAGUES).filter(k => LEAGUES[k].top);
 // Kinds of data each source has.

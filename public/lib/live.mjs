@@ -100,14 +100,10 @@ export function liveLabel(e, sport, lang = 'zh') {
   }
   const quarters = QUARTERS[sport];
   if (quarters && n) {
-    // College men's basketball plays halves.
-    const halves = e.league === 'ncaam';
-    const regular = halves ? 2 : quarters;
-    if (n > regular) {
-      const ot = n - regular;
+    if (n > quarters) {
+      const ot = n - quarters;
       return `${en ? (ot > 1 ? `${ot}OT` : 'OT') : ot > 1 ? `延長${ot}` : '延長賽'} ${clock}`.trim();
     }
-    if (halves) return en ? `${ord(n)} half ${clock}`.trim() : `${n === 1 ? '上' : '下'}半場 ${clock}`.trim();
     return en ? `${sport === 'hockey' ? 'P' : 'Q'}${n} ${clock}`.trim() : `第${n}節 ${clock}`.trim();
   }
   return s.short || s.detail || (en ? 'Live' : '進行中');

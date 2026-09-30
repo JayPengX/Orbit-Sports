@@ -292,6 +292,10 @@ export function parseCalendar(data) {
   const cal = l?.calendar;
   if (!Array.isArray(cal) || !cal.length) return null;
   const us = iso => String(iso).slice(0, 10).replaceAll('-', '');
+  // A cup's or the national teams' calendar: its stages ("League Phase",
+  // "Round of 16"), neither days nor weeks; its games come from month pages
+  // (the default page can be a round long past).
+  if (typeof cal[0] === 'object' && cal[0].value == null) return { months: true };
   if (typeof cal[0] === 'object') {
     const weeks = cal.flatMap(type =>
       (type.entries || []).map(w => ({ label: w.label || w.alternateLabel || '', detail: w.detail || '', seasontype: String(type.value), week: String(w.value), start: w.startDate, end: w.endDate }))
@@ -308,6 +312,13 @@ export function parseCalendar(data) {
     if (!off.has(d)) days.push(d);
   }
   return { days };
+}
+// The months (ESPN's `dates=YYYYMM`) from one time to another.
+export function monthsBetween(fromMs, toMs) {
+  const out = [];
+  const d = new Date(fromMs);
+  for (let y = d.getUTCFullYear(), m = d.getUTCMonth(); Date.UTC(y, m, 1) <= toMs && out.length < 24; m === 11 ? ((m = 0), y++) : m++) out.push(`${y}${String(m + 1).padStart(2, '0')}`);
+  return out;
 }
 export async function seasonCalendar(league) {
   const l = LEAGUES[league];

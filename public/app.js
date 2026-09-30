@@ -9,7 +9,7 @@
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, activityPatch, affinity, appUrl, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, affinityPatch, settingPatch } from './lib/quadra.mjs';
-import { localSide, scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
+import { localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
 import { SERVICES, watchable, leaguesOn, eltaChannel, eltaWatchUrl } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
@@ -259,7 +259,8 @@ async function readDay(leagues, date, { current = false } = {}) {
     leagues.map(k => {
       const l = LEAGUES[k];
       if (l.kind !== 'match') return (isToday ? scoreboard(k) : seasonEvents(k)).catch(() => []);
-      return scoreboard(k, l.espn && !current ? dates : undefined).catch(() => []);
+      // Soccer by its dated pages even for what's on now: a cup's current page can be a round long past.
+      return scoreboard(k, l.espn && (!current || l.sport === 'soccer') ? dates : undefined).catch(() => []);
     })
   );
   const now = Date.now();
@@ -761,6 +762,7 @@ async function sportDays(sport) {
       if (l.kind !== 'match') return seasonEvents(k).catch(() => []);
       if (l.kambi || l.asia) return scoreboard(k).catch(() => []);
       const cal = await seasonCalendar(k).catch(() => null);
+      if (cal?.months) return scoreboard(k, monthsBetween(Date.parse(`${from}T00:00:00`) - 86_400_000, Date.parse(`${to}T23:59:59`))).catch(() => []);
       if (cal?.weeks) {
         const weeks = cal.weeks.filter(w => Date.parse(w.end) >= Date.parse(`${from}T00:00:00`) - 86_400_000 && Date.parse(w.start) <= Date.parse(`${to}T23:59:59`));
         return (await Promise.all(weeks.map(w => weekScoreboard(k, w.seasontype, w.week).catch(() => [])))).flat();
@@ -988,7 +990,11 @@ async function loadScores() {
     } else {
       sc.mode = 'days';
       const cal = await seasonCalendar(league).catch(() => null);
-      if (cal?.weeks) {
+      if (cal?.months) {
+        // A cup: the last month, this one and the next (more with ‹ and ›).
+        const now = Date.now();
+        events = await scoreboard(league, monthsBetween(now - (31 + 31 * sc.extra) * 86_400_000, now + (31 + 31 * sc.extra) * 86_400_000));
+      } else if (cal?.weeks) {
         const now = Date.now();
         let i = cal.weeks.findIndex(w => Date.parse(w.end) > now);
         if (i < 0) i = cal.weeks.length - 1;

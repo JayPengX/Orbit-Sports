@@ -42,11 +42,9 @@ test('soccer: the minute, extra time, the latest goal', () => {
   assert.equal(liveLabel(et, 'soccer'), "延長 105'");
 });
 
-test('basketball, college halves, hockey periods, breaks', () => {
+test('basketball, hockey periods, breaks', () => {
   const [nba] = parseScoreboard(board('basketball', status('STATUS_IN_PROGRESS', '2:10 - 4th', 4, '2:10'), {}), 'nba');
   assert.equal(liveLabel(nba, 'basketball'), '第4節 2:10');
-  const [ncaa] = parseScoreboard(board('basketball', status('STATUS_IN_PROGRESS', '11:02 - 2nd Half', 2, '11:02'), {}), 'ncaam');
-  assert.equal(liveLabel(ncaa, 'basketball'), '下半場 11:02');
   const [nhl] = parseScoreboard(board('hockey', status('STATUS_END_PERIOD', 'End of 2nd', 2), {}), 'nhl');
   assert.equal(liveLabel(nhl, 'hockey'), '第2節結束');
   const [so] = parseScoreboard(board('hockey', status('STATUS_SHOOTOUT', 'SO', 5), {}), 'nhl');
