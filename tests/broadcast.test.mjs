@@ -91,3 +91,12 @@ test('ESPN words in Chinese: pitches, series, injuries, groups, positions, leade
   assert.equal(m.fixedWord('Final'), '決賽');
   assert.equal(m.dateText('', '30/9/1997'), '1997年9月30日');
 });
+
+test('Apple TV+ only on a regular-season MLB Friday (US time)', () => {
+  const mlb = (start, stage) => ({ id: '1', league: 'mlb', kind: 'match', start, status: { state: 'pre' }, stage, away: { name: 'A' }, home: { name: 'B' } });
+  const apple = e => broadcastsFor(e, []).some(b => b.svc === 'appletv');
+  assert.ok(apple(mlb('2026-09-25T23:10:00Z')));
+  assert.ok(!apple(mlb('2026-09-24T23:10:00Z')));
+  assert.ok(!apple(mlb('2026-10-01T00:00:00Z', { key: 'post' })));
+  assert.ok(!apple(mlb('2026-10-02T23:10:00Z', { key: 'post' })));
+});

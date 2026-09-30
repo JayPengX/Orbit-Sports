@@ -292,15 +292,20 @@ export function fieldNow(e) {
 // or a game's own (`e`: the exact ELTA channel when its schedule has it, and
 // no ELTA when ELTA doesn't carry that game).
 export const tvName = b => `${ctx.locale === 'en' ? b.en : b.zh}${b.note ? `（${ctx.locale === 'en' ? b.note.en : b.note.zh}）` : ''}`;
+// A game's channels on the person's services only (all of them when they haven't said which).
+const onMine = list => {
+  const mine = ctx.state?.prefs?.tv || [];
+  return mine.length ? list.filter(b => mine.includes(b.svc)) : list;
+};
 export function twChips(league, n = 3, e = null) {
-  const list = e ? tvOf(e) : broadcastsOf(league);
+  const list = e ? onMine(tvOf(e)) : broadcastsOf(league);
   if (!list.length) return null;
   return el('div', { class: 'tw-chips' }, list.slice(0, n).map(b => el('span', { class: `tw-chip ${b.kind}${b.ch ? ' exact' : ''}`, text: tvName(b) })));
 }
 // A row's 📺 line: the channels a game is on, when ELTA's schedule says (not a guess from the league).
 export function tvLine(e) {
   if (e.status?.state === 'post' || e.status?.void) return null;
-  const list = channelsOf(e);
+  const list = onMine(channelsOf(e));
   if (!list.length) return null;
   return el('small', { class: 'tv-line' }, [el('span', { 'aria-hidden': 'true', text: '📺 ' }), document.createTextNode(list.slice(0, 2).map(tvName).join('、') + (list.length > 2 ? ` +${list.length - 2}` : ''))]);
 }

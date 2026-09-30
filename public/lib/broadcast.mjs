@@ -143,8 +143,11 @@ export function eltaPrograms(programs, e, sides, others = []) {
 // The channels a game is on in Taiwan: ELTA's from its schedule when the
 // schedule covers the day (none when ELTA doesn't carry it), the others as listed.
 // `programs`: parseElta's; `sides`, `others` as for eltaPrograms.
+// Apple TV+ has MLB's Friday Night Baseball: a regular-season game on a
+// Friday in the US (Eastern time), no other.
+const fridayNight = e => new Date(Date.parse(e.start) - 4 * 3_600_000).getUTCDay() === 5 && !['post', 'final'].includes(e.stage?.key);
 export function broadcastsFor(e, programs, sides = [], others = []) {
-  const base = broadcastsOf(e.league);
+  const base = broadcastsOf(e.league).filter(b => !(e.league === 'mlb' && b.svc === 'appletv' && !fridayNight(e)));
   const covered = programs?.length && base.some(b => b.svc === 'elta') && Object.values(ELTA_LEAGUE).includes(e.league);
   const days = covered ? eltaDays(programs) : null;
   const day = new Date(Date.parse(e.start) + 8 * 3_600_000).toISOString().slice(0, 10);
