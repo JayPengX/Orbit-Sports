@@ -9,7 +9,7 @@
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, activityPatch, affinity, appUrl, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, affinityPatch, settingPatch } from './lib/quadra.mjs';
-import { scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
+import { localSide, scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
 import { SERVICES, watchable, leaguesOn, eltaChannel, eltaWatchUrl } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
@@ -77,6 +77,8 @@ function savePrefs() {
     q.write({ payload: JSON.stringify({ v: 3, sports, leagues, follows, tv, t: Date.now() }), wallet: { settings: { ...affinityPatch('match').settings, ...settingPatch('follow:match', forPlay).settings } } }).catch(() => {});
   }, 800);
 }
+// A followed team's name as shown (kept in English on the pass: Play matches by it).
+const shownName = f => (f.athlete ? f.name : localSide(f.league, { name: f.name }).name);
 function isFollowed(league, id) {
   return state.prefs.follows.some(f => f.league === league && f.id === id);
 }
@@ -90,11 +92,11 @@ function toggleFollow(league, side) {
   const p = state.prefs;
   if (isFollowed(league, side.id)) p.follows = p.follows.filter(f => !(f.league === league && f.id === side.id));
   else {
-    p.follows = [...p.follows, { league, id: side.id, name: side.name, logo: side.logo, ...(side.athlete ? { athlete: true } : {}) }];
+    p.follows = [...p.follows, { league, id: side.id, name: side.en || side.name, logo: side.logo, ...(side.athlete ? { athlete: true } : {}) }];
     // Following a team follows its league and sport too.
     if (!p.leagues.includes(league)) p.leagues = [...p.leagues, league];
     if (!p.sports.includes(LEAGUES[league].sport)) p.sports = [...p.sports, LEAGUES[league].sport];
-    recordAffinity('match', [teamKey(league, side.name), `league:${leagueKey(league)}`], 4);
+    recordAffinity('match', [teamKey(league, side.en || side.name), `league:${leagueKey(league)}`], 4);
     track('follow');
   }
   changed();
@@ -179,7 +181,7 @@ function openFollowEditor() {
       ),
       el('h3', { class: 'section-h', text: t('yourTeams') }),
       p.follows.length
-        ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [logo(f.logo, f.name, `sm${f.athlete ? ' round' : ''}`), el('span', { class: 'order-name', text: `${f.name} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
+        ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [logo(f.logo, f.name, `sm${f.athlete ? ' round' : ''}`), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
         : el('p', { class: 'muted small', text: t('teamsHint') }),
       el('h3', { class: 'section-h', text: `📺 ${t('tvPick')}` }),
       el('p', { class: 'muted small', text: t('tvHint') }),
@@ -613,7 +615,7 @@ function renderHome() {
         const last = [...list].reverse().find(x => x.status.state === 'post');
         const e = next || last;
         return el('div', { class: 'follow-row' }, [
-          el('button', { class: 'follow-team', type: 'button', onclick: () => (f.athlete ? openPlayer(f.league, f.id) : openTeam(f.league, f.id, f)) }, [logo(f.logo, f.name, `sm${f.athlete ? ' round' : ''}`), el('span', { text: f.name })]),
+          el('button', { class: 'follow-team', type: 'button', onclick: () => (f.athlete ? openPlayer(f.league, f.id) : openTeam(f.league, f.id, f)) }, [logo(f.logo, f.name, `sm${f.athlete ? ' round' : ''}`), el('span', { text: shownName(f) })]),
           e ? eventRow(e, { league: false }) : el('small', { class: 'muted', text: leagueName(f.league, locale) })
         ]);
       })
@@ -1064,7 +1066,7 @@ async function runSearch(query) {
     put(
       box,
       leagues.length ? section(t('leagues'), el('div', { class: 'q-card list' }, leagues.slice(0, 8).map(k => el('button', { class: 'search-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k, 'lg-mark mid'), el('span', { text: leagueName(k, locale) }), el('small', { text: `${SPORTS[LEAGUES[k].sport].icon} ${L(SPORTS[LEAGUES[k].sport])}` })])))) : null,
-      found?.teams.length ? section(t('teamsFound'), el('div', { class: 'q-card list' }, found.teams.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openTeam(x.league, x.id, x) }, [logo(x.logo, x.name, 'sm'), el('span', { text: x.name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
+      found?.teams.length ? section(t('teamsFound'), el('div', { class: 'q-card list' }, found.teams.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openTeam(x.league, x.id, x) }, [logo(x.logo, x.name, 'sm'), el('span', { text: localSide(x.league, { name: x.name }).name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
       found?.players.length ? section(t('playersFound'), el('div', { class: 'q-card list' }, found.players.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openPlayer(x.league, x.id) }, [logo(x.logo, x.name, 'sm round'), el('span', { text: x.name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
       busy ? spinner() : !leagues.length && !found?.teams.length && !found?.players.length ? empty(t('noResults')) : null
     );
@@ -1225,7 +1227,7 @@ function leagueBlock(league) {
       el('button', { class: 'section-more', type: 'button', text: t('tab_matches'), onclick: () => openScores(league) }),
       hasStandings(league) ? el('button', { class: 'section-more', type: 'button', text: t('table'), onclick: () => openScores(league, null, 'table') }) : null
     ]),
-    teams.length ? el('div', { class: 'team-chips' }, teams.map(f => el('button', { class: 'team-chip', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [logo(f.logo, f.name, 'xs'), el('span', { text: f.name })]))) : null,
+    teams.length ? el('div', { class: 'team-chips' }, teams.map(f => el('button', { class: 'team-chip', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [logo(f.logo, f.name, 'xs'), el('span', { text: shownName(f) })]))) : null,
     !slot?.events ? spinner() : slot.events.length ? el('div', { class: 'list' }, slot.events.map(e => eventRow(e, { league: false }))) : empty(t('noUpcoming')),
     slot?.groups?.length ? el('div', { class: 'mini-table' }, [standingsTables(slot.groups.slice(0, 2), league, { top: 5, compact: true })]) : null
   ]);

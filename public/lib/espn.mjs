@@ -10,7 +10,7 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
-import { teamBadge, teamLogo, raceName, playerFlag } from './logos.mjs';
+import { teamBadge, teamLogo, raceName, playerFlag, countryName, f1Driver } from './logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -19,6 +19,7 @@ import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
 import { pricedIds } from './playable.mjs';
 import { teamNameZh } from './names.mjs';
+import { groupZh } from './statnames.mjs';
 
 export const SITE = 'https://site.api.espn.com/apis/site/v2/sports';
 export const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
@@ -112,8 +113,12 @@ export function fallbackLogo(league, side) {
 // and the matching use it). People (players, drivers) keep their names.
 export function localSide(league, side, lang = detectLocale()) {
   if (!side || lang === 'en' || side.athlete || LEAGUES[league]?.players) return side;
-  const zh = teamNameZh(LEAGUES[league]?.play || league, side.en || side.name, LEAGUES[league]?.sport);
-  return zh ? { ...side, en: side.en || side.name, name: zh.full, short: zh.short } : side;
+  const en = side.en || side.name;
+  const zh = teamNameZh(LEAGUES[league]?.play || league, en, LEAGUES[league]?.sport);
+  if (zh) return { ...side, en, name: zh.full, short: zh.short };
+  // A national side (England, Czechia): its country's name.
+  const nation = countryName(en, lang);
+  return nation && nation !== en ? { ...side, en, name: nation, short: nation } : side;
 }
 const withLogo = (league, side) => localSide(league, side && !side.logo ? { ...side, logo: fallbackLogo(league, side) } : side);
 
@@ -522,12 +527,15 @@ export function parseStandings(data, league = null) {
         // A championship of drivers (F1) has athletes where a league has teams.
         if (!en.team && en.athlete) {
           const a = en.athlete;
-          return { id: String(a.id ?? ''), name: a.displayName || a.name || '', short: a.shortName || a.displayName || '', logo: a.flag?.href || '', note: '', color: '', stats, athlete: true };
+          // F1's drivers by their Chinese names (the lottery's), as on the race board.
+          const zh = league === 'f1' && detectLocale() !== 'en' ? f1Driver(a.displayName || a.name).zh : null;
+          const f1zh = zh && zh !== (a.displayName || a.name) ? zh : null;
+          return { id: String(a.id ?? ''), name: f1zh || a.displayName || a.name || '', short: f1zh || a.shortName || a.displayName || '', en: a.displayName || a.name || '', logo: a.flag?.href || '', note: '', color: '', stats, athlete: true };
         }
         const row = { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note?.color || (en.team?.color && !en.team?.logos ? `#${en.team.color}` : ''), stats };
         return league ? localSide(league, row) : row;
       });
-      groups.push({ name: node.name || node.displayName || '', rows });
+      groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), rows });
     }
     for (const child of node?.children || []) walk(child);
   };

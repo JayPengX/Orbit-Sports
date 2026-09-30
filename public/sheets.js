@@ -5,7 +5,7 @@ import { APPS, appUrl, translate } from './lib/quadra.mjs';
 import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playPairId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, rankings, driverSeason, playerMatches } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { possessionOf } from './lib/live.mjs';
-import { statName, statsTitle, metric, fixedWord, dateText } from './lib/statnames.mjs';
+import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue } from './lib/statnames.mjs';
 import { f1Driver, countryName } from './lib/logos.mjs';
 import { playablePair } from './lib/playable.mjs';
 import { tvOf } from './lib/tv.mjs';
@@ -27,6 +27,14 @@ export function zhLater(text) {
   const node = document.createTextNode(text);
   translate(text).then(zh => zh && (node.textContent = zh)).catch(() => {});
   return node;
+}
+const injuryText = s => (L() === 'en' ? s : injuryZh(s) || zhLater(s));
+const weatherText = w => weatherZh(w, L());
+// A series' line in the reader's words (the sides by their names here).
+export function seriesZh(text, e) {
+  if (L() === 'en') return text;
+  const name = abbr => [e.home, e.away].find(s => s?.abbr && s.abbr.toUpperCase() === String(abbr).toUpperCase())?.short || abbr;
+  return seriesLineZh(text, name) || text;
 }
 // Strings and nodes joined by a separator, as nodes.
 const joinNodes = (items, sep) => items.filter(Boolean).flatMap((x, i) => (i ? [sep, x] : [x])).map(x => (typeof x === 'string' ? document.createTextNode(x) : x));
@@ -154,8 +162,10 @@ function livePanel(e) {
   }
   if (lv.lastPlay) {
     // ESPN writes it in English: in Chinese once translated (kept 30 days per line).
-    const text = document.createTextNode(lv.lastPlay);
-    if (!en) translate(lv.lastPlay).then(zh => (text.textContent = zh));
+    // A pitch ("Strike 2 Foul") in fixed words; anything else translated.
+    const pitch = en ? null : pitchZh(lv.lastPlay);
+    const text = document.createTextNode(pitch || lv.lastPlay);
+    if (!en && !pitch) translate(lv.lastPlay).then(zh => zh && (text.textContent = zh)).catch(() => {});
     rows.push(el('p', { class: 'lp-last' }, [el('small', { text: T('lastPlay') }), text]));
   }
   return rows.length ? el('div', { class: 'live-panel' }, rows) : null;
@@ -182,7 +192,9 @@ function linescore(sm, e) {
   const n = Math.max(home.lines?.length || 0, away.lines?.length || 0);
   if (!n || n > 20) return null;
   const head = Array.from({ length: n }, (_, i) => el('th', { text: String(i + 1) }));
-  const row = x => el('tr', {}, [el('th', { text: x.abbr || x.short }), ...Array.from({ length: n }, (_, i) => el('td', { class: 'num', text: x.lines?.[i] ?? '' })), el('td', { class: 'num total', text: x.score })]);
+  // The sides by their Chinese names when they have them (a short one fits the column).
+  const tag = x => (L() !== 'en' && x.en && x.short && x.short.length <= 5 ? x.short : x.abbr || x.short);
+  const row = x => el('tr', {}, [el('th', { class: 'ls-team', text: tag(x) }), ...Array.from({ length: n }, (_, i) => el('td', { class: 'num', text: x.lines?.[i] ?? '' })), el('td', { class: 'num total', text: x.score })]);
   return el('div', { class: 'table-wrap' }, [el('table', { class: 'linescore' }, [el('thead', {}, [el('tr', {}, [el('th'), ...head, el('th', { text: 'T' })])]), el('tbody', {}, [row(away), row(home)])])]);
 }
 
@@ -292,7 +304,7 @@ function matchSection(view, d, e, table) {
         .map(r => {
           const starters = r.players.filter(p => p.starter);
           const subs = r.players.filter(p => !p.starter);
-          const list = ps => el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link', type: 'button', text: p.name, onclick: () => ctx.openPlayer(e.league, p.id) }), el('small', { text: p.pos })])));
+          const list = ps => el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link', type: 'button', text: p.name, onclick: () => ctx.openPlayer(e.league, p.id) }), el('small', { text: posZh(p.pos, LEAGUES[e.league]?.sport, L()) })])));
           return card(`${nameOf(r.team)}${r.formation ? ` · ${r.formation}` : ''}`, el('div', {}, [starters.length ? list(starters) : null, subs.length ? el('p', { class: 'mini-h', text: T('bench') }) : null, subs.length ? list(subs) : null]));
         })
     );
@@ -324,18 +336,21 @@ function overview(d, e, table, nameOf) {
       : null
   ]);
   const when = new Date(e.start);
+  // The channels have their own card when ELTA's schedule names them; the list here otherwise.
+  const exactTv = e.status.state !== 'post' && tvOf(e).some(b => b.ch);
   const info = [
     ['🕒', T('kickoff'), `${dayLabel(localDate(when.getTime()), { long: true })} ${clock(e.start)}`],
-    ['📍', T('venue'), [d?.venue || e.venue, d?.city].filter(Boolean).join(' · ')],
-    ['📺', T('tv'), tvOf(e).map(tvName).join('、') || T('noTw')],
+    ['📍', T('venue'), zhLater([d?.venue || e.venue, d?.city].filter(Boolean).join(' · '))],
+    exactTv ? null : ['📺', T('tv'), tvOf(e).map(tvName).join('、') || T('noTw')],
     stageTag(e, L()) ? ['🏅', T('stage'), [stageTag(e, L()), seriesText(e)].filter(Boolean).join(' · ')] : null,
-    ['🌤', T('weather'), d?.weather],
+    ['🌤', T('weather'), weatherText(d?.weather)],
     ['👥', T('attendance'), d?.attendance ? Number(d.attendance).toLocaleString(L() === 'en' ? 'en-US' : 'zh-TW') : ''],
     ['🧑‍⚖️', T('officials'), (d?.officials || []).slice(0, 3).join('、')],
-    ['🏆', T('competition'), [leagueName(e.league, L()), e.note].filter(Boolean).join(' · ')]
+    // ESPN's note ("ALWC - Game 1") only where the stage tag doesn't already say it.
+    ['🏆', T('competition'), joinNodes([leagueName(e.league, L()), stageTag(e, L()) && L() !== 'en' ? '' : zhLater(e.note)], ' · ')]
   ]
     .filter(Boolean)
-    .filter(([, , v]) => v);
+    .filter(([, , v]) => v && (!Array.isArray(v) || v.length));
   const leadersBy = sides.map(s => (d?.leaders || []).filter(l => l.team === s.id).slice(0, 4));
   return el('div', { class: 'stack' }, [
     card(T('matchup'), compare),
@@ -349,13 +364,13 @@ function overview(d, e, table, nameOf) {
             leadersBy.map((list, i) =>
               el('div', {}, [
                 el('p', { class: 'mini-h', text: sides[i].short || sides[i].name }),
-                ...list.map(l => el('div', { class: 'leader' }, [el('small', { text: statName(l.stat, L()) }), el('span', {}, [el('strong', { text: l.name }), el('b', { class: 'num', text: l.value })])]))
+                ...list.map(l => el('div', { class: 'leader' }, [el('small', { text: statName(l.stat, L()) }), el('span', {}, [el('strong', { text: l.name }), el('b', { class: 'num', text: leaderValue(l.value, L()) })])]))
               ])
             )
           )
         )
       : null,
-    d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: d.series[0].summary })) : null,
+    d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) })) : null,
     d?.injuries.some(i => i.list.length)
       ? card(
           T('injuries'),
@@ -364,12 +379,12 @@ function overview(d, e, table, nameOf) {
             { class: 'injuries' },
             d.injuries
               .filter(i => i.list.length)
-              .map(i => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(i.team) }), el('ul', { class: 'inj-list' }, i.list.slice(0, 8).map(x => el('li', {}, [el('span', { text: x.name }), el('small', { text: x.status })])))]))
+              .map(i => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(i.team) }), el('ul', { class: 'inj-list' }, i.list.slice(0, 8).map(x => el('li', {}, [el('span', { text: x.name }), el('small', {}, [injuryText(x.status)])])))]))
           )
         )
       : null,
-    e.status.state !== 'post' && tvOf(e).some(b => b.ch) ? twCard(e.league, e) : null,
-    card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([icon, k, v]) => el('li', {}, [el('span', { class: 'info-icon', 'aria-hidden': 'true', text: icon }), el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v', text: v })]))))
+    exactTv ? twCard(e.league, e) : null,
+    card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([icon, k, v]) => el('li', {}, [el('span', { class: 'info-icon', 'aria-hidden': 'true', text: icon }), el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
   ]);
 }
 
@@ -397,9 +412,15 @@ function winProbCard(d, e) {
   const h = 90;
   const path = pts.map((p, i) => `${i ? 'L' : 'M'}${((i / (pts.length - 1)) * w).toFixed(1)},${(h - p * h).toFixed(1)}`).join(' ');
   const last = pts.at(-1);
+  // Away on the left, home on the right (as everywhere in the sheet), adding up to 100.
+  const home = Math.round(last * 100);
   const box = el('div', { class: 'wp' }, [
-    el('div', { class: 'wp-labels' }, [el('span', { text: `${e.home.short || e.home.name} ${Math.round(last * 100)}%` }), el('span', { text: `${e.away.short || e.away.name} ${Math.round((1 - last) * 100)}%` })]),
-    el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true"><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${path}" class="wp-line"/></svg>` })
+    el('div', { class: 'wp-labels' }, [el('span', { class: 'away', text: `${e.away.short || e.away.name} ${100 - home}%` }), el('span', { class: 'home', text: `${e.home.short || e.home.name} ${home}%` })]),
+    el('div', { class: 'wp-plot' }, [
+      el('span', { class: 'wp-edge top', text: e.home.short || e.home.name }),
+      el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true"><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${path}" class="wp-line"/></svg>` }),
+      el('span', { class: 'wp-edge bottom', text: e.away.short || e.away.name })
+    ])
   ]);
   return card(T('winProb'), box);
 }
@@ -437,7 +458,7 @@ function twCard(league, e = null) {
           rest.length ? el('div', { class: 'tw-list' }, rest.map(b => el('span', { class: `tw-chip ${b.kind}`, text: tvName(b) }))) : null
         ])
       : el('p', { class: 'muted small', text: T('noTw') }),
-    { sub: exact.length ? (L() === 'en' ? "ELTA's schedule" : '愛爾達節目表') : CHECKED }
+    { sub: exact.length ? (L() === 'en' ? "ELTA's schedule" : '愛爾達節目表') : L() === 'en' ? `Checked ${CHECKED}` : `${CHECKED} 查核` }
   );
 }
 
@@ -517,7 +538,8 @@ function fillField(s, e) {
       el(
         'div',
         { class: 'bouts' },
-        e.bouts.map(b =>
+        // The main event first (the feed lists the card from the first bout).
+        [...e.bouts].reverse().map(b =>
           el('div', { class: `q-card pad bout${b.status.state === 'in' ? ' live' : ''}` }, [
             el('div', { class: 'bout-top' }, [el('small', { class: 'muted' }, joinNodes([zhLater(b.weight), statusText({ ...e, start: b.start, status: b.status })], ' · ')), pairChip(e, b.start || e.start, b.a, b.b, b.status)]),
             el('div', { class: 'bout-row' }, [
@@ -563,7 +585,7 @@ export async function openTeam(league, id, fallback = {}) {
     const now = Date.now();
     const past = sched.filter(x => x.status.state === 'post').slice(-6).reverse();
     const next = sched.filter(x => x.status.state !== 'post' && Date.parse(x.start) > now - 4 * 3_600_000).slice(0, 5);
-    const side = { id: info.id, name: info.name, logo: info.logo };
+    const side = { id: info.id, name: info.name, en: info.en, logo: info.logo };
     const followBtn = el('button', { class: 'q-btn', type: 'button' });
     const paintFollow = () => {
       const on = ctx.isFollowed(league, id);
@@ -578,8 +600,8 @@ export async function openTeam(league, id, fallback = {}) {
     const rosterBox = el('div');
     put(
       content,
-      el('div', { class: 'team-head' }, [logo(info.logo, info.name, 'xl'), el('div', {}, [el('h3', { text: info.name }), el('p', { class: 'muted', text: [info.record, info.standing].filter(Boolean).join(' · ') })]), followBtn]),
-      place ? el('div', { class: 'team-tiles' }, [tile(T('standing'), T('placeN', { n: place.pos }), place.group), ...Object.entries(place.row.stats).filter(([k]) => ['W', 'L', 'D', 'P', 'PCT', 'GB', 'GD', 'PTS', 'STRK'].includes(k)).slice(0, 5).map(([k, v]) => tile(k, v))]) : null,
+      el('div', { class: 'team-head' }, [logo(info.logo, info.name, 'xl'), el('div', { class: 'team-head-text' }, [el('h3', { text: info.name }), info.en && info.en !== info.name ? el('small', { class: 'muted', text: info.en }) : null, el('p', { class: 'muted', text: [info.record, standingZh(info.standing, L())].filter(Boolean).join(' · ') })]), followBtn]),
+      place ? el('div', { class: 'team-tiles' }, [tile(T('standing'), T('placeN', { n: place.pos }), place.group), ...['W', 'D', 'L', 'P', 'PTS', 'PCT', 'GB', 'GD', 'STRK'].filter(k => place.row.stats[k] != null && place.row.stats[k] !== '').slice(0, 5).map(k => tile(colLabel(k), place.row.stats[k]))]) : null,
       next.length ? el('h3', { class: 'section-h', text: T('schedule') }) : null,
       next.length ? el('div', { class: 'q-card list' }, next.map(x => eventRow(x, { league: comps }))) : null,
       past.length ? el('h3', { class: 'section-h', text: T('lastGames') }) : null,
@@ -592,10 +614,10 @@ export async function openTeam(league, id, fallback = {}) {
       .then(list =>
         put(
           rosterBox,
-          list.map(g =>
+          byPosition(list, LEAGUES[league]?.sport).map(g =>
             el('div', { class: 'q-card pad fx-card' }, [
               g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
-              el('ul', { class: 'roster-list' }, g.players.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link', type: 'button', text: p.name, onclick: () => ctx.openPlayer(league, p.id) }), el('small', { text: [p.pos, p.age ? `${p.age}` : ''].filter(Boolean).join(' · ') })])))
+              el('ul', { class: 'roster-list' }, g.players.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link', type: 'button', text: p.name, onclick: () => ctx.openPlayer(league, p.id) }), el('small', { text: [posZh(p.pos, LEAGUES[league]?.sport, L()), p.age ? (L() === 'en' ? `${p.age}` : `${p.age} 歲`) : ''].filter(Boolean).join(' · ') })])))
             ])
           )
         )
@@ -605,6 +627,25 @@ export async function openTeam(league, id, fallback = {}) {
     put(content, empty(T('failed')));
   }
 }
+// A squad in groups: ESPN's own (NFL's offense and defense, MLB's pitchers…)
+// named in the reader's language, else by position (門將, 後衛, 中場, 前鋒).
+const ROSTER_GROUP = { offense: '進攻組', defense: '防守組', specialteam: '特勤組', 'special teams': '特勤組', pitchers: '投手', catchers: '捕手', infielders: '內野手', outfielders: '外野手', 'designated hitter': '指定打擊', centers: '中鋒', forwards: '前鋒', defensemen: '防守球員', goalies: '守門員', guards: '後衛', injuredreserveorout: '傷兵', injured: '傷兵', practicesquad: '練習陣容', 'practice squad': '練習陣容' };
+function byPosition(list, sport) {
+  const zh = L() !== 'en';
+  if (list.length > 1 || list[0]?.name) return list.map(g => ({ ...g, name: zh ? ROSTER_GROUP[String(g.name).toLowerCase()] || g.name : g.name }));
+  const players = list[0]?.players || [];
+  if (!players.some(p => p.pos)) return list;
+  const groups = new Map();
+  for (const p of players) {
+    const k = posZh(p.pos, sport, L()) || '';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(p);
+  }
+  return groups.size > 1 ? [...groups].map(([name, ps]) => ({ name, players: ps })) : list;
+}
+// A table column's short name in the reader's language.
+const COL_ZH = { GP: '場', W: '勝', D: '和', T: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', OTL: '延敗', GAP: '落後' };
+const colLabel = c => (L() === 'en' ? (c === 'GAP' ? T('col_GAP') : c) : COL_ZH[c] || c);
 const tile = (label, value, sub = '') => el('div', { class: 'stat-tile' }, [el('small', { text: label }), el('strong', { class: 'num', text: value }), sub ? el('small', { class: 'muted', text: sub }) : null]);
 
 // ---- A player -----------------------------------------------------------------------------
@@ -731,8 +772,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
   const want = STANDING_COLUMNS[sport] || ['W', 'L'];
   const small = COMPACT_COLUMNS[sport] || want;
   // Short headers in the reader's language.
-  const ZH_COL = { GP: '場', W: '勝', D: '和', T: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', OTL: '延敗', GAP: '落後' };
-  const colName = c => (L() === 'en' ? (c === 'GAP' ? T('col_GAP') : c) : ZH_COL[c] || c);
+  const colName = colLabel;
   return el(
     'div',
     { class: 'stack' },

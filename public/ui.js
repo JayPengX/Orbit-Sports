@@ -9,6 +9,7 @@ import { broadcastsOf } from './lib/broadcast.mjs';
 import { playGameId } from './lib/espn.mjs';
 import { playable, leagueOnSale } from './lib/playable.mjs';
 import { tvOf, channelsOf } from './lib/tv.mjs';
+import { seriesLineZh } from './lib/statnames.mjs';
 
 export const ctx = { t: k => k, locale: 'zh', state: null, openEvent: () => {}, openTeam: () => {}, openPlayer: () => {} };
 
@@ -102,8 +103,31 @@ export function statusText(e) {
     const label = e.kind === 'match' ? liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale) : fieldStatus(String(s.short || s.detail || t('live')), LEAGUES[e.league]?.sport);
     return s.delayed ? `${label} · ${t('paused')}` : label;
   }
-  if (s.state === 'post') return s.short && !/^final$/i.test(s.short) ? s.short : t('final');
+  if (s.state === 'post') return s.short && !/^final$/i.test(s.short) ? finalText(s.short) : t('final');
   return whenText(e.start);
+}
+// A finished game's ESPN status in Chinese: "Final/OT" 終場（延長）, "Final/10"
+// 終場（10 局）, "FT", "AET", "FT-Pens"…; anything else as ESPN wrote it.
+function finalText(text) {
+  if (ctx.locale === 'en') return text;
+  const t = String(text).trim();
+  const f = /^F(?:inal)?\/(.+)$/i.exec(t);
+  if (f) {
+    const x = f[1];
+    if (/^OT$/i.test(x)) return '終場（延長）';
+    const ot = /^(\d)OT$/i.exec(x);
+    if (ot) return `終場（${ot[1]} 度延長）`;
+    if (/^SO$/i.test(x)) return '終場（射門大賽）';
+    if (/^\d+$/.test(x)) return `終場（${x} 局）`;
+    return `終場（${x}）`;
+  }
+  if (/^(FT|Full Time)$/i.test(t)) return ctx.t('final');
+  if (/^AET$/i.test(t)) return '終場（延長賽）';
+  if (/pens|penalties/i.test(t)) return '終場（PK 大戰）';
+  if (/^(retired|ret\.?)$/i.test(t)) return '退賽';
+  if (/^(walkover|w\/o)$/i.test(t)) return '不戰而勝';
+  if (/^abandoned$/i.test(t)) return '比賽中止';
+  return t;
 }
 // ESPN's words for a card, a tournament or a race on now, in Chinese:
 // "Walkouts", "Round 2", "End of Round 1" (回合 for fights, 輪 for golf), "In Progress".
@@ -141,7 +165,14 @@ export function winners(e) {
   };
 }
 // A playoff series line under a match: "LAL lead series 2-1".
-export const seriesText = e => (e.series?.summary && !/^series starts/i.test(e.series.summary) ? e.series.summary : '');
+// In Chinese: "洋基 系列賽 2-1 領先" (the sides by their names).
+export const seriesText = e => {
+  const s = e.series?.summary;
+  if (!s || /^series starts/i.test(s)) return '';
+  if (ctx.locale === 'en') return s;
+  const name = abbr => [e.home, e.away].find(x => x?.abbr && x.abbr.toUpperCase() === String(abbr).toUpperCase())?.short || abbr;
+  return seriesLineZh(s, name) || s;
+};
 // 投注: straight into Quadra Play on this game (a tap on it doesn't open the game here).
 // F1 in Play: its race board (the winner, places, flags), or pole position
 // for the qualifying; nothing for practice or a sprint (Play doesn't sell them).

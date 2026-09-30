@@ -74,3 +74,20 @@ test("投注 only where Play has the game: Kambi's priced list, ESPN's line, Pla
   // A league Play doesn't sell.
   assert.equal(playablePair('pga', '2026-10-02T00:00Z', 'A', 'B', 'pre', '1', true, now), false);
 });
+
+test('ESPN words in Chinese: pitches, series, injuries, groups, positions, leaders, weather', async () => {
+  const m = await import('../public/lib/statnames.mjs');
+  assert.equal(m.pitchZh('Strike 2 Foul'), '界外（2 好）');
+  assert.equal(m.pitchZh('Pitch 3 : Ball 2'), '第 3 球：壞球（2 壞）');
+  assert.equal(m.seriesLineZh('NYY win series 2-0', a => ({ NYY: '洋基' })[a]), '洋基 以 2-0 贏得系列賽');
+  assert.equal(m.injuryZh('15-Day-IL'), '15 天傷兵名單');
+  assert.equal(m.groupZh('American League'), '美國聯盟');
+  assert.equal(m.groupZh('AL East'), '美聯東區');
+  assert.equal(m.standingZh('1st in English Premier League'), '英超第 1 名');
+  assert.equal(m.posZh('G', 'soccer'), '門將');
+  assert.equal(m.posZh('G', 'basketball'), '後衛');
+  assert.equal(m.leaderValue('Matches: 5, Goals: 5'), '出賽 5、進球 5');
+  assert.equal(m.weatherZh('65°'), '18°C');
+  assert.equal(m.fixedWord('Final'), '決賽');
+  assert.equal(m.dateText('', '30/9/1997'), '1997年9月30日');
+});
