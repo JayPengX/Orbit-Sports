@@ -19,7 +19,8 @@ right:
   what you follow, your teams only, or one sport. Your teams' next or last
   game and your open bets in Play (today).
 - **賽事 Matches**: every sport and league. Team sports open on the game day
-  nearest to now (a live one first) with a strip of the league's game days;
+  nearest to now (a live one first) with the same date strip as 首頁 (the league's game days, more of them as
+  it's scrolled near either end, and 📅 for any day);
   a filter by stage when the season has more than one (preseason, playoffs,
   the NBA Cup…). Races, tours and fight promotions show their whole season:
   live, coming up (every future event, e.g. the rest of the F1 calendar) and

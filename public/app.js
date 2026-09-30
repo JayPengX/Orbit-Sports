@@ -484,10 +484,10 @@ function filtered(events) {
 const STRIP = { from: -7, to: 14, step: 14 };
 const stripRange = { from: STRIP.from, to: STRIP.to };
 const dayOffset = d => Math.round((Date.parse(`${d}T12:00:00`) - Date.parse(`${today()}T12:00:00`)) / 86_400_000);
-function reach(date) {
+function reach(date, range = stripRange) {
   const n = dayOffset(date);
-  if (n < stripRange.from) stripRange.from = n - 3;
-  if (n > stripRange.to) stripRange.to = n + 3;
+  if (n < range.from) range.from = n - 3;
+  if (n > range.to) range.to = n + 3;
 }
 function dayChip(d, current, onPick) {
   const dt = new Date(`${d}T12:00:00`);
@@ -498,8 +498,12 @@ function dayChip(d, current, onPick) {
     el('small', { class: 'num', text: other ? `${String(dt.getFullYear()).slice(2)}/${dt.getMonth() + 1}/${dt.getDate()}` : `${dt.getMonth() + 1}/${dt.getDate()}` })
   ]);
 }
-function dateStrip(current, onPick, { only = null, grow = null } = {}) {
-  if (current) reach(current);
+// `range`: the stretch of days shown (home's own by default; 賽事 keeps one
+// per league); `only`: just these days (a sport's or a league's game days);
+// `grow`: read more of them before the strip grows.
+function dateStrip(current, onPick, { only = null, grow = null, range = stripRange } = {}) {
+  const stripRange = range;
+  if (current) reach(current, range);
   const row = el('div', { class: 'q-chips day-strip' });
   const days = () => {
     const list = [];
@@ -537,7 +541,7 @@ function dateStrip(current, onPick, { only = null, grow = null } = {}) {
   const pick = el('input', { class: 'day-pick-input', type: 'date', 'aria-label': L({ zh: '選擇日期', en: 'Pick a date' }), value: current || today() });
   pick.addEventListener('change', () => {
     if (!pick.value) return;
-    reach(pick.value);
+    reach(pick.value, range);
     onPick(pick.value);
   });
   const cal = el('label', { class: 'q-chip day-pick', title: L({ zh: '選擇日期', en: 'Pick a date' }) }, [el('span', { class: 'day-pick-icon', 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2"/></svg>' }), pick]);
@@ -965,14 +969,98 @@ function openScores(league, date, view = 'games') {
 async function loadScores() {
   const sc = state.scores;
   const league = sc.league;
-  const l = LEAGUES[league];
   const key = `${league}|${sc.extra}`;
   sc.loadingKey = key;
   sc.loading = true;
+  // A new league: its own stretch of days on the strip.
+  if (sc.rangeOf !== league) (sc.range = { from: STRIP.from, to: STRIP.to }), (sc.rangeOf = league);
   renderScores();
   track(null, [`league:${leagueKey(league)}`], 0.3);
   let events = [];
   try {
+    events = await fetchScores(sc);
+  } catch {
+    if (sc.loadingKey === key) sc.byDay = 'failed';
+  }
+  if (sc.loadingKey !== key) return;
+  sc.loading = false;
+  if (sc.byDay !== 'failed' || events.length) {
+    applyScores(sc, events);
+    // The day shown: the one asked for, else one with a game on now, else
+    // today's or the next game day (however far: a break opens on the next
+    // round), else the latest.
+    const byDay = sc.byDay;
+    const liveDays = sc.days.filter(d => byDay.get(d).some(e => e.status.state === 'in'));
+    const liveDay = liveDays.includes(today()) ? today() : liveDays.at(-1);
+    const next = sc.days.find(d => d >= today() && byDay.get(d).some(e => e.status.state !== 'post' && !e.status.void));
+    if (!sc.date || !byDay.has(sc.date)) sc.date = liveDay || next || nearestDay(sc.days) || today();
+  }
+  renderScores();
+}
+// The games grouped by the viewer's day.
+function applyScores(sc, events) {
+  const now = Date.now();
+  events = events.flatMap(e => (e.sessions ? splitWeekend(e, now, locale) : [e]));
+  const byDay = new Map();
+  for (const e of events.filter(x => !x.status.void || x.kind === 'match')) {
+    const d = localDate(Date.parse(e.start));
+    if (!byDay.has(d)) byDay.set(d, []);
+    byDay.get(d).push(e);
+  }
+  sc.byDay = byDay;
+  sc.all = events;
+  sc.days = [...byDay.keys()].sort();
+}
+// Scrolled near an end of the strip: the league's next stretch of game days
+// (sc.extra one more), read without redrawing; the days it added. One read
+// at a time (`growing`: the scores it's for).
+let growing = null;
+async function growScores() {
+  const sc = state.scores;
+  const league = sc.league;
+  if (sc.mode !== 'days' || !(LEAGUES[league].espn || LEAGUES[league].asia) || growing === sc) return [];
+  growing = sc;
+  const had = new Set(sc.days);
+  sc.extra += 1;
+  try {
+    const events = await fetchScores(sc);
+    if (state.scores !== sc || sc.league !== league) return [];
+    // Keep what's already read (a day's own read, say) and add the rest.
+    const byId = new Map((sc.all || []).map(e => [e.id, e]));
+    for (const e of events) byId.set(e.id, e);
+    applyScores(sc, [...byId.values()]);
+    return sc.days.filter(d => !had.has(d));
+  } catch {
+    return [];
+  } finally {
+    if (growing === sc) growing = null;
+  }
+}
+// A day picked on the strip or the 📅: shown at once; a day not read yet (an
+// ESPN league's, far from now) is read first.
+async function pickScoresDay(d) {
+  const sc = state.scores;
+  sc.date = d;
+  const l = LEAGUES[sc.league];
+  if (sc.byDay instanceof Map && !sc.byDay.has(d) && l.espn && sc.mode === 'days' && !l.kambi) {
+    renderScores();
+    const at = Date.parse(`${d}T12:00:00`);
+    // Its US days: the one before, the day, and the one after.
+    const us = [-1, 0, 1].map(k => yyyymmdd(new Date(at + k * 86_400_000)));
+    const events = await scoreboard(sc.league, us).catch(() => []);
+    if (state.scores !== sc) return;
+    const byId = new Map((sc.all || []).map(e => [e.id, e]));
+    for (const e of events) byId.set(e.id, e);
+    applyScores(sc, [...byId.values()]);
+  }
+  renderScores();
+}
+// Which events to read for the league as sc stands (sc.extra: how far).
+async function fetchScores(sc) {
+  const league = sc.league;
+  const l = LEAGUES[league];
+  let events = [];
+  {
     if (l.kind !== 'match') {
       sc.mode = 'event';
       // The season's schedule, with the current event's live copy on top.
@@ -1014,32 +1102,8 @@ async function loadScores() {
         events = usDays.length ? await scoreboard(league, usDays) : await scoreboard(league);
       }
     }
-  } catch {
-    if (sc.loadingKey === key) sc.byDay = 'failed';
   }
-  if (sc.loadingKey !== key) return;
-  sc.loading = false;
-  if (sc.byDay !== 'failed' || events.length) {
-    const now = Date.now();
-    events = events.flatMap(e => (e.sessions ? splitWeekend(e, now, locale) : [e]));
-    const byDay = new Map();
-    for (const e of events.filter(x => !x.status.void || x.kind === 'match')) {
-      const d = localDate(Date.parse(e.start));
-      if (!byDay.has(d)) byDay.set(d, []);
-      byDay.get(d).push(e);
-    }
-    sc.byDay = byDay;
-    sc.all = events;
-    sc.days = [...byDay.keys()].sort();
-    // The day shown: the one asked for, else one with a game on now, else
-    // today's or the next game day (however far: a break opens on the next
-    // round), else the latest.
-    const liveDays = sc.days.filter(d => byDay.get(d).some(e => e.status.state === 'in'));
-    const liveDay = liveDays.includes(today()) ? today() : liveDays.at(-1);
-    const next = sc.days.find(d => d >= today() && byDay.get(d).some(e => e.status.state !== 'post' && !e.status.void));
-    if (!sc.date || !byDay.has(sc.date)) sc.date = liveDay || next || nearestDay(sc.days) || today();
-  }
-  renderScores();
+  return events;
 }
 
 // The search box stays put (it keeps its focus and caret while typing); the
@@ -1133,8 +1197,7 @@ function renderScores() {
   let stages = null;
   const tableView = sc.view === 'table' && hasStandings(sc.league);
   if (tableView) list = tableOf(sc.league);
-  // More days on the way (‹ ›): the strip and day stay as they are meanwhile.
-  else if (sc.byDay == null || (sc.loading && !(sc.anchor && sc.byDay instanceof Map))) list = spinner();
+  else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
   else if (sc.mode === 'event') {
     const events = [...sc.byDay.values()].flat().sort((a, b) => a.start.localeCompare(b.start));
@@ -1151,19 +1214,11 @@ function renderScores() {
       : empty(t('noEvents'));
   } else if (!sc.days.length) list = empty(t('noGamesSeason'));
   else {
-    // ‹ and › read more days, and the strip then opens where they were
-    // added (the day it ended at stays in view), not back on the chosen day.
-    const more = (text, side) =>
-      LEAGUES[sc.league].espn || LEAGUES[sc.league].asia
-        ? el('button', { class: 'q-chip more', type: 'button', text: sc.loading && sc.anchor?.side === side ? '…' : text, disabled: sc.loading ? true : null, 'aria-label': t('moreDays'), onclick: () => ((sc.anchor = { side, day: side === 'start' ? sc.days[0] : sc.days.at(-1) }), (sc.extra += 1), loadScores()) })
-        : null;
-    strip = el('div', { class: 'q-chips day-strip' }, [
-      more('‹', 'start'),
-      ...sc.days.map(d =>
-        el('button', { class: `q-chip day${d === today() ? ' is-today' : ''}`, type: 'button', 'data-day': d, 'aria-pressed': String(sc.date === d), onclick: () => ((sc.date = d), renderScores()) }, [el('span', { text: dayLabel(d) }), el('small', { class: 'num', text: String(sc.byDay.get(d).length) })])
-      ),
-      more('›', 'end')
-    ]);
+    // The same date strip as 首頁: the league's game days, more of them as
+    // it's scrolled near either end, and 📅 for any day.
+    const only = new Set(sc.days);
+    for (const d of [sc.days[0], sc.days.at(-1)]) reach(d, sc.range);
+    strip = dateStrip(sc.date, pickScoresDay, { only, range: sc.range, grow: () => growScores().then(added => added.forEach(d => only.add(d))) });
     const order = { in: 0, pre: 1, post: 2 };
     const games = [...(sc.byDay.get(sc.date) || [])].sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
     // The season's stages on show (preseason, playoffs, a cup…), as a filter.
@@ -1191,20 +1246,6 @@ function renderScores() {
   const views = hasStandings(sc.league) ? segmented([['games', t('schedule')], ['table', t('table')]], tableView ? 'table' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
   put(box, sportChips, leagueChips, tools, views, tableView ? null : strip, tableView ? null : stages, list);
   centerChosen(box);
-  if (strip && sc.anchor && !sc.loading) {
-    keepAnchor(strip, sc.anchor);
-    sc.anchor = null;
-  }
-}
-
-// After ‹ (side 'start'): the day the strip began at on its right edge, the
-// added days before it in view; after › ('end'): the day it ended at on the
-// left edge, the added days after it.
-function keepAnchor(row, { side, day }) {
-  const chip = row.querySelector(`[data-day="${day}"]`);
-  if (!chip || row.scrollWidth <= row.clientWidth) return;
-  const at = chip.offsetLeft - row.offsetLeft;
-  row.scrollLeft = side === 'start' ? at + chip.offsetWidth - row.clientWidth + 8 : at - 8;
 }
 
 const searchEspn = q => proxyJson(`https://site.api.espn.com/apis/search/v2?query=${encodeURIComponent(q)}&limit=12`, { ttl: 10 * 60_000 }).then(parseSearch);
