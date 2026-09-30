@@ -12,7 +12,8 @@ test('every league has a sport, a source and names', () => {
     assert.ok(l.espn || l.kambi || l.asia, key);
     assert.ok(l.zh && l.en, key);
   }
-  assert.ok(Object.keys(LEAGUES).length >= 60);
+  // Trimmed to first tiers and the international game (2026-09-30).
+  assert.ok(Object.keys(LEAGUES).length >= 45);
 });
 
 test('team scoreboards: both sides, scores, status', () => {

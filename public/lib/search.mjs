@@ -5,7 +5,7 @@
 import { LEAGUES } from './leagues.mjs';
 
 // ESPN's league ids, by Fixtures' league key's (from each scoreboard's league id).
-export const ESPN_LEAGUE_ID = {"mlb": "10", "nba": "46", "ncaam": "41", "ncaaw": "54", "nfl": "28", "ncaaf": "23", "nhl": "90", "epl": "700", "laliga": "740", "seriea": "730", "bundesliga": "720", "ligue1": "710", "ucl": "775", "uel": "776", "uecl": "20296", "eredivisie": "725", "primeira": "715", "championship": "3914", "league1": "3915", "scotland": "735", "bundesliga2": "3927", "laliga2": "3921", "serieb": "3931", "ligue2": "3926", "belgium": "3901", "austria": "3907", "swiss": "3944", "denmark": "3913", "norway": "3960", "sweden": "3945", "greece": "3955", "superlig": "3946", "saudi": "21231", "mls": "770", "usl": "4002", "nwsl": "8301", "ligamx": "760", "brasileirao": "630", "argentina": "745", "colombia": "650", "chile": "640", "libertadores": "783", "sudamericana": "5454", "jleague": "750", "csl": "8376", "aleague": "3906", "facup": "3918", "leaguecup": "3920", "copadelrey": "3951", "nationsleague": "2395", "wcqeurope": "786", "atp": "851", "wta": "900", "f1": "2030", "indycar": "2040", "nascar": "2021", "pga": "1106", "lpga": "1107", "ufc": "3321", "nrl": "8370", "afl": "35", "wnba": "59"};
+export const ESPN_LEAGUE_ID = {"mlb": "10", "nba": "46", "ncaam": "41", "ncaaw": "54", "nfl": "28", "ncaaf": "23", "nhl": "90", "epl": "700", "laliga": "740", "seriea": "730", "bundesliga": "720", "ligue1": "710", "ucl": "775", "uel": "776", "uecl": "20296", "eredivisie": "725", "primeira": "715", "championship": "3914", "league1": "3915", "scotland": "735", "bundesliga2": "3927", "laliga2": "3921", "serieb": "3931", "ligue2": "3926", "belgium": "3901", "superlig": "3946", "saudi": "21231", "mls": "770", "usl": "4002", "ligamx": "760", "brasileirao": "630", "argentina": "745", "libertadores": "783", "sudamericana": "5454", "jleague": "750", "facup": "3918", "leaguecup": "3920", "copadelrey": "3951", "nationsleague": "2395", "wcqeurope": "786", "acl": "3902", "asiancup": "20219", "friendly": "3922", "atp": "851", "wta": "900", "f1": "2030", "pga": "1106", "lpga": "1107", "ufc": "3321", "wnba": "59"};
 const BY_ID = Object.fromEntries(Object.entries(ESPN_LEAGUE_ID).map(([k, id]) => [id, k]));
 // Soccer's clubs and players carry no league id ("s:600~t:382"): their
 // default league's slug ("eng.1", sport "soccer") says which one.
@@ -31,7 +31,7 @@ export function parseSearch(data) {
       const id = /~[at]:(\d+)/.exec(c.uid || '')?.[1];
       const lid = /l:(\d+)~/.exec(c.uid || '')?.[1];
       const league = (lid && BY_ID[lid]) || (c.sport && c.defaultLeagueSlug && BY_PATH[`${c.sport}/${c.defaultLeagueSlug}`]);
-      if (!id || !league) continue;
+      if (!id || !league || !LEAGUES[league]) continue;
       list.push({ league, id, name: c.displayName || '', sub: c.subtitle || c.description || '', logo: c.image?.default || c.image?.defaultDark || null });
     }
   }

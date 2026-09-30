@@ -59,7 +59,7 @@ export function kambiLive(liveData, sport) {
 }
 
 const ord = n => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
-const QUARTERS = { basketball: 4, football: 4, hockey: 3, aussie: 4 };
+const QUARTERS = { basketball: 4, football: 4, hockey: 3 };
 
 // The short status of a game on now (or at a break): the period and clock,
 // in the viewer's language. e: a Fixtures match event.

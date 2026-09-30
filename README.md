@@ -62,10 +62,12 @@ app (the shared affinity map); and live or starting soon. The plan takes the
 best match, then the best that doesn't clash with those already in (each
 sport's usual length), and lists them by time, each with its reasons.
 
-Sports: soccer (about 45 leagues and cups), baseball (MLB, NPB, KBO, CPBL),
-basketball (NBA, WNBA, NCAA, EuroLeague, B.League), NFL and college football,
-NHL, ATP/WTA tennis, F1/IndyCar/NASCAR, PGA/LPGA golf, UFC, NRL, AFL,
-badminton, table tennis, volleyball and snooker. The list is in
+Sports: soccer (each nation's first tier, the European, South American and
+Asian club competitions, the Asian Cup and the national teams), baseball
+(MLB, NPB, KBO, CPBL), basketball (NBA, WNBA, EuroLeague, Liga ACB, NBL,
+B.League), NFL and college football, NHL, ATP/WTA tennis, F1, PGA/LPGA golf,
+UFC, international rugby union, badminton, and the pro events of table
+tennis and volleyball, and snooker. The list is in
 `public/lib/leagues.mjs`.
 
 ## How it works

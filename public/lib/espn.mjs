@@ -554,7 +554,6 @@ export const STANDING_COLUMNS = {
   football: ['W', 'L', 'T', 'PCT', 'GB', 'STRK'],
   hockey: ['GP', 'W', 'L', 'OTL', 'PTS', 'GAP'],
   rugby: ['GP', 'W', 'L', 'PTS', 'GAP'],
-  aussie: ['GP', 'W', 'L', 'PTS', 'GAP'],
   racing: ['PTS', 'GAP']
 };
 // The columns that matter most on a narrow screen.
@@ -565,7 +564,6 @@ export const COMPACT_COLUMNS = {
   football: ['W', 'L', 'PCT', 'GB'],
   hockey: ['GP', 'PTS', 'GAP'],
   rugby: ['GP', 'PTS', 'GAP'],
-  aussie: ['GP', 'PTS', 'GAP'],
   racing: ['PTS', 'GAP']
 };
 
@@ -578,7 +576,7 @@ const num = v => {
   return Number.isFinite(n) ? n : null;
 };
 export function withGaps(groups, sport) {
-  const pointsKey = { soccer: 'P', hockey: 'PTS', rugby: 'PTS', aussie: 'PTS', racing: 'PTS' }[sport];
+  const pointsKey = { soccer: 'P', hockey: 'PTS', rugby: 'PTS', racing: 'PTS' }[sport];
   return (groups || []).map(g => {
     const rows = g.rows;
     if (!rows.length) return g;

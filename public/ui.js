@@ -189,8 +189,6 @@ export function playTarget(e) {
   }
   const play = LEAGUES[e.league]?.play;
   if (!play) return null;
-  // NASCAR, IndyCar: Play's board of the series' next race, until it starts.
-  if (e.kind === 'field') return LEAGUES[e.league].sport === 'racing' && e.status.state === 'pre' && Date.parse(e.start) - Date.now() < 7 * 86_400_000 ? `league=${play}` : null;
   // Only what Play has on its board now (lib/playable.mjs): no 投注 on a game it doesn't sell.
   if (e.kind === 'match') {
     const id = playable(e) ? playGameId(e) : null;

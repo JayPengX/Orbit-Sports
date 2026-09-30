@@ -395,7 +395,7 @@ function overview(d, e, table, nameOf) {
 // A few table columns worth comparing, by sport.
 function keyStats(league, places) {
   const sport = LEAGUES[league]?.sport;
-  const want = { soccer: ['P', 'GD', 'F', 'A'], baseball: ['PCT', 'GB', 'STRK'], basketball: ['PCT', 'GB', 'STRK'], football: ['PCT', 'STRK'], hockey: ['PTS', 'STRK'], rugby: ['PTS'], aussie: ['PTS'] }[sport] || [];
+  const want = { soccer: ['P', 'GD', 'F', 'A'], baseball: ['PCT', 'GB', 'STRK'], basketball: ['PCT', 'GB', 'STRK'], football: ['PCT', 'STRK'], hockey: ['PTS', 'STRK'], rugby: ['PTS'] }[sport] || [];
   // Games behind the leader of the table shown next to it (ESPN's own figure
   // can be against another list, such as the division, and read as nonsense).
   const gb = p => {
