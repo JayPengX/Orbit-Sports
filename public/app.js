@@ -247,6 +247,7 @@ function restoreDay() {
 // starting between midnight and 5 (Europe's evenings, America's afternoons)
 // is while everyone sleeps, and isn't recommended on either day.
 const AWAKE_FROM = 5;
+const inDay = (ms, date) => ms >= Date.parse(`${date}T00:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 
 // A day's events of these leagues (races split into their sessions).
@@ -272,7 +273,10 @@ async function readDay(leagues, date, { current = false } = {}) {
   const kept = rawDays.get(date) || new Map();
   for (const e of raw) kept.set(`${e.league}:${e.id}:${e.sessionKey || ''}`, e);
   rawDays.set(date, kept);
-  return raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
+  // Results are the whole day's: a game in the small hours that's over (or
+  // any of a past day's) counts for its day, it just wasn't one to wake up for.
+  const past = date < today();
+  return raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || ((past || e.status.state === 'post') && inDay(Date.parse(e.start), date)) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
 }
 function repaintDay(date) {
   paintStatus();
@@ -597,7 +601,7 @@ function renderHome() {
   // ranked as it stood before, as on a past day, and what of it was on
   // show (the plan and the first of the rest) that's over now.
   const ended = x => x.event.status.state === 'post' && !x.event.status.void;
-  const [wasPlan, wasMore] = isToday ? (fallback ? rank(slot.others.filter(onMyTv), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
+  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(onMyTv), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
   const endedPlan = wasPlan.filter(ended);
   const endedMore = wasMore.slice(0, 20).filter(ended);
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
