@@ -238,7 +238,7 @@ function saveDay(date, slot) {
 function restoreDay() {
   try {
     const saved = JSON.parse(localStorage.getItem(DAY_KEY) || 'null');
-    if (saved?.date === today() && saved.leagues === leaguesKey() && Date.now() - saved.at < 6 * 3_600_000) state.days.set(saved.date, { events: saved.events, at: saved.at, loading: false, stale: true, leagues: saved.leagues });
+    if (saved?.date === today() && saved.leagues === leaguesKey() && Date.now() - saved.at < 6 * 3_600_000) state.days.set(saved.date, { events: (saved.events || []).filter(e => LEAGUES[e.league]), at: saved.at, loading: false, stale: true, leagues: saved.leagues });
   } catch {}
 }
 

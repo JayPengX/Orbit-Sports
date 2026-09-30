@@ -14,7 +14,7 @@ import { teamBadge, teamLogo, raceName, playerFlag, countryName, f1Driver } from
 import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { asiaMonth, asiaMonthOf } from './catalog.mjs';
+import { asiaMonth, asiaMonthOf, kambiKept } from './catalog.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
 import { teamNameZh } from './names.mjs';
@@ -326,7 +326,7 @@ export function parseKambi(data, league) {
   const out = [];
   for (const item of data?.events || []) {
     const e = item.event;
-    if (!e?.homeName || !e?.awayName) continue;
+    if (!e?.homeName || !e?.awayName || !kambiKept(league, e)) continue;
     const live = item.liveData;
     const state = e.state === 'STARTED' ? 'in' : e.state === 'FINISHED' ? 'post' : 'pre';
     // Set scores (tennis, volleyball…) or, for baseball, the innings in the score's info ("1-0 | 0-2 | …").

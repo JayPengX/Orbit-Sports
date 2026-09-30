@@ -18,12 +18,17 @@ test('a delayed or suspended game is still on (Play keeps it live); a postponed 
 test("Kambi's players carry their nation's flag (the kit's table, else where the match is filed)", () => {
   const data = {
     events: [
-      { event: { id: 1, name: 'Radek Bartunek - Marek Placek', homeName: 'Radek Bartunek', awayName: 'Marek Placek', start: '2026-09-30T06:00:00Z', state: 'NOT_STARTED', group: 'Czech Liga Pro', path: ['table_tennis', 'czech_republic', 'czech_liga_pro'] } },
-      { event: { id: 2, name: 'Fan Zhendong - Lin Yun-Ju', homeName: 'Fan Zhendong', awayName: 'Lin Yun-Ju', start: '2026-09-30T08:00:00Z', state: 'NOT_STARTED', group: 'WTT Champions', path: [{ termKey: 'table_tennis' }, { termKey: 'wtt_champions' }] } }
+      { event: { id: 1, name: 'Radek Bartunek - Marek Placek', homeName: 'Radek Bartunek', awayName: 'Marek Placek', start: '2026-09-30T06:00:00Z', state: 'NOT_STARTED', group: 'Czech Open', path: ['badminton', 'czech_republic', 'czech_open'] } },
+      { event: { id: 2, name: 'Fan Zhendong - Lin Yun-Ju', homeName: 'Fan Zhendong', awayName: 'Lin Yun-Ju', start: '2026-09-30T08:00:00Z', state: 'NOT_STARTED', group: 'WTT Champions', path: [{ termKey: 'table_tennis' }, { termKey: 'wtt_champions' }] } },
+      { event: { id: 3, name: 'Radek Bartunek - Marek Placek', homeName: 'Radek Bartunek', awayName: 'Marek Placek', start: '2026-09-30T06:30:00Z', state: 'NOT_STARTED', group: 'Czech Liga Pro', path: ['table_tennis', 'czech_republic', 'czech_liga_pro'] } }
     ]
   };
-  const [czech, wtt] = parseKambi(data, 'tabletennis');
+  const [czech] = parseKambi({ events: data.events.slice(0, 1) }, 'badminton');
   assert.match(czech.home.logo, /flags\/cz\.svg$/);
+  // Table tennis: the pro tour only, not Kambi's betting leagues (Czech Liga Pro).
+  const tt = parseKambi({ events: data.events.slice(1) }, 'tabletennis');
+  assert.deepEqual(tt.map(e => e.id), ['k2']);
+  const [wtt] = tt;
   assert.match(wtt.home.logo, /flags\/cn\.svg$/);
   assert.match(wtt.away.logo, /flags\/tw\.svg$/);
   // Clubs keep their badges.
