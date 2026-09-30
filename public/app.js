@@ -10,7 +10,7 @@
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, activityPatch, affinity, appUrl, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, affinityPatch, settingPatch } from './lib/quadra.mjs';
 import { scoreboard, standings, teamSchedule, seasonCalendar, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
-import { SERVICES, watchable, leaguesOn } from './lib/broadcast.mjs';
+import { SERVICES, watchable, leaguesOn, eltaChannel, eltaWatchUrl } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
 import { familyOfSport } from './lib/catalog.mjs';
@@ -19,6 +19,8 @@ import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch } from './lib/picks.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
+import { onPlayableChange } from './lib/playable.mjs';
+import { onTvChange, tvOf, knownEvents, eltaSchedule } from './lib/tv.mjs';
 import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, betChip, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, standingsTables } from './sheets.js';
 
@@ -217,8 +219,9 @@ function otherLeagues() {
     .filter(k => LEAGUES[k] && !mine.has(k))
     .sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top));
 }
-// On the person's services (every match when they haven't said which).
-const onMyTv = e => !state.prefs.tv.length || watchable(e.league, state.prefs.tv);
+// On the person's services (every match when they haven't said which): the
+// game's own channels where ELTA's schedule says (an NBA game ELTA doesn't carry isn't on ELTA).
+const onMyTv = e => !state.prefs.tv.length || (watchable(e.league, state.prefs.tv) && tvOf(e).some(b => state.prefs.tv.includes(b.svc)));
 const espnDaysOf = date => {
   const start = new Date(`${date}T00:00:00`).getTime();
   return [...new Set([yyyymmdd(new Date(start - 11 * 3_600_000)), yyyymmdd(new Date(start + 12 * 3_600_000)), yyyymmdd(new Date(start + 23 * 3_600_000))])];
@@ -385,7 +388,7 @@ function syncPush() {
   const games = [...state.prefs.follows.flatMap(f => state.home.teams.get(`${f.league}:${f.id}`) || []), ...(state.days.get(today())?.events || []).filter(isFollowedEvent)];
   for (const e of games) {
     const key = `${e.league}:${e.id}`;
-    if (e.kind !== 'match' || seen.has(key) || e.status?.state === 'post' || e.status?.void) continue;
+    if (e.kind !== 'match' || e.other || seen.has(key) || e.status?.state === 'post' || e.status?.void) continue;
     seen.add(key);
     const start = Date.parse(e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
@@ -456,7 +459,7 @@ function pickCard(item, n) {
       liveLine(e),
       e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : null,
       reasons.length ? el('div', { class: 'why-row' }, reasons.map(r => el('span', { class: 'why', text: r }))) : null,
-      twChips(e.league, 2)
+      twChips(e.league, 2, e)
     ])
   ]);
 }
@@ -469,23 +472,70 @@ function filtered(events) {
   return events.filter(e => LEAGUES[e.league]?.sport === f);
 }
 
-// The date strip's days: three back, a week ahead.
-const STRIP = { from: -3, to: 7 };
-function dateStrip(current, onPick, { from = STRIP.from, to = STRIP.to, only = null } = {}) {
-  const days = [];
-  for (let i = from; i <= to; i++) days.push(addDays(today(), i));
-  if (only) days.splice(0, days.length, ...days.filter(d => only.has(d)));
-  return el(
-    'div',
-    { class: 'q-chips day-strip' },
-    days.map(d => {
-      const dt = new Date(`${d}T12:00:00`);
-      return el('button', { class: `q-chip day${d === today() ? ' is-today' : ''}`, type: 'button', 'aria-pressed': String(d === current), onclick: () => onPick(d) }, [
-        el('span', { text: d === today() ? t('today') : d === addDays(today(), 1) ? t('tomorrow') : d === addDays(today(), -1) ? t('yesterday') : dt.toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { weekday: 'short' }) }),
-        el('small', { class: 'num', text: `${dt.getMonth() + 1}/${dt.getDate()}` })
-      ]);
-    })
+// The date strip's days: it has no end. It opens on a week back and a
+// fortnight ahead, grows by two weeks whenever it's scrolled near either end,
+// and 📅 jumps to any day (the strip grows to reach it).
+const STRIP = { from: -7, to: 14, step: 14 };
+const stripRange = { from: STRIP.from, to: STRIP.to };
+const dayOffset = d => Math.round((Date.parse(`${d}T12:00:00`) - Date.parse(`${today()}T12:00:00`)) / 86_400_000);
+function reach(date) {
+  const n = dayOffset(date);
+  if (n < stripRange.from) stripRange.from = n - 3;
+  if (n > stripRange.to) stripRange.to = n + 3;
+}
+function dayChip(d, current, onPick) {
+  const dt = new Date(`${d}T12:00:00`);
+  const other = dt.getFullYear() !== new Date().getFullYear();
+  const first = dt.getDate() === 1;
+  return el('button', { class: `q-chip day${d === today() ? ' is-today' : ''}${first ? ' month-start' : ''}`, type: 'button', 'aria-pressed': String(d === current), 'data-day': d, onclick: () => onPick(d) }, [
+    el('span', { text: d === today() ? t('today') : d === addDays(today(), 1) ? t('tomorrow') : d === addDays(today(), -1) ? t('yesterday') : dt.toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { weekday: 'short' }) }),
+    el('small', { class: 'num', text: other ? `${String(dt.getFullYear()).slice(2)}/${dt.getMonth() + 1}/${dt.getDate()}` : `${dt.getMonth() + 1}/${dt.getDate()}` })
+  ]);
+}
+function dateStrip(current, onPick, { only = null, grow = null } = {}) {
+  if (current) reach(current);
+  const row = el('div', { class: 'q-chips day-strip' });
+  const days = () => {
+    const list = [];
+    for (let i = stripRange.from; i <= stripRange.to; i++) list.push(addDays(today(), i));
+    return only ? list.filter(d => only.has(d)) : list;
+  };
+  const fill = () => put(row, days().map(d => dayChip(d, current, onPick)));
+  fill();
+  // Near an end: two more weeks that way (the days already in view stay put).
+  let busy = false;
+  row.addEventListener(
+    'scroll',
+    () => {
+      // (A strip being replaced reports a scroll with no size: not the person's.)
+      if (busy || !row.isConnected || !row.clientWidth) return;
+      const nearEnd = row.scrollLeft + row.clientWidth > row.scrollWidth - 120;
+      const nearStart = row.scrollLeft < 120;
+      if (!nearEnd && !nearStart) return;
+      busy = true;
+      const before = row.scrollWidth;
+      if (nearEnd) stripRange.to += STRIP.step;
+      else stripRange.from -= STRIP.step;
+      const done = () => {
+        const left = row.scrollLeft;
+        fill();
+        if (nearStart) row.scrollLeft = left + (row.scrollWidth - before);
+        requestAnimationFrame(() => (busy = false));
+      };
+      // One sport's days are read for the new stretch first.
+      grow ? grow().then(done, done) : done();
+    },
+    { passive: true }
   );
+  // Any day: the browser's own date picker.
+  const pick = el('input', { class: 'day-pick-input', type: 'date', 'aria-label': L({ zh: '選擇日期', en: 'Pick a date' }), value: current || today() });
+  pick.addEventListener('change', () => {
+    if (!pick.value) return;
+    reach(pick.value);
+    onPick(pick.value);
+  });
+  const cal = el('label', { class: 'q-chip day-pick', title: L({ zh: '選擇日期', en: 'Pick a date' }) }, [el('span', { class: 'day-pick-icon', 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2"/></svg>' }), pick]);
+  return el('div', { class: 'day-strip-wrap' }, [row, cal]);
 }
 
 function renderHome() {
@@ -630,7 +680,11 @@ function homeHead() {
               h.autoDay = false;
               renderHome();
             },
-            { only: days }
+            {
+              only: days,
+              // One sport: its days over the longer stretch, read before the strip grows.
+              grow: sport ? () => sportDays(sport).then(more => (h.sportDays.set(sport, more), (days && more.forEach(d => days.add(d))))) : null
+            }
           )
   ]);
 }
@@ -677,12 +731,12 @@ async function pickFilter(k) {
   if (list.length && !days.has(h.date)) h.date = list.find(d => d >= today()) || list.at(-1);
   renderHome();
 }
-// The days (from three days ago to a week ahead) a followed sport's leagues
+// The days (the date strip's stretch so far) a followed sport's leagues
 // play on the person's services.
 async function sportDays(sport) {
   const leagues = pickLeagues().filter(k => LEAGUES[k].sport === sport);
-  const from = addDays(today(), STRIP.from);
-  const to = addDays(today(), STRIP.to);
+  const from = addDays(today(), stripRange.from);
+  const to = addDays(today(), stripRange.to);
   const usFrom = yyyymmdd(new Date(Date.parse(`${from}T00:00:00`) - 12 * 3_600_000));
   const usTo = yyyymmdd(new Date(Date.parse(`${to}T23:59:59`)));
   const lists = await Promise.all(
@@ -838,14 +892,51 @@ function renderLive() {
     ...bySport(mineFirst(live)).map(([sp, list]) => section(`${SPORTS[sp]?.icon || ''} ${L(SPORTS[sp] || { zh: '', en: '' })}`, el('div', { class: 'q-card list' }, list.map(e => eventRow(e))))),
     ended.length && !live.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(ended).slice(0, 12).map(e => eventRow(e)))) : null,
     soon.filter(e => e !== nextUp || live.length).length ? section(live.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, (live.length ? mineFirst(soon) : soon.filter(e => e !== nextUp)).slice(0, 30).map(e => eventRow(e)))) : null,
-    ended.length && live.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(ended).slice(0, 8).map(e => eventRow(e)))) : null
+    ended.length && live.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(ended).slice(0, 8).map(e => eventRow(e)))) : null,
+    tvGuide(all)
+  );
+}
+// 愛爾達's guide: what its channels show now and in the next 12 hours (the
+// followed leagues first), each with its game when Fixtures has it, and a
+// way to watch the channel on ELTA.tv.
+function tvGuide(events) {
+  const programs = eltaSchedule();
+  if (!programs?.length) return null;
+  const now = Date.now();
+  const mine = new Set(state.prefs.leagues);
+  const list = programs
+    .filter(p => p.end > now && p.start < now + 12 * 3_600_000)
+    .sort((a, b) => mine.has(b.league) - mine.has(a.league) || a.start - b.start)
+    .slice(0, 14)
+    .sort((a, b) => a.start - b.start);
+  if (!list.length) return null;
+  const gameOf = p => events.find(e => e.league === p.league && tvOf(e).some(b => b.ch === p.ch && b.at === p.start));
+  return section(
+    `📺 ${L({ zh: '愛爾達轉播表', en: 'ELTA TV guide' })}`,
+    el(
+      'div',
+      { class: 'q-card list tv-guide' },
+      list.map(p => {
+        const e = gameOf(p);
+        const ch = eltaChannel(p.ch);
+        const on = p.start <= now;
+        return el('div', { class: `tvg-row${on ? ' on' : ''}` }, [
+          el('span', { class: 'tvg-time num' }, [el('b', { text: on ? L({ zh: '播出中', en: 'On now' }) : clock(new Date(p.start).toISOString()) }), el('small', { text: L(ch).replace(/^愛爾達|^ELTA\.tv\s*/, '') })]),
+          el('button', { class: 'tvg-body', type: 'button', disabled: e ? null : true, onclick: () => e && openEvent(e) }, [leagueChip(p.league), el('span', { class: 'tvg-title', text: p.title })]),
+          el('a', { class: 'tvg-watch', href: eltaWatchUrl(p.ch), target: '_blank', rel: 'noopener', text: L({ zh: '觀看', en: 'Watch' }) })
+        ]);
+      })
+    ),
+    { sub: L({ zh: '愛爾達的節目表（需訂閱 ELTA.tv 或 MOD）', en: "ELTA's schedule (needs ELTA.tv or MOD)" }) }
   );
 }
 
 // ---- 賽事: every sport, league and game day ------------------------------------------------------
 
 function openScores(league, date, view = 'games') {
-  state.scores = { ...state.scores, sport: LEAGUES[league].sport, league, date: date || null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(league) ? view : 'games' };
+  state.scores = { ...state.scores, sport: LEAGUES[league].sport, league, date: date || null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(league) ? view : 'games', q: '' };
+  // Opened from a search: the search is done (its box emptied), the league shows.
+  clearSearch();
   if (state.tab === 'matches') loadScores();
   else showTab('matches');
 }
@@ -932,6 +1023,7 @@ async function loadScores() {
 // The search box stays put (it keeps its focus and caret while typing); the
 // rest of the page is drawn under it.
 let scoresBody = null;
+let clearSearch = () => {};
 function scoresShell() {
   const panel = $('panel-matches');
   if (scoresBody?.isConnected) return scoresBody;
@@ -950,6 +1042,12 @@ function scoresShell() {
     go();
     input.focus();
   });
+  clearSearch = () => {
+    input.value = '';
+    clear.hidden = true;
+    clearTimeout(timer);
+    input.blur();
+  };
   scoresBody = el('div', { class: 'scores-body' });
   put(panel, el('div', { class: 'fx-search' }, [el('span', { class: 'fx-search-icon', 'aria-hidden': 'true', text: '🔍' }), input, clear]), scoresBody);
   return scoresBody;
@@ -1207,6 +1305,23 @@ setInterval(() => {
   renderTabs();
 }, 30_000);
 
+// A league's Kambi prices (or ELTA's schedule) came in: its 投注 chips and
+// 📺 channels appear (or go) on the open tab.
+let playableTimer = 0;
+knownEvents(() => [...state.days.values()].flatMap(slot => dayAll(slot)));
+const repaintOpen = () => {
+  clearTimeout(playableTimer);
+  playableTimer = setTimeout(() => {
+    if (document.querySelector('dialog[open]')) return;
+    if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
+    if (state.tab === 'live') renderLive();
+    if (state.tab === 'matches' && state.scores.byDay instanceof Map && !state.scores.q) renderScores();
+    if (state.tab === 'following') renderFollowing();
+  }, 250);
+};
+onPlayableChange(repaintOpen);
+onTvChange(repaintOpen);
+
 function paintStatus() {
   const at = state.days.get(today())?.at;
   $('status').textContent = at ? t('updated', { time: clock(new Date(at).toISOString()) }) : '';
@@ -1241,6 +1356,8 @@ async function boot() {
   // day it last read, while the Worker is asked for the fresh ones (the
   // picks wait behind the loading screen for their fresh day).
   const quick = cachedPayload('match');
+  // ELTA's schedule, early: the picks and rows read each game's channels from it.
+  eltaSchedule();
   if (quick != null) {
     state.wallet = cachedWallet();
     applyPrefs(quick);

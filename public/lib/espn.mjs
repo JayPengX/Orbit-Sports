@@ -17,6 +17,8 @@ import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf } from './catalog.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
+import { pricedIds } from './playable.mjs';
+import { teamNameZh } from './names.mjs';
 
 export const SITE = 'https://site.api.espn.com/apis/site/v2/sports';
 export const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
@@ -105,7 +107,15 @@ export function fallbackLogo(league, side) {
   if (['nba', 'wnba', 'nfl', 'mlb', 'nhl'].includes(code) && side.abbr) return `${CDN}/teamlogos/${code}/500/${side.abbr.toLowerCase()}.png`;
   return null;
 }
-const withLogo = (league, side) => (side && !side.logo ? { ...side, logo: fallbackLogo(league, side) } : side);
+// A team's name in the reader's language: Chinese from the kit's names
+// (lib/names.mjs) when it has the team, the English kept as `en` (Play's ids
+// and the matching use it). People (players, drivers) keep their names.
+export function localSide(league, side, lang = detectLocale()) {
+  if (!side || lang === 'en' || side.athlete || LEAGUES[league]?.players) return side;
+  const zh = teamNameZh(LEAGUES[league]?.play || league, side.en || side.name, LEAGUES[league]?.sport);
+  return zh ? { ...side, en: side.en || side.name, name: zh.full, short: zh.short } : side;
+}
+const withLogo = (league, side) => localSide(league, side && !side.logo ? { ...side, logo: fallbackLogo(league, side) } : side);
 
 // A race weekend or a tournament, as of `now`: over once its last session
 // has had its time (the feed can keep a weekend "in progress" for days), and
@@ -189,7 +199,10 @@ export function parseScoreboard(data, league) {
       const home = parseSide(comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0]);
       const away = parseSide(comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1]);
       if (!home || !away) continue;
-      out.push({ ...base, home: withLogo(league, home), away: withLogo(league, away), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '', live: base.status.state === 'in' ? liveOf(comp, e.status || comp.status, LEAGUES[league]?.sport) : null });
+      // DraftKings' line on the game: Quadra Play prices it from this.
+      const priced = Boolean(comp.odds?.some(o => o?.moneyline || o?.homeTeamOdds?.moneyLine != null));
+      if (priced) pricedIds.add(String(e.id));
+      out.push({ ...base, priced, home: withLogo(league, home), away: withLogo(league, away), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '', live: base.status.state === 'in' ? liveOf(comp, e.status || comp.status, LEAGUES[league]?.sport) : null });
     } else if (kind === 'draw') {
       // A tennis tournament: its singles draws' matches.
       const draws = (e.groupings || []).map(g => ({
@@ -343,8 +356,8 @@ export function parseKambi(data, league) {
       venue: '',
       tv: '',
       note: e.group || '',
-      home: side(e.homeName, 'home'),
-      away: side(e.awayName, 'away'),
+      home: localSide(league, side(e.homeName, 'home')),
+      away: localSide(league, side(e.awayName, 'away')),
       live: state === 'in' ? kambiLive(live, LEAGUES[league]?.sport) : null,
       kambi: true
     });
@@ -368,7 +381,7 @@ export function parseAsia(games, league, lang = detectLocale()) {
     const side = (x, key, score, other) => ({
       id: x.en,
       name: lang === 'en' ? x.en : x.zh,
-      short: lang === 'en' ? x.en : x.zh,
+      short: lang === 'en' ? x.en : teamNameZh(play, x.en)?.short || x.zh,
       en: x.en,
       abbr: x.en.slice(0, 3).toUpperCase(),
       logo: teamBadge(play, x.en),
@@ -415,7 +428,7 @@ export async function asiaEvents(league, extra = 0, now = Date.now()) {
 
 export function parseSummary(data, league) {
   const header = data?.header?.competitions?.[0];
-  const sides = (header?.competitors || []).map(parseSide);
+  const sides = (header?.competitors || []).map(c => localSide(league, parseSide(c)));
   const byId = Object.fromEntries(sides.map(s => [s.id, s]));
   const box = data?.boxscore || {};
   // Team stats, paired: [{ label, home, away }].
@@ -500,7 +513,7 @@ export async function summary(league, id) {
 
 // Groups (a league table, conferences, divisions): [{ name, rows: [{ id, name,
 // logo, rank, stats: { key: value } }], columns: [key…] }].
-export function parseStandings(data) {
+export function parseStandings(data, league = null) {
   const groups = [];
   const walk = node => {
     if (node?.standings?.entries?.length) {
@@ -511,7 +524,8 @@ export function parseStandings(data) {
           const a = en.athlete;
           return { id: String(a.id ?? ''), name: a.displayName || a.name || '', short: a.shortName || a.displayName || '', logo: a.flag?.href || '', note: '', color: '', stats, athlete: true };
         }
-        return { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note?.color || (en.team?.color && !en.team?.logos ? `#${en.team.color}` : ''), stats };
+        const row = { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note?.color || (en.team?.color && !en.team?.logos ? `#${en.team.color}` : ''), stats };
+        return league ? localSide(league, row) : row;
       });
       groups.push({ name: node.name || node.displayName || '', rows });
     }
@@ -522,7 +536,7 @@ export function parseStandings(data) {
 }
 export async function standings(league) {
   const l = LEAGUES[league];
-  return withGaps(parseStandings(await getJson(`${STANDINGS}/${l.espn}/standings`, { ttl: 10 * 60_000 })), l.sport);
+  return withGaps(parseStandings(await getJson(`${STANDINGS}/${l.espn}/standings`, { ttl: 10 * 60_000 }), league), l.sport);
 }
 // Which columns a table shows, by sport (only those present).
 export const STANDING_COLUMNS = {
@@ -594,22 +608,40 @@ export function parseTeam(data) {
     color: t.color ? `#${t.color}` : null,
     record: t.record?.items?.[0]?.summary || '',
     standing: t.standingSummary || '',
+    // A club's own league (a soccer club opened from a cup plays in it): its roster is that league's.
+    home: t.defaultLeague?.slug || '',
     next: (t.nextEvent || []).map(e => ({ id: String(e.id), name: e.name, short: e.shortName, start: e.date }))
   };
 }
+// A soccer club is read across all its competitions (ESPN's "all"): its
+// record and place in its own league, whichever cup it was opened from.
+const clubPath = league => (LEAGUES[league].espn.startsWith('soccer/') ? 'soccer/all' : LEAGUES[league].espn);
 export async function team(league, id) {
-  return parseTeam(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}`, { ttl: 10 * 60_000 }));
+  return localSide(league, parseTeam(await getJson(`${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}`, { ttl: 10 * 60_000 })));
 }
+// Fixtures' league for an ESPN path ("soccer/eng.1" → epl).
+const BY_PATH = Object.fromEntries(Object.entries(LEAGUES).filter(([, l]) => l.espn).map(([k, l]) => [l.espn, k]));
 export function parseSchedule(data, league) {
+  const sport = (LEAGUES[league]?.espn || '').split('/')[0];
   return (data?.events || []).map(e => {
     const comp = e.competitions?.[0];
-    const home = withLogo(league, parseSide(comp?.competitors?.find(c => c.homeAway === 'home')));
-    const away = withLogo(league, parseSide(comp?.competitors?.find(c => c.homeAway === 'away')));
-    return { id: String(e.id), league, kind: 'match', name: e.name, short: e.shortName, start: e.date, status: parseStatus(comp?.status), home, away, venue: comp?.venue?.fullName || '' };
+    // Each game in its own competition (a club's cup and European games too);
+    // one Fixtures doesn't have (a friendly) stays under the club's league, named, never sold.
+    const own = e.league?.slug ? BY_PATH[`${sport}/${e.league.slug}`] : league;
+    const lg = own || league;
+    const home = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'home')));
+    const away = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'away')));
+    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, start: e.date, status: parseStatus(comp?.status), home, away, venue: comp?.venue?.fullName || '', ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
   });
 }
+// A team's season: its results and the games to come. A soccer club's across
+// all its competitions: ESPN gives the results, and the fixtures on their own.
 export async function teamSchedule(league, id) {
-  return parseSchedule(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}/schedule`, { ttl: 10 * 60_000 }), league);
+  const base = `${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}/schedule`;
+  if (clubPath(league) !== 'soccer/all') return parseSchedule(await getJson(base, { ttl: 10 * 60_000 }), league);
+  const [done, next] = await Promise.all([getJson(base, { ttl: 10 * 60_000 }), getJson(`${base}?fixture=true`, { ttl: 10 * 60_000 }).catch(() => null)]);
+  const seen = new Set();
+  return [...parseSchedule(done, league), ...parseSchedule(next, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).sort((a, b) => a.start.localeCompare(b.start));
 }
 export function parseRoster(data) {
   const groups = Array.isArray(data?.athletes?.[0]?.items) ? data.athletes : [{ position: '', items: data?.athletes || [] }];
@@ -618,8 +650,11 @@ export function parseRoster(data) {
     players: (g.items || []).map(a => ({ id: String(a.id), name: a.displayName || a.fullName, jersey: a.jersey || '', pos: a.position?.abbreviation || '', age: a.age || null, headshot: a.headshot?.href || null, injured: Boolean(a.injuries?.length) }))
   }));
 }
-export async function roster(league, id) {
-  return parseRoster(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}/roster`, { ttl: 60 * 60_000 }));
+// The squad: a soccer club's from its own league (`home`, the team's
+// defaultLeague: a cup's list can be last season's).
+export async function roster(league, id, home = '') {
+  const path = home && LEAGUES[league].espn.startsWith('soccer/') ? `soccer/${home}` : LEAGUES[league].espn;
+  return parseRoster(await getJson(`${SITE}/${path}/teams/${encodeURIComponent(id)}/roster`, { ttl: 60 * 60_000 }));
 }
 export function parseAthlete(data) {
   const a = data?.athlete || {};
@@ -634,6 +669,7 @@ export function parseAthlete(data) {
     teamLogo: logoOf(a.team),
     age: a.age || null,
     born: a.displayDOB || '',
+    dob: a.dateOfBirth || '',
     birthPlace: a.displayBirthPlace || '',
     height: a.displayHeight || '',
     weight: a.displayWeight || '',
@@ -652,6 +688,42 @@ export function parseAthlete(data) {
 }
 export async function athlete(league, id) {
   return parseAthlete(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}`, { ttl: 60 * 60_000 }));
+}
+// A tour's world ranking (tennis): [{ id, rank, previous, points, name }].
+export function parseRankings(data) {
+  return (data?.rankings?.[0]?.ranks || []).map(r => ({ id: String(r.athlete?.id ?? ''), name: r.athlete?.displayName || '', rank: r.current, previous: r.previous, points: r.points }));
+}
+export async function rankings(league) {
+  return parseRankings(await getJson(`${SITE}/${LEAGUES[league].espn}/rankings`, { ttl: 6 * 60 * 60_000 }));
+}
+// A driver's championship this season, from the drivers' table: place,
+// points, the gap, and each race's points in order ([code, points]; a race
+// still to come is left out).
+export function driverSeason(groups, id) {
+  for (const g of groups || []) {
+    const i = g.rows.findIndex(r => r.athlete && r.id === String(id));
+    if (i < 0) continue;
+    const r = g.rows[i];
+    const races = Object.entries(r.stats)
+      .filter(([k, v]) => /^[A-Z]{3}$/.test(k) && !['RK', 'PTS', 'GAP'].includes(k) && String(v ?? '').trim() !== '')
+      .map(([k, v]) => [k, String(v).trim()]);
+    return { pos: i + 1, points: r.stats.PTS ?? '', gap: r.stats.GAP ?? '', races, of: g.rows.length };
+  }
+  return null;
+}
+// A player's matches this season (tennis draws, fight cards): the latest
+// first, with the round, the other side, won or lost, and the score.
+export function playerMatches(events, id) {
+  const out = [];
+  for (const e of events || []) {
+    const pairs = e.kind === 'draw' ? (e.draws || []).flatMap(d => d.matches.map(m => ({ ...m, draw: d.name }))) : e.kind === 'card' ? (e.bouts || []).map(b => ({ ...b, round: b.weight })) : [];
+    for (const m of pairs) {
+      const [me, them] = m.a?.id === String(id) ? [m.a, m.b] : m.b?.id === String(id) ? [m.b, m.a] : [];
+      if (!me) continue;
+      out.push({ event: e.name, eventId: e.id, start: m.start || e.start, round: m.round || '', draw: m.draw || '', status: m.status, opp: them, won: m.status?.state === 'post' ? Boolean(me.winner) : null, score: (me.lines || []).map((x, i) => `${x}-${them?.lines?.[i] ?? ''}`).join(' ') });
+    }
+  }
+  return out.sort((a, b) => String(b.start).localeCompare(String(a.start)));
 }
 // An individual's season and form (golf, tennis, racing, fighting): season
 // numbers, rankings, the next and last events.

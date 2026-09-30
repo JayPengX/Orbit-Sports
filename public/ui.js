@@ -7,6 +7,8 @@ import { liveLabel, liveNote, possessionOf } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { broadcastsOf } from './lib/broadcast.mjs';
 import { playGameId } from './lib/espn.mjs';
+import { playable, leagueOnSale } from './lib/playable.mjs';
+import { tvOf, channelsOf } from './lib/tv.mjs';
 
 export const ctx = { t: k => k, locale: 'zh', state: null, openEvent: () => {}, openTeam: () => {}, openPlayer: () => {} };
 
@@ -85,6 +87,8 @@ export function leagueMark(key, cls = 'lg-mark') {
   return el('span', { class: `league-badge ${cls}` }, [logoPicture(leagueLogo(key), null, 'league-img', icon)]);
 }
 export const leagueChip = key => el('span', { class: 'league-tag' }, [leagueMark(key), el('span', { text: leagueName(key, ctx.locale) })]);
+// An event's competition: its league, or (a friendly, a cup Fixtures doesn't have) its own name.
+const compChip = e => (e.other ? el('span', { class: 'league-tag other' }, [el('span', { text: e.other })]) : leagueChip(e.league));
 
 // ---- Events --------------------------------------------------------------------------
 
@@ -145,7 +149,7 @@ export const seriesText = e => (e.series?.summary && !/^series starts/i.test(e.s
 // match is priced there on its own).
 const F1_BOARD = { Qual: 'f1pole', Race: 'f1' };
 export function playTarget(e) {
-  if (!e || e.status.state === 'post' || e.status.void) return null;
+  if (!e || e.other || e.status.state === 'post' || e.status.void) return null;
   if (e.league === 'f1') {
     // F1 bets close when the session starts.
     if (e.status.state === 'in') return null;
@@ -154,11 +158,12 @@ export function playTarget(e) {
   }
   const play = LEAGUES[e.league]?.play;
   if (!play) return null;
+  // Only what Play has on its board now (lib/playable.mjs): no 投注 on a game it doesn't sell.
   if (e.kind === 'match') {
-    const id = playGameId(e);
+    const id = playable(e) ? playGameId(e) : null;
     return id ? `game=${id}` : null;
   }
-  return e.kind === 'card' || e.kind === 'draw' ? `league=${play}` : null;
+  return (e.kind === 'card' || e.kind === 'draw') && leagueOnSale(e.league) ? `league=${play}` : null;
 }
 // Into Play at `target` (a playTarget), from a tap on a chip or a card.
 export function goPlay(target, ev) {
@@ -182,13 +187,14 @@ export function eventRow(e, { league = true, day = true } = {}) {
     const w = winners(e);
     const series = seriesText(e);
     return el('button', { class: `event-row${e.status.state === 'in' ? ' live' : ''}${mine ? ' mine' : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
-      el('div', { class: 'event-meta' }, [statusEl(e, day), league ? leagueChip(e.league) : null]),
+      el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
       el('div', { class: 'event-sides' }, [
         tag ? el('span', { class: 'stage-tag', text: tag }) : null,
         sideLine(e.away, e, w.away),
         sideLine(e.home, e, w.home),
         series ? el('small', { class: 'series-line', text: series }) : null,
-        liveLine(e)
+        liveLine(e),
+        tvLine(e)
       ]),
       betChip(e)
     ]);
@@ -197,8 +203,8 @@ export function eventRow(e, { league = true, day = true } = {}) {
   const ended = e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1);
   const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e) : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [e.session, `🏆 ${ended.field[0].name}`].filter(Boolean).join(' · ') : [e.session, e.venue].filter(Boolean).join(' · ')) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
   return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
-    el('div', { class: 'event-meta' }, [statusEl(e, day), league ? leagueChip(e.league) : null]),
-    el('div', { class: 'event-title' }, [el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null]),
+    el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
+    el('div', { class: 'event-title' }, [el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null, tvLine(e)]),
     betChip(e)
   ]);
 }
@@ -251,11 +257,21 @@ export function fieldNow(e) {
   return lead ? `${e.session ? `${e.session} · ` : ''}${en ? 'Leader' : '領先'} ${lead.short || lead.name}${lead.score && LEAGUES[e.league]?.sport === 'golf' ? ` ${lead.score}` : ''}` : '';
 }
 
-// Where to watch it in Taiwan: small chips (the first few).
-export function twChips(league, n = 3) {
-  const list = broadcastsOf(league);
+// Where to watch it in Taiwan: small chips (the first few). A league's list,
+// or a game's own (`e`: the exact ELTA channel when its schedule has it, and
+// no ELTA when ELTA doesn't carry that game).
+export const tvName = b => `${ctx.locale === 'en' ? b.en : b.zh}${b.note ? `（${ctx.locale === 'en' ? b.note.en : b.note.zh}）` : ''}`;
+export function twChips(league, n = 3, e = null) {
+  const list = e ? tvOf(e) : broadcastsOf(league);
   if (!list.length) return null;
-  return el('div', { class: 'tw-chips' }, list.slice(0, n).map(b => el('span', { class: `tw-chip ${b.kind}`, text: ctx.locale === 'en' ? b.en : b.zh })));
+  return el('div', { class: 'tw-chips' }, list.slice(0, n).map(b => el('span', { class: `tw-chip ${b.kind}${b.ch ? ' exact' : ''}`, text: tvName(b) })));
+}
+// A row's 📺 line: the channels a game is on, when ELTA's schedule says (not a guess from the league).
+export function tvLine(e) {
+  if (e.status?.state === 'post' || e.status?.void) return null;
+  const list = channelsOf(e);
+  if (!list.length) return null;
+  return el('small', { class: 'tv-line' }, [el('span', { 'aria-hidden': 'true', text: '📺 ' }), document.createTextNode(list.slice(0, 2).map(tvName).join('、') + (list.length > 2 ? ` +${list.length - 2}` : ''))]);
 }
 
 // ---- Sheets and sections ----------------------------------------------------------------

@@ -2,17 +2,34 @@
 // by section), a race / tournament / fight card, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { APPS, appUrl, translate } from './lib/quadra.mjs';
-import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playPairId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName } from './lib/espn.mjs';
+import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playPairId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, rankings, driverSeason, playerMatches } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { possessionOf } from './lib/live.mjs';
-import { statName } from './lib/statnames.mjs';
+import { statName, statsTitle, metric, fixedWord, dateText } from './lib/statnames.mjs';
+import { f1Driver, countryName } from './lib/logos.mjs';
+import { playablePair } from './lib/playable.mjs';
+import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeams, hasStandings } from './lib/leagues.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, playTarget, goPlay } from './ui.js';
+import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, playTarget, goPlay, tvName } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
+// ESPN's English words ("Right Fielder", "Hasselt, Belgium"), in Chinese once
+// translated (a text node that changes when the translation comes; kept 30
+// days per line). Empty stays empty.
+export function zhLater(text) {
+  if (!text) return '';
+  if (L() === 'en' || !/[A-Za-z]/.test(text)) return text;
+  const fixed = fixedWord(text, L());
+  if (fixed) return fixed;
+  const node = document.createTextNode(text);
+  translate(text).then(zh => zh && (node.textContent = zh)).catch(() => {});
+  return node;
+}
+// Strings and nodes joined by a separator, as nodes.
+const joinNodes = (items, sep) => items.filter(Boolean).flatMap((x, i) => (i ? [sep, x] : [x])).map(x => (typeof x === 'string' ? document.createTextNode(x) : x));
 
 // ---- A match ----------------------------------------------------------------------------
 
@@ -310,7 +327,7 @@ function overview(d, e, table, nameOf) {
   const info = [
     ['🕒', T('kickoff'), `${dayLabel(localDate(when.getTime()), { long: true })} ${clock(e.start)}`],
     ['📍', T('venue'), [d?.venue || e.venue, d?.city].filter(Boolean).join(' · ')],
-    ['📺', T('tv'), broadcastsOf(e.league).map(b => (L() === 'en' ? b.en : b.zh)).join('、') || T('noTw')],
+    ['📺', T('tv'), tvOf(e).map(tvName).join('、') || T('noTw')],
     stageTag(e, L()) ? ['🏅', T('stage'), [stageTag(e, L()), seriesText(e)].filter(Boolean).join(' · ')] : null,
     ['🌤', T('weather'), d?.weather],
     ['👥', T('attendance'), d?.attendance ? Number(d.attendance).toLocaleString(L() === 'en' ? 'en-US' : 'zh-TW') : ''],
@@ -351,6 +368,7 @@ function overview(d, e, table, nameOf) {
           )
         )
       : null,
+    e.status.state !== 'post' && tvOf(e).some(b => b.ch) ? twCard(e.league, e) : null,
     card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([icon, k, v]) => el('li', {}, [el('span', { class: 'info-icon', 'aria-hidden': 'true', text: icon }), el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v', text: v })]))))
   ]);
 }
@@ -394,12 +412,32 @@ function personName(league, p, cls = 'field-name') {
   const can = p.id && LEAGUES[league]?.espn && !/^k/.test(String(p.id));
   return can ? el('button', { class: `link ${cls}`, type: 'button', text: p.name, onclick: () => ctx.openPlayer(league, p.id, p) }) : el('span', { class: cls, text: p.name });
 }
-function twCard(league) {
-  const list = broadcastsOf(league);
+// Where to watch in Taiwan: a game's own channels (ELTA's schedule: the
+// channel, when it starts, a tap to watch it on ELTA.tv), then the other services.
+function twCard(league, e = null) {
+  const list = e ? tvOf(e) : broadcastsOf(league);
+  const exact = list.filter(b => b.ch);
+  const rest = list.filter(b => !b.ch);
   return card(
     T('watchTw'),
-    list.length ? el('div', { class: 'tw-list' }, list.map(b => el('span', { class: `tw-chip ${b.kind}`, text: L() === 'en' ? b.en : b.zh }))) : el('p', { class: 'muted small', text: T('noTw') }),
-    { sub: CHECKED }
+    list.length
+      ? el('div', { class: 'stack tight' }, [
+          exact.length
+            ? el(
+                'div',
+                { class: 'tw-exact' },
+                exact.map(b =>
+                  el('a', { class: `tw-watch ${b.kind}`, href: b.url, target: '_blank', rel: 'noopener' }, [
+                    el('span', { class: 'tw-watch-name' }, [el('strong', { text: tvName(b) }), b.at ? el('small', { text: `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}${b.kind === 'tv' ? (L() === 'en' ? ' · MOD, cable, ELTA.tv' : ' · MOD、有線電視、ELTA.tv') : ' · ELTA.tv'}` }) : null]),
+                    el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` })
+                  ])
+                )
+              )
+            : null,
+          rest.length ? el('div', { class: 'tw-list' }, rest.map(b => el('span', { class: `tw-chip ${b.kind}`, text: tvName(b) }))) : null
+        ])
+      : el('p', { class: 'muted small', text: T('noTw') }),
+    { sub: exact.length ? (L() === 'en' ? "ELTA's schedule" : '愛爾達節目表') : CHECKED }
   );
 }
 
@@ -414,6 +452,8 @@ function playLink(target, e, title) {
 // One bout or draw match in Play: a small 投注 (場中 once on) chip, while it isn't over.
 function pairChip(e, start, a, b, status) {
   if (status.state === 'post' || status.void) return null;
+  // Only a pair Play has priced.
+  if (!playablePair(e.league, start, a?.en || a?.name, b?.en || b?.name, status.state)) return null;
   const id = playPairId(e.league, start, a, b);
   if (!id) return null;
   return el('button', { class: `bet-chip${status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: ev => goPlay(`game=${id}`, ev) }, [document.createTextNode(T(status.state === 'in' ? 'betLive' : 'betChip'))]);
@@ -479,7 +519,7 @@ function fillField(s, e) {
         { class: 'bouts' },
         e.bouts.map(b =>
           el('div', { class: `q-card pad bout${b.status.state === 'in' ? ' live' : ''}` }, [
-            el('div', { class: 'bout-top' }, [el('small', { class: 'muted', text: [b.weight, statusText({ ...e, start: b.start, status: b.status })].filter(Boolean).join(' · ') }), pairChip(e, b.start || e.start, b.a, b.b, b.status)]),
+            el('div', { class: 'bout-top' }, [el('small', { class: 'muted' }, joinNodes([zhLater(b.weight), statusText({ ...e, start: b.start, status: b.status })], ' · ')), pairChip(e, b.start || e.start, b.a, b.b, b.status)]),
             el('div', { class: 'bout-row' }, [
               el('span', { class: b.a?.winner ? 'win' : '' }, [logo(b.a?.logo, b.a?.name, 'sm round'), personName(e.league, b.a, 'bout-name')]),
               el('span', { class: 'vs', text: 'vs' }),
@@ -493,13 +533,13 @@ function fillField(s, e) {
     const order = { in: 0, pre: 1, post: 2 };
     for (const dr of e.draws.map(d => ({ ...d, matches: [...d.matches].sort((a, b) => order[a.status.state] - order[b.status.state] || String(a.start).localeCompare(String(b.start))) }))) {
       s.body.append(
-        el('h3', { class: 'section-h', text: dr.name }),
+        el('h3', { class: 'section-h' }, [zhLater(dr.name)]),
         el(
           'div',
           { class: 'bouts' },
           dr.matches.map(m =>
             el('div', { class: `q-card pad bout${m.status.state === 'in' ? ' live' : ''}` }, [
-              el('div', { class: 'bout-top' }, [el('small', { class: 'muted', text: [m.round, statusText({ ...e, start: m.start, status: m.status })].filter(Boolean).join(' · ') }), pairChip(e, m.start || e.start, m.a, m.b, m.status)]),
+              el('div', { class: 'bout-top' }, [el('small', { class: 'muted' }, joinNodes([zhLater(m.round), statusText({ ...e, start: m.start, status: m.status })], ' · ')), pairChip(e, m.start || e.start, m.a, m.b, m.status)]),
               ...[m.a, m.b].filter(Boolean).map(p => el('div', { class: `draw-row${p.winner ? ' win' : ''}` }, [logo(p.logo, p.name, 'sm round'), personName(e.league, p), el('span', { class: 'num sets', text: p.lines.join(' ') })]))
             ])
           )
@@ -507,7 +547,7 @@ function fillField(s, e) {
       );
     }
   }
-  s.body.append(twCard(e.league));
+  s.body.append(twCard(e.league, e));
 }
 
 // ---- A team -------------------------------------------------------------------------------
@@ -533,20 +573,22 @@ export async function openTeam(league, id, fallback = {}) {
     followBtn.addEventListener('click', () => (ctx.toggleFollow(league, side), paintFollow()));
     paintFollow();
     const place = placeOf(groups, id);
+    // A club in several competitions: each game says which.
+    const comps = new Set(sched.map(x => x.other || x.league)).size > 1;
     const rosterBox = el('div');
     put(
       content,
       el('div', { class: 'team-head' }, [logo(info.logo, info.name, 'xl'), el('div', {}, [el('h3', { text: info.name }), el('p', { class: 'muted', text: [info.record, info.standing].filter(Boolean).join(' · ') })]), followBtn]),
       place ? el('div', { class: 'team-tiles' }, [tile(T('standing'), T('placeN', { n: place.pos }), place.group), ...Object.entries(place.row.stats).filter(([k]) => ['W', 'L', 'D', 'P', 'PCT', 'GB', 'GD', 'PTS', 'STRK'].includes(k)).slice(0, 5).map(([k, v]) => tile(k, v))]) : null,
       next.length ? el('h3', { class: 'section-h', text: T('schedule') }) : null,
-      next.length ? el('div', { class: 'q-card list' }, next.map(x => eventRow(x, { league: false }))) : null,
+      next.length ? el('div', { class: 'q-card list' }, next.map(x => eventRow(x, { league: comps }))) : null,
       past.length ? el('h3', { class: 'section-h', text: T('lastGames') }) : null,
-      past.length ? el('div', { class: 'q-card list' }, past.map(x => eventRow(x, { league: false }))) : null,
+      past.length ? el('div', { class: 'q-card list' }, past.map(x => eventRow(x, { league: comps }))) : null,
       el('h3', { class: 'section-h', text: T('roster') }),
       rosterBox
     );
     rosterBox.append(spinner());
-    roster(league, id)
+    roster(league, id, info.home)
       .then(list =>
         put(
           rosterBox,
@@ -576,21 +618,47 @@ export async function openPlayer(league, id, fallback = {}) {
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   try {
-    const [a, ov] = await Promise.all([athlete(league, id), individual(league) ? athleteOverview(league, id).catch(() => null) : null]);
+    const sport = LEAGUES[league]?.sport;
+    // This season, from the league's own tables and results (ESPN's player
+    // card has little for drivers and tennis players): the championship and
+    // each race, the world ranking and the matches.
+    const [a, ov, champ, races, rank, events] = await Promise.all([
+      athlete(league, id),
+      individual(league) ? athleteOverview(league, id).catch(() => null) : null,
+      sport === 'racing' && LEAGUES[league].standings ? standings(league).then(g => driverSeason(g, id)).catch(() => null) : null,
+      sport === 'racing' ? seasonEvents(league).catch(() => []) : null,
+      sport === 'tennis' ? rankings(league).then(list => list.find(r => r.id === String(id)) || null).catch(() => null) : null,
+      LEAGUES[league]?.kind === 'draw' || LEAGUES[league]?.kind === 'card' ? seasonEvents(league).catch(() => []) : null
+    ]);
+    const en = L() === 'en';
+    const W = (zh, eng) => (en ? eng : zh);
+    const driver = league === 'f1' ? f1Driver(a.name) : null;
     const facts = [
-      [T('team'), a.team],
-      [T('country'), a.country],
-      [T('position'), a.position],
-      [T('weightClass'), a.weightClass],
+      [sport === 'racing' ? W('車隊', 'Team') : T('team'), a.team || driver?.team || ''],
+      [T('country'), countryName(a.country, L())],
+      [T('position'), zhLater(a.position)],
+      [T('weightClass'), zhLater(a.weightClass)],
       [T('age'), a.age ? String(a.age) : ''],
-      [T('height'), a.height],
-      [T('weight'), a.weight],
-      [T('hand'), a.hand],
-      [T('stance'), a.stance],
+      [T('height'), metric(a.height, L())],
+      [T('weight'), metric(a.weight, L())],
+      [T('hand'), zhLater(a.hand)],
+      [T('stance'), zhLater(a.stance)],
       [T('turnedPro'), a.turnedPro ? String(a.turnedPro) : ''],
-      [T('born'), a.born],
-      [T('birthPlace'), a.birthPlace]
+      [T('born'), dateText(a.dob, a.born, L())],
+      [T('birthPlace'), zhLater(a.birthPlace)]
     ].filter(([, v]) => v);
+    // Each race this season: where they finished (the race, else the sprint), latest first.
+    const raceRows = (races || [])
+      .flatMap(e => {
+        const race = (e.sessions || []).find(x => x.abbr === 'Race' && x.status.state === 'post');
+        const at = race ? race.field.findIndex(c => c.id === String(id)) : -1;
+        return at >= 0 ? [{ name: e.name, start: race.start, pos: at + 1 }] : [];
+      })
+      .sort((x, y) => y.start.localeCompare(x.start));
+    const nextRace = (races || []).find(e => e.status.state !== 'post' && Date.parse(e.end || e.start) > Date.now() - 86_400_000);
+    const matches = playerMatches(events, id);
+    const played = matches.filter(m => m.won != null);
+    const upcoming = matches.filter(m => m.status?.state !== 'post' && !m.status?.void).reverse()[0];
     let followBtn = null;
     if (individual(league)) {
       followBtn = el('button', { class: 'q-btn', type: 'button' });
@@ -602,21 +670,52 @@ export async function openPlayer(league, id, fallback = {}) {
       followBtn.addEventListener('click', () => (ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true }), paintFollow()));
       paintFollow();
     }
-    const sub = [a.position || a.weightClass, a.team || a.country, a.record].filter(Boolean).join(' · ');
+    const name = driver && !en && driver.zh !== a.name ? `${driver.zh}` : a.name;
+    const sub = [zhLater(a.position || a.weightClass), a.team || driver?.team || countryName(a.country, L()), a.record].filter(Boolean);
+    const year = new Date().getFullYear();
     put(
       content,
-      el('div', { class: 'team-head' }, [logo(a.headshot || fallback.logo, a.name, 'xl round'), el('div', {}, [el('h3', { text: `${a.name}${a.jersey ? ` #${a.jersey}` : ''}` }), el('p', { class: 'muted', text: sub })]), followBtn]),
-      a.stats.list.length ? card(a.stats.title || T('season'), el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(x.label, x.value, x.rank)))) : null,
-      ov?.fight ? card(ov.fight.title || T('nextEvent'), el('p', { class: 'series-text', text: [ov.fight.name, ov.fight.date ? whenText(ov.fight.date) : '', ov.fight.where].filter(Boolean).join(' · ') })) : null,
-      ov?.season
+      el('div', { class: 'team-head' }, [
+        (league === 'f1' ? driverLogo : logo)(a.headshot || fallback.logo, a.name, 'xl round'),
+        el('div', { class: 'team-head-text' }, [el('h3', { text: `${name}${a.jersey ? ` #${a.jersey}` : ''}` }), name !== a.name ? el('small', { class: 'muted', text: a.name }) : null, el('p', { class: 'muted' }, joinNodes(sub, ' · '))]),
+        followBtn
+      ]),
+      champ
         ? card(
-            ov.season.title || T('season'),
-            el('div', { class: 'stack' }, ov.season.rows.map(r => el('div', {}, [el('p', { class: 'mini-h', text: r.name }), el('div', { class: 'stat-grid' }, r.cells.map(c => tile(c.label, c.value)))])))
+            W(`${year} 車手積分榜`, `${year} drivers' championship`),
+            el('div', { class: 'stat-grid' }, [tile(W('排名', 'Place'), T('placeN', { n: champ.pos }), W(`共 ${champ.of} 位`, `of ${champ.of}`)), tile(W('積分', 'Points'), champ.points), champ.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null, tile(W('完成站數', 'Races'), String(champ.races.length))].filter(Boolean))
           )
         : null,
-      ov?.rankings?.length ? card(T('rankings'), el('div', { class: 'stat-grid' }, ov.rankings.map(x => tile(x.label, x.value, x.rank)))) : null,
+      rank ? card(W('世界排名', 'World ranking'), el('div', { class: 'stat-grid' }, [tile(W('排名', 'Rank'), `#${rank.rank}`, rank.previous && rank.previous !== rank.rank ? `${rank.previous > rank.rank ? '▲' : '▼'} ${Math.abs(rank.previous - rank.rank)}` : ''), tile(W('積分', 'Points'), Number(rank.points).toLocaleString(en ? 'en-US' : 'zh-TW'))])) : null,
+      nextRace ? card(W('下一站', 'Next race'), el('p', { class: 'series-text', text: [nextRace.name, whenText(nextRace.start)].filter(Boolean).join(' · ') })) : null,
+      upcoming ? card(W('下一場', 'Next match'), el('p', { class: 'series-text' }, joinNodes([upcoming.event, zhLater(upcoming.round), upcoming.opp?.name ? `vs ${upcoming.opp.name}` : '', upcoming.start ? whenText(upcoming.start) : ''], ' · '))) : null,
+      raceRows.length
+        ? card(
+            W('本季各站正賽', 'This season, race by race'),
+            el('ul', { class: 'info-list results' }, raceRows.map(r => el('li', {}, [el('span', { class: 'info-k', text: r.name }), el('span', { class: `info-v num pos-pill${r.pos <= 3 ? ' podium' : ''}`, text: `P${r.pos}` })])))
+          )
+        : null,
+      played.length
+        ? card(
+            W('近期比賽', 'Recent matches'),
+            el(
+              'ul',
+              { class: 'info-list results' },
+              played.slice(0, 8).map(m => el('li', {}, [el('span', { class: 'info-k' }, [el('span', { text: `vs ${m.opp?.name || ''}` }), el('small', { class: 'muted' }, joinNodes([m.event, zhLater(m.round)], ' · '))]), el('span', { class: `info-v num result-pill ${m.won ? 'w' : 'l'}`, text: `${m.won ? W('勝', 'W') : W('負', 'L')}${m.score ? ` ${m.score}` : ''}` })]))
+            )
+          )
+        : null,
+      a.stats.list.length ? card(statsTitle(a.stats.title, L()) || T('season'), el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(statName(x.label, L()), x.value, x.rank)))) : null,
+      ov?.fight ? card(statsTitle(ov.fight.title, L()) || T('nextEvent'), el('p', { class: 'series-text', text: [ov.fight.name, ov.fight.date ? whenText(ov.fight.date) : '', ov.fight.where].filter(Boolean).join(' · ') })) : null,
+      ov?.season
+        ? card(
+            statsTitle(ov.season.title, L()) || T('season'),
+            el('div', { class: 'stack' }, ov.season.rows.map(r => el('div', {}, [el('p', { class: 'mini-h', text: r.name }), el('div', { class: 'stat-grid' }, r.cells.map(c => tile(statName(c.label, L()), c.value)))])))
+          )
+        : null,
+      ov?.rankings?.length ? card(T('rankings'), el('div', { class: 'stat-grid' }, ov.rankings.map(x => tile(statName(x.label, L()), x.value, x.rank)))) : null,
       ov?.recent?.length ? card(T('recentEvents'), el('ul', { class: 'info-list' }, ov.recent.map(x => el('li', {}, [el('span', { class: 'info-k', text: x.name }), el('span', { class: 'info-v num', text: [x.place, x.score].filter(Boolean).join(' · ') || dayLabel(localDate(Date.parse(x.date))) })])))) : null,
-      facts.length ? card(T('profile'), el('ul', { class: 'info-list' }, facts.map(([k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v', text: v })])))) : null,
+      facts.length ? card(T('profile'), el('ul', { class: 'info-list' }, facts.map(([k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [v])])))) : null,
       a.teamId && !individual(league) ? el('button', { class: 'q-btn block', type: 'button', text: a.team, onclick: () => openTeam(league, a.teamId, { name: a.team }) }) : null
     );
   } catch {

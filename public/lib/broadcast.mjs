@@ -29,7 +29,8 @@ export const BROADCAST = {
   npb: [DAZN, DAZN_TV, VL],
   cpbl: [pass('cpbltv', 'CPBLTV'), VL, DAZN, { zh: 'MOMOTV', en: 'MOMOTV', kind: 'tv', svc: 'momo' }, ELTA, HAMI, { zh: 'MyVideo', en: 'MyVideo', kind: 'ott', svc: 'myvideo' }],
   kbo: [],
-  nba: [ELTA, ELTA_MOD, VL, pass('nbapass', 'NBA League Pass')],
+  // ELTA: one game a day, from the 2026-27 preseason (10/6); which one, its schedule says.
+  nba: [{ ...ELTA, note: { zh: '每日一場，10/6 起', en: 'one game a day from 10/6' } }, { ...ELTA_MOD, note: { zh: '每日一場', en: 'one game a day' } }, VL, pass('nbapass', 'NBA League Pass')],
   wnba: [pass('nbapass', 'WNBA League Pass')],
   nfl: [DAZN, pass('dazn', 'NFL Game Pass（DAZN）', 'NFL Game Pass (DAZN)')],
   nhl: [pass('dazn', 'NHL.TV（DAZN）', 'NHL.TV (DAZN)')],
@@ -56,6 +57,111 @@ export const BROADCAST = {
 };
 
 export const broadcastsOf = league => BROADCAST[league] || [];
+
+// ---- ELTA's own schedule: which game each channel carries ---------------------------
+//
+// ELTA (愛爾達) publishes its sports channels' live programs two weeks ahead
+// (the list its site's 節目表 reads; the proxy trims it). Where it covers a
+// game's day, a game on ELTA shows the channel it's on, and a game it doesn't
+// carry (the NBA: one a day, from the preseason's 10/6) isn't said to be on ELTA.
+export const ELTA_LIST = 'https://piceltaott-elta.cdn.hinet.net/production/json/program_list/sports_live_program_list.json';
+// ELTA's league names (its English ones) → Fixtures' leagues.
+const ELTA_LEAGUE = {
+  MLB: 'mlb', NBA: 'nba', CPBL: 'cpbl', 'Premier League': 'epl', UCL: 'ucl', 'UEFA Champions League': 'ucl', 'UEFA Europa League': 'uel', 'UEFA Conference League': 'uecl',
+  Bundesliga: 'bundesliga', 'Serie A': 'seriea', 'Ligue 1': 'ligue1', 'UEFA Nations League': 'nationsleague', 'Scottish Premiership': 'scotland', 'FA Cup': 'facup', F1: 'f1', WTT: 'tabletennis', BWF: 'badminton'
+};
+// Its channels: the four 體育台 (on MOD and cable too) and the ten MAX (ELTA.tv only).
+export function eltaChannel(n) {
+  const TV = { 101: 1, 105: 2, 110: 3, 115: 4 };
+  if (TV[n]) return { zh: `愛爾達體育${TV[n]}台`, en: `ELTA Sports ${TV[n]}`, kind: 'tv', svc: 'elta', ch: n };
+  if (n >= 540 && n <= 549) return { zh: `ELTA.tv 體育MAX${n - 539}台`, en: `ELTA.tv Sports MAX ${n - 539}`, kind: 'ott', svc: 'elta', ch: n };
+  return { zh: `ELTA.tv（${n}）`, en: `ELTA.tv (${n})`, kind: 'ott', svc: 'elta', ch: n };
+}
+// The page on ELTA.tv that plays a channel.
+const ELTA_PLAY = { 101: 1, 102: 3, 103: 2, 104: 4, 105: 5, 110: 6, 115: 92, 540: 71, 541: 72, 542: 73, 543: 81, 544: 108, 545: 109, 546: 110, 547: 111, 548: 140, 549: 141 };
+export const eltaWatchUrl = n => (ELTA_PLAY[n] ? `https://eltaott.tv/channel/play/${n}/${ELTA_PLAY[n]}` : 'https://eltaott.tv/channel');
+
+// The list (trimmed by the proxy, or ELTA's own) as programs: { league, start,
+// end (ms), ch, title, teams: ['海盜', '老虎'] or [], live, day }. Replays left out.
+export function parseElta(data) {
+  const raw = Array.isArray(data?.programs)
+    ? data.programs
+    : Object.entries(data?.calendar || {}).flatMap(([d, list]) => (Array.isArray(list) ? list : []).map(p => ({ d, s: p.start_time, e: p.end_time, ch: p.channel_number, g: p.game_type_en || p.game_type, t: p.program_desc })));
+  const out = [];
+  for (const p of raw) {
+    const league = ELTA_LEAGUE[p.g];
+    if (!league || !p.s || !/\bLIVE\b/i.test(p.t || '')) continue;
+    // "海盜 VS 老虎 李灝宇先發… 例行賽 9/27(原音) LIVE": the two sides before the details.
+    const vs = /^\s*(?:UEFA\s+)?([^\s【】]+)\s+VS\s+([^\s【】(（]+)/i.exec(p.t || '');
+    // The title without "LIVE" and the day (the row shows the time), the details kept.
+    const title = String(p.t || '')
+      .replace(/\s*LIVE\s*$/i, '')
+      .replace(/\s+\d{1,2}\/\d{1,2}(?=\s|\(|（|$)/, '')
+      .trim();
+    out.push({ league, start: p.s * 1000, end: (p.e || p.s + 10_800) * 1000, ch: Number(p.ch), title, teams: vs ? [vs[1], vs[2]] : [], day: p.d });
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+// The days the list covers ('YYYY-MM-DD', Taiwan's): outside them nothing is known.
+export const eltaDays = programs => {
+  const days = programs.map(p => p.day).filter(Boolean).sort();
+  return days.length ? { from: days[0], to: days.at(-1) } : null;
+};
+
+// Two names for one side ("里茲聯" and "利茲聯", "海盜" and "匹茲堡海盜"): two
+// characters in a row in common.
+export function zhSame(a, b) {
+  const [x, y] = [String(a || ''), String(b || '')];
+  if (!x || !y) return false;
+  if (x.includes(y) || y.includes(x)) return true;
+  for (let i = 0; i < x.length - 1; i++) if (y.includes(x.slice(i, i + 2))) return true;
+  return false;
+}
+// The programs that carry a game: its league's, starting from an hour before
+// it to 20 minutes after, with either side's name (a program without the
+// sides, "【onELTA 熱身賽】", counts when it's the only game near that time).
+// `sides`: the game's two sides in Chinese (full and short names).
+export function eltaPrograms(programs, e, sides, others = []) {
+  if (!programs?.length || !e) return [];
+  const t = Date.parse(e.start);
+  const near = p => p.league === e.league && p.start >= t - 60 * 60_000 && p.start <= t + 20 * 60_000;
+  const cand = programs.filter(near);
+  if (e.kind !== 'match') {
+    // A race weekend's session: the program naming it (排位賽, 正賽, 衝刺賽).
+    const word = { Qual: '排位賽', Race: '正賽', SR: '衝刺賽', SS: '衝刺排位', SQ: '衝刺排位' }[e.sessionKey] || '';
+    return cand.filter(p => !word || (p.title.includes(word) && !(word === '排位賽' && p.title.includes('衝刺'))));
+  }
+  const named = cand.filter(p => p.teams.length && p.teams.some(x => sides.some(s => zhSame(x, s))));
+  if (named.length) return named;
+  // No names: only if no other game of the league starts near it.
+  const blank = cand.filter(p => !p.teams.length);
+  if (!blank.length) return [];
+  // Several games near it: one of them, not yet said which (ELTA names it nearer the day).
+  const rivals = others.filter(o => o !== e && o.id !== e.id && o.league === e.league && Math.abs(Date.parse(o.start) - t) < 45 * 60_000);
+  return rivals.length ? blank.map(p => ({ ...p, tentative: true })) : blank;
+}
+// The channels a game is on in Taiwan: ELTA's from its schedule when the
+// schedule covers the day (none when ELTA doesn't carry it), the others as listed.
+// `programs`: parseElta's; `sides`, `others` as for eltaPrograms.
+export function broadcastsFor(e, programs, sides = [], others = []) {
+  const base = broadcastsOf(e.league);
+  const covered = programs?.length && base.some(b => b.svc === 'elta') && Object.values(ELTA_LEAGUE).includes(e.league);
+  const days = covered ? eltaDays(programs) : null;
+  const day = new Date(Date.parse(e.start) + 8 * 3_600_000).toISOString().slice(0, 10);
+  if (!days || day < days.from || day > days.to) {
+    // Beyond the schedule: the league's list, with the NBA's rule (one game a day, from 10/6).
+    return base.map(b => (b.svc === 'elta' && e.league === 'nba' ? { ...b, note: { zh: '每日一場', en: 'one game a day' } } : b)).filter(b => !(b.svc === 'elta' && e.league === 'nba' && day < NBA_ELTA_FROM));
+  }
+  const on = eltaPrograms(programs, e, sides, others);
+  const seen = new Set();
+  const channels = on.map(p => ({ ...eltaChannel(p.ch), at: p.start, title: p.title, url: eltaWatchUrl(p.ch), ...(p.tentative ? { note: { zh: '同時段擇一，待公布', en: 'one of the games then, TBA' } } : {}) })).filter(c => !seen.has(c.ch) && seen.add(c.ch));
+  // Hami Video carries ELTA's 體育台 (not its MAX ones).
+  const hami = channels.some(c => c.kind === 'tv') ? base.filter(b => b.svc === 'hami') : [];
+  // The 體育台 first (on MOD and cable too), then ELTA.tv's MAX channels.
+  return [...channels.sort((a, b) => (b.kind === 'tv') - (a.kind === 'tv') || a.ch - b.ch), ...hami, ...base.filter(b => b.svc !== 'elta' && b.svc !== 'hami')];
+}
+// ELTA's NBA: the 2026-27 preseason's games from 10/6 (Taiwan), one a day.
+export const NBA_ELTA_FROM = '2026-10-06';
 
 // The services a person can say they have (the recommendations keep to
 // those), in the order they're offered.
