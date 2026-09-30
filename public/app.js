@@ -1127,7 +1127,8 @@ function renderScores() {
   let stages = null;
   const tableView = sc.view === 'table' && hasStandings(sc.league);
   if (tableView) list = tableOf(sc.league);
-  else if (sc.byDay == null || sc.loading) list = spinner();
+  // More days on the way (‹ ›): the strip and day stay as they are meanwhile.
+  else if (sc.byDay == null || (sc.loading && !(sc.anchor && sc.byDay instanceof Map))) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
   else if (sc.mode === 'event') {
     const events = [...sc.byDay.values()].flat().sort((a, b) => a.start.localeCompare(b.start));
@@ -1144,12 +1145,18 @@ function renderScores() {
       : empty(t('noEvents'));
   } else if (!sc.days.length) list = empty(t('noGamesSeason'));
   else {
+    // ‹ and › read more days, and the strip then opens where they were
+    // added (the day it ended at stays in view), not back on the chosen day.
+    const more = (text, side) =>
+      LEAGUES[sc.league].espn || LEAGUES[sc.league].asia
+        ? el('button', { class: 'q-chip more', type: 'button', text: sc.loading && sc.anchor?.side === side ? '…' : text, disabled: sc.loading ? true : null, 'aria-label': t('moreDays'), onclick: () => ((sc.anchor = { side, day: side === 'start' ? sc.days[0] : sc.days.at(-1) }), (sc.extra += 1), loadScores()) })
+        : null;
     strip = el('div', { class: 'q-chips day-strip' }, [
-      LEAGUES[sc.league].espn || LEAGUES[sc.league].asia ? el('button', { class: 'q-chip more', type: 'button', text: '‹', 'aria-label': t('moreDays'), onclick: () => ((sc.extra += 1), loadScores()) }) : null,
+      more('‹', 'start'),
       ...sc.days.map(d =>
-        el('button', { class: `q-chip day${d === today() ? ' is-today' : ''}`, type: 'button', 'aria-pressed': String(sc.date === d), onclick: () => ((sc.date = d), renderScores()) }, [el('span', { text: dayLabel(d) }), el('small', { class: 'num', text: String(sc.byDay.get(d).length) })])
+        el('button', { class: `q-chip day${d === today() ? ' is-today' : ''}`, type: 'button', 'data-day': d, 'aria-pressed': String(sc.date === d), onclick: () => ((sc.date = d), renderScores()) }, [el('span', { text: dayLabel(d) }), el('small', { class: 'num', text: String(sc.byDay.get(d).length) })])
       ),
-      LEAGUES[sc.league].espn || LEAGUES[sc.league].asia ? el('button', { class: 'q-chip more', type: 'button', text: '›', 'aria-label': t('moreDays'), onclick: () => ((sc.extra += 1), loadScores()) }) : null
+      more('›', 'end')
     ]);
     const order = { in: 0, pre: 1, post: 2 };
     const games = [...(sc.byDay.get(sc.date) || [])].sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
@@ -1178,6 +1185,20 @@ function renderScores() {
   const views = hasStandings(sc.league) ? segmented([['games', t('schedule')], ['table', t('table')]], tableView ? 'table' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
   put(box, sportChips, leagueChips, tools, views, tableView ? null : strip, tableView ? null : stages, list);
   centerChosen(box);
+  if (strip && sc.anchor && !sc.loading) {
+    keepAnchor(strip, sc.anchor);
+    sc.anchor = null;
+  }
+}
+
+// After ‹ (side 'start'): the day the strip began at on its right edge, the
+// added days before it in view; after › ('end'): the day it ended at on the
+// left edge, the added days after it.
+function keepAnchor(row, { side, day }) {
+  const chip = row.querySelector(`[data-day="${day}"]`);
+  if (!chip || row.scrollWidth <= row.clientWidth) return;
+  const at = chip.offsetLeft - row.offsetLeft;
+  row.scrollLeft = side === 'start' ? at + chip.offsetWidth - row.clientWidth + 8 : at - 8;
 }
 
 const searchEspn = q => proxyJson(`https://site.api.espn.com/apis/search/v2?query=${encodeURIComponent(q)}&limit=12`, { ttl: 10 * 60_000 }).then(parseSearch);
