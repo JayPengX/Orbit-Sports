@@ -72,8 +72,8 @@ those of the shared catalogue.
 
 A static site (GitHub Pages) with no build step.
 
-- Data comes from ESPN's site API (CPBL's own site for
-  theirs; ELTA's schedule and NBA.com's Taiwan schedule for where to watch),
+- Data comes from ESPN's site API (CPBL's own site for its
+  games; ELTA's schedule and NBA.com's Taiwan schedule for where to watch),
   read through the Quadra data proxy
   (`sports-proxy.pengzjay.workers.dev`, in Shared-Proxy), which needs the
   Quadra Pass session token (`lib/espn.mjs`), with the kit's `proxyJson`:
