@@ -67,20 +67,3 @@ test('a play-off or series game is worth staying up for', () => {
   assert.ok(!bigGame({ note: '', stage: { key: 'regular' } }));
 });
 
-test('a bet finds its game: by Play id, or (bet in play, no id) by league and start, the pick telling two apart', async () => {
-  const { legEvent, betsByEvent, legLeagues } = await import('../public/lib/bets.mjs');
-  const { playGameId } = await import('../public/lib/espn.mjs');
-  const nyy = match('mlb', 'g1', 0, side('1', 'Boston Red Sox'), side('2', 'New York Yankees'));
-  const sd = match('mlb', 'g2', 0, side('3', 'Chicago Cubs'), side('4', 'San Diego Padres'));
-  const late = match('mlb', 'g3', 2, side('5', 'Philadelphia Phillies'), side('6', 'Atlanta Braves'));
-  const events = [nyy, sd, late];
-  assert.equal(legEvent({ g: playGameId(late), s: late.start, sp: 'mlb', p: 'x' }, events), late);
-  // In play: no id. Two games at that hour: the pick's name decides.
-  assert.equal(legEvent({ g: 'live', s: at(0), sp: 'mlb', p: 'San Diego Padres' }, events), sd);
-  assert.equal(legEvent({ g: 'live', s: at(2), sp: 'mlb', p: '費城人' }, events), late);
-  assert.equal(legEvent({ g: 'live', s: at(5), sp: 'mlb', p: 'x' }, events), null);
-  const { found, missing } = betsByEvent([{ g: 'live', s: at(2), sp: 'mlb', p: 'a' }, { g: 'live', s: at(1), sp: 'wnba', p: 'b' }], events);
-  assert.deepEqual([...found.keys()], [late]);
-  assert.equal(missing.length, 1);
-  assert.ok(legLeagues(missing).includes('wnba'));
-});

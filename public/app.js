@@ -9,7 +9,7 @@
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, activityPatch, affinity, appUrl, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, affinityPatch, settingPatch } from './lib/quadra.mjs';
-import { playGameId, localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
+import { playGameId, localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, playoffRun, knockedOut } from './lib/espn.mjs';
 import { SERVICES, watchable, leaguesOn, eltaChannel, eltaWatchUrl } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
@@ -17,7 +17,7 @@ import { familyOfSport } from './lib/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
-import { betsByEvent, legLeagues } from './lib/bets.mjs';
+import { betsByEvent, legLeagues, betLegs, legEvent, titleSide, TITLE_MARKETS, bracketOf, sameName } from './lib/bets.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule } from './lib/tv.mjs';
@@ -252,9 +252,13 @@ function restoreDay() {
 // (an MLB wild-card decider at 02:00), a followed team's, or one bet on in
 // Play; that one counts on its own day, at its hour.
 const AWAKE_FROM = 5;
-// The open Play slips' picks (the wallet's snap): [{ g, p, o, s, slip }].
-const openBetLegs = () => (state.wallet?.snap?.odds?.slips || []).flatMap(slip => (slip.l || []).map(leg => ({ ...leg, slip }))).filter(b => b.s && !b.r);
-const nightWorthy = e => bigGame(e) || isFollowedEvent(e) || (e.kind === 'match' && openBetLegs().some(b => b.g === playGameId(e)));
+// Every Play pick (the wallet's snap: open slips, and those settled lately).
+const allBetLegs = () => betLegs(state.wallet?.snap?.odds);
+// A championship pick still running: its team's games (an F1 title: the races).
+const liveTitle = b => b.k === 'future' && !b.r && !b.slip?.st;
+const titleEvent = (b, e) => LEAGUES[e.league]?.play === b.sp && (e.kind === 'match' ? Boolean(titleSide(b, e)) : e.sessionKey === 'Race');
+const betOn = e => allBetLegs().some(b => (b.k === 'future' ? liveTitle(b) && titleEvent(b, e) : legEvent(b, [e]) === e));
+const nightWorthy = e => bigGame(e) || isFollowedEvent(e) || betOn(e);
 const inDay = (ms, date) => ms >= Date.parse(`${date}T00:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 
@@ -350,7 +354,8 @@ async function loadDay(date) {
 // so only those games join the picks, not their whole league.
 async function loadBets(date, legs) {
   const slot = state.days.get(date);
-  const leagues = legLeagues(legs).filter(k => !(slot?.betLeagues || []).includes(k));
+  const mine = new Set(pickLeagues());
+  const leagues = legLeagues(legs).filter(k => !mine.has(k) && !(slot?.betLeagues || []).includes(k));
   if (!slot || slot.betsLoading || !leagues.length) return;
   slot.betsLoading = true;
   try {
@@ -360,6 +365,61 @@ async function loadBets(date, legs) {
   slot.betLeagues = [...(slot.betLeagues || []), ...leagues];
   slot.betsLoading = false;
   if (state.tab === 'home' && state.home.date === date) renderHome();
+}
+// What a championship pick's stakes are read from: a football league's
+// table (points, games played) and F1's standings and weekends left (each
+// with or without a sprint), once each.
+const titleData = { tables: {}, sides: {}, out: {}, f1: null, asked: new Set() };
+function loadTitleData(legs) {
+  for (const b of legs.filter(liveTitle)) {
+    const market = TITLE_MARKETS[b.fk];
+    const leagues = Object.keys(LEAGUES).filter(k => LEAGUES[k].play === b.sp);
+    for (const k of leagues) {
+      const key = market?.type === 'playoff' ? `playoff:${k}:${b.fk}:${b.tm || b.p}` : `${market?.type}:${k}`;
+      if (!market || titleData.asked.has(key)) continue;
+      // A play-off: the team's side of the bracket (the standings' leagues or
+      // conferences), and whether it's been knocked out (its playoff games).
+      if (market.type === 'playoff' && hasStandings(k)) {
+        titleData.asked.add(key);
+        standings(k)
+          .then(async groups => {
+            titleData.sides[k] = groups.flatMap(g => g.rows.map(r => ({ id: r.id, name: r.name, en: r.en, short: r.short, side: bracketOf(g.en) })));
+            const team = titleData.sides[k].find(r => [r.name, r.en, r.short].some(n => n && [b.tm, b.p].some(x => x && sameName(n, x))));
+            if (team) titleData.out[`${b.fk}:${b.tm || b.p}`] = knockedOut(await playoffRun(k, team.id).catch(() => null), team.id);
+            if (state.tab === 'home') renderHome();
+          })
+          .catch(() => {});
+      }
+      if (market.type === 'table' && hasStandings(k)) {
+        titleData.asked.add(key);
+        standings(k)
+          .then(groups => {
+            const rows = groups[0]?.rows || [];
+            titleData.tables[k] = rows.map(r => ({ id: r.id, pts: Number(r.stats?.P) || 0, gp: Number(r.stats?.GP) || 0 }));
+            if (state.tab === 'home') renderHome();
+          })
+          .catch(() => {});
+      }
+      if (market.type === 'f1' && k === 'f1') {
+        titleData.asked.add(key);
+        Promise.all([standings(k), seasonEvents(k)])
+          .then(([groups, season]) => {
+            const pts = r => Number(r.stats?.PTS) || 0;
+            const rows = g => (g?.rows || []).map(r => ({ name: r.name, en: r.en, pts: pts(r) }));
+            // The weekends from each one to the season's end, sprints marked.
+            const weekends = season.filter(e => e.kind === 'field').sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+            const marks = weekends.map(e => ({ id: e.id, sprint: (e.sessions || []).some(x => x.abbr === 'SR') }));
+            titleData.f1 = {
+              drivers: rows(groups.find(g => /driver/i.test(g.name)) || groups[0]),
+              constructors: rows(groups.find(g => /constructor|車隊/i.test(g.name)) || groups[1]),
+              weekends: Object.fromEntries(marks.map((m, i) => [m.id, marks.slice(i)]))
+            };
+            if (state.tab === 'home') renderHome();
+          })
+          .catch(() => {});
+      }
+    }
+  }
 }
 async function loadOthers(date) {
   const slot = state.days.get(date);
@@ -495,10 +555,32 @@ function pickCard(item, n, bets = null) {
       e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : null,
       reasons.length ? el('div', { class: 'why-row' }, reasons.map(r => el('span', { class: 'why', text: r }))) : null,
       // A game bet on in Play: the pick, under it.
-      bets?.length ? el('small', { class: 'pick-bet', text: `🎫 ${bets.map(b => `${b.p} @${b.o}`).join(' · ')}${bets.some(b => b.slip.m !== 'single') ? ` · ${L({ zh: '串關', en: 'Parlay' })}` : ''}` }) : null,
+      ...(bets || []).map(b => el('small', { class: 'pick-bet', text: betLine(b) })),
       twChips(e.league, 2, e)
     ])
   ]);
+}
+
+// A bet on a pick's card: the pick and odds, a championship's stake in this
+// game, how it ended (the pick's result, or the slip's), a parlay's mark.
+const STAKE = {
+  title: { zh: '可能決定冠軍', en: 'Could decide the title' },
+  advance: { zh: '贏了就晉級', en: 'A win goes through' },
+  out: { zh: '輸了就出局', en: 'A loss is out' },
+  decider: { zh: '勝者晉級', en: 'Winner goes through' },
+  decides: { zh: '可能分出晉級', en: 'Could decide the series' }
+};
+const RESULT = { won: { zh: '✓ 中', en: '✓ Won' }, lost: { zh: '✗ 未中', en: '✗ Lost' }, void: { zh: '↺ 退回', en: '↺ Void' }, cashed: { zh: '💰 已兌現', en: '💰 Cashed out' } };
+function betLine(b) {
+  const title = b.k === 'future';
+  const result = b.r || (b.slip?.st && !title ? b.slip.st : null);
+  return [
+    `${title ? '🏆' : '🎫'} ${b.p}${title ? ` ${L({ zh: '奪冠', en: 'to win it' })}` : ''} @${b.o}`,
+    b.maybe ? L({ zh: '若晉級到這輪', en: 'If they get this far' }) : '',
+    b.stake ? L(b.stake === 'out' && TITLE_MARKETS[b.fk]?.type !== 'playoff' ? { zh: '可能失去爭冠資格', en: 'Could end their title hopes' } : STAKE[b.stake]) : '',
+    result ? L(RESULT[result] || RESULT.void) : '',
+    !title && b.slip?.m && b.slip.m !== 'single' ? L({ zh: '串關', en: 'Parlay' }) : ''
+  ].filter(Boolean).join(' · ');
 }
 
 // What the filter keeps: everything, only the followed teams' games, or one sport.
@@ -521,7 +603,7 @@ function reach(date, range = stripRange) {
   if (n > range.to) range.to = n + 3;
 }
 // Days with a game bet on in Play (open slips): a 🎫 on the day's chip.
-const betDays = () => new Set(openBetLegs().map(b => localDate(new Date(b.s))));
+const betDays = () => new Set(allBetLegs().filter(b => b.k !== 'future' && b.s && (!b.slip?.st || Date.parse(b.s) <= Date.now())).map(b => localDate(new Date(b.s))));
 function dayChip(d, current, onPick, bets = betDays()) {
   const dt = new Date(`${d}T12:00:00`);
   const other = dt.getFullYear() !== new Date().getFullYear();
@@ -606,13 +688,20 @@ function renderHome() {
   // each is a pick like any other (🎫, the pick under it), on top of the
   // usual six, never pushing one out. One whose game the day's read didn't
   // bring has its league read for it (loadBets).
-  const legs = openBetLegs().filter(b => localDate(new Date(b.s)) === h.date);
-  const { found: betGames, missing: betMissing } = betsByEvent(legs, [...dayAll(slot), ...(slot.betEvents || [])]);
-  if (betMissing.length) loadBets(h.date, betMissing);
+  // A championship pick looks at every day (its deciding games); the
+  // others at their own.
+  const titleLegs = allBetLegs().filter(liveTitle);
+  const legs = [...allBetLegs().filter(b => b.k !== 'future' && b.s && localDate(new Date(b.s)) === h.date), ...titleLegs];
+  const { found: betGames, missing: betMissing } = betsByEvent(legs, [...dayAll(slot), ...(slot.betEvents || [])], titleData);
+  if (betMissing.length || titleLegs.length) loadBets(h.date, [...betMissing, ...titleLegs]);
+  if (titleLegs.length) loadTitleData(titleLegs);
   const betKeys = new Set([...betGames.keys()].map(e => `${e.league}:${e.id}`));
   const betsOf = new Map([...betGames].map(([e, list]) => [`${e.league}:${e.id}`, list]));
   // A list with the games bet on added (whatever the filter or the services).
-  const withBets = list => [...list, ...[...betGames.keys()].filter(e => !list.includes(e))];
+  const withBets = list => {
+    const have = new Set(list.map(e => `${e.league}:${e.id}`));
+    return [...list, ...[...betGames.keys()].filter(e => !have.has(`${e.league}:${e.id}`))];
+  };
   const rank = (list, also = 999, ctx = pctx, before = past) => {
     const { plan, also: rest } = dayPlan(before ? withBets(list).map(e => ({ ...e, status: { ...e.status, state: 'pre' } })) : withBets(list), ctx, { n: 6, also, keep: betKeys });
     const real = new Map(withBets(list).map(e => [`${e.league}:${e.id}`, e]));

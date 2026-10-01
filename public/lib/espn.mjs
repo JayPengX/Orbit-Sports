@@ -560,7 +560,7 @@ export function parseStandings(data, league = null) {
         const row = { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note?.color || (en.team?.color && !en.team?.logos ? `#${en.team.color}` : ''), stats };
         return league ? localSide(league, row) : row;
       });
-      groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), rows });
+      groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), en: node.name || node.displayName || '', rows });
     }
     for (const child of node?.children || []) walk(child);
   };
@@ -667,6 +667,22 @@ export function parseSchedule(data, league) {
 }
 // A team's season: its results and the games to come. A soccer club's across
 // all its competitions: ESPN gives the results, and the fixtures on their own.
+// A team's playoff games this season (ESPN's schedule in the playoffs has
+// only those), or null when the league isn't in its playoffs.
+export async function playoffRun(league, id) {
+  if (clubPath(league) === 'soccer/all') return null;
+  const data = await getJson(`${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}/schedule`, { ttl: 10 * 60_000 });
+  return data?.requestedSeason?.type === 3 ? parseSchedule(data, league) : null;
+}
+// Out of the playoffs: its last playoff game lost and none to come.
+export function knockedOut(games, id) {
+  if (!games?.length) return false;
+  if (games.some(g => g.status?.state !== 'post')) return false;
+  const last = [...games].sort((a, b) => a.start.localeCompare(b.start)).at(-1);
+  const us = [last.home, last.away].find(x => String(x?.id) === String(id));
+  const them = [last.home, last.away].find(x => x && x !== us);
+  return Boolean(us && them?.winner && !us.winner);
+}
 export async function teamSchedule(league, id) {
   const base = `${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}/schedule`;
   if (clubPath(league) !== 'soccer/all') {
