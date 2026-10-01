@@ -149,8 +149,6 @@ export function logo(url, name, cls = '') {
 }
 // A race weekend's country flag (F1, F2, F3), the emoji if the picture fails.
 export const raceFlag = (e, cls = '') => (e?.country ? logoPicture(flagUrl(e.country), null, `race-flag ${cls}`.trim(), () => el('span', { class: `race-flag emoji ${cls}`.trim(), 'aria-hidden': 'true', text: flagEmoji(e.country) })) : null);
-// An F1 driver: their headshot, else a badge in their team's colour.
-export const driverLogo = (url, name, cls = '', id = '') => personPic({ id, name, logo: url }, 'f1', cls);
 // A person (a player, a driver): their studio headshot (the feed's, ESPN's by
 // their id or name, TheSportsDB's cutout), never a flag while a face can be
 // had; the flag (or, for a driver, their team's colour) only when there's none.
