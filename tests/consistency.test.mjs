@@ -16,7 +16,7 @@ test('a delayed or suspended game is still on; a postponed one is called off', (
 });
 
 test('only the leagues on ELTA.tv or Apple TV in Taiwan, nothing else, and only those two services', () => {
-  assert.deepEqual(Object.keys(LEAGUES).sort(), ['bundesliga', 'cpbl', 'epl', 'f1', 'f2', 'f3', 'facup', 'ligue1', 'mlb', 'mls', 'nationsleague', 'nba', 'scotland', 'seriea', 'ucl', 'uecl', 'uel']);
+  assert.deepEqual(Object.keys(LEAGUES).sort(), ['bundesliga', 'cpbl', 'epl', 'f1', 'facup', 'ligue1', 'mlb', 'mls', 'nationsleague', 'nba', 'scotland', 'seriea', 'ucl', 'uecl', 'uel']);
   assert.deepEqual(Object.keys(BROADCAST).sort(), Object.keys(LEAGUES).sort());
   for (const [k, list] of Object.entries(BROADCAST)) for (const b of list) assert.ok(['elta', 'appletv'].includes(b.svc), `${k} ${b.svc}`);
   assert.deepEqual(BROADCAST.mls.map(b => b.svc), ['appletv']);

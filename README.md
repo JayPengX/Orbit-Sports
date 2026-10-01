@@ -22,7 +22,7 @@ right:
   nearest to now (a live one first) with the same date strip as 首頁 (the league's game days, more of them as
   it's scrolled near either end, and 📅 for any day);
   a filter by stage when the season has more than one (preseason, playoffs,
-  the NBA Cup…). Race series (F1, F2, F3) show their whole season, a card per
+  the NBA Cup…). F1 shows its whole season, a card per
   weekend with its country's flag: live, coming up and results.
 - **直播 Live**: everything in progress now (followed first), each with a
   觀看 button that opens the game's channel in the ELTA.tv app (or Apple TV's
@@ -64,7 +64,7 @@ sport's usual length), and lists them by time, each with its reasons.
 Leagues (the ones on ELTA.tv or Apple TV in Taiwan): baseball (MLB, CPBL),
 basketball (NBA), soccer (Premier League, Serie A, Bundesliga, Ligue 1,
 Scottish Premiership, FA Cup, Champions League, Europa League, Conference
-League, Nations League; MLS on Apple TV) and racing (F1, F2, F3). The list is
+League, Nations League; MLS on Apple TV) and racing (F1). The list is
 `BROADCAST` in `public/lib/broadcast.mjs`; `public/lib/leagues.mjs` takes
 those of the shared catalogue.
 
@@ -72,7 +72,7 @@ those of the shared catalogue.
 
 A static site (GitHub Pages) with no build step.
 
-- Data comes from ESPN's site API (CPBL's, F2's and F3's own sites for
+- Data comes from ESPN's site API (CPBL's own site for
   theirs; ELTA's schedule and NBA.com's Taiwan schedule for where to watch),
   read through the Quadra data proxy
   (`sports-proxy.pengzjay.workers.dev`, in Shared-Proxy), which needs the

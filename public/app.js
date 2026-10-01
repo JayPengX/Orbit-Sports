@@ -3,7 +3,7 @@
 // scores, plays, line-ups, win probability), standings, teams and players,
 // and a day planned around what the person follows, for the leagues on
 // ELTA.tv and Apple TV in Taiwan, with a tap to watch them there. The data is
-// ESPN's (CPBL's, F2's and F3's own sites for theirs), read through the
+// ESPN's (CPBL's own site for its games), read through the
 // Quadra data proxy (lib/espn.mjs).
 //
 // What the person follows lives on the pass (this app's payload): sports in
@@ -1180,8 +1180,7 @@ function weekends(list) {
   }
   return [...out.values()];
 }
-// A race weekend as a card: its flag, name, circuit and days (and an F2 or
-// F3 round's number), then each session (time, badge, state); over, the
+// A race weekend as a card: its flag, name, circuit and days, then each session (time, badge, state); over, the
 // race's winner.
 function weekendCard(sessions) {
   const e = sessions[0];
@@ -1194,7 +1193,7 @@ function weekendCard(sessions) {
   const winner = done ? (race.sessions?.find(x => x.abbr === race.sessionKey) || race.sessions?.at(-1))?.field?.[0] : null;
   const live = list.some(x => x.status.state === 'in');
   return el('button', { class: `q-card wk-card${live ? ' live' : ''}${done ? ' done' : ''}`, type: 'button', onclick: () => openEvent(race) }, [
-    el('div', { class: 'wk-card-head' }, [raceFlag(e, 'big'), el('div', { class: 'wk-card-text' }, [el('strong', { class: 'wk-card-name', text: e.name }), el('small', { class: 'muted', text: [e.venue, days].filter(Boolean).join(' · ') })]), /^R\d+$/.test(e.short) ? el('span', { class: 'wk-round', text: e.short }) : null]),
+    el('div', { class: 'wk-card-head' }, [raceFlag(e, 'big'), el('div', { class: 'wk-card-text' }, [el('strong', { class: 'wk-card-name', text: e.name }), el('small', { class: 'muted', text: [e.venue, days].filter(Boolean).join(' · ') })])]),
     winner
       ? el('div', { class: 'wk-winner' }, [personPic(winner, e.league, 'sm round'), el('span', {}, [el('small', { class: 'muted', text: L({ zh: '冠軍', en: 'Winner' }) }), el('strong', { text: winner.short || winner.name })])])
       : el(

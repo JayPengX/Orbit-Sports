@@ -9,7 +9,7 @@ const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, im
 test('every league has a sport, a source and names', () => {
   for (const [key, l] of Object.entries(LEAGUES)) {
     assert.ok(SPORTS[l.sport], key);
-    assert.ok(l.espn || l.asia || l.fom, key);
+    assert.ok(l.espn || l.asia, key);
     assert.ok(l.zh && l.en, key);
   }
 });

@@ -6,7 +6,6 @@
 //   espn    ESPN's site API path (scoreboards, match summaries, teams,
 //           rosters, standings, players)
 //   asia    CPBL from its own site (through the proxy)
-//   fom     F2 and F3 from their own sites (through the proxy)
 //   play    the catalogue's key for the league's logos and names
 //   kind    'match' two sides; 'field' a race weekend
 import { leagueLogo as kitLeagueLogo } from './logos.mjs';
@@ -20,7 +19,6 @@ export const LEAGUES = Object.fromEntries(
       const league = { sport: l.sport, zh: l.zh, en: l.en, play: l.bet ?? null, kind: l.kind };
       if (l.data === 'espn') league.espn = l.espn;
       if (l.data === 'asia') league.asia = l.asia;
-      if (l.data === 'fom') league.fom = l.fom;
       for (const k of ['top', 'cup', 'standings']) if (l[k]) league[k] = l[k];
       return [key, league];
     })

@@ -776,7 +776,6 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .wk-card-text { flex: 1 1 auto; min-width: 0; }
 .wk-card-name { display: block; font-size: 17px; font-weight: 800; }
 .wk-card-head small { display: block; margin-top: 2px; font-size: 12.5px; }
-.wk-round { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--q-sunken); font-size: 12px; font-weight: 750; }
 .wk-card .wk-row { grid-template-columns: 74px minmax(0, 1fr) auto; padding: 8px 10px; }
 .wk-card .wk-time { display: grid; font-size: 16px; line-height: 1.15; }
 .wk-card .wk-time small { font-size: 11px; font-weight: 600; color: var(--q-muted); }

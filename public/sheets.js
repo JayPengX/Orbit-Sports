@@ -519,7 +519,7 @@ function weekendTimeline(sessions) {
             const kind = SESSION_KIND[x.abbr] || 'other';
             const state = x.status.state;
             return el('div', { class: `wk-row ${kind}${state === 'in' ? ' live' : ''}${x === next ? ' next' : ''}${state === 'post' ? ' done' : ''}` }, [
-              el('span', { class: 'wk-time num', text: x.tbc ? (L() === 'en' ? 'TBA' : '待定') : clock(x.start) }),
+              el('span', { class: 'wk-time num', text: clock(x.start) }),
               el('span', { class: 'wk-name' }, [el('span', { class: `sess-tag ${kind}`, text: sessionName(x, L()) })]),
               el('span', { class: `wk-state ${state}`, text: state === 'post' ? T('final') : state === 'in' ? T('live') : x === next ? (L() === 'en' ? 'Next' : '下一場') : '' })
             ]);

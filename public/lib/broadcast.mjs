@@ -32,10 +32,7 @@ export const BROADCAST = {
   mls: [APPLE],
   facup: [ELTA],
   nationsleague: [ELTA],
-  f1: [ELTA],
-  // F1's feeder series: on ELTA.tv's MAX 5-8 (English commentary, no ads).
-  f2: [{ ...ELTA, note: { zh: 'MAX 5-8 台', en: 'MAX 5-8' } }],
-  f3: [{ ...ELTA, note: { zh: 'MAX 5-8 台', en: 'MAX 5-8' } }]
+  f1: [ELTA]
 };
 
 export const broadcastsOf = league => BROADCAST[league] || [];
@@ -51,7 +48,7 @@ export const ELTA_LIST = 'https://piceltaott-elta.cdn.hinet.net/production/json/
 // English name) → Fixtures' leagues.
 const ELTA_LEAGUE = {
   MLB: 'mlb', CPBL: 'cpbl', NBA: 'nba', 'Premier League': 'epl', 'Serie A': 'seriea', Bundesliga: 'bundesliga', 'Ligue 1': 'ligue1',
-  UCL: 'ucl', UEL: 'uel', UECL: 'uecl', 蘇超: 'scotland', 'FA Cup': 'facup', 英足總盃: 'facup', 'UEFA Nations League': 'nationsleague', F1: 'f1', F2: 'f2', F3: 'f3'
+  UCL: 'ucl', UEL: 'uel', UECL: 'uecl', 蘇超: 'scotland', 'FA Cup': 'facup', 英足總盃: 'facup', 'UEFA Nations League': 'nationsleague', F1: 'f1'
 };
 // Its channels: the four 體育台 (with ads), the ten MAX (no ads) and MOD's
 // own 980s (its add-on sports channels: not streamed, so never shown).

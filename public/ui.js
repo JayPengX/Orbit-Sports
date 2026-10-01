@@ -148,7 +148,7 @@ export function logo(url, name, cls = '') {
   };
   return logoPicture(freshHeadshot(url), null, `logo ${cls}`, fallback);
 }
-// A race weekend's country flag (F1, F2, F3), the emoji if the picture fails.
+// A race weekend's country flag, the emoji if the picture fails.
 export const raceFlag = (e, cls = '') => (e?.country ? logoPicture(flagUrl(e.country), null, `race-flag ${cls}`.trim(), () => el('span', { class: `race-flag emoji ${cls}`.trim(), 'aria-hidden': 'true', text: flagEmoji(e.country) })) : null);
 // A person (a player, a driver): their studio headshot (the feed's, ESPN's by
 // their id or name, TheSportsDB's cutout), never a flag while a face can be
@@ -249,9 +249,6 @@ function fieldStatus(text) {
 }
 // A row's status: a game on another day shows its day above its time.
 function statusEl(e, day = true) {
-  // A time not announced yet (an F2 or F3 round before its timetable): the day, "time TBA".
-  const tbc = e.tbc || (e.sessionKey && e.sessions?.find(x => x.abbr === e.sessionKey)?.tbc);
-  if (tbc && e.status.state === 'pre') return el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: ctx.locale === 'en' ? 'TBA' : '時間待定' })]);
   if (e.status.state === 'pre' && !e.status.void && localDate(Date.parse(e.start)) !== today())
     return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: clock(e.start) })]) : el('span', { class: 'event-status pre', text: clock(e.start) });
   return el('span', { class: `event-status ${e.status.state}`, text: statusText(e) });
