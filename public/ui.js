@@ -158,9 +158,11 @@ export const driverLogo = (url, name, cls = '', id = '') => personPic({ id, name
 export function personPic(p, league, cls = '') {
   const name = p?.en || p?.name || '';
   const flag = p?.flag || (isFlag(p?.logo) ? p.logo : '');
-  const urls = [...new Set([p?.headshot, isFlag(p?.logo) ? null : p?.logo, espnHeadshot(league, p?.id)].map(freshHeadshot).filter(Boolean))];
+  // The feed's own picture, then one found before (this device, checked to
+  // exist), and only then ESPN's by id (a guess: a miss costs its retries
+  // before the next is tried, and the picture would change late).
   const known = knownPhoto(name, LEAGUES[league]?.sport || '');
-  if (known) urls.push(known);
+  const urls = [...new Set([p?.headshot, isFlag(p?.logo) ? null : p?.logo, known, espnHeadshot(league, p?.id)].map(freshHeadshot).filter(Boolean))];
   // Nothing found: the driver's badge, else the flag, else the initials;
   // a headshot looked for meanwhile, put in when it comes.
   const last = () => {
