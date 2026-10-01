@@ -43,6 +43,18 @@ const nbaSchedule = schedule(
   nbaEltaGames,
   6 * 3_600_000
 );
+// NBA.com's ELTA games after ELTA's own list ends, for its guide: the game
+// known, its channel not yet ({ league, start, end, teams, title, day, channels: [] }).
+const NBA_NAME = Object.fromEntries(Object.entries(NBA_ID).map(([name, id]) => [1610612700 + id, name]));
+const taipeiDay = ms => new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10);
+export function nbaAfterList() {
+  const programs = eltaSchedule();
+  const games = nbaSchedule();
+  const last = programs?.length ? eltaDays(programs).to : '';
+  if (!games?.length) return [];
+  const zh = id => teamNameZh('nba', NBA_NAME[id])?.short || NBA_NAME[id] || '';
+  return games.filter(g => taipeiDay(g.start) > last).map(g => ({ league: 'nba', start: g.start, end: g.start + 150 * 60_000, teams: [zh(g.away), zh(g.home)], title: '', day: taipeiDay(g.start), channels: [] }));
+}
 // An NBA team's NBA.com id (the kit's NBA_ID: 38 → 1610612738), or null (a guest club).
 const nbaId = side => (NBA_ID[side?.en || side?.name] ? 1610612700 + NBA_ID[side.en || side.name] : null);
 

@@ -11,7 +11,7 @@
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from './lib/quadra.mjs';
 import { localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
-import { eltaChannel } from './lib/broadcast.mjs';
+import { eltaChannel, hasAudio } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
 import { familyOfSport } from './lib/catalog.mjs';
@@ -20,7 +20,7 @@ import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
-import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf } from './lib/tv.mjs';
+import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList } from './lib/tv.mjs';
 import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from './lib/logos.mjs';
@@ -931,39 +931,72 @@ function renderLive() {
     tvGuide(all)
   );
 }
-// 愛爾達's guide: what its channels show now and in the next 12 hours (the
-// followed leagues first), each with its game when Fixtures has it, and a
-// way to watch the channel on ELTA.tv.
+// ---- 愛爾達's guide -------------------------------------------------------------------------
+//
+// Every showing on ELTA.tv's channels (its own list, about two weeks), the
+// same game on several channels as one, and after the list NBA.com's ELTA
+// games (channel to come). A showing reads short: the time, the league, the
+// two sides (or the event), one detail (the round or stage), and each
+// channel with its commentary.
+const AUDIO_SHORT = { en: { zh: '英', en: 'EN' }, dual: { zh: '雙語', en: 'Dual' }, venue: { zh: '中', en: 'ZH' }, zh: { zh: '中', en: 'ZH' } };
+const STAGE_WORD = /(熱身賽|例行賽|季後賽|外卡賽|分區系列賽|聯盟冠軍賽|世界大賽|總冠軍賽|準決賽|決賽|\d+強|第\d+輪|第\d+比賽日|排位賽|衝刺排位賽|衝刺賽|正賽|第\d節自由練習)/;
+function guideItems() {
+  const shows = new Map();
+  for (const p of eltaSchedule() || []) {
+    if (!eltaChannel(p.ch).url) continue;
+    const key = `${p.start}|${p.league}|${p.teams.join('|') || p.title}`;
+    if (!shows.has(key)) shows.set(key, { ...p, channels: [] });
+    shows.get(key).channels.push({ ch: p.ch, audio: p.audio, adFree: p.adFree });
+  }
+  return [...shows.values(), ...nbaAfterList()].sort((a, b) => a.start - b.start);
+}
+const guideTitle = p => (p.teams.length === 2 ? `${p.teams[0]} vs ${p.teams[1]}` : p.title.replace(/[【（(][^】）)]*[】）)]/g, '').replace(STAGE_WORD, '').trim() || p.title);
+const guideDetail = p => STAGE_WORD.exec(p.title)?.[1] || '';
+function guideRow(p, events, now) {
+  const on = p.start <= now && p.end > now;
+  const e = events.find(x => x.league === p.league && tvOf(x).some(b => p.channels.some(c => c.ch === b.ch) && b.at === p.start));
+  const detail = guideDetail(p);
+  return el('div', { class: `tvg-row${on ? ' on' : ''}` }, [
+    el('b', { class: 'tvg-time num', text: on ? L({ zh: '播出中', en: 'Live' }) : clock(new Date(p.start).toISOString()) }),
+    el('button', { class: 'tvg-body', type: 'button', disabled: e ? null : true, onclick: () => e && openEvent(e) }, [
+      el('span', { class: 'tvg-head' }, [leagueMark(p.league, 'lg-mark xs'), el('strong', { class: 'tvg-title', text: guideTitle(p) })]),
+      el('span', { class: 'tvg-chs' }, [
+        detail ? el('small', { class: 'tvg-detail', text: detail }) : null,
+        ...(p.channels.length
+          ? p.channels.map(c => el('span', { class: `tvg-ch${hasAudio(c, state.prefs.audio || 'en') ? ' mine' : ''}` }, [L(eltaChannel(c.ch).short).replace(/^愛爾達/, '體育'), el('i', { text: L(AUDIO_SHORT[c.audio] || AUDIO_SHORT.zh) })]))
+          : [el('span', { class: 'tvg-ch tbd', text: L({ zh: '頻道待公布', en: 'Channel TBA' }) })])
+      ])
+    ]),
+    on && p.channels[0] ? watchLink(eltaChannel(p.channels[0].ch), { class: 'tvg-watch', text: L({ zh: '觀看', en: 'Watch' }) }) : null
+  ]);
+}
+// On 直播: what's on now and the next few, with the whole guide a tap away.
 function tvGuide(events) {
-  const programs = eltaSchedule();
-  if (!programs?.length) return null;
   const now = Date.now();
-  const mine = new Set(state.prefs.leagues);
-  const list = programs
-    .filter(p => p.end > now && p.start < now + 12 * 3_600_000)
-    .sort((a, b) => mine.has(b.league) - mine.has(a.league) || a.start - b.start)
-    .slice(0, 14)
-    .sort((a, b) => a.start - b.start);
+  const items = guideItems();
+  const list = items.filter(p => p.end > now).slice(0, 6);
   if (!list.length) return null;
-  const gameOf = p => events.find(e => e.league === p.league && tvOf(e).some(b => b.ch === p.ch && b.at === p.start));
-  return section(
-    L({ zh: '愛爾達轉播表', en: 'ELTA TV guide' }),
-    el(
-      'div',
-      { class: 'q-card list tv-guide' },
-      list.map(p => {
-        const e = gameOf(p);
-        const ch = eltaChannel(p.ch);
-        const on = p.start <= now;
-        return el('div', { class: `tvg-row${on ? ' on' : ''}` }, [
-          el('span', { class: 'tvg-time num' }, [el('b', { text: on ? L({ zh: '播出中', en: 'On now' }) : clock(new Date(p.start).toISOString()) }), el('small', { text: [L(ch).replace(/^愛爾達|^ELTA\.tv\s*/, ''), audioName(p)].filter(Boolean).join(' · ') })]),
-          el('button', { class: 'tvg-body', type: 'button', disabled: e ? null : true, onclick: () => e && openEvent(e) }, [leagueChip(p.league), el('span', { class: 'tvg-title', text: p.title })]),
-          ch.url ? watchLink(ch, { class: 'tvg-watch', text: L({ zh: '觀看', en: 'Watch' }) }) : null
-        ]);
-      })
-    ),
-    { sub: L({ zh: '愛爾達的節目表（需訂閱 ELTA.tv）', en: "ELTA's schedule (needs ELTA.tv)" }) }
-  );
+  return section(L({ zh: '愛爾達轉播表', en: 'ELTA TV guide' }), el('div', { class: 'q-card list tv-guide' }, list.map(p => guideRow(p, events, now))), {
+    action: moreButton(L({ zh: '完整轉播表 ›', en: 'Full guide ›' }), () => openGuide(events))
+  });
+}
+// The whole guide, a day at a time.
+function openGuide(events) {
+  const s = sheet(L({ zh: '愛爾達轉播表', en: 'ELTA TV guide' }));
+  const items = guideItems();
+  const days = [...new Set(items.map(p => localDate(p.start)))].filter(d => d >= today());
+  let day = days[0];
+  const paint = () => {
+    const now = Date.now();
+    const list = items.filter(p => localDate(p.start) === day && (day !== today() || p.end > now));
+    put(
+      s.body,
+      el('div', { class: 'q-chips tvg-days' }, days.map(d => el('button', { class: `q-chip${d === day ? ' on' : ''}`, type: 'button', 'aria-pressed': String(d === day), text: dayLabel(d), onclick: () => ((day = d), paint()) }))),
+      list.length ? el('div', { class: 'q-card list tv-guide' }, list.map(p => guideRow(p, events, now))) : el('p', { class: 'muted small', text: L({ zh: '這天沒有節目。', en: 'Nothing that day.' }) }),
+      el('p', { class: 'section-sub', text: L({ zh: '愛爾達公布的節目表約兩週；之後的 NBA 依 NBA.com，頻道待公布。需訂閱 ELTA.tv。', en: "ELTA publishes about two weeks; NBA games after that are NBA.com's, channel to come. Needs ELTA.tv." }) })
+    );
+  };
+  paint();
 }
 
 // ---- 賽事: every sport, league and game day ------------------------------------------------------

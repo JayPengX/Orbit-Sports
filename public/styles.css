@@ -383,17 +383,25 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .tw-watch-go { flex: none; font-weight: 700; color: var(--accent); font-size: 14px; }
 .stack.tight { gap: 10px; }
 .tv-guide { padding: 0; }
-.tvg-row { display: grid; grid-template-columns: 5.4em minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--q-divider, var(--q-border)); }
+.tvg-row { display: grid; grid-template-columns: 3.6em minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--q-divider, var(--q-border)); }
 .tvg-row:first-child { border-top: 0; }
-.tvg-time { display: grid; gap: 1px; min-width: 0; }
-.tvg-time small { overflow-wrap: anywhere; }
-.tvg-time b { font-size: 14px; }
-.tvg-time small { font-size: 10.5px; color: var(--q-muted); line-height: 1.25; }
-.tvg-row.on .tvg-time b { color: var(--live); }
-.tvg-body { display: grid; gap: 3px; min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: inherit; font: inherit; }
+.tvg-time { font-size: 14px; }
+.tvg-row.on .tvg-time { color: var(--live); font-size: 12.5px; }
+.tvg-head .league-badge { --s: 18px; }
+.tvg-body { display: grid; gap: 4px; min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: inherit; font: inherit; }
 .tvg-body:disabled { opacity: 1; cursor: default; }
-.tvg-title { font-size: 13.5px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.tvg-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tvg-title { font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tvg-chs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.tvg-detail { font-size: 11.5px; color: var(--q-muted); margin-right: 2px; }
+.tvg-ch { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 650; padding: 1px 6px; border-radius: 6px; background: var(--q-sunken); color: var(--q-text-2); }
+.tvg-ch i { font-style: normal; font-weight: 700; opacity: 0.75; }
+.tvg-ch.mine { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.tvg-ch.tbd { font-weight: 500; }
 .tvg-watch { flex: none; font-size: 13px; font-weight: 700; color: var(--accent); text-decoration: none; padding: 6px 10px; border-radius: 999px; background: var(--q-sunken); }
+.tvg-days { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 6px; margin-bottom: 12px; scrollbar-width: none; }
+.tvg-days::-webkit-scrollbar { display: none; }
+.tvg-days .q-chip { flex: none; }
 /* A season's results: the race or match (two lines if need be), its result on the right. */
 .info-list.results li { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 .info-list.results .info-k { white-space: normal; overflow: visible; color: var(--q-text); display: grid; gap: 1px; }
@@ -668,7 +676,8 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .inj-list li { align-items: center; }
 
 /* An ended game's highlights on YouTube. */
-.yt-link { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, #ff0033 12%, var(--q-surface)); color: inherit; text-decoration: none; margin-bottom: 12px; }
+.yt-link { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, #ff0033 12%, var(--q-surface)); color: inherit; text-decoration: none; margin: 12px 0; }
+.stack > .yt-link { margin: 0; }
 .yt-icon { flex: none; width: 40px; height: 28px; border-radius: 8px; background: #ff0033; color: #fff; display: grid; place-items: center; font-size: 13px; }
 .yt-text { display: grid; gap: 1px; flex: 1; min-width: 0; }
 .yt-text small { color: var(--q-muted); font-size: 12px; }
