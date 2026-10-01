@@ -474,10 +474,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 }
 
 /* ---- 推薦: my broadcast services, nothing of mine today ---- */
-.tv-row { display: flex; align-items: center; gap: 10px; width: 100%; margin: 10px 0 4px; padding: 10px 14px; border: 1px solid var(--q-border); border-radius: 14px; background: var(--q-surface); color: var(--q-text); font: inherit; text-align: left; cursor: pointer; }
-.tv-row-k { flex: none; font-weight: 750; font-size: 13.5px; }
-.tv-row-v { flex: 1; min-width: 0; color: var(--q-muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
-.tv-row-go { flex: none; color: var(--q-muted); font-size: 18px; line-height: 1; }
 .none-mine { margin: 12px 0 0; }
 .none-mine strong { display: block; font-size: 15px; }
 .none-mine p { margin: 4px 0 0; }
@@ -583,7 +579,10 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .hero-form .pos-pill { font-size: 12px; padding: 1px 8px; }
 .injury-tag { margin-top: 6px; font-size: 12.5px; font-weight: 650; color: var(--loss); }
 .player-note { display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
-.player-note p { color: var(--q-text-2); display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.player-note .note-head { font-size: 15px; line-height: 1.4; }
+.note-points { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; color: var(--q-text-2); }
+.note-points li::marker { color: var(--q-accent, #ea580c); }
+.note-more { justify-self: start; font-size: 13px; font-weight: 650; }
 .mate-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px 18px; font-size: 14px; }
 .mate-grid .mate-me, .mate-grid .mate-them { font-size: 12.5px; text-align: right; }
 .mate-grid .mate-them { justify-self: end; font-weight: 700; }
@@ -739,3 +738,59 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 
 
 /* 排名: past seasons, and a past season's champion. */
+
+/* A race weekend's timeline: days, then each session's time, badge and state. */
+.wk-timeline { display: grid; gap: 12px; }
+.wk-day { display: grid; gap: 6px; }
+.wk-date strong { font-size: 13px; color: var(--q-muted); font-weight: 700; letter-spacing: 0.02em; }
+.wk-sessions { display: grid; gap: 6px; }
+.wk-row { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--q-surface-2, rgba(127, 127, 127, 0.08)); }
+.wk-row.race { background: color-mix(in srgb, var(--q-accent, #ea580c) 12%, transparent); box-shadow: inset 3px 0 0 var(--q-accent, #ea580c); }
+.wk-row.next { outline: 1.5px solid var(--q-accent, #ea580c); }
+.wk-row.live { box-shadow: inset 3px 0 0 var(--live, #e11d48); }
+.wk-row.done { opacity: 0.6; }
+.wk-time { font-size: 17px; font-weight: 800; }
+.wk-name { min-width: 0; }
+.wk-state { font-size: 12px; font-weight: 700; color: var(--q-muted); }
+.wk-state.in { color: var(--live, #e11d48); }
+.wk-row.next .wk-state { color: var(--q-accent, #ea580c); }
+
+/* 賽事 for a race series: a card per weekend. */
+.wk-cards { display: grid; gap: 10px; }
+.wk-card { display: grid; gap: 10px; width: 100%; padding: 14px; text-align: left; font: inherit; color: inherit; border: 1px solid var(--q-border); cursor: pointer; }
+.wk-card.live { box-shadow: inset 3px 0 0 var(--live, #e11d48); }
+.wk-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.wk-card-name { display: block; font-size: 17px; font-weight: 800; }
+.wk-card-head small { display: block; margin-top: 2px; font-size: 12.5px; }
+.wk-round { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--q-sunken); font-size: 12px; font-weight: 750; }
+.wk-card .wk-row { grid-template-columns: 74px minmax(0, 1fr) auto; padding: 8px 10px; }
+.wk-card .wk-time { display: grid; font-size: 16px; line-height: 1.15; }
+.wk-card .wk-time small { font-size: 11px; font-weight: 600; color: var(--q-muted); }
+.wk-winner { display: flex; align-items: center; gap: 10px; }
+.wk-winner span { display: grid; }
+.wk-winner small { font-size: 11.5px; }
+
+/* A team's page. */
+.team-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 16px; margin: 4px 0 12px; border-radius: 18px; background: var(--q-surface); border: 1px solid var(--q-border); }
+.team-hero.tinted { background: linear-gradient(135deg, color-mix(in srgb, var(--hero) 20%, var(--q-surface)) 0%, var(--q-surface) 80%); }
+.team-hero h3 { font-size: 21px; font-weight: 850; line-height: 1.2; }
+.team-hero-text { min-width: 0; display: grid; gap: 2px; }
+.team-hero-text small { font-size: 12.5px; }
+.team-hero-sub { font-size: 13.5px; color: var(--q-text-2); margin-top: 2px; }
+.team-hero .hero-form { margin-top: 6px; }
+.follow-pill { align-self: start; }
+.team-strip { display: flex; margin: 0 0 14px; border-radius: 16px; background: var(--q-surface); border: 1px solid var(--q-border); overflow: hidden; }
+.ts-cell { flex: 1; min-width: 0; display: grid; justify-items: center; gap: 2px; padding: 10px 4px; border-left: 1px solid var(--q-divider, var(--q-border)); }
+.ts-cell:first-child { border-left: 0; }
+.ts-cell strong { font-size: 18px; font-weight: 850; }
+.ts-cell small { font-size: 11px; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ts-cell.lead strong { color: var(--q-accent, #ea580c); }
+.team-next { margin: 0 0 14px; }
+.team-next .mini-h { margin: 0 2px 6px; }
+.team-tab { margin-top: 10px; display: grid; gap: 10px; }
+.res-row { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.res-row:first-child { border-top: 0; }
+.res-date { font-size: 12.5px; color: var(--q-muted); }
+.res-opp { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 650; }
+.res-opp span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-pill.d { background: color-mix(in srgb, #d4a017 20%, transparent); }

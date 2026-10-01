@@ -35,5 +35,7 @@ export const TOP_LEAGUES = Object.keys(LEAGUES).filter(k => LEAGUES[k].top);
 // Tables: every match league (not cups), and the drivers' and constructors' championship of F1.
 export const hasStandings = key => (Boolean(LEAGUES[key]?.espn) && ((LEAGUES[key].kind === 'match' && !LEAGUES[key].cup) || Boolean(LEAGUES[key].standings)));
 export const hasTeams = key => Boolean(LEAGUES[key]?.espn) && LEAGUES[key].kind === 'match';
+// A team page: ESPN's leagues, and the others built from their own schedules.
+export const hasTeamPage = key => LEAGUES[key]?.kind === 'match';
 // The league's logo, from the shared kit (by Quadra Play's key), or null.
 export const leagueLogo = key => (LEAGUES[key] ? kitLeagueLogo(LEAGUES[key].play || key) : null);

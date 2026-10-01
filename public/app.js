@@ -24,6 +24,54 @@ import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayL
 import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables } from './sheets.js';
 import { f1Driver, f1Constructor } from './lib/logos.mjs';
 
+// ---- What's on: leagues with games from two weeks back to two months on ---------------
+//
+// A league out of season (or a tournament not being played, the World Cup
+// between editions) is hidden, and a sport with none left with it. Checked
+// once and kept on the device for 12 hours.
+const ACTIVE_KEY = 'fx.active.v1';
+let activeSet = (() => {
+  try {
+    const x = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null');
+    return x && Date.now() - x.at < 12 * 3_600_000 && Array.isArray(x.keys) ? new Set(x.keys) : null;
+  } catch {
+    return null;
+  }
+})();
+const isActive = k => !activeSet || activeSet.has(k);
+const isActiveSport = sp => shownLeaguesOf(sp).length > 0;
+const shownLeaguesOf = sport => leaguesOf(sport).filter(isActive);
+const shownSports = () => Object.keys(SPORTS).filter(sp => shownLeaguesOf(sp).length);
+async function leagueHasGames(k, from, to) {
+  const l = LEAGUES[k];
+  const near = list => list.some(e => {
+    const t = Date.parse(e.start);
+    return t >= from && t <= to;
+  });
+  if (l.espn && l.kind === 'match') {
+    const cal = await seasonCalendar(k).catch(() => null);
+    const us = d => Date.parse(`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}T12:00:00Z`);
+    if (cal?.days) return cal.days.some(d => us(d) >= from && us(d) <= to);
+    if (cal?.weeks) return cal.weeks.some(w => Date.parse(w.end) >= from && Date.parse(w.start) <= to);
+    return near(await scoreboard(k, monthsBetween(from, to)).catch(() => []));
+  }
+  return near(await seasonEvents(k).catch(() => []));
+}
+async function checkActive() {
+  if (activeSet) return;
+  const now = Date.now();
+  const from = now - 14 * 86_400_000;
+  const to = now + 60 * 86_400_000;
+  const keys = Object.keys(LEAGUES);
+  const on = await Promise.all(keys.map(k => leagueHasGames(k, from, to).catch(() => true)));
+  activeSet = new Set(keys.filter((k, i) => on[i]));
+  try {
+    localStorage.setItem(ACTIVE_KEY, JSON.stringify({ at: now, keys: [...activeSet] }));
+  } catch {}
+  if (state.tab === 'matches') renderScores();
+  if (state.tab === 'home') renderHome();
+}
+
 const locale = detectLocale();
 const t = makeT(locale);
 const L = obj => (locale === 'en' ? obj.en : obj.zh);
@@ -172,9 +220,9 @@ function openFollowEditor(focus = '') {
             )
           )
         : el('p', { class: 'muted small', text: t('noSportsYet') }),
-      Object.keys(SPORTS).some(k => !p.sports.includes(k)) ? el('div', { class: 'q-chips wrap' }, Object.entries(SPORTS).filter(([k]) => !p.sports.includes(k)).map(([k, sp]) => pickChip(false, `+ ${L(sp)}`, () => (toggleSport(k), paint())))) : null,
+      shownSports().some(k => !p.sports.includes(k)) ? el('div', { class: 'q-chips wrap' }, Object.entries(SPORTS).filter(([k]) => isActiveSport(k) && !p.sports.includes(k)).map(([k, sp]) => pickChip(false, `+ ${L(sp)}`, () => (toggleSport(k), paint())))) : null,
       p.sports.length ? el('h3', { class: 'section-h', text: t('leagues') }) : null,
-      ...p.sports.map(sp => el('div', { class: 'league-pick' }, [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'q-chips wrap' }, leaguesOf(sp).map(k => pickChip(p.leagues.includes(k), leagueName(k, locale), () => (toggleLeague(k), paint()))))])),
+      ...p.sports.map(sp => el('div', { class: 'league-pick' }, [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'q-chips wrap' }, shownLeaguesOf(sp).map(k => pickChip(p.leagues.includes(k), leagueName(k, locale), () => (toggleLeague(k), paint()))))])),
       el('h3', { class: 'section-h', text: L({ zh: '追蹤的球隊與選手', en: 'Teams and players you follow' }) }),
       p.follows.length
         ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
@@ -670,7 +718,6 @@ function renderHome() {
     box,
     homeHead(),
     !hasFollows ? sportPicker() : null,
-    tvRow(),
     liveBlock,
     (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : t('noOthers') })]) : null,
     finding ? spinner() : null,
@@ -726,7 +773,7 @@ function homeHead() {
 // one keeps the date strip to the days it plays and goes to the nearest.
 function sportChips() {
   const h = state.home;
-  const filters = [['all', t('f_all')], ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...state.prefs.sports.map(sp => [sp, L(SPORTS[sp])])];
+  const filters = [['all', t('f_all')], ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...state.prefs.sports.filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
   if (filters.length < 3) return null;
   return el(
     'div',
@@ -799,14 +846,6 @@ async function sportDays(sport) {
   return days;
 }
 
-// The broadcast services the person has: the picks keep to them.
-function tvNames() {
-  const tv = state.prefs.tv;
-  return tv.length ? SERVICES.filter(x => tv.includes(x.id)).map(x => L(x).replace(/（.*）|\s*\(.*\)/, '')).join('、') : t('tvAny');
-}
-function tvRow() {
-  return el('button', { class: 'tv-row', type: 'button', onclick: openTvEditor }, [el('span', { class: 'tv-row-k', text: t('tvMine') }), el('span', { class: 'tv-row-v', text: tvNames() }), el('span', { class: 'tv-row-go', 'aria-hidden': 'true', text: '›' })]);
-}
 function tvChips(after) {
   const tv = state.prefs.tv;
   return el(
@@ -848,7 +887,7 @@ function sportPicker() {
     el(
       'div',
       { class: 'sport-grid' },
-      Object.entries(SPORTS).map(([k, sp]) => {
+      Object.entries(SPORTS).filter(([k]) => isActiveSport(k)).map(([k, sp]) => {
         const i = state.prefs.sports.indexOf(k);
         return el('button', { class: `sport-tile${i >= 0 ? ' on' : ''}`, type: 'button', onclick: () => toggleSport(k) }, [el('span', { class: 'sport-icon', text: sp.icon }), el('span', { text: L(sp) }), i >= 0 ? el('b', { class: 'sport-n num', text: String(i + 1) }) : null]);
       })
@@ -1190,12 +1229,62 @@ async function runSearch(query) {
   if (seq === searchSeq && state.scores.q === query) paint(found, false);
 }
 
+// Sessions grouped back into their weekends (in the order given).
+function weekends(list) {
+  const out = new Map();
+  for (const e of list) {
+    const key = e.weekend || e.id;
+    if (!out.has(key)) out.set(key, []);
+    out.get(key).push(e);
+  }
+  return [...out.values()];
+}
+// A race weekend as a card: its name, circuit and days, then each session
+// (time, badge, state); over, the race's winner.
+function weekendCard(sessions) {
+  const e = sessions[0];
+  const list = [...sessions].sort((a, b) => a.start.localeCompare(b.start));
+  const first = localDate(Date.parse(list[0].start));
+  const last = localDate(Date.parse(list.at(-1).start));
+  const days = first === last ? dayLabel(first) : `${dayLabel(first)} – ${dayLabel(last)}`;
+  const race = list.find(x => x.sessionKey === 'Race') || list.at(-1);
+  const done = list.every(x => x.status.state === 'post');
+  const winner = done ? (race.sessions?.find(x => x.abbr === race.sessionKey) || race.sessions?.at(-1))?.field?.[0] : null;
+  const live = list.some(x => x.status.state === 'in');
+  return el('button', { class: `q-card wk-card${live ? ' live' : ''}${done ? ' done' : ''}`, type: 'button', onclick: () => openEvent(race) }, [
+    el('div', { class: 'wk-card-head' }, [el('div', {}, [el('strong', { class: 'wk-card-name', text: e.name }), el('small', { class: 'muted', text: [e.venue, days].filter(Boolean).join(' · ') })]), e.short ? el('span', { class: 'wk-round', text: e.short }) : null]),
+    winner
+      ? el('div', { class: 'wk-winner' }, [personPic(winner, e.league, 'sm round'), el('span', {}, [el('small', { class: 'muted', text: L({ zh: '冠軍', en: 'Winner' }) }), el('strong', { text: winner.short || winner.name })])])
+      : el(
+          'div',
+          { class: 'wk-sessions' },
+          list.map(x => {
+            const kind = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' }[x.sessionKey] || 'other';
+            return el('div', { class: `wk-row ${kind}${x.status.state === 'in' ? ' live' : ''}${x.status.state === 'post' ? ' done' : ''}`, onclick: ev => (ev.stopPropagation(), openEvent(x)) }, [
+              el('span', { class: 'wk-time num' }, [el('small', { text: dayLabel(localDate(Date.parse(x.start))) }), document.createTextNode(clock(x.start))]),
+              el('span', { class: 'wk-name' }, [sessionTag(x)]),
+              el('span', { class: `wk-state ${x.status.state}`, text: x.status.state === 'post' ? t('final') : x.status.state === 'in' ? t('live') : '' })
+            ]);
+          })
+        )
+  ]);
+}
+
 function renderScores() {
   const sc = state.scores;
   if (sc.q) return runSearch(sc.q);
+  // A sport or league with nothing on now: the first one that has.
+  if (activeSet && !isActive(sc.league)) {
+    const sport = isActiveSport(sc.sport) ? sc.sport : shownSports()[0];
+    const league = shownLeaguesOf(sport).find(k => LEAGUES[k].top) || shownLeaguesOf(sport)[0];
+    if (league) {
+      state.scores = { ...sc, sport, league, date: null, byDay: null, days: [], extra: 0, stage: 'all', view: hasStandings(league) ? sc.view : 'games' };
+      return loadScores();
+    }
+  }
   const box = scoresShell();
   const followed = new Set(state.prefs.sports);
-  const sports = Object.keys(SPORTS).sort((a, b) => followed.has(b) - followed.has(a) || state.prefs.sports.indexOf(a) - state.prefs.sports.indexOf(b));
+  const sports = shownSports().sort((a, b) => followed.has(b) - followed.has(a) || state.prefs.sports.indexOf(a) - state.prefs.sports.indexOf(b));
   const sportChips = el(
     'div',
     { class: 'q-chips sport-chips' },
@@ -1206,7 +1295,7 @@ function renderScores() {
         'aria-pressed': String(sc.sport === key),
         text: L(SPORTS[key]),
         onclick: () => {
-          const first = followedLeagues().find(k => LEAGUES[k].sport === key) || leaguesOf(key).find(k => LEAGUES[k].top) || leaguesOf(key)[0];
+          const first = followedLeagues().find(k => LEAGUES[k].sport === key && isActive(k)) || shownLeaguesOf(key).find(k => LEAGUES[k].top) || shownLeaguesOf(key)[0];
           state.scores = { ...sc, sport: key, league: first, date: null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(first) ? sc.view : 'games' };
           loadScores();
         }
@@ -1217,7 +1306,7 @@ function renderScores() {
   const leagueChips = el(
     'div',
     { class: 'q-chips small' },
-    leaguesOf(sc.sport)
+    shownLeaguesOf(sc.sport)
       .sort((a, b) => mine.has(b) - mine.has(a))
       .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, league: k, season: null, date: null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), leagueName(k, locale)]))
   );
@@ -1234,11 +1323,14 @@ function renderScores() {
     const current = events.filter(e => e.status.state === 'in');
     const next = events.filter(e => e.status.state === 'pre' && Date.parse(e.end || e.start) > now - 86_400_000);
     const past = events.filter(e => e.status.state === 'post').reverse();
+    // A race series: one card per weekend (its sessions inside), not a row per session.
+    const racing = LEAGUES[sc.league]?.sport === 'racing';
+    const block = (title, list, n = 99) => (racing ? section(title, el('div', { class: 'wk-cards' }, weekends(list).slice(0, n).map(weekendCard))) : section(title, el('div', { class: 'q-card list' }, list.slice(0, n).map(e => eventRow(e, { league: false })))));
     list = events.length
       ? el('div', {}, [
-          current.length ? section(t('liveNow'), el('div', { class: 'q-card list' }, current.map(e => eventRow(e, { league: false })))) : null,
-          next.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, next.map(e => eventRow(e, { league: false })))) : null,
-          past.length ? section(t('pastEvents'), el('div', { class: 'q-card list' }, past.slice(0, 12).map(e => eventRow(e, { league: false })))) : null
+          current.length ? block(t('liveNow'), current) : null,
+          next.length ? block(t('upcomingEvents'), next) : null,
+          past.length ? block(t('pastEvents'), past, 12) : null
         ])
       : empty(t('noEvents'));
   } else if (!sc.days.length) list = empty(t('noGamesSeason'));
@@ -1587,6 +1679,8 @@ async function boot() {
     showTab(state.tab);
   }
   window.__bootStep?.(t('loadingGames'), 0.84);
+  // Which leagues have games now (after the day's own reading, not before it).
+  setTimeout(() => checkActive().catch(() => {}), 1500);
   await loadDay(today());
   window.__bootStep?.(t('loadingPicks'), 0.94);
   await homeReady(until);
