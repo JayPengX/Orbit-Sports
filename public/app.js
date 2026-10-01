@@ -631,8 +631,12 @@ function dateStrip(current, onPick, { only = null, grow = null, range = stripRan
     put(row, days().map(d => dayChip(d, current, onPick, bets)));
   };
   fill();
-  // Near an end: two more weeks that way (the days already in view stay put).
+  // Near an end: two more weeks that way. After a pick (or on opening) the
+  // chosen day is centred again once they're in; while the person is
+  // scrolling the strip themselves, the days in view stay put.
   let busy = false;
+  let touchedAt = 0;
+  for (const ev of ['pointerdown', 'touchstart', 'wheel']) row.addEventListener(ev, () => (touchedAt = Date.now()), { passive: true });
   row.addEventListener(
     'scroll',
     () => {
@@ -648,7 +652,9 @@ function dateStrip(current, onPick, { only = null, grow = null, range = stripRan
       const done = () => {
         const left = row.scrollLeft;
         fill();
-        if (nearStart) row.scrollLeft = left + (row.scrollWidth - before);
+        const chosen = row.querySelector('[aria-pressed="true"]');
+        if (chosen && Date.now() - touchedAt > 1500) row.scrollLeft = chosen.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chosen.clientWidth / 2;
+        else if (nearStart) row.scrollLeft = left + (row.scrollWidth - before);
         requestAnimationFrame(() => (busy = false));
       };
       // One sport's days are read for the new stretch first.

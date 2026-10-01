@@ -1,9 +1,10 @@
-// Where to watch in Taiwan, by league: the channels and streaming services
-// that carry it (checked September 2026). ESPN's own broadcast list is the
-// US networks, which don't help anyone here, so it isn't shown.
+// Where to watch in Taiwan, by league: the streaming services that carry it
+// (checked October 2026), never a cable or MOD channel: Quadra Fixtures is
+// about what a phone can play. ESPN's own broadcast list is the US
+// networks, which don't help anyone here, so it isn't shown.
 //
-//   kind  'tv' a cable / MOD channel, 'ott' a streaming service,
-//         'pass' the league's own subscription
+//   kind  'ott' a streaming service (a TV channel counts only as it's streamed
+//         on one), 'pass' the league's own subscription
 //
 // Sources: ELTA's 2026-27 football and baseball announcements, ELTA's NBA
 // 2026-2030 and F1 2026-2029 rights, DAZN Taiwan (LaLiga, NFL from
@@ -12,14 +13,15 @@
 export const CHECKED = '2026-10';
 
 const ELTA = { zh: '愛爾達 ELTA.tv', en: 'ELTA.tv', kind: 'ott', svc: 'elta' };
-const ELTA_MOD = { zh: '愛爾達體育（MOD）', en: 'ELTA Sports (MOD)', kind: 'tv', svc: 'elta' };
+// Hami Video streams ELTA's 體育台 (not its MAX ones), 緯來 and 博斯.
 const HAMI = { zh: 'Hami Video', en: 'Hami Video', kind: 'ott', svc: 'hami' };
-const VL = { zh: '緯來體育台', en: 'Videoland Sports', kind: 'tv', svc: 'videoland' };
+// 緯來體育台 streamed: Hami Video and 緯來's own app (緯來電視網).
+const VL = { zh: '緯來體育台（Hami Video・緯來 App）', en: 'Videoland Sports (Hami Video, Videoland app)', kind: 'ott', svc: 'videoland' };
 const DAZN = { zh: 'DAZN', en: 'DAZN', kind: 'ott', svc: 'dazn' };
-const DAZN_TV = { zh: 'DAZN 體育台', en: 'DAZN (cable)', kind: 'tv', svc: 'dazn' };
-const BOS = { zh: '博斯運動', en: 'Sportcast', kind: 'tv', svc: 'sportcast' };
-const BOS_TENNIS = { zh: '博斯網球台', en: 'Sportcast Tennis', kind: 'tv', svc: 'sportcast' };
-const BOS_GOLF = { zh: '博斯高球台', en: 'Sportcast Golf', kind: 'tv', svc: 'sportcast' };
+// 博斯's channels streamed: Hami Video, LiTV and 4gTV.
+const BOS = { zh: '博斯運動（Hami Video・LiTV・4gTV）', en: 'Sportcast (Hami Video, LiTV, 4gTV)', kind: 'ott', svc: 'sportcast' };
+const BOS_TENNIS = { zh: '博斯網球台（Hami Video・LiTV・4gTV）', en: 'Sportcast Tennis (Hami Video, LiTV, 4gTV)', kind: 'ott', svc: 'sportcast' };
+const BOS_GOLF = { zh: '博斯高球台（Hami Video・LiTV）', en: 'Sportcast Golf (Hami Video, LiTV)', kind: 'ott', svc: 'sportcast' };
 const pass = (svc, zh, en = zh) => ({ zh, en, kind: 'pass', svc });
 // Free on YouTube (the league's own channel, live where it isn't sold): a link to it.
 const yt = (zh, en, url, note = null) => ({ zh: `YouTube ${zh}`, en: `YouTube ${en}`, kind: 'ott', svc: 'youtube', url, free: true, ...(note ? { note } : {}) });
@@ -27,22 +29,22 @@ const SOOP = { zh: 'SOOP（免費）', en: 'SOOP (free)', kind: 'ott', svc: 'soo
 const DISNEY = { zh: 'Disney+', en: 'Disney+', kind: 'ott', svc: 'disney' };
 const VBTV = pass('vbtv', 'Volleyball TV');
 
-const SOCCER_ELTA = [ELTA, ELTA_MOD, HAMI];
+const SOCCER_ELTA = [ELTA, HAMI];
 
 export const BROADCAST = {
-  mlb: [ELTA, ELTA_MOD, VL, { zh: '東森電影台（週末）', en: 'EBC Movie (weekends)', kind: 'tv', svc: 'free' }, { zh: '華視（週末）', en: 'CTS (weekends)', kind: 'tv', svc: 'free' }, HAMI, pass('mlbtv', 'MLB.TV'), { zh: 'Apple TV+（週五）', en: 'Apple TV+ (Fridays)', kind: 'ott', svc: 'appletv' }],
-  npb: [DAZN, DAZN_TV, VL],
-  cpbl: [pass('cpbltv', 'CPBLTV'), VL, DAZN, { zh: 'MOMOTV', en: 'MOMOTV', kind: 'tv', svc: 'momo' }, ELTA, HAMI, { zh: 'MyVideo', en: 'MyVideo', kind: 'ott', svc: 'myvideo' }],
+  mlb: [ELTA, VL, HAMI, pass('mlbtv', 'MLB.TV'), { zh: 'Apple TV+（週五）', en: 'Apple TV+ (Fridays)', kind: 'ott', svc: 'appletv' }],
+  npb: [DAZN, VL],
+  cpbl: [pass('cpbltv', 'CPBLTV'), VL, DAZN, ELTA, HAMI, { zh: 'MyVideo', en: 'MyVideo', kind: 'ott', svc: 'myvideo' }],
   // Every game free on SOOP (KBO_Global), outside Korea.
   kbo: [SOOP, DAZN],
   // ELTA: one game a day, from the 2026-27 preseason (10/6); which one, its schedule says.
-  nba: [{ ...ELTA, note: { zh: '每日一場，10/6 起', en: 'one game a day from 10/6' } }, { ...ELTA_MOD, note: { zh: '每日一場', en: 'one game a day' } }, VL, pass('nbapass', 'NBA League Pass')],
+  nba: [{ ...ELTA, note: { zh: '每日一場，10/6 起', en: 'one game a day from 10/6' } }, VL, pass('nbapass', 'NBA League Pass')],
   wnba: [pass('nbapass', 'WNBA League Pass')],
   nfl: [DAZN, pass('dazn', 'NFL Game Pass（DAZN）', 'NFL Game Pass (DAZN)')],
   nhl: [pass('dazn', 'NHL.TV（DAZN）', 'NHL.TV (DAZN)')],
-  epl: [ELTA, ELTA_MOD],
+  epl: [ELTA, HAMI],
   facup: SOCCER_ELTA,
-  ucl: [ELTA, ELTA_MOD],
+  ucl: [ELTA, HAMI],
   uel: SOCCER_ELTA,
   uecl: SOCCER_ELTA,
   bundesliga: [ELTA, HAMI],
@@ -52,12 +54,12 @@ export const BROADCAST = {
   // Selected games free on the leagues' international YouTube channels.
   jleague: [yt('J.LEAGUE International', 'J.LEAGUE International', 'https://www.youtube.com/@JLEAGUEInternational', { zh: '精選場次', en: 'selected games' })],
   kleague: [yt('K League International', 'K League International', 'https://www.youtube.com/@KLeagueintl', { zh: '精選場次', en: 'selected games' }), pass('kleaguetv', 'K League TV')],
-  worldcup: [ELTA, ELTA_MOD, HAMI, { zh: '台視（精選）', en: 'TTV (selected)', kind: 'tv', svc: 'free' }],
-  wcqeurope: [ELTA, ELTA_MOD],
+  worldcup: [ELTA, HAMI],
+  wcqeurope: [ELTA, HAMI],
   nationsleague: SOCCER_ELTA,
-  laliga: [DAZN, DAZN_TV],
+  laliga: [DAZN],
   mls: [pass('appletv', 'MLS Season Pass（Apple TV）', 'MLS Season Pass (Apple TV)')],
-  f1: [ELTA, ELTA_MOD, VL, pass('f1tv', 'F1 TV')],
+  f1: [ELTA, HAMI, pass('f1tv', 'F1 TV')],
   // From 2026-27 on Disney+ (every session); practice free on its YouTube.
   formulae: [DISNEY, { ...yt('Formula E', 'Formula E', 'https://www.youtube.com/@FIAFormulaE', { zh: '練習賽', en: 'practice' }), practice: true }],
   motogp: [VL, { zh: '緯來 APP', en: 'Videoland app', kind: 'ott', svc: 'videoland' }, pass('motogppass', 'MotoGP VideoPass')],
@@ -66,8 +68,8 @@ export const BROADCAST = {
   pga: [BOS_GOLF],
   lpga: [BOS_GOLF],
   ufc: [pass('ufcpass', 'UFC Fight Pass')],
-  badminton: [ELTA, ELTA_MOD, HAMI, BOS, yt('BWF TV', 'BWF TV', 'https://www.youtube.com/@bwftv', { zh: '早期輪次', en: 'early rounds' })],
-  tabletennis: [ELTA, ELTA_MOD, yt('WTT', 'WTT', 'https://www.youtube.com/@WTTGlobal', { zh: '部分場次', en: 'some tables' })],
+  badminton: [ELTA, HAMI, BOS, yt('BWF TV', 'BWF TV', 'https://www.youtube.com/@bwftv', { zh: '早期輪次', en: 'early rounds' })],
+  tabletennis: [ELTA, HAMI, yt('WTT', 'WTT', 'https://www.youtube.com/@WTTGlobal', { zh: '部分場次', en: 'some tables' })],
   volleyball: [VBTV, ELTA],
   boxing: [pass('dazn', 'DAZN（加購 Matchroom）', 'DAZN (Matchroom add-on)')],
   euroleague: [pass('euroleaguetv', 'EuroLeague TV')]
@@ -87,13 +89,14 @@ const ELTA_LEAGUE = {
   MLB: 'mlb', NBA: 'nba', CPBL: 'cpbl', 'Premier League': 'epl', UCL: 'ucl', 'UEFA Champions League': 'ucl', 'UEFA Europa League': 'uel', 'UEFA Conference League': 'uecl',
   Bundesliga: 'bundesliga', 'Serie A': 'seriea', 'Ligue 1': 'ligue1', 'UEFA Nations League': 'nationsleague', 'Scottish Premiership': 'scotland', 'FA Cup': 'facup', F1: 'f1', WTT: 'tabletennis', BWF: 'badminton'
 };
-// Its channels: the four 體育台 (on MOD and cable too, with ads), the ten
-// MAX (ELTA.tv only, no ads) and MOD's own 980s (its add-on sports channels).
+// Its channels: the four 體育台 (streamed on ELTA.tv and Hami Video, with
+// ads), the ten MAX (ELTA.tv only, no ads) and MOD's own 980s (its add-on
+// sports channels: not streamed, so never shown).
 export function eltaChannel(n) {
   const TV = { 101: 1, 105: 2, 110: 3, 115: 4 };
-  if (TV[n]) return { zh: `愛爾達體育${TV[n]}台`, en: `ELTA Sports ${TV[n]}`, short: { zh: `愛爾達${TV[n]}台`, en: `ELTA ${TV[n]}` }, kind: 'tv', svc: 'elta', ch: n };
+  if (TV[n]) return { zh: `ELTA.tv 體育${TV[n]}台`, en: `ELTA.tv Sports ${TV[n]}`, short: { zh: `愛爾達${TV[n]}台`, en: `ELTA ${TV[n]}` }, kind: 'ott', svc: 'elta', ch: n, sports: true };
   if (n >= 540 && n <= 549) return { zh: `ELTA.tv 體育MAX${n - 539}台`, en: `ELTA.tv Sports MAX ${n - 539}`, short: { zh: `MAX${n - 539}台`, en: `MAX ${n - 539}` }, kind: 'ott', svc: 'elta', ch: n, max: true };
-  if (n >= 980 && n <= 989) return { zh: `MOD ${n}台`, en: `MOD ${n}`, short: { zh: `MOD ${n}`, en: `MOD ${n}` }, kind: 'tv', svc: 'elta', ch: n, mod: true };
+  if (n >= 980 && n <= 989) return { zh: `MOD ${n}台`, en: `MOD ${n}`, short: { zh: `MOD ${n}`, en: `MOD ${n}` }, kind: 'mod', svc: 'elta', ch: n, mod: true };
   return { zh: `ELTA.tv（${n}）`, en: `ELTA.tv (${n})`, short: { zh: `ELTA ${n}`, en: `ELTA ${n}` }, kind: 'ott', svc: 'elta', ch: n };
 }
 // The page on ELTA.tv that plays a channel (MOD's 980s aren't on ELTA.tv).
@@ -205,9 +208,10 @@ export function broadcastsFor(e, programs, sides = [], others = [], prefer = 'en
   const seen = new Set();
   const channels = on
     .map(p => ({ ...eltaChannel(p.ch), at: p.start, title: p.title, url: eltaWatchUrl(p.ch), app: eltaAppUrl(p.ch), audio: p.audio || 'zh', adFree: Boolean(p.adFree), ...(p.tentative ? { note: { zh: '同時段擇一，待公布', en: 'one of the games then, TBA' } } : {}) }))
-    .filter(c => !seen.has(c.ch) && seen.add(c.ch));
+    // MOD's own channels aren't streamed: not listed.
+    .filter(c => !c.mod && !seen.has(c.ch) && seen.add(c.ch));
   // Hami Video carries ELTA's 體育台 (not its MAX ones).
-  const hami = channels.some(c => c.kind === 'tv' && !c.mod) ? base.filter(b => b.svc === 'hami') : [];
+  const hami = channels.some(c => c.sports) ? base.filter(b => b.svc === 'hami') : [];
   // The best for the person first (their commentary, no ads), then the rest.
   return [...channels.sort((a, b) => channelRank(a, prefer) - channelRank(b, prefer) || a.ch - b.ch), ...hami, ...base.filter(b => b.svc !== 'elta' && b.svc !== 'hami')];
 }
@@ -217,13 +221,11 @@ export const NBA_ELTA_FROM = '2026-10-06';
 // The services a person can say they have (the recommendations keep to
 // those), in the order they're offered.
 export const SERVICES = [
-  { id: 'elta', zh: '愛爾達（ELTA.tv / MOD）', en: 'ELTA (ELTA.tv / MOD)' },
-  { id: 'videoland', zh: '緯來體育台', en: 'Videoland Sports' },
-  { id: 'dazn', zh: 'DAZN', en: 'DAZN' },
-  { id: 'sportcast', zh: '博斯運動', en: 'Sportcast' },
+  { id: 'elta', zh: '愛爾達 ELTA.tv', en: 'ELTA.tv' },
   { id: 'hami', zh: 'Hami Video', en: 'Hami Video' },
-  { id: 'free', zh: '無線台（華視、東森）', en: 'Free-to-air (CTS, EBC)' },
-  { id: 'momo', zh: 'MOMOTV', en: 'MOMOTV' },
+  { id: 'videoland', zh: '緯來（Hami Video・緯來 App）', en: 'Videoland (Hami Video, app)' },
+  { id: 'dazn', zh: 'DAZN', en: 'DAZN' },
+  { id: 'sportcast', zh: '博斯（Hami Video・LiTV・4gTV）', en: 'Sportcast (Hami Video, LiTV, 4gTV)' },
   { id: 'myvideo', zh: 'MyVideo', en: 'MyVideo' },
   { id: 'appletv', zh: 'Apple TV', en: 'Apple TV' },
   { id: 'cpbltv', zh: 'CPBLTV', en: 'CPBLTV' },

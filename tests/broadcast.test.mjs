@@ -25,7 +25,7 @@ test('an NBA game ELTA carries shows its channel; the others on that day no ELTA
   const hou = nba('1', '2026-10-09T12:00Z', 'Houston Rockets', 'Dallas Mavericks');
   const mem = nba('2', '2026-10-10T00:00Z', 'Memphis Grizzlies', 'Chicago Bulls');
   const on = broadcastsFor(hou, programs, sides(hou), [hou, mem]);
-  assert.equal(on[0].zh, '愛爾達體育1台');
+  assert.equal(on[0].zh, 'ELTA.tv 體育1台');
   assert.equal(on[0].url, 'https://eltaott.tv/channel/play/101/1');
   const off = broadcastsFor(mem, programs, sides(mem), [hou, mem]);
   assert.ok(!off.some(b => b.svc === 'elta'), JSON.stringify(off));

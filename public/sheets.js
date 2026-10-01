@@ -524,7 +524,7 @@ function twCard(league, e = null) {
                     el('span', { class: 'tw-watch-name' }, [
                       el('strong', { text: tvName(b) }),
                       // Its commentary and ads, then when it starts and where it's on.
-                      el('small', { text: b.ch ? [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : '', b.mod ? 'MOD' : b.kind === 'tv' ? (L() === 'en' ? 'MOD, cable, ELTA.tv' : 'MOD、有線電視、ELTA.tv') : 'ELTA.tv'].filter(Boolean).join(' · ') : L() === 'en' ? 'Free' : '免費' })
+                      el('small', { text: b.ch ? [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : '', b.sports ? (L() === 'en' ? 'ELTA.tv, Hami Video' : 'ELTA.tv・Hami Video') : 'ELTA.tv'].filter(Boolean).join(' · ') : L() === 'en' ? 'Free' : '免費' })
                     ]),
                     b.url ? el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` }) : null
                   ])
@@ -1041,8 +1041,13 @@ export async function openConstructor(row) {
                   personPic(d, league, 'lg round'),
                   el('strong', { text: en ? d.en || d.name : f1Driver(d.en || d.name).zh }),
                   el('small', { class: 'muted num', text: `P${d.pos} · ${d.stats?.PTS ?? 0} ${W('分', 'pts')}` }),
-                  // Their share of the team's points.
-                  Number(pts) > 0 ? el('span', { class: 'share-bar', style: `--w:${Math.round((100 * Number(d.stats?.PTS || 0)) / Number(pts))}%` }) : null
+                  // Their share of the team's points, said in words beside the bar.
+                  Number(pts) > 0
+                    ? el('span', { class: 'share-line' }, [
+                        el('span', { class: 'share-bar', style: `--w:${Math.round((100 * Number(d.stats?.PTS || 0)) / Number(pts))}%` }),
+                        el('small', { class: 'muted num', text: W(`占車隊積分 ${Math.round((100 * Number(d.stats?.PTS || 0)) / Number(pts))}%`, `${Math.round((100 * Number(d.stats?.PTS || 0)) / Number(pts))}% of the team's points`) })
+                      ])
+                    : null
                 ])
               )
             )
