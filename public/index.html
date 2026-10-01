@@ -34,33 +34,8 @@
 <link rel="stylesheet" href="./quadra.css" />
 </head>
 <body>
-<div id="loading" class="loading" role="status" aria-live="polite">
-  <div class="loading-box">
-    <img class="loading-logo" src="./favicon.svg" alt="" width="72" height="72" />
-    <p class="loading-brand">QUADRA</p>
-    <p class="loading-title">Quadra Fixtures</p>
-    <div id="loading-spinner" class="spinner" aria-hidden="true"></div>
-    <div id="loading-error" class="loading-error" hidden>
-      <p id="loading-error-text"></p>
-      <button id="loading-reload" class="q-btn" type="button">重新整理 · Reload</button>
-    </div>
-  </div>
-</div>
-<script>
-  (function () {
-    var zh = /^zh/i.test(navigator.language || '');
-    function $(id) { return document.getElementById(id); }
-    window.__fxFail = function (message) {
-      if ($('loading').hidden) return;
-      $('loading-error-text').textContent = message || (zh ? '頁面沒有正常啟動，可能是網路不穩。' : "The page didn't start, maybe a network hiccup.");
-      $('loading-error').hidden = false;
-      $('loading-spinner').hidden = true;
-    };
-    $('loading-reload').onclick = function () { location.reload(); };
-    window.addEventListener('error', function () { if (!window.__fxStarted) window.__fxFail(); });
-    setTimeout(function () { if (!window.__fxStarted) window.__fxFail(); }, 15000);
-  })();
-</script>
+<div id="loading" data-title="Quadra Fixtures" data-cache="quadra-fixtures-"></div>
+<script src="./boot.js"></script>
 <header class="q-appbar">
   <div class="q-appbar-inner">
     <div class="q-brand">
