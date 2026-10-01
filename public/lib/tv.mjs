@@ -3,7 +3,7 @@
 // other services by league. The page is told to draw again when the schedule
 // comes in (`onTvChange`).
 import { proxyJson } from './quadra.mjs';
-import { ELTA_LIST, parseElta, broadcastsFor } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, broadcastsFor, ytVideoFor } from './broadcast.mjs';
 import { teamNameZh } from './names.mjs';
 import { LEAGUES } from './leagues.mjs';
 
@@ -42,8 +42,31 @@ function zhSides(e) {
 // The commentary the person likes ('en' 原音, 'zh' 中文): their channels sort by it.
 let prefer = () => 'en';
 export const audioPref = fn => (prefer = fn);
+// A league's YouTube channel's latest videos (its feed, trimmed by the proxy;
+// null until read; read again after half an hour).
+const feeds = new Map();
+function ytFeed(channel) {
+  const f = feeds.get(channel);
+  if (f && (f.loading || Date.now() - f.at < 30 * 60_000)) return f.videos;
+  feeds.set(channel, { at: Date.now(), videos: f?.videos || null, loading: true });
+  proxyJson(`https://www.youtube.com/feeds/videos.xml?channel_id=${channel}`, { ttl: 30 * 60_000 })
+    .then(d => feeds.set(channel, { at: Date.now(), videos: Array.isArray(d?.videos) ? d.videos : [], loading: false }))
+    .catch(() => feeds.set(channel, { at: Date.now(), videos: f?.videos || [], loading: false }))
+    .finally(() => changed());
+  return f?.videos || null;
+}
 // Everything a game is on: { zh, en, kind, svc, ch?, url?, app?, audio?, adFree?, note? },
-// the channels that suit the person best first.
-export const tvOf = e => (e ? broadcastsFor(e, eltaSchedule(), zhSides(e), known(), prefer()) : []);
+// the channels that suit the person best first. YouTube only with the very
+// game's video on the league's channel (a link to it), never "some games".
+export const tvOf = e => {
+  if (!e) return [];
+  return broadcastsFor(e, eltaSchedule(), zhSides(e), known(), prefer()).flatMap(b => {
+    if (b.svc !== 'youtube' || !b.channel) return [b];
+    const v = ytVideoFor(e, ytFeed(b.channel));
+    if (!v) return [];
+    const done = e.status?.state === 'post';
+    return [{ ...b, url: `https://www.youtube.com/watch?v=${v.id}`, title: v.t, note: done ? { zh: '這場完整比賽', en: 'the full game' } : { zh: '這場直播', en: 'this game, live' } }];
+  });
+};
 // Only the exact channels (from ELTA's schedule): for a row's 📺 line.
 export const channelsOf = e => tvOf(e).filter(b => b.ch);

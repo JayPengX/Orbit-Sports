@@ -23,8 +23,10 @@ const BOS = { zh: '博斯運動（Hami Video・LiTV・4gTV）', en: 'Sportcast (
 const BOS_TENNIS = { zh: '博斯網球台（Hami Video・LiTV・4gTV）', en: 'Sportcast Tennis (Hami Video, LiTV, 4gTV)', kind: 'ott', svc: 'sportcast' };
 const BOS_GOLF = { zh: '博斯高球台（Hami Video・LiTV）', en: 'Sportcast Golf (Hami Video, LiTV)', kind: 'ott', svc: 'sportcast' };
 const pass = (svc, zh, en = zh) => ({ zh, en, kind: 'pass', svc });
-// Free on YouTube (the league's own channel, live where it isn't sold): a link to it.
-const yt = (zh, en, url, note = null) => ({ zh: `YouTube ${zh}`, en: `YouTube ${en}`, kind: 'ott', svc: 'youtube', url, free: true, ...(note ? { note } : {}) });
+// Free on YouTube (the league's own channel): listed for a game only when the
+// channel has a video of that very game (ytVideoFor, from the channel's feed:
+// a live stream, or the full match after), and then a link to that video.
+const yt = (zh, en, url, channel) => ({ zh: `YouTube ${zh}`, en: `YouTube ${en}`, kind: 'ott', svc: 'youtube', url, channel, free: true });
 const SOOP = { zh: 'SOOP（免費）', en: 'SOOP (free)', kind: 'ott', svc: 'soop', url: 'https://www.sooplive.com/station/kboglobal1', free: true };
 const DISNEY = { zh: 'Disney+', en: 'Disney+', kind: 'ott', svc: 'disney' };
 const VBTV = pass('vbtv', 'Volleyball TV');
@@ -52,8 +54,8 @@ export const BROADCAST = {
   ligue1: [ELTA, HAMI],
   scotland: [ELTA],
   // Selected games free on the leagues' international YouTube channels.
-  jleague: [yt('J.LEAGUE International', 'J.LEAGUE International', 'https://www.youtube.com/@JLEAGUEInternational', { zh: '精選場次', en: 'selected games' })],
-  kleague: [yt('K League International', 'K League International', 'https://www.youtube.com/@KLeagueintl', { zh: '精選場次', en: 'selected games' }), pass('kleaguetv', 'K League TV')],
+  jleague: [yt('J.LEAGUE International', 'J.LEAGUE International', 'https://www.youtube.com/@JLEAGUEInternational', 'UCmQp6ZaAejJKKkXc_Y_lh1A')],
+  kleague: [yt('K League International', 'K League International', 'https://www.youtube.com/@KLeagueintl', 'UCrfu1VaYOZ_-FBGQMzKFfMA'), pass('kleaguetv', 'K League TV')],
   worldcup: [ELTA, HAMI],
   wcqeurope: [ELTA, HAMI],
   nationsleague: SOCCER_ELTA,
@@ -61,21 +63,56 @@ export const BROADCAST = {
   mls: [pass('appletv', 'MLS Season Pass（Apple TV）', 'MLS Season Pass (Apple TV)')],
   f1: [ELTA, HAMI, pass('f1tv', 'F1 TV')],
   // From 2026-27 on Disney+ (every session); practice free on its YouTube.
-  formulae: [DISNEY, { ...yt('Formula E', 'Formula E', 'https://www.youtube.com/@FIAFormulaE', { zh: '練習賽', en: 'practice' }), practice: true }],
+  formulae: [DISNEY, yt('Formula E', 'Formula E', 'https://www.youtube.com/@FIAFormulaE', 'UC-DuRqsBQOEk_5o1q4Ze-Fg')],
   motogp: [VL, { zh: '緯來 APP', en: 'Videoland app', kind: 'ott', svc: 'videoland' }, pass('motogppass', 'MotoGP VideoPass')],
   atp: [BOS_TENNIS, pass('tennistv', 'Tennis TV')],
   wta: [BOS_TENNIS],
   pga: [BOS_GOLF],
   lpga: [BOS_GOLF],
   ufc: [pass('ufcpass', 'UFC Fight Pass')],
-  badminton: [ELTA, HAMI, BOS, yt('BWF TV', 'BWF TV', 'https://www.youtube.com/@bwftv', { zh: '早期輪次', en: 'early rounds' })],
-  tabletennis: [ELTA, HAMI, yt('WTT', 'WTT', 'https://www.youtube.com/@WTTGlobal', { zh: '部分場次', en: 'some tables' })],
+  badminton: [ELTA, HAMI, BOS, yt('BWF TV', 'BWF TV', 'https://www.youtube.com/@bwftv', 'UChh-akEbUM8_6ghGVnJd6cQ')],
+  tabletennis: [ELTA, HAMI, yt('WTT', 'WTT', 'https://www.youtube.com/@WTTGlobal', 'UC9ckyA_A3MfXUa0ttxMoIZw')],
   volleyball: [VBTV, ELTA],
   boxing: [pass('dazn', 'DAZN（加購 Matchroom）', 'DAZN (Matchroom add-on)')],
   euroleague: [pass('euroleaguetv', 'EuroLeague TV')]
 };
 
 export const broadcastsOf = league => BROADCAST[league] || [];
+
+// ---- YouTube: the very game, or nothing -----------------------------------------------
+const plainWords = s =>
+  String(s || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+const COMMON = new Set(['united', 'city', 'club', 'football', 'fc', 'sc', 'cf', 'hd', 'the', 'and', 'vs', 'de', 'real', 'sporting', 'team']);
+// The words that tell a side apart in a title ("Ulsan HD" → ulsan; "Li Hechen" → li, hechen).
+const sideWords = side => [...new Set([side?.en, side?.name, side?.short].flatMap(n => plainWords(n).split(' ')))].filter(w => w.length >= 2 && !COMMON.has(w));
+// The channel's video of this game (videos: the feed's { id, t, p }): its
+// title names both sides (a match) or the event and the session (a race),
+// put up from three days before the start to two days after. Null when none.
+export function ytVideoFor(e, videos) {
+  if (!e || !videos?.length) return null;
+  const start = Date.parse(e.start);
+  const near = videos.filter(v => {
+    const p = Date.parse(v.p);
+    return p >= start - 3 * 86_400_000 && p <= start + 2 * 86_400_000;
+  });
+  const title = v => ` ${plainWords(v.t)} `;
+  const has = (v, w) => title(v).includes(` ${w} `);
+  if (e.kind === 'match' || (e.home && e.away)) {
+    const a = sideWords(e.home);
+    const b = sideWords(e.away);
+    if (!a.length || !b.length) return null;
+    return near.find(v => a.some(w => w.length >= 3 && has(v, w)) && b.some(w => w.length >= 3 && has(v, w))) || null;
+  }
+  // A race weekend's session: the event's place and the session's word.
+  const place = plainWords(e.name || e.shortName).split(' ').filter(w => w.length >= 4 && !['prix', 'grand', 'race', 'round'].includes(w));
+  const word = { FP1: 'fp1', FP2: 'fp2', FP3: 'fp3', Qual: 'qualifying', Race: 'race' }[e.sessionKey] || '';
+  return near.find(v => place.some(w => has(v, w)) && (!word || has(v, word) || (word === 'fp1' && has(v, 'practice')))) || null;
+}
 
 // ---- ELTA's own schedule: which game each channel carries ---------------------------
 //
