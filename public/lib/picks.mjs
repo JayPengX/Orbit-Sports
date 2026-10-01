@@ -26,6 +26,8 @@ export const DURATION = { soccer: 115, baseball: 185, basketball: 145, football:
 // On a Taiwan channel or streaming service (lib/broadcast.mjs), not a league pass only.
 const onTaiwanTv = league => broadcastsOf(league).some(b => b.kind !== 'pass');
 const BIG_GAME = /final|semi|play-?off|postseason|wild ?card|series|championship|derby|決賽|季後/i;
+// A final, a play-off, a postseason or series game: worth staying up for.
+export const bigGame = e => ['post', 'final', 'playin'].includes(e?.stage?.key) || BIG_GAME.test(`${e?.note || ''} ${e?.name || ''}`);
 
 // A side's strength, 0 (last) to 1 (first), from the league's tables.
 // tables: { [league]: { [teamId]: { pos, n } } }
@@ -76,7 +78,7 @@ export function scoreMatch(e, { sports = [], leagues = [], follows = [], tables 
       reasons.push('topClash');
     } else if (Math.abs(a - h) < 0.12) reasons.push('close');
   }
-  if (['post', 'final', 'playin'].includes(e.stage?.key) || BIG_GAME.test(`${e.note || ''} ${e.name || ''}`)) {
+  if (bigGame(e)) {
     score += 0.3;
     reasons.push('stakes');
   }
@@ -122,8 +124,10 @@ export function clash(x, y) {
 }
 
 // events: the day's (any league); returns { plan: [...by start], also: [...by score] },
-// each { event, score, reasons }.
-export function dayPlan(events, ctx = {}, { n = 6, also = 6 } = {}) {
+// each { event, score, reasons }. `keep`: keys ('league:id') always in the
+// plan, on top of its n and never pushing a pick out (the games the person
+// bet on in Play: reason 'bet', `bet: true`).
+export function dayPlan(events, ctx = {}, { n = 6, also = 6, keep = new Set() } = {}) {
   const now = ctx.now ?? Date.now();
   const seen = new Set();
   const scored = events
@@ -134,10 +138,13 @@ export function dayPlan(events, ctx = {}, { n = 6, also = 6 } = {}) {
     .sort((x, y) => y.score - x.score);
   const plan = [];
   const rest = [];
+  const kept = [];
   for (const item of scored) {
-    if (plan.length < n && !plan.some(p => clash(p.event, item.event))) plan.push(item);
+    if (keep.has(`${item.event.league}:${item.event.id}`)) kept.push({ ...item, bet: true, reasons: ['bet', ...item.reasons.filter(r => r !== 'bet')] });
+    else if (plan.length < n && !plan.some(p => clash(p.event, item.event))) plan.push(item);
     else rest.push(item);
   }
+  plan.push(...kept);
   plan.sort((x, y) => Date.parse(x.event.start) - Date.parse(y.event.start));
   return { plan, also: rest.slice(0, also) };
 }
