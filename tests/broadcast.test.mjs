@@ -189,3 +189,8 @@ test("ELTA's channels: MOD's 980s aren't on ELTA.tv; the app opens a channel the
   assert.equal(eltaWatchUrl(544), 'https://eltaott.tv/channel/play/544/108');
   assert.equal(eltaChannel(105).short.zh, '愛爾達2台');
 });
+
+test('CPBL and the NBA: only some games on ELTA, said so; a game in its list has its channel, no note', () => {
+  for (const k of ['cpbl', 'nba']) assert.equal(broadcastsOf(k)[0].note.zh, '部分場次', k);
+  assert.equal(broadcastsOf('mlb')[0].note, undefined);
+});

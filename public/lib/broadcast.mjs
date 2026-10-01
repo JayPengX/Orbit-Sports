@@ -18,7 +18,8 @@ const APPLE = { zh: 'Apple TV', en: 'Apple TV', short: { zh: 'Apple TV', en: 'Ap
 
 export const BROADCAST = {
   mlb: [ELTA],
-  cpbl: [ELTA],
+  // The home games of four clubs (台鋼, 富邦, 統一, 味全: ELTA's 2026 rights); which ones, its schedule says.
+  cpbl: [{ ...ELTA, note: { zh: '部分場次', en: 'selected games' } }],
   // Some games (one or two a day); which ones, its schedule and NBA.com's say.
   nba: [{ ...ELTA, note: { zh: '部分場次', en: 'selected games' } }],
   epl: [ELTA],
