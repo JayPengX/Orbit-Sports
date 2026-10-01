@@ -179,7 +179,7 @@ function followChip(league, side, after) {
   return el('button', {
     class: `q-chip small${on ? ' on' : ''}`,
     type: 'button',
-    text: on ? `✓ ${T('following')}` : `+ ${T('follow')}`,
+    text: on ? T('following') : `+ ${T('follow')}`,
     onclick: () => {
       ctx.toggleFollow(league, side);
       after();
@@ -708,7 +708,7 @@ export async function openTeam(league, id, fallback = {}) {
     const followBtn = el('button', { class: 'q-btn', type: 'button' });
     const paintFollow = () => {
       const on = ctx.isFollowed(league, id);
-      followBtn.textContent = on ? `✓ ${T('following')}` : `+ ${T('follow')}`;
+      followBtn.textContent = on ? T('following') : `+ ${T('follow')}`;
       followBtn.classList.toggle('primary', !on);
     };
     followBtn.addEventListener('click', () => (ctx.toggleFollow(league, side), paintFollow()));
@@ -975,7 +975,7 @@ export async function openPlayer(league, id, fallback = {}) {
       followBtn = el('button', { class: 'q-btn', type: 'button' });
       const paintFollow = () => {
         const on = ctx.isFollowed(league, id);
-        followBtn.textContent = on ? `✓ ${T('following')}` : `+ ${T('follow')}`;
+        followBtn.textContent = on ? T('following') : `+ ${T('follow')}`;
         followBtn.classList.toggle('primary', !on);
       };
       followBtn.addEventListener('click', () => (ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true }), paintFollow()));
