@@ -263,7 +263,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .stat-tile { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: var(--q-sunken); min-width: 0; }
 .stat-tile small { font-size: 11.5px; color: var(--q-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-tile strong { font-size: 18px; white-space: nowrap; }
-.stat-tile .muted { font-size: 11px; }
+.stat-tile .muted { font-size: 11px; white-space: normal; overflow: visible; line-height: 1.3; }
+.stat-tile strong { overflow: hidden; text-overflow: ellipsis; }
 .sheet-body > .q-btn.block { margin-top: 12px; }
 
 /* ---- Toasts ---- */
@@ -713,6 +714,16 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 /* F1: a retirement, and a sprint's finish beside the race's. */
 .pos-pill.out { background: color-mix(in srgb, var(--q-bad) 18%, transparent); color: var(--q-bad); }
 .pos-pill.small { font-size: 11px; padding: 0 6px; margin-left: 4px; opacity: 0.85; }
+/* A car's race finish and its sprint, in fixed places so the rows line up. */
+.f1-cell { display: inline-grid; grid-template-columns: 42px 30px; align-items: center; justify-items: center; }
+.f1-cell > :only-child { grid-column: 1; }
+.f1-cell .pos-pill { justify-self: center; padding: 2px 7px; }
+.f1-cell .pos-pill.small { padding: 0 5px; }
+/* The round under the race's name, so the cars' columns fit a phone. */
+.f1-weekends td.left small { display: block; font-size: 11px; }
+.f1-weekends td, .f1-weekends th { padding-left: 4px; padding-right: 4px; }
+.f1-cell .pos-pill.small { margin-left: 0; }
+.pos-pill.blank { visibility: hidden; }
 .f1-weekends td.left small { margin-left: 6px; }
 .f1-weekends td.num { white-space: nowrap; }
 /* An F1 result: driver over team, time over gained places and points. */
@@ -733,6 +744,7 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .follow-hint { padding: 0 4px; }
 .team-form-list .tf-row { padding: 12px 14px; border-top: 1px solid var(--q-divider, var(--q-border)); display: grid; gap: 8px; }
 .team-form-list .tf-row:first-child { border-top: 0; }
+.tf-team, .tf-game { padding: 0; border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .tf-team { display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; min-width: 0; }
 .logo.tf-logo { width: 36px; height: 36px; }
 .tf-name { display: grid; flex: 1; min-width: 0; }
@@ -742,7 +754,7 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .tf-dot.w { background: var(--q-good); }
 .tf-dot.l { background: var(--q-bad); }
 .tf-games { display: grid; gap: 4px; padding-left: 46px; }
-.tf-game { display: grid; grid-template-columns: 44px auto minmax(0, 1fr) auto; align-items: center; gap: 6px; text-align: left; font-size: 13.5px; min-height: 26px; }
+.tf-game { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr) auto; align-items: center; gap: 6px; text-align: left; font-size: 13.5px; min-height: 26px; }
 .tf-opp { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tf-score { font-weight: 750; }
 .tf-score.w { color: var(--q-good); }
@@ -752,3 +764,5 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .person-card { flex: none; width: 104px; display: grid; justify-items: center; gap: 4px; padding: 12px 8px; border-radius: var(--q-radius); background: var(--q-surface); border: 1px solid var(--q-border); text-align: center; }
 .person-card strong { font-size: 13px; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .person-card small { font-size: 11px; }
+.f1-weekends th.num, .f1-weekends td.num { text-align: center; }
+.f1-weekends tr > :last-child { text-align: right; }

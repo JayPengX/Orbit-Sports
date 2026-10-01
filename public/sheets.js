@@ -795,7 +795,13 @@ const LOG_WORDS = { Started: '先發', Sub: '替補', Substitute: '替補', 'Did
 const SPLIT_ZH = { Career: '生涯', 'Regular Season': '例行賽', Postseason: '季後賽', Playoffs: '季後賽' };
 
 // formula1.com's figures as tiles, in the app's words.
-const f1Tiles = (grid, en) => el('div', { class: 'stat-grid dense' }, grid.map(([k, v]) => tile(f1Label(k, en), f1Value(v, en))));
+// "P1（133 次）" reads as P1 with "133 次" under it: a tile is too narrow for both on a line.
+const f1Tile = (k, v, en) => {
+  const text = f1Value(v, en);
+  const two = text.match(/^(\S+)\s*[（(](.+)[)）]$/);
+  return two ? tile(f1Label(k, en), two[1], two[2]) : tile(f1Label(k, en), text);
+};
+const f1Tiles = (grid, en) => el('div', { class: 'stat-grid dense' }, grid.map(([k, v]) => f1Tile(k, v, en)));
 // A finish: P3, or the retirement (its reason on hold); none: a dash.
 const finishPill = (f, extra = '') => (f ? el('span', { class: `pos-pill num${f.out ? ' out' : f.pos <= 3 ? ' podium' : ''}${f.pos === 1 ? ' win' : ''}${extra}`, title: f.why || null, text: f.text }) : el('span', { class: 'muted', text: '–' }));
 // Each weekend this season, latest first, opening the race: per car the grid,
@@ -826,7 +832,7 @@ function f1Weekends(weekends, en, cars) {
                 ])(w.me)
               : cars.map(c => {
                   const r = carOf(w, c);
-                  return el('td', { class: 'num' }, [finishPill(finishOf(r?.result, en)), r?.sprint ? finishPill(finishOf(r.sprint, en), ' small') : null]);
+                  return el('td', { class: 'num' }, [el('span', { class: 'f1-cell' }, [finishPill(finishOf(r?.result, en)), sprints ? (r?.sprint ? finishPill(finishOf(r.sprint, en), ' small') : el('span', { class: 'pos-pill small blank' })) : null])]);
                 });
             return el('tr', { class: open ? 'tap' : null, onclick: open }, [
               el('td', { class: 'left' }, [el('span', { text: w.e?.name || w.name }), el('small', { class: 'muted num', text: `R${w.round}` })]),
@@ -999,7 +1005,7 @@ export async function openPlayer(league, id, fallback = {}) {
       ]),
       noteCard,
       og.season
-        ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...og.season.map(([k, v]) => tile(f1Label(k, en), f1Value(v, en))), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
+        ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...og.season.map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
         : null,
       !og.season && champ
         ? card(
@@ -1124,6 +1130,16 @@ export async function openConstructor(row) {
     const next = races.find(e => e.status.state !== 'post' && (e.sessions || []).some(x => x.status.state !== 'post'));
     const pts = me.stats?.PTS ?? '';
     const gap = lead && lead !== me ? Number(lead.stats?.PTS) - Number(pts) : 0;
+    // Followed by the kit's name (ESPN's constructor ids aren't kept anywhere else).
+    const side = { id: `f1team:${c.name}`, name: c.name, en: c.name, f1team: true };
+    const followBtn = el('button', { class: 'q-btn small', type: 'button' });
+    const paintFollow = () => {
+      const on = ctx.isFollowed(league, side.id);
+      followBtn.textContent = on ? T('following') : `+ ${T('follow')}`;
+      followBtn.classList.toggle('primary', !on);
+    };
+    paintFollow();
+    followBtn.addEventListener('click', () => (ctx.toggleFollow(league, side), paintFollow()));
     put(
       content,
       el('div', { class: 'team-head player-hero tinted', style: `--hero:${c.color}` }, [
@@ -1132,7 +1148,8 @@ export async function openConstructor(row) {
           el('h3', { text: en ? c.name : c.zh }),
           !en && c.zh !== c.name ? el('small', { class: 'muted', text: c.name }) : null,
           el('p', { class: 'muted', text: [at >= 0 ? W(`車隊積分榜第 ${at + 1}`, `P${at + 1} in the constructors'`) : '', pts !== '' ? W(`${pts} 分`, `${pts} pts`) : ''].filter(Boolean).join(' · ') })
-        ])
+        ]),
+        followBtn
       ]),
       el('div', { class: 'team-tiles' }, [
         tile(W('排名', 'Place'), at >= 0 ? `P${at + 1}` : '–', gap > 0 ? W(`落後 ${gap} 分`, `${gap} behind`) : at === 0 ? W('領先', 'Leading') : ''),

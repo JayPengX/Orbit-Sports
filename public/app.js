@@ -22,7 +22,8 @@ import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref } from './lib/tv.mjs';
 import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, betChip, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, sessionTag, audioName, personPic } from './ui.js';
-import { openMatch, openFieldEvent, openTeam, openPlayer, standingsTables } from './sheets.js';
+import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables } from './sheets.js';
+import { f1Driver, f1Constructor } from './lib/logos.mjs';
 
 const locale = detectLocale();
 const t = makeT(locale);
@@ -78,7 +79,7 @@ function savePrefs() {
   }, 800);
 }
 // A followed team's name as shown (kept in English on the pass: Play matches by it).
-const shownName = f => (f.athlete ? f.name : localSide(f.league, { name: f.name }).name);
+const shownName = f => (f.athlete ? f.name : f.f1team === true ? (locale === 'en' ? f.name : f1Constructor(f.name).zh || f.name) : localSide(f.league, { name: f.name }).name);
 function isFollowed(league, id) {
   return state.prefs.follows.some(f => f.league === league && f.id === id);
 }
@@ -86,13 +87,16 @@ function isFollowedEvent(e) {
   if (e.kind === 'match') return isFollowed(e.league, e.home?.id) || isFollowed(e.league, e.away?.id);
   // A race, tournament or fight card with a followed player in it.
   const people = [...(e.sessions || []).flatMap(x => x.field || []), ...(e.bouts || []).flatMap(b => [b.a, b.b]), ...(e.draws || []).flatMap(d => d.matches.flatMap(m => [m.a, m.b]))];
-  return people.some(p => p && isFollowed(e.league, p.id));
+  if (people.some(p => p && isFollowed(e.league, p.id))) return true;
+  // An F1 race with a followed team's car in it.
+  const crews = state.prefs.follows.filter(f => f.f1team === true && f.league === e.league).map(f => f.name);
+  return crews.length > 0 && people.some(p => p?.name && crews.includes(f1Driver(p.name).team));
 }
 function toggleFollow(league, side) {
   const p = state.prefs;
   if (isFollowed(league, side.id)) p.follows = p.follows.filter(f => !(f.league === league && f.id === side.id));
   else {
-    p.follows = [...p.follows, { league, id: side.id, name: side.en || side.name, logo: side.logo, ...(side.athlete ? { athlete: true } : {}) }];
+    p.follows = [...p.follows, { league, id: side.id, name: side.en || side.name, logo: side.logo, ...(side.athlete ? { athlete: true } : {}), ...(side.f1team === true ? { f1team: true } : {}) }];
     // Following a team follows its league and sport too.
     if (!p.leagues.includes(league)) p.leagues = [...p.leagues, league];
     if (!p.sports.includes(LEAGUES[league].sport)) p.sports = [...p.sports, LEAGUES[league].sport];
@@ -181,7 +185,7 @@ function openFollowEditor() {
       ),
       el('h3', { class: 'section-h', text: t('yourTeams') }),
       p.follows.length
-        ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [f.athlete ? personPic(f, f.league, 'sm round') : logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
+        ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
         : el('p', { class: 'muted small', text: t('teamsHint') }),
       el('h3', { class: 'section-h', text: `📺 ${t('tvPick')}` }),
       el('p', { class: 'muted small', text: t('tvHint') }),
@@ -1439,7 +1443,7 @@ function renderFollowing() {
   put(
     box,
     head,
-    teams.length ? section(t('yourTeams'), el('div', { class: 'q-card list team-form-list' }, teams.map(teamFormRow))) : el('p', { class: 'muted small follow-hint', text: t('teamsHint') }),
+    teams.length ? section(t('yourTeams'), el('div', { class: 'q-card list team-form-list' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamFormRow(f))))) : el('p', { class: 'muted small follow-hint', text: t('teamsHint') }),
     people.length ? section(t('yourPlayers'), el('div', { class: 'people-strip' }, people.map(f => el('button', { class: 'person-card', type: 'button', onclick: () => openPlayer(f.league, f.id) }, [personPic(f, f.league, 'lg round'), el('strong', { text: f.name }), el('small', { class: 'muted', text: leagueName(f.league, locale) })])))) : null,
     followedLeagues().length ? section(L({ zh: '你的聯賽', en: 'Your leagues' }), el('div', { class: 'stack' }, followedLeagues().map(k => leagueBlock(k)))) : el('p', { class: 'muted small', text: t('noLeaguesYet') })
   );
@@ -1476,14 +1480,16 @@ function teamFormRow(f) {
   };
   const gameLine = (g, label) => {
     if (!g) return null;
-    const them = otherOf(g);
+    const found = otherOf(g);
+    // ESPN names an opponent not yet known (a playoff's next round) "TBD".
+    const them = found && !/^TBD$/i.test(found.name || '') ? found : null;
     const at = g.home && String(g.home.id) === String(f.id) ? 'vs' : '@';
     const us = sideOf(g);
     const score = g.status.state !== 'pre' && us && them ? `${us.score ?? ''}–${them.score ?? ''}` : '';
     return el('button', { class: 'tf-game', type: 'button', onclick: ev => (ev.stopPropagation(), openEvent(g)) }, [
       el('small', { class: 'muted tf-k', text: label }),
-      them ? logo(them.logo, them.name, 'xs') : null,
-      el('span', { class: 'tf-opp', text: `${at} ${them ? localSide(g.league, them).name : g.name}` }),
+      them ? logo(them.logo, them.name, 'xs') : el('span'),
+      el('span', { class: 'tf-opp', text: them ? `${at} ${localSide(g.league, them).name}` : found ? L({ zh: '對手待定', en: 'Opponent to be decided' }) : g.name }),
       g.status.state === 'pre' ? el('small', { class: 'num muted', text: whenText(g.start) }) : el('span', { class: `num tf-score ${result(g)}`, text: g.status.state === 'in' ? `${t('live')} ${score}` : score })
     ]);
   };
@@ -1494,6 +1500,44 @@ function teamFormRow(f) {
       form?.form?.length ? el('span', { class: 'tf-form' }, form.form.map(g => el('i', { class: `tf-dot ${result(g)}`, title: g.name }))) : null
     ]),
     form === null ? el('small', { class: 'muted tf-wait', text: '…' }) : form ? el('div', { class: 'tf-games' }, [gameLine(form.last, L({ zh: '上一場', en: 'Last' })), gameLine(form.next, L({ zh: '下一場', en: 'Next' }))]) : null
+  ]);
+}
+
+// A followed F1 team: its cars' finishes in the last race, and the next session.
+let f1Season = null;
+function crewRow(f) {
+  if (f1Season === null) {
+    f1Season = undefined;
+    seasonEvents(f.league)
+      .then(list => (f1Season = list || []))
+      .catch(() => (f1Season = []))
+      .then(() => state.tab === 'following' && renderFollowing());
+  }
+  const races = f1Season || [];
+  const raceOf = e => (e.sessions || []).find(x => x.abbr === 'Race' && x.status.state === 'post');
+  const last = [...races].reverse().find(raceOf);
+  const next = races.find(e => (e.sessions || []).some(x => x.status.state !== 'post'));
+  const mine = d => d?.name && f1Driver(d.name).team === f1Constructor(f.name).name;
+  const lastLine = last
+    ? el('button', { class: 'tf-game', type: 'button', onclick: ev => (ev.stopPropagation(), openEvent(splitWeekend(last, Date.now(), locale).find(x => x.sessionKey === 'Race') || last)) }, [
+        el('small', { class: 'muted tf-k', text: L({ zh: '上一站', en: 'Last' }) }),
+        el('span'),
+        el('span', { class: 'tf-opp', text: last.name }),
+        el('span', { class: 'num tf-score', text: raceOf(last).field.map((d, i) => (mine(d) ? `P${i + 1}` : '')).filter(Boolean).join(' · ') || '–' })
+      ])
+    : null;
+  const nextSession = next && (next.sessions || []).find(x => x.status.state !== 'post');
+  const nextLine = nextSession
+    ? el('button', { class: 'tf-game', type: 'button', onclick: ev => (ev.stopPropagation(), openEvent(next)) }, [
+        el('small', { class: 'muted tf-k', text: L({ zh: '下一站', en: 'Next' }) }),
+        el('span'),
+        el('span', { class: 'tf-opp', text: next.name }),
+        el('small', { class: 'num muted', text: whenText(nextSession.start) })
+      ])
+    : null;
+  return el('div', { class: 'tf-row' }, [
+    el('button', { class: 'tf-team', type: 'button', onclick: () => openConstructor({ id: f.id, name: f.name, en: f.name }) }, [constructorBadge(f.name, 'tf-logo'), el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: leagueName(f.league, locale) })])]),
+    f1Season === undefined ? el('small', { class: 'muted tf-wait', text: '…' }) : el('div', { class: 'tf-games' }, [lastLine, nextLine])
   ]);
 }
 
@@ -1508,7 +1552,7 @@ function leagueBlock(league) {
       el('button', { class: 'section-more', type: 'button', text: t('tab_matches'), onclick: () => openScores(league) }),
       hasStandings(league) ? el('button', { class: 'section-more', type: 'button', text: t('table'), onclick: () => openScores(league, null, 'table') }) : null
     ]),
-    teams.length ? el('div', { class: 'team-chips' }, teams.map(f => el('button', { class: 'team-chip', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [logo(f.logo, f.name, 'xs'), el('span', { text: shownName(f) })]))) : null,
+    teams.length ? el('div', { class: 'team-chips' }, teams.map(f => el('button', { class: 'team-chip', type: 'button', onclick: () => (f.f1team === true ? openConstructor({ id: f.id, name: f.name, en: f.name }) : openTeam(f.league, f.id, f)) }, [f.f1team === true ? constructorBadge(f.name, 'xs') : logo(f.logo, f.name, 'xs'), el('span', { text: shownName(f) })]))) : null,
     !slot?.events ? spinner() : slot.events.length ? el('div', { class: 'list' }, slot.events.map(e => eventRow(e, { league: false }))) : empty(t('noUpcoming')),
     slot?.groups?.length ? el('div', { class: 'mini-table' }, [standingsTables(slot.groups.slice(0, 2), league, { top: 5, compact: true })]) : null
   ]);
@@ -1669,7 +1713,9 @@ async function boot() {
     state.days.clear();
     showTab(state.tab);
   }
+  window.__bootStep?.(t('loadingGames'), 0.84);
   await loadDay(today());
+  window.__bootStep?.(t('loadingPicks'), 0.94);
   await homeReady(until);
   $('loading').hidden = true;
 }
