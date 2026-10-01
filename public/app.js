@@ -642,8 +642,10 @@ function renderHome() {
     const fix = items => items.map(x => ({ ...x, event: real.get(`${x.event.league}:${x.event.id}`) || x.event }));
     return [fix(plan), fix(rest)];
   };
-  // Only what's on TV in Taiwan is recommended (賽事 has every game).
-  const mine = slot.events.filter(onTv);
+  // Only what's on TV in Taiwan is recommended (賽事 has every game); a
+  // result is a result (ELTA's list doesn't reach far back).
+  const shown = e => e.status.state === 'post' || past || onTv(e);
+  const mine = slot.events.filter(shown);
   let [planList, more] = rank(filtered(mine));
   // Nothing of theirs on: the best of the rest.
   // Opened on a day with nothing of theirs: the next day they have games
@@ -667,7 +669,7 @@ function renderHome() {
       loadOthers(h.date);
     } else {
       // Worth watching on its own: the stakes and the sides, not the person's sport order.
-      [planList, more] = rank(slot.others.filter(onTv), 12, { ...pctx, sports: [], leagues: [] });
+      [planList, more] = rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] });
       fallback = true;
     }
   }
@@ -677,7 +679,7 @@ function renderHome() {
   // ranked as it stood before, as on a past day, and what of it was on
   // show (the plan and the first of the rest) that's over now.
   const ended = x => x.event.status.state === 'post' && !x.event.status.void;
-  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(onTv), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
+  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
   const endedPlan = wasPlan.filter(ended);
   const endedMore = wasMore.slice(0, 20).filter(ended);
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
@@ -844,7 +846,7 @@ async function sportDays(sport) {
   const now = Date.now();
   const days = new Set();
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
-    if (e.status?.void || !onTv(e)) continue;
+    if (e.status?.void || (e.status?.state !== 'post' && !onTv(e))) continue;
     const ms = Date.parse(e.start);
     const d = localDate(ms);
     if (inPickDay(ms, d) && d >= from && d <= to) days.add(d);
@@ -1003,7 +1005,7 @@ function openGuide(events) {
 // ---- 賽事: every sport, league and game day ------------------------------------------------------
 
 function openScores(league, date, view = 'games') {
-  state.scores = { ...state.scores, sport: LEAGUES[league].sport, league, date: date || null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(league) ? view : 'games', q: '' };
+  state.scores = { ...state.scores, sport: LEAGUES[league].sport, league, date: date || null, picked: Boolean(date), byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(league) ? view : 'games', q: '' };
   // Opened from a search: the search is done (its box emptied), the league shows.
   clearSearch();
   if (state.tab === 'matches') loadScores();
@@ -1040,6 +1042,8 @@ async function loadScores() {
     const liveDays = sc.days.filter(d => byDay.get(d).some(e => e.status.state === 'in'));
     const liveDay = liveDays.includes(today()) ? today() : liveDays.at(-1);
     const next = sc.days.find(d => d >= today() && byDay.get(d).some(e => e.status.state !== 'post' && !e.status.void));
+    // A day picked while the league was loading stays picked (read on its own).
+    if (sc.picked && sc.date && !byDay.has(sc.date)) return pickScoresDay(sc.date);
     if (!sc.date || !byDay.has(sc.date)) sc.date = liveDay || next || nearestDay(sc.days) || today();
   }
   renderScores();
@@ -1088,6 +1092,7 @@ async function growScores() {
 async function pickScoresDay(d) {
   const sc = state.scores;
   sc.date = d;
+  sc.picked = true;
   const l = LEAGUES[sc.league];
   if (sc.byDay instanceof Map && !sc.byDay.has(d) && l.espn && sc.mode === 'days') {
     renderScores();
@@ -1099,6 +1104,8 @@ async function pickScoresDay(d) {
     const byId = new Map((sc.all || []).map(e => [e.id, e]));
     for (const e of events) byId.set(e.id, e);
     applyScores(sc, [...byId.values()]);
+    // Another day picked meanwhile: that one's on screen.
+    if (sc.date !== d) return;
   }
   renderScores();
 }
@@ -1248,7 +1255,7 @@ function renderScores() {
     const sport = isActiveSport(sc.sport) ? sc.sport : shownSports()[0];
     const league = shownLeaguesOf(sport).find(k => LEAGUES[k].top) || shownLeaguesOf(sport)[0];
     if (league) {
-      state.scores = { ...sc, sport, league, date: null, byDay: null, days: [], extra: 0, stage: 'all', view: hasStandings(league) ? sc.view : 'games' };
+      state.scores = { ...sc, sport, league, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', view: hasStandings(league) ? sc.view : 'games' };
       return loadScores();
     }
   }
@@ -1266,7 +1273,7 @@ function renderScores() {
         text: L(SPORTS[key]),
         onclick: () => {
           const first = followedLeagues().find(k => LEAGUES[k].sport === key && isActive(k)) || shownLeaguesOf(key).find(k => LEAGUES[k].top) || shownLeaguesOf(key)[0];
-          state.scores = { ...sc, sport: key, league: first, date: null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(first) ? sc.view : 'games' };
+          state.scores = { ...sc, sport: key, league: first, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(first) ? sc.view : 'games' };
           loadScores();
         }
       })
@@ -1278,7 +1285,7 @@ function renderScores() {
     { class: 'q-chips small' },
     shownLeaguesOf(sc.sport)
       .sort((a, b) => mine.has(b) - mine.has(a))
-      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, league: k, season: null, date: null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), leagueName(k, locale)]))
+      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), leagueName(k, locale)]))
   );
   let strip = null;
   let list;
@@ -1571,7 +1578,12 @@ function personRow(f) {
   const head = personHead(f, [a?.team ? localSide(f.league, { name: a.team }).name : f.team ? localSide(f.league, { name: f.team.name }).name : leagueName(f.league, locale), a?.position ? zhLater(a.position) : ''].filter(Boolean).join(' · '), injured ? el('span', { class: 'tf-injury', text: locale === 'en' ? injured : injuryZh(injured) }) : null);
   if (!got) return el('div', { class: 'tf-row' }, [head, el('small', { class: 'muted tf-wait', text: '…' })]);
   // Numbers as tiles: the season's, and the last game's under its result.
-  const tiles = list => el('div', { class: 'pf-stats' }, list.map(([v, label]) => el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: v }), el('small', { text: statName(label, locale) })])));
+  // A tile's name: the Chinese when it's short, else the abbreviation (OPS, not 整體攻擊指數).
+  const tileName = label => {
+    const name = statName(label, locale);
+    return locale === 'en' || name.length <= 4 ? name : label;
+  };
+  const tiles = list => el('div', { class: 'pf-stats' }, list.map(([v, label]) => el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: v }), el('small', { text: tileName(label) })])));
   const season = (a?.stats.list || []).slice(0, 4).map(x => [x.value, x.label]);
   const g = got.ov?.log?.games?.[0];
   const labels = got.ov?.log?.labels || [];
