@@ -21,7 +21,7 @@ import { betsByEvent, legLeagues, betLegs, legEvent, titleSide, TITLE_MARKETS, b
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref } from './lib/tv.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, betChip, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, sessionTag, audioName } from './ui.js';
+import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, betChip, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, sessionTag, audioName, personPic } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, standingsTables } from './sheets.js';
 
 const locale = detectLocale();
@@ -181,7 +181,7 @@ function openFollowEditor() {
       ),
       el('h3', { class: 'section-h', text: t('yourTeams') }),
       p.follows.length
-        ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [logo(f.logo, f.name, `sm${f.athlete ? ' round' : ''}`), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
+        ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [f.athlete ? personPic(f, f.league, 'sm round') : logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
         : el('p', { class: 'muted small', text: t('teamsHint') }),
       el('h3', { class: 'section-h', text: `📺 ${t('tvPick')}` }),
       el('p', { class: 'muted small', text: t('tvHint') }),
@@ -772,7 +772,7 @@ function renderHome() {
         const last = [...list].reverse().find(x => x.status.state === 'post');
         const e = next || last;
         return el('div', { class: 'follow-row' }, [
-          el('button', { class: 'follow-team', type: 'button', onclick: () => (f.athlete ? openPlayer(f.league, f.id) : openTeam(f.league, f.id, f)) }, [logo(f.logo, f.name, `sm${f.athlete ? ' round' : ''}`), el('span', { text: shownName(f) })]),
+          el('button', { class: 'follow-team', type: 'button', onclick: () => (f.athlete ? openPlayer(f.league, f.id) : openTeam(f.league, f.id, f)) }, [f.athlete ? personPic(f, f.league, 'sm round') : logo(f.logo, f.name, 'sm'), el('span', { text: shownName(f) })]),
           e ? eventRow(e, { league: false }) : el('small', { class: 'muted', text: leagueName(f.league, locale) })
         ]);
       })
@@ -1298,7 +1298,7 @@ async function runSearch(query) {
       box,
       leagues.length ? section(t('leagues'), el('div', { class: 'q-card list' }, leagues.slice(0, 8).map(k => el('button', { class: 'search-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k, 'lg-mark mid'), el('span', { text: leagueName(k, locale) }), el('small', { text: `${SPORTS[LEAGUES[k].sport].icon} ${L(SPORTS[LEAGUES[k].sport])}` })])))) : null,
       found?.teams.length ? section(t('teamsFound'), el('div', { class: 'q-card list' }, found.teams.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openTeam(x.league, x.id, x) }, [logo(x.logo, x.name, 'sm'), el('span', { text: localSide(x.league, { name: x.name }).name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
-      found?.players.length ? section(t('playersFound'), el('div', { class: 'q-card list' }, found.players.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openPlayer(x.league, x.id) }, [logo(x.logo, x.name, 'sm round'), el('span', { text: x.name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
+      found?.players.length ? section(t('playersFound'), el('div', { class: 'q-card list' }, found.players.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openPlayer(x.league, x.id) }, [personPic(x, x.league, 'sm round'), el('span', { text: x.name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
       busy ? spinner() : !leagues.length && !found?.teams.length && !found?.players.length ? empty(t('noResults')) : null
     );
   paint(null, true);
@@ -1440,7 +1440,7 @@ function renderFollowing() {
   put(
     box,
     head,
-    people.length ? section(t('yourPlayers'), el('div', { class: 'team-chips loose' }, people.map(f => el('button', { class: 'team-chip', type: 'button', onclick: () => openPlayer(f.league, f.id) }, [logo(f.logo, f.name, 'xs round'), el('span', { text: f.name })])))) : null,
+    people.length ? section(t('yourPlayers'), el('div', { class: 'team-chips loose' }, people.map(f => el('button', { class: 'team-chip', type: 'button', onclick: () => openPlayer(f.league, f.id) }, [personPic(f, f.league, 'xs round'), el('span', { text: f.name })])))) : null,
     ...blocks
   );
 }

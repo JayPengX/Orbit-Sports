@@ -2,17 +2,17 @@
 // by section), a race / tournament / fight card, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { APPS, appUrl, translate } from './lib/quadra.mjs';
-import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, teamNews, playerPhoto, playPairId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, rankings, driverSeason, playerMatches } from './lib/espn.mjs';
+import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playerPhoto, playPairId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, rankings, driverSeason, playerMatches } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { possessionOf } from './lib/live.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
-import { f1Driver, countryName } from './lib/logos.mjs';
+import { f1Driver, f1Constructor, countryName, logoPicture } from './lib/logos.mjs';
 import { playablePair } from './lib/playable.mjs';
 import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeams, hasStandings } from './lib/leagues.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, playTarget, goPlay, tvName, watchLink, audioName, sessionTag } from './ui.js';
+import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, playTarget, goPlay, tvName, watchLink, audioName, sessionTag, personPic, sideLogo } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -57,7 +57,7 @@ export async function openMatch(e) {
     const st = sm?.status || e.status;
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
-        el('button', { class: 'mh-team', type: 'button', disabled: !hasTeams(e.league) || e.kambi ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [logo(x.logo || raw.logo, x.name, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
+        el('button', { class: 'mh-team', type: 'button', disabled: (!hasTeams(e.league) || e.kambi) && !LEAGUES[e.league]?.players ? true : null, onclick: () => (LEAGUES[e.league]?.players && (e.kambi || !hasTeams(e.league)) ? openPerson(e.league, { ...raw, ...x }) : ctx.openTeam(e.league, x.id, x)) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
         x.record || raw.record ? el('small', { text: x.record || raw.record }) : null,
         hasTeams(e.league) && !e.kambi ? followChip(e.league, x, () => paintHeader(sm)) : null
       ]);
@@ -306,7 +306,7 @@ function matchSection(view, d, e, table) {
         .map(r => {
           const starters = r.players.filter(p => p.starter);
           const subs = r.players.filter(p => !p.starter);
-          const list = ps => el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link', type: 'button', text: p.name, onclick: () => ctx.openPlayer(e.league, p.id) }), el('small', { text: posZh(p.pos, LEAGUES[e.league]?.sport, L()) })])));
+          const list = ps => el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, p.id, p) }, [personPic(p, e.league, 'xs round'), el('span', { text: p.name })]), el('small', { text: posZh(p.pos, LEAGUES[e.league]?.sport, L()) })])));
           return card(`${nameOf(r.team)}${r.formation ? ` · ${r.formation}` : ''}`, el('div', {}, [starters.length ? list(starters) : null, subs.length ? el('p', { class: 'mini-h', text: T('bench') }) : null, subs.length ? list(subs) : null]));
         })
     );
@@ -316,6 +316,29 @@ function matchSection(view, d, e, table) {
     return standingsTables(groups, e.league, { mark: [e.home.id, e.away.id] });
   }
   return overview(d, e, table, nameOf);
+}
+
+// An ended game's highlights: YouTube's search for them (the league's own
+// channel's video comes first), opened in YouTube (its app on a phone).
+export function highlightsUrl(e) {
+  if (e?.status?.state !== 'post' || e.status.void) return null;
+  const d = new Date(e.start);
+  const day = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
+  const nm = x => x?.en || x?.name || '';
+  const lg = LEAGUES[e.league]?.en || '';
+  const q = e.kind === 'match' ? `${nm(e.away)} vs ${nm(e.home)} ${lg} highlights ${day}` : `${e.enName || e.name} ${e.sessionKey ? SESSION_EN[e.sessionKey] || '' : ''} ${lg} highlights ${d.getFullYear()}`;
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(q.replace(/\s+/g, ' ').trim())}`;
+}
+const SESSION_EN = { Race: 'race', Qual: 'qualifying', SR: 'sprint', SS: 'sprint qualifying', SQ: 'sprint qualifying' };
+function highlights(e) {
+  const url = highlightsUrl(e);
+  return url
+    ? el('a', { class: 'yt-link', href: url, target: '_blank', rel: 'noopener' }, [
+        el('span', { class: 'yt-icon', 'aria-hidden': 'true', text: '▶' }),
+        el('span', { class: 'yt-text' }, [el('strong', { text: L() === 'en' ? 'Highlights' : '精華影片' }), el('small', { text: L() === 'en' ? 'On YouTube' : '在 YouTube 觀看' })]),
+        el('span', { class: 'yt-go', text: '›' })
+      ])
+    : null;
 }
 
 // The overview: the teams side by side, what the match is (where, when, TV),
@@ -331,7 +354,7 @@ function overview(d, e, table, nameOf) {
     ...(places.every(Boolean) ? keyStats(e.league, places) : [])
   ].filter(Boolean);
   const compare = el('div', { class: 'compare' }, [
-    el('div', { class: 'cmp-head' }, [cmpTeam(e.away, 'away'), el('span', { class: 'cmp-vs', text: 'vs' }), cmpTeam(e.home, 'home')]),
+    el('div', { class: 'cmp-head' }, [cmpTeam(e.away, 'away', e.league), el('span', { class: 'cmp-vs', text: 'vs' }), cmpTeam(e.home, 'home', e.league)]),
     ...compareRows.map(([label, a, h]) => el('div', { class: 'cmp-row' }, [cmpValue(a), el('span', { text: label }), cmpValue(h)])),
     forms.some(f => f.length)
       ? el('div', { class: 'cmp-row form' }, [formPills(forms[0]), el('span', { text: T('form') }), formPills(forms[1])])
@@ -355,6 +378,7 @@ function overview(d, e, table, nameOf) {
     .filter(([, , v]) => v && (!Array.isArray(v) || v.length));
   const leadersBy = sides.map(s => (d?.leaders || []).filter(l => l.team === s.id).slice(0, 4));
   return el('div', { class: 'stack' }, [
+    highlights(e),
     card(T('matchup'), compare),
     d?.winProb.length > 3 ? winProbCard(d, e) : null,
     leadersBy.some(x => x.length)
@@ -366,7 +390,7 @@ function overview(d, e, table, nameOf) {
             leadersBy.map((list, i) =>
               el('div', {}, [
                 el('p', { class: 'mini-h', text: sides[i].short || sides[i].name }),
-                ...list.map(l => el('div', { class: 'leader' }, [el('small', { text: statName(l.stat, L()) }), el('span', {}, [el('strong', { text: l.name }), el('b', { class: 'num', text: leaderValue(l.value, L()) })])]))
+                ...list.map(l => el('button', { class: 'leader', type: 'button', disabled: l.id ? null : true, onclick: () => l.id && ctx.openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) }, [personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'), el('span', { class: 'leader-text' }, [el('small', { text: statName(l.stat, L()) }), el('span', {}, [el('strong', { text: l.name }), el('b', { class: 'num', text: leaderValue(l.value, L()) })])])]))
               ])
             )
           )
@@ -383,7 +407,7 @@ function overview(d, e, table, nameOf) {
               .filter(i => i.list.length)
               // Away first, as everywhere in the sheet.
               .sort((x, y) => (x.team === e.home.id) - (y.team === e.home.id))
-              .map(i => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(i.team) }), el('ul', { class: 'inj-list' }, i.list.slice(0, 8).map(x => el('li', {}, [el('span', { text: x.name }), el('small', {}, [injuryText(x.status)])])))]))
+              .map(i => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(i.team) }), el('ul', { class: 'inj-list' }, i.list.slice(0, 8).map(x => el('li', {}, [x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, x.id, { name: x.name, logo: x.headshot }) }, [personPic(x, e.league, 'xs round'), el('span', { text: x.name })]) : el('span', { text: x.name }), el('small', {}, [injuryText(x.status)])])))]))
           )
         )
       : null,
@@ -418,7 +442,7 @@ export const groupShort = name => {
 };
 const placeCell = (p, grouped) => [T('placeN', { n: p.pos }), grouped && p.group ? groupShort(p.group) : ''];
 const cmpValue = v => (Array.isArray(v) ? el('strong', { class: 'cmp-val' }, [el('span', { class: 'num', text: v[0] }), v[1] ? el('small', { text: v[1] }) : null]) : el('strong', { class: 'cmp-val num', text: v }));
-const cmpTeam = (s, cls) => el('div', { class: `cmp-team ${cls}` }, [logo(s.logo, s.name, 'sm'), el('span', { text: s.short || s.name })]);
+const cmpTeam = (s, cls, league) => el('div', { class: `cmp-team ${cls}` }, [sideLogo(s, league, 'sm'), el('span', { text: s.short || s.name })]);
 const formPills = games => el('div', { class: 'form-pills' }, games.slice(-5).map(g => el('span', { class: `pill ${g.result}`, title: `${g.opp} ${g.score}`, text: g.result })));
 
 function winProbCard(d, e) {
@@ -445,8 +469,40 @@ function winProbCard(d, e) {
 // A person in a race, tournament or fight: their page, where ESPN has one.
 function personName(league, p, cls = 'field-name') {
   if (!p) return el('span', { class: cls });
-  const can = p.id && LEAGUES[league]?.espn && !/^k/.test(String(p.id));
-  return can ? el('button', { class: `link ${cls}`, type: 'button', text: p.name, onclick: () => ctx.openPlayer(league, p.id, p) }) : el('span', { class: cls, text: p.name });
+  const can = p.id && LEAGUES[league]?.espn && !/^k/.test(String(p.id)) && /^\d+$/.test(String(p.id));
+  return el('button', { class: `link ${cls}`, type: 'button', text: p.name, onclick: () => (can ? ctx.openPlayer(league, p.id, p) : openPerson(league, p)) });
+}
+// Someone ESPN has no page for (table tennis, badminton, snooker, a boxer):
+// their photo and a few lines from Wikipedia, their nation, and their matches here.
+export async function openPerson(league, p) {
+  const name = p.en || p.name;
+  const s = sheet(leagueName(league, L()), { league });
+  const content = el('div', {}, [spinner()]);
+  s.body.append(content);
+  const [wiki, events] = await Promise.all([
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name.replace(/ /g, '_'))}`)
+      .then(r => (r.ok ? r.json() : null))
+      .catch(() => null),
+    seasonEvents(league).catch(() => [])
+  ]);
+  const words = { badminton: /badminton/i, tabletennis: /table tennis/i, snooker: /snooker/i, boxing: /box/i, mma: /fight|martial|ufc/i, tennis: /tennis/i, volleyball: /volleyball/i }[LEAGUES[league]?.sport];
+  const fits = wiki?.type === 'standard' && (!words || words.test(`${wiki.description} ${wiki.extract}`));
+  const mine = events.filter(e => [e.home, e.away].some(x => x && (x.id === p.id || (x.en || x.name) === name))).sort((x, y) => x.start.localeCompare(y.start));
+  const next = mine.filter(e => e.status.state !== 'post').slice(0, 5);
+  const past = mine.filter(e => e.status.state === 'post').slice(-5).reverse();
+  put(
+    content,
+    el('div', { class: 'team-head player-hero' }, [
+      personPic(p, league, 'xxl round'),
+      el('div', { class: 'team-head-text' }, [el('h3', { text: p.name }), name !== p.name ? el('small', { class: 'muted', text: name }) : null, fits && wiki.description ? el('p', { class: 'muted', text: wiki.description }) : null])
+    ]),
+    fits && wiki.extract ? card(L() === 'en' ? 'About' : '簡介', el('p', { class: 'about-text' }, [document.createTextNode(wiki.extract), ' ', wiki.content_urls?.mobile?.page ? el('a', { href: wiki.content_urls.mobile.page, target: '_blank', rel: 'noopener', text: 'Wikipedia ›' }) : null])) : null,
+    next.length ? el('h3', { class: 'section-h', text: T('schedule') }) : null,
+    next.length ? el('div', { class: 'q-card list' }, next.map(x => eventRow(x, { league: false }))) : null,
+    past.length ? el('h3', { class: 'section-h', text: T('lastGames') }) : null,
+    past.length ? el('div', { class: 'q-card list' }, past.map(x => eventRow(x, { league: false }))) : null,
+    !fits && !mine.length ? empty(L() === 'en' ? 'Nothing more on them yet.' : '目前沒有更多資料。') : null
+  );
 }
 // Where to watch in Taiwan: a game's own channels (ELTA's schedule: the
 // channel, when it starts, a tap to watch it on ELTA.tv), then the other services.
@@ -523,6 +579,8 @@ function fillField(s, e) {
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [e.sessionKey ? el('div', { class: 'sess-head field-title' }, [sessionTag(e), el('h3', { text: e.name })]) : el('h3', { class: 'field-title', text: e.name }), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') })]));
   // F1: pole position for the qualifying, the race board otherwise (practice
   // and sprints aren't sold); a fight card or a tennis draw: the league's board.
+  const yt = highlights(e);
+  if (yt) s.body.append(yt);
   const target = playTarget(e);
   if (target) s.body.append(playLink(target, e, target === 'game=f1pole' ? 'betPoleTitle' : target === 'game=f1' ? 'betF1Title' : e.status.state === 'in' ? 'betBoardLive' : 'betBoard'));
   if (e.kind === 'field') {
@@ -547,7 +605,7 @@ function fillField(s, e) {
         box,
         sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,
         el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
-        ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), (e.league === 'f1' ? driverLogo : logo)(c.logo, c.name, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField'))
+        ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField'))
       );
     };
     paint();
@@ -562,9 +620,9 @@ function fillField(s, e) {
           el('div', { class: `q-card pad bout${b.status.state === 'in' ? ' live' : ''}` }, [
             el('div', { class: 'bout-top' }, [el('small', { class: 'muted' }, joinNodes([zhLater(b.weight), statusText({ ...e, start: b.start, status: b.status })], ' · ')), pairChip(e, b.start || e.start, b.a, b.b, b.status)]),
             el('div', { class: 'bout-row' }, [
-              el('span', { class: b.a?.winner ? 'win' : '' }, [logo(b.a?.logo, b.a?.name, 'sm round'), personName(e.league, b.a, 'bout-name')]),
+              el('span', { class: b.a?.winner ? 'win' : '' }, [personPic(b.a || {}, e.league, 'sm round'), personName(e.league, b.a, 'bout-name')]),
               el('span', { class: 'vs', text: 'vs' }),
-              el('span', { class: b.b?.winner ? 'win' : '' }, [personName(e.league, b.b, 'bout-name'), logo(b.b?.logo, b.b?.name, 'sm round')])
+              el('span', { class: b.b?.winner ? 'win' : '' }, [personName(e.league, b.b, 'bout-name'), personPic(b.b || {}, e.league, 'sm round')])
             ])
           ])
         )
@@ -581,7 +639,7 @@ function fillField(s, e) {
           dr.matches.map(m =>
             el('div', { class: `q-card pad bout${m.status.state === 'in' ? ' live' : ''}` }, [
               el('div', { class: 'bout-top' }, [el('small', { class: 'muted' }, joinNodes([zhLater(m.round), statusText({ ...e, start: m.start, status: m.status })], ' · ')), pairChip(e, m.start || e.start, m.a, m.b, m.status)]),
-              ...[m.a, m.b].filter(Boolean).map(p => el('div', { class: `draw-row${p.winner ? ' win' : ''}` }, [logo(p.logo, p.name, 'sm round'), personName(e.league, p), el('span', { class: 'num sets', text: p.lines.join(' ') })]))
+              ...[m.a, m.b].filter(Boolean).map(p => el('div', { class: `draw-row${p.winner ? ' win' : ''}` }, [personPic(p, e.league, 'sm round'), personName(e.league, p), el('span', { class: 'num sets', text: p.lines.join(' ') })]))
             ])
           )
         )
@@ -617,7 +675,6 @@ export async function openTeam(league, id, fallback = {}) {
     // A club in several competitions: each game says which.
     const comps = new Set(sched.map(x => x.other || x.league)).size > 1;
     const rosterBox = el('div');
-    const newsBox = el('div');
     // The last five results, oldest first: won, drawn or lost.
     const form = sched
       .filter(x => x.status.state === 'post' && !x.status.void && x.home && x.away)
@@ -643,16 +700,9 @@ export async function openTeam(league, id, fallback = {}) {
       next.length ? el('div', { class: 'q-card list' }, next.map(x => eventRow(x, { league: comps }))) : null,
       past.length ? el('h3', { class: 'section-h', text: T('lastGames') }) : null,
       past.length ? el('div', { class: 'q-card list' }, past.map(x => eventRow(x, { league: comps }))) : null,
-      newsBox,
       el('h3', { class: 'section-h', text: T('roster') }),
       rosterBox
     );
-    teamNews(league, id, info.home)
-      .then(list => {
-        const c = newsCard(list);
-        if (c) put(newsBox, el('div', { class: 'news-gap' }), c);
-      })
-      .catch(() => {});
     rosterBox.append(spinner());
     roster(league, id, info.home)
       .then(list =>
@@ -661,7 +711,7 @@ export async function openTeam(league, id, fallback = {}) {
           byPosition(list, LEAGUES[league]?.sport).map(g =>
             el('div', { class: 'q-card pad fx-card' }, [
               g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
-              el('ul', { class: 'roster-list' }, g.players.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [logo(p.headshot, p.name, 'xs round'), el('span', { text: p.name }), p.injured ? el('span', { class: 'inj-dot', title: T('injuries'), text: '🩹' }) : null]), el('small', { text: [posZh(p.pos, LEAGUES[league]?.sport, L()), p.age ? (L() === 'en' ? `${p.age}` : `${p.age} 歲`) : ''].filter(Boolean).join(' · ') })])))
+              el('ul', { class: 'roster-list' }, g.players.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, league, 'xs round'), el('span', { text: p.name }), p.injured ? el('span', { class: 'inj-dot', title: T('injuries'), text: '🩹' }) : null]), el('small', { text: [posZh(p.pos, LEAGUES[league]?.sport, L()), p.age ? (L() === 'en' ? `${p.age}` : `${p.age} 歲`) : ''].filter(Boolean).join(' · ') })])))
             ])
           )
         )
@@ -692,23 +742,6 @@ const COL_ZH = { GP: '場', W: '勝', D: '和', T: '和', L: '敗', GD: '淨勝'
 const colLabel = c => (L() === 'en' ? (c === 'GAP' ? T('col_GAP') : c) : COL_ZH[c] || c);
 const tile = (label, value, sub = '') => el('div', { class: 'stat-tile' }, [el('small', { text: label }), el('strong', { class: 'num', text: value }), sub ? el('small', { class: 'muted', text: sub }) : null]);
 
-// ESPN's latest stories (a player's, a team's): a picture, the headline, the day; each opens ESPN.
-function newsCard(list) {
-  if (!list?.length) return null;
-  return card(
-    L() === 'en' ? 'Latest news' : '最新新聞',
-    el(
-      'div',
-      { class: 'news-list' },
-      list.map(n =>
-        el('a', { class: 'news-item', href: n.url, target: '_blank', rel: 'noopener' }, [
-          n.image ? el('img', { class: 'news-img', src: n.image, alt: '', loading: 'lazy', decoding: 'async', onerror: ev => ev.target.remove() }) : null,
-          el('span', { class: 'news-text' }, [el('strong', {}, [zhLater(n.headline)]), n.date ? el('small', { class: 'muted', text: dayLabel(localDate(Date.parse(n.date))) }) : null])
-        ])
-      )
-    )
-  );
-}
 // Form in pills (W, D, L), oldest first.
 const resultPills = list => el('div', { class: 'form-pills' }, list.map(r => el('span', { class: `pill ${r}`, text: L() === 'en' ? r : { W: '勝', D: '和', L: '敗' }[r] || r })));
 
@@ -855,9 +888,10 @@ export async function openPlayer(league, id, fallback = {}) {
     const heroColor = driver?.team ? driver.color : a.teamColor;
     const lastFive = raceRows.slice(0, 5).reverse();
     const shot = a.headshot || fallback.logo;
-    const pic = (league === 'f1' ? driverLogo : logo)(shot, a.name, 'xxl round');
-    // No ESPN photo (every footballer): TheSportsDB's, when it has them.
-    if (!shot && a.name) playerPhoto(a.name, sport).then(url => url && pic.isConnected && pic.replaceWith(logo(url, a.name, 'xxl round cutout')));
+    // Their photo (ESPN's, else Wikipedia's); no ESPN one (every footballer):
+    // TheSportsDB's cut-out instead, when it has them.
+    const pic = el('span', { class: 'pic-slot' }, [personPic({ id, name: a.name, headshot: a.headshot, logo: fallback.logo, flag: a.flag }, league, 'xxl round')]);
+    if (!a.headshot && a.name) playerPhoto(a.name, sport).then(url => url && pic.isConnected && pic.replaceChildren(logo(url, a.name, 'xxl round cutout')));
     put(
       content,
       el('div', { class: `team-head player-hero${heroColor ? ' tinted' : ''}`, style: heroColor ? `--hero:${heroColor}` : null }, [
@@ -919,9 +953,123 @@ export async function openPlayer(league, id, fallback = {}) {
       ov?.rankings?.length ? card(T('rankings'), el('div', { class: 'stat-grid' }, ov.rankings.map(x => tile(statName(x.label, L()), x.value, x.rank)))) : null,
       ov?.recent?.length ? card(T('recentEvents'), el('ul', { class: 'info-list' }, ov.recent.map(x => el('li', {}, [el('span', { class: 'info-k', text: x.name }), el('span', { class: 'info-v num', text: [x.place, x.score].filter(Boolean).join(' · ') || dayLabel(localDate(Date.parse(x.date))) })])))) : null,
       awardsCard,
-      newsCard(ov?.news),
       facts.length ? card(T('profile'), el('ul', { class: 'info-list' }, facts.map(([k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [v])])))) : null,
-      a.teamId && !individual(league) ? el('button', { class: 'q-btn block', type: 'button', text: a.team, onclick: () => openTeam(league, a.teamId, { name: a.team }) }) : null
+      a.teamId && !individual(league) ? el('button', { class: 'q-btn block', type: 'button', text: a.team, onclick: () => openTeam(league, a.teamId, { name: a.team }) }) : null,
+      // A driver's team: its own page.
+      driver?.team ? el('button', { class: 'q-btn block', type: 'button', text: `${en ? driver.team : f1Constructor(driver.team).zh} ›`, onclick: () => openConstructor({ id: '', name: driver.team, en: driver.team }) }) : null
+    );
+  } catch {
+    put(content, empty(T('failed')));
+  }
+}
+
+// ---- An F1 team ---------------------------------------------------------------------------
+//
+// ESPN has no page for a constructor: its place and points from the
+// championship, its two drivers (the kit's grid) with their photos and points,
+// and each weekend this season (both drivers' finishes, the points the team took).
+const RACE_PTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
+const SPRINT_PTS = [8, 7, 6, 5, 4, 3, 2, 1];
+// A team's logo on its colour (its short name if the logo can't be had).
+export const constructorBadge = (name, cls = '') => {
+  const c = f1Constructor(name);
+  const disc = el('span', { class: `logo team-disc ${cls}`, style: `--team:${c.color}`, 'aria-hidden': 'true' });
+  disc.append(c.logo ? logoPicture(c.logo, null, 'team-disc-img', () => document.createTextNode(c.short)) : document.createTextNode(c.short));
+  return disc;
+};
+export async function openConstructor(row) {
+  const league = 'f1';
+  const c = f1Constructor(row.en || row.name);
+  const en = L() === 'en';
+  const W = (zh, eng) => (en ? eng : zh);
+  const s = sheet(leagueName(league, L()), { league, accent: c.color });
+  const content = el('div', {}, [spinner()]);
+  s.body.append(content);
+  try {
+    const [table, races] = await Promise.all([standings(league).catch(() => null), seasonEvents(league).catch(() => [])]);
+    const groups = table || [];
+    const teams = groups.find(g => g.rows.some(r => !r.athlete))?.rows || [];
+    const at = teams.findIndex(r => r.id === row.id || f1Constructor(r.en || r.name).name === c.name);
+    const me = teams[at] || row;
+    const lead = teams[0];
+    const drivers = (groups.find(g => g.rows.some(r => r.athlete))?.rows || []).map((r, i) => ({ ...r, pos: i + 1 })).filter(r => f1Driver(r.en || r.name).team === c.name);
+    const ids = new Set(drivers.map(d => d.id));
+    // Each weekend: the drivers' race finishes and the team's points (race and sprint).
+    const weekends = races
+      .map(e => {
+        const race = (e.sessions || []).find(x => x.abbr === 'Race' && x.status.state === 'post');
+        if (!race) return null;
+        const sprint = (e.sessions || []).find(x => x.abbr === 'SR' && x.status.state === 'post');
+        const fin = drivers.map(d => race.field.findIndex(f => f.id === d.id) + 1);
+        const pts = race.field.reduce((n, f, i) => n + (ids.has(f.id) ? RACE_PTS[i] || 0 : 0), 0) + (sprint?.field || []).reduce((n, f, i) => n + (ids.has(f.id) ? SPRINT_PTS[i] || 0 : 0), 0);
+        return { e, start: race.start, fin, pts };
+      })
+      .filter(Boolean)
+      .sort((x, y) => y.start.localeCompare(x.start));
+    const all = weekends.flatMap(w => w.fin.filter(p => p > 0));
+    const wins = weekends.filter(w => w.fin.includes(1)).length;
+    const podiums = all.filter(p => p <= 3).length;
+    const doubles = weekends.filter(w => w.fin.length === 2 && w.fin.every(p => p > 0 && p <= 3)).length;
+    const next = races.find(e => e.status.state !== 'post' && (e.sessions || []).some(x => x.status.state !== 'post'));
+    const pts = me.stats?.PTS ?? '';
+    const gap = lead && lead !== me ? Number(lead.stats?.PTS) - Number(pts) : 0;
+    put(
+      content,
+      el('div', { class: 'team-head player-hero tinted', style: `--hero:${c.color}` }, [
+        constructorBadge(c.name, 'xl'),
+        el('div', { class: 'team-head-text' }, [
+          el('h3', { text: en ? c.name : c.zh }),
+          !en && c.zh !== c.name ? el('small', { class: 'muted', text: c.name }) : null,
+          el('p', { class: 'muted', text: [at >= 0 ? W(`車隊積分榜第 ${at + 1}`, `P${at + 1} in the constructors'`) : '', pts !== '' ? W(`${pts} 分`, `${pts} pts`) : ''].filter(Boolean).join(' · ') })
+        ])
+      ]),
+      el('div', { class: 'team-tiles' }, [
+        tile(W('排名', 'Place'), at >= 0 ? `P${at + 1}` : '–', gap > 0 ? W(`落後 ${gap} 分`, `${gap} behind`) : at === 0 ? W('領先', 'Leading') : ''),
+        tile(W('積分', 'Points'), String(pts || '–')),
+        tile(W('分站冠軍', 'Wins'), String(wins)),
+        tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles} 次`, `${doubles} double`) : '')
+      ]),
+      drivers.length
+        ? card(
+            W('車手', 'Drivers'),
+            el(
+              'div',
+              { class: 'team-drivers' },
+              drivers.map(d =>
+                el('button', { class: 'team-driver', type: 'button', onclick: () => ctx.openPlayer(league, d.id, d) }, [
+                  personPic(d, league, 'lg round'),
+                  el('strong', { text: en ? d.en || d.name : f1Driver(d.en || d.name).zh }),
+                  el('small', { class: 'muted num', text: `P${d.pos} · ${d.stats?.PTS ?? 0} ${W('分', 'pts')}` }),
+                  // Their share of the team's points.
+                  Number(pts) > 0 ? el('span', { class: 'share-bar', style: `--w:${Math.round((100 * Number(d.stats?.PTS || 0)) / Number(pts))}%` }) : null
+                ])
+              )
+            )
+          )
+        : null,
+      next ? el('h3', { class: 'section-h', text: W('下一站', 'Next') }) : null,
+      next ? el('div', { class: 'q-card list' }, splitWeekend(next, Date.now(), L()).filter(x => x.status.state !== 'post').slice(0, 3).map(x => eventRow(x, { league: false }))) : null,
+      weekends.length
+        ? card(
+            W('本季每站', 'This season'),
+            el('div', { class: 'table-wrap' }, [
+              el('table', { class: 'data team-season' }, [
+                el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: W('分站', 'Race') }), ...drivers.map(d => el('th', { class: 'num', text: (en ? d.en || d.name : f1Driver(d.en || d.name).zh).replace(/^.*[.\s]/, '') })), el('th', { class: 'num', text: W('得分', 'Pts') })])]),
+                el(
+                  'tbody',
+                  {},
+                  weekends.map(w =>
+                    el('tr', { class: 'tap', onclick: () => ctx.openEvent(splitWeekend(w.e, Date.now(), L()).find(x => x.sessionKey === 'Race') || w.e) }, [
+                      el('td', { class: 'left', text: w.e.name }),
+                      ...w.fin.map(p => el('td', { class: 'num' }, [p > 0 ? el('span', { class: `pos-pill num${p <= 3 ? ' podium' : ''}${p === 1 ? ' win' : ''}`, text: `P${p}` }) : el('span', { class: 'muted', text: '–' })])),
+                      el('td', { class: 'num', text: String(w.pts) })
+                    ])
+                  )
+                )
+              ])
+            ])
+          )
+        : null
     );
   } catch {
     put(content, empty(T('failed')));
@@ -959,7 +1107,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
                 return el('tr', { class: ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '' }, [
                   el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null, text: String(i + 1) }),
                   el('th', { class: 'left name-cell' }, [
-                    el('button', { class: 'link team-link', type: 'button', onclick: () => (r.athlete ? r.id && ctx.openPlayer(league, r.id, r) : r.id && openTeam(league, r.id, r)) }, [logo(r.logo, r.name, `xs${r.athlete ? ' round' : ''}`), el('span', { class: 'nm' }, name)])
+                    el('button', { class: 'link team-link', type: 'button', onclick: () => (r.athlete ? r.id && ctx.openPlayer(league, r.id, r) : league === 'f1' ? openConstructor(r) : r.id && openTeam(league, r.id, r)) }, [r.athlete ? personPic(r, league, 'xs round') : league === 'f1' ? constructorBadge(r.en || r.name, 'xs') : logo(r.logo, r.name, 'xs'), el('span', { class: 'nm' }, name)])
                   ]),
                   ...cols.map(c => el('td', { class: cls(c), text: r.stats[c] ?? '' }))
                 ]);

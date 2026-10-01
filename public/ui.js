@@ -3,6 +3,7 @@
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
 import { logoPicture, countryFlag, f1Driver } from './lib/logos.mjs';
+import { espnHeadshot, isFlag, knownPhoto, wikiPhoto } from './lib/photos.mjs';
 import { liveLabel, liveNote, possessionOf } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { broadcastsOf, AUDIO_NAMES } from './lib/broadcast.mjs';
@@ -132,10 +133,40 @@ export function logo(url, name, cls = '') {
   return logoPicture(freshHeadshot(url), null, `logo ${cls}`, fallback);
 }
 // An F1 driver: their headshot, else a badge in their team's colour.
-export function driverLogo(url, name, cls = '') {
+export const driverLogo = (url, name, cls = '', id = '') => personPic({ id, name, logo: url }, 'f1', cls);
+// A person (a player, a driver, a fighter): their photo wherever there is one
+// (the feed's, ESPN's by their id, Wikipedia's), never a flag while a face can
+// be had; the flag (or, for a driver, their team's colour) only when there's none.
+// `p`: { id, name, en?, logo?, headshot?, flag? }.
+export function personPic(p, league, cls = '') {
+  const name = p?.en || p?.name || '';
+  const flagUrl = p?.flag || (isFlag(p?.logo) ? p.logo : '');
+  const urls = [...new Set([p?.headshot, isFlag(p?.logo) ? null : p?.logo, espnHeadshot(league, p?.id)].map(freshHeadshot).filter(Boolean))];
+  const known = knownPhoto(name, LEAGUES[league]?.sport || '');
+  if (known) urls.push(known);
+  // Nothing found: the driver's badge, else the flag, else the initials;
+  // Wikipedia asked meanwhile, its photo put in when it comes.
+  const last = () => {
+    const stand = league === 'f1' ? driverBadge(name, cls) : flagUrl ? logoPicture(flagUrl, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls);
+    if (known === undefined && name)
+      wikiPhoto(name, league).then(url => {
+        if (url && stand.isConnected) stand.replaceWith(logoPicture(url, null, `logo ${cls} photo`, () => el('span')));
+      });
+    return stand;
+  };
+  const chain = i => (i >= urls.length ? last() : logoPicture(urls[i], null, `logo ${cls}${urls[i].includes('wikimedia') ? ' photo' : ''}`, () => chain(i + 1)));
+  return chain(0);
+}
+const initialsPic = (name, cls) =>
+  el('span', {
+    class: `logo logo-fallback ${cls}`,
+    'aria-hidden': 'true',
+    text: String(name || '?').split(/\s+/).filter(w => w && !/^(jr|sr)\.?$/i.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?'
+  });
+function driverBadge(name, cls) {
   const d = f1Driver(name);
   const initials = String(name || '').split(/\s+/).filter(w => !/^jr\.?$/i.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-  return logoPicture(freshHeadshot(url), null, `logo ${cls}`, () => el('span', { class: `logo driver-badge ${cls}`, style: `--team:${d.color}`, 'aria-hidden': 'true', text: initials }));
+  return el('span', { class: `logo driver-badge ${cls}`, style: `--team:${d.color}`, 'aria-hidden': 'true', text: initials });
 }
 export const sportIcon = league => SPORTS[LEAGUES[league]?.sport]?.icon || '';
 // A league's mark: its logo, else its sport's icon.
@@ -209,10 +240,12 @@ function statusEl(e, day = true) {
     return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: clock(e.start) })]) : el('span', { class: 'event-status pre', text: clock(e.start) });
   return el('span', { class: `event-status ${e.status.state}`, text: statusText(e) });
 }
+// A side's picture: a person's photo (a player, a fighter), a team's badge.
+export const sideLogo = (side, league, cls = '') => (side && (side.athlete || LEAGUES[league]?.players) ? personPic(side, league, `${cls} round`) : logo(side?.logo, side?.name, cls));
 export function sideLine(side, e, win) {
   const ball = e.status.state === 'in' && possessionOf(e) === side.homeAway;
   return el('div', { class: `side${win ? ' win' : ''}` }, [
-    logo(side.logo, side.name, 'sm'),
+    sideLogo(side, e.league, 'sm'),
     el('span', { class: 'side-name' }, [side.rank ? el('small', { class: 'rank', text: String(side.rank) }) : null, document.createTextNode(side.short || side.name), ball ? el('span', { class: 'ball', title: ctx.t('possession'), text: ' 🏈' }) : null]),
     e.status.state !== 'pre' && !e.status.void ? el('strong', { class: 'side-score num', text: side.score }) : null
   ]);

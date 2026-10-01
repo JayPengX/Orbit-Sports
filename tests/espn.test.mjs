@@ -147,7 +147,7 @@ test('F1 headshots: the racing ones (this season), not the 2021 F1 set', async (
   assert.equal(parseAthlete({ athlete: { id: 5579, displayName: 'Lando Norris', headshot: { href: 'https://a.espncdn.com/i/headshots/f1/players/full/5579.png' } } }).headshot, 'https://a.espncdn.com/i/headshots/rpm/players/full/5579.png');
 });
 
-test('a player overview: the latest note, awards, the last games, news', async () => {
+test('a player overview: the latest note, awards, the last games (no news)', async () => {
   const { parseOverview, usDate } = await import('../public/lib/espn.mjs');
   assert.equal(usDate('Tue Sep 29 07:02:00 PDT 2026'), '2026-09-29T14:02:00.000Z');
   assert.equal(usDate('soon'), '');
@@ -165,7 +165,7 @@ test('a player overview: the latest note, awards, the last games, news', async (
   assert.deepEqual(ov.log.labels, ['AB', 'H', 'HR']);
   assert.equal(ov.log.games.length, 1);
   assert.deepEqual(ov.log.games[0], { id: '1', date: '2026-09-11T23:05:00Z', at: '@', opp: { id: '21', name: 'New York Mets', abbr: 'NYM', logo: 'x.png' }, result: 'W', score: '6-4', stats: ['4', '1', '1'] });
-  assert.deepEqual(ov.news, [{ headline: 'A story', description: '', image: 'p.jpg', url: 'https://espn.com/s', date: '2026-09-29T00:00:00Z' }]);
+  assert.equal(ov.news, undefined);
   assert.equal(parseOverview({}).log, null);
 });
 

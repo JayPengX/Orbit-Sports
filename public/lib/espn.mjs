@@ -10,7 +10,7 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
-import { teamBadge, teamLogo, raceName, playerFlag, countryName, countryCode, flagUrl, f1Driver } from './logos.mjs';
+import { teamBadge, teamLogo, raceName, playerFlag, countryName, countryCode, flagUrl, f1Driver, f1Constructor } from './logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -192,6 +192,7 @@ export function parseScoreboard(data, league) {
       kind,
       // An F1 race by its short name ("新加坡站"), not the sponsor's.
       name: league === 'f1' ? raceName(e.name, detectLocale()) : e.name || '',
+      enName: e.name || '',
       short: e.shortName || '',
       start: e.date,
       end: e.endDate || null,
@@ -496,12 +497,12 @@ export function parseSummary(data, league) {
   const rosters = (data?.rosters || []).map(r => ({
     team: String(r.team?.id ?? ''),
     formation: r.formation || '',
-    players: (r.roster || []).map(x => ({ id: String(x.athlete?.id ?? ''), name: x.athlete?.displayName || '', jersey: x.jersey || '', pos: x.position?.abbreviation || '', starter: Boolean(x.starter) }))
+    players: (r.roster || []).map(x => ({ id: String(x.athlete?.id ?? ''), name: x.athlete?.displayName || '', headshot: freshHeadshot(x.athlete?.headshot?.href) || null, jersey: x.jersey || '', pos: x.position?.abbreviation || '', starter: Boolean(x.starter) }))
   }));
   const leaders = (data?.leaders || []).flatMap(t =>
-    (t.leaders || []).map(l => ({ team: String(t.team?.id ?? ''), stat: l.displayName || l.name, name: l.leaders?.[0]?.athlete?.shortName || l.leaders?.[0]?.athlete?.displayName || '', value: l.leaders?.[0]?.displayValue || '' }))
+    (t.leaders || []).map(l => ({ team: String(t.team?.id ?? ''), stat: l.displayName || l.name, id: String(l.leaders?.[0]?.athlete?.id ?? ''), name: l.leaders?.[0]?.athlete?.shortName || l.leaders?.[0]?.athlete?.displayName || '', full: l.leaders?.[0]?.athlete?.displayName || '', headshot: freshHeadshot(l.leaders?.[0]?.athlete?.headshot?.href) || null, value: l.leaders?.[0]?.displayValue || '' }))
   );
-  const injuries = (data?.injuries || []).map(t => ({ team: String(t.team?.id ?? ''), list: (t.injuries || []).map(i => ({ name: i.athlete?.displayName || '', status: i.status || i.type?.description || '', detail: i.details?.type || '' })) }));
+  const injuries = (data?.injuries || []).map(t => ({ team: String(t.team?.id ?? ''), list: (t.injuries || []).map(i => ({ id: String(i.athlete?.id ?? ''), headshot: freshHeadshot(i.athlete?.headshot?.href) || null, name: i.athlete?.displayName || '', status: i.status || i.type?.description || '', detail: i.details?.type || '' })) }));
   const winProb = (data?.winprobability || []).map(w => w.homeWinPercentage).filter(x => Number.isFinite(x));
   const series = (data?.seasonseries || []).map(s => ({ summary: s.summary || s.description || '', events: (s.events || []).map(ev => ({ id: String(ev.id), date: ev.date, score: (ev.competitors || []).map(c => `${c.team?.abbreviation || ''} ${c.score ?? ''}`).join(' · ') })) }));
   const form = (data?.lastFiveGames || []).map(t => ({ team: String(t.team?.id ?? ''), games: (t.events || []).map(ev => ({ result: ev.gameResult || '', score: ev.score || '', opp: ev.opponent?.abbreviation || ev.opponent?.displayName || '', date: ev.gameDate })) }));
@@ -558,6 +559,11 @@ export function parseStandings(data, league = null) {
           return { id: String(a.id ?? ''), name: f1zh || a.displayName || a.name || '', short: f1zh || a.shortName || a.displayName || '', en: a.displayName || a.name || '', logo: a.flag?.href || '', note: '', color: '', stats, athlete: true };
         }
         const row = { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note?.color || (en.team?.color && !en.team?.logos ? `#${en.team.color}` : ''), stats };
+        // F1's constructors in Chinese (麥拉倫, 法拉利), the English kept for matching.
+        if (league === 'f1' && detectLocale() !== 'en') {
+          const zh = f1Constructor(row.name).zh;
+          if (zh && zh !== row.name) return { ...row, en: row.name, name: zh, short: zh };
+        }
         return league ? localSide(league, row) : row;
       });
       groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), en: node.name || node.displayName || '', rows });
@@ -791,7 +797,7 @@ export function parseOverview(data) {
   // games with each one's numbers, and ESPN's stories about them.
   const note = data?.rotowire?.headline ? { headline: data.rotowire.headline, story: data.rotowire.story || '', date: usDate(data.rotowire.published) } : null;
   const awards = (data?.awards || []).slice(0, 8).map(w => ({ name: w.name || '', count: w.displayCount || '', seasons: w.seasons || [] })).filter(w => w.name);
-  return { season, rankings, fight: fight ? { title: data.upcomingFight.displayName || '', name: fight.name, date: fight.date, where: fight.location || '' } : null, recent, note, awards, log: parseGameLog(data?.gameLog), news: parseNews(data?.news) };
+  return { season, rankings, fight: fight ? { title: data.upcomingFight.displayName || '', name: fight.name, date: fight.date, where: fight.location || '' } : null, recent, note, awards, log: parseGameLog(data?.gameLog) };
 }
 // "Tue Sep 29 07:02:00 PDT 2026" (RotoWire's time) as ISO, or ''.
 const US_ZONES = { EDT: '-04:00', EST: '-05:00', CDT: '-05:00', CST: '-06:00', MDT: '-06:00', MST: '-07:00', PDT: '-07:00', PST: '-08:00', UTC: 'Z', GMT: 'Z' };
@@ -822,13 +828,6 @@ export function parseGameLog(log) {
     .slice(0, 5);
   return games.length ? { title: block.displayName || '', labels: block.labels.slice(0, n), games } : null;
 }
-// ESPN stories: the headline, a line, a picture, the page.
-export function parseNews(list) {
-  return (list || [])
-    .filter(a => a?.headline && a.links?.web?.href)
-    .slice(0, 3)
-    .map(a => ({ headline: a.headline, description: a.description || '', image: a.images?.[0]?.url || '', url: a.links.web.href, date: a.published || a.lastModified || '' }));
-}
 // A player's photo from TheSportsDB (ESPN has none for footballers): the
 // cut-out, else the portrait, when the name and the sport match. Open to
 // browsers (CORS), so not through the proxy.
@@ -851,11 +850,6 @@ export function playerPhoto(name, sport) {
         .catch(() => null)
     );
   return photos.get(key);
-}
-// A team's news (a soccer club's from its own league).
-export async function teamNews(league, id, home = '') {
-  const path = home && LEAGUES[league].espn.startsWith('soccer/') ? `soccer/${home}` : LEAGUES[league].espn;
-  return parseNews((await getJson(`${SITE}/${path}/news?team=${encodeURIComponent(id)}&limit=3`, { ttl: 30 * 60_000 }))?.articles);
 }
 export async function athleteOverview(league, id) {
   return parseOverview(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }));
