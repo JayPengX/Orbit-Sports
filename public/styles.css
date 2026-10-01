@@ -727,3 +727,28 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .f1-tags .down { color: var(--q-bad); }
 .f1-tags .fl { color: #a855f7; }
 .f1-tags .pts { font-size: 12px; }
+/* ---- 追蹤: your teams' last and next games, your players, your leagues ---- */
+.follow-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 4px 2px 8px; }
+.follow-head .hero-title { margin: 0; }
+.follow-hint { padding: 0 4px; }
+.team-form-list .tf-row { padding: 12px 14px; border-top: 1px solid var(--q-divider, var(--q-border)); display: grid; gap: 8px; }
+.team-form-list .tf-row:first-child { border-top: 0; }
+.tf-team { display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; min-width: 0; }
+.logo.tf-logo { width: 36px; height: 36px; }
+.tf-name { display: grid; flex: 1; min-width: 0; }
+.tf-name strong { font-size: 15.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tf-form { display: inline-flex; gap: 3px; }
+.tf-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--q-border); }
+.tf-dot.w { background: var(--q-good); }
+.tf-dot.l { background: var(--q-bad); }
+.tf-games { display: grid; gap: 4px; padding-left: 46px; }
+.tf-game { display: grid; grid-template-columns: 44px auto minmax(0, 1fr) auto; align-items: center; gap: 6px; text-align: left; font-size: 13.5px; min-height: 26px; }
+.tf-opp { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tf-score { font-weight: 750; }
+.tf-score.w { color: var(--q-good); }
+.tf-score.l { color: var(--q-bad); }
+.tf-wait { padding-left: 46px; }
+.people-strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: none; }
+.person-card { flex: none; width: 104px; display: grid; justify-items: center; gap: 4px; padding: 12px 8px; border-radius: var(--q-radius); background: var(--q-surface); border: 1px solid var(--q-border); text-align: center; }
+.person-card strong { font-size: 13px; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.person-card small { font-size: 11px; }
