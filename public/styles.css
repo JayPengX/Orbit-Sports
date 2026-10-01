@@ -794,3 +794,4 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .res-opp { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 650; }
 .res-opp span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .result-pill.d { background: color-mix(in srgb, #d4a017 20%, transparent); }
+.nowrap { white-space: nowrap; }

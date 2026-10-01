@@ -742,7 +742,7 @@ export async function openTeam(league, id, fallback = {}) {
         el('div', { class: 'team-hero-text' }, [
           el('h3', { text: info.name }),
           info.en && info.en !== info.name ? el('small', { class: 'muted', text: info.en }) : null,
-          el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? W(`${leagueName(league, L())}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in the ${leagueName(league, L())}`) : standingZh(info.standing, L())].filter(Boolean), ' · ')),
+          el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? el('span', { class: 'nowrap', text: W(`${leagueName(league, L())}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in the ${leagueName(league, L())}`) }) : standingZh(info.standing, L())].filter(Boolean), ' · ')),
           form.length ? el('div', { class: 'hero-form' }, [resultPills(form)]) : null
         ]),
         followBtn
