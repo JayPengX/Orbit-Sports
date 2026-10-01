@@ -24,6 +24,7 @@ export const LEAGUES = Object.fromEntries(
     if (l.data === 'asia') league.asia = l.asia;
     if (l.data === 'tsdb') league.tsdb = l.tsdb;
     if (l.data === 'motogp') league.motogp = true;
+    if (l.data === 'fom') league.fom = l.fom;
     for (const k of ['top', 'cup', 'standings', 'players']) if (l[k]) league[k] = l[k];
     return [key, league];
   })

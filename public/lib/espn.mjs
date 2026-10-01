@@ -255,6 +255,7 @@ export async function scoreboard(league, dates) {
   if (l?.asia) return asiaEvents(league);
   if (l?.motogp) return motogpEvents();
   if (l?.tsdb) return tsdbRaceEvents(league);
+  if (l?.fom) return fomRaceEvents(league);
   const list = [].concat(dates || []);
   const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: 20_000 }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: 20_000 })];
   const seen = new Set();
@@ -273,6 +274,7 @@ export async function seasonEvents(league, now = Date.now()) {
   if (l?.asia) return asiaEvents(league);
   if (l?.motogp) return motogpEvents(now);
   if (l?.tsdb) return tsdbRaceEvents(league, now);
+  if (l?.fom) return fomRaceEvents(league, now);
   const d = new Date(now);
   const years = [d.getUTCFullYear(), ...(d.getUTCMonth() >= 10 ? [d.getUTCFullYear() + 1] : [])];
   const pages = await Promise.all(years.map(y => getJson(`${SITE}/${l.espn}/scoreboard?dates=${y}&limit=400`, { ttl: 5 * 60_000 }).catch(() => null)));
@@ -502,6 +504,61 @@ async function tsdbRaceEvents(league, now = Date.now()) {
   const seasons = [`${y - 1}-${y}`, `${y}-${y + 1}`];
   const lists = await Promise.all(seasons.map(sn => fetch(`${TSDB}/eventsseason.php?id=${LEAGUES[league].tsdb}&s=${sn}`).then(r => (r.ok ? r.json() : null)).catch(() => null)));
   return parseTsdbRaces(lists.flatMap(d => d?.events || []), league);
+}
+
+// ---- F2, F3 (their own sites, through the proxy: trimFom) ------------------------------
+//
+// The season's rounds from the calendar page; each weekend's session times
+// from its own page, read for the rounds from ten days back to six weeks on
+// (the others show by their dates, times to come).
+const FOM_SESSION = [
+  [/feature/i, 'Race', { zh: '正賽', en: 'Feature race' }],
+  [/sprint/i, 'SR', { zh: '衝刺賽', en: 'Sprint race' }],
+  [/qualif/i, 'Qual', { zh: '排位賽', en: 'Qualifying' }],
+  [/practice/i, 'FP', { zh: '練習賽', en: 'Practice' }]
+];
+const FOM_MONTHS = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+// "06 - 08 MAR", "29 MAY - 01 JUN": the first and last day (UTC noon).
+export function fomDates(text, year) {
+  const m = /(\d{1,2})\s*([A-Z]{3})?\s*-\s*(\d{1,2})\s*([A-Z]{3})/i.exec(String(text || ''));
+  if (!m) return null;
+  const endMonth = FOM_MONTHS[m[4].toUpperCase()];
+  const startMonth = m[2] ? FOM_MONTHS[m[2].toUpperCase()] : endMonth;
+  if (startMonth == null || endMonth == null) return null;
+  return { from: Date.UTC(year, startMonth, Number(m[1]), 12), to: Date.UTC(year, endMonth, Number(m[3]), 12) };
+}
+export function parseFomRound(meeting, sessions, league, year, lang = detectLocale()) {
+  const dates = fomDates(meeting.dates, year);
+  const list = (sessions || [])
+    .map((x, i) => {
+      const kind = FOM_SESSION.find(([re]) => re.test(`${x.short} ${x.name}`));
+      if (!kind || !x.start) return null;
+      const state = /complete|finished|ended/i.test(x.state) ? 'post' : /live|started|running/i.test(x.state) ? 'in' : 'pre';
+      return { id: `${league}-${year}-${meeting.round}-${i}`, abbr: kind[1], name: kind[2][lang === 'en' ? 'en' : 'zh'], start: x.start, status: plainStatus(state), field: [], tbc: false };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  const start = list[0]?.start || (dates ? new Date(dates.from).toISOString() : null);
+  if (!start) return null;
+  const end = list.at(-1)?.start || (dates ? new Date(dates.to).toISOString() : start);
+  const done = meeting.status === 'completed' || (list.length > 0 && list.every(x => x.status.state === 'post')) || (dates && dates.to < Date.now() - 86_400_000);
+  const name = meeting.place || meeting.name;
+  return { id: `${league}-${year}-${meeting.round}`, tbc: !list.length, league, kind: 'field', name, enName: name, short: meeting.round ? `R${meeting.round}` : '', start, end, status: plainStatus(done ? 'post' : list.some(x => x.status.state === 'in') ? 'in' : 'pre'), venue: meeting.place || '', tv: '', note: '', series: null, stage: null, sessions: list };
+}
+async function fomRaceEvents(league, now = Date.now()) {
+  const host = LEAGUES[league].fom;
+  const year = new Date(now).getUTCFullYear();
+  const cal = await getJson(`https://${host}/en/racing/${year}`, { ttl: 6 * 3_600_000 }).catch(() => null);
+  const meetings = cal?.meetings || [];
+  const near = meetings.filter(m => {
+    const d = fomDates(m.dates, year);
+    return d && d.to > now - 10 * 86_400_000 && d.from < now + 42 * 86_400_000;
+  });
+  const sessions = new Map(await Promise.all(near.map(async m => [m.url, (await getJson(`https://${host}${m.url}`, { ttl: 3_600_000 }).catch(() => null))?.sessions || []])));
+  return meetings
+    .map(m => parseFomRound(m, sessions.get(m.url), league, year))
+    .filter(Boolean)
+    .sort((a, b) => a.start.localeCompare(b.start));
 }
 
 // ---- NPB, KBO, CPBL (the leagues' own sites, through the proxy) -----------------------
