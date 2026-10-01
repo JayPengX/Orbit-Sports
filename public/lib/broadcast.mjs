@@ -194,27 +194,28 @@ export function broadcastsFor(e, programs, sides = [], others = [], prefer = 'en
   const nbaTo = e.league === 'nba' && Number.isFinite(nbaSchedule?.to) ? nbaSchedule.to : null;
   const nbaCovered = nbaFrom != null && Date.parse(e.start) >= nbaFrom && Date.parse(e.start) <= nbaTo;
   const nbaGame = nbaCovered ? nbaTaiwanGame(e, nbaSchedule) : null;
-  // NBA.com's Taiwan schedule names the exact ELTA games after ELTA's
-  // short-range programme list ends. Its regional feed also avoids guessing
-  // that every NBA date has an ELTA game.
+  const nbaChannel = nbaGame?.elta
+    ? [{ ...eltaChannel(101), at: nbaGame.start, title: 'ELTA TV', url: eltaWatchUrl(101), app: eltaAppUrl(101), audio: 'zh', adFree: false }]
+    : [];
+  // NBA.com's Taiwan schedule names the exact ELTA games beyond ELTA's
+  // short-range programme list and prevents guesses about unselected games.
   if (nbaCovered && (!days || day < days.from || day > days.to)) {
-    const elta = nbaGame?.elta
-      ? [{ ...eltaChannel(101), at: nbaGame.start, title: 'ELTA TV', url: eltaWatchUrl(101), app: eltaAppUrl(101), audio: 'zh', adFree: false }]
-      : [];
-    return [...elta, ...base.filter(b => b.svc !== 'elta')];
+    return [...nbaChannel, ...base.filter(b => b.svc !== 'elta')];
   }
   if (!days || day < days.from || day > days.to) {
-    // Beyond published schedules: the league's supported service list.
-    return base.map(b => (b.svc === 'elta' && e.league === 'nba' ? { ...b, note: { zh: '部分賽事', en: 'selected games' } } : b)).filter(b => !(b.svc === 'elta' && e.league === 'nba' && day < NBA_ELTA_FROM));
+    // Without an exact source, an NBA game's broadcaster isn't known.
+    if (e.league === 'nba') return base.filter(b => b.svc !== 'elta');
+    return base;
   }
   const on = eltaPrograms(programs, e, sides, others);
+  if (e.league === 'nba' && nbaCovered && !on.length) return [...nbaChannel, ...base.filter(b => b.svc !== 'elta')];
   const seen = new Set();
   const channels = on
     .map(p => ({ ...eltaChannel(p.ch), at: p.start, title: p.title, url: eltaWatchUrl(p.ch), app: eltaAppUrl(p.ch), audio: p.audio || 'zh', adFree: Boolean(p.adFree), ...(p.tentative ? { note: { zh: '同時段擇一，待公布', en: 'one of the games then, TBA' } } : {}) }))
     // MOD's own channels aren't streamed: not listed.
     .filter(c => !c.mod && !seen.has(c.ch) && seen.add(c.ch));
-    // The best for the person first (their commentary, no ads), then the rest.
-    return [...channels.sort((a, b) => channelRank(a, prefer) - channelRank(b, prefer) || a.ch - b.ch), ...base.filter(b => b.svc !== 'elta')];
+  // The best for the person first (their commentary, no ads), then the rest.
+  return [...channels.sort((a, b) => channelRank(a, prefer) - channelRank(b, prefer) || a.ch - b.ch), ...base.filter(b => b.svc !== 'elta')];
 }
 // ELTA's NBA: its 2026-27 preseason schedule starts on 10/6 (Taiwan).
 export const NBA_ELTA_FROM = '2026-10-06';

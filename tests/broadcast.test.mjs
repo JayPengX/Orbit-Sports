@@ -44,10 +44,10 @@ test('a program without the sides: the only game near it gets it; among several 
   assert.ok(tba?.note, 'marked as one of the games then');
 });
 
-test('beyond the schedule: the NBA list says selected games, not every game', () => {
+test('without an exact future schedule, an NBA game is not presumed to be on ELTA', () => {
   const late = nba('8', '2026-11-20T00:00Z', 'Boston Celtics', 'Miami Heat');
   const list = broadcastsFor(late, programs, sides(late), []);
-  assert.ok(list.some(x => x.svc === 'elta' && x.note?.zh === '部分賽事'));
+  assert.ok(!list.some(x => x.svc === 'elta'));
 });
 
 test('Chinese names match however ELTA shortens them', () => {
