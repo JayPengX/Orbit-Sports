@@ -38,7 +38,8 @@ export const BROADCAST = {
   f3: [{ ...ELTA, note: { zh: 'MAX 5-8 台', en: 'MAX 5-8' } }]
 };
 
-export const broadcastsOf = league => BROADCAST[league] || [];
+// A league of ELTA's own list (below): on ELTA.
+export const broadcastsOf = league => BROADCAST[league] || (ELTA_LEAGUES[league] ? [ELTA] : []);
 
 // ---- ELTA's own schedule: which game each channel carries ---------------------------
 //
@@ -53,6 +54,24 @@ const ELTA_LEAGUE = {
   MLB: 'mlb', CPBL: 'cpbl', NBA: 'nba', 'Premier League': 'epl', 'Serie A': 'seriea', Bundesliga: 'bundesliga', 'Ligue 1': 'ligue1',
   UCL: 'ucl', UEL: 'uel', UECL: 'uecl', 蘇超: 'scotland', 'FA Cup': 'facup', 英足總盃: 'facup', 'UEFA Nations League': 'nationsleague', F1: 'f1', F2: 'f2', F3: 'f3'
 };
+// Every other sport ELTA carries (no other source has it): a league of its
+// own, its games and shows straight from ELTA's list (espn.mjs eltaEvents).
+// Any category ELTA adds later lands in 'elta-other' under ELTA's own name,
+// so nothing it carries is missed.
+//   ELTA's English name: [key, 中文, English, sport]
+const ELTA_ONLY = {
+  '20th Asian Games': ['elta-asiangames', '亞運', 'Asian Games', 'multi'],
+  WTT: ['elta-wtt', 'WTT 桌球', 'WTT Table Tennis', 'tabletennis'],
+  BWF: ['elta-bwf', 'BWF 羽球', 'BWF Badminton', 'badminton'],
+  'WBSC U-15': ['elta-u15', 'U15 棒球世界盃', 'U-15 Baseball World Cup', 'baseball'],
+  'UEFA Youth League': ['elta-uyl', 'UEFA 歐青', 'UEFA Youth League', 'soccer'],
+  'Friendly Matches': ['elta-friendly', '國際足球友誼賽', 'International Friendlies', 'soccer'],
+  CEV: ['elta-cev', 'CEV 排球歐錦賽', 'CEV Volleyball', 'volleyball'],
+  WTCS: ['elta-wtcs', '世界鐵人三項系列賽', 'World Triathlon Series', 'triathlon'],
+  終極撞球系列賽: ['elta-pool', '終極撞球系列賽', 'Ultimate Pool', 'billiards']
+};
+export const ELTA_LEAGUES = Object.fromEntries([...Object.values(ELTA_ONLY), ['elta-other', '愛爾達其他賽事', 'More on ELTA', 'other']].map(([key, zh, en, sport]) => [key, { zh, en, sport }]));
+const eltaOnly = type => ELTA_ONLY[type]?.[0] || 'elta-other';
 // Its channels: the four 體育台 (with ads), the ten MAX (no ads) and MOD's
 // own 980s (its add-on sports channels: not streamed, so never shown).
 export function eltaChannel(n) {
@@ -102,24 +121,25 @@ export function channelRank(c, prefer = 'en') {
 }
 
 // The list (trimmed by the proxy, or ELTA's own) as programs: { league, start,
-// end (ms), ch, title, teams: ['海盜', '老虎'] or [], day }. Replays left out.
+// end (ms), ch, title, teams: ['海盜', '老虎'] or [], day, delayed (D-LIVE),
+// type (ELTA's name for the sport) }. Replays and Kids left out.
 export function parseElta(data) {
   const raw = Array.isArray(data?.programs)
     ? data.programs
     : Object.entries(data?.calendar || {}).flatMap(([d, list]) => (Array.isArray(list) ? list : []).map(p => ({ d, s: p.start_time, e: p.end_time, ch: p.channel_number, g: p.game_type_en || p.game_type, t: p.program_desc })));
   const out = [];
   for (const p of raw) {
-    const league = ELTA_LEAGUE[p.g];
-    // Live only: not a delayed showing (D-LIVE) or the children's version (Kids).
-    if (!league || !p.s || !/\bLIVE\b/i.test(p.t || '') || /D-LIVE/i.test(p.t || '') || /^\s*Kids\b/i.test(p.t || '')) continue;
-    // "海盜 VS 老虎 李灝宇先發… 例行賽 9/27(原音) LIVE": the two sides before the details.
-    const vs = /^\s*(?:UEFA\s+)?([^\s【】]+)\s+VS\s+([^\s【】(（]+)/i.exec(p.t || '');
+    // Live or delayed (D-LIVE), not a replay or the children's version (Kids).
+    if (!p.g || !p.s || !/\bLIVE\b/i.test(p.t || '') || /^\s*Kids\b/i.test(p.t || '')) continue;
+    const league = ELTA_LEAGUE[p.g] || eltaOnly(p.g);
+    // "海盜 VS 老虎 李灝宇先發… 例行賽 9/27(原音) LIVE", "新加坡VS中華 壘球": the two sides before the details.
+    const vs = /^\s*(?:UEFA\s+)?([^\s【】]+?)\s*VS\s*([^\s【】(（]+)/i.exec(p.t || '');
     // The title without "LIVE" and the day (the row shows the time), the details kept.
     const title = String(p.t || '')
-      .replace(/\s*LIVE\s*$/i, '')
+      .replace(/\s*(D-)?LIVE\s*$/i, '')
       .replace(/\s+\d{1,2}\/\d{1,2}(?=\s|\(|（|$)/, '')
       .trim();
-    out.push({ league, start: p.s * 1000, end: (p.e || p.s + 10_800) * 1000, ch: Number(p.ch), title, teams: vs ? [vs[1], vs[2]] : [], day: p.d, ...eltaAudio(p.t, Number(p.ch)) });
+    out.push({ league, start: p.s * 1000, end: (p.e || p.s + 10_800) * 1000, ch: Number(p.ch), title, teams: vs ? [vs[1], vs[2]] : [], day: p.d, delayed: /D-LIVE/i.test(p.t), type: p.g, ...eltaAudio(p.t, Number(p.ch)) });
   }
   return out.sort((a, b) => a.start - b.start);
 }
@@ -145,7 +165,7 @@ export function zhSame(a, b) {
 export function eltaPrograms(programs, e, sides, others = []) {
   if (!programs?.length || !e) return [];
   const t = Date.parse(e.start);
-  const near = p => p.league === e.league && p.start >= t - 60 * 60_000 && p.start <= t + 20 * 60_000;
+  const near = p => p.league === e.league && !p.delayed && p.start >= t - 60 * 60_000 && p.start <= t + 20 * 60_000;
   const cand = programs.filter(near);
   if (e.kind !== 'match') {
     // A race weekend's session: the program naming it (排位賽, 正賽, 衝刺賽).
@@ -196,6 +216,8 @@ export function nbaEltaGame(games, e, ids) {
 // `programs`: parseElta's; `sides`, `others` as for eltaPrograms; `nba`:
 // nbaEltaGames' and the game's NBA.com team ids ({ games, ids }).
 export function broadcastsFor(e, programs, { sides = [], others = [], prefer = 'en', nba = null } = {}) {
+  // A game or show of ELTA's own list: its channels.
+  if (e.channels) return e.channels.map(c => ({ ...eltaChannel(c.ch), at: Date.parse(e.start), audio: c.audio, adFree: c.adFree, exact: true })).filter(c => !c.mod).sort((a, b) => channelRank(a, prefer) - channelRank(b, prefer) || a.ch - b.ch);
   const base = broadcastsOf(e.league);
   if (base[0]?.svc !== 'elta') return base;
   const days = programs?.length ? eltaDays(programs) : null;

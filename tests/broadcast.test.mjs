@@ -189,3 +189,25 @@ test("ELTA's channels: MOD's 980s aren't on ELTA.tv; the app opens a channel the
   assert.equal(eltaWatchUrl(544), 'https://eltaott.tv/channel/play/544/108');
   assert.equal(eltaChannel(105).short.zh, '愛爾達2台');
 });
+
+test("ELTA's own sports: a game or show per showing, its channels together, delayed ones marked, a new sport under ELTA's name", async () => {
+  const { eltaShows } = await import('../public/lib/espn.mjs');
+  const t = Date.parse('2026-10-04T08:00:00Z') / 1000;
+  const programs = parseElta({
+    programs: [
+      { d: '2026-10-04', s: t, e: t + 7200, ch: 101, g: '20th Asian Games', t: '新加坡VS中華 壘球 預賽 10/4 LIVE' },
+      { d: '2026-10-04', s: t, e: t + 7200, ch: 545, g: '20th Asian Games', t: '新加坡VS中華 壘球 預賽 10/4 LIVE' },
+      { d: '2026-10-04', s: t, e: t + 7200, ch: 110, g: 'WTT', t: '中國大滿貫 第一日(上) 10/4(原音) LIVE' },
+      { d: '2026-10-04', s: t, e: t + 7200, ch: 101, g: 'WTCS', t: '總決賽 菁英女子賽 D-LIVE' },
+      { d: '2026-10-04', s: t, e: t + 7200, ch: 102, g: 'Sumo', t: '九月場所 千秋樂 LIVE' }
+    ]
+  });
+  const [ag] = eltaShows(programs, 'elta-asiangames', t * 1000 + 60_000);
+  assert.deepEqual([ag.kind, ag.away.name, ag.home.name, ag.venue, ag.channels.map(c => c.ch), ag.status.state], ['match', '新加坡', '中華', '壘球 預賽', [101, 545], 'in']);
+  const [wtt] = eltaShows(programs, 'elta-wtt', t * 1000 - 60_000);
+  assert.deepEqual([wtt.kind, wtt.name, wtt.status.state], ['show', '中國大滿貫 第一日(上)', 'pre']);
+  assert.ok(eltaShows(programs, 'elta-wtcs')[0].status.detail);
+  assert.equal(eltaShows(programs, 'elta-other')[0].name, 'Sumo · 九月場所 千秋樂');
+  // The MAX channel (no ads) first.
+  assert.deepEqual(broadcastsFor(ag, programs).map(c => c.ch), [545, 101]);
+});

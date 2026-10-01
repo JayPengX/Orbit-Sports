@@ -7,11 +7,13 @@
 //           rosters, standings, players)
 //   asia    CPBL from its own site (through the proxy)
 //   fom     F2 and F3 from their own sites (through the proxy)
+//   elta    a sport only ELTA's own list has (broadcast.mjs ELTA_LEAGUES):
+//           its games and shows from that list
 //   play    the catalogue's key for the league's logos and names
-//   kind    'match' two sides; 'field' a race weekend
+//   kind    'match' two sides; 'field' a race weekend; 'show' ELTA's programs
 import { leagueLogo as kitLeagueLogo } from './logos.mjs';
 import { SPORTS as ALL_SPORTS, CATALOG } from './catalog.mjs';
-import { BROADCAST } from './broadcast.mjs';
+import { BROADCAST, ELTA_LEAGUES } from './broadcast.mjs';
 
 export const LEAGUES = Object.fromEntries(
   Object.entries(CATALOG)
@@ -24,9 +26,20 @@ export const LEAGUES = Object.fromEntries(
       for (const k of ['top', 'cup', 'standings']) if (l[k]) league[k] = l[k];
       return [key, league];
     })
+    .concat(Object.entries(ELTA_LEAGUES).map(([key, l]) => [key, { ...l, play: null, kind: 'show', elta: true }]))
 );
+// The sports only ELTA's list brings.
+const ELTA_SPORTS = {
+  badminton: { zh: '羽球', en: 'Badminton', icon: '🏸' },
+  tabletennis: { zh: '桌球', en: 'Table tennis', icon: '🏓' },
+  volleyball: { zh: '排球', en: 'Volleyball', icon: '🏐' },
+  triathlon: { zh: '鐵人三項', en: 'Triathlon', icon: '🏊' },
+  billiards: { zh: '撞球', en: 'Pool', icon: '🎱' },
+  multi: { zh: '綜合賽會', en: 'Multi-sport', icon: '🏅' },
+  other: { zh: '其他', en: 'More', icon: '📺' }
+};
 // The sports with a league left.
-export const SPORTS = Object.fromEntries(Object.entries(ALL_SPORTS).filter(([k]) => Object.values(LEAGUES).some(l => l.sport === k)));
+export const SPORTS = Object.fromEntries(Object.entries({ ...ALL_SPORTS, ...ELTA_SPORTS }).filter(([k]) => Object.values(LEAGUES).some(l => l.sport === k)));
 
 export const leagueName = (key, lang = 'zh') => LEAGUES[key]?.[lang === 'en' ? 'en' : 'zh'] || key;
 export const leaguesOf = sport => Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport);
