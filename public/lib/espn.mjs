@@ -19,7 +19,6 @@ import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
 import { teamNameZh } from './names.mjs';
 import { groupZh } from './statnames.mjs';
-import { ELTA_LIST, parseElta } from './broadcast.mjs';
 
 export const SITE = 'https://site.api.espn.com/apis/site/v2/sports';
 export const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
@@ -230,7 +229,6 @@ export function parseScoreboard(data, league) {
 
 export async function scoreboard(league, dates) {
   const l = LEAGUES[league];
-  if (l?.elta) return eltaEvents(league);
   if (l?.asia) return asiaEvents(league);
   if (l?.fom) return fomRaceEvents(league);
   const list = [].concat(dates || []);
@@ -247,7 +245,6 @@ export async function scoreboard(league, dates) {
 // future event, not only the current one. Late in the year, next year's too.
 export async function seasonEvents(league, now = Date.now()) {
   const l = LEAGUES[league];
-  if (l?.elta) return eltaEvents(league, now);
   if (l?.asia) return asiaEvents(league);
   if (l?.fom) return fomRaceEvents(league, now);
   const d = new Date(now);
@@ -419,49 +416,6 @@ export async function asiaEvents(league, extra = 0, now = Date.now()) {
   return parseAsia(lists.flat(), league)
     .filter(e => !seen.has(e.id) && seen.add(e.id))
     .sort((a, b) => a.start.localeCompare(b.start));
-}
-
-// ---- The sports only ELTA's list has ---------------------------------------------------
-
-// A league's programs as events (parseElta's): one per showing, its channels
-// together (the same title at the same time on several), two sides when the
-// title names them ("新加坡VS中華 壘球 預賽"), else the title alone. A sport
-// ELTA added later ('elta-other') says ELTA's name for it.
-export function eltaShows(programs, league, now = Date.now()) {
-  const byShow = new Map();
-  for (const p of programs || []) {
-    if (p.league !== league) continue;
-    const key = `${p.start}|${p.title}`;
-    if (!byShow.has(key)) byShow.set(key, { ...p, channels: [] });
-    byShow.get(key).channels.push({ ch: p.ch, audio: p.audio, adFree: p.adFree });
-  }
-  return [...byShow.values()].map(p => {
-    const side = (name, homeAway) => ({ id: name, name, short: name, en: name, abbr: name.slice(0, 3), logo: null, color: null, score: '', winner: false, record: '', rank: null, lines: [], homeAway });
-    const state = now < p.start ? 'pre' : now < p.end ? 'in' : 'post';
-    // The commentary is the channel's to say (its badge), not the title's.
-    const title = p.title.replace(/\s*[(（][^)）]*(原音|雙語|解說)[^)）]*[)）]/g, '').trim();
-    const name = league === 'elta-other' && p.type ? `${p.type} · ${title}` : title;
-    const detail = p.delayed ? (detectLocale() === 'en' ? 'Delayed' : '延遲轉播') : '';
-    return {
-      id: `${league}-${p.start}-${p.channels.map(c => c.ch).join('-')}`,
-      league,
-      kind: p.teams.length === 2 ? 'match' : 'show',
-      name,
-      short: name,
-      start: new Date(p.start).toISOString(),
-      end: new Date(p.end).toISOString(),
-      status: { state, detail, short: detail, completed: state === 'post', void: false },
-      venue: p.teams.length === 2 ? title.replace(/^.*?VS\s*\S+\s*/i, '') : '',
-      tv: '',
-      note: '',
-      ...(p.teams.length === 2 ? { home: side(p.teams[1], 'home'), away: side(p.teams[0], 'away') } : {}),
-      channels: p.channels,
-      live: null
-    };
-  });
-}
-export async function eltaEvents(league, now = Date.now()) {
-  return eltaShows(parseElta(await getJson(ELTA_LIST, { ttl: 30 * 60_000 })), league, now).sort((a, b) => a.start.localeCompare(b.start));
 }
 
 // ---- A match's summary --------------------------------------------------------------
