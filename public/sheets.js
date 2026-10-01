@@ -628,7 +628,7 @@ export async function openTeam(league, id, fallback = {}) {
   const s = sheet(leagueName(league, L()), { league });
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
-  ctx.track(null, [teamKey(league, fallback.name || ''), `league:${leagueKey(league)}`].filter(k => !k.endsWith(':')), 1.5);
+  ctx.track([teamKey(league, fallback.name || ''), `league:${leagueKey(league)}`].filter(k => !k.endsWith(':')), 1.5);
   const espn = Boolean(LEAGUES[league]?.espn);
   const en = L() === 'en';
   const W = (zh, eng) => (en ? eng : zh);
