@@ -73,7 +73,9 @@ export const eltaAppUrl = n => (ELTA_PLAY[n] ? `eltatv://live/${n}` : null);
 //   'dual'  雙語: Chinese commentary with the original on the second audio
 //           track (said so, and a 體育台's program that says nothing: the
 //           four 體育台 carry both); never CPBL's: a Taiwan league's own
-//           broadcast has no English, whatever its title says
+//           broadcast has no English
+//   'local' CPBL's 雙語: two Chinese commentary teams (ELTA's own and a
+//           台語 one for 台鋼's home games, the club's for 富邦's)
 //   'venue' Chinese commentary with the ground's sound on the second track
 //           (副聲道現場原音)
 //   'zh'    Chinese only (中文, a MAX channel's program that says nothing, CPBL's)
@@ -81,13 +83,14 @@ export const eltaAppUrl = n => (ELTA_PLAY[n] ? `eltatv://live/${n}` : null);
 const SPORTS_TV = new Set([101, 105, 110, 115]);
 export function eltaAudio(title, ch, league = '') {
   const t = String(title || '');
-  const audio = /雙語/.test(t) && league !== 'cpbl' ? 'dual' : /副聲道/.test(t) ? 'venue' : /原音|英文|English/i.test(t) ? 'en' : /中文/.test(t) ? 'zh' : SPORTS_TV.has(ch) && league !== 'cpbl' ? 'dual' : 'zh';
+  const audio = /雙語/.test(t) ? (league === 'cpbl' ? 'local' : 'dual') : /副聲道/.test(t) ? 'venue' : /原音|英文|English/i.test(t) ? 'en' : /中文/.test(t) ? 'zh' : SPORTS_TV.has(ch) && league !== 'cpbl' ? 'dual' : 'zh';
   return { audio, adFree: /無廣告/.test(t) || (ch >= 540 && ch <= 549) };
 }
 export const AUDIO_NAMES = {
   en: { zh: '英文原音', en: 'English' },
   dual: { zh: '雙語', en: 'Chinese + English' },
   venue: { zh: '中文・現場音', en: 'Chinese + ground' },
+  local: { zh: '雙語・中文', en: 'Two Chinese crews' },
   zh: { zh: '中文', en: 'Chinese' }
 };
 // Whether a channel has the commentary the person likes: Chinese on every
@@ -97,7 +100,7 @@ export const hasAudio = (c, prefer = 'en') => (prefer === 'zh' ? c.audio !== 'en
 // track before a second one), then no ads (a MAX channel before the 體育台
 // with the same game). Lower is better.
 export function channelRank(c, prefer = 'en') {
-  const order = prefer === 'zh' ? { zh: 0, dual: 0, venue: 0, en: 3 } : { en: 0, dual: 1, venue: 2, zh: 3 };
+  const order = prefer === 'zh' ? { zh: 0, dual: 0, venue: 0, local: 0, en: 3 } : { en: 0, dual: 1, venue: 2, local: 3, zh: 3 };
   return (order[c.audio] ?? 3) * 10 + (c.adFree ? 0 : 5);
 }
 
