@@ -37,8 +37,9 @@ test("Kambi's players carry their nation's flag (the kit's table, else where the
 
 test("a UFC bout and a tennis match link to Play's game by the two names; UFC is a Play league now", () => {
   assert.equal(LEAGUES.ufc.play, 'ufc');
-  assert.equal(LEAGUES.rugbyunion.play, 'rugbyunion');
-  assert.equal(LEAGUES.acl.play, 'acl');
+  // No Taiwan broadcast: off Fixtures.
+  assert.equal(LEAGUES.rugbyunion, undefined);
+  assert.equal(LEAGUES.acl, undefined);
   for (const key of ['nrl', 'afl', 'nascar', 'indycar', 'nwsl']) assert.equal(LEAGUES[key], undefined, key);
   assert.equal(LEAGUES.facup.play, 'facup');
   assert.equal(playPairId('ufc', '2026-10-03T20:00:00Z', { name: 'Marvin Vettori' }, { name: 'Ismail Naurdiev' }), 'ufc_2026-10-03T20_marvinvettori_ismailnaurdiev');

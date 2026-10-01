@@ -236,6 +236,9 @@ function fieldStatus(text, sport) {
 }
 // A row's status: a game on another day shows its day above its time.
 function statusEl(e, day = true) {
+  // A time not announced yet (Formula E's calendar): the day, "time TBA".
+  const tbc = e.tbc || (e.sessionKey && e.sessions?.find(x => x.abbr === e.sessionKey)?.tbc);
+  if (tbc && e.status.state === 'pre') return el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: ctx.locale === 'en' ? 'TBA' : '時間待定' })]);
   if (e.status.state === 'pre' && !e.status.void && localDate(Date.parse(e.start)) !== today())
     return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: clock(e.start) })]) : el('span', { class: 'event-status pre', text: clock(e.start) });
   return el('span', { class: `event-status ${e.status.state}`, text: statusText(e) });
@@ -412,7 +415,9 @@ const audioTag = b => {
 };
 export function tvLine(e) {
   if (e.status?.state === 'post' || e.status?.void) return null;
-  const list = onMine(channelsOf(e));
+  // ELTA's exact channels, else a free stream (YouTube, SOOP) the league is on.
+  const exact = onMine(channelsOf(e));
+  const list = exact.length ? exact : onMine(tvOf(e).filter(b => b.free && !b.practice));
   if (!list.length) return null;
   const name = b => (b.short ? b.short[ctx.locale === 'en' ? 'en' : 'zh'] : tvName(b));
   const parts = list.slice(0, 2).flatMap((b, i) => [i ? document.createTextNode('、') : null, el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), audioTag(b)])]);

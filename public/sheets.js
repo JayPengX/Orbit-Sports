@@ -508,8 +508,9 @@ export async function openPerson(league, p) {
 // channel, when it starts, a tap to watch it on ELTA.tv), then the other services.
 function twCard(league, e = null) {
   const list = e ? tvOf(e) : broadcastsOf(league);
-  const exact = list.filter(b => b.ch);
-  const rest = list.filter(b => !b.ch);
+  // A channel ELTA's schedule names, or a free stream with its page (YouTube, SOOP): a link to watch.
+  const exact = list.filter(b => b.ch || b.url);
+  const rest = list.filter(b => !b.ch && !b.url);
   return card(
     T('watchTw'),
     list.length
@@ -523,7 +524,7 @@ function twCard(league, e = null) {
                     el('span', { class: 'tw-watch-name' }, [
                       el('strong', { text: tvName(b) }),
                       // Its commentary and ads, then when it starts and where it's on.
-                      el('small', { text: [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : '', b.mod ? 'MOD' : b.kind === 'tv' ? (L() === 'en' ? 'MOD, cable, ELTA.tv' : 'MOD、有線電視、ELTA.tv') : 'ELTA.tv'].filter(Boolean).join(' · ') })
+                      el('small', { text: b.ch ? [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : '', b.mod ? 'MOD' : b.kind === 'tv' ? (L() === 'en' ? 'MOD, cable, ELTA.tv' : 'MOD、有線電視、ELTA.tv') : 'ELTA.tv'].filter(Boolean).join(' · ') : L() === 'en' ? 'Free' : '免費' })
                     ]),
                     b.url ? el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` }) : null
                   ])
@@ -533,7 +534,7 @@ function twCard(league, e = null) {
           rest.length ? el('div', { class: 'tw-list' }, rest.map(b => el('span', { class: `tw-chip ${b.kind}`, text: tvName(b) }))) : null
         ])
       : el('p', { class: 'muted small', text: T('noTw') }),
-    { sub: exact.length ? (L() === 'en' ? "ELTA's schedule" : '愛爾達節目表') : L() === 'en' ? `Checked ${CHECKED}` : `${CHECKED} 查核` }
+    { sub: exact.some(b => b.ch) ? (L() === 'en' ? "ELTA's schedule" : '愛爾達節目表') : L() === 'en' ? `Checked ${CHECKED}` : `${CHECKED} 查核` }
   );
 }
 

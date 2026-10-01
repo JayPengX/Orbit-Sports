@@ -253,6 +253,8 @@ export async function scoreboard(league, dates) {
   const l = LEAGUES[league];
   if (l?.kambi) return kambiEvents(league);
   if (l?.asia) return asiaEvents(league);
+  if (l?.motogp) return motogpEvents();
+  if (l?.tsdb) return tsdbRaceEvents(league);
   const list = [].concat(dates || []);
   const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: 20_000 }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: 20_000 })];
   const seen = new Set();
@@ -269,6 +271,8 @@ export async function seasonEvents(league, now = Date.now()) {
   const l = LEAGUES[league];
   if (l?.kambi) return kambiEvents(league);
   if (l?.asia) return asiaEvents(league);
+  if (l?.motogp) return motogpEvents(now);
+  if (l?.tsdb) return tsdbRaceEvents(league, now);
   const d = new Date(now);
   const years = [d.getUTCFullYear(), ...(d.getUTCMonth() >= 10 ? [d.getUTCFullYear() + 1] : [])];
   const pages = await Promise.all(years.map(y => getJson(`${SITE}/${l.espn}/scoreboard?dates=${y}&limit=400`, { ttl: 5 * 60_000 }).catch(() => null)));
@@ -399,6 +403,105 @@ async function notableOnly(events) {
   await Promise.race([learnFighterNations(kept.flatMap(e => [e.home.id, e.away.id])), new Promise(r => setTimeout(r, 2_500))]);
   for (const e of kept) for (const side of [e.home, e.away]) side.logo ||= playerFlag(side.id);
   return kept;
+}
+
+// ---- MotoGP (the series' own results API, through the proxy) -------------------------
+//
+// The season's Grands Prix (one call), each a race weekend; the ones within
+// ten days get their sessions (practice, qualifying, the sprint, the race)
+// and, once run, the order. The session codes as F1's: Q2 is the
+// qualifying that sets the grid, SPR the sprint, RAC the race.
+const MOTOGP = 'https://api.motogp.pulselive.com/motogp/v1';
+const MOTOGP_CLASS = 'e8c110ad-64aa-4e8e-8a86-f2f152f6a942';
+const MOTOGP_SESSION = { RAC: 'Race', SPR: 'SR', Q2: 'Qual' };
+const MOTOGP_ZH = { CAT: '加泰隆尼亞', ARA: '亞拉岡', RSM: '聖馬利諾', VAL: '瓦倫西亞', AME: '美洲', EMI: '艾米利亞' };
+const stateOf = st => (/FINISHED|COMPLETED/i.test(st || '') ? 'post' : /STARTED|RUNNING|LIVE|IN.?PROGRESS/i.test(st || '') && !/NOT/i.test(st || '') ? 'in' : 'pre');
+const plainStatus = state => ({ state, detail: '', short: '', completed: state === 'post', void: false, delayed: false, name: '', clock: '', period: 0 });
+const titleCase = t => String(t || '').toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
+export function parseMotoGpEvents(list) {
+  return (list || [])
+    .filter(x => !x.test && x.date_start)
+    .map(x => ({
+      id: `mgp${x.id}`,
+      uuid: x.id,
+      league: 'motogp',
+      kind: 'field',
+      // "日本站", "Japanese GP": the country (San Marino's and Aragon's by their own names).
+      name: detectLocale() === 'en' ? `${titleCase(x.name).replace(/^Grand Prix (Of|De) (The )?/, '')} GP` : `${MOTOGP_ZH[x.short_name] || countryName(x.country?.name, 'zh')}站`,
+      enName: titleCase(x.sponsored_name || x.name),
+      short: x.short_name || '',
+      start: `${x.date_start}T00:00:00Z`,
+      end: x.date_end ? `${x.date_end}T23:59:00Z` : null,
+      status: plainStatus(stateOf(x.status)),
+      venue: x.circuit?.name || '',
+      tv: '',
+      note: '',
+      series: null,
+      stage: null,
+      sessions: []
+    }))
+    .sort((a, b) => a.start.localeCompare(b.start));
+}
+export function parseMotoGpSessions(list) {
+  return (list || [])
+    .filter(x => MOTOGP_SESSION[x.type + (x.number || '')] || MOTOGP_SESSION[x.type])
+    .map(x => {
+      const code = x.type === 'Q' ? `Q${x.number}` : x.type;
+      return { id: x.id, abbr: MOTOGP_SESSION[code] || code, name: code, start: x.date, status: plainStatus(stateOf(x.status)), field: [] };
+    })
+    .filter(x => ['Race', 'SR', 'Qual'].includes(x.abbr));
+}
+export const parseMotoGpOrder = data =>
+  (data?.classification || []).map(c => ({ id: c.rider?.riders_api_uuid || c.rider?.id || '', name: c.rider?.full_name || '', short: c.rider?.full_name || '', athlete: true, flag: c.rider?.country?.iso ? flagUrl(c.rider.country.iso) : '', logo: '', score: c.points ? `${c.points} 分` : c.time || c.gap?.first || '', team: c.team?.name || '' }));
+async function motogpEvents(now = Date.now()) {
+  const seasons = await getJson(`${MOTOGP}/results/seasons`, { ttl: 24 * 3_600_000 });
+  const season = (seasons || []).find(x => x.current) || seasons?.[0];
+  if (!season) return [];
+  const events = parseMotoGpEvents(await getJson(`${MOTOGP}/results/events?seasonUuid=${season.id}`, { ttl: 30 * 60_000 }));
+  const near = events.filter(e => Math.abs(Date.parse(e.start) - now) < 10 * 86_400_000);
+  await Promise.all(
+    near.map(async e => {
+      e.sessions = parseMotoGpSessions(await getJson(`${MOTOGP}/results/sessions?eventUuid=${e.uuid}&categoryUuid=${MOTOGP_CLASS}`, { ttl: 5 * 60_000 }).catch(() => []));
+      await Promise.all(e.sessions.filter(x => x.status.state !== 'pre').map(async x => (x.field = parseMotoGpOrder(await getJson(`${MOTOGP}/results/session/${x.id}/classification?test=false`, { ttl: 60_000 }).catch(() => null)))));
+      if (e.sessions.length) e.start = e.sessions[0].start;
+    })
+  );
+  return events;
+}
+
+// ---- Formula E (TheSportsDB's calendar, open to browsers) ------------------------------
+//
+// One entry per session ("Jeddah ePrix Qualifying"), grouped by round into
+// race weekends; a time of exactly midnight is TheSportsDB's "not known yet".
+const TSDB = 'https://www.thesportsdb.com/api/v1/json/3';
+const FE_SESSION = [
+  [/qualifying/i, 'Qual'],
+  [/race|e-?prix$/i, 'Race']
+];
+export function parseTsdbRaces(list, league) {
+  const rounds = new Map();
+  for (const x of list || []) {
+    const abbr = /practice/i.test(x.strEvent) ? null : FE_SESSION.find(([re]) => re.test(x.strEvent))?.[1];
+    if (!abbr) continue;
+    const key = `${x.strSeason}-${x.intRound}-${String(x.strEvent).replace(/\s+(qualifying|race).*$/i, '')}`;
+    if (!rounds.has(key)) rounds.set(key, { round: x.intRound, name: String(x.strEvent).replace(/\s+(qualifying|race).*$/i, ''), venue: x.strVenue || '', sessions: [] });
+    const at = x.strTimestamp ? `${x.strTimestamp.replace(/\+00:00$/, '')}Z` : `${x.dateEvent}T00:00:00Z`;
+    const state = /finished|FT|match finished/i.test(x.strStatus || '') || x.intHomeScore != null ? 'post' : 'pre';
+    rounds.get(key).sessions.push({ id: String(x.idEvent), abbr, name: abbr, start: at, status: plainStatus(state), field: [], tbc: /T00:00:00/.test(at) });
+  }
+  return [...rounds.values()]
+    .map(r => {
+      const sessions = r.sessions.sort((a, b) => a.start.localeCompare(b.start));
+      const done = sessions.length && sessions.every(x => x.status.state === 'post');
+      return { id: `fe${sessions[0].id}`, tbc: sessions.every(x => x.tbc), league, kind: 'field', name: r.name, enName: r.name, short: '', start: sessions[0].start, end: sessions.at(-1).start, status: plainStatus(done ? 'post' : 'pre'), venue: r.venue, tv: '', note: '', series: null, stage: null, sessions };
+    })
+    .sort((a, b) => a.start.localeCompare(b.start));
+}
+async function tsdbRaceEvents(league, now = Date.now()) {
+  const y = new Date(now).getUTCFullYear();
+  const seasons = [`${y - 1}-${y}`, `${y}-${y + 1}`];
+  const lists = await Promise.all(seasons.map(sn => fetch(`${TSDB}/eventsseason.php?id=${LEAGUES[league].tsdb}&s=${sn}`).then(r => (r.ok ? r.json() : null)).catch(() => null)));
+  return parseTsdbRaces(lists.flatMap(d => d?.events || []), league);
 }
 
 // ---- NPB, KBO, CPBL (the leagues' own sites, through the proxy) -----------------------

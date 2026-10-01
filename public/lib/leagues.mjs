@@ -11,20 +11,25 @@
 //   kind    'match' two sides; 'field' a race or tournament; 'card' a fight card;
 //           'draw' a tennis draw
 import { leagueLogo as kitLeagueLogo } from './logos.mjs';
-import { SPORTS, CATALOG } from './catalog.mjs';
+import { SPORTS as ALL_SPORTS, CATALOG } from './catalog.mjs';
 
-export { SPORTS };
-
+// Only what Taiwan can watch (the catalogue's `off` leagues left out).
 export const LEAGUES = Object.fromEntries(
-  Object.entries(CATALOG).map(([key, l]) => {
+  Object.entries(CATALOG)
+    .filter(([, l]) => !l.off)
+    .map(([key, l]) => {
     const league = { sport: l.sport, zh: l.zh, en: l.en, play: l.bet ?? null, kind: l.kind };
     if (l.data === 'espn') league.espn = l.espn;
     if (l.data === 'kambi') league.kambi = l.kambi;
     if (l.data === 'asia') league.asia = l.asia;
+    if (l.data === 'tsdb') league.tsdb = l.tsdb;
+    if (l.data === 'motogp') league.motogp = true;
     for (const k of ['top', 'cup', 'standings', 'players']) if (l[k]) league[k] = l[k];
     return [key, league];
   })
 );
+// The sports with a league left.
+export const SPORTS = Object.fromEntries(Object.entries(ALL_SPORTS).filter(([k]) => Object.values(LEAGUES).some(l => l.sport === k)));
 
 export const leagueName = (key, lang = 'zh') => LEAGUES[key]?.[lang === 'en' ? 'en' : 'zh'] || key;
 export const leaguesOf = sport => Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport);

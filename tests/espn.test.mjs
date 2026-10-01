@@ -9,11 +9,13 @@ const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, im
 test('every league has a sport, a source and names', () => {
   for (const [key, l] of Object.entries(LEAGUES)) {
     assert.ok(SPORTS[l.sport], key);
-    assert.ok(l.espn || l.kambi || l.asia, key);
+    assert.ok(l.espn || l.kambi || l.asia || l.tsdb || l.motogp, key);
     assert.ok(l.zh && l.en, key);
   }
-  // Trimmed to first tiers and the international game (2026-09-30).
-  assert.ok(Object.keys(LEAGUES).length >= 45);
+  // Only what Taiwan can watch (2026-10-01): no ACB, no Eredivisie, no cricket.
+  assert.ok(Object.keys(LEAGUES).length >= 35);
+  for (const k of ['acb', 'eredivisie', 'cricket', 'snooker', 'rugbyunion']) assert.equal(LEAGUES[k], undefined, k);
+  assert.ok(LEAGUES.formulae && LEAGUES.motogp && LEAGUES.kbo && LEAGUES.jleague);
 });
 
 test('team scoreboards: both sides, scores, status', () => {

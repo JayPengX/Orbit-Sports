@@ -43,7 +43,9 @@ test('broadcast services: what they carry', () => {
   assert.ok(watchable('laliga', ['dazn']));
   assert.ok(!watchable('epl', ['dazn']));
   assert.ok(watchable('epl', []));
-  assert.ok(!watchable('kbo', []));
+  // KBO: free on SOOP; Formula E on Disney+, its practice on YouTube.
+  assert.ok(watchable('kbo', ['soop']));
+  assert.ok(watchable('formulae', ['disney']) && watchable('formulae', ['youtube']));
   assert.ok(leaguesOn(['elta']).includes('nba'));
   assert.ok(!leaguesOn(['elta']).includes('laliga'));
 });
