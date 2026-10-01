@@ -353,8 +353,8 @@ async function loadDay(date) {
     Object.assign(slot, { events, at: Date.now(), stale: false, leagues: key });
     if (isToday) saveDay(date, slot);
   } catch {
-    if (!slot.at) slot.at = Date.now();
-    slot.stale = false;
+    // Tried for these follows (a failed read isn't read again at once).
+    Object.assign(slot, { at: slot.at || Date.now(), stale: false, leagues: key });
   } finally {
     slot.loading = false;
   }
@@ -624,9 +624,13 @@ function renderHome() {
   const h = state.home;
   const slot = state.days.get(h.date);
   h.settled = false;
-  // The picks are only games on TV here: none until the lists saying which are in.
-  if (!slot?.at || (slot.leagues !== leaguesKey() && !slot.stale) || !tvReady()) {
-    if (!slot?.loading) loadDay(h.date);
+  // The picks are only games on TV here: none until the lists saying which
+  // are in (onTvChange repaints then). The day is read again only when it
+  // needs it: never for the TV lists alone, or loadDay's repaint calls
+  // straight back here and the page locks up.
+  const unread = !slot?.at || (slot.leagues !== leaguesKey() && !slot.stale);
+  if (unread || !tvReady()) {
+    if (unread && !slot?.loading) loadDay(h.date);
     put(box, homeHead(), spinner());
     centerChosen(box);
     return;
