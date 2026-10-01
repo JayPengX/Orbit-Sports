@@ -5,8 +5,8 @@ import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
 import { logoPicture, countryFlag, f1Driver } from './lib/logos.mjs';
 import { liveLabel, liveNote, possessionOf } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
-import { broadcastsOf } from './lib/broadcast.mjs';
-import { playGameId, freshHeadshot } from './lib/espn.mjs';
+import { broadcastsOf, AUDIO_NAMES } from './lib/broadcast.mjs';
+import { playGameId, freshHeadshot, SESSION_NAMES } from './lib/espn.mjs';
 import { playable, leagueOnSale } from './lib/playable.mjs';
 import { tvOf, channelsOf } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
@@ -56,11 +56,69 @@ export const whenText = iso => {
   const date = localDate(Date.parse(iso));
   return date === today() ? clock(iso) : `${dayLabel(date)} ${clock(iso)}`;
 };
-export function toast(text) {
-  const box = el('div', { class: 'toast', text });
+export function toast(text, action = null, ms = 3200) {
+  const box = el('div', { class: `toast${action ? ' with-action' : ''}` }, [el('span', { text }), action]);
   $('toasts').append(box);
-  setTimeout(() => box.remove(), 3200);
+  setTimeout(() => box.remove(), ms);
+  return box;
 }
+
+// ---- Watching on ELTA.tv ------------------------------------------------------------
+//
+// On a phone a channel opens in the ELTA.tv app itself (eltatv://live/<ch>,
+// the link ELTA's own site uses), so no Safari page is left behind when the
+// app opens. If the app didn't open (not installed), a tap away from the web
+// page; once the web page is taken that way, the next taps go straight to it
+// for a month. Elsewhere, the web page.
+const APP_MISS = 'fx.eltaAppMiss';
+const phone = () => (/Android/i.test(navigator.userAgent) ? 'android' : /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'ios' : '');
+const appMissed = () => {
+  try {
+    return Date.now() - Number(localStorage.getItem(APP_MISS) || 0) < 30 * 86_400_000;
+  } catch {
+    return false;
+  }
+};
+export function openElta(ev, b) {
+  const device = phone();
+  if (!b.app || !device || appMissed()) return; // the link's own web page
+  ev.preventDefault();
+  if (device === 'android') {
+    // Android's own fallback: the web page when the app isn't there.
+    location.href = `intent://live/${b.ch}#Intent;scheme=eltatv;package=tv.eltaott.app;${b.url ? `S.browser_fallback_url=${encodeURIComponent(b.url)};` : ''}end`;
+    return;
+  }
+  let left = false;
+  let offer = null;
+  const away = () => {
+    if (document.visibilityState !== 'hidden') return;
+    left = true;
+    offer?.remove();
+  };
+  document.addEventListener('visibilitychange', away);
+  window.addEventListener('pagehide', away, { once: true });
+  location.href = b.app;
+  setTimeout(() => {
+    if (left || !b.url) return document.removeEventListener('visibilitychange', away);
+    const web = el('a', {
+      class: 'toast-act',
+      href: b.url,
+      target: '_blank',
+      rel: 'noopener',
+      text: `${ctx.t('eltaWeb')} ›`,
+      onclick: () => {
+        try {
+          localStorage.setItem(APP_MISS, String(Date.now()));
+        } catch {}
+        offer?.remove();
+      }
+    });
+    offer = toast(ctx.t('eltaAppMiss'), web, 8000);
+    setTimeout(() => document.removeEventListener('visibilitychange', away), 8000);
+  }, 1800);
+}
+// A link that plays a channel (`b` from tvOf: url, app), or a plain label when it can't be watched online (MOD's own).
+export const watchLink = (b, attrs, children) => (b.url ? el('a', { ...attrs, href: b.url, target: '_blank', rel: 'noopener', onclick: ev => openElta(ev, b) }, children) : el('div', attrs, children));
 
 // ---- Logos, leagues ----------------------------------------------------------------
 
@@ -234,10 +292,13 @@ export function eventRow(e, { league = true, day = true } = {}) {
   }
   // Races, tournaments, fight cards: one row for the whole event.
   const ended = e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1);
-  const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e) : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [e.session, `🏆 ${ended.field[0].name}`].filter(Boolean).join(' · ') : [e.session, e.venue].filter(Boolean).join(' · ')) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
-  return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
+  // A race weekend's session: its badge says which, so the line under it doesn't repeat it.
+  const sess = sessionTag(e);
+  const said = sess ? '' : e.session;
+  const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, `🏆 ${ended.field[0].name}`].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
+  return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
-    el('div', { class: 'event-title' }, [el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null, tvLine(e)]),
+    el('div', { class: 'event-title' }, [sess ? el('div', { class: 'sess-head' }, [sess, el('strong', { text: e.name })]) : el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null, tvLine(e)]),
     betChip(e)
   ]);
 }
@@ -308,11 +369,29 @@ export function twChips(league, n = 3, e = null) {
   return el('div', { class: 'tw-chips' }, list.slice(0, n).map(b => el('span', { class: `tw-chip ${b.kind}${b.ch ? ' exact' : ''}`, text: tvName(b) })));
 }
 // A row's 📺 line: the channels a game is on, when ELTA's schedule says (not a guess from the league).
+// Each with its commentary (原音, 中文, 雙語), the person's kind marked: the
+// best for them first (their commentary, then a MAX channel without ads).
+export const audioName = b => (b.audio ? AUDIO_NAMES[b.audio]?.[ctx.locale === 'en' ? 'en' : 'zh'] || '' : '');
+const audioTag = b => {
+  const want = ctx.state?.prefs?.audio || 'en';
+  const mine = b.audio === want || (want === 'en' && b.audio === 'dual');
+  return b.audio ? el('span', { class: `au-tag${mine ? ' mine' : ''}`, text: audioName(b) }) : null;
+};
 export function tvLine(e) {
   if (e.status?.state === 'post' || e.status?.void) return null;
   const list = onMine(channelsOf(e));
   if (!list.length) return null;
-  return el('small', { class: 'tv-line' }, [el('span', { 'aria-hidden': 'true', text: '📺 ' }), document.createTextNode(list.slice(0, 2).map(tvName).join('、') + (list.length > 2 ? ` +${list.length - 2}` : ''))]);
+  const name = b => (b.short ? b.short[ctx.locale === 'en' ? 'en' : 'zh'] : tvName(b));
+  const parts = list.slice(0, 2).flatMap((b, i) => [i ? document.createTextNode('、') : null, el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), audioTag(b)])]);
+  return el('small', { class: 'tv-line' }, [el('span', { 'aria-hidden': 'true', text: '📺 ' }), ...parts, list.length > 2 ? document.createTextNode(` +${list.length - 2}`) : null]);
+}
+// A race weekend's session as a badge (排位賽, 衝刺賽, 正賽…), coloured by kind, so the row says it at a glance.
+export function sessionTag(e) {
+  if (!e?.sessionKey) return null;
+  const n = SESSION_NAMES[e.sessionKey];
+  const kind = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' }[e.sessionKey] || 'other';
+  const icon = { race: '🏁', qual: '⏱️', sprint: '⚡', sq: '⏱️' }[kind] || '';
+  return el('span', { class: `sess-tag ${kind}` }, [icon ? el('span', { 'aria-hidden': 'true', text: icon }) : null, document.createTextNode(n ? n[ctx.locale === 'en' ? 'en' : 'zh'] : e.session || '')]);
 }
 
 // ---- Sheets and sections ----------------------------------------------------------------

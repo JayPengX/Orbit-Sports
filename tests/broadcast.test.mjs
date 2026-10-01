@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaPrograms, zhSame, eltaDays, NBA_ELTA_FROM } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaPrograms, zhSame, eltaDays, NBA_ELTA_FROM, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '../public/lib/names.mjs';
 import { playablePair, leagueOnSale, REACH } from '../public/lib/playable.mjs';
 
@@ -102,4 +102,44 @@ test('Apple TV+ only on a regular-season MLB Friday (US time)', () => {
   assert.ok(!apple(mlb('2026-09-24T23:10:00Z')));
   assert.ok(!apple(mlb('2026-10-01T00:00:00Z', { key: 'post' })));
   assert.ok(!apple(mlb('2026-10-02T23:10:00Z', { key: 'post' })));
+});
+
+test("ELTA's commentary and ads from its titles; delayed and Kids showings left out", () => {
+  assert.deepEqual(eltaAudio('道奇 VS 巨人 例行賽 9/28(原音) LIVE', 540), { audio: 'en', adFree: true });
+  assert.deepEqual(eltaAudio('巴林站 正賽(英文解說原音無廣告) LIVE', 544), { audio: 'en', adFree: true });
+  assert.deepEqual(eltaAudio('巴林站 排位賽(中文解說無廣告) LIVE', 545), { audio: 'zh', adFree: true });
+  assert.deepEqual(eltaAudio('味全 VS 富邦 例行賽 9/28(雙語/無廣告) LIVE', 544), { audio: 'dual', adFree: true });
+  assert.deepEqual(eltaAudio('統一 VS 味全 例行賽 10/1(無廣告/副聲道現場原音) LIVE', 545), { audio: 'venue', adFree: true });
+  // A 體育台 unmarked: Chinese, with ads; one marked 原音 is the original feed.
+  assert.deepEqual(eltaAudio('巴林站 正賽 LIVE', 105), { audio: 'zh', adFree: false });
+  assert.deepEqual(eltaAudio('海盜 VS 老虎 例行賽 9/27(原音) LIVE', 110), { audio: 'en', adFree: false });
+  const oct = parseElta(JSON.parse(readFileSync(new URL('./fixtures/elta-2026-10-01.json', import.meta.url), 'utf8')));
+  assert.ok(!oct.some(p => /^Kids|D-$/.test(p.title)), 'no Kids, no D-LIVE');
+  assert.ok(oct.some(p => p.ch === 544 && p.audio === 'en'));
+});
+
+test("a race's channels: the person's commentary first, a MAX channel without ads before the 體育台", () => {
+  const oct = parseElta(JSON.parse(readFileSync(new URL('./fixtures/elta-2026-10-01.json', import.meta.url), 'utf8')));
+  const f1 = (k, start) => ({ id: `600060990~${k}`, league: 'f1', kind: 'field', sessionKey: k, start, status: { state: 'pre' } });
+  const chs = (e, pref) => broadcastsFor(e, oct, [], [], pref).filter(b => b.ch).map(b => b.ch);
+  // Bahrain (at Sepang): the race on MAX5 原音, MAX6 中文 without ads, 體育2台.
+  assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'en'), [544, 545, 105]);
+  assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'zh'), [545, 105, 544]);
+  // Qualifying: no sprint qualifying mixed in; Singapore's sprint qualifying only on MAX5.
+  assert.deepEqual(chs(f1('Qual', '2026-10-03T08:00Z'), 'en'), [544, 545, 110]);
+  assert.deepEqual(chs(f1('SQ', '2026-10-09T12:30Z'), 'en'), [544]);
+  const top = broadcastsFor(f1('Race', '2026-10-04T07:00Z'), oct, [], [], 'en')[0];
+  assert.equal(top.audio, 'en');
+  assert.equal(top.adFree, true);
+  assert.equal(top.app, 'eltatv://live/544');
+  assert.equal(top.short.zh, 'MAX5台');
+});
+
+test("ELTA's channels: MOD's 980s aren't on ELTA.tv; the app opens a channel the way ELTA's site does", () => {
+  assert.equal(eltaChannel(983).zh, 'MOD 983台');
+  assert.equal(eltaWatchUrl(983), null);
+  assert.equal(eltaAppUrl(983), null);
+  assert.equal(eltaAppUrl(101), 'eltatv://live/101');
+  assert.equal(eltaWatchUrl(544), 'https://eltaott.tv/channel/play/544/108');
+  assert.equal(eltaChannel(105).short.zh, '愛爾達2台');
 });

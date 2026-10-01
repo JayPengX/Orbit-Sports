@@ -70,16 +70,44 @@ const ELTA_LEAGUE = {
   MLB: 'mlb', NBA: 'nba', CPBL: 'cpbl', 'Premier League': 'epl', UCL: 'ucl', 'UEFA Champions League': 'ucl', 'UEFA Europa League': 'uel', 'UEFA Conference League': 'uecl',
   Bundesliga: 'bundesliga', 'Serie A': 'seriea', 'Ligue 1': 'ligue1', 'UEFA Nations League': 'nationsleague', 'Scottish Premiership': 'scotland', 'FA Cup': 'facup', F1: 'f1', WTT: 'tabletennis', BWF: 'badminton'
 };
-// Its channels: the four 體育台 (on MOD and cable too) and the ten MAX (ELTA.tv only).
+// Its channels: the four 體育台 (on MOD and cable too, with ads), the ten
+// MAX (ELTA.tv only, no ads) and MOD's own 980s (its add-on sports channels).
 export function eltaChannel(n) {
   const TV = { 101: 1, 105: 2, 110: 3, 115: 4 };
-  if (TV[n]) return { zh: `愛爾達體育${TV[n]}台`, en: `ELTA Sports ${TV[n]}`, kind: 'tv', svc: 'elta', ch: n };
-  if (n >= 540 && n <= 549) return { zh: `ELTA.tv 體育MAX${n - 539}台`, en: `ELTA.tv Sports MAX ${n - 539}`, kind: 'ott', svc: 'elta', ch: n };
-  return { zh: `ELTA.tv（${n}）`, en: `ELTA.tv (${n})`, kind: 'ott', svc: 'elta', ch: n };
+  if (TV[n]) return { zh: `愛爾達體育${TV[n]}台`, en: `ELTA Sports ${TV[n]}`, short: { zh: `愛爾達${TV[n]}台`, en: `ELTA ${TV[n]}` }, kind: 'tv', svc: 'elta', ch: n };
+  if (n >= 540 && n <= 549) return { zh: `ELTA.tv 體育MAX${n - 539}台`, en: `ELTA.tv Sports MAX ${n - 539}`, short: { zh: `MAX${n - 539}台`, en: `MAX ${n - 539}` }, kind: 'ott', svc: 'elta', ch: n, max: true };
+  if (n >= 980 && n <= 989) return { zh: `MOD ${n}台`, en: `MOD ${n}`, short: { zh: `MOD ${n}`, en: `MOD ${n}` }, kind: 'tv', svc: 'elta', ch: n, mod: true };
+  return { zh: `ELTA.tv（${n}）`, en: `ELTA.tv (${n})`, short: { zh: `ELTA ${n}`, en: `ELTA ${n}` }, kind: 'ott', svc: 'elta', ch: n };
 }
-// The page on ELTA.tv that plays a channel.
+// The page on ELTA.tv that plays a channel (MOD's 980s aren't on ELTA.tv).
 const ELTA_PLAY = { 101: 1, 102: 3, 103: 2, 104: 4, 105: 5, 110: 6, 115: 92, 540: 71, 541: 72, 542: 73, 543: 81, 544: 108, 545: 109, 546: 110, 547: 111, 548: 140, 549: 141 };
-export const eltaWatchUrl = n => (ELTA_PLAY[n] ? `https://eltaott.tv/channel/play/${n}/${ELTA_PLAY[n]}` : 'https://eltaott.tv/channel');
+export const eltaWatchUrl = n => (ELTA_PLAY[n] ? `https://eltaott.tv/channel/play/${n}/${ELTA_PLAY[n]}` : n >= 980 ? null : 'https://eltaott.tv/channel');
+// The same channel in the ELTA.tv app: the link ELTA's own site sends phones
+// to (its appRedirect.js: /channel/play/<ch>/… → eltatv://live/<ch>).
+export const eltaAppUrl = n => (ELTA_PLAY[n] ? `eltatv://live/${n}` : null);
+
+// What a program sounds like, from ELTA's title: 'en' English commentary or
+// the original feed (原音, 英文解說原音), 'dual' two audio tracks (雙語), 'venue'
+// Chinese with the ground's sound on the second track (副聲道現場原音), 'zh'
+// Chinese commentary (anything unmarked). `adFree`: said so, or a MAX channel.
+export function eltaAudio(title, ch) {
+  const t = String(title || '');
+  const audio = /雙語/.test(t) ? 'dual' : /副聲道/.test(t) ? 'venue' : /原音|英文解說|English/i.test(t) ? 'en' : 'zh';
+  return { audio, adFree: /無廣告/.test(t) || (ch >= 540 && ch <= 549) };
+}
+export const AUDIO_NAMES = {
+  en: { zh: '原音', en: 'English' },
+  dual: { zh: '雙語', en: 'Dual audio' },
+  venue: { zh: '中文・副聲道現場音', en: 'Chinese · ground sound' },
+  zh: { zh: '中文', en: 'Chinese' }
+};
+// How well a channel suits the person: the commentary they like first (with
+// 原音 wanted, a 雙語 channel has it on its second track), then no ads (a MAX
+// channel before the 體育台 with the same game), MOD's last. Lower is better.
+export function channelRank(c, prefer = 'en') {
+  const order = prefer === 'zh' ? { zh: 0, dual: 1, venue: 2, en: 3 } : { en: 0, dual: 1, venue: 2, zh: 3 };
+  return (order[c.audio] ?? 3) * 10 + (c.adFree ? 0 : 5) + (c.mod ? 1 : 0);
+}
 
 // The list (trimmed by the proxy, or ELTA's own) as programs: { league, start,
 // end (ms), ch, title, teams: ['海盜', '老虎'] or [], live, day }. Replays left out.
@@ -90,7 +118,8 @@ export function parseElta(data) {
   const out = [];
   for (const p of raw) {
     const league = ELTA_LEAGUE[p.g];
-    if (!league || !p.s || !/\bLIVE\b/i.test(p.t || '')) continue;
+    // Live only: not a delayed showing (D-LIVE) or the children's version (Kids).
+    if (!league || !p.s || !/\bLIVE\b/i.test(p.t || '') || /D-LIVE/i.test(p.t || '') || /^\s*Kids\b/i.test(p.t || '')) continue;
     // "海盜 VS 老虎 李灝宇先發… 例行賽 9/27(原音) LIVE": the two sides before the details.
     const vs = /^\s*(?:UEFA\s+)?([^\s【】]+)\s+VS\s+([^\s【】(（]+)/i.exec(p.t || '');
     // The title without "LIVE" and the day (the row shows the time), the details kept.
@@ -98,7 +127,7 @@ export function parseElta(data) {
       .replace(/\s*LIVE\s*$/i, '')
       .replace(/\s+\d{1,2}\/\d{1,2}(?=\s|\(|（|$)/, '')
       .trim();
-    out.push({ league, start: p.s * 1000, end: (p.e || p.s + 10_800) * 1000, ch: Number(p.ch), title, teams: vs ? [vs[1], vs[2]] : [], day: p.d });
+    out.push({ league, start: p.s * 1000, end: (p.e || p.s + 10_800) * 1000, ch: Number(p.ch), title, teams: vs ? [vs[1], vs[2]] : [], day: p.d, ...eltaAudio(p.t, Number(p.ch)) });
   }
   return out.sort((a, b) => a.start - b.start);
 }
@@ -146,7 +175,7 @@ export function eltaPrograms(programs, e, sides, others = []) {
 // Apple TV+ has MLB's Friday Night Baseball: a regular-season game on a
 // Friday in the US (Eastern time), no other.
 const fridayNight = e => new Date(Date.parse(e.start) - 4 * 3_600_000).getUTCDay() === 5 && !['post', 'final'].includes(e.stage?.key);
-export function broadcastsFor(e, programs, sides = [], others = []) {
+export function broadcastsFor(e, programs, sides = [], others = [], prefer = 'en') {
   const base = broadcastsOf(e.league).filter(b => !(e.league === 'mlb' && b.svc === 'appletv' && !fridayNight(e)));
   const covered = programs?.length && base.some(b => b.svc === 'elta') && Object.values(ELTA_LEAGUE).includes(e.league);
   const days = covered ? eltaDays(programs) : null;
@@ -157,11 +186,13 @@ export function broadcastsFor(e, programs, sides = [], others = []) {
   }
   const on = eltaPrograms(programs, e, sides, others);
   const seen = new Set();
-  const channels = on.map(p => ({ ...eltaChannel(p.ch), at: p.start, title: p.title, url: eltaWatchUrl(p.ch), ...(p.tentative ? { note: { zh: '同時段擇一，待公布', en: 'one of the games then, TBA' } } : {}) })).filter(c => !seen.has(c.ch) && seen.add(c.ch));
+  const channels = on
+    .map(p => ({ ...eltaChannel(p.ch), at: p.start, title: p.title, url: eltaWatchUrl(p.ch), app: eltaAppUrl(p.ch), audio: p.audio || 'zh', adFree: Boolean(p.adFree), ...(p.tentative ? { note: { zh: '同時段擇一，待公布', en: 'one of the games then, TBA' } } : {}) }))
+    .filter(c => !seen.has(c.ch) && seen.add(c.ch));
   // Hami Video carries ELTA's 體育台 (not its MAX ones).
-  const hami = channels.some(c => c.kind === 'tv') ? base.filter(b => b.svc === 'hami') : [];
-  // The 體育台 first (on MOD and cable too), then ELTA.tv's MAX channels.
-  return [...channels.sort((a, b) => (b.kind === 'tv') - (a.kind === 'tv') || a.ch - b.ch), ...hami, ...base.filter(b => b.svc !== 'elta' && b.svc !== 'hami')];
+  const hami = channels.some(c => c.kind === 'tv' && !c.mod) ? base.filter(b => b.svc === 'hami') : [];
+  // The best for the person first (their commentary, no ads), then the rest.
+  return [...channels.sort((a, b) => channelRank(a, prefer) - channelRank(b, prefer) || a.ch - b.ch), ...hami, ...base.filter(b => b.svc !== 'elta' && b.svc !== 'hami')];
 }
 // ELTA's NBA: the 2026-27 preseason's games from 10/6 (Taiwan), one a day.
 export const NBA_ELTA_FROM = '2026-10-06';

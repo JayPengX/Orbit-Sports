@@ -12,7 +12,7 @@ import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeams, hasStandings } from './lib/leagues.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, playTarget, goPlay, tvName } from './ui.js';
+import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, playTarget, goPlay, tvName, watchLink, audioName, sessionTag } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -463,9 +463,13 @@ function twCard(league, e = null) {
                 'div',
                 { class: 'tw-exact' },
                 exact.map(b =>
-                  el('a', { class: `tw-watch ${b.kind}`, href: b.url, target: '_blank', rel: 'noopener' }, [
-                    el('span', { class: 'tw-watch-name' }, [el('strong', { text: tvName(b) }), b.at ? el('small', { text: `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}${b.kind === 'tv' ? (L() === 'en' ? ' · MOD, cable, ELTA.tv' : ' · MOD、有線電視、ELTA.tv') : ' · ELTA.tv'}` }) : null]),
-                    el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` })
+                  watchLink(b, { class: `tw-watch ${b.kind}` }, [
+                    el('span', { class: 'tw-watch-name' }, [
+                      el('strong', { text: tvName(b) }),
+                      // Its commentary and ads, then when it starts and where it's on.
+                      el('small', { text: [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : '', b.mod ? 'MOD' : b.kind === 'tv' ? (L() === 'en' ? 'MOD, cable, ELTA.tv' : 'MOD、有線電視、ELTA.tv') : 'ELTA.tv'].filter(Boolean).join(' · ') })
+                    ]),
+                    b.url ? el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` }) : null
                   ])
                 )
               )
@@ -516,7 +520,7 @@ export function openFieldEvent(e) {
   s.dialog.addEventListener('close', () => clearInterval(timer));
 }
 function fillField(s, e) {
-  s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('h3', { class: 'field-title', text: e.name }), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') })]));
+  s.body.append(el('div', { class: 'q-card pad fx-card' }, [e.sessionKey ? el('div', { class: 'sess-head field-title' }, [sessionTag(e), el('h3', { text: e.name })]) : el('h3', { class: 'field-title', text: e.name }), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') })]));
   // F1: pole position for the qualifying, the race board otherwise (practice
   // and sprints aren't sold); a fight card or a tennis draw: the league's board.
   const target = playTarget(e);

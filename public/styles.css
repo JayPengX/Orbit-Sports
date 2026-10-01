@@ -652,3 +652,33 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .pick-bet { display: block; font-size: 12.5px; font-weight: 650; color: var(--accent); overflow-wrap: anywhere; }
 .day-strip .q-chip.day { position: relative; }
 .day-bet { position: absolute; top: -4px; right: -2px; font-size: 11px; line-height: 1; }
+
+/* A race weekend's session at a glance: a coloured badge before the name (the race the boldest). */
+.sess-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.sess-head strong, .sess-head h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sess-head h3 { margin: 0; }
+.sess-tag { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 750; line-height: 1; padding: 4px 8px 4px 6px; border-radius: 999px; white-space: nowrap; }
+.sess-tag.race { background: var(--accent); color: #fff; }
+.sess-tag.qual { background: color-mix(in srgb, #3b82f6 16%, transparent); color: #1d4ed8; }
+.sess-tag.sprint { background: color-mix(in srgb, #a855f7 16%, transparent); color: #7e22ce; }
+.sess-tag.sq { background: color-mix(in srgb, #14b8a6 16%, transparent); color: #0f766e; }
+.sess-tag.other { background: var(--q-sunken); color: var(--q-text-2); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .sess-tag.qual { color: #60a5fa; }
+  :root:not([data-theme='light']) .sess-tag.sprint { color: #c084fc; }
+  :root:not([data-theme='light']) .sess-tag.sq { color: #2dd4bf; }
+}
+:root[data-theme='dark'] .sess-tag.qual { color: #60a5fa; }
+:root[data-theme='dark'] .sess-tag.sprint { color: #c084fc; }
+:root[data-theme='dark'] .sess-tag.sq { color: #2dd4bf; }
+.event-row.sess-race { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* A channel's commentary on the 📺 line: the person's kind (原音, or 中文) stands out. */
+.tv-ch { white-space: nowrap; }
+.au-tag { display: inline-block; margin-left: 4px; font-size: 10.5px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: var(--q-sunken); color: var(--q-text-2); vertical-align: 1px; }
+.au-tag.mine { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.tv-audio-h { margin: 18px 0 0; font-size: 14px; }
+
+/* A toast with a way forward (the web page when the ELTA.tv app didn't open). */
+.toast.with-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: auto; }
+.toast-act { flex: none; font-weight: 750; color: var(--accent); text-decoration: none; }

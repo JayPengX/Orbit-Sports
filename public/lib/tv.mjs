@@ -39,7 +39,11 @@ function zhSides(e) {
     return [s?.name, s?.short, zh?.full, zh?.short].filter(Boolean);
   });
 }
-// Everything a game is on: { zh, en, kind, svc, ch?, url?, note? }, exact channels first.
-export const tvOf = e => (e ? broadcastsFor(e, eltaSchedule(), zhSides(e), known()) : []);
+// The commentary the person likes ('en' 原音, 'zh' 中文): their channels sort by it.
+let prefer = () => 'en';
+export const audioPref = fn => (prefer = fn);
+// Everything a game is on: { zh, en, kind, svc, ch?, url?, app?, audio?, adFree?, note? },
+// the channels that suit the person best first.
+export const tvOf = e => (e ? broadcastsFor(e, eltaSchedule(), zhSides(e), known(), prefer()) : []);
 // Only the exact channels (from ELTA's schedule): for a row's 📺 line.
 export const channelsOf = e => tvOf(e).filter(b => b.ch);

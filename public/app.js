@@ -10,7 +10,7 @@
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, activityPatch, affinity, appUrl, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, affinityPatch, settingPatch } from './lib/quadra.mjs';
 import { playGameId, localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, playoffRun, knockedOut } from './lib/espn.mjs';
-import { SERVICES, watchable, leaguesOn, eltaChannel, eltaWatchUrl } from './lib/broadcast.mjs';
+import { SERVICES, watchable, leaguesOn, eltaChannel, eltaWatchUrl, eltaAppUrl } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
 import { familyOfSport } from './lib/catalog.mjs';
@@ -20,8 +20,8 @@ import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.
 import { betsByEvent, legLeagues, betLegs, legEvent, titleSide, TITLE_MARKETS, bracketOf, sameName } from './lib/bets.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
-import { onTvChange, tvOf, knownEvents, eltaSchedule } from './lib/tv.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, betChip, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow } from './ui.js';
+import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref } from './lib/tv.mjs';
+import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, betChip, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, sessionTag, audioName } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, standingsTables } from './sheets.js';
 
 const locale = detectLocale();
@@ -32,7 +32,7 @@ const TABS = ['home', 'matches', 'live', 'following'];
 
 const state = {
   tab: 'home',
-  prefs: { sports: [], leagues: [], follows: [], tv: [] },
+  prefs: { sports: [], leagues: [], follows: [], tv: [], audio: 'en' },
   prefsLoaded: false,
   wallet: null,
   // The days read so far: date -> { events, at, loading }.
@@ -50,11 +50,11 @@ Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, isFol
 function applyPrefs(payload) {
   try {
     const p = payload ? JSON.parse(payload) : null;
-    if (p?.v === 3) state.prefs = { sports: p.sports || [], leagues: p.leagues || [], follows: p.follows || [], tv: p.tv || [] };
+    if (p?.v === 3) state.prefs = { sports: p.sports || [], leagues: p.leagues || [], follows: p.follows || [], tv: p.tv || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
     else if (p?.v === 2 && Array.isArray(p.follows)) {
       // Teams only, before: their sports and leagues follow from them.
       const leagues = [...new Set(p.follows.map(f => f.league).filter(k => LEAGUES[k]))];
-      state.prefs = { sports: [...new Set(leagues.map(k => LEAGUES[k].sport))], leagues, follows: p.follows, tv: [] };
+      state.prefs = { sports: [...new Set(leagues.map(k => LEAGUES[k].sport))], leagues, follows: p.follows, tv: [], audio: 'en' };
     }
   } catch {}
   // 球拍與其他 is four sports now: the ones of its leagues followed (all four if none).
@@ -70,11 +70,11 @@ function applyPrefs(payload) {
 let saveTimer = 0;
 function savePrefs() {
   clearTimeout(saveTimer);
-  const { sports, leagues, follows, tv } = state.prefs;
+  const { sports, leagues, follows, tv, audio } = state.prefs;
   // Play's copy: the follows, by its own league keys.
   const forPlay = { sports, leagues: leagues.map(leagueKey), teams: follows.map(f => ({ league: leagueKey(f.league), name: f.name })) };
   saveTimer = setTimeout(() => {
-    q.write({ payload: JSON.stringify({ v: 3, sports, leagues, follows, tv, t: Date.now() }), wallet: { settings: { ...affinityPatch('match').settings, ...settingPatch('follow:match', forPlay).settings } } }).catch(() => {});
+    q.write({ payload: JSON.stringify({ v: 3, sports, leagues, follows, tv, audio, t: Date.now() }), wallet: { settings: { ...affinityPatch('match').settings, ...settingPatch('follow:match', forPlay).settings } } }).catch(() => {});
   }, 800);
 }
 // A followed team's name as shown (kept in English on the pass: Play matches by it).
@@ -549,7 +549,7 @@ function pickCard(item, n, bets = null) {
     ]),
     el('div', { class: 'pick-body' }, [
       el('div', { class: 'pick-top' }, [leagueChip(e.league), tag ? el('span', { class: 'stage-tag', text: tag }) : null]),
-      e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : el('strong', { class: 'pick-title', text: e.session ? `${e.name} · ${e.session}` : e.name }),
+      e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : e.sessionKey ? el('div', { class: 'sess-head pick-title' }, [sessionTag(e), el('strong', { text: e.name })]) : el('strong', { class: 'pick-title', text: e.session ? `${e.name} · ${e.session}` : e.name }),
       series ? el('small', { class: 'series-line', text: series }) : null,
       liveLine(e),
       e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : null,
@@ -957,7 +957,25 @@ function tvChanged() {
 }
 function openTvEditor() {
   const s = sheet(t('tvPick'));
-  const paint = () => put(s.body, el('p', { class: 'section-sub', text: t('tvHint') }), tvChips(paint), state.prefs.tv.length ? el('button', { class: 'q-btn block', type: 'button', text: t('tvClear'), onclick: () => ((state.prefs.tv = []), tvChanged(), paint()) }) : null);
+  // The commentary the person likes: their channels list it first (ELTA's MAX ones without ads before the 體育台).
+  const audio = () =>
+    el('div', { class: 'stack tight' }, [
+      el('h4', { class: 'tv-audio-h', text: t('tvAudio') }),
+      segmented(
+        [
+          ['en', t('tvAudioEn')],
+          ['zh', t('tvAudioZh')]
+        ],
+        state.prefs.audio || 'en',
+        v => {
+          state.prefs.audio = v;
+          tvChanged();
+          paint();
+        }
+      ),
+      el('p', { class: 'section-sub', text: t('tvAudioHint') })
+    ]);
+  const paint = () => put(s.body, el('p', { class: 'section-sub', text: t('tvHint') }), tvChips(paint), state.prefs.tv.length ? el('button', { class: 'q-btn block', type: 'button', text: t('tvClear'), onclick: () => ((state.prefs.tv = []), tvChanged(), paint()) }) : null, audio());
   paint();
 }
 
@@ -1072,9 +1090,9 @@ function tvGuide(events) {
         const ch = eltaChannel(p.ch);
         const on = p.start <= now;
         return el('div', { class: `tvg-row${on ? ' on' : ''}` }, [
-          el('span', { class: 'tvg-time num' }, [el('b', { text: on ? L({ zh: '播出中', en: 'On now' }) : clock(new Date(p.start).toISOString()) }), el('small', { text: L(ch).replace(/^愛爾達|^ELTA\.tv\s*/, '') })]),
+          el('span', { class: 'tvg-time num' }, [el('b', { text: on ? L({ zh: '播出中', en: 'On now' }) : clock(new Date(p.start).toISOString()) }), el('small', { text: [L(ch).replace(/^愛爾達|^ELTA\.tv\s*/, ''), audioName(p)].filter(Boolean).join(' · ') })]),
           el('button', { class: 'tvg-body', type: 'button', disabled: e ? null : true, onclick: () => e && openEvent(e) }, [leagueChip(p.league), el('span', { class: 'tvg-title', text: p.title })]),
-          el('a', { class: 'tvg-watch', href: eltaWatchUrl(p.ch), target: '_blank', rel: 'noopener', text: L({ zh: '觀看', en: 'Watch' }) })
+          eltaWatchUrl(p.ch) ? watchLink({ ch: p.ch, url: eltaWatchUrl(p.ch), app: eltaAppUrl(p.ch) }, { class: 'tvg-watch', text: L({ zh: '觀看', en: 'Watch' }) }) : null
         ]);
       })
     ),
@@ -1521,6 +1539,7 @@ setInterval(() => {
 // ELTA's schedule came in: its 📺 channels appear (or go) on the open tab.
 let playableTimer = 0;
 knownEvents(() => [...state.days.values()].flatMap(slot => dayAll(slot)));
+audioPref(() => state.prefs.audio || 'en');
 const repaintOpen = () => {
   clearTimeout(playableTimer);
   playableTimer = setTimeout(() => {
