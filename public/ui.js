@@ -247,7 +247,10 @@ export function liveLine(e) {
   const sport = LEAGUES[e.league]?.sport;
   const note = liveNote(e, sport, ctx.locale);
   if (!note && !(sport === 'baseball' && e.live.bases)) return null;
-  return el('div', { class: `live-line${e.live.redZone ? ' red-zone' : ''}` }, [sport === 'baseball' && e.live.bases ? diamond(e.live.bases, e.live.outs) : null, note ? el('span', { text: note }) : null, e.live.redZone ? el('b', { class: 'rz', text: ctx.locale === 'en' ? 'Red zone' : '紅區' }) : null]);
+  // Baseball's count and its batter vs pitcher: a line each, so neither is cut.
+  const [first, ...rest] = sport === 'baseball' ? note.split(' · ') : [note];
+  const text = rest.length ? el('span', { class: 'live-two' }, [el('span', { text: first }), el('span', { text: rest.join(' · ') })]) : note ? el('span', { text: note }) : null;
+  return el('div', { class: `live-line${e.live.redZone ? ' red-zone' : ''}` }, [sport === 'baseball' && e.live.bases ? diamond(e.live.bases, e.live.outs) : null, text, e.live.redZone ? el('b', { class: 'rz', text: ctx.locale === 'en' ? 'Red zone' : '紅區' }) : null]);
 }
 // Baseball: the three bases (filled when a runner is on) and the outs.
 export function diamond(bases = [], outs = 0, big = false) {
