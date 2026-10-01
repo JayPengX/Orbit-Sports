@@ -153,14 +153,18 @@ function followedLeagues() {
 }
 
 // The editor: sports in order, each one's leagues, the teams.
-function openFollowEditor() {
-  const s = sheet(t('editFollows'));
+// 我的設定: everything the person picks, in one sheet: the sports in order,
+// their leagues, who they follow, their services and the commentary.
+// `focus`: a section to open on ('tv').
+function openFollowEditor(focus = '') {
+  const s = sheet(L({ zh: '我的設定', en: 'My settings' }));
+  const pickChip = (on, text, onclick) => el('button', { class: `q-chip${on ? ' on' : ''}`, type: 'button', 'aria-pressed': String(on), text, onclick });
   const paint = () => {
     const p = state.prefs;
     put(
       s.body,
-      el('p', { class: 'section-sub', text: t('editHint') }),
       el('h3', { class: 'section-h', text: t('yourSports') }),
+      el('p', { class: 'section-sub', text: L({ zh: '排在前面的運動先出現。', en: 'The first ones show first.' }) }),
       p.sports.length
         ? el(
             'ol',
@@ -168,7 +172,7 @@ function openFollowEditor() {
             p.sports.map((sp, i) =>
               el('li', {}, [
                 el('span', { class: 'order-n num', text: String(i + 1) }),
-                el('span', { class: 'order-name', text: `${SPORTS[sp].icon} ${L(SPORTS[sp])}` }),
+                el('span', { class: 'order-name', text: L(SPORTS[sp]) }),
                 el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveUp'), disabled: i === 0 ? true : null, text: '↑', onclick: () => (moveSport(sp, -1), paint()) }),
                 el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveDown'), disabled: i === p.sports.length - 1 ? true : null, text: '↓', onclick: () => (moveSport(sp, 1), paint()) }),
                 el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleSport(sp), paint()) })
@@ -176,23 +180,34 @@ function openFollowEditor() {
             )
           )
         : el('p', { class: 'muted small', text: t('noSportsYet') }),
-      el('div', { class: 'q-chips wrap' }, Object.entries(SPORTS).filter(([k]) => !p.sports.includes(k)).map(([k, sp]) => el('button', { class: 'q-chip', type: 'button', text: `+ ${sp.icon} ${L(sp)}`, onclick: () => (toggleSport(k), paint()) }))),
-      ...p.sports.map(sp =>
-        el('div', { class: 'league-pick' }, [
-          el('h3', { class: 'section-h', text: `${SPORTS[sp].icon} ${L(SPORTS[sp])} · ${t('leagues')}` }),
-          el('div', { class: 'q-chips wrap' }, leaguesOf(sp).map(k => el('button', { class: `q-chip${p.leagues.includes(k) ? ' on' : ''}`, type: 'button', 'aria-pressed': String(p.leagues.includes(k)), text: `${p.leagues.includes(k) ? '✓ ' : ''}${leagueName(k, locale)}`, onclick: () => (toggleLeague(k), paint()) })))
-        ])
-      ),
-      el('h3', { class: 'section-h', text: t('yourTeams') }),
+      Object.keys(SPORTS).some(k => !p.sports.includes(k)) ? el('div', { class: 'q-chips wrap' }, Object.entries(SPORTS).filter(([k]) => !p.sports.includes(k)).map(([k, sp]) => pickChip(false, `+ ${L(sp)}`, () => (toggleSport(k), paint())))) : null,
+      p.sports.length ? el('h3', { class: 'section-h', text: t('leagues') }) : null,
+      ...p.sports.map(sp => el('div', { class: 'league-pick' }, [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'q-chips wrap' }, leaguesOf(sp).map(k => pickChip(p.leagues.includes(k), leagueName(k, locale), () => (toggleLeague(k), paint()))))])),
+      el('h3', { class: 'section-h', text: L({ zh: '追蹤的球隊與選手', en: 'Teams and players you follow' }) }),
       p.follows.length
         ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
         : el('p', { class: 'muted small', text: t('teamsHint') }),
-      el('h3', { class: 'section-h', text: `📺 ${t('tvPick')}` }),
-      el('p', { class: 'muted small', text: t('tvHint') }),
-      tvChips(paint)
+      el('h3', { class: 'section-h', id: 'set-tv', text: t('tvPick') }),
+      el('p', { class: 'section-sub', text: t('tvHint') }),
+      tvChips(paint),
+      el('h3', { class: 'section-h', text: t('tvAudio') }),
+      segmented(
+        [
+          ['en', t('tvAudioEn')],
+          ['zh', t('tvAudioZh')]
+        ],
+        state.prefs.audio || 'en',
+        v => {
+          state.prefs.audio = v;
+          tvChanged();
+          paint();
+        }
+      ),
+      el('p', { class: 'section-sub', text: t('tvAudioHint') })
     );
   };
   paint();
+  if (focus === 'tv') requestAnimationFrame(() => s.body.querySelector('#set-tv')?.scrollIntoView({ block: 'start' }));
 }
 
 // ---- Opening things ------------------------------------------------------------------------
@@ -542,7 +557,7 @@ function centerChosen(box) {
 const REASON = r => t(`why_${r}`);
 function pickCard(item, n, bets = null) {
   const e = item.event;
-  const reasons = item.reasons.filter(r => r !== 'tv').slice(0, 2).map(r => (r === 'priority' ? `${SPORTS[LEAGUES[e.league].sport].icon} ${REASON(r)}` : REASON(r)));
+  const reasons = item.reasons.filter(r => r !== 'tv').slice(0, 2).map(r => REASON(r));
   const tag = stageOf(e).special ? (stageOf(e).round?.[locale === 'en' ? 'en' : 'zh'] || stageOf(e)[locale === 'en' ? 'en' : 'zh']) : '';
   const series = seriesText(e);
   return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => openEvent(e) }, [
@@ -852,7 +867,7 @@ function homeHead() {
 // one keeps the date strip to the days it plays and goes to the nearest.
 function sportChips() {
   const h = state.home;
-  const filters = [['all', t('f_all')], ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...state.prefs.sports.map(sp => [sp, `${SPORTS[sp].icon} ${L(SPORTS[sp])}`])];
+  const filters = [['all', t('f_all')], ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...state.prefs.sports.map(sp => [sp, L(SPORTS[sp])])];
   if (filters.length < 3) return null;
   return el(
     'div',
@@ -931,7 +946,7 @@ function tvNames() {
   return tv.length ? SERVICES.filter(x => tv.includes(x.id)).map(x => L(x).replace(/（.*）|\s*\(.*\)/, '')).join('、') : t('tvAny');
 }
 function tvRow() {
-  return el('button', { class: 'tv-row', type: 'button', onclick: openTvEditor }, [el('span', { class: 'tv-row-k', text: `📺 ${t('tvMine')}` }), el('span', { class: 'tv-row-v', text: tvNames() }), el('span', { class: 'tv-row-go', 'aria-hidden': 'true', text: '›' })]);
+  return el('button', { class: 'tv-row', type: 'button', onclick: openTvEditor }, [el('span', { class: 'tv-row-k', text: t('tvMine') }), el('span', { class: 'tv-row-v', text: tvNames() }), el('span', { class: 'tv-row-go', 'aria-hidden': 'true', text: '›' })]);
 }
 function tvChips(after) {
   const tv = state.prefs.tv;
@@ -943,7 +958,7 @@ function tvChips(after) {
         class: `q-chip${tv.includes(x.id) ? ' on' : ''}`,
         type: 'button',
         'aria-pressed': String(tv.includes(x.id)),
-        text: `${tv.includes(x.id) ? '✓ ' : ''}${L(x)}`,
+        text: L(x).replace(/（.*）|\s*\(.*\)/, ''),
         onclick: () => {
           state.prefs.tv = tv.includes(x.id) ? tv.filter(id => id !== x.id) : [...tv, x.id];
           tvChanged();
@@ -965,29 +980,7 @@ function tvChanged() {
   }
   if (state.tab === 'home') renderHome();
 }
-function openTvEditor() {
-  const s = sheet(t('tvPick'));
-  // The commentary the person likes: their channels list it first (ELTA's MAX ones without ads before the 體育台).
-  const audio = () =>
-    el('div', { class: 'stack tight' }, [
-      el('h4', { class: 'tv-audio-h', text: t('tvAudio') }),
-      segmented(
-        [
-          ['en', t('tvAudioEn')],
-          ['zh', t('tvAudioZh')]
-        ],
-        state.prefs.audio || 'en',
-        v => {
-          state.prefs.audio = v;
-          tvChanged();
-          paint();
-        }
-      ),
-      el('p', { class: 'section-sub', text: t('tvAudioHint') })
-    ]);
-  const paint = () => put(s.body, el('p', { class: 'section-sub', text: t('tvHint') }), tvChips(paint), state.prefs.tv.length ? el('button', { class: 'q-btn block', type: 'button', text: t('tvClear'), onclick: () => ((state.prefs.tv = []), tvChanged(), paint()) }) : null, audio());
-  paint();
-}
+const openTvEditor = () => openFollowEditor('tv');
 
 // First run: the sports, tapped in order of priority.
 function sportPicker() {
@@ -1040,23 +1033,42 @@ function renderLive() {
   const soon = ahead.filter(e => e.status.state === 'pre' && !e.status.void && Date.parse(e.start) - now < window && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
   // Finished in the last few hours (by start: a game's end isn't known), latest first.
   const ended = all.filter(e => e.status.state === 'post' && !e.status.void && Date.parse(e.start) > now - 8 * 3_600_000).sort((a, b) => b.start.localeCompare(a.start));
-  const bySport = list => {
-    const groups = new Map();
-    for (const e of list) {
-      const sp = LEAGUES[e.league]?.sport;
-      if (!groups.has(sp)) groups.set(sp, []);
-      groups.get(sp).push(e);
-    }
-    return [...groups].sort(([a], [b]) => (state.prefs.sports.indexOf(a) + 1 || 99) - (state.prefs.sports.indexOf(b) + 1 || 99));
-  };
   const mineFirst = list => [...list].sort((a, b) => isFollowedEvent(b) - isFollowedEvent(a));
+  // The services strip: all, mine (the ones in 我的設定), then each service
+  // that has something in these lists, with how many.
+  const svcOf = e => new Set(tvOf(e).map(b => b.svc));
+  const shown = [...live, ...soon, ...ended];
+  const counts = new Map();
+  for (const e of shown) for (const id of svcOf(e)) counts.set(id, (counts.get(id) || 0) + 1);
+  const mineSvc = state.prefs.tv || [];
+  const pick = state.liveSvc && (state.liveSvc === 'all' || state.liveSvc === 'mine' || counts.has(state.liveSvc)) ? state.liveSvc : 'all';
+  const keep = e => pick === 'all' || (pick === 'mine' ? mineSvc.some(id => svcOf(e).has(id)) : svcOf(e).has(pick));
+  const svcName = sv => L(sv).replace(/（.*$|\s*\(.*$/, '');
+  const strip = el(
+    'div',
+    { class: 'q-chips svc-strip' },
+    [
+      ['all', L({ zh: '全部', en: 'All' }), shown.length],
+      mineSvc.length ? ['mine', L({ zh: '我的服務', en: 'Mine' }), shown.filter(e => mineSvc.some(id => svcOf(e).has(id))).length] : null,
+      ...SERVICES.filter(sv => counts.has(sv.id))
+        .sort((x, y) => counts.get(y.id) - counts.get(x.id))
+        .map(sv => [sv.id, svcName(sv), counts.get(sv.id)])
+    ]
+      .filter(Boolean)
+      .map(([id, name, n]) =>
+        el('button', { class: `q-chip${pick === id ? ' on' : ''}`, type: 'button', 'aria-pressed': String(pick === id), onclick: () => ((state.liveSvc = id), renderLive()) }, [el('span', { text: name }), el('small', { class: 'num svc-n', text: String(n) })])
+      )
+  );
+  const liveF = live.filter(keep);
+  const soonF = soon.filter(keep);
+  const endedF = ended.filter(keep);
   // The next to start (a followed team's if one is within the hour of the first).
-  const first = soon[0];
-  const nextUp = first && (soon.find(e => isFollowedEvent(e) && Date.parse(e.start) - Date.parse(first.start) < 3_600_000) || first);
+  const first = soonF[0];
+  const nextUp = first && (soonF.find(e => isFollowedEvent(e) && Date.parse(e.start) - Date.parse(first.start) < 3_600_000) || first);
   const wait = nextUp ? Math.max(0, Date.parse(nextUp.start) - now) : 0;
   const waitText = wait < 60_000 ? L({ zh: '馬上', en: 'any minute' }) : wait < 3_600_000 ? L({ zh: `${Math.round(wait / 60_000)} 分鐘後`, en: `in ${Math.round(wait / 60_000)} min` }) : L({ zh: `${Math.floor(wait / 3_600_000)} 小時 ${Math.round((wait % 3_600_000) / 60_000)} 分後`, en: `in ${Math.floor(wait / 3_600_000)} h ${Math.round((wait % 3_600_000) / 60_000)} min` });
-  const hero = live.length
-    ? el('div', { class: 'home-hero' }, [el('div', {}, [el('p', { class: 'hero-kicker live-kicker', text: `● ${t('liveNow')}` }), el('h2', { class: 'hero-title', text: `${live.length} ${locale === 'en' ? 'live' : '場進行中'}` })])])
+  const hero = liveF.length
+    ? el('div', { class: 'home-hero' }, [el('div', {}, [el('p', { class: 'hero-kicker live-kicker', text: t('liveNow') }), el('h2', { class: 'hero-title', text: `${liveF.length} ${locale === 'en' ? 'live' : '場進行中'}` })])])
     : el('div', { class: 'home-hero live-idle' }, [
         el('div', {}, [
           el('p', { class: 'hero-kicker', text: t('liveEmpty') }),
@@ -1066,13 +1078,14 @@ function renderLive() {
   put(
     box,
     hero,
-    !live.length && nextUp ? el('div', { class: 'q-card list' }, [eventRow(nextUp)]) : null,
-    !live.length && !nextUp && reading ? spinner() : null,
-    ...bySport(mineFirst(live)).map(([sp, list]) => section(`${SPORTS[sp]?.icon || ''} ${L(SPORTS[sp] || { zh: '', en: '' })}`, el('div', { class: 'q-card list' }, list.map(e => eventRow(e))))),
-    ended.length && !live.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(ended).slice(0, 12).map(e => eventRow(e)))) : null,
-    soon.filter(e => e !== nextUp || live.length).length ? section(live.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, (live.length ? mineFirst(soon) : soon.filter(e => e !== nextUp)).slice(0, 30).map(e => eventRow(e)))) : null,
-    ended.length && live.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(ended).slice(0, 8).map(e => eventRow(e)))) : null,
-    tvGuide(all)
+    shown.length ? strip : null,
+    !liveF.length && nextUp ? el('div', { class: 'q-card list' }, [eventRow(nextUp)]) : null,
+    !liveF.length && !nextUp && reading ? spinner() : null,
+    liveF.length ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, mineFirst(liveF).map(e => eventRow(e)))) : null,
+    endedF.length && !liveF.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(endedF).slice(0, 12).map(e => eventRow(e)))) : null,
+    soonF.filter(e => e !== nextUp || liveF.length).length ? section(liveF.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, (liveF.length ? mineFirst(soonF) : soonF.filter(e => e !== nextUp)).slice(0, 30).map(e => eventRow(e)))) : null,
+    endedF.length && liveF.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(endedF).slice(0, 8).map(e => eventRow(e)))) : null,
+    pick === 'all' || pick === 'elta' ? tvGuide(all) : null
   );
 }
 // 愛爾達's guide: what its channels show now and in the next 12 hours (the
@@ -1091,7 +1104,7 @@ function tvGuide(events) {
   if (!list.length) return null;
   const gameOf = p => events.find(e => e.league === p.league && tvOf(e).some(b => b.ch === p.ch && b.at === p.start));
   return section(
-    `📺 ${L({ zh: '愛爾達轉播表', en: 'ELTA TV guide' })}`,
+    L({ zh: '愛爾達轉播表', en: 'ELTA TV guide' }),
     el(
       'div',
       { class: 'q-card list tv-guide' },
@@ -1306,7 +1319,7 @@ async function runSearch(query) {
   const paint = (found, busy) =>
     put(
       box,
-      leagues.length ? section(t('leagues'), el('div', { class: 'q-card list' }, leagues.slice(0, 8).map(k => el('button', { class: 'search-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k, 'lg-mark mid'), el('span', { text: leagueName(k, locale) }), el('small', { text: `${SPORTS[LEAGUES[k].sport].icon} ${L(SPORTS[LEAGUES[k].sport])}` })])))) : null,
+      leagues.length ? section(t('leagues'), el('div', { class: 'q-card list' }, leagues.slice(0, 8).map(k => el('button', { class: 'search-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k, 'lg-mark mid'), el('span', { text: leagueName(k, locale) }), el('small', { text: L(SPORTS[LEAGUES[k].sport]) })])))) : null,
       found?.teams.length ? section(t('teamsFound'), el('div', { class: 'q-card list' }, found.teams.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openTeam(x.league, x.id, x) }, [logo(x.logo, x.name, 'sm'), el('span', { text: localSide(x.league, { name: x.name }).name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
       found?.players.length ? section(t('playersFound'), el('div', { class: 'q-card list' }, found.players.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openPlayer(x.league, x.id) }, [personPic(x, x.league, 'sm round'), el('span', { text: x.name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
       busy ? spinner() : !leagues.length && !found?.teams.length && !found?.players.length ? empty(t('noResults')) : null
@@ -1332,7 +1345,7 @@ function renderScores() {
         class: 'q-chip',
         type: 'button',
         'aria-pressed': String(sc.sport === key),
-        text: `${SPORTS[key].icon} ${L(SPORTS[key])}`,
+        text: L(SPORTS[key]),
         onclick: () => {
           const first = followedLeagues().find(k => LEAGUES[k].sport === key) || leaguesOf(key).find(k => LEAGUES[k].top) || leaguesOf(key)[0];
           state.scores = { ...sc, sport: key, league: first, date: null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(first) ? sc.view : 'games' };

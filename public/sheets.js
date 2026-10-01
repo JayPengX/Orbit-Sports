@@ -413,7 +413,7 @@ function overview(d, e, table, nameOf) {
         )
       : null,
     exactTv ? twCard(e.league, e) : null,
-    card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([icon, k, v]) => el('li', {}, [el('span', { class: 'info-icon', 'aria-hidden': 'true', text: icon }), el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
+    card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([, k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
   ]);
 }
 

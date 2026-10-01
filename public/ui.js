@@ -331,7 +331,7 @@ export function eventRow(e, { league = true, day = true } = {}) {
   // A race weekend's session: its badge says which, so the line under it doesn't repeat it.
   const sess = sessionTag(e);
   const said = sess ? '' : e.session;
-  const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, `🏆 ${ended.field[0].name}`].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
+  const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
   return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
     el('div', { class: 'event-title' }, [sess ? el('div', { class: 'sess-head' }, [sess, el('strong', { text: e.name })]) : el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null, tvLine(e)]),
@@ -421,15 +421,14 @@ export function tvLine(e) {
   if (!list.length) return null;
   const name = b => (b.short ? b.short[ctx.locale === 'en' ? 'en' : 'zh'] : tvName(b));
   const parts = list.slice(0, 2).flatMap((b, i) => [i ? document.createTextNode('、') : null, el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), audioTag(b)])]);
-  return el('small', { class: 'tv-line' }, [el('span', { 'aria-hidden': 'true', text: '📺 ' }), ...parts, list.length > 2 ? document.createTextNode(` +${list.length - 2}`) : null]);
+  return el('small', { class: 'tv-line' }, [...parts, list.length > 2 ? document.createTextNode(` +${list.length - 2}`) : null]);
 }
 // A race weekend's session as a badge (排位賽, 衝刺賽, 正賽…), coloured by kind, so the row says it at a glance.
 export function sessionTag(e) {
   if (!e?.sessionKey) return null;
   const n = SESSION_NAMES[e.sessionKey];
   const kind = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' }[e.sessionKey] || 'other';
-  const icon = { race: '🏁', qual: '⏱️', sprint: '⚡', sq: '⏱️' }[kind] || '';
-  return el('span', { class: `sess-tag ${kind}` }, [icon ? el('span', { 'aria-hidden': 'true', text: icon }) : null, document.createTextNode(n ? n[ctx.locale === 'en' ? 'en' : 'zh'] : e.session || '')]);
+  return el('span', { class: `sess-tag ${kind}` }, [document.createTextNode(n ? n[ctx.locale === 'en' ? 'en' : 'zh'] : e.session || '')]);
 }
 
 // ---- Sheets and sections ----------------------------------------------------------------
