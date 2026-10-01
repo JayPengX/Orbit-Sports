@@ -101,7 +101,9 @@ export function statusText(e) {
   if (s.delayed && s.state === 'pre') return t('delayed');
   if (s.state === 'in') {
     const label = e.kind === 'match' ? liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale) : fieldStatus(String(s.short || s.detail || t('live')), LEAGUES[e.league]?.sport);
-    return s.delayed ? `${label} · ${t('paused')}` : label;
+    // ESPN's own word for it ("Delayed") gives way to ours.
+    if (s.delayed) return /delay|suspend/i.test(label) ? t('paused') : `${label} · ${t('paused')}`;
+    return label;
   }
   if (s.state === 'post') return s.short && !/^final$/i.test(s.short) ? finalText(s.short) : t('final');
   return whenText(e.start);

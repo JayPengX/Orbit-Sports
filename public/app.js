@@ -9,7 +9,7 @@
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, activityPatch, affinity, appUrl, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, affinityPatch, settingPatch } from './lib/quadra.mjs';
-import { localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
+import { playGameId, localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
 import { SERVICES, watchable, leaguesOn, eltaChannel, eltaWatchUrl } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
@@ -610,17 +610,51 @@ function renderHome() {
   const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(onMyTv), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
   const endedPlan = wasPlan.filter(ended);
   const endedMore = wasMore.slice(0, 20).filter(ended);
+  // 你的投注: the games the person's open Play slips are on, that day, as
+  // the games themselves (score, live line) with the pick under each; a
+  // pick whose game isn't in the day's list stays a line of its own.
+  const legs = (state.wallet?.snap?.odds?.slips || []).flatMap(slip => slip.l.map(leg => ({ ...leg, slip }))).filter(b => b.s && localDate(new Date(b.s)) === h.date && !b.r);
+  const byGame = new Map();
+  for (const e of dayAll(slot)) {
+    const id = e.kind === 'match' ? playGameId(e) : null;
+    if (id) byGame.set(id, e);
+  }
+  const betGames = new Map();
+  const betLoose = [];
+  for (const b of legs) {
+    const e = byGame.get(b.g);
+    if (e) (betGames.get(e) || betGames.set(e, []).get(e)).push(b);
+    else betLoose.push(b);
+  }
+  const betKeys = new Set([...betGames.keys()].map(e => `${e.league}:${e.id}`));
+  const pickLine = list =>
+    el('a', { class: 'bet-pick-line', href: appUrl('odds', 'history'), onclick: ev => (ev.preventDefault(), q.go('odds', 'history')) }, [
+      el('span', { text: `🎫 ${list.map(b => `${b.p} @${b.o}`).join(' · ')}` }),
+      el('small', { class: 'muted', text: list.some(b => b.slip.m !== 'single') ? L({ zh: '串關', en: 'Parlay' }) : '' })
+    ]);
+  const betRows = [
+    ...[...betGames].sort((a, b) => Date.parse(a[0].start) - Date.parse(b[0].start)).map(([e, list]) => el('div', { class: 'bet-game' }, [eventRow(e), pickLine(list)])),
+    ...betLoose.slice(0, 6).map(b =>
+      el('a', { class: 'bet-row', href: appUrl('odds', 'history'), onclick: ev => (ev.preventDefault(), q.go('odds', 'history')) }, [
+        el('span', { class: 'event-status pre', text: whenText(b.s) }),
+        el('span', { class: 'bet-pick', text: b.p }),
+        el('strong', { class: 'num', text: `@${b.o}` })
+      ])
+    )
+  ];
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
   // theirs on, the best of everything on now), ranked like the picks, and
   // taken out of the lists below so no game shows twice.
   const onNow = list => list.filter(e => e.status.state === 'in' && !e.status.void);
   const rankLive = (list, c) => list.map(e => ({ event: e, ...scoreMatch(e, c) })).sort((x, y) => y.score - x.score);
-  let liveItems = isToday ? rankLive(onNow(filtered(mine)), pctx) : [];
+  const notBet = list => list.filter(e => !betKeys.has(`${e.league}:${e.id}`));
+  let liveItems = isToday ? rankLive(notBet(onNow(filtered(mine))), pctx) : [];
   const liveMine = liveItems.length > 0;
-  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(onMyTv)), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
+  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(notBet(onNow(dayAll(slot).filter(onMyTv))), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
   const allLive = isToday ? onNow(dayAll(slot)).length : 0;
   const liveShown = liveItems.slice(0, liveMine ? 5 : 3);
-  const liveKeys = new Set(liveShown.map(x => `${x.event.league}:${x.event.id}`));
+  // (A game bet on is under 你的投注, above: not again here or below.)
+  const liveKeys = new Set([...liveShown.map(x => `${x.event.league}:${x.event.id}`), ...betKeys]);
   planList = planList.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
   more = more.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
   const liveBlock = liveShown.length
@@ -638,17 +672,6 @@ function renderHome() {
         ]);
       })
     : [];
-  const bets = isToday ? (state.wallet?.snap?.odds?.slips || []).flatMap(slip => slip.l.map(leg => ({ ...leg, slip }))) : [];
-  const betRows = bets
-    .filter(b => b.s && Date.parse(b.s) > now - 4 * 3_600_000)
-    .slice(0, 6)
-    .map(b =>
-      el('a', { class: 'bet-row', href: appUrl('odds', 'history'), onclick: ev => (ev.preventDefault(), q.go('odds', 'history')) }, [
-        el('span', { class: 'event-status pre', text: whenText(b.s) }),
-        el('span', { class: 'bet-pick', text: b.p }),
-        el('strong', { class: 'num', text: `@${b.o}` })
-      ])
-    );
   const hasFollows = state.prefs.sports.length > 0;
   // Everything the picks lean on is in: the day read fresh, the tables,
   // the followed teams, and no search for other games or days going on.
@@ -659,6 +682,7 @@ function renderHome() {
     homeHead(),
     !hasFollows ? sportPicker() : null,
     tvRow(),
+    betRows.length ? section(`🎫 ${t('yourBets')}`, el('div', { class: 'q-card list' }, betRows), { action: moreButton(L({ zh: '投注紀錄', en: 'Bets' }), () => q.go('odds', 'history')) }) : null,
     liveBlock,
     (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : t('noOthers') })]) : null,
     finding ? spinner() : null,
@@ -674,8 +698,7 @@ function renderHome() {
     endedPlan.length || endedMore.length
       ? section(L(ENDED_PICKS), el('div', { class: 'ended-picks' }, [endedPlan.length ? el('div', { class: 'pick-list' }, endedPlan.map(pickCard)) : null, endedMore.length ? el('div', { class: 'q-card list' }, endedMore.map(x => eventRow(x.event))) : null]))
       : null,
-    teamRows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null,
-    betRows.length ? section(t('yourBets'), el('div', { class: 'q-card list' }, betRows)) : null
+    teamRows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null
   );
   centerChosen(box);
 }
