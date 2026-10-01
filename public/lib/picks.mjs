@@ -37,7 +37,7 @@ export function strength(tables, league, side) {
 // The tables a set of standings groups gives (each group ranked on its own).
 export function tableIndex(groups) {
   const out = {};
-  for (const g of groups || []) g.rows.forEach((r, i) => r.id && (out[r.id] = { pos: i + 1, n: g.rows.length }));
+  for (const g of groups || []) g.rows.forEach((r, i) => r.id && (out[r.id] = { pos: i + 1, n: g.rows.length, group: g.name }));
   return out;
 }
 

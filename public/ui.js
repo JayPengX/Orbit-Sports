@@ -120,10 +120,11 @@ export function openWatch(ev, b) {
 }
 // A link that plays a channel (`b` from tvOf: url, app), or a plain label when it can't be watched online.
 export const watchLink = (b, attrs, children) => (b.url ? el('a', { ...attrs, href: b.url, target: '_blank', rel: 'noopener', onclick: ev => openWatch(ev, b) }, children) : el('div', attrs, children));
-// One tap to watch a game on now (or about to start): ▶ 觀看 and where (MAX5台,
+// One tap to watch a game on now (or starting within half an hour): ▶ 觀看 and where (MAX5台,
 // 愛爾達, Apple TV), straight into the app. Null when it can't be watched.
 export function watchButton(e, cls = '') {
-  const b = e.status?.state === 'post' || e.status?.void ? null : watchOf(e);
+  const on = !e.status?.void && (e.status?.state === 'in' || (e.status?.state === 'pre' && Date.parse(e.start) - Date.now() < 30 * 60_000));
+  const b = on ? watchOf(e) : null;
   if (!b) return null;
   return watchLink(b, { class: `watch-btn ${cls}`.trim(), 'aria-label': `${ctx.locale === 'en' ? 'Watch on' : '觀看'} ${b[ctx.locale === 'en' ? 'en' : 'zh']}` }, [
     el('span', { class: 'watch-play', 'aria-hidden': 'true' }),

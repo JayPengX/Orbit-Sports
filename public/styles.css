@@ -337,15 +337,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .prio { font-size: 12.5px; font-weight: 750; padding: 4px 10px; border-radius: 999px; background: var(--q-surface); border: 1px solid var(--q-border); }
 .prio:first-child { background: var(--accent-wash); color: var(--accent); border-color: transparent; }
 .follow-sport { margin-top: 18px; }
-.league-card { overflow: hidden; }
-.league-card + .league-card { margin-top: 12px; }
 .league-card-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--q-divider, var(--q-border)); }
 .league-card-head strong { flex: 1 1 auto; font-size: 15px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.team-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px 0; }
-.team-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--q-border); background: var(--q-surface-2); border-radius: 999px; padding: 4px 10px 4px 6px; font-size: 13px; font-weight: 700; }
-.league-card .list .event-row:first-child { border-top: 0; }
-.mini-table { padding: 0 6px 6px; border-top: 1px solid var(--q-divider, var(--q-border)); }
-.mini-table .q-card { box-shadow: none; border: 0; background: none; }
 
 /* ---- Sheets ---- */
 .stack { display: grid; gap: 12px; }
@@ -465,7 +458,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .show-more { margin-top: 12px; }
 .stage-filter { margin: 4px 0 2px; }
 .live-kicker { color: var(--live); }
-.team-chips.loose { padding: 0; }
 .table-note { margin: 10px 4px 0; }
 
 /* ---- Tables: full names where they fit, the short ones where they don't ---- */
@@ -729,12 +721,23 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .logo.tf-logo { width: 36px; height: 36px; }
 .tf-name { display: grid; flex: 1; min-width: 0; }
 .tf-name strong { font-size: 15.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tf-form { display: inline-flex; gap: 3px; }
-.tf-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--q-border); }
-.tf-dot.w { background: var(--q-good); }
-.tf-dot.l { background: var(--q-bad); }
 .tf-games { display: grid; gap: 4px; padding-left: 46px; }
 .tf-game { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr) auto; align-items: center; gap: 6px; text-align: left; font-size: 13.5px; min-height: 26px; }
+.tf-when { display: grid; justify-items: end; gap: 2px; text-align: right; }
+.tf-when small { color: var(--q-muted); font-size: 12px; }
+.tf-tv { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--q-text-2); white-space: nowrap; }
+.tf-tv.none { font-weight: 600; color: var(--q-muted); }
+.tf-score.live { color: var(--live); }
+.tf-row .watch-btn.wide { margin: 2px 0 0; }
+.pill.sm { width: 18px; height: 18px; border-radius: 5px; font-size: 10px; }
+/* 追蹤 with nothing followed: popular teams, a tap each. */
+.suggest-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 4px 0 16px; }
+.suggest { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 10px; border: 1px solid var(--q-border); border-radius: 12px; background: var(--q-surface); color: inherit; text-align: left; }
+.suggest.on { border-color: var(--accent); background: var(--accent-wash); }
+.suggest-name { display: grid; min-width: 0; flex: 1; }
+.suggest-name strong { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggest-name small { font-size: 11px; }
+.suggest-add { flex: none; color: var(--accent); font-size: 18px; }
 .tf-opp { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tf-score { font-weight: 750; }
 .tf-score.w { color: var(--q-good); }

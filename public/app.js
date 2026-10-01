@@ -10,7 +10,7 @@
 // their order of priority, leagues and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from './lib/quadra.mjs';
-import { localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
+import { localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
 import { eltaChannel } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
@@ -20,8 +20,8 @@ import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
-import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, channelsOf } from './lib/tv.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, withWatch, sessionTag, raceFlag, audioName, personPic } from './ui.js';
+import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf } from './lib/tv.mjs';
+import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from './lib/logos.mjs';
 
@@ -87,7 +87,6 @@ const state = {
   days: new Map(),
   home: { date: today(), filter: 'all', shown: 20, teams: new Map(), tables: {}, sportDays: new Map(), autoDay: true, tablesPending: 0, settled: false },
   scores: { sport: 'soccer', league: 'epl', date: null, byDay: null, days: [], extra: 0, loading: false, mode: 'days', stage: 'all', view: 'games' },
-  following: new Map(),
 };
 
 const q = quadraSession('match', { lang: locale });
@@ -174,11 +173,19 @@ function moveSport(sport, by) {
   state.prefs.sports = list;
   changed();
 }
+// A follow up the list (追蹤 shows them in this order).
+function moveFollow(i, by) {
+  const list = [...state.prefs.follows];
+  const j = i + by;
+  if (j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  state.prefs.follows = list;
+  changed();
+}
 function changed() {
   savePrefs();
   state.home.sportDays.clear();
   state.days.clear();
-  state.following.clear();
   if (state.tab === 'home' || state.tab === 'live') loadDay(state.tab === 'live' ? today() : state.home.date);
   if (state.tab === 'following') renderFollowing();
 }
@@ -222,7 +229,7 @@ function openFollowEditor() {
       ...p.sports.map(sp => el('div', { class: 'league-pick' }, [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'q-chips wrap' }, shownLeaguesOf(sp).map(k => pickChip(p.leagues.includes(k), leagueName(k, locale), () => (toggleLeague(k), paint()))))])),
       el('h3', { class: 'section-h', text: L({ zh: '追蹤的球隊與選手', en: 'Teams and players you follow' }) }),
       p.follows.length
-        ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
+        ? el('ul', { class: 'order-list' }, p.follows.map((f, i) => el('li', {}, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveUp'), disabled: i === 0 ? true : null, text: '↑', onclick: () => (moveFollow(i, -1), paint()) }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
         : el('p', { class: 'muted small', text: t('teamsHint') }),
       el('h3', { class: 'section-h', text: t('tvAudio') }),
       segmented(
@@ -342,21 +349,7 @@ async function loadDay(date) {
   slot.loading = true;
   state.days.set(date, slot);
   const isToday = date === today();
-  // The followed leagues' tables, for the picks (they come in on their own).
-  followedLeagues()
-    .filter(hasStandings)
-    .filter(k => !state.home.tables[k])
-    .slice(0, 8)
-    .forEach(k => {
-      state.home.tablesPending++;
-      standings(k)
-        .then(g => {
-          state.home.tables[k] = tableIndex(g);
-          if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
-        })
-        .catch(() => {})
-        .finally(() => state.home.tablesPending--);
-    });
+  loadTables();
   const key = leaguesKey();
   try {
     const events = await readDay(pickLeagues(), date);
@@ -420,6 +413,25 @@ async function loadRest(date) {
   repaintDay(date);
 }
 let pushTimer = 0;
+// The followed leagues' tables, for the picks and 追蹤's places (they come in on their own).
+function loadTables() {
+  followedLeagues()
+    .filter(hasStandings)
+    .filter(k => !state.home.tables[k])
+    .slice(0, 8)
+    .forEach(k => {
+      state.home.tables[k] = {};
+      state.home.tablesPending++;
+      standings(k)
+        .then(g => {
+          state.home.tables[k] = tableIndex(g);
+          if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
+          if (state.tab === 'following') renderFollowing();
+        })
+        .catch(() => {})
+        .finally(() => state.home.tablesPending--);
+    });
+}
 // Followed teams' schedules (their next and last games).
 async function loadFollowedTeams() {
   for (const f of state.prefs.follows.slice(0, 10)) {
@@ -431,6 +443,7 @@ async function loadFollowedTeams() {
       .then(list => {
         state.home.teams.set(key, list);
         if (state.tab === 'home') renderHome();
+        if (state.tab === 'following') renderFollowing();
         clearTimeout(pushTimer);
         pushTimer = setTimeout(syncPush, 1500);
       })
@@ -1300,154 +1313,188 @@ function renderScores() {
 
 const searchEspn = q => proxyJson(`https://site.api.espn.com/apis/search/v2?query=${encodeURIComponent(q)}&limit=12`, { ttl: 10 * 60_000 }).then(parseSearch);
 
-// ---- 追蹤: everything about what you follow ------------------------------------------------------
+// ---- 追蹤: what you follow, at a glance ------------------------------------------------------
+//
+// 我的轉播 first: every game of a followed team (and every F1 session, with a
+// driver or an F1 team followed) on TV in the next week, by day, 觀看 on the
+// one that's on; then each team: its place, form, next game (when, where it's
+// on) and last result; the drivers; the leagues (their games and tables in
+// 賽事). Nothing followed yet: popular teams of the leagues on TV, a tap each.
+const TV_DAYS = 7;
+const SUGGEST = [
+  ['mlb', '19', 'Los Angeles Dodgers'], ['mlb', '10', 'New York Yankees'], ['cpbl', 'CTBC Brothers'], ['cpbl', 'Rakuten Monkeys'],
+  ['nba', '13', 'Los Angeles Lakers'], ['nba', '9', 'Golden State Warriors'], ['nba', '2', 'Boston Celtics'],
+  ['epl', '359', 'Arsenal'], ['epl', '382', 'Manchester City'], ['epl', '364', 'Liverpool'], ['mls', '20232', 'Inter Miami CF']
+].map(([league, id, name = id]) => ({ league, id, name }));
 
-async function loadFollowing(league) {
-  const l = LEAGUES[league];
-  const slot = { events: null, groups: null };
-  state.following.set(league, slot);
-  const [events, groups] = await Promise.all([
-    (l.kind === 'match' ? scoreboard(league) : seasonEvents(league)).catch(() => []),
-    hasStandings(league) ? standings(league).catch(() => []) : Promise.resolve(null)
-  ]);
+// F1's season (every weekend), read once for 追蹤.
+let f1Season = null;
+function f1Races() {
+  if (f1Season === null) {
+    f1Season = undefined;
+    seasonEvents('f1')
+      .then(list => (f1Season = list || []))
+      .catch(() => (f1Season = []))
+      .then(() => state.tab === 'following' && renderFollowing());
+  }
+  return f1Season || [];
+}
+const teamGames = f => state.home.teams.get(`${f.league}:${f.id}`);
+// The followed teams' (and F1's) games on TV in the next week, live first, by start.
+function myTvGames() {
   const now = Date.now();
-  const settled = events.flatMap(e => (e.sessions ? splitWeekend(e, now, locale) : [e]));
-  // Live, then the next games, then the latest results.
-  const upcoming = settled.filter(e => e.status.state === 'in' || (e.status.state === 'pre' && Date.parse(e.end || e.start) > now - 3_600_000)).sort((a, b) => a.start.localeCompare(b.start));
-  const recent = settled.filter(e => e.status.state === 'post').sort((a, b) => b.start.localeCompare(a.start));
-  slot.events = l.kind === 'match' ? [...upcoming, ...recent].slice(0, 6) : [...upcoming.slice(0, 3), ...recent.slice(0, 1)];
-  slot.groups = groups;
-  if (state.tab === 'following') renderFollowing();
+  const fresh = new Map(dayAll(state.days.get(today())).map(e => [`${e.league}:${e.id}`, e]));
+  const games = state.prefs.follows.filter(f => !f.athlete && f.f1team !== true).flatMap(f => teamGames(f) || []).map(e => fresh.get(`${e.league}:${e.id}`) || e);
+  const f1 = state.prefs.follows.some(f => f.league === 'f1') ? f1Races().flatMap(e => splitWeekend(e, now, locale)).filter(e => e.sessionKey) : [];
+  const seen = new Set();
+  return [...games, ...f1]
+    .filter(e => !e.status?.void && e.status?.state !== 'post' && Date.parse(e.start) > now - 4 * 3_600_000 && Date.parse(e.start) < now + TV_DAYS * 86_400_000)
+    .filter(e => onTv(e) && !seen.has(`${e.league}:${e.id}`) && seen.add(`${e.league}:${e.id}`))
+    .sort((a, b) => (b.status.state === 'in') - (a.status.state === 'in') || a.start.localeCompare(b.start));
+}
+// Where a game is on: its channel and commentary, else whether it's known to be on nowhere.
+function whereTv(e) {
+  const b = channelsOf(e)[0];
+  if (b) return el('span', { class: 'tf-tv' }, [document.createTextNode(b.short[locale === 'en' ? 'en' : 'zh']), b.audio ? el('span', { class: 'au-tag', text: audioName(b) }) : null]);
+  return el('span', { class: 'tf-tv none', text: tvKnown(e) ? L({ zh: '沒有轉播', en: 'Not on TV' }) : L({ zh: '轉播待公布', en: 'TV to come' }) });
 }
 
 function renderFollowing() {
   const box = $('panel-following');
   const p = state.prefs;
-  if (!p.sports.length) {
-    put(box, el('div', { class: 'home-hero' }, [el('div', {}, [el('h2', { class: 'hero-title', text: t('followingEmpty') })])]), sportPicker());
-    return;
-  }
+  loadFollowedTeams();
+  loadTables();
   const teams = p.follows.filter(f => !f.athlete);
   const people = p.follows.filter(f => f.athlete);
-  const head = el('div', { class: 'follow-head' }, [
-    el('div', {}, [el('h2', { class: 'hero-title', text: t('tab_following') }), el('p', { class: 'muted small', text: [L({ zh: `${teams.length} 隊`, en: `${teams.length} teams` }), people.length ? L({ zh: `${people.length} 位選手`, en: `${people.length} players` }) : '', L({ zh: `${p.leagues.length} 個聯賽`, en: `${p.leagues.length} leagues` })].filter(Boolean).join(' · ') })]),
-    el('button', { class: 'q-btn small', type: 'button', text: t('editFollows'), onclick: openFollowEditor })
-  ]);
+  if (!teams.length && !people.length) {
+    put(
+      box,
+      el('div', { class: 'home-hero' }, [el('div', {}, [el('h2', { class: 'hero-title', text: L({ zh: '追蹤球隊和選手', en: 'Follow teams and players' }) }), el('p', { class: 'muted small', text: L({ zh: '他們的下一場、在哪一台轉播、戰績和排名，都在這裡。先從熱門球隊開始：', en: 'Their next game, where it is on, form and place, all here. Start with these:' }) })])]),
+      el('div', { class: 'suggest-grid' }, SUGGEST.map(suggestCard)),
+      followedLeagues().length ? leaguesBlock() : null
+    );
+    return;
+  }
+  const tv = myTvGames();
+  const byDay = new Map();
+  for (const e of tv) {
+    const d = e.status.state === 'in' ? today() : localDate(Date.parse(e.start));
+    if (!byDay.has(d)) byDay.set(d, []);
+    byDay.get(d).push(e);
+  }
+  const waiting = !tvReady() || [...state.home.teams.values()].includes(null);
   put(
     box,
-    head,
-    teams.length ? section(t('yourTeams'), el('div', { class: 'q-card list team-form-list' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamFormRow(f))))) : el('p', { class: 'muted small follow-hint', text: t('teamsHint') }),
+    el('div', { class: 'follow-head' }, [
+      el('div', {}, [el('h2', { class: 'hero-title', text: t('tab_following') }), el('p', { class: 'muted small', text: [L({ zh: `${teams.length} 隊`, en: `${teams.length} teams` }), people.length ? L({ zh: `${people.length} 位選手`, en: `${people.length} players` }) : '', L({ zh: `${p.leagues.length} 個聯賽`, en: `${p.leagues.length} leagues` })].filter(Boolean).join(' · ') })]),
+      el('button', { class: 'q-btn small', type: 'button', text: L({ zh: '管理', en: 'Manage' }), onclick: openFollowEditor })
+    ]),
+    section(
+      L({ zh: '我的轉播', en: 'On TV for you' }),
+      tv.length
+        ? el('div', { class: 'stack' }, [...byDay].map(([d, list]) => el('div', {}, [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list' }, list.map(e => withWatch(eventRow(e), e)))])))
+        : waiting
+          ? spinner()
+          : el('p', { class: 'muted small follow-hint', text: L({ zh: `接下來 ${TV_DAYS} 天，你追蹤的球隊沒有轉播。`, en: `Nothing you follow is on TV in the next ${TV_DAYS} days.` }) }),
+      { sub: L({ zh: `你追蹤的球隊接下來 ${TV_DAYS} 天在愛爾達、Apple TV 的比賽`, en: `Your teams on ELTA and Apple TV, the next ${TV_DAYS} days` }) }
+    ),
+    teams.length ? section(t('yourTeams'), el('div', { class: 'q-card list team-form-list' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamCard(f))))) : null,
     people.length ? section(t('yourPlayers'), el('div', { class: 'people-strip' }, people.map(f => el('button', { class: 'person-card', type: 'button', onclick: () => openPlayer(f.league, f.id) }, [personPic(f, f.league, 'lg round'), el('strong', { text: f.name }), el('small', { class: 'muted', text: leagueName(f.league, locale) })])))) : null,
-    followedLeagues().length ? section(L({ zh: '你的聯賽', en: 'Your leagues' }), el('div', { class: 'stack' }, followedLeagues().map(k => leagueBlock(k)))) : el('p', { class: 'muted small', text: t('noLeaguesYet') })
+    followedLeagues().length ? leaguesBlock() : null
   );
 }
-
-// A followed team at a glance: its last result and its next game (ESPN's
-// schedule of the team), the team's page on a tap, the game's on the line.
-const teamForm = new Map();
-function formOf(f) {
-  const key = `${f.league}:${f.id}`;
-  if (!teamForm.has(key) && LEAGUES[f.league]?.espn && f.id) {
-    teamForm.set(key, null);
-    teamSchedule(f.league, f.id)
-      .then(games => {
-        const now = Date.now();
-        const done = games.filter(g => g.status.state === 'post');
-        const next = games.find(g => g.status.state === 'in') || games.find(g => g.status.state === 'pre' && !g.status.void && Date.parse(g.start) > now - 3_600_000);
-        teamForm.set(key, { last: done.at(-1) || null, next: next || null, form: done.slice(-5) });
-      })
-      .catch(() => teamForm.set(key, { last: null, next: null, form: [] }))
-      .then(() => state.tab === 'following' && renderFollowing());
-  }
-  return teamForm.get(key);
+// A popular team, followed with a tap.
+function suggestCard(s) {
+  const on = isFollowed(s.league, s.id);
+  const logoUrl = fallbackLogo(s.league, { id: s.id, name: s.name });
+  return el('button', { class: `suggest${on ? ' on' : ''}`, type: 'button', onclick: () => toggleFollow(s.league, { id: s.id, name: s.name, en: s.name, logo: logoUrl }) }, [
+    logo(logoUrl, s.name, 'sm'),
+    el('span', { class: 'suggest-name' }, [el('strong', { text: localSide(s.league, { name: s.name }).name }), el('small', { class: 'muted', text: leagueName(s.league, locale) })]),
+    el('b', { class: 'suggest-add', text: on ? '✓' : '+' })
+  ]);
 }
-function teamFormRow(f) {
-  const form = formOf(f);
-  const sideOf = g => [g.home, g.away].find(x => String(x?.id) === String(f.id));
-  const otherOf = g => [g.home, g.away].find(x => x && String(x.id) !== String(f.id));
+// The followed leagues: their games and tables in 賽事.
+const leaguesBlock = () =>
+  section(
+    L({ zh: '你的聯賽', en: 'Your leagues' }),
+    el('div', { class: 'q-card list' }, followedLeagues().map(k => el('div', { class: 'league-card-head' }, [leagueMark(k), el('strong', { text: leagueName(k, locale) }), el('button', { class: 'section-more', type: 'button', text: t('tab_matches'), onclick: () => openScores(k) }), hasStandings(k) ? el('button', { class: 'section-more', type: 'button', text: t('table'), onclick: () => openScores(k, null, 'table') }) : null])))
+  );
+
+// A followed team at a glance: its place and form, its next game (when, where
+// it's on, 觀看 while it's on) and last result; its page on a tap.
+function teamCard(f) {
+  const games = teamGames(f);
+  const id = String(f.id);
+  const us = g => [g.home, g.away].find(x => String(x?.id) === id);
+  const them = g => [g.home, g.away].find(x => x && String(x.id) !== id);
   const result = g => {
-    const us = sideOf(g);
-    const them = otherOf(g);
-    if (!us || !them) return '';
-    return us.winner ? 'w' : them.winner ? 'l' : 'd';
+    const [a, b] = [us(g), them(g)];
+    if (!a || !b) return '';
+    if (a.winner || b.winner) return a.winner ? 'W' : 'L';
+    return Number(a.score) > Number(b.score) ? 'W' : Number(a.score) < Number(b.score) ? 'L' : 'D';
   };
-  const gameLine = (g, label) => {
+  const now = Date.now();
+  const played = (games || []).filter(g => g.status.state === 'post' && !g.status.void && us(g) && them(g));
+  const last = played.at(-1);
+  const next = (games || []).find(g => g.status.state === 'in') || (games || []).find(g => g.status.state === 'pre' && !g.status.void && Date.parse(g.start) > now - 3_600_000);
+  const place = state.home.tables[f.league]?.[id];
+  const word = r => (locale === 'en' ? r : { W: '勝', L: '敗', D: '和' }[r]);
+  const line = (g, label) => {
     if (!g) return null;
-    const found = otherOf(g);
-    // ESPN names an opponent not yet known (a playoff's next round) "TBD".
-    const them = found && !/^TBD$/i.test(found.name || '') ? found : null;
-    const at = g.home && String(g.home.id) === String(f.id) ? 'vs' : '@';
-    const us = sideOf(g);
-    const score = g.status.state !== 'pre' && us && them ? `${us.score ?? ''}–${them.score ?? ''}` : '';
-    return el('button', { class: 'tf-game', type: 'button', onclick: ev => (ev.stopPropagation(), openEvent(g)) }, [
+    const x = them(g);
+    const opp = x && !/^TBD$/i.test(x.name || '') ? x : null;
+    const right =
+      g.status.state === 'pre'
+        ? el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(g.start) }), whereTv(g)])
+        : g.status.state === 'in'
+          ? el('span', { class: 'num tf-score live', text: `${t('live')} ${us(g)?.score ?? ''}–${opp?.score ?? ''}` })
+          : el('span', { class: `num result-pill ${result(g).toLowerCase()}`, text: `${word(result(g))} ${us(g)?.score ?? ''}–${opp?.score ?? ''}` });
+    return el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(g) }, [
       el('small', { class: 'muted tf-k', text: label }),
-      them ? logo(them.logo, them.name, 'xs') : el('span'),
-      el('span', { class: 'tf-opp', text: them ? `${at} ${localSide(g.league, them).name}` : found ? L({ zh: '對手待定', en: 'Opponent to be decided' }) : g.name }),
-      g.status.state === 'pre' ? el('small', { class: 'num muted', text: whenText(g.start) }) : el('span', { class: `num tf-score ${result(g)}`, text: g.status.state === 'in' ? `${t('live')} ${score}` : score })
+      opp ? logo(opp.logo, opp.name, 'xs') : el('span'),
+      el('span', { class: 'tf-opp', text: opp ? `${g.home && String(g.home.id) === id ? 'vs' : '@'} ${localSide(g.league, opp).name}` : L({ zh: '對手待定', en: 'Opponent to be decided' }) }),
+      right
     ]);
   };
+  const sub = [leagueName(f.league, locale), place?.pos ? L({ zh: `${place.group || ''}第 ${place.pos} 名`, en: `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]}${place.group ? ` in ${place.group}` : ''}` }) : ''].filter(Boolean).join(' · ');
   return el('div', { class: 'tf-row' }, [
     el('button', { class: 'tf-team', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [
-      logo(f.logo, f.name, 'tf-logo'),
-      el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: leagueName(f.league, locale) })]),
-      form?.form?.length ? el('span', { class: 'tf-form' }, form.form.map(g => el('i', { class: `tf-dot ${result(g)}`, title: g.name }))) : null
+      logo(f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), f.name, 'tf-logo'),
+      el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: sub })]),
+      played.length ? el('span', { class: 'form-pills' }, played.slice(-5).map(g => el('span', { class: `pill sm ${result(g)}`, text: word(result(g)) }))) : null
     ]),
-    form === null ? el('small', { class: 'muted tf-wait', text: '…' }) : form ? el('div', { class: 'tf-games' }, [gameLine(form.last, L({ zh: '上一場', en: 'Last' })), gameLine(form.next, L({ zh: '下一場', en: 'Next' }))]) : null
+    games === null ? el('small', { class: 'muted tf-wait', text: '…' }) : el('div', { class: 'tf-games' }, [line(next, L({ zh: '下一場', en: 'Next' })), line(last, L({ zh: '上一場', en: 'Last' }))]),
+    next ? watchButton(next, 'wide') : null
   ]);
 }
 
-// A followed F1 team: its cars' finishes in the last race, and the next session.
-let f1Season = null;
+// A followed F1 team: its cars' finishes in the last race, and the next session (where it's on).
 function crewRow(f) {
-  if (f1Season === null) {
-    f1Season = undefined;
-    seasonEvents(f.league)
-      .then(list => (f1Season = list || []))
-      .catch(() => (f1Season = []))
-      .then(() => state.tab === 'following' && renderFollowing());
-  }
-  const races = f1Season || [];
+  const races = f1Races();
   const raceOf = e => (e.sessions || []).find(x => x.abbr === 'Race' && x.status.state === 'post');
   const last = [...races].reverse().find(raceOf);
   const next = races.find(e => (e.sessions || []).some(x => x.status.state !== 'post'));
   const mine = d => d?.name && f1Driver(d.name).team === f1Constructor(f.name).name;
   const lastLine = last
-    ? el('button', { class: 'tf-game', type: 'button', onclick: ev => (ev.stopPropagation(), openEvent(splitWeekend(last, Date.now(), locale).find(x => x.sessionKey === 'Race') || last)) }, [
+    ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(splitWeekend(last, Date.now(), locale).find(x => x.sessionKey === 'Race') || last) }, [
         el('small', { class: 'muted tf-k', text: L({ zh: '上一站', en: 'Last' }) }),
-        el('span'),
+        raceFlag(last),
         el('span', { class: 'tf-opp', text: last.name }),
         el('span', { class: 'num tf-score', text: raceOf(last).field.map((d, i) => (mine(d) ? `P${i + 1}` : '')).filter(Boolean).join(' · ') || '–' })
       ])
     : null;
-  const nextSession = next && (next.sessions || []).find(x => x.status.state !== 'post');
-  const nextLine = nextSession
-    ? el('button', { class: 'tf-game', type: 'button', onclick: ev => (ev.stopPropagation(), openEvent(next)) }, [
+  const session = next && splitWeekend(next, Date.now(), locale).find(x => x.status.state !== 'post');
+  const nextLine = session
+    ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(session) }, [
         el('small', { class: 'muted tf-k', text: L({ zh: '下一站', en: 'Next' }) }),
-        el('span'),
-        el('span', { class: 'tf-opp', text: next.name }),
-        el('small', { class: 'num muted', text: whenText(nextSession.start) })
+        raceFlag(next),
+        el('span', { class: 'tf-opp', text: [next.name, session.session].filter(Boolean).join(' · ') }),
+        el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(session.start) }), whereTv(session)])
       ])
     : null;
   return el('div', { class: 'tf-row' }, [
     el('button', { class: 'tf-team', type: 'button', onclick: () => openConstructor({ id: f.id, name: f.name, en: f.name }) }, [constructorBadge(f.name, 'tf-logo'), el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: leagueName(f.league, locale) })])]),
-    f1Season === undefined ? el('small', { class: 'muted tf-wait', text: '…' }) : el('div', { class: 'tf-games' }, [lastLine, nextLine])
-  ]);
-}
-
-function leagueBlock(league) {
-  if (!state.following.has(league)) loadFollowing(league);
-  const slot = state.following.get(league);
-  const teams = state.prefs.follows.filter(f => f.league === league && !f.athlete);
-  return el('div', { class: 'q-card league-card' }, [
-    el('div', { class: 'league-card-head' }, [
-      leagueMark(league),
-      el('strong', { text: leagueName(league, locale) }),
-      el('button', { class: 'section-more', type: 'button', text: t('tab_matches'), onclick: () => openScores(league) }),
-      hasStandings(league) ? el('button', { class: 'section-more', type: 'button', text: t('table'), onclick: () => openScores(league, null, 'table') }) : null
-    ]),
-    teams.length ? el('div', { class: 'team-chips' }, teams.map(f => el('button', { class: 'team-chip', type: 'button', onclick: () => (f.f1team === true ? openConstructor({ id: f.id, name: f.name, en: f.name }) : openTeam(f.league, f.id, f)) }, [f.f1team === true ? constructorBadge(f.name, 'xs') : logo(f.logo, f.name, 'xs'), el('span', { text: shownName(f) })]))) : null,
-    !slot?.events ? spinner() : slot.events.length ? el('div', { class: 'list' }, slot.events.map(e => eventRow(e, { league: false }))) : empty(t('noUpcoming')),
-    slot?.groups?.length ? el('div', { class: 'mini-table' }, [standingsTables(slot.groups.slice(0, 2), league, { top: 5, compact: true })]) : null
+    f1Season === undefined ? el('small', { class: 'muted tf-wait', text: '…' }) : el('div', { class: 'tf-games' }, [nextLine, lastLine])
   ]);
 }
 
