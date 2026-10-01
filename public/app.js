@@ -192,12 +192,14 @@ function openFollowEditor() {
 
 // ---- Opening things ------------------------------------------------------------------------
 
-// The first match opened today counts for Rewards' daily mission.
-let openedToday = '';
+// Matches opened today, each once: Rewards' daily missions count different ones.
+const openedToday = { day: '', set: new Set() };
 function openEvent(e) {
   const day = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
-  track(openedToday === day ? null : 'open', eventKeys(e), 1);
-  openedToday = day;
+  if (openedToday.day !== day) Object.assign(openedToday, { day, set: new Set() });
+  const key = `${e.league}:${e.id}`;
+  track(openedToday.set.has(key) ? null : 'open', eventKeys(e), 1);
+  openedToday.set.add(key);
   if (e.kind === 'match') return openMatch(e);
   return openFieldEvent(e);
 }
