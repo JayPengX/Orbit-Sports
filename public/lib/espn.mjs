@@ -14,7 +14,7 @@ import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Co
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { asiaMonth, asiaMonthOf } from './catalog.mjs';
+import { asiaMonth, asiaMonthOf, CATALOG } from './catalog.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
 import { teamNameZh } from './names.mjs';
@@ -344,9 +344,42 @@ export async function asiaEvents(league, extra = 0, now = Date.now()) {
   for (let d = -1 - extra; d <= 1 + extra; d++) months.push(new Date(Date.UTC(y, m - 1 + d, 1)).toISOString().slice(0, 7));
   const lists = await Promise.all(months.map(m => asiaMonth(url => getJson(url, { ttl: 60_000 }), LEAGUES[league].asia, m).catch(() => [])));
   const seen = new Set();
-  return parseAsia(lists.flat(), league)
+  const events = parseAsia(lists.flat(), league)
     .filter(e => !seen.has(e.id) && seen.add(e.id))
     .sort((a, b) => a.start.localeCompare(b.start));
+  return events.some(e => e.status.state === 'in') ? withKambiLive(events, league) : events;
+}
+
+// ---- A CPBL game on now: Kambi's live feed (the bookmaker's, through the
+// proxy) has its inning and the score as it happens; the league's own lists
+// only say it's on. Matched by the clubs' nicknames (Kambi writes "Uni-
+// President 7-Eleven Lions", the league "Uni-President Lions").
+const KAMBI = 'https://eu-offering-api.kambicdn.com/offering/v2018/ub/listView';
+const nickname = name => String(name || '').trim().split(/\s+/).at(-1).toLowerCase();
+export function kambiInnings(data) {
+  return (data?.events || [])
+    .filter(x => x.event?.state === 'STARTED')
+    .map(x => {
+      const periods = String(x.liveData?.score?.info || '').split('|').filter(p => /\d+\s*-\s*\d+/.test(p));
+      return { home: nickname(x.event.homeName), away: nickname(x.event.awayName), inning: periods.length || null, homeScore: Number(x.liveData?.score?.home), awayScore: Number(x.liveData?.score?.away) };
+    });
+}
+export function applyKambiLive(events, live) {
+  return events.map(e => {
+    const [h, a] = [nickname(e.home.en), nickname(e.away.en)];
+    const k = e.status.state === 'in' && live.find(x => (x.home === h && x.away === a) || (x.home === a && x.away === h));
+    if (!k) return e;
+    // Kambi may list the clubs the other way round.
+    const [hs, as] = k.home === h ? [k.homeScore, k.awayScore] : [k.awayScore, k.homeScore];
+    const score = (side, v) => (Number.isFinite(v) ? { ...side, score: v } : side);
+    return { ...e, status: { ...e.status, period: k.inning || 0 }, live: { inning: k.inning }, home: score(e.home, hs), away: score(e.away, as) };
+  });
+}
+async function withKambiLive(events, league) {
+  const path = CATALOG[league]?.kambi;
+  if (!path) return events;
+  const data = await getJson(`${KAMBI}/${path}/in-play.json?lang=en_GB&market=GB&useCombined=true`, { ttl: 30_000, trim: 'kambi-events' }).catch(() => null);
+  return applyKambiLive(events, kambiInnings(data));
 }
 
 // ---- A match's summary --------------------------------------------------------------

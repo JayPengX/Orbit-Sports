@@ -41,3 +41,14 @@ test('basketball quarters, overtime, breaks', () => {
   assert.equal(liveLabel(half, 'basketball'), '中場休息');
   assert.equal(liveOf({}, {}, 'baseball').half, '');
 });
+
+test("CPBL on now: the inning and score from Kambi's live feed, matched by nickname either way round", async () => {
+  const { kambiInnings, applyKambiLive } = await import('../public/lib/espn.mjs');
+  const { liveLabel } = await import('../public/lib/live.mjs');
+  const live = kambiInnings({ events: [{ event: { state: 'STARTED', homeName: 'Uni-President 7-Eleven Lions', awayName: 'CTBC Brothers' }, liveData: { score: { home: '3', away: '1', info: '0-0|2-1|1-0|0-0|0-0' } } }] });
+  const side = (en, score) => ({ en, name: en, score });
+  const game = { kind: 'match', league: 'cpbl', status: { state: 'in' }, home: side('CTBC Brothers', 0), away: side('Uni-President Lions', 0) };
+  const [e] = applyKambiLive([game], live);
+  assert.deepEqual([e.home.score, e.away.score, e.status.period], [1, 3, 5]);
+  assert.equal(liveLabel(e, 'baseball', 'zh'), '5局');
+});

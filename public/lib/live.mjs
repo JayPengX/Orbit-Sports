@@ -55,6 +55,8 @@ export function liveLabel(e, sport, lang = 'zh') {
   if (sport === 'baseball') {
     if (!n) return s.short || (en ? 'Live' : '進行中');
     const half = lv.half;
+    // The inning alone when the feed doesn't say which half (CPBL's).
+    if (!half && lv.inning) return en ? `${ord(n)} inning` : `${n}局`;
     if (en) return `${half === 'bot' ? 'Bot' : half === 'mid' ? 'Mid' : half === 'end' ? 'End' : 'Top'} ${ord(n)}`;
     return `${n}局${half === 'bot' ? '下' : half === 'mid' ? '中場' : half === 'end' ? '結束' : '上'}`;
   }
