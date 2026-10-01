@@ -40,8 +40,8 @@ right:
   right), player box scores, plays, line-ups and the table.
 - **Where to watch in Taiwan** (`lib/broadcast.mjs`, checked 2026-10): ELTA.tv
   and Apple TV only, and only their leagues. A game's exact channel from
-  ELTA's own schedule (two weeks ahead), with its commentary (原音, 中文,
-  中文・雙語) and ads; an NBA game also from NBA.com's Taiwan schedule (the
+  ELTA's own schedule (two weeks ahead), with its commentary (英文原音, 中文,
+  雙語: a 體育台 unless said otherwise) and ads; an NBA game also from NBA.com's Taiwan schedule (the
   whole season: which games ELTA has, one or two a day). ESPN's US networks
   aren't shown.
 - **Stages** (`lib/stage.mjs`): preseason, regular season, NBA Cup, All-Star,

@@ -68,23 +68,24 @@ export const eltaWatchUrl = n => (ELTA_PLAY[n] ? `https://eltaott.tv/channel/pla
 // to (its appRedirect.js: /channel/play/<ch>/… → eltatv://live/<ch>).
 export const eltaAppUrl = n => (ELTA_PLAY[n] ? `eltatv://live/${n}` : null);
 
-// What a program sounds like, from ELTA's title:
-//   'en'    the original feed (原音, 英文解說原音)
-//   'dual'  Chinese commentary with the original feed on the second audio
-//           track (雙語: its MAX channels' Chinese games, CPBL's every day)
+// What a program sounds like, from ELTA's title and channel:
+//   'en'    English, the original feed (原音, 英文解說)
+//   'dual'  雙語: Chinese commentary with the original on the second audio
+//           track (said so, and a 體育台's program that says nothing: the
+//           four 體育台 carry both)
 //   'venue' Chinese commentary with the ground's sound on the second track
 //           (副聲道現場原音)
-//   'zh'    Chinese commentary (中文解說, or a title that says nothing: a
-//           體育台's own; ELTA doesn't say whether it has a second track)
+//   'zh'    Chinese only (中文, or a MAX channel's program that says nothing)
 // `adFree`: said so, or a MAX channel.
+const SPORTS_TV = new Set([101, 105, 110, 115]);
 export function eltaAudio(title, ch) {
   const t = String(title || '');
-  const audio = /雙語/.test(t) ? 'dual' : /副聲道/.test(t) ? 'venue' : /原音|英文解說|English/i.test(t) ? 'en' : 'zh';
+  const audio = /雙語/.test(t) ? 'dual' : /副聲道/.test(t) ? 'venue' : /原音|英文|English/i.test(t) ? 'en' : /中文/.test(t) ? 'zh' : SPORTS_TV.has(ch) ? 'dual' : 'zh';
   return { audio, adFree: /無廣告/.test(t) || (ch >= 540 && ch <= 549) };
 }
 export const AUDIO_NAMES = {
-  en: { zh: '原音', en: 'Original' },
-  dual: { zh: '中文・雙語', en: 'Chinese + original' },
+  en: { zh: '英文原音', en: 'English' },
+  dual: { zh: '雙語', en: 'Chinese + English' },
   venue: { zh: '中文・現場音', en: 'Chinese + ground' },
   zh: { zh: '中文', en: 'Chinese' }
 };

@@ -145,8 +145,9 @@ test("ELTA's commentary and ads from its titles; delayed and Kids showings left 
   assert.deepEqual(eltaAudio('巴林站 排位賽(中文解說無廣告) LIVE', 545), { audio: 'zh', adFree: true });
   assert.deepEqual(eltaAudio('味全 VS 富邦 例行賽 9/28(雙語/無廣告) LIVE', 544), { audio: 'dual', adFree: true });
   assert.deepEqual(eltaAudio('統一 VS 味全 例行賽 10/1(無廣告/副聲道現場原音) LIVE', 545), { audio: 'venue', adFree: true });
-  // A 體育台 unmarked: Chinese, with ads; one marked 原音 is the original feed.
-  assert.deepEqual(eltaAudio('巴林站 正賽 LIVE', 105), { audio: 'zh', adFree: false });
+  // A 體育台 unmarked: 雙語, with ads; one marked 原音 is English; a MAX one unmarked is Chinese.
+  assert.deepEqual(eltaAudio('巴林站 正賽 LIVE', 105), { audio: 'dual', adFree: false });
+  assert.deepEqual(eltaAudio('巴林站 正賽 LIVE', 545), { audio: 'zh', adFree: true });
   assert.deepEqual(eltaAudio('海盜 VS 老虎 例行賽 9/27(原音) LIVE', 110), { audio: 'en', adFree: false });
   const oct = elta('2026-10-01');
   assert.ok(!oct.some(p => /^Kids|D-$/.test(p.title)), 'no Kids, no D-LIVE');
@@ -168,11 +169,11 @@ test("a race's channels: the person's commentary first, a MAX channel without ad
   const oct = elta('2026-10-01');
   const f1 = (k, start) => ({ id: `600060990~${k}`, league: 'f1', kind: 'field', sessionKey: k, start, status: { state: 'pre' } });
   const chs = (e, prefer) => broadcastsFor(e, oct, { prefer }).map(b => b.ch);
-  // Bahrain (at Sepang): the race on MAX5 原音, MAX6 中文 without ads, 體育2台.
-  assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'en'), [544, 545, 105]);
+  // Bahrain (at Sepang): the race on MAX5 原音, MAX6 中文 without ads, 體育2台 雙語.
+  assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'en'), [544, 105, 545]);
   assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'zh'), [545, 105, 544]);
   // Qualifying: no sprint qualifying mixed in; Singapore's sprint qualifying only on MAX5.
-  assert.deepEqual(chs(f1('Qual', '2026-10-03T08:00Z'), 'en'), [544, 545, 110]);
+  assert.deepEqual(chs(f1('Qual', '2026-10-03T08:00Z'), 'en'), [544, 110, 545]);
   assert.deepEqual(chs(f1('SQ', '2026-10-09T12:30Z'), 'en'), [544]);
   const [top] = broadcastsFor(f1('Race', '2026-10-04T07:00Z'), oct, { prefer: 'en' });
   assert.equal(top.audio, 'en');

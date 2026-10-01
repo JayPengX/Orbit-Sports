@@ -359,7 +359,7 @@ export function twChips(league, n = 3, e = null) {
   return el('div', { class: 'tw-chips' }, list.slice(0, n).map(b => el('span', { class: `tw-chip${b.exact ? ' exact' : ''}`, text: tvName(b) })));
 }
 // A row's 📺 line: the channels a game is on, when a schedule says (not a guess from the league).
-// Each with its commentary (原音, 中文, 中文・雙語), the person's kind marked:
+// Each with its commentary (英文原音, 中文, 雙語), the person's kind marked:
 // the best for them first (their commentary, then a MAX channel without ads).
 export const audioName = b => (b.audio ? AUDIO_NAMES[b.audio]?.[ctx.locale === 'en' ? 'en' : 'zh'] || '' : '');
 const audioTag = b => (b.audio ? el('span', { class: `au-tag${hasAudio(b, ctx.state?.prefs?.audio || 'en') ? ' mine' : ''}`, text: audioName(b) }) : null);
