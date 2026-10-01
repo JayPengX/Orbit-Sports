@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseTsdbRaces, parseTsdbResults } from '../public/lib/espn.mjs';
 import { LEAGUES } from '../public/lib/leagues.mjs';
-import { broadcastsOf } from '../public/lib/broadcast.mjs';
+import { broadcastsOf, BROADCAST } from '../public/lib/broadcast.mjs';
 
 const fe = JSON.parse(readFileSync(new URL('./fixtures/formulae-2026-27.json', import.meta.url), 'utf8'));
 
@@ -17,10 +17,13 @@ test('Formula E: a round per weekend, qualifying and the race, the time marked w
   assert.ok(first.sessions.some(x => x.tbc));
 });
 
-test('every league in Fixtures can be watched in Taiwan', () => {
-  for (const k of Object.keys(LEAGUES)) assert.ok(broadcastsOf(k).length, k);
-  assert.ok(broadcastsOf('formulae').some(b => b.svc === 'disney'));
-  assert.ok(broadcastsOf('jleague').some(b => b.svc === 'youtube' && b.url));
+test('only ELTA.tv and Apple TV are offered as Taiwan broadcast services', () => {
+  for (const [league, services] of Object.entries(BROADCAST)) {
+    assert.ok(LEAGUES[league], league);
+    assert.ok(services.every(b => ['elta', 'appletv'].includes(b.svc)), league);
+  }
+  assert.ok(broadcastsOf('formulae').length === 0);
+  assert.ok(broadcastsOf('jleague').length === 0);
 });
 
 test('Formula E results: the order by position, the winner’s time and the gaps', () => {

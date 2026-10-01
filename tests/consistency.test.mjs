@@ -28,10 +28,12 @@ test('the purged sports, leagues and services are gone, not hidden', () => {
   }
   for (const sport of ['tennis', 'golf', 'mma', 'boxing', 'volleyball', 'tabletennis', 'snooker', 'cricket', 'rugby', 'badminton']) assert.equal(SPORTS[sport], undefined, sport);
   for (const id of ['ufcpass', 'tennistv', 'vbtv', 'motogppass', 'f1tv', 'mlbtv', 'cpbltv', 'kleaguetv', 'sportcast']) assert.ok(!SERVICES.some(x => x.id === id), id);
-  // Kept: WNBA and EuroLeague, on their own passes.
-  assert.equal(BROADCAST.wnba[0].kind, 'pass');
-  assert.equal(BROADCAST.euroleague[0].kind, 'pass');
-  // Every service listed carries a league.
+  assert.deepEqual(SERVICES.map(x => x.id), ['elta', 'appletv']);
+  assert.equal(BROADCAST.wnba, undefined);
+  assert.equal(BROADCAST.euroleague, undefined);
+  // Every broadcast entry is one of the two services that are supported here.
+  for (const list of Object.values(BROADCAST)) for (const b of list) assert.ok(SERVICES.some(x => x.id === b.svc), b.svc);
+  // Both selectable services carry at least one league.
   for (const x of SERVICES) assert.ok(Object.values(BROADCAST).some(list => list.some(b => b.svc === x.id)), x.id);
   for (const l of Object.values(LEAGUES)) assert.equal(l.off, undefined);
 });

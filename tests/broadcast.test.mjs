@@ -1,9 +1,9 @@
-// Where a game is on: ELTA's own schedule matched game by game (the NBA only
-// from 10/6, one game a day), the kit's Chinese team names, and whether Play sells a game.
+// Where a game is on: ELTA's own schedule, NBA.com's Taiwan schedule, team
+// names and Apple TV's Friday Night Baseball.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaPrograms, zhSame, eltaDays, NBA_ELTA_FROM, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaPrograms, zhSame, eltaDays, NBA_ELTA_FROM, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, AUDIO_NAMES } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '../public/lib/names.mjs';
 
 const programs = parseElta(JSON.parse(readFileSync(new URL('./fixtures/elta-2026-09-30.json', import.meta.url), 'utf8')));
@@ -44,10 +44,10 @@ test('a program without the sides: the only game near it gets it; among several 
   assert.ok(tba?.note, 'marked as one of the games then');
 });
 
-test('beyond the schedule: the league list, the NBA said to be one game a day', () => {
+test('beyond the schedule: the NBA list says selected games, not every game', () => {
   const late = nba('8', '2026-11-20T00:00Z', 'Boston Celtics', 'Miami Heat');
   const list = broadcastsFor(late, programs, sides(late), []);
-  assert.ok(list.some(x => x.svc === 'elta' && x.note?.zh === '每日一場'));
+  assert.ok(list.some(x => x.svc === 'elta' && x.note?.zh === '部分賽事'));
 });
 
 test('Chinese names match however ELTA shortens them', () => {
@@ -87,6 +87,7 @@ test('Apple TV+ only on a regular-season MLB Friday (US time)', () => {
 });
 
 test("ELTA's commentary and ads from its titles; delayed and Kids showings left out", () => {
+  assert.equal(AUDIO_NAMES.zh.zh, '中文・雙語');
   assert.deepEqual(eltaAudio('道奇 VS 巨人 例行賽 9/28(原音) LIVE', 540), { audio: 'en', adFree: true });
   assert.deepEqual(eltaAudio('巴林站 正賽(英文解說原音無廣告) LIVE', 544), { audio: 'en', adFree: true });
   assert.deepEqual(eltaAudio('巴林站 排位賽(中文解說無廣告) LIVE', 545), { audio: 'zh', adFree: true });

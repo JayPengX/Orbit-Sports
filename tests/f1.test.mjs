@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { f1Grids, f1Label, f1Value, finishOf, eventOfRace } from '../public/lib/f1.mjs';
+import { f1Grids, f1Label, f1Value, finishOf, eventOfRace, f1RaceFlag } from '../public/lib/f1.mjs';
 
 test("formula1.com's grids are found by their first label, in the app's words", () => {
   const g = f1Grids([[['Season Position', '1st'], ['Season Points', '302']], [['Grands Prix Entered', '39'], ['Highest Race Finish', '1 (x8)']], [['Date of Birth', '25/08/2006']]]);
@@ -23,4 +23,10 @@ test("a Jolpica race is matched to the app's weekend by date", () => {
   const races = [{ id: 'a', start: '2026-08-21T10:00Z', end: '2026-08-23T15:00Z' }, { id: 'b', start: '2026-09-04T10:00Z', end: '2026-09-06T15:00Z' }];
   assert.equal(eventOfRace(races, '2026-09-06').id, 'b');
   assert.equal(eventOfRace(races, '2026-10-20'), null);
+});
+
+test("Grand Prix rows can show the host country's flag", () => {
+  assert.equal(f1RaceFlag('Singapore Airlines Singapore Grand Prix'), '🇸🇬');
+  assert.equal(f1RaceFlag('Formula 1 Saudi Arabian Grand Prix'), '🇸🇦');
+  assert.equal(f1RaceFlag('unknown race'), '');
 });

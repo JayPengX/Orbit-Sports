@@ -8,6 +8,7 @@ import { liveLabel, liveNote, possessionOf } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { broadcastsOf, AUDIO_NAMES } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES } from './lib/espn.mjs';
+import { f1RaceFlag } from './lib/f1.mjs';
 import { tvOf, channelsOf } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
 
@@ -149,7 +150,10 @@ export function personPic(p, league, cls = '') {
     const stand = league === 'f1' ? driverBadge(name, cls) : flagUrl ? logoPicture(flagUrl, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls);
     if (known === undefined && name)
       findPhoto(name, league).then(url => {
-        if (url && stand.isConnected) stand.replaceWith(logoPicture(url, null, `logo ${cls} photo${isCutout(url) ? ' cutout' : ''}`, () => el('span')));
+        if (url && stand.isConnected) {
+          const photo = retry => logoPicture(url, null, `logo ${cls} photo${isCutout(url) ? ' cutout' : ''}`, () => (retry ? stand : photo(true)));
+          stand.replaceWith(photo(false));
+        }
       });
     return stand;
   };
@@ -286,11 +290,12 @@ export function eventRow(e, { league = true, day = true } = {}) {
   const ended = e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1);
   // A race weekend's session: its badge says which, so the line under it doesn't repeat it.
   const sess = sessionTag(e);
+  const flag = raceFlag(e);
   const said = sess ? '' : e.session;
   const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.venue;
   return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
-    el('div', { class: 'event-title' }, [sess ? el('div', { class: 'sess-head' }, [sess, el('strong', { text: e.name })]) : el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null, tvLine(e)])
+    el('div', { class: 'event-title' }, [sess ? el('div', { class: 'sess-head' }, [flag, sess, el('strong', { text: e.name })]) : flag ? el('div', { class: 'sess-head event-heading' }, [flag, el('strong', { text: e.name })]) : el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null, tvLine(e)])
   ]);
 }
 
@@ -373,6 +378,11 @@ export function sessionTag(e) {
   const n = SESSION_NAMES[e.sessionKey];
   const kind = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' }[e.sessionKey] || 'other';
   return el('span', { class: `sess-tag ${kind}` }, [document.createTextNode(n ? n[ctx.locale === 'en' ? 'en' : 'zh'] : e.session || '')]);
+}
+export function raceFlag(e) {
+  if (e?.league !== 'f1') return null;
+  const flag = f1RaceFlag(e.enName || e.name);
+  return flag ? el('span', { class: 'logo logo-flag race-flag', 'aria-hidden': 'true', text: flag }) : null;
 }
 
 // ---- Sheets and sections ----------------------------------------------------------------

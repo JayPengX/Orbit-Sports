@@ -9,7 +9,7 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
-import { teamBadge, teamLogo, raceName, countryName, countryCode, flagUrl, f1Driver, f1Constructor } from './logos.mjs';
+import { NBA_ABBR, teamBadge, teamLogo, raceName, countryName, countryCode, flagUrl, f1Driver, f1Constructor } from './logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -98,8 +98,11 @@ const CDN = 'https://a.espncdn.com/i';
 const HEADSHOTS = { racing: 'rpm' };
 export function fallbackLogo(league, side) {
   if (!side || side.logo) return side?.logo || null;
+  // An international club can appear in an NBA event feed by mistake; don't
+  // turn its id or abbreviation into an unrelated NBA badge.
+  if (league === 'nba' && !NBA_ABBR[side.en || side.name]) return null;
   // The shared kit's (Quadra Play's) logo for the club.
-  const kit = teamLogo(LEAGUES[league]?.play || league, side.name);
+  const kit = teamLogo(LEAGUES[league]?.play || league, side.en || side.name);
   if (kit || !side.id) return kit;
   const path = LEAGUES[league]?.espn || '';
   const [sport, code] = path.split('/');
@@ -121,7 +124,10 @@ export function localSide(league, side, lang = detectLocale()) {
   const nation = countryName(en, lang);
   return nation && nation !== en ? { ...side, en, name: nation, short: nation } : side;
 }
-const withLogo = (league, side) => localSide(league, side && !side.logo ? { ...side, logo: fallbackLogo(league, side) } : side);
+const withLogo = (league, side) => {
+  if (league === 'nba' && side && !NBA_ABBR[side.en || side.name]) return localSide(league, { ...side, logo: null });
+  return localSide(league, side && !side.logo ? { ...side, logo: fallbackLogo(league, side) } : side);
+};
 
 // A race weekend or a tournament, as of `now`: over once its last session
 // has had its time (the feed can keep a weekend "in progress" for days), and

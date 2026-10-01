@@ -1,0 +1,56 @@
+{
+  "leagueSchedule": {
+    "seasonYear": "2026-27",
+    "broadcasterList": [
+      { "broadcasterId": 1209, "broadcasterDisplay": "ELTA TV", "broadcasterAbbreviation": "Elta", "regionId": 32 },
+      { "broadcasterId": 1210, "broadcasterDisplay": "Videoland", "broadcasterAbbreviation": "Videoland", "regionId": 32 }
+    ],
+    "gameDates": [
+      {
+        "gameDate": "10/20/2026 00:00:00",
+        "games": [
+          {
+            "gameId": "0022600001",
+            "gameDateTimeUTC": "2026-10-20T19:00:00Z",
+            "homeTeam": { "teamName": "Pistons", "teamCity": "Detroit", "teamTricode": "DET" },
+            "awayTeam": { "teamName": "Celtics", "teamCity": "Boston", "teamTricode": "BOS" },
+            "broadcasters": { "intlTvBroadcasters": [{ "broadcasterId": 1210, "broadcasterDisplay": "Videoland" }] }
+          },
+          {
+            "gameId": "0022600002",
+            "gameDateTimeUTC": "2026-10-20T23:00:00Z",
+            "homeTeam": { "teamName": "Knicks", "teamCity": "New York", "teamTricode": "NYK" },
+            "awayTeam": { "teamName": "76ers", "teamCity": "Philadelphia", "teamTricode": "PHI" },
+            "broadcasters": { "intlTvBroadcasters": [{ "broadcasterId": 1209, "broadcasterDisplay": "ELTA TV" }, { "broadcasterId": 1210, "broadcasterDisplay": "Videoland" }] }
+          },
+          {
+            "gameId": "0022600003",
+            "gameDateTimeUTC": "2026-10-21T01:30:00Z",
+            "homeTeam": { "teamName": "Spurs", "teamCity": "San Antonio", "teamTricode": "SAS" },
+            "awayTeam": { "teamName": "Thunder", "teamCity": "Oklahoma City", "teamTricode": "OKC" },
+            "broadcasters": { "intlTvBroadcasters": [{ "broadcasterId": 1209, "broadcasterDisplay": "ELTA TV" }, { "broadcasterId": 1210, "broadcasterDisplay": "Videoland" }] }
+          }
+        ]
+      },
+      {
+        "gameDate": "10/21/2026 00:00:00",
+        "games": [
+          {
+            "gameId": "0022600004",
+            "gameDateTimeUTC": "2026-10-21T23:30:00Z",
+            "homeTeam": { "teamName": "Heat", "teamCity": "Miami", "teamTricode": "MIA" },
+            "awayTeam": { "teamName": "Timberwolves", "teamCity": "Minnesota", "teamTricode": "MIN" },
+            "broadcasters": { "intlTvBroadcasters": [{ "broadcasterId": 1209, "broadcasterDisplay": "ELTA TV" }, { "broadcasterId": 1210, "broadcasterDisplay": "Videoland" }] }
+          },
+          {
+            "gameId": "0022600005",
+            "gameDateTimeUTC": "2026-10-22T02:00:00Z",
+            "homeTeam": { "teamName": "Lakers", "teamCity": "Los Angeles", "teamTricode": "LAL" },
+            "awayTeam": { "teamName": "Warriors", "teamCity": "Golden State", "teamTricode": "GSW" },
+            "broadcasters": { "intlTvBroadcasters": [{ "broadcasterId": 1209, "broadcasterDisplay": "ELTA TV" }, { "broadcasterId": 1210, "broadcasterDisplay": "Videoland" }] }
+          }
+        ]
+      }
+    ]
+  }
+}

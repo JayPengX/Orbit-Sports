@@ -4,6 +4,7 @@
 // comes in (`onTvChange`).
 import { proxyJson } from './quadra.mjs';
 import { ELTA_LIST, parseElta, broadcastsFor, ytVideoFor } from './broadcast.mjs';
+import { NBA_TAIWAN_SCHEDULE, parseNbaTaiwanSchedule } from './nba-broadcast.mjs';
 import { teamNameZh } from './names.mjs';
 import { LEAGUES } from './leagues.mjs';
 
@@ -26,6 +27,23 @@ export function eltaSchedule() {
       });
   }
   return programs;
+}
+let nbaSchedule = null;
+let nbaAt = 0;
+let nbaLoading = false;
+function regionalNbaSchedule() {
+  if (!nbaLoading && Date.now() - nbaAt > 6 * 60 * 60_000) {
+    nbaLoading = true;
+    proxyJson(NBA_TAIWAN_SCHEDULE, { ttl: 6 * 60 * 60_000 })
+      .then(data => (nbaSchedule = parseNbaTaiwanSchedule(data)))
+      .catch(() => {})
+      .finally(() => {
+        nbaLoading = false;
+        nbaAt = Date.now();
+        changed();
+      });
+  }
+  return nbaSchedule;
 }
 // The games known to the page (a program without the sides' names is only
 // given to a game with no other of its league starting near it).
@@ -60,7 +78,7 @@ function ytFeed(channel) {
 // game's video on the league's channel (a link to it), never "some games".
 export const tvOf = e => {
   if (!e) return [];
-  return broadcastsFor(e, eltaSchedule(), zhSides(e), known(), prefer()).flatMap(b => {
+  return broadcastsFor(e, eltaSchedule(), zhSides(e), known(), prefer(), e.league === 'nba' ? regionalNbaSchedule() : null).flatMap(b => {
     if (b.svc !== 'youtube' || !b.channel) return [b];
     const v = ytVideoFor(e, ytFeed(b.channel));
     if (!v) return [];
