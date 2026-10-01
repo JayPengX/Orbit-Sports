@@ -10,7 +10,8 @@
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from './lib/quadra.mjs';
-import { localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
+import { localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
+import { statName } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
@@ -22,7 +23,7 @@ import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList } from './lib/tv.mjs';
 import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
-import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables } from './sheets.js';
+import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from './lib/logos.mjs';
 
 // ---- What's on: leagues with games from two weeks back to two months on ---------------
@@ -115,7 +116,7 @@ function savePrefs() {
   }, 800);
 }
 // A followed team's name as shown (kept in English on the pass).
-const shownName = f => (f.athlete ? f.name : f.f1team === true ? (locale === 'en' ? f.name : f1Constructor(f.name).zh || f.name) : localSide(f.league, { name: f.name }).name);
+const shownName = f => (f.athlete ? (f.league === 'f1' && locale !== 'en' ? f1Driver(f.name).zh || f.name : f.name) : f.f1team === true ? (locale === 'en' ? f.name : f1Constructor(f.name).zh || f.name) : localSide(f.league, { name: f.name }).name);
 function isFollowed(league, id) {
   return state.prefs.follows.some(f => f.league === league && f.id === id);
 }
@@ -938,7 +939,7 @@ function renderLive() {
 // games (channel to come). A showing reads short: the time, the league, the
 // two sides (or the event), one detail (the round or stage), and each
 // channel with its commentary.
-const AUDIO_SHORT = { en: { zh: '英', en: 'EN' }, dual: { zh: '雙語', en: 'Dual' }, venue: { zh: '中', en: 'ZH' }, zh: { zh: '中', en: 'ZH' } };
+const AUDIO_SHORT = { en: { zh: '英', en: 'EN' }, dual: { zh: '雙語', en: 'Dual' }, venue: { zh: '中', en: 'ZH' }, local: { zh: '雙語', en: 'ZH×2' }, zh: { zh: '中', en: 'ZH' } };
 const STAGE_WORD = /(熱身賽|例行賽|季後賽|外卡賽|分區系列賽|聯盟冠軍賽|世界大賽|總冠軍賽|準決賽|決賽|\d+強|第\d+輪|第\d+比賽日|排位賽|衝刺排位賽|衝刺賽|正賽|第\d節自由練習)/;
 function guideItems() {
   const shows = new Map();
@@ -1426,7 +1427,7 @@ function renderFollowing() {
       { sub: L({ zh: `你追蹤的球隊接下來 ${TV_DAYS} 天在愛爾達、Apple TV 的比賽`, en: `Your teams on ELTA and Apple TV, the next ${TV_DAYS} days` }) }
     ),
     teams.length ? section(t('yourTeams'), el('div', { class: 'q-card list team-form-list' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamCard(f))))) : null,
-    people.length ? section(t('yourPlayers'), el('div', { class: 'people-strip' }, people.map(f => el('button', { class: 'person-card', type: 'button', onclick: () => openPlayer(f.league, f.id) }, [personPic(f, f.league, 'lg round'), el('strong', { text: f.name }), el('small', { class: 'muted', text: f.team ? localSide(f.league, { name: f.team.name }).name : leagueName(f.league, locale) })])))) : null,
+    people.length ? section(t('yourPlayers'), el('div', { class: 'q-card list team-form-list' }, people.map(personRow))) : null,
     followedLeagues().length ? leaguesBlock() : null
   );
 }
@@ -1522,6 +1523,92 @@ function crewRow(f) {
   return el('div', { class: 'tf-row' }, [
     el('button', { class: 'tf-team', type: 'button', onclick: () => openConstructor({ id: f.id, name: f.name, en: f.name }) }, [constructorBadge(f.name, 'tf-logo'), el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: leagueName(f.league, locale) })])]),
     f1Season === undefined ? el('small', { class: 'muted tf-wait', text: '…' }) : el('div', { class: 'tf-games' }, [nextLine, lastLine])
+  ]);
+}
+
+// ---- A followed player or driver -------------------------------------------------------------
+//
+// A player: their team and position, an injury, the season's key numbers,
+// their last game's line, and their team's next game with where it's on.
+// A driver: the championship place and points, the last race's finish and
+// the next session with its channel. Read once a visit (ESPN's player card
+// and its overview; F1's table), drawn again as they come.
+const people = new Map();
+let f1Table;
+function loadPerson(f) {
+  const key = `${f.league}:${f.id}`;
+  if (people.has(key)) return people.get(key);
+  people.set(key, null);
+  Promise.all([athlete(f.league, f.id), f.league === 'f1' ? null : athleteOverview(f.league, f.id).catch(() => null)])
+    .then(([a, ov]) => people.set(key, { a, ov }))
+    .catch(() => people.set(key, { a: null, ov: null }))
+    .then(() => state.tab === 'following' && renderFollowing());
+  if (f.league === 'f1' && f1Table === undefined) {
+    f1Table = null;
+    standings('f1')
+      .then(groups => (f1Table = groups))
+      .catch(() => (f1Table = []))
+      .then(() => state.tab === 'following' && renderFollowing());
+  }
+  return null;
+}
+const personHead = (f, sub, tag) =>
+  el('button', { class: 'tf-team', type: 'button', onclick: () => openPlayer(f.league, f.id) }, [personPic(f, f.league, 'tf-logo round'), el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: sub })]), tag]);
+function personRow(f) {
+  const got = loadPerson(f);
+  const a = got?.a;
+  if (f.league === 'f1') return driverRow(f, a);
+  const injured = a?.injuries?.[0];
+  const head = personHead(f, [a?.team ? localSide(f.league, { name: a.team }).name : f.team ? localSide(f.league, { name: f.team.name }).name : leagueName(f.league, locale), a?.position ? zhLater(a.position) : ''].filter(Boolean).join(' · '), injured ? el('span', { class: 'tf-injury', text: injured }) : null);
+  if (!got) return el('div', { class: 'tf-row' }, [head, el('small', { class: 'muted tf-wait', text: '…' })]);
+  // The season's key numbers.
+  const season = (a?.stats.list || []).slice(0, 4).map(x => el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: x.value }), el('small', { text: statName(x.label, locale) })]));
+  // The last game: the other side, the result and the player's line.
+  const g = got.ov?.log?.games?.[0];
+  const labels = got.ov?.log?.labels || [];
+  const lastLine = g
+    ? el('div', { class: 'tf-game pf-last' }, [
+        el('small', { class: 'muted tf-k', text: L({ zh: '上一場', en: 'Last' }) }),
+        logo(g.opp.logo, g.opp.name, 'xs'),
+        el('span', { class: 'tf-opp' }, [`${g.at} ${localSide(f.league, { name: g.opp.name }).short || g.opp.abbr} `, el('small', { class: 'muted', text: labels.slice(0, 4).map((l, i) => `${g.stats[i] ?? ''} ${statName(l, locale)}`).join(' · ') })]),
+        g.result ? el('span', { class: `num result-pill ${g.result.toLowerCase()}`, text: `${locale === 'en' ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result} ${g.score}` }) : el('span')
+      ])
+    : null;
+  // Their team's next game (the team's schedule, read for 追蹤).
+  const teamId = f.team?.id || a?.teamId;
+  const next = teamId ? (teamGames({ league: f.league, id: teamId }) || []).find(x => x.status.state === 'in' || (x.status.state === 'pre' && !x.status.void && Date.parse(x.start) > Date.now() - 3_600_000)) : null;
+  const opp = next && [next.home, next.away].find(x => x && String(x.id) !== String(teamId));
+  const nextLine = next
+    ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(next) }, [
+        el('small', { class: 'muted tf-k', text: L({ zh: '下一場', en: 'Next' }) }),
+        opp ? logo(opp.logo, opp.name, 'xs') : el('span'),
+        el('span', { class: 'tf-opp', text: opp ? `${String(next.home?.id) === String(teamId) ? 'vs' : '@'} ${localSide(next.league, opp).name}` : '' }),
+        next.status.state === 'in' ? el('span', { class: 'num tf-score live', text: t('live') }) : el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(next.start) }), whereTv(next)])
+      ])
+    : null;
+  return el('div', { class: 'tf-row' }, [head, el('div', { class: 'tf-games' }, [season.length ? el('div', { class: 'pf-stats' }, season) : null, nextLine, lastLine])]);
+}
+function driverRow(f, a) {
+  const champ = f1Table?.length ? driverSeason(f1Table, f.id) : null;
+  const races = f1Races();
+  const raceOf = e => (e.sessions || []).find(x => x.abbr === 'Race' && x.status.state === 'post');
+  const last = [...races].reverse().find(raceOf);
+  const at = last ? raceOf(last).field.findIndex(d => d.id === String(f.id)) : -1;
+  const next = races.find(e => (e.sessions || []).some(x => x.status.state !== 'post'));
+  const session = next && splitWeekend(next, Date.now(), locale).find(x => x.status.state !== 'post');
+  const team = f1Driver(a?.name || f.name).team;
+  const head = personHead(f, team ? (locale === 'en' ? team : f1Constructor(team).zh || team) : leagueName(f.league, locale), null);
+  return el('div', { class: 'tf-row' }, [
+    head,
+    el('div', { class: 'tf-games' }, [
+      champ ? el('div', { class: 'pf-stats' }, [el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: `P${champ.pos}` }), el('small', { text: L({ zh: '車手積分榜', en: 'Standings' }) })]), el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: champ.points }), el('small', { text: L({ zh: '積分', en: 'Points' }) })]), champ.gap && champ.pos > 1 ? el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: champ.gap }), el('small', { text: L({ zh: '落後', en: 'Behind' }) })]) : null]) : null,
+      session
+        ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(session) }, [el('small', { class: 'muted tf-k', text: L({ zh: '下一節', en: 'Next' }) }), raceFlag(next), el('span', { class: 'tf-opp', text: [next.name, session.session].filter(Boolean).join(' · ') }), el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(session.start) }), whereTv(session)])])
+        : null,
+      last
+        ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(splitWeekend(last, Date.now(), locale).find(x => x.sessionKey === 'Race') || last) }, [el('small', { class: 'muted tf-k', text: L({ zh: '上一站', en: 'Last' }) }), raceFlag(last), el('span', { class: 'tf-opp', text: last.name }), el('span', { class: 'num tf-score', text: at >= 0 ? `P${at + 1}` : '–' })])
+        : null
+    ])
   ]);
 }
 
