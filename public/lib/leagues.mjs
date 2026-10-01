@@ -25,6 +25,8 @@ export const LEAGUES = Object.fromEntries(
     if (l.data === 'tsdb') league.tsdb = l.tsdb;
     if (l.data === 'motogp') league.motogp = true;
     if (l.data === 'fom') league.fom = l.fom;
+    if (l.legacy) league.legacy = true;
+    if (l.sro) league.sro = true;
     for (const k of ['top', 'cup', 'standings', 'players']) if (l[k]) league[k] = l[k];
     return [key, league];
   })
@@ -37,7 +39,7 @@ export const leaguesOf = sport => Object.keys(LEAGUES).filter(k => LEAGUES[k].sp
 export const TOP_LEAGUES = Object.keys(LEAGUES).filter(k => LEAGUES[k].top);
 // Kinds of data each source has.
 // Tables: every match league (not cups), and the drivers' and constructors' championship of F1.
-export const hasStandings = key => Boolean(LEAGUES[key]?.espn) && ((LEAGUES[key].kind === 'match' && !LEAGUES[key].cup) || Boolean(LEAGUES[key].standings));
+export const hasStandings = key => Boolean(LEAGUES[key]?.motogp) || (Boolean(LEAGUES[key]?.espn) && ((LEAGUES[key].kind === 'match' && !LEAGUES[key].cup) || Boolean(LEAGUES[key].standings)));
 export const hasTeams = key => Boolean(LEAGUES[key]?.espn) && LEAGUES[key].kind === 'match';
 // The league's logo, from the shared kit (by Quadra Play's key), or null.
 export const leagueLogo = key => (LEAGUES[key] ? kitLeagueLogo(LEAGUES[key].play || key) : null);

@@ -9,7 +9,7 @@
 // their order of priority, leagues and teams. A copy goes to the wallet
 // (setting 'follow:match') so Quadra Play recommends from the same follows.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, activityPatch, affinity, appUrl, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, affinityPatch, settingPatch } from './lib/quadra.mjs';
-import { playGameId, localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, playoffRun, knockedOut } from './lib/espn.mjs';
+import { seasonLabel, playGameId, localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, playoffRun, knockedOut } from './lib/espn.mjs';
 import { SERVICES, watchable, leaguesOn, eltaChannel, eltaWatchUrl, eltaAppUrl } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
@@ -1360,13 +1360,13 @@ function renderScores() {
     { class: 'q-chips small' },
     leaguesOf(sc.sport)
       .sort((a, b) => mine.has(b) - mine.has(a))
-      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, league: k, date: null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), leagueName(k, locale)]))
+      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, league: k, season: null, date: null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), leagueName(k, locale)]))
   );
   let strip = null;
   let list;
   let stages = null;
   const tableView = sc.view === 'table' && hasStandings(sc.league);
-  if (tableView) list = tableOf(sc.league);
+  if (tableView) list = tableOf(sc.league, sc.season || null);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
   else if (sc.mode === 'event') {
@@ -1573,18 +1573,42 @@ function leagueBlock(league) {
 
 // ---- 排名, in 賽事: the league's tables -------------------------------------------------------
 
+// A league's tables by season (null: this one), and the past five seasons
+// to pick from (ESPN's leagues; the champion of a table league marked).
 const tables = new Map();
-function tableOf(league) {
-  const groups = tables.get(league);
+function tableOf(league, season = null) {
+  const key = `${league}:${season || ''}`;
+  const groups = tables.get(key);
   if (groups === undefined) {
-    tables.set(league, null);
-    standings(league)
-      .then(g => tables.set(league, g))
-      .catch(() => tables.set(league, []))
+    tables.set(key, null);
+    standings(league, season)
+      .then(g => tables.set(key, g))
+      .catch(() => tables.set(key, []))
       .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
   }
-  if (!groups) return spinner();
-  return groups.length ? el('div', {}, [standingsTables(groups, league), el('p', { class: 'muted small table-note', text: t('gapHint') })]) : empty(t('noStandings'));
+  const now = tables.get(`${league}:`);
+  const year = now?.year;
+  const picker =
+    year && LEAGUES[league]?.espn && !LEAGUES[league]?.motogp
+      ? el(
+          'div',
+          { class: 'q-chips small season-chips' },
+          [null, ...[1, 2, 3, 4, 5].map(k => year - k)].map(y =>
+            el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String((season || null) === y), text: y ? seasonLabel(league, y) : L({ zh: '本季', en: 'This season' }), onclick: () => ((state.scores.season = y), renderScores()) })
+          )
+        )
+      : null;
+  if (!groups) return el('div', {}, [picker, spinner()]);
+  // A past season of a league decided by its table: its champion, first.
+  const champ = season && groups.length === 1 && (LEAGUES[league]?.sport === 'soccer' || LEAGUES[league]?.sport === 'racing') ? groups[0].rows[0] : null;
+  return groups.length
+    ? el('div', {}, [
+        picker,
+        champ ? el('div', { class: 'q-card pad champ-card' }, [champ.athlete ? personPic(champ, league, 'md round') : logo(champ.logo, champ.name, 'md'), el('div', {}, [el('small', { class: 'muted', text: L({ zh: `${seasonLabel(league, season)} 冠軍`, en: `${seasonLabel(league, season)} champions` }) }), el('strong', { text: champ.name })])]) : null,
+        standingsTables(groups, league),
+        el('p', { class: 'muted small table-note', text: t('gapHint') })
+      ])
+    : el('div', {}, [picker, empty(t('noStandings'))]);
 }
 
 // ---- Tabs, refresh, start ---------------------------------------------------------------------

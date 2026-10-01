@@ -771,3 +771,13 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .svc-strip { margin: 4px 0 6px; }
 .svc-strip .q-chip { display: inline-flex; align-items: center; gap: 6px; }
 .svc-n { font-size: 11px; opacity: 0.7; }
+
+.rider-seasons td.left small { display: block; font-size: 11px; }
+.rider-seasons td, .rider-seasons th { padding-left: 4px; padding-right: 4px; }
+.rider-seasons .pos-pill { padding: 2px 7px; }
+
+/* 排名: past seasons, and a past season's champion. */
+.season-chips { margin: 0 0 10px; }
+.champ-card { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.champ-card strong { display: block; font-size: 16px; }
+.team-history td.left small { display: block; font-size: 11px; }

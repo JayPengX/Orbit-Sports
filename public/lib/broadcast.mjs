@@ -65,6 +65,10 @@ export const BROADCAST = {
   // F1's feeder series: ELTA.tv only (MAX 5-8, English commentary, no ads).
   f2: [{ ...ELTA, note: { zh: 'MAX 5-8 台', en: 'MAX 5-8' } }],
   f3: [{ ...ELTA, note: { zh: 'MAX 5-8 台', en: 'MAX 5-8' } }],
+  // F1 Academy: every session on F1 TV (in Taiwan too).
+  f1academy: [pass('f1tv', 'F1 TV'), yt('F1 ACADEMY', 'F1 ACADEMY', 'https://www.youtube.com/@F1ACADEMY', 'UCNtiHO5dvgowvZScesaKUqA')],
+  // GT World Challenge: every race live and free on SRO's channel.
+  gtwc: [yt('GTWorld', 'GTWorld', 'https://www.youtube.com/@GTWorld', 'UC-yHapH6mW1ceZ_5PDUf1_g')],
   // From 2026-27 on Disney+ (every session); practice free on its YouTube.
   formulae: [DISNEY, yt('Formula E', 'Formula E', 'https://www.youtube.com/@FIAFormulaE', 'UC-DuRqsBQOEk_5o1q4Ze-Fg')],
   motogp: [VL, { zh: '緯來 APP', en: 'Videoland app', kind: 'ott', svc: 'videoland' }, pass('motogppass', 'MotoGP VideoPass')],
