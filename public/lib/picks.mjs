@@ -2,8 +2,7 @@
 //
 // Every match gets a score from what's known about it and about the person:
 //
-//   priority   the sports they follow, in their order (the first counts most),
-//              and the leagues they follow
+//   priority   the leagues they follow, in their order (the first counts most)
 //   teams      a followed team playing (the strongest single signal)
 //   quality    how good the two sides are (their places in the table)
 //   closeness  how evenly matched they are (places close together)
@@ -41,21 +40,13 @@ export function tableIndex(groups) {
   return out;
 }
 
-export function scoreMatch(e, { sports = [], leagues = [], follows = [], tables = {}, aff = {}, now = Date.now() } = {}) {
+export function scoreMatch(e, { leagues = [], follows = [], tables = {}, aff = {}, now = Date.now() } = {}) {
   const reasons = [];
   let score = 0.2;
-  const sport = LEAGUES[e.league]?.sport;
-  const idx = sports.indexOf(sport);
+  const idx = leagues.indexOf(e.league);
   if (idx >= 0) {
-    score += 0.55 * (1 - idx / Math.max(3, sports.length));
-    if (idx === 0) reasons.push('priority');
-  }
-  // A league you follow counts nearly as much as your first sport: it's
-  // what you asked to see (a league of a followed sport you didn't pick
-  // only gets the sport's part).
-  if (leagues.includes(e.league)) {
-    score += 0.6;
-    if (!reasons.length) reasons.push('league');
+    score += 0.6 + 0.55 * (1 - idx / Math.max(3, leagues.length));
+    reasons.push(idx === 0 ? 'priority' : 'league');
   }
   const followed = new Set(follows.map(f => teamKey(f.league, f.name)));
   const keys = eventKeys(e);

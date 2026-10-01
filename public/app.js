@@ -6,8 +6,8 @@
 // ESPN's (CPBL's own site for its games), read through the
 // Quadra data proxy (lib/espn.mjs).
 //
-// What the person follows lives on the pass (this app's payload): sports in
-// their order of priority, leagues and teams. Nothing of it goes to the other
+// What the person follows lives on the pass (this app's payload): leagues in
+// their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from './lib/quadra.mjs';
 import { localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
@@ -80,7 +80,7 @@ const TABS = ['home', 'matches', 'live', 'following'];
 
 const state = {
   tab: 'home',
-  prefs: { sports: [], leagues: [], follows: [], audio: 'en' },
+  prefs: { leagues: [], follows: [], audio: 'en' },
   prefsLoaded: false,
   wallet: null,
   // The days read so far: date -> { events, at, loading }.
@@ -94,28 +94,24 @@ Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, isFol
 
 // ---- What the person follows (on the pass) ---------------------------------------------
 
+// `leagues`: the person's leagues, in their order (the first counts most).
 function applyPrefs(payload) {
   try {
     const p = payload ? JSON.parse(payload) : null;
-    if (p?.v === 3) state.prefs = { sports: p.sports || [], leagues: p.leagues || [], follows: p.follows || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
-    else if (p?.v === 2 && Array.isArray(p.follows)) {
-      // Teams only, before: their sports and leagues follow from them.
-      const leagues = [...new Set(p.follows.map(f => f.league).filter(k => LEAGUES[k]))];
-      state.prefs = { sports: [...new Set(leagues.map(k => LEAGUES[k].sport))], leagues, follows: p.follows, audio: 'en' };
-    }
+    if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
   } catch {}
-  state.prefs.sports = [...new Set(state.prefs.sports.filter(s => SPORTS[s]))];
-  state.prefs.leagues = state.prefs.leagues.filter(k => LEAGUES[k]);
   // Only the leagues Fixtures has; an NBA team with NBA.com's logo, as everywhere.
   state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
   state.prefsLoaded = true;
 }
+// The sports of the person's leagues, in the leagues' order.
+const followedSports = () => [...new Set(state.prefs.leagues.map(k => LEAGUES[k].sport))];
 let saveTimer = 0;
 function savePrefs() {
   clearTimeout(saveTimer);
-  const { sports, leagues, follows, audio } = state.prefs;
+  const { leagues, follows, audio } = state.prefs;
   saveTimer = setTimeout(() => {
-    q.write({ payload: JSON.stringify({ v: 3, sports, leagues, follows, audio, t: Date.now() }) }).catch(() => {});
+    q.write({ payload: JSON.stringify({ v: 4, leagues, follows, audio, t: Date.now() }) }).catch(() => {});
   }, 800);
 }
 // A followed team's name as shown (kept in English on the pass).
@@ -137,20 +133,16 @@ function toggleFollow(league, side) {
   if (isFollowed(league, side.id)) p.follows = p.follows.filter(f => !(f.league === league && f.id === side.id));
   else {
     p.follows = [...p.follows, { league, id: side.id, name: side.en || side.name, logo: side.logo, ...(side.athlete ? { athlete: true } : {}), ...(side.f1team === true ? { f1team: true } : {}) }];
-    // Following a team follows its league and sport too.
+    // Following a team follows its league too.
     if (!p.leagues.includes(league)) p.leagues = [...p.leagues, league];
-    if (!p.sports.includes(LEAGUES[league].sport)) p.sports = [...p.sports, LEAGUES[league].sport];
     recordAffinity('match', [teamKey(league, side.en || side.name), `league:${leagueKey(league)}`], 4);
   }
   changed();
 }
 function toggleSport(sport) {
   const p = state.prefs;
-  if (p.sports.includes(sport)) {
-    p.sports = p.sports.filter(s => s !== sport);
-    p.leagues = p.leagues.filter(k => LEAGUES[k].sport !== sport);
-  } else {
-    p.sports = [...p.sports, sport];
+  if (p.leagues.some(k => LEAGUES[k].sport === sport)) p.leagues = p.leagues.filter(k => LEAGUES[k].sport !== sport);
+  else {
     // Its headline leagues (or its first) to start with.
     const tops = leaguesOf(sport).filter(k => LEAGUES[k].top);
     p.leagues = [...new Set([...p.leagues, ...(tops.length ? tops : leaguesOf(sport).slice(0, 1))])];
@@ -164,13 +156,14 @@ function toggleLeague(league) {
   if (p.leagues.includes(league)) recordAffinity('match', [`league:${leagueKey(league)}`], 2);
   changed();
 }
-function moveSport(sport, by) {
-  const list = [...state.prefs.sports];
-  const i = list.indexOf(sport);
+// A league up or down the person's order.
+function moveLeague(league, by) {
+  const list = [...state.prefs.leagues];
+  const i = list.indexOf(league);
   const j = i + by;
   if (i < 0 || j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
-  state.prefs.sports = list;
+  state.prefs.leagues = list;
   changed();
 }
 // A follow up the list (追蹤 shows them in this order).
@@ -192,11 +185,8 @@ function changed() {
 function track(keys = [], weight = 1) {
   if (keys.length) recordAffinity('match', keys, weight);
 }
-// The leagues the person follows, their sports' order first.
-function followedLeagues() {
-  const { sports, leagues } = state.prefs;
-  return [...leagues].sort((a, b) => sports.indexOf(LEAGUES[a].sport) - sports.indexOf(LEAGUES[b].sport));
-}
+// The leagues the person follows, in their order.
+const followedLeagues = () => [...state.prefs.leagues];
 
 // 我的設定: everything the person picks, in one sheet: the sports in order,
 // their leagues, who they follow and the commentary they like.
@@ -207,26 +197,28 @@ function openFollowEditor() {
     const p = state.prefs;
     put(
       s.body,
-      el('h3', { class: 'section-h', text: t('yourSports') }),
-      el('p', { class: 'section-sub', text: L({ zh: '排在前面的運動先出現。', en: 'The first ones show first.' }) }),
-      p.sports.length
+      el('h3', { class: 'section-h', text: t('yourLeagues') }),
+      el('p', { class: 'section-sub', text: L({ zh: '排在前面的聯賽先出現。', en: 'The first ones show first.' }) }),
+      p.leagues.length
         ? el(
             'ol',
             { class: 'order-list' },
-            p.sports.map((sp, i) =>
+            p.leagues.map((k, i) =>
               el('li', {}, [
                 el('span', { class: 'order-n num', text: String(i + 1) }),
-                el('span', { class: 'order-name', text: L(SPORTS[sp]) }),
-                el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveUp'), disabled: i === 0 ? true : null, text: '↑', onclick: () => (moveSport(sp, -1), paint()) }),
-                el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveDown'), disabled: i === p.sports.length - 1 ? true : null, text: '↓', onclick: () => (moveSport(sp, 1), paint()) }),
-                el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleSport(sp), paint()) })
+                leagueMark(k, 'lg-mark sm'),
+                el('span', { class: 'order-name', text: leagueName(k, locale) }),
+                el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveUp'), disabled: i === 0 ? true : null, text: '↑', onclick: () => (moveLeague(k, -1), paint()) }),
+                el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveDown'), disabled: i === p.leagues.length - 1 ? true : null, text: '↓', onclick: () => (moveLeague(k, 1), paint()) }),
+                el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleLeague(k), paint()) })
               ])
             )
           )
-        : el('p', { class: 'muted small', text: t('noSportsYet') }),
-      shownSports().some(k => !p.sports.includes(k)) ? el('div', { class: 'q-chips wrap' }, Object.entries(SPORTS).filter(([k]) => isActiveSport(k) && !p.sports.includes(k)).map(([k, sp]) => pickChip(false, `+ ${L(sp)}`, () => (toggleSport(k), paint())))) : null,
-      p.sports.length ? el('h3', { class: 'section-h', text: t('leagues') }) : null,
-      ...p.sports.map(sp => el('div', { class: 'league-pick' }, [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'q-chips wrap' }, shownLeaguesOf(sp).map(k => pickChip(p.leagues.includes(k), leagueName(k, locale), () => (toggleLeague(k), paint()))))])),
+        : el('p', { class: 'muted small', text: t('noLeaguesYet') }),
+      ...shownSports()
+        .map(sp => [sp, shownLeaguesOf(sp).filter(k => !p.leagues.includes(k))])
+        .filter(([, ks]) => ks.length)
+        .map(([sp, ks]) => el('div', { class: 'league-pick' }, [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'q-chips wrap' }, ks.map(k => pickChip(false, `+ ${leagueName(k, locale)}`, () => (toggleLeague(k), paint()))))])),
       el('h3', { class: 'section-h', text: L({ zh: '追蹤的球隊與選手', en: 'Teams and players you follow' }) }),
       p.follows.length
         ? el('ul', { class: 'order-list' }, p.follows.map((f, i) => el('li', {}, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveUp'), disabled: i === 0 ? true : null, text: '↑', onclick: () => (moveFollow(i, -1), paint()) }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
@@ -636,7 +628,7 @@ function renderHome() {
     return;
   }
   const now = Date.now();
-  const pctx = { sports: state.prefs.sports, leagues: state.prefs.leagues, follows: state.prefs.follows, tables: h.tables, aff: affinity(null, now, ['match']), now };
+  const pctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, tables: h.tables, aff: affinity(null, now, ['match']), now };
   const past = h.date < today();
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
@@ -652,7 +644,7 @@ function renderHome() {
   // Nothing of theirs on: the best of the rest.
   // Opened on a day with nothing of theirs: the next day they have games
   // (only on a fresh read: a saved or half-read day can't say there's none).
-  if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.sports.length && !slot.stale && !slot.loading && !mine.some(e => e.status.state === 'in' || e.status.state === 'post')) {
+  if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length && !slot.stale && !slot.loading && !mine.some(e => e.status.state === 'in' || e.status.state === 'post')) {
     h.autoDay = false;
     h.jumping = true;
     nextPickDay().then(d => {
@@ -712,7 +704,7 @@ function renderHome() {
         ]);
       })
     : [];
-  const hasFollows = state.prefs.sports.length > 0;
+  const hasFollows = state.prefs.leagues.length > 0;
   // Everything the picks lean on is in: the day read fresh, the tables,
   // the followed teams, and no search for other games or days going on.
   h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !h.tablesPending && ![...h.teams.values()].includes(null);
@@ -752,7 +744,7 @@ function noTvText(date) {
 }
 const fullSchedule = () => el('button', { class: 'section-more none-go', type: 'button', text: `${L({ zh: '看完整賽程', en: 'Every game' })} ›`, onclick: () => showTab('matches') });
 function homeHead() {
-  const hasFollows = state.prefs.sports.length > 0;
+  const hasFollows = state.prefs.leagues.length > 0;
   const h = state.home;
   const sport = SPORTS[h.filter] ? h.filter : null;
   const days = sport ? h.sportDays.get(sport) : null;
@@ -787,7 +779,7 @@ function homeHead() {
 // one keeps the date strip to the days it plays and goes to the nearest.
 function sportChips() {
   const h = state.home;
-  const filters = [['all', t('f_all')], ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...state.prefs.sports.filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
+  const filters = [['all', t('f_all')], ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...followedSports().filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
   if (filters.length < 3) return null;
   return el(
     'div',
@@ -799,7 +791,7 @@ function sportChips() {
 async function nextPickDay() {
   const h = state.home;
   const sets = await Promise.all(
-    state.prefs.sports.map(async sp => {
+    followedSports().map(async sp => {
       if (!h.sportDays.has(sp)) h.sportDays.set(sp, await sportDays(sp).catch(() => new Set()));
       return h.sportDays.get(sp);
     })
@@ -864,7 +856,7 @@ function sportPicker() {
       'div',
       { class: 'sport-grid' },
       Object.entries(SPORTS).filter(([k]) => isActiveSport(k)).map(([k, sp]) => {
-        const i = state.prefs.sports.indexOf(k);
+        const i = followedSports().indexOf(k);
         return el('button', { class: `sport-tile${i >= 0 ? ' on' : ''}`, type: 'button', onclick: () => toggleSport(k) }, [el('span', { class: 'sport-icon', text: sp.icon }), el('span', { text: L(sp) }), i >= 0 ? el('b', { class: 'sport-n num', text: String(i + 1) }) : null]);
       })
     )
@@ -1224,8 +1216,8 @@ function renderScores() {
     }
   }
   const box = scoresShell();
-  const followed = new Set(state.prefs.sports);
-  const sports = shownSports().sort((a, b) => followed.has(b) - followed.has(a) || state.prefs.sports.indexOf(a) - state.prefs.sports.indexOf(b));
+  const mineSports = followedSports();
+  const sports = shownSports().sort((a, b) => mineSports.includes(b) - mineSports.includes(a) || mineSports.indexOf(a) - mineSports.indexOf(b));
   const sportChips = el(
     'div',
     { class: 'q-chips sport-chips' },
@@ -1301,7 +1293,7 @@ function renderScores() {
     el('div', { class: 'lh-row' }, [
       leagueMark(sc.league, 'lg-mark big'),
       el('div', { class: 'lh-text' }, [el('strong', { text: leagueName(sc.league, locale) }), stage || liveN ? el('small', {}, [stage ? el('span', { class: 'stage-tag', text: stage }) : null, liveN ? el('span', { class: 'lh-live', text: `● ${t('liveN', { n: liveN })}` }) : null]) : null]),
-      el('button', { class: `q-chip small${mine.has(sc.league) ? ' on' : ''}`, type: 'button', text: mine.has(sc.league) ? t('following') : `+ ${t('followLeague')}`, onclick: () => (!state.prefs.sports.includes(sc.sport) && toggleSport(sc.sport), toggleLeague(sc.league), renderScores()) })
+      el('button', { class: `q-chip small${mine.has(sc.league) ? ' on' : ''}`, type: 'button', text: mine.has(sc.league) ? t('following') : `+ ${t('followLeague')}`, onclick: () => (toggleLeague(sc.league), renderScores()) })
     ]),
     twChips(sc.league, 3)
   ]);

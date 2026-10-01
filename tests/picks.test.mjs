@@ -7,20 +7,20 @@ const side = (id, name) => ({ id, name, short: name });
 const match = (league, id, h, away, home, extra = {}) => ({ id, league, kind: 'match', start: at(h), status: { state: 'pre' }, away, home, ...extra });
 const NOW = Date.UTC(2026, 9, 3, 0);
 
-test('a followed team outweighs everything; the first sport counts more', () => {
-  const ctx = { sports: ['baseball', 'soccer'], leagues: ['mlb', 'epl'], follows: [{ league: 'epl', id: '1', name: 'Arsenal' }], now: NOW };
+test('a followed team outweighs everything; the first league counts more', () => {
+  const ctx = { leagues: ['mlb', 'epl'], follows: [{ league: 'epl', id: '1', name: 'Arsenal' }], now: NOW };
   const ars = scoreMatch(match('epl', 'a', 11, side('1', 'Arsenal'), side('2', 'Fulham')), ctx);
   const mlb = scoreMatch(match('mlb', 'b', 11, side('3', 'Mets'), side('4', 'Braves')), ctx);
   const epl = scoreMatch(match('epl', 'c', 11, side('5', 'Brentford'), side('6', 'Everton')), ctx);
   assert.ok(ars.score > mlb.score);
   assert.equal(ars.reasons[0], 'team');
-  assert.ok(mlb.score > epl.score, 'baseball comes first for this person');
+  assert.ok(mlb.score > epl.score, 'MLB comes first for this person');
   assert.ok(mlb.reasons.includes('priority'));
 });
 
 test('the table: a meeting at the top beats the bottom', () => {
   const tables = { epl: tableIndex([{ rows: Array.from({ length: 20 }, (_, i) => ({ id: String(i + 1) })) }]) };
-  const ctx = { sports: ['soccer'], tables, now: NOW };
+  const ctx = { leagues: ['epl'], tables, now: NOW };
   const top = scoreMatch(match('epl', 'a', 11, side('1', 'A'), side('2', 'B')), ctx);
   const low = scoreMatch(match('epl', 'b', 11, side('19', 'S'), side('20', 'T')), ctx);
   assert.ok(top.score > low.score);
@@ -29,7 +29,7 @@ test('the table: a meeting at the top beats the bottom', () => {
 });
 
 test('the plan never clashes, and runs in time order', () => {
-  const ctx = { sports: ['soccer', 'basketball'], now: NOW };
+  const ctx = { leagues: ['epl', 'nba'], now: NOW };
   const events = [
     match('epl', 'a', 11, side('1', 'A'), side('2', 'B')),
     match('epl', 'b', 11, side('3', 'C'), side('4', 'D')),
