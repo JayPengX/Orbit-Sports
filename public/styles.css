@@ -732,6 +732,12 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .tf-game { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr) auto; align-items: center; gap: 6px; text-align: left; font-size: 13.5px; min-height: 26px; }
 .tf-when { display: grid; justify-items: end; gap: 2px; text-align: right; }
 .tf-when small { color: var(--q-muted); font-size: 12px; }
+/* A game still to come: its time on the first line, at the right; where it's
+   on gets a line of its own under the opponent (never squeezing the name). */
+.tf-game:has(> .tf-when) { row-gap: 2px; }
+.tf-game > .tf-when { display: contents; }
+.tf-game > .tf-when > small { grid-column: 4; grid-row: 1; justify-self: end; white-space: nowrap; }
+.tf-game > .tf-when > .tf-tv { grid-column: 3 / 5; grid-row: 2; justify-self: start; }
 .tf-tv { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--q-text-2); white-space: nowrap; }
 .tf-tv.none { font-weight: 600; color: var(--q-muted); }
 .tf-score.live { color: var(--live); }
