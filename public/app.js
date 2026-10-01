@@ -673,7 +673,6 @@ function renderHome() {
       fallback = true;
     }
   }
-  // Followed teams: each one's next game, or its last result (today only).
   const isToday = h.date === today();
   // Today's picks that have ended (the picks only look ahead): the day
   // ranked as it stood before, as on a past day, and what of it was on
@@ -698,15 +697,15 @@ function renderHome() {
   const liveBlock = liveShown.length
     ? section(`● ${t('liveNow')}`, el('div', { class: 'q-card list live-strip' }, [...liveShown.map(x => withWatch(eventRow(x.event), x.event)), allLive > liveShown.length ? el('button', { class: 'live-strip-more', type: 'button', text: `${L({ zh: `全部 ${allLive} 場直播`, en: `All ${allLive} live` })} ›`, onclick: () => showTab('live') }) : null]), { sub: liveMine ? '' : L({ zh: '你追蹤的比賽都還沒開打，先看看這些', en: 'Nothing you follow is on yet: these are' }), cls: 'live-now' })
     : null;
+  // Followed teams that play today, with that game (the rest are on 追蹤).
   const teamRows = isToday
-    ? state.prefs.follows.map(f => {
+    ? state.prefs.follows.flatMap(f => {
         const list = state.home.teams.get(`${f.league}:${f.id}`) || [];
-        const next = list.find(x => x.status.state !== 'post' && Date.parse(x.start) > now - 4 * 3_600_000);
-        const last = [...list].reverse().find(x => x.status.state === 'post');
-        const e = next || last;
+        const e = list.find(x => localDate(Date.parse(x.start)) === h.date);
+        if (!e) return [];
         return el('div', { class: 'follow-row' }, [
           el('button', { class: 'follow-team', type: 'button', onclick: () => (f.athlete ? openPlayer(f.league, f.id) : openTeam(f.league, f.id, f)) }, [f.athlete ? personPic(f, f.league, 'sm round') : logo(f.logo, f.name, 'sm'), el('span', { text: shownName(f) })]),
-          e ? eventRow(e, { league: false }) : el('small', { class: 'muted', text: leagueName(f.league, locale) })
+          eventRow(e, { league: false })
         ]);
       })
     : [];
