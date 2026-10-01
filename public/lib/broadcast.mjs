@@ -72,8 +72,8 @@ export const eltaAppUrl = n => (ELTA_PLAY[n] ? `eltatv://live/${n}` : null);
 //   'en'    English, the original feed (原音, 英文解說)
 //   'dual'  雙語: Chinese commentary with the original on the second audio
 //           track (said so, and a 體育台's program that says nothing: the
-//           four 體育台 carry both, but for CPBL: a Taiwan league's own
-//           broadcast is in Chinese)
+//           four 體育台 carry both); never CPBL's: a Taiwan league's own
+//           broadcast has no English, whatever its title says
 //   'venue' Chinese commentary with the ground's sound on the second track
 //           (副聲道現場原音)
 //   'zh'    Chinese only (中文, a MAX channel's program that says nothing, CPBL's)
@@ -81,7 +81,7 @@ export const eltaAppUrl = n => (ELTA_PLAY[n] ? `eltatv://live/${n}` : null);
 const SPORTS_TV = new Set([101, 105, 110, 115]);
 export function eltaAudio(title, ch, league = '') {
   const t = String(title || '');
-  const audio = /雙語/.test(t) ? 'dual' : /副聲道/.test(t) ? 'venue' : /原音|英文|English/i.test(t) ? 'en' : /中文/.test(t) ? 'zh' : SPORTS_TV.has(ch) && league !== 'cpbl' ? 'dual' : 'zh';
+  const audio = /雙語/.test(t) && league !== 'cpbl' ? 'dual' : /副聲道/.test(t) ? 'venue' : /原音|英文|English/i.test(t) ? 'en' : /中文/.test(t) ? 'zh' : SPORTS_TV.has(ch) && league !== 'cpbl' ? 'dual' : 'zh';
   return { audio, adFree: /無廣告/.test(t) || (ch >= 540 && ch <= 549) };
 }
 export const AUDIO_NAMES = {

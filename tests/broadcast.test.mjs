@@ -143,12 +143,13 @@ test("ELTA's commentary and ads from its titles; delayed and Kids showings left 
   assert.deepEqual(eltaAudio('道奇 VS 巨人 例行賽 9/28(原音) LIVE', 540), { audio: 'en', adFree: true });
   assert.deepEqual(eltaAudio('巴林站 正賽(英文解說原音無廣告) LIVE', 544), { audio: 'en', adFree: true });
   assert.deepEqual(eltaAudio('巴林站 排位賽(中文解說無廣告) LIVE', 545), { audio: 'zh', adFree: true });
-  assert.deepEqual(eltaAudio('味全 VS 富邦 例行賽 9/28(雙語/無廣告) LIVE', 544), { audio: 'dual', adFree: true });
+  assert.deepEqual(eltaAudio('味全 VS 富邦 例行賽 9/28(雙語/無廣告) LIVE', 544, 'cpbl'), { audio: 'zh', adFree: true });
+  assert.deepEqual(eltaAudio('英格蘭 VS 西班牙 第1輪(雙語) LIVE', 544, 'nationsleague'), { audio: 'dual', adFree: true });
   assert.deepEqual(eltaAudio('統一 VS 味全 例行賽 10/1(無廣告/副聲道現場原音) LIVE', 545), { audio: 'venue', adFree: true });
   // A 體育台 unmarked: 雙語, with ads; one marked 原音 is English; a MAX one unmarked is Chinese.
   assert.deepEqual(eltaAudio('巴林站 正賽 LIVE', 105), { audio: 'dual', adFree: false });
   assert.deepEqual(eltaAudio('巴林站 正賽 LIVE', 545), { audio: 'zh', adFree: true });
-  // CPBL on a 體育台: Chinese only (said 雙語, it is).
+  // CPBL: Chinese, on a 體育台 and on MAX even when it says 雙語.
   assert.deepEqual(eltaAudio('味全 VS 富邦 例行賽 LIVE', 101, 'cpbl'), { audio: 'zh', adFree: false });
   assert.deepEqual(eltaAudio('海盜 VS 老虎 例行賽 9/27(原音) LIVE', 110), { audio: 'en', adFree: false });
   const oct = elta('2026-10-01');
