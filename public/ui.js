@@ -3,7 +3,7 @@
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from './lib/logos.mjs';
-import { espnHeadshot, isFlag, isCutout, knownPhoto, findPhoto } from './lib/photos.mjs';
+import { espnHeadshot, smallPhoto, isFlag, isCutout, knownPhoto, findPhoto } from './lib/photos.mjs';
 import { liveLabel, liveNote } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
@@ -146,7 +146,7 @@ export function logo(url, name, cls = '') {
     const flag = countryFlag(name);
     return flag ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: flag }) : el('span', { class: `logo logo-fallback ${cls}`, 'aria-hidden': 'true', text: (name || '?').trim().slice(0, 1) });
   };
-  return logoPicture(freshHeadshot(url), null, `logo ${cls}`, fallback);
+  return logoPicture(smallPhoto(freshHeadshot(url)), null, `logo ${cls}`, fallback);
 }
 // A race weekend's country flag, the emoji if the picture fails.
 export const raceFlag = (e, cls = '') => (e?.country ? logoPicture(flagUrl(e.country), null, `race-flag ${cls}`.trim(), () => el('span', { class: `race-flag emoji ${cls}`.trim(), 'aria-hidden': 'true', text: flagEmoji(e.country) })) : null);
@@ -161,7 +161,8 @@ export function personPic(p, league, cls = '') {
   // exist), and only then ESPN's by id (a guess: a miss costs its retries
   // before the next is tried, and the picture would change late).
   const known = knownPhoto(name, LEAGUES[league]?.sport || '');
-  const urls = [...new Set([p?.headshot, isFlag(p?.logo) ? null : p?.logo, known, espnHeadshot(league, p?.id)].map(freshHeadshot).filter(Boolean))];
+  const guessed = smallPhoto(freshHeadshot(espnHeadshot(league, p?.id)));
+  const urls = [...new Set([p?.headshot, isFlag(p?.logo) ? null : p?.logo, known, espnHeadshot(league, p?.id)].map(u => smallPhoto(freshHeadshot(u))).filter(Boolean))];
   // Nothing found: the driver's badge, else the flag, else the initials;
   // a headshot looked for meanwhile, put in when it comes.
   const last = () => {
@@ -172,7 +173,7 @@ export function personPic(p, league, cls = '') {
       });
     return stand;
   };
-  const chain = i => (i >= urls.length ? last() : logoPicture(urls[i], null, `logo ${cls}${isCutout(urls[i]) ? ' photo cutout' : ''}`, () => chain(i + 1)));
+  const chain = i => (i >= urls.length ? last() : logoPicture(urls[i], null, `logo ${cls}${isCutout(urls[i]) ? ' photo cutout' : ''}`, () => chain(i + 1), { guess: urls[i] === guessed }));
   return chain(0);
 }
 const initialsPic = (name, cls) =>

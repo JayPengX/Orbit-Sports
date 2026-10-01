@@ -12,6 +12,8 @@ test('photos: only studio headshots (ESPN by id or name, TheSportsDB cutouts), n
   assert.equal(await P.tsdbCutout('Juan Soto', 'baseball', tsdb), '');
   assert.ok(P.isCutout('https://r2.thesportsdb.com/images/media/player/cutout/x.png'));
   const espn = async () => ({ items: [{ type: 'player', sport: 'basketball', league: 'wnba', id: '7', displayName: 'Caitlin Clark' }] });
-  assert.equal(await P.espnSearchPhoto('Caitlin Clark', 'basketball', espn, async () => true), 'https://a.espncdn.com/i/headshots/wnba/players/full/7.png');
+  assert.equal(await P.espnSearchPhoto('Caitlin Clark', 'basketball', espn, async () => true), 'https://a.espncdn.com/combiner/i?img=/i/headshots/wnba/players/full/7.png&w=256');
+  assert.equal(P.smallPhoto('https://a.espncdn.com/i/headshots/nba/players/full/1966.png'), 'https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/1966.png&w=256');
+  assert.equal(P.smallPhoto('https://r2.thesportsdb.com/x.png'), 'https://r2.thesportsdb.com/x.png');
   assert.equal(await P.espnSearchPhoto('Caitlin Clark', 'basketball', espn, async () => false), '');
 });
