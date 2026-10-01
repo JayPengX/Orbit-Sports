@@ -440,9 +440,10 @@ let pushTimer = 0;
 async function loadFollowedTeams() {
   for (const f of state.prefs.follows.slice(0, 10)) {
     const key = `${f.league}:${f.id}`;
-    if (f.athlete || state.home.teams.has(key) || !hasTeams(f.league)) continue;
+    if (f.athlete || f.f1team === true || state.home.teams.has(key) || LEAGUES[f.league]?.kind !== 'match') continue;
     state.home.teams.set(key, null);
-    teamSchedule(f.league, f.id)
+    // ESPN's team schedule; the other leagues' own season, the team's games.
+    (hasTeams(f.league) ? teamSchedule(f.league, f.id) : seasonEvents(f.league).then(list => list.filter(e => e.home?.id === String(f.id) || e.away?.id === String(f.id)).sort((a, b) => a.start.localeCompare(b.start))))
       .then(list => {
         state.home.teams.set(key, list);
         if (state.tab === 'home') renderHome();
