@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { stageFrom, stageTag, roundName } from '../public/lib/stage.mjs';
 import { nearestDay } from '../public/lib/days.mjs';
 import { withGaps, parseSeries, parseScoreboard } from '../public/lib/espn.mjs';
-import { broadcastsOf } from '../public/lib/broadcast.mjs';
 import { statValue, groupShort } from '../public/sheets.js';
 
 test('stages: preseason, regular, cup, All-Star, playoffs and finals', () => {
@@ -64,7 +63,7 @@ test('the nearest game day, the next one on a tie', () => {
 test('tables: points behind the leader, games behind where missing', () => {
   const [g] = withGaps([{ name: '', rows: [{ stats: { P: '15' } }, { stats: { P: '12' } }, { stats: { P: '9' } }] }], 'soccer');
   assert.deepEqual(g.rows.map(r => r.stats.GAP), ['-', '3', '6']);
-  const [f] = withGaps([{ name: '', rows: [{ stats: { W: '10', L: '2' } }, { stats: { W: '8', L: '4' } }, { stats: { W: '9', L: '2' } }] }], 'football');
+  const [f] = withGaps([{ name: '', rows: [{ stats: { W: '10', L: '2' } }, { stats: { W: '8', L: '4' } }, { stats: { W: '9', L: '2' } }] }], 'basketball');
   assert.deepEqual(f.rows.map(r => r.stats.GB), ['-', '2', '0.5']);
 });
 
@@ -76,13 +75,8 @@ test('stat bars read rates, times and made-attempted as numbers', () => {
   assert.equal(statValue('-'), null);
 });
 
-test('Taiwan broadcasts for the big leagues', () => {
-  for (const k of ['mlb', 'nba', 'epl', 'cpbl', 'f1', 'laliga']) assert.ok(broadcastsOf(k).length, k);
-  assert.ok(broadcastsOf('laliga').some(b => /DAZN/.test(b.zh)));
-});
-
 test('a long conference name fits the comparison as its initials', () => {
-  assert.equal(groupShort('National Football Conference'), 'NFC');
+  assert.equal(groupShort('Eastern Conference Group'), 'ECG');
   assert.equal(groupShort('American League East'), 'ALE');
   assert.equal(groupShort('Eastern'), 'Eastern');
 });

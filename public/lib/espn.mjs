@@ -1,17 +1,18 @@
-// Sports data for Quadra Fixtures: ESPN's public site API (and Kambi's feed
-// for the leagues ESPN doesn't carry), through the Quadra data proxy, which
-// caches every answer for every viewer and answers signed-in apps only.
+// Sports data for Quadra Fixtures: ESPN's public site API (CPBL, F2 and F3
+// from their own sites), through the Quadra data proxy, which caches every
+// answer for every viewer and answers signed-in apps only.
 //
 // Everything is normalized into a few shapes the page draws:
 //
 //   event   { id, league, kind, name, short, start, status, venue, tv,
-//             home, away (kind 'match'), sessions (kind 'field'), note }
+//             home, away (kind 'match'), sessions and country (kind
+//             'field'), note }
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
-//             lines (each period's score), rank }
+//             lines (each period's score) }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
-import { teamBadge, teamLogo, raceName, countryName, countryCode, flagUrl, f1Driver, f1Constructor } from './logos.mjs';
+import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from './logos.mjs';
 import { detectLocale } from './i18n.mjs';
-import { liveOf, kambiLive } from './live.mjs';
+import { liveOf } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf } from './catalog.mjs';
 import { proxyJson } from './quadra.mjs';
@@ -22,8 +23,6 @@ import { groupZh } from './statnames.mjs';
 export const SITE = 'https://site.api.espn.com/apis/site/v2/sports';
 export const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
 export const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
-const KAMBI = 'https://eu-offering-api.kambicdn.com/offering/v2018/ub';
-
 
 // ---- Fetching ------------------------------------------------------------------
 
@@ -82,7 +81,6 @@ function parseSide(c) {
     score: c.score?.displayValue ?? (typeof c.score === 'string' || typeof c.score === 'number' ? String(c.score) : ''),
     winner: Boolean(c.winner),
     record: record || '',
-    rank: c.curatedRank?.current && c.curatedRank.current < 99 ? c.curatedRank.current : null,
     lines: (c.linescores || []).map(l => l.displayValue ?? String(l.value ?? '')),
     homeAway: c.homeAway || null,
     order: c.order ?? null
@@ -100,19 +98,24 @@ export function fallbackLogo(league, side) {
   if (!side || side.logo) return side?.logo || null;
   // The shared kit's (Quadra Play's) logo for the club.
   const kit = teamLogo(LEAGUES[league]?.play || league, side.name);
-  if (kit || !side.id) return kit;
-  const path = LEAGUES[league]?.espn || '';
-  const [sport, code] = path.split('/');
+  if (kit || !side.id || league === 'nba') return kit;
+  const [sport, code] = (LEAGUES[league]?.espn || '').split('/');
   if (side.athlete) return HEADSHOTS[sport] ? `${CDN}/headshots/${HEADSHOTS[sport]}/players/full/${side.id}.png` : null;
   if (sport === 'soccer') return `${CDN}/teamlogos/soccer/500/${side.id}.png`;
-  if (/college/.test(code || '')) return `${CDN}/teamlogos/ncaa/500/${side.id}.png`;
-  if (['nba', 'wnba', 'nfl', 'mlb', 'nhl'].includes(code) && side.abbr) return `${CDN}/teamlogos/${code}/500/${side.abbr.toLowerCase()}.png`;
+  if (code === 'mlb' && side.abbr) return `${CDN}/teamlogos/mlb/500/${side.abbr.toLowerCase()}.png`;
   return null;
 }
-// A team's name in the reader's language: Chinese from the kit's names
-// (lib/names.mjs) when it has the team, the English kept as `en` (Play's ids
-// and the matching use it). People (players, drivers) keep their names.
-export function localSide(league, side, lang = detectLocale()) {
+// An NBA team's logo is always NBA.com's primary mark (the kit's): ESPN's
+// files are some clubs' alternates (the Celtics' shamrock). A club from
+// outside the league (a preseason guest: the London Lions) has none, so it
+// shows its initial.
+const nbaLogo = (league, side) => (league === 'nba' && side && !side.athlete ? { ...side, logo: teamLogo('nba', side.en || side.name) } : side);
+// A team as shown: its logo (an NBA team's, above), and its name in the
+// reader's language: Chinese from the kit's names (lib/names.mjs) when it has
+// the team, the English kept as `en` (Play's ids and the matching use it).
+// People (players, drivers) keep their names.
+export function localSide(league, raw, lang = detectLocale()) {
+  const side = nbaLogo(league, raw);
   if (!side || lang === 'en' || side.athlete) return side;
   const en = side.en || side.name;
   const zh = teamNameZh(LEAGUES[league]?.play || league, en, LEAGUES[league]?.sport);
@@ -217,7 +220,8 @@ export function parseScoreboard(data, league) {
         status: parseStatus(m.status),
         field: [...(m.competitors || [])].sort((a, b) => (a.order ?? 999) - (b.order ?? 999)).map(c => withLogo(league, parseSide(c)))
       }));
-      out.push({ ...base, sessions });
+      // Where it's raced: the circuit's country ('SG'), for its flag.
+      out.push({ ...base, sessions, country: countryCode(e.circuit?.address?.country) });
     }
   }
   return out;
@@ -225,9 +229,7 @@ export function parseScoreboard(data, league) {
 
 export async function scoreboard(league, dates) {
   const l = LEAGUES[league];
-  if (l?.kambi) return kambiEvents(league);
   if (l?.asia) return asiaEvents(league);
-  if (l?.tsdb) return tsdbRaceEvents(league);
   if (l?.fom) return fomRaceEvents(league);
   const list = [].concat(dates || []);
   const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: 20_000 }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: 20_000 })];
@@ -243,9 +245,7 @@ export async function scoreboard(league, dates) {
 // future event, not only the current one. Late in the year, next year's too.
 export async function seasonEvents(league, now = Date.now()) {
   const l = LEAGUES[league];
-  if (l?.kambi) return kambiEvents(league);
   if (l?.asia) return asiaEvents(league);
-  if (l?.tsdb) return tsdbRaceEvents(league, now);
   if (l?.fom) return fomRaceEvents(league, now);
   const d = new Date(now);
   const years = [d.getUTCFullYear(), ...(d.getUTCMonth() >= 10 ? [d.getUTCFullYear() + 1] : [])];
@@ -259,28 +259,21 @@ export async function seasonEvents(league, now = Date.now()) {
   return events.length ? events : scoreboard(league);
 }
 
-// ---- The season's calendar: which days (or weeks) a league plays -------------------
+// ---- The season's calendar: which days a league plays -------------------------------
 //
 // ESPN's scoreboard carries the season's calendar: for most leagues the US
 // dates with games (a whitelist), for MLB the days without (a blacklist
-// between the season's start and end), for American football its weeks.
-// { days: ['YYYYMMDD'…] } or { weeks: [{ label, seasontype, week, start, end }] }, or
-// null when there's none.
+// between the season's start and end). { days: ['YYYYMMDD'…] }, { months:
+// true } (a cup's), or null when there's none.
 export function parseCalendar(data) {
   const l = data?.leagues?.[0];
   const cal = l?.calendar;
   if (!Array.isArray(cal) || !cal.length) return null;
   const us = iso => String(iso).slice(0, 10).replaceAll('-', '');
   // A cup's or the national teams' calendar: its stages ("League Phase",
-  // "Round of 16"), neither days nor weeks; its games come from month pages
-  // (the default page can be a round long past).
-  if (typeof cal[0] === 'object' && cal[0].value == null) return { months: true };
-  if (typeof cal[0] === 'object') {
-    const weeks = cal.flatMap(type =>
-      (type.entries || []).map(w => ({ label: w.label || w.alternateLabel || '', detail: w.detail || '', seasontype: String(type.value), week: String(w.value), start: w.startDate, end: w.endDate }))
-    );
-    return weeks.length ? { weeks } : null;
-  }
+  // "Round of 16"), not days; its games come from month pages (the default
+  // page can be a round long past).
+  if (typeof cal[0] === 'object') return { months: true };
   if (l.calendarIsWhitelist !== false) return { days: cal.map(us) };
   // A blacklist: every day from the start to the end but those.
   const off = new Set(cal.map(us));
@@ -304,118 +297,9 @@ export async function seasonCalendar(league) {
   if (!l?.espn) return null;
   return parseCalendar(await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: 20_000 }));
 }
-export async function weekScoreboard(league, seasontype, week) {
-  const l = LEAGUES[league];
-  const data = await getJson(`${SITE}/${l.espn}/scoreboard?seasontype=${seasontype}&week=${week}&limit=300`, { ttl: 20_000 });
-  return parseScoreboard(data, league);
-}
 
-// ---- Kambi (EuroLeague, K League) ---------------------------------------------------
-
-export function parseKambi(data, league) {
-  const out = [];
-  for (const item of data?.events || []) {
-    const e = item.event;
-    if (!e?.homeName || !e?.awayName) continue;
-    const live = item.liveData;
-    const state = e.state === 'STARTED' ? 'in' : e.state === 'FINISHED' ? 'post' : 'pre';
-    // Baseball's innings in the score's info ("1-0 | 0-2 | …").
-    const info = String(live?.score?.info || '').split('|').map(x => x.trim().split('-'));
-    const innings = info.length > 1 && info.every(x => x.length === 2) ? { home: info.map(x => x[0]), away: info.map(x => x[1]) } : null;
-    const side = (name, key) => ({
-      id: name,
-      name,
-      short: name,
-      abbr: name.slice(0, 3).toUpperCase(),
-      // A club's badge; a national side its flag.
-      logo: teamBadge(LEAGUES[league]?.play || league, name) || flagUrl(countryCode(name)),
-      color: null,
-      score: live?.score?.[key] ?? '',
-      winner: false,
-      record: '',
-      rank: null,
-      lines: innings ? innings[key] : [],
-      homeAway: key
-    });
-    out.push({
-      id: `k${e.id}`,
-      league,
-      kind: 'match',
-      name: `${e.awayName} @ ${e.homeName}`,
-      short: e.name,
-      start: e.start,
-      status: { state, detail: state === 'in' ? live?.matchClock?.minute != null ? `${live.matchClock.minute}'` : '' : '', short: '', completed: state === 'post', void: false },
-      venue: '',
-      tv: '',
-      note: e.group || '',
-      home: localSide(league, side(e.homeName, 'home')),
-      away: localSide(league, side(e.awayName, 'away')),
-      live: state === 'in' ? kambiLive(live, LEAGUES[league]?.sport) : null,
-      kambi: true
-    });
-  }
-  return out.sort((a, b) => a.start.localeCompare(b.start));
-}
-export async function kambiEvents(league) {
-  const parts = LEAGUES[league].kambi.split('/');
-  while (parts.length < 4) parts.push('all');
-  const data = await getJson(`${KAMBI}/listView/${parts.join('/')}/matches.json?lang=en_GB&market=GB&useCombined=true`, { ttl: 60_000, trim: 'kambi-events' });
-  return parseKambi(data, league);
-}
 // A status from a plain state ('pre', 'in', 'post'): for the race series read from their own sites.
 const plainStatus = state => ({ state, detail: '', short: '', completed: state === 'post', void: false, delayed: false, name: '', clock: '', period: 0 });
-
-// ---- Formula E (TheSportsDB's calendar, open to browsers) ------------------------------
-//
-// One entry per session ("Jeddah ePrix Qualifying"), grouped by round into
-// race weekends; a time of exactly midnight is TheSportsDB's "not known yet".
-const TSDB = 'https://www.thesportsdb.com/api/v1/json/3';
-const FE_SESSION = [
-  [/qualifying/i, 'Qual'],
-  [/race|e-?prix$/i, 'Race']
-];
-export function parseTsdbRaces(list, league) {
-  const rounds = new Map();
-  for (const x of list || []) {
-    const abbr = /practice/i.test(x.strEvent) ? null : FE_SESSION.find(([re]) => re.test(x.strEvent))?.[1];
-    if (!abbr) continue;
-    const key = `${x.strSeason}-${x.intRound}-${String(x.strEvent).replace(/\s+(qualifying|race).*$/i, '')}`;
-    if (!rounds.has(key)) rounds.set(key, { round: x.intRound, name: String(x.strEvent).replace(/\s+(qualifying|race).*$/i, ''), venue: x.strVenue || '', sessions: [] });
-    const at = x.strTimestamp ? `${x.strTimestamp.replace(/\+00:00$/, '')}Z` : `${x.dateEvent}T00:00:00Z`;
-    const state = /finished|FT|match finished/i.test(x.strStatus || '') || x.intHomeScore != null ? 'post' : 'pre';
-    rounds.get(key).sessions.push({ id: String(x.idEvent), abbr, name: abbr, start: at, status: plainStatus(state), field: [], tbc: /T00:00:00/.test(at) });
-  }
-  return [...rounds.values()]
-    .map(r => {
-      const sessions = r.sessions.sort((a, b) => a.start.localeCompare(b.start));
-      const done = sessions.length && sessions.every(x => x.status.state === 'post');
-      return { id: `fe${sessions[0].id}`, tbc: sessions.every(x => x.tbc), league, kind: 'field', name: r.name, enName: r.name, short: '', start: sessions[0].start, end: sessions.at(-1).start, status: plainStatus(done ? 'post' : 'pre'), venue: r.venue, tv: '', note: '', series: null, stage: null, sessions };
-    })
-    .sort((a, b) => a.start.localeCompare(b.start));
-}
-async function tsdbRaceEvents(league, now = Date.now()) {
-  const y = new Date(now).getUTCFullYear();
-  const seasons = [`${y - 1}-${y}`, `${y}-${y + 1}`];
-  const lists = await Promise.all(seasons.map(sn => fetch(`${TSDB}/eventsseason.php?id=${LEAGUES[league].tsdb}&s=${sn}`).then(r => (r.ok ? r.json() : null)).catch(() => null)));
-  const races = parseTsdbRaces(lists.flatMap(d => d?.events || []), league);
-  // A race run: its finishing order (TheSportsDB's results), and it's over.
-  await Promise.all(
-    races.flatMap(e => e.sessions.filter(x => x.abbr === 'Race' && Date.parse(x.start) < now - 2 * 3_600_000 && Date.parse(x.start) > now - 400 * 86_400_000)).map(async x => {
-      const field = parseTsdbResults(await fetch(`${TSDB}/eventresults.php?id=${x.id}`).then(r => (r.ok ? r.json() : null)).catch(() => null));
-      if (!field.length) return;
-      x.field = field;
-      x.status = plainStatus('post');
-    })
-  );
-  for (const e of races) if (e.sessions.length && e.sessions.every(x => x.status.state === 'post')) e.status = plainStatus('post');
-  return races;
-}
-// A race's finishing order: winner's time, then the gaps.
-export const parseTsdbResults = data =>
-  (data?.results || [])
-    .filter(r => r.intPosition)
-    .sort((a, b) => Number(a.intPosition) - Number(b.intPosition))
-    .map(r => ({ id: `tsdb${r.idPlayer}`, name: r.strPlayer || '', short: r.strPlayer || '', athlete: true, flag: '', logo: '', score: String(r.strDetail || '').replace(/\s+/g, ' ').trim(), team: '' }));
 
 // ---- F2, F3 (their own sites, through the proxy: trimFom) ------------------------------
 //
@@ -428,6 +312,13 @@ const FOM_SESSION = [
   [/qualif/i, 'Qual', { zh: '排位賽', en: 'Qualifying' }],
   [/practice/i, 'FP', { zh: '練習賽', en: 'Practice' }]
 ];
+// Where each round is raced (its page's place, as in /en/racing/2026/<place>),
+// for its flag: the F1 calendar's circuits, where F2 and F3 race.
+const FOM_COUNTRY = {
+  melbourne: 'AU', shanghai: 'CN', suzuka: 'JP', sakhir: 'BH', jeddah: 'SA', 'miami-gardens': 'US', montreal: 'CA', 'monte-carlo': 'MC', barcelona: 'ES', imola: 'IT',
+  spielberg: 'AT', silverstone: 'GB', 'spa-francorchamps': 'BE', budapest: 'HU', zandvoort: 'NL', monza: 'IT', madrid: 'ES', baku: 'AZ', sepang: 'MY', 'marina-bay': 'SG',
+  austin: 'US', 'mexico-city': 'MX', 'sao-paulo': 'BR', 'las-vegas': 'US', lusail: 'QA', 'yas-marina': 'AE'
+};
 const FOM_MONTHS = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
 // "06 - 08 MAR", "29 MAY - 01 JUN": the first and last day (UTC noon).
 export function fomDates(text, year) {
@@ -456,7 +347,7 @@ export function parseFomRound(meeting, sessions, league, year, lang = detectLoca
   const end = list.at(-1)?.start || (dates ? new Date(dates.to).toISOString() : start);
   const done = meeting.status === 'completed' || (list.length > 0 && list.every(x => x.status.state === 'post')) || (dates && dates.to < Date.now() - 86_400_000);
   const name = meeting.place || meeting.name;
-  return { id: `${league}-${year}-${meeting.round}`, tbc: !list.length, league, kind: 'field', name, enName: name, short: meeting.round ? `R${meeting.round}` : '', start, end, status: plainStatus(done ? 'post' : list.some(x => x.status.state === 'in') ? 'in' : 'pre'), venue: meeting.place || '', tv: '', note: '', series: null, stage: null, sessions: list };
+  return { id: `${league}-${year}-${meeting.round}`, tbc: !list.length, league, kind: 'field', name, enName: name, short: meeting.round ? `R${meeting.round}` : '', start, end, status: plainStatus(done ? 'post' : list.some(x => x.status.state === 'in') ? 'in' : 'pre'), venue: meeting.place || '', tv: '', note: '', series: null, stage: null, sessions: list, country: FOM_COUNTRY[String(meeting.url || '').split('/').pop()] || null };
 }
 async function fomRaceEvents(league, now = Date.now()) {
   const host = LEAGUES[league].fom;
@@ -474,7 +365,7 @@ async function fomRaceEvents(league, now = Date.now()) {
     .sort((a, b) => a.start.localeCompare(b.start));
 }
 
-// ---- NPB, KBO, CPBL (the leagues' own sites, through the proxy) -----------------------
+// ---- CPBL (its own site, through the proxy) ---------------------------------------------
 
 // The shared catalogue's month lists (see catalog.mjs, asiaMonth) as events.
 export function parseAsia(games, league, lang = detectLocale()) {
@@ -514,8 +405,8 @@ export function parseAsia(games, league, lang = detectLocale()) {
     };
   });
 }
-// The months around now (and `extra` more either side): a whole round of the
-// season, past games and the next ones.
+// The months around now (and `extra` more either side): a whole stretch of
+// the season, past games and the next ones.
 export async function asiaEvents(league, extra = 0, now = Date.now()) {
   const [y, m] = asiaMonthOf(now).split('-').map(Number);
   const months = [];
@@ -659,8 +550,6 @@ export const STANDING_COLUMNS = {
   soccer: ['GP', 'W', 'D', 'L', 'GD', 'P', 'GAP'],
   baseball: ['W', 'L', 'PCT', 'GB', 'STRK'],
   basketball: ['W', 'L', 'PCT', 'GB', 'STRK'],
-  football: ['W', 'L', 'T', 'PCT', 'GB', 'STRK'],
-  hockey: ['GP', 'W', 'L', 'OTL', 'PTS', 'GAP'],
   racing: ['W', 'POD', 'PTS', 'GAP']
 };
 // The columns that matter most on a narrow screen.
@@ -668,21 +557,18 @@ export const COMPACT_COLUMNS = {
   soccer: ['GP', 'GD', 'P', 'GAP'],
   baseball: ['W', 'L', 'PCT', 'GB'],
   basketball: ['W', 'L', 'PCT', 'GB'],
-  football: ['W', 'L', 'PCT', 'GB'],
-  hockey: ['GP', 'PTS', 'GAP'],
   racing: ['PTS', 'GAP']
 };
 
 // The gap to the top of each table: points behind the leader (soccer,
-// hockey, racing) as GAP, and games behind (GB) where the feed
-// leaves it out for a win-loss table (American football). The leader shows
-// "-".
+// racing) as GAP, and games behind (GB) where the feed leaves it out for a
+// win-loss table. The leader shows "-".
 const num = v => {
   const n = parseFloat(String(v ?? '').replace(/[^\d.-]/g, ''));
   return Number.isFinite(n) ? n : null;
 };
 export function withGaps(groups, sport) {
-  const pointsKey = { soccer: 'P', hockey: 'PTS', racing: 'PTS' }[sport];
+  const pointsKey = { soccer: 'P', racing: 'PTS' }[sport];
   return (groups || []).map(g => {
     const rows = g.rows;
     if (!rows.length) return g;
@@ -691,7 +577,7 @@ export function withGaps(groups, sport) {
       if (top == null) return g;
       return { ...g, rows: rows.map((r, i) => ({ ...r, stats: { ...r.stats, GAP: i === 0 ? '-' : num(r.stats[pointsKey]) == null ? '' : String(Math.round((top - num(r.stats[pointsKey])) * 10) / 10) } })) };
     }
-    if (['baseball', 'basketball', 'football'].includes(sport) && rows.some(r => r.stats.GB == null || r.stats.GB === '')) {
+    if (['baseball', 'basketball'].includes(sport) && rows.some(r => r.stats.GB == null || r.stats.GB === '')) {
       const w0 = num(rows[0].stats.W);
       const l0 = num(rows[0].stats.L);
       if (w0 == null || l0 == null) return g;
@@ -800,7 +686,6 @@ export function parseAthlete(data) {
     position: a.position?.displayName || '',
     team: a.team?.displayName || '',
     teamId: String(a.team?.id ?? ''),
-    teamLogo: logoOf(a.team),
     teamColor: a.team?.color ? `#${a.team.color}` : '',
     age: a.age || null,
     born: a.displayDOB || '',
@@ -811,14 +696,9 @@ export function parseAthlete(data) {
     status: a.status?.name || '',
     injuries: (a.injuries || []).map(i => i.status || i.type?.description).filter(Boolean),
     stats: { title: a.statsSummary?.displayName || '', list: (a.statsSummary?.statistics || []).map(s => ({ label: s.shortDisplayName || s.abbreviation, name: s.displayName, value: s.displayValue, rank: s.rankDisplayValue || '' })) },
-    // Individual sports: the country, and what each sport adds.
+    // A driver's country.
     country: a.flag?.alt || a.citizenship || a.citizenshipCountry?.abbreviation || '',
-    flag: a.flag?.href || '',
-    hand: a.hand?.displayValue || '',
-    turnedPro: a.turnedPro || a.debutYear || '',
-    weightClass: a.weightClass?.text || '',
-    stance: a.stance?.text || '',
-    record: (a.statsSummary?.statistics || []).find(s => /wins-losses/i.test(s.displayName || ''))?.displayValue || ''
+    flag: a.flag?.href || ''
   };
 }
 export async function athlete(league, id) {
@@ -880,31 +760,10 @@ export function parseGameLog(log) {
     .slice(0, 5);
   return games.length ? { title: block.displayName || '', labels: block.labels.slice(0, n), games } : null;
 }
-// A player's photo from TheSportsDB (ESPN has none for footballers): the
-// studio cut-out only (its portraits are often casual pictures), when the
-// name and the sport match. Open to browsers (CORS), so not through the proxy.
-const SPORTSDB_SPORT = { soccer: 'Soccer', basketball: 'Basketball', baseball: 'Baseball', football: 'American Football', hockey: 'Ice Hockey', racing: 'Motorsport' };
-const photos = new Map();
-export function pickPhoto(data, name, sport) {
-  const want = normalizeTeamName(name);
-  const p = (data?.player || []).find(x => normalizeTeamName(x.strPlayer) === want && (!SPORTSDB_SPORT[sport] || x.strSport === SPORTSDB_SPORT[sport]));
-  return p?.strCutout || null;
-}
-export function playerPhoto(name, sport) {
-  if (!name) return Promise.resolve(null);
-  const key = `${sport}|${name}`;
-  if (!photos.has(key))
-    photos.set(
-      key,
-      fetch(`https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${encodeURIComponent(name)}`)
-        .then(r => (r.ok ? r.json() : null))
-        .then(d => pickPhoto(d, name, sport))
-        .catch(() => null)
-    );
-  return photos.get(key);
-}
 export async function athleteOverview(league, id) {
-  return parseOverview(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }));
+  const ov = parseOverview(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }));
+  if (ov.log) ov.log.games = ov.log.games.map(g => ({ ...g, opp: nbaLogo(league, g.opp) }));
+  return ov;
 }
 
 // ---- Names, compared ---------------------------------------------------------------------

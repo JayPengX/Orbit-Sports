@@ -7,8 +7,8 @@ import { STRINGS } from '../public/lib/i18n.mjs';
 test('every league has a sport, a source and a kind', () => {
   for (const [key, l] of Object.entries(LEAGUES)) {
     assert.ok(SPORTS[l.sport], key);
-    assert.ok(l.espn || l.kambi || l.asia || l.tsdb || l.motogp || l.fom, key);
-    assert.ok(['match', 'field', 'card', 'draw'].includes(l.kind), key);
+    assert.ok(l.espn || l.asia || l.fom, key);
+    assert.ok(['match', 'field'].includes(l.kind), key);
     assert.ok(l.zh && l.en, key);
   }
   assert.ok(TOP_LEAGUES.length >= 5);

@@ -1,16 +1,17 @@
 // Quadra Fixtures: a sports app that goes with Quadra (a related add-on, like
 // Orbit Class). Every supported sport's scores, schedules, match details (box
 // scores, plays, line-ups, win probability), standings, teams and players,
-// and a day planned around what the person follows. The data is ESPN's
-// (Kambi's for the leagues ESPN doesn't carry), read through the Quadra data
-// proxy (lib/espn.mjs).
+// and a day planned around what the person follows, for the leagues on
+// ELTA.tv and Apple TV in Taiwan, with a tap to watch them there. The data is
+// ESPN's (CPBL's, F2's and F3's own sites for theirs), read through the
+// Quadra data proxy (lib/espn.mjs).
 //
 // What the person follows lives on the pass (this app's payload): sports in
 // their order of priority, leagues and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, activityPatch, affinity, appUrl, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, affinityPatch, settingPatch } from './lib/quadra.mjs';
-import { localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, weekScoreboard, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
-import { SERVICES, watchable, leaguesOn, eltaChannel, eltaWatchUrl, eltaAppUrl } from './lib/broadcast.mjs';
+import { localSide, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents } from './lib/espn.mjs';
+import { eltaChannel } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
 import { familyOfSport } from './lib/catalog.mjs';
@@ -20,14 +21,14 @@ import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref } from './lib/tv.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, sessionTag, audioName, personPic } from './ui.js';
+import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, withWatch, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables } from './sheets.js';
-import { f1Driver, f1Constructor } from './lib/logos.mjs';
+import { f1Driver, f1Constructor, teamLogo } from './lib/logos.mjs';
 
 // ---- What's on: leagues with games from two weeks back to two months on ---------------
 //
-// A league out of season (or a tournament not being played, the World Cup
-// between editions) is hidden, and a sport with none left with it. Checked
+// A league out of season (or a tournament not being played, the Nations
+// League between editions) is hidden, and a sport with none left with it. Checked
 // once and kept on the device for 12 hours.
 const ACTIVE_KEY = 'fx.active.v1';
 let activeSet = (() => {
@@ -52,7 +53,6 @@ async function leagueHasGames(k, from, to) {
     const cal = await seasonCalendar(k).catch(() => null);
     const us = d => Date.parse(`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}T12:00:00Z`);
     if (cal?.days) return cal.days.some(d => us(d) >= from && us(d) <= to);
-    if (cal?.weeks) return cal.weeks.some(w => Date.parse(w.end) >= from && Date.parse(w.start) <= to);
     return near(await scoreboard(k, monthsBetween(from, to)).catch(() => []));
   }
   return near(await seasonEvents(k).catch(() => []));
@@ -80,7 +80,7 @@ const TABS = ['home', 'matches', 'live', 'following'];
 
 const state = {
   tab: 'home',
-  prefs: { sports: [], leagues: [], follows: [], tv: [], audio: 'en' },
+  prefs: { sports: [], leagues: [], follows: [], audio: 'en' },
   prefsLoaded: false,
   wallet: null,
   // The days read so far: date -> { events, at, loading }.
@@ -98,24 +98,25 @@ Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, isFol
 function applyPrefs(payload) {
   try {
     const p = payload ? JSON.parse(payload) : null;
-    if (p?.v === 3) state.prefs = { sports: p.sports || [], leagues: p.leagues || [], follows: p.follows || [], tv: p.tv || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
+    if (p?.v === 3) state.prefs = { sports: p.sports || [], leagues: p.leagues || [], follows: p.follows || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
     else if (p?.v === 2 && Array.isArray(p.follows)) {
       // Teams only, before: their sports and leagues follow from them.
       const leagues = [...new Set(p.follows.map(f => f.league).filter(k => LEAGUES[k]))];
-      state.prefs = { sports: [...new Set(leagues.map(k => LEAGUES[k].sport))], leagues, follows: p.follows, tv: [], audio: 'en' };
+      state.prefs = { sports: [...new Set(leagues.map(k => LEAGUES[k].sport))], leagues, follows: p.follows, audio: 'en' };
     }
   } catch {}
   state.prefs.sports = [...new Set(state.prefs.sports.filter(s => SPORTS[s]))];
   state.prefs.leagues = state.prefs.leagues.filter(k => LEAGUES[k]);
-  state.prefs.tv = (state.prefs.tv || []).filter(id => SERVICES.some(x => x.id === id));
+  // Only the leagues Fixtures has; an NBA team with NBA.com's logo, as everywhere.
+  state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
   state.prefsLoaded = true;
 }
 let saveTimer = 0;
 function savePrefs() {
   clearTimeout(saveTimer);
-  const { sports, leagues, follows, tv, audio } = state.prefs;
+  const { sports, leagues, follows, audio } = state.prefs;
   saveTimer = setTimeout(() => {
-    q.write({ payload: JSON.stringify({ v: 3, sports, leagues, follows, tv, audio, t: Date.now() }) }).catch(() => {});
+    q.write({ payload: JSON.stringify({ v: 3, sports, leagues, follows, audio, t: Date.now() }) }).catch(() => {});
   }, 800);
 }
 // A followed team's name as shown (kept in English on the pass).
@@ -192,11 +193,9 @@ function followedLeagues() {
   return [...leagues].sort((a, b) => sports.indexOf(LEAGUES[a].sport) - sports.indexOf(LEAGUES[b].sport));
 }
 
-// The editor: sports in order, each one's leagues, the teams.
 // 我的設定: everything the person picks, in one sheet: the sports in order,
-// their leagues, who they follow, their services and the commentary.
-// `focus`: a section to open on ('tv').
-function openFollowEditor(focus = '') {
+// their leagues, who they follow and the commentary they like.
+function openFollowEditor() {
   const s = sheet(L({ zh: '我的設定', en: 'My settings' }));
   const pickChip = (on, text, onclick) => el('button', { class: `q-chip${on ? ' on' : ''}`, type: 'button', 'aria-pressed': String(on), text, onclick });
   const paint = () => {
@@ -227,9 +226,6 @@ function openFollowEditor(focus = '') {
       p.follows.length
         ? el('ul', { class: 'order-list' }, p.follows.map(f => el('li', {}, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
         : el('p', { class: 'muted small', text: t('teamsHint') }),
-      el('h3', { class: 'section-h', id: 'set-tv', text: t('tvPick') }),
-      el('p', { class: 'section-sub', text: t('tvHint') }),
-      tvChips(paint),
       el('h3', { class: 'section-h', text: t('tvAudio') }),
       segmented(
         [
@@ -239,7 +235,8 @@ function openFollowEditor(focus = '') {
         state.prefs.audio || 'en',
         v => {
           state.prefs.audio = v;
-          tvChanged();
+          savePrefs();
+          if (state.tab === 'home') renderHome();
           paint();
         }
       ),
@@ -247,7 +244,6 @@ function openFollowEditor(focus = '') {
     );
   };
   paint();
-  if (focus === 'tv') requestAnimationFrame(() => s.body.querySelector('#set-tv')?.scrollIntoView({ block: 'start' }));
 }
 
 // ---- Opening things ------------------------------------------------------------------------
@@ -268,8 +264,7 @@ function openEvent(e) {
 
 // The leagues the picks come from: the ones followed and the followed
 // teams'. Only when none of them plays (or the person follows nothing yet)
-// are the others read: the leagues on their broadcast services (any Taiwan
-// broadcast when they haven't said which they have), the headline ones first.
+// are the others read, the headline ones first.
 function pickLeagues() {
   return [...new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)])].filter(k => LEAGUES[k]);
 }
@@ -278,13 +273,10 @@ function pickLeagues() {
 const leaguesKey = () => pickLeagues().join();
 function otherLeagues() {
   const mine = new Set(pickLeagues());
-  return leaguesOn(state.prefs.tv)
-    .filter(k => LEAGUES[k] && !mine.has(k))
+  return Object.keys(LEAGUES)
+    .filter(k => !mine.has(k))
     .sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top));
 }
-// On the person's services (every match when they haven't said which): the
-// game's own channels where ELTA's schedule says (an NBA game ELTA doesn't carry isn't on ELTA).
-const onMyTv = e => !state.prefs.tv.length || (watchable(e.league, state.prefs.tv) && tvOf(e).some(b => state.prefs.tv.includes(b.svc)));
 const espnDaysOf = date => {
   const start = new Date(`${date}T00:00:00`).getTime();
   return [...new Set([yyyymmdd(new Date(start - 11 * 3_600_000)), yyyymmdd(new Date(start + 12 * 3_600_000)), yyyymmdd(new Date(start + 23 * 3_600_000))])];
@@ -518,7 +510,7 @@ function centerChosen(box) {
 const REASON = r => t(`why_${r}`);
 function pickCard(item, n) {
   const e = item.event;
-  const reasons = item.reasons.filter(r => r !== 'tv').slice(0, 2).map(r => REASON(r));
+  const reasons = item.reasons.slice(0, 2).map(r => REASON(r));
   const tag = stageOf(e).special ? (stageOf(e).round?.[locale === 'en' ? 'en' : 'zh'] || stageOf(e)[locale === 'en' ? 'en' : 'zh']) : '';
   const series = seriesText(e);
   return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => openEvent(e) }, [
@@ -528,7 +520,7 @@ function pickCard(item, n) {
     ]),
     el('div', { class: 'pick-body' }, [
       el('div', { class: 'pick-top' }, [leagueChip(e.league), tag ? el('span', { class: 'stage-tag', text: tag }) : null]),
-      e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : e.sessionKey ? el('div', { class: 'sess-head pick-title' }, [sessionTag(e), el('strong', { text: e.name })]) : el('strong', { class: 'pick-title', text: e.session ? `${e.name} · ${e.session}` : e.name }),
+      e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : el('div', { class: 'sess-head pick-title' }, [raceFlag(e), sessionTag(e), el('strong', { text: e.sessionKey || !e.session ? e.name : `${e.name} · ${e.session}` })]),
       series ? el('small', { class: 'series-line', text: series }) : null,
       liveLine(e),
       e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : null,
@@ -645,9 +637,9 @@ function renderHome() {
     const fix = items => items.map(x => ({ ...x, event: real.get(`${x.event.league}:${x.event.id}`) || x.event }));
     return [fix(plan), fix(rest)];
   };
-  const mine = slot.events.filter(onMyTv);
+  const mine = slot.events;
   let [planList, more] = rank(filtered(mine));
-  // Nothing of theirs on (on their services): the best of the rest there.
+  // Nothing of theirs on: the best of the rest.
   // Opened on a day with nothing of theirs: the next day they have games
   // (only on a fresh read: a saved or half-read day can't say there's none).
   if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.sports.length && !slot.stale && !slot.loading && !mine.some(e => e.status.state === 'in' || e.status.state === 'post')) {
@@ -669,7 +661,7 @@ function renderHome() {
       loadOthers(h.date);
     } else {
       // Worth watching on its own: the stakes and the sides, not the person's sport order.
-      [planList, more] = rank(slot.others.filter(onMyTv), 12, { ...pctx, sports: [], leagues: [] });
+      [planList, more] = rank(slot.others, 12, { ...pctx, sports: [], leagues: [] });
       fallback = true;
     }
   }
@@ -679,7 +671,7 @@ function renderHome() {
   // ranked as it stood before, as on a past day, and what of it was on
   // show (the plan and the first of the rest) that's over now.
   const ended = x => x.event.status.state === 'post' && !x.event.status.void;
-  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(onMyTv), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
+  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others, 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
   const endedPlan = wasPlan.filter(ended);
   const endedMore = wasMore.slice(0, 20).filter(ended);
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
@@ -689,14 +681,14 @@ function renderHome() {
   const rankLive = (list, c) => list.map(e => ({ event: e, ...scoreMatch(e, c) })).sort((x, y) => y.score - x.score);
   let liveItems = isToday ? rankLive(onNow(filtered(mine)), pctx) : [];
   const liveMine = liveItems.length > 0;
-  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(onMyTv)), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
+  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot)), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
   const allLive = isToday ? onNow(dayAll(slot)).length : 0;
   const liveShown = liveItems.slice(0, liveMine ? 5 : 3);
   const liveKeys = new Set(liveShown.map(x => `${x.event.league}:${x.event.id}`));
   planList = planList.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
   more = more.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
   const liveBlock = liveShown.length
-    ? section(`● ${t('liveNow')}`, el('div', { class: 'q-card list live-strip' }, [...liveShown.map(x => eventRow(x.event)), allLive > liveShown.length ? el('button', { class: 'live-strip-more', type: 'button', text: `${L({ zh: `全部 ${allLive} 場直播`, en: `All ${allLive} live` })} ›`, onclick: () => showTab('live') }) : null]), { sub: liveMine ? '' : L({ zh: '你追蹤的比賽都還沒開打，先看看這些', en: 'Nothing you follow is on yet: these are' }), cls: 'live-now' })
+    ? section(`● ${t('liveNow')}`, el('div', { class: 'q-card list live-strip' }, [...liveShown.map(x => withWatch(eventRow(x.event), x.event)), allLive > liveShown.length ? el('button', { class: 'live-strip-more', type: 'button', text: `${L({ zh: `全部 ${allLive} 場直播`, en: `All ${allLive} live` })} ›`, onclick: () => showTab('live') }) : null]), { sub: liveMine ? '' : L({ zh: '你追蹤的比賽都還沒開打，先看看這些', en: 'Nothing you follow is on yet: these are' }), cls: 'live-now' })
     : null;
   const teamRows = isToday
     ? state.prefs.follows.map(f => {
@@ -782,7 +774,7 @@ function sportChips() {
     filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => pickFilter(k) }))
   );
 }
-// The first day after today any followed sport plays (on the person's services).
+// The first day after today any followed sport plays.
 async function nextPickDay() {
   const h = state.home;
   const sets = await Promise.all(
@@ -813,8 +805,7 @@ async function pickFilter(k) {
   if (list.length && !days.has(h.date)) h.date = list.find(d => d >= today()) || list.at(-1);
   renderHome();
 }
-// The days (the date strip's stretch so far) a followed sport's leagues
-// play on the person's services.
+// The days (the date strip's stretch so far) a followed sport's leagues play.
 async function sportDays(sport) {
   const leagues = pickLeagues().filter(k => LEAGUES[k].sport === sport);
   const from = addDays(today(), stripRange.from);
@@ -825,13 +816,9 @@ async function sportDays(sport) {
     leagues.map(async k => {
       const l = LEAGUES[k];
       if (l.kind !== 'match') return seasonEvents(k).catch(() => []);
-      if (l.kambi || l.asia) return scoreboard(k).catch(() => []);
+      if (l.asia) return scoreboard(k).catch(() => []);
       const cal = await seasonCalendar(k).catch(() => null);
       if (cal?.months) return scoreboard(k, monthsBetween(Date.parse(`${from}T00:00:00`) - 86_400_000, Date.parse(`${to}T23:59:59`))).catch(() => []);
-      if (cal?.weeks) {
-        const weeks = cal.weeks.filter(w => Date.parse(w.end) >= Date.parse(`${from}T00:00:00`) - 86_400_000 && Date.parse(w.start) <= Date.parse(`${to}T23:59:59`));
-        return (await Promise.all(weeks.map(w => weekScoreboard(k, w.seasontype, w.week).catch(() => [])))).flat();
-      }
       const us = (cal?.days || []).filter(d => d >= usFrom && d <= usTo);
       return us.length ? scoreboard(k, us).catch(() => []) : [];
     })
@@ -839,47 +826,13 @@ async function sportDays(sport) {
   const now = Date.now();
   const days = new Set();
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
-    if (e.status?.void || !onMyTv(e)) continue;
+    if (e.status?.void) continue;
     const ms = Date.parse(e.start);
     const d = localDate(ms);
     if (inPickDay(ms, d) && d >= from && d <= to) days.add(d);
   }
   return days;
 }
-
-function tvChips(after) {
-  const tv = state.prefs.tv;
-  return el(
-    'div',
-    { class: 'q-chips wrap' },
-    SERVICES.map(x =>
-      el('button', {
-        class: `q-chip${tv.includes(x.id) ? ' on' : ''}`,
-        type: 'button',
-        'aria-pressed': String(tv.includes(x.id)),
-        text: L(x).replace(/（.*）|\s*\(.*\)/, ''),
-        onclick: () => {
-          state.prefs.tv = tv.includes(x.id) ? tv.filter(id => id !== x.id) : [...tv, x.id];
-          tvChanged();
-          after();
-        }
-      })
-    )
-  );
-}
-function tvChanged() {
-  savePrefs();
-  state.home.sportDays.clear();
-  // The others depend on the services: read again when needed.
-  for (const slot of state.days.values()) {
-    slot.others = null;
-    slot.othersAt = 0;
-    slot.rest = null;
-    slot.restAt = 0;
-  }
-  if (state.tab === 'home') renderHome();
-}
-const openTvEditor = () => openFollowEditor('tv');
 
 // First run: the sports, tapped in order of priority.
 function sportPicker() {
@@ -933,41 +886,15 @@ function renderLive() {
   // Finished in the last few hours (by start: a game's end isn't known), latest first.
   const ended = all.filter(e => e.status.state === 'post' && !e.status.void && Date.parse(e.start) > now - 8 * 3_600_000).sort((a, b) => b.start.localeCompare(a.start));
   const mineFirst = list => [...list].sort((a, b) => isFollowedEvent(b) - isFollowedEvent(a));
-  // The services strip: all, mine (the ones in 我的設定), then each service
-  // that has something in these lists, with how many.
-  const svcOf = e => new Set(tvOf(e).map(b => b.svc));
-  const shown = [...live, ...soon, ...ended];
-  const counts = new Map();
-  for (const e of shown) for (const id of svcOf(e)) counts.set(id, (counts.get(id) || 0) + 1);
-  const mineSvc = state.prefs.tv || [];
-  const pick = state.liveSvc && (state.liveSvc === 'all' || state.liveSvc === 'mine' || counts.has(state.liveSvc)) ? state.liveSvc : 'all';
-  const keep = e => pick === 'all' || (pick === 'mine' ? mineSvc.some(id => svcOf(e).has(id)) : svcOf(e).has(pick));
-  const svcName = sv => L(sv).replace(/（.*$|\s*\(.*$/, '');
-  const strip = el(
-    'div',
-    { class: 'q-chips svc-strip' },
-    [
-      ['all', L({ zh: '全部', en: 'All' }), shown.length],
-      mineSvc.length ? ['mine', L({ zh: '我的服務', en: 'Mine' }), shown.filter(e => mineSvc.some(id => svcOf(e).has(id))).length] : null,
-      ...SERVICES.filter(sv => counts.has(sv.id))
-        .sort((x, y) => counts.get(y.id) - counts.get(x.id))
-        .map(sv => [sv.id, svcName(sv), counts.get(sv.id)])
-    ]
-      .filter(Boolean)
-      .map(([id, name, n]) =>
-        el('button', { class: `q-chip${pick === id ? ' on' : ''}`, type: 'button', 'aria-pressed': String(pick === id), onclick: () => ((state.liveSvc = id), renderLive()) }, [el('span', { text: name }), el('small', { class: 'num svc-n', text: String(n) })])
-      )
-  );
-  const liveF = live.filter(keep);
-  const soonF = soon.filter(keep);
-  const endedF = ended.filter(keep);
+  // A game on now: its row, and 觀看 beside it (straight into ELTA.tv's or Apple TV's app).
+  const liveRow = e => withWatch(eventRow(e), e);
   // The next to start (a followed team's if one is within the hour of the first).
-  const first = soonF[0];
-  const nextUp = first && (soonF.find(e => isFollowedEvent(e) && Date.parse(e.start) - Date.parse(first.start) < 3_600_000) || first);
+  const first = soon[0];
+  const nextUp = first && (soon.find(e => isFollowedEvent(e) && Date.parse(e.start) - Date.parse(first.start) < 3_600_000) || first);
   const wait = nextUp ? Math.max(0, Date.parse(nextUp.start) - now) : 0;
   const waitText = wait < 60_000 ? L({ zh: '馬上', en: 'any minute' }) : wait < 3_600_000 ? L({ zh: `${Math.round(wait / 60_000)} 分鐘後`, en: `in ${Math.round(wait / 60_000)} min` }) : L({ zh: `${Math.floor(wait / 3_600_000)} 小時 ${Math.round((wait % 3_600_000) / 60_000)} 分後`, en: `in ${Math.floor(wait / 3_600_000)} h ${Math.round((wait % 3_600_000) / 60_000)} min` });
-  const hero = liveF.length
-    ? el('div', { class: 'home-hero' }, [el('div', {}, [el('p', { class: 'hero-kicker live-kicker', text: t('liveNow') }), el('h2', { class: 'hero-title', text: `${liveF.length} ${locale === 'en' ? 'live' : '場進行中'}` })])])
+  const hero = live.length
+    ? el('div', { class: 'home-hero' }, [el('div', {}, [el('p', { class: 'hero-kicker live-kicker', text: t('liveNow') }), el('h2', { class: 'hero-title', text: `${live.length} ${locale === 'en' ? 'live' : '場進行中'}` })])])
     : el('div', { class: 'home-hero live-idle' }, [
         el('div', {}, [
           el('p', { class: 'hero-kicker', text: t('liveEmpty') }),
@@ -977,14 +904,13 @@ function renderLive() {
   put(
     box,
     hero,
-    shown.length ? strip : null,
-    !liveF.length && nextUp ? el('div', { class: 'q-card list' }, [eventRow(nextUp)]) : null,
-    !liveF.length && !nextUp && reading ? spinner() : null,
-    liveF.length ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, mineFirst(liveF).map(e => eventRow(e)))) : null,
-    endedF.length && !liveF.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(endedF).slice(0, 12).map(e => eventRow(e)))) : null,
-    soonF.filter(e => e !== nextUp || liveF.length).length ? section(liveF.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, (liveF.length ? mineFirst(soonF) : soonF.filter(e => e !== nextUp)).slice(0, 30).map(e => eventRow(e)))) : null,
-    endedF.length && liveF.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(endedF).slice(0, 8).map(e => eventRow(e)))) : null,
-    pick === 'all' || pick === 'elta' ? tvGuide(all) : null
+    !live.length && nextUp ? el('div', { class: 'q-card list' }, [liveRow(nextUp)]) : null,
+    !live.length && !nextUp && reading ? spinner() : null,
+    live.length ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, mineFirst(live).map(liveRow))) : null,
+    ended.length && !live.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(ended).slice(0, 12).map(e => eventRow(e)))) : null,
+    soon.filter(e => e !== nextUp || live.length).length ? section(live.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, (live.length ? mineFirst(soon) : soon.filter(e => e !== nextUp)).slice(0, 30).map(e => eventRow(e)))) : null,
+    ended.length && live.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(ended).slice(0, 8).map(e => eventRow(e)))) : null,
+    tvGuide(all)
   );
 }
 // 愛爾達's guide: what its channels show now and in the next 12 hours (the
@@ -1014,11 +940,11 @@ function tvGuide(events) {
         return el('div', { class: `tvg-row${on ? ' on' : ''}` }, [
           el('span', { class: 'tvg-time num' }, [el('b', { text: on ? L({ zh: '播出中', en: 'On now' }) : clock(new Date(p.start).toISOString()) }), el('small', { text: [L(ch).replace(/^愛爾達|^ELTA\.tv\s*/, ''), audioName(p)].filter(Boolean).join(' · ') })]),
           el('button', { class: 'tvg-body', type: 'button', disabled: e ? null : true, onclick: () => e && openEvent(e) }, [leagueChip(p.league), el('span', { class: 'tvg-title', text: p.title })]),
-          eltaWatchUrl(p.ch) ? watchLink({ ch: p.ch, url: eltaWatchUrl(p.ch), app: eltaAppUrl(p.ch) }, { class: 'tvg-watch', text: L({ zh: '觀看', en: 'Watch' }) }) : null
+          ch.url ? watchLink(ch, { class: 'tvg-watch', text: L({ zh: '觀看', en: 'Watch' }) }) : null
         ]);
       })
     ),
-    { sub: L({ zh: '愛爾達的節目表（需訂閱 ELTA.tv 或 MOD）', en: "ELTA's schedule (needs ELTA.tv or MOD)" }) }
+    { sub: L({ zh: '愛爾達的節目表（需訂閱 ELTA.tv）', en: "ELTA's schedule (needs ELTA.tv)" }) }
   );
 }
 
@@ -1111,7 +1037,7 @@ async function pickScoresDay(d) {
   const sc = state.scores;
   sc.date = d;
   const l = LEAGUES[sc.league];
-  if (sc.byDay instanceof Map && !sc.byDay.has(d) && l.espn && sc.mode === 'days' && !l.kambi) {
+  if (sc.byDay instanceof Map && !sc.byDay.has(d) && l.espn && sc.mode === 'days') {
     renderScores();
     const at = Date.parse(`${d}T12:00:00`);
     // Its US days: the one before, the day, and the one after.
@@ -1137,11 +1063,8 @@ async function fetchScores(sc) {
       const byId = new Map(season.map(e => [e.id, e]));
       for (const e of current) byId.set(e.id, e);
       events = [...byId.values()];
-    } else if (l.kambi) {
-      sc.mode = 'days';
-      events = await scoreboard(league);
     } else if (l.asia) {
-      // NPB, KBO, CPBL: the months around now, more with ‹ and ›.
+      // CPBL: the months around now, more with ‹ and ›.
       sc.mode = 'days';
       events = await asiaEvents(league, sc.extra);
     } else {
@@ -1151,12 +1074,6 @@ async function fetchScores(sc) {
         // A cup: the last month, this one and the next (more with ‹ and ›).
         const now = Date.now();
         events = await scoreboard(league, monthsBetween(now - (31 + 31 * sc.extra) * 86_400_000, now + (31 + 31 * sc.extra) * 86_400_000));
-      } else if (cal?.weeks) {
-        const now = Date.now();
-        let i = cal.weeks.findIndex(w => Date.parse(w.end) > now);
-        if (i < 0) i = cal.weeks.length - 1;
-        const pick = cal.weeks.slice(Math.max(0, i - 1 - sc.extra), i + 2 + sc.extra);
-        events = (await Promise.all(pick.map(w => weekScoreboard(league, w.seasontype, w.week).catch(() => [])))).flat();
       } else {
         // The game days of the last week and next fortnight, and in any case
         // the last few before today and the next few after (a break between
@@ -1240,8 +1157,9 @@ function weekends(list) {
   }
   return [...out.values()];
 }
-// A race weekend as a card: its name, circuit and days, then each session
-// (time, badge, state); over, the race's winner.
+// A race weekend as a card: its flag, name, circuit and days (and an F2 or
+// F3 round's number), then each session (time, badge, state); over, the
+// race's winner.
 function weekendCard(sessions) {
   const e = sessions[0];
   const list = [...sessions].sort((a, b) => a.start.localeCompare(b.start));
@@ -1253,7 +1171,7 @@ function weekendCard(sessions) {
   const winner = done ? (race.sessions?.find(x => x.abbr === race.sessionKey) || race.sessions?.at(-1))?.field?.[0] : null;
   const live = list.some(x => x.status.state === 'in');
   return el('button', { class: `q-card wk-card${live ? ' live' : ''}${done ? ' done' : ''}`, type: 'button', onclick: () => openEvent(race) }, [
-    el('div', { class: 'wk-card-head' }, [el('div', {}, [el('strong', { class: 'wk-card-name', text: e.name }), el('small', { class: 'muted', text: [e.venue, days].filter(Boolean).join(' · ') })]), e.short ? el('span', { class: 'wk-round', text: e.short }) : null]),
+    el('div', { class: 'wk-card-head' }, [raceFlag(e, 'big'), el('div', { class: 'wk-card-text' }, [el('strong', { class: 'wk-card-name', text: e.name }), el('small', { class: 'muted', text: [e.venue, days].filter(Boolean).join(' · ') })]), /^R\d+$/.test(e.short) ? el('span', { class: 'wk-round', text: e.short }) : null]),
     winner
       ? el('div', { class: 'wk-winner' }, [personPic(winner, e.league, 'sm round'), el('span', {}, [el('small', { class: 'muted', text: L({ zh: '冠軍', en: 'Winner' }) }), el('strong', { text: winner.short || winner.name })])])
       : el(

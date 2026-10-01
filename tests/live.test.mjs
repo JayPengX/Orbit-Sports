@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { liveOf, liveLabel, liveNote, possessionOf, kambiLive } from '../public/lib/live.mjs';
+import { liveOf, liveLabel, liveNote } from '../public/lib/live.mjs';
 import { parseScoreboard } from '../public/lib/espn.mjs';
 
 const status = (name, shortDetail, period, displayClock = '0:00') => ({ period, displayClock, type: { name, state: 'in', shortDetail, detail: shortDetail } });
@@ -13,19 +13,6 @@ test('baseball: the half inning, the count, outs, runners, batter and pitcher', 
   assert.equal(liveLabel(e, 'baseball'), '7局下');
   assert.equal(liveLabel(e, 'baseball', 'en'), 'Bot 7th');
   assert.equal(liveNote(e, 'baseball'), '2壞1好 2出局 · S. Ohtani vs Z. Wheeler');
-});
-
-test('American football: quarter and clock, down and distance, possession, red zone', () => {
-  const [e] = parseScoreboard(board('football', status('STATUS_IN_PROGRESS', '5:32 - 3rd', 3, '5:32'), { situation: { down: 3, distance: 4, shortDownDistanceText: '3rd & 4', possessionText: 'PHI 12', possession: '20', isRedZone: true } }), 'nfl');
-  assert.equal(liveLabel(e, 'football'), '第3節 5:32');
-  assert.equal(liveLabel(e, 'football', 'en'), 'Q3 5:32');
-  assert.equal(liveNote(e, 'football'), '3rd & 4 · PHI 12');
-  assert.equal(possessionOf(e), 'away');
-  assert.equal(e.live.redZone, true);
-  const [ot] = parseScoreboard(board('football', status('STATUS_IN_PROGRESS', '8:00 - OT', 5, '8:00'), {}), 'nfl');
-  assert.equal(liveLabel(ot, 'football'), '延長賽 8:00');
-  const [half] = parseScoreboard(board('football', status('STATUS_HALFTIME', 'Halftime', 2), {}), 'nfl');
-  assert.equal(liveLabel(half, 'football'), '中場休息');
 });
 
 test('soccer: the minute, extra time, the latest goal', () => {
@@ -42,18 +29,15 @@ test('soccer: the minute, extra time, the latest goal', () => {
   assert.equal(liveLabel(et, 'soccer'), "延長 105'");
 });
 
-test('basketball, hockey periods, breaks', () => {
+test('basketball quarters, overtime, breaks', () => {
   const [nba] = parseScoreboard(board('basketball', status('STATUS_IN_PROGRESS', '2:10 - 4th', 4, '2:10'), {}), 'nba');
   assert.equal(liveLabel(nba, 'basketball'), '第4節 2:10');
-  const [nhl] = parseScoreboard(board('hockey', status('STATUS_END_PERIOD', 'End of 2nd', 2), {}), 'nhl');
-  assert.equal(liveLabel(nhl, 'hockey'), '第2節結束');
-  const [so] = parseScoreboard(board('hockey', status('STATUS_SHOOTOUT', 'SO', 5), {}), 'nhl');
-  assert.equal(liveLabel(so, 'hockey'), '射門大戰');
-});
-
-test('Kambi: the inning from the line score', () => {
-  assert.equal(kambiLive({ score: { info: '1-0 | 0-2 | 0-0' } }, 'baseball').inning, 3);
-  const e = { league: 'cpbl', status: { state: 'in' }, live: kambiLive({ score: { info: '1-0 | 0-2' } }, 'baseball') };
-  assert.equal(liveLabel(e, 'baseball'), '2局上');
+  assert.equal(liveLabel(nba, 'basketball', 'en'), 'Q4 2:10');
+  const [ot] = parseScoreboard(board('basketball', status('STATUS_IN_PROGRESS', '1:05 - OT', 5, '1:05'), {}), 'nba');
+  assert.equal(liveLabel(ot, 'basketball'), '延長賽 1:05');
+  const [end] = parseScoreboard(board('basketball', status('STATUS_END_PERIOD', 'End of 2nd', 2), {}), 'nba');
+  assert.equal(liveLabel(end, 'basketball'), '第2節結束');
+  const [half] = parseScoreboard(board('basketball', status('STATUS_HALFTIME', 'Halftime', 2), {}), 'nba');
+  assert.equal(liveLabel(half, 'basketball'), '中場休息');
   assert.equal(liveOf({}, {}, 'baseball').half, '');
 });

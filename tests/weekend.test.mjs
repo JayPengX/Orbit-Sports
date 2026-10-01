@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { splitWeekend, sessionName } from '../public/lib/espn.mjs';
-import { watchable, leaguesOn, SERVICES, BROADCAST } from '../public/lib/broadcast.mjs';
 import { teamBadge, leagueLogo } from '../public/lib/logos.mjs';
 
 const st = state => ({ state, detail: '', short: '', completed: state === 'post', void: false });
@@ -38,22 +37,8 @@ test('a race weekend lists sprint qualifying, sprint, qualifying and race, not p
   assert.deepEqual(splitWeekend(game), [game]);
 });
 
-test('broadcast services: what they carry', () => {
-  assert.ok(Object.values(BROADCAST).flat().every(b => SERVICES.some(x => x.id === b.svc)));
-  assert.ok(watchable('laliga', ['dazn']));
-  assert.ok(!watchable('epl', ['dazn']));
-  assert.ok(watchable('epl', []));
-  // KBO: free on SOOP; Formula E on Disney+, its practice on YouTube.
-  assert.ok(watchable('kbo', ['soop']));
-  assert.ok(watchable('formulae', ['disney']) && watchable('formulae', ['youtube']));
-  assert.ok(leaguesOn(['elta']).includes('nba'));
-  assert.ok(!leaguesOn(['elta']).includes('laliga'));
-});
-
 test('logos for the leagues and teams the feeds leave bare', () => {
   assert.match(teamBadge('cpbl', 'Rakuten Monkeys'), /^https:/);
-  assert.match(teamBadge('npb', 'Yomiuri Giants'), /^https:/);
-  assert.notEqual(teamBadge('npb', 'Yomiuri Giants'), teamBadge('kbo', 'Lotte Giants'));
   assert.equal(teamBadge('cpbl', 'Nobody FC'), null);
   assert.match(leagueLogo('epl'), /^https:/);
   assert.match(leagueLogo('cpbl'), /^https:/);

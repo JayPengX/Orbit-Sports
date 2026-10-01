@@ -45,23 +45,6 @@ test('the plan never clashes, and runs in time order', () => {
   assert.ok(!plan.concat(also).some(p => p.event.id === 'x'), 'finished games are not picks');
 });
 
-test('games bet on are in the plan on top of the picks, never pushing one out', () => {
-  const ctx = { sports: ['soccer'], now: NOW };
-  const events = [
-    match('epl', 'a', 11, side('1', 'A'), side('2', 'B')),
-    match('epl', 'c', 14, side('5', 'E'), side('6', 'F')),
-    // Bet on, and at the same time as the first pick: in anyway.
-    match('mlb', 'bet', 11, side('7', 'Phillies'), side('8', 'Braves'))
-  ];
-  const plain = dayPlan(events, ctx, { n: 2 });
-  const { plan } = dayPlan(events, ctx, { n: 2, keep: new Set(['mlb:bet']) });
-  assert.deepEqual(plan.filter(p => !p.bet).map(p => p.event.id), plain.plan.map(p => p.event.id));
-  const bet = plan.find(p => p.event.id === 'bet');
-  assert.equal(bet.bet, true);
-  assert.equal(bet.reasons[0], 'bet');
-  assert.equal(plan.length, 3);
-});
-
 test('a play-off or series game is worth staying up for', () => {
   assert.ok(bigGame({ note: 'NLWC - Game 3', stage: { key: 'post' } }));
   assert.ok(!bigGame({ note: '', stage: { key: 'regular' } }));

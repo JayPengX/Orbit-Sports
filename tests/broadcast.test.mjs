@@ -1,14 +1,17 @@
-// Where a game is on: ELTA's own schedule matched game by game (the NBA only
-// from 10/6, one game a day), the kit's Chinese team names, and whether Play sells a game.
+// Where a game is on: ELTA's own schedule matched game by game, NBA.com's
+// Taiwan schedule for the NBA beyond it, Apple TV's MLS, the commentary, and
+// the kit's Chinese team names.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaPrograms, zhSame, eltaDays, NBA_ELTA_FROM, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaPrograms, zhSame, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '../public/lib/names.mjs';
 
-const programs = parseElta(JSON.parse(readFileSync(new URL('./fixtures/elta-2026-09-30.json', import.meta.url), 'utf8')));
+const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
+const programs = elta('2026-09-30');
 const nba = (id, start, away, home) => ({ id, league: 'nba', kind: 'match', start, status: { state: 'pre' }, away: { name: away }, home: { name: home } });
 const sides = e => [e.home, e.away].flatMap(s => Object.values(teamNameZh('nba', s.name) || {}));
+const on = (e, list, more = {}) => broadcastsFor(e, list, { sides: sides(e), ...more });
 
 test("ELTA's schedule: live programs only, by league, the sides from the title", () => {
   assert.ok(programs.length > 100);
@@ -20,18 +23,24 @@ test("ELTA's schedule: live programs only, by league, the sides from the title",
   assert.deepEqual(eltaDays(programs), { from: '2026-09-27', to: '2026-10-15' });
 });
 
+test("ELTA's league names as it writes them: UEL, UECL, and 蘇超 with no English name", () => {
+  const oct = elta('2026-10-01');
+  const leagues = new Set(oct.map(p => p.league));
+  for (const k of ['uel', 'uecl', 'scotland', 'ucl', 'epl', 'mlb', 'cpbl', 'nba', 'f1']) assert.ok(leagues.has(k), k);
+  // Only Fixtures' leagues: not the Asian Games, BWF, WTT…
+  assert.ok([...leagues].every(k => broadcastsOf(k).length), [...leagues].join());
+});
+
 test('an NBA game ELTA carries shows its channel; the others on that day no ELTA', () => {
   const hou = nba('1', '2026-10-09T12:00Z', 'Houston Rockets', 'Dallas Mavericks');
   const mem = nba('2', '2026-10-10T00:00Z', 'Memphis Grizzlies', 'Chicago Bulls');
-  const on = broadcastsFor(hou, programs, sides(hou), [hou, mem]);
-  assert.equal(on[0].zh, 'ELTA.tv 體育1台');
-  assert.equal(on[0].url, 'https://eltaott.tv/channel/play/101/1');
-  const off = broadcastsFor(mem, programs, sides(mem), [hou, mem]);
-  assert.ok(!off.some(b => b.svc === 'elta'), JSON.stringify(off));
-  // Before 10/6 ELTA has no NBA at all.
-  const early = nba('3', '2026-10-02T23:30Z', 'Boston Celtics', 'New York Knicks');
-  assert.ok(!broadcastsFor(early, programs, sides(early), []).some(b => b.svc === 'elta'));
-  assert.equal(NBA_ELTA_FROM, '2026-10-06');
+  const [ch] = on(hou, programs, { others: [hou, mem] });
+  assert.equal(ch.zh, 'ELTA.tv 體育1台');
+  assert.equal(ch.url, 'https://eltaott.tv/channel/play/101/1');
+  assert.equal(ch.exact, true);
+  assert.deepEqual(on(mem, programs, { others: [hou, mem] }), []);
+  // In the list's days with no program of it: not on ELTA.
+  assert.deepEqual(on(nba('3', '2026-10-02T23:30Z', 'Boston Celtics', 'New York Knicks'), programs), []);
 });
 
 test('a program without the sides: the only game near it gets it; among several it is one of them, to be named', () => {
@@ -40,14 +49,58 @@ test('a program without the sides: the only game near it gets it; among several 
   assert.equal(eltaPrograms(programs, lal, sides(lal), [lal, den]).length, 1);
   const a = nba('6', '2026-10-05T23:00Z', 'Memphis Grizzlies', 'Atlanta Hawks');
   const b = nba('7', '2026-10-05T23:00Z', 'Phoenix Suns', 'Detroit Pistons');
-  const tba = broadcastsFor(a, programs, sides(a), [a, b]).find(x => x.svc === 'elta');
+  const [tba] = on(a, programs, { others: [a, b] });
   assert.ok(tba?.note, 'marked as one of the games then');
 });
 
-test('beyond the schedule: the league list, the NBA said to be one game a day', () => {
-  const late = nba('8', '2026-11-20T00:00Z', 'Boston Celtics', 'Miami Heat');
-  const list = broadcastsFor(late, programs, sides(late), []);
-  assert.ok(list.some(x => x.svc === 'elta' && x.note?.zh === '每日一場'));
+// SYNTHETIC: the shape of NBA.com's scheduleLeagueV2_32.json (Taiwan), made
+// up for this test (cdn.nba.com refuses this container): two ELTA games on
+// one Taiwan day, one game on another broadcaster.
+const ELTA_TV = { broadcasterId: 9001, broadcasterDisplay: 'ELTA', broadcasterAbbreviation: 'ELTA' };
+const game = (gameId, gameDateTimeUTC, away, home, intl) => ({ gameId, gameDateTimeUTC, awayTeam: { teamId: away, teamTricode: 'AAA' }, homeTeam: { teamId: home, teamTricode: 'HHH' }, broadcasters: { nationalTvBroadcasters: [], intlTvBroadcasters: intl, intlOttBroadcasters: [] } });
+const SYNTHETIC_NBA = {
+  leagueSchedule: {
+    seasonYear: '2026-27',
+    gameDates: [
+      {
+        gameDate: '11/20/2026 00:00:00',
+        games: [
+          game('0022600201', '2026-11-20T00:00:00Z', 1610612738, 1610612748, [ELTA_TV]),
+          game('0022600202', '2026-11-20T03:00:00Z', 1610612747, 1610612744, [ELTA_TV]),
+          game('0022600203', '2026-11-20T01:00:00Z', 1610612752, 1610612741, [{ broadcasterId: 1, broadcasterDisplay: 'Other TV' }])
+        ]
+      }
+    ]
+  }
+};
+
+test("NBA.com's Taiwan schedule: ELTA's games only, the same from the proxy's trimmed list or NBA.com's file", () => {
+  const games = nbaEltaGames(SYNTHETIC_NBA);
+  assert.deepEqual(games.map(g => g.id), ['0022600201', '0022600202']);
+  assert.deepEqual(games[0], { id: '0022600201', start: Date.parse('2026-11-20T00:00:00Z'), home: 1610612748, away: 1610612738 });
+  // The Worker's answer ({ games }) reads the same.
+  assert.deepEqual(nbaEltaGames({ games: games.map(g => ({ ...g, start: new Date(g.start).toISOString() })) }), games);
+  assert.deepEqual(nbaEltaGames(null), []);
+});
+
+test("beyond ELTA's list: an NBA game on ELTA by NBA.com's schedule (two that day), never guessed", () => {
+  const games = nbaEltaGames(SYNTHETIC_NBA);
+  const ids = (away, home) => ({ games, ids: { away, home } });
+  const bos = nba('8', '2026-11-20T00:10Z', 'Boston Celtics', 'Miami Heat');
+  const lal = nba('9', '2026-11-20T03:00Z', 'Los Angeles Lakers', 'Golden State Warriors');
+  const nyk = nba('10', '2026-11-20T01:00Z', 'New York Knicks', 'Chicago Bulls');
+  const [first] = on(bos, programs, { nba: ids(1610612738, 1610612748) });
+  assert.equal(first.svc, 'elta');
+  assert.equal(first.exact, true);
+  // No channel yet: ELTA's sports schedule, in its app.
+  assert.equal(first.ch, undefined);
+  assert.equal(first.app, 'eltatv://schedule/live');
+  assert.equal(on(lal, programs, { nba: ids(1610612747, 1610612744) })[0]?.svc, 'elta');
+  // Another broadcaster's game, the same teams the other way round, or no schedule yet: no ELTA.
+  assert.deepEqual(on(nyk, programs, { nba: ids(1610612752, 1610612741) }), []);
+  assert.deepEqual(on(bos, programs, { nba: ids(1610612748, 1610612738) }), []);
+  assert.deepEqual(on(bos, programs, { nba: { games: null, ids: { away: 1610612738, home: 1610612748 } } }), []);
+  assert.deepEqual(on(bos, programs), []);
 });
 
 test('Chinese names match however ELTA shortens them', () => {
@@ -57,7 +110,7 @@ test('Chinese names match however ELTA shortens them', () => {
   assert.deepEqual(teamNameZh('mlb', 'Pittsburgh Pirates'), { full: '匹茲堡海盜', short: '海盜' });
   assert.equal(teamNameZh('epl', 'Manchester City', 'soccer').short, '曼城');
   assert.equal(teamNameZh('cpbl', 'Uni Lions').short, '統一獅');
-  assert.equal(teamNameZh('nfl', 'Nobody FC'), null);
+  assert.equal(teamNameZh('nba', 'Nobody FC'), null);
 });
 
 test('ESPN words in Chinese: pitches, series, injuries, groups, positions, leaders, weather', async () => {
@@ -77,13 +130,12 @@ test('ESPN words in Chinese: pitches, series, injuries, groups, positions, leade
   assert.equal(m.dateText('', '30/9/1997'), '1997年9月30日');
 });
 
-test('Apple TV+ only on a regular-season MLB Friday (US time)', () => {
-  const mlb = (start, stage) => ({ id: '1', league: 'mlb', kind: 'match', start, status: { state: 'pre' }, stage, away: { name: 'A' }, home: { name: 'B' } });
-  const apple = e => broadcastsFor(e, []).some(b => b.svc === 'appletv');
-  assert.ok(apple(mlb('2026-09-25T23:10:00Z')));
-  assert.ok(!apple(mlb('2026-09-24T23:10:00Z')));
-  assert.ok(!apple(mlb('2026-10-01T00:00:00Z', { key: 'post' })));
-  assert.ok(!apple(mlb('2026-10-02T23:10:00Z', { key: 'post' })));
+test('Apple TV: every MLS game, a link its app opens; MLB only on ELTA', () => {
+  const game = league => ({ id: '1', league, kind: 'match', start: '2026-09-25T23:10:00Z', status: { state: 'pre' }, away: { name: 'A' }, home: { name: 'B' } });
+  const [mls] = broadcastsFor(game('mls'), programs);
+  assert.equal(mls.svc, 'appletv');
+  assert.match(mls.url, /^https:\/\/tv\.apple\.com\/tw\/channel\/mls\//);
+  assert.ok(!broadcastsOf('mlb').some(b => b.svc === 'appletv'));
 });
 
 test("ELTA's commentary and ads from its titles; delayed and Kids showings left out", () => {
@@ -95,22 +147,33 @@ test("ELTA's commentary and ads from its titles; delayed and Kids showings left 
   // A 體育台 unmarked: Chinese, with ads; one marked 原音 is the original feed.
   assert.deepEqual(eltaAudio('巴林站 正賽 LIVE', 105), { audio: 'zh', adFree: false });
   assert.deepEqual(eltaAudio('海盜 VS 老虎 例行賽 9/27(原音) LIVE', 110), { audio: 'en', adFree: false });
-  const oct = parseElta(JSON.parse(readFileSync(new URL('./fixtures/elta-2026-10-01.json', import.meta.url), 'utf8')));
+  const oct = elta('2026-10-01');
   assert.ok(!oct.some(p => /^Kids|D-$/.test(p.title)), 'no Kids, no D-LIVE');
   assert.ok(oct.some(p => p.ch === 544 && p.audio === 'en'));
 });
 
+test('雙語 is Chinese with the original on the second track: it suits both, and wins on no ads', () => {
+  assert.ok(hasAudio({ audio: 'dual' }, 'zh') && hasAudio({ audio: 'dual' }, 'en'));
+  assert.ok(hasAudio({ audio: 'venue' }, 'zh') && !hasAudio({ audio: 'venue' }, 'en'));
+  assert.ok(!hasAudio({ audio: 'zh' }, 'en') && !hasAudio({ audio: 'en' }, 'zh'));
+  // CPBL 9/28, 味全 vs 富邦: 體育3台 (Chinese, ads) and MAX5 (雙語, no ads).
+  const cpbl = { id: 'c1', league: 'cpbl', kind: 'match', start: '2026-09-28T09:05:00Z', status: { state: 'pre' }, away: { name: '味全龍' }, home: { name: '富邦悍將' } };
+  const chs = prefer => broadcastsFor(cpbl, programs, { sides: ['味全', '富邦'], prefer }).map(b => b.ch);
+  assert.deepEqual(chs('zh'), [544, 110]);
+  assert.deepEqual(chs('en'), [544, 110]);
+});
+
 test("a race's channels: the person's commentary first, a MAX channel without ads before the 體育台", () => {
-  const oct = parseElta(JSON.parse(readFileSync(new URL('./fixtures/elta-2026-10-01.json', import.meta.url), 'utf8')));
+  const oct = elta('2026-10-01');
   const f1 = (k, start) => ({ id: `600060990~${k}`, league: 'f1', kind: 'field', sessionKey: k, start, status: { state: 'pre' } });
-  const chs = (e, pref) => broadcastsFor(e, oct, [], [], pref).filter(b => b.ch).map(b => b.ch);
+  const chs = (e, prefer) => broadcastsFor(e, oct, { prefer }).map(b => b.ch);
   // Bahrain (at Sepang): the race on MAX5 原音, MAX6 中文 without ads, 體育2台.
   assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'en'), [544, 545, 105]);
   assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'zh'), [545, 105, 544]);
   // Qualifying: no sprint qualifying mixed in; Singapore's sprint qualifying only on MAX5.
   assert.deepEqual(chs(f1('Qual', '2026-10-03T08:00Z'), 'en'), [544, 545, 110]);
   assert.deepEqual(chs(f1('SQ', '2026-10-09T12:30Z'), 'en'), [544]);
-  const top = broadcastsFor(f1('Race', '2026-10-04T07:00Z'), oct, [], [], 'en')[0];
+  const [top] = broadcastsFor(f1('Race', '2026-10-04T07:00Z'), oct, { prefer: 'en' });
   assert.equal(top.audio, 'en');
   assert.equal(top.adFree, true);
   assert.equal(top.app, 'eltatv://live/544');

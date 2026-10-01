@@ -21,8 +21,7 @@ const STAGES = {
 // Round names, English as ESPN writes them -> Chinese.
 const ROUNDS = [
   [/world series/i, '世界大賽'],
-  [/\b(nba|wnba|stanley cup) finals?\b/i, '總冠軍賽'],
-  [/super bowl/i, '超級盃'],
+  [/\bnba finals?\b/i, '總冠軍賽'],
   [/\b[an]lcs\b|league championship/i, '聯盟冠軍賽'],
   [/\b[an]lds\b|division series/i, '分區系列賽'],
   [/\b[an]lwc\b|wild ?card/i, '外卡賽'],

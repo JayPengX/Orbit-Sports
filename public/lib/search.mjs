@@ -1,11 +1,12 @@
 // Search in 賽事: leagues by name (in either language), and teams and players
 // from ESPN's search (site.api.espn.com/apis/search/v2), each placed in the
 // league Fixtures knows it by (ESPN's league id in the result's uid,
-// "s:20~l:28~t:21" = the NFL's team 21).
+// "s:40~l:46~t:2" = the NBA's team 2).
 import { LEAGUES } from './leagues.mjs';
+import { teamLogo } from './logos.mjs';
 
 // ESPN's league ids, by Fixtures' league key's (from each scoreboard's league id).
-export const ESPN_LEAGUE_ID = {"mlb": "10", "nba": "46", "nfl": "28", "nhl": "90", "epl": "700", "laliga": "740", "seriea": "730", "bundesliga": "720", "ligue1": "710", "ucl": "775", "uel": "776", "uecl": "20296", "scotland": "735", "mls": "770", "jleague": "750", "facup": "3918", "nationsleague": "2395", "worldcup": "606", "f1": "2030", "wnba": "59"};
+export const ESPN_LEAGUE_ID = { mlb: '10', nba: '46', epl: '700', seriea: '730', bundesliga: '720', ligue1: '710', ucl: '775', uel: '776', uecl: '20296', scotland: '735', mls: '770', facup: '3918', nationsleague: '2395', f1: '2030' };
 const BY_ID = Object.fromEntries(Object.entries(ESPN_LEAGUE_ID).map(([k, id]) => [id, k]));
 // Soccer's clubs and players carry no league id ("s:600~t:382"): their
 // default league's slug ("eng.1", sport "soccer") says which one.
@@ -32,7 +33,9 @@ export function parseSearch(data) {
       const lid = /l:(\d+)~/.exec(c.uid || '')?.[1];
       const league = (lid && BY_ID[lid]) || (c.sport && c.defaultLeagueSlug && BY_PATH[`${c.sport}/${c.defaultLeagueSlug}`]);
       if (!id || !league || !LEAGUES[league]) continue;
-      list.push({ league, id, name: c.displayName || '', sub: c.subtitle || c.description || '', logo: c.image?.default || c.image?.defaultDark || null });
+      // An NBA team's logo is NBA.com's (the kit's), as everywhere.
+      const logo = league === 'nba' && r.type === 'team' ? teamLogo('nba', c.displayName) : c.image?.default || c.image?.defaultDark || null;
+      list.push({ league, id, name: c.displayName || '', sub: c.subtitle || c.description || '', logo });
     }
   }
   return out;

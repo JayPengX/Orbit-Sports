@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar, espnDatesFor, parseKambi } from '../public/lib/espn.mjs';
+import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar, espnDatesFor } from '../public/lib/espn.mjs';
 import { LEAGUES, SPORTS } from '../public/lib/leagues.mjs';
 
 const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url)));
@@ -9,13 +9,9 @@ const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, im
 test('every league has a sport, a source and names', () => {
   for (const [key, l] of Object.entries(LEAGUES)) {
     assert.ok(SPORTS[l.sport], key);
-    assert.ok(l.espn || l.kambi || l.asia || l.tsdb || l.fom, key);
+    assert.ok(l.espn || l.asia || l.fom, key);
     assert.ok(l.zh && l.en, key);
   }
-  // Only what Taiwan can watch on a general service (2026-10-01).
-  assert.ok(Object.keys(LEAGUES).length >= 25);
-  for (const k of ['acb', 'eredivisie', 'cricket', 'snooker', 'rugbyunion', 'motogp', 'atp']) assert.equal(LEAGUES[k], undefined, k);
-  assert.ok(LEAGUES.formulae && LEAGUES.kbo && LEAGUES.jleague && LEAGUES.wnba && LEAGUES.euroleague);
 });
 
 test('team scoreboards: both sides, scores, status', () => {
@@ -34,6 +30,29 @@ test('race sessions', () => {
   const [race] = parseScoreboard(fx('f1-scoreboard'), 'f1');
   assert.ok(race.sessions.length >= 1);
   assert.ok(race.sessions.at(-1).field.length >= 10);
+  // Baku: its circuit's country, for the flag.
+  assert.equal(race.country, 'AZ');
+});
+
+// ESPN's preseason game of 2026-10-12, as its scoreboard has it: the London
+// Lions (a British club, ESPN's team 134478, no logo) at Portland.
+const lions = { events: [{ id: '401914130', date: '2026-10-12T20:00Z', name: 'London Lions at Portland Trail Blazers', season: { type: 1 }, competitions: [{ competitors: [
+  { homeAway: 'home', team: { id: '22', displayName: 'Portland Trail Blazers', abbreviation: 'POR', logo: 'https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/por.png' } },
+  { homeAway: 'away', team: { id: '134478', displayName: 'London Lions', abbreviation: 'LON' } }
+] }] }, { id: '401898392', date: '2026-10-08T23:00Z', name: 'Boston Celtics at Cleveland Cavaliers', competitions: [{ competitors: [
+  { homeAway: 'home', team: { id: '5', displayName: 'Cleveland Cavaliers', abbreviation: 'CLE', logo: 'https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/cle.png' } },
+  { homeAway: 'away', team: { id: '2', displayName: 'Boston Celtics', abbreviation: 'BOS', logo: 'https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/bos.png' } }
+] }] }] };
+test("NBA teams carry NBA.com's primary logos (the Celtics' Lucky, not ESPN's shamrock); a guest club none, never a guessed NBA file", () => {
+  const [lon, bos] = parseScoreboard(lions, 'nba');
+  assert.equal(lon.stage.key, 'pre');
+  assert.equal(lon.away.logo, null);
+  assert.equal(lon.away.en ?? lon.away.name, 'London Lions');
+  assert.equal(lon.home.logo, 'https://cdn.nba.com/logos/nba/1610612757/primary/L/logo.svg');
+  assert.equal(bos.away.logo, 'https://cdn.nba.com/logos/nba/1610612738/primary/L/logo.svg');
+  // A standings row and a team page the same way.
+  const [row] = parseStandings({ standings: { entries: [{ team: { id: '2', displayName: 'Boston Celtics', logos: [{ href: 'https://a.espncdn.com/i/teamlogos/nba/500/bos.png' }] }, stats: [] }] } }, 'nba')[0].rows;
+  assert.match(row.logo, /cdn\.nba\.com\/logos\/nba\/1610612738\//);
 });
 
 test('a match summary: box score, players, plays, rosters', () => {
@@ -73,25 +92,16 @@ test('team, schedule, roster and player', () => {
   assert.ok(a.stats.list.length > 0);
 });
 
-test('a season calendar: game days, days off, or weeks', () => {
+test('a season calendar: game days or days off', () => {
   const white = parseCalendar({ leagues: [{ calendarIsWhitelist: true, calendar: ['2026-10-03T07:00Z', '2026-10-04T07:00Z'] }] });
   assert.deepEqual(white.days, ['20261003', '20261004']);
   const black = parseCalendar({ leagues: [{ calendarIsWhitelist: false, calendarStartDate: '2026-09-28T07:00Z', calendarEndDate: '2026-10-02T06:59Z', calendar: ['2026-09-29T07:00Z'] }] });
   assert.deepEqual(black.days, ['20260928', '20260930', '20261001']);
-  const weeks = parseCalendar({ leagues: [{ calendar: [{ value: '2', entries: [{ label: 'Week 4', value: '4', startDate: 'a', endDate: 'b' }] }] }] });
-  assert.deepEqual(weeks.weeks[0], { label: 'Week 4', detail: '', seasontype: '2', week: '4', start: 'a', end: 'b' });
   assert.equal(parseCalendar({ leagues: [{}] }), null);
 });
 
 test('Taiwan days', () => {
   assert.deepEqual(espnDatesFor('2026-09-28'), ['20260927', '20260928']);
-});
-
-test('Kambi leagues: schedule and live score', () => {
-  const data = { events: [{ event: { id: 1, homeName: 'Rakuten', awayName: 'Seibu', start: '2026-09-28T09:00:00Z', state: 'STARTED', group: 'NPB' }, liveData: { score: { home: '3', away: '1' } } }] };
-  const [e] = parseKambi(data, 'npb');
-  assert.equal(e.status.state, 'in');
-  assert.equal(e.home.score, '3');
 });
 
 test('a race weekend is over once its last session has had its time, and counts on its next session', async () => {
@@ -113,9 +123,11 @@ test('a missing logo falls back to ESPN\'s CDN', async () => {
   const { fallbackLogo } = await import('../public/lib/espn.mjs');
   assert.match(fallbackLogo('f1', { id: '5503', athlete: true }), /headshots\/rpm\/players\/full\/5503\.png$/);
   assert.equal(fallbackLogo('f1', { id: '1', logo: 'x' }), 'x');
+  assert.equal(fallbackLogo('epl', { id: '359', name: 'Nobody FC' }), 'https://a.espncdn.com/i/teamlogos/soccer/500/359.png');
+  assert.equal(fallbackLogo('nba', { id: '134478', name: 'London Lions', abbr: 'LON' }), null);
 });
 
-test('NPB, KBO and CPBL from the proxy\'s month lists', async () => {
+test('CPBL from the proxy\'s month lists', async () => {
   const { parseAsia } = await import('../public/lib/espn.mjs');
   const games = [
     { id: 'cpbl-2026-255', start: '2026-09-30T10:35:00.000Z', home: { en: 'Fubon Guardians', zh: '富邦悍將' }, away: { en: 'Uni-President Lions', zh: '統一7-ELEVEn獅' }, homeScore: 3, awayScore: 5, state: 'post', venue: '新莊' },
@@ -160,12 +172,10 @@ test('a player overview: the latest note, awards, the last games (no news)', asy
   assert.equal(parseOverview({}).log, null);
 });
 
-test("a cup's calendar is its stages: read by month pages, not as weeks", async () => {
+test("a cup's calendar is its stages: read by month pages", async () => {
   const { parseCalendar, monthsBetween } = await import('../public/lib/espn.mjs');
   const cup = { leagues: [{ calendar: [{ label: 'UEFA Europa League', startDate: '2026-07-01T04:00Z', entries: [{ label: 'League Phase', value: '1', startDate: '2026-08-29T07:00Z', endDate: '2027-01-30T07:59Z' }] }] }] };
   assert.deepEqual(parseCalendar(cup), { months: true });
-  const nfl = { leagues: [{ calendar: [{ label: 'Regular Season', value: '2', entries: [{ label: 'Week 1', value: '1', startDate: '2026-09-09T07:00Z', endDate: '2026-09-16T06:59Z' }] }] }] };
-  assert.equal(parseCalendar(nfl).weeks[0].seasontype, '2');
   assert.deepEqual(monthsBetween(Date.parse('2026-09-15T00:00:00Z'), Date.parse('2026-11-02T00:00:00Z')), ['202609', '202610', '202611']);
   assert.deepEqual(monthsBetween(Date.parse('2026-12-20T00:00:00Z'), Date.parse('2027-01-05T00:00:00Z')), ['202612', '202701']);
 });

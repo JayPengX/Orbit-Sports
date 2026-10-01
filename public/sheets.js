@@ -2,9 +2,8 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { APPS, appUrl, translate } from './lib/quadra.mjs';
-import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playerPhoto, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason } from './lib/espn.mjs';
+import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
-import { possessionOf } from './lib/live.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from './lib/logos.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult } from './lib/f1.mjs';
@@ -12,7 +11,7 @@ import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeams, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, audioName, sessionTag, personPic, sideLogo } from './ui.js';
+import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -72,6 +71,8 @@ export async function openMatch(e) {
         side(home, e.home)
       ]),
       stageTag(e, L()) || seriesText(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null]) : null,
+      // On now or about to start: one tap to watch it, at the top.
+      watchButton({ ...e, status: st }, 'wide'),
       linescore(sm, e),
       livePanel(e)
     );
@@ -85,7 +86,7 @@ export async function openMatch(e) {
     if (document.visibilityState !== 'visible' || !soon()) return;
     const fresh = (await scoreboard(e.league).catch(() => [])).find(x => x.id === e.id);
     if (fresh) e = { ...e, ...fresh };
-    if (!e.kambi && LEAGUES[e.league].espn) data = await summary(e.league, e.id).catch(() => data);
+    if (LEAGUES[e.league].espn) data = await summary(e.league, e.id).catch(() => data);
     paintHeader(data);
     paint();
   }, 20_000);
@@ -108,7 +109,7 @@ export async function openMatch(e) {
         paint();
       })
       .catch(() => {});
-  if (e.kambi || !LEAGUES[e.league].espn) {
+  if (!LEAGUES[e.league].espn) {
     paint();
     return;
   }
@@ -122,8 +123,7 @@ export async function openMatch(e) {
 }
 
 // The situation of a game on now, by sport: the bases, count and outs, and
-// who bats against whom; the down, distance, ball and red zone; the goals and
-// red cards by minute; and the last play.
+// who bats against whom; the goals and red cards by minute; and the last play.
 function livePanel(e) {
   const lv = e.live;
   if (e.status.state !== 'in' || !lv) return null;
@@ -140,18 +140,6 @@ function livePanel(e) {
           el('span', {}, [el('small', { text: 'O' }), dots(lv.outs, 3, 'out')])
         ]),
         el('div', { class: 'lp-who' }, [lv.batter ? el('p', {}, [el('small', { text: T('batter') }), el('strong', { text: lv.batter })]) : null, lv.pitcher ? el('p', {}, [el('small', { text: T('pitcher') }), el('strong', { text: lv.pitcher })]) : null])
-      ])
-    );
-  }
-  if (sport === 'football' && lv.downText) {
-    const side = possessionOf(e);
-    const team = side ? e[side] : null;
-    rows.push(
-      el('div', { class: `lp-football${lv.redZone ? ' red-zone' : ''}` }, [
-        team ? logo(team.logo, team.name, 'sm') : null,
-        el('strong', { text: lv.downText }),
-        lv.ballOn ? el('span', { text: `${en ? 'Ball on' : '球在'} ${lv.ballOn}` }) : null,
-        lv.redZone ? el('b', { class: 'rz', text: en ? 'Red zone' : '紅區' }) : null
       ])
     );
   }
@@ -360,8 +348,8 @@ function overview(d, e, table, nameOf) {
       : null
   ]);
   const when = new Date(e.start);
-  // The channels have their own card when ELTA's schedule names them; the list here otherwise.
-  const exactTv = e.status.state !== 'post' && tvOf(e).some(b => b.ch);
+  // Where to watch has its own card when there's a link to it (a schedule's channel, Apple TV); the list here otherwise.
+  const exactTv = e.status.state !== 'post' && tvOf(e).some(b => b.exact || b.svc !== 'elta');
   const info = [
     ['🕒', T('kickoff'), `${dayLabel(localDate(when.getTime()), { long: true })} ${clock(e.start)}`],
     ['📍', T('venue'), zhLater([d?.venue || e.venue, d?.city].filter(Boolean).join(' · '))],
@@ -418,7 +406,7 @@ function overview(d, e, table, nameOf) {
 // A few table columns worth comparing, by sport.
 function keyStats(league, places) {
   const sport = LEAGUES[league]?.sport;
-  const want = { soccer: ['P', 'GD', 'F', 'A'], baseball: ['PCT', 'GB', 'STRK'], basketball: ['PCT', 'GB', 'STRK'], football: ['PCT', 'STRK'], hockey: ['PTS', 'STRK'], rugby: ['PTS'] }[sport] || [];
+  const want = { soccer: ['P', 'GD', 'F', 'A'], baseball: ['PCT', 'GB', 'STRK'], basketball: ['PCT', 'GB', 'STRK'] }[sport] || [];
   // Games behind the leader of the table shown next to it (ESPN's own figure
   // can be against another list, such as the division, and read as nonsense).
   const gb = p => {
@@ -432,7 +420,7 @@ function keyStats(league, places) {
     .filter(([, a, h]) => a != null && a !== '' && h != null && h !== '')
     .map(([k, a, h]) => [T(`col_${k}`) === `col_${k}` ? k : T(`col_${k}`), a, h]);
 }
-// A long group name to its initials ("National Football Conference" → NFC).
+// A long group name to its initials ("Eastern Conference Group" → ECG).
 export const groupShort = name => {
   const n = String(name || '').trim();
   if (n.length <= 12) return n;
@@ -471,13 +459,13 @@ function personName(league, p, cls = 'field-name') {
   const can = p.id && LEAGUES[league]?.espn && /^\d+$/.test(String(p.id));
   return can ? el('button', { class: `link ${cls}`, type: 'button', text: p.name, onclick: () => ctx.openPlayer(league, p.id, p) }) : el('span', { class: cls, text: p.name });
 }
-// Where to watch in Taiwan: a game's own channels (ELTA's schedule: the
-// channel, when it starts, a tap to watch it on ELTA.tv), then the other services.
+// Where to watch in Taiwan: a game's own channels (a schedule's: the
+// channel, its commentary, when it starts, a tap to watch it in the app),
+// else the league's service.
 function twCard(league, e = null) {
   const list = e ? tvOf(e) : broadcastsOf(league);
-  // A channel ELTA's schedule names, or a free stream with its page (YouTube, SOOP): a link to watch.
-  const exact = list.filter(b => b.ch || b.url);
-  const rest = list.filter(b => !b.ch && !b.url);
+  const exact = list.filter(b => b.exact || b.svc !== 'elta');
+  const rest = list.filter(b => !exact.includes(b));
   return card(
     T('watchTw'),
     list.length
@@ -487,21 +475,22 @@ function twCard(league, e = null) {
                 'div',
                 { class: 'tw-exact' },
                 exact.map(b =>
-                  watchLink(b, { class: `tw-watch ${b.kind}` }, [
+                  watchLink(b, { class: 'tw-watch' }, [
                     el('span', { class: 'tw-watch-name' }, [
                       el('strong', { text: tvName(b) }),
-                      // Its commentary and ads, then when it starts and where it's on.
-                      el('small', { text: b.ch ? [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : '', b.sports ? (L() === 'en' ? 'ELTA.tv, Hami Video' : 'ELTA.tv・Hami Video') : 'ELTA.tv'].filter(Boolean).join(' · ') : L() === 'en' ? 'Free' : '免費' })
+                      // Its commentary and ads, then when it starts; a game NBA.com
+                      // names without its channel: ELTA's schedule says which.
+                      el('small', { text: b.ch ? [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : ''].filter(Boolean).join(' · ') : b.exact ? (L() === 'en' ? "This game (NBA.com); channel in ELTA's schedule" : '這場有轉播（NBA.com）・頻道見愛爾達節目表') : L() === 'en' ? 'Every game' : '每場都有' })
                     ]),
                     b.url ? el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` }) : null
                   ])
                 )
               )
             : null,
-          rest.length ? el('div', { class: 'tw-list' }, rest.map(b => el('span', { class: `tw-chip ${b.kind}`, text: tvName(b) }))) : null
+          rest.length ? el('div', { class: 'tw-list' }, rest.map(b => el('span', { class: 'tw-chip', text: tvName(b) }))) : null
         ])
       : el('p', { class: 'muted small', text: T('noTw') }),
-    { sub: exact.some(b => b.ch) ? (L() === 'en' ? "ELTA's schedule" : '愛爾達節目表') : L() === 'en' ? `Checked ${CHECKED}` : `${CHECKED} 查核` }
+    { sub: exact.some(b => b.ch) ? (L() === 'en' ? "ELTA's schedule" : '愛爾達節目表') : exact.some(b => b.exact) ? "NBA.com" : L() === 'en' ? `Checked ${CHECKED}` : `${CHECKED} 查核` }
   );
 }
 
@@ -595,7 +584,7 @@ function f1Field(rows, field) {
   );
 }
 function fillField(s, e) {
-  s.body.append(el('div', { class: 'q-card pad fx-card' }, [e.sessionKey ? el('div', { class: 'sess-head field-title' }, [sessionTag(e), el('h3', { text: e.name })]) : el('h3', { class: 'field-title', text: e.name }), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') })]));
+  s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') }), watchButton(e, 'wide')]));
   const yt = highlights(e);
   if (yt) s.body.append(yt);
   if (e.kind === 'field') {
@@ -631,9 +620,9 @@ function fillField(s, e) {
 // A team's page, the way the leagues' own apps lay it out: the hero (logo,
 // name, record, place, form, follow), a strip of its key numbers, the next
 // game as a card, then tabs: 賽程 (to come), 戰績 (results), 陣容 (the
-// roster, ESPN's leagues) and 排名 (its part of the table). Leagues ESPN
-// doesn't cover (Asian baseball, EuroLeague, K League) get the same page from
-// their own schedules: the record and the table counted from the results.
+// roster, ESPN's leagues) and 排名 (its part of the table). CPBL (not on
+// ESPN) gets the same page from its own schedule: the record and the table
+// counted from the results.
 export async function openTeam(league, id, fallback = {}) {
   if (!id || !hasTeamPage(league)) return;
   const s = sheet(leagueName(league, L()), { league });
@@ -671,7 +660,7 @@ export async function openTeam(league, id, fallback = {}) {
     const record = info.record || ownRecord(played, resultOf);
     // The numbers that matter in the sport, in one strip.
     const sport = LEAGUES[league]?.sport;
-    const want = sport === 'soccer' ? ['GP', 'W', 'D', 'L', 'GD', 'P'] : sport === 'hockey' ? ['GP', 'W', 'L', 'OTL', 'PTS'] : ['W', 'L', 'PCT', 'GB', 'STRK'];
+    const want = sport === 'soccer' ? ['GP', 'W', 'D', 'L', 'GD', 'P'] : ['W', 'L', 'PCT', 'GB', 'STRK'];
     const stats = place ? want.filter(k => place.row.stats[k] != null && place.row.stats[k] !== '').slice(0, 5) : [];
     const strip = place
       ? el('div', { class: 'team-strip' }, [
@@ -763,13 +752,12 @@ function ownRecord(played, resultOf) {
   for (const x of played) if (x.home && x.away) n[resultOf(x)]++;
   return n.W + n.D + n.L ? (n.D ? `${n.W}-${n.D}-${n.L}` : `${n.W}-${n.L}`) : '';
 }
-// A team of a league ESPN doesn't cover, from the league's own season:
-// [info, its games, a table counted from every result].
+// A team of a league ESPN doesn't cover (CPBL), from the league's own
+// season: [info, its games, a table counted from every result].
 async function ownTeam(league, id, fallback) {
   const events = (await seasonEvents(league).catch(() => [])).filter(e => e.kind === 'match' && e.home && e.away);
   const mine = events.filter(e => e.home.id === String(id) || e.away.id === String(id)).sort((a, b) => a.start.localeCompare(b.start));
   const me = mine.map(e => (e.home.id === String(id) ? e.home : e.away))[0] || fallback;
-  const soccer = LEAGUES[league]?.sport === 'soccer';
   const table = new Map();
   for (const e of events) {
     if (e.status.state !== 'post' || e.status.void) continue;
@@ -777,21 +765,19 @@ async function ownTeam(league, id, fallback) {
     const a = Number(e.away.score);
     if (!Number.isFinite(h) || !Number.isFinite(a)) continue;
     for (const [x, mine, theirs] of [[e.home, h, a], [e.away, a, h]]) {
-      const row = table.get(x.id) || { id: x.id, name: x.name, short: x.short, en: x.en, logo: x.logo, W: 0, D: 0, L: 0, F: 0, A: 0 };
-      row[mine > theirs ? 'W' : mine < theirs ? 'L' : 'D']++;
-      row.F += mine;
-      row.A += theirs;
+      const row = table.get(x.id) || { id: x.id, name: x.name, short: x.short, en: x.en, logo: x.logo, W: 0, L: 0 };
+      // A tie (called for the night) counts for neither.
+      if (mine !== theirs) row[mine > theirs ? 'W' : 'L']++;
       table.set(x.id, row);
     }
   }
   const rows = [...table.values()]
     .map(r => {
-      const gp = r.W + r.D + r.L;
-      const stats = soccer ? { GP: String(gp), W: String(r.W), D: String(r.D), L: String(r.L), GD: `${r.F - r.A > 0 ? '+' : ''}${r.F - r.A}`, P: String(3 * r.W + r.D) } : { W: String(r.W), L: String(r.L), PCT: (r.W + r.L ? r.W / (r.W + r.L) : 0).toFixed(3).replace(/^0/, '') };
-      return { id: r.id, name: r.name, short: r.short, en: r.en, logo: r.logo, stats, key: soccer ? 3 * r.W + r.D + (r.F - r.A) / 1000 : r.W + r.L ? r.W / (r.W + r.L) : 0 };
+      const pct = r.W + r.L ? r.W / (r.W + r.L) : 0;
+      return { id: r.id, name: r.name, short: r.short, en: r.en, logo: r.logo, stats: { W: String(r.W), L: String(r.L), PCT: pct.toFixed(3).replace(/^0/, '') }, key: pct };
     })
     .sort((x, y) => y.key - x.key);
-  if (!soccer && rows.length) {
+  if (rows.length) {
     const top = rows[0];
     for (const r of rows) {
       const gb = (Number(top.stats.W) - Number(r.stats.W) + Number(r.stats.L) - Number(top.stats.L)) / 2;
@@ -801,9 +787,9 @@ async function ownTeam(league, id, fallback) {
   const groups = rows.length ? [{ name: leagueName(league, L()), rows }] : null;
   return [{ id: String(id), name: me.name || fallback.name, en: me.en || fallback.en, logo: me.logo || fallback.logo, record: '' }, mine, groups];
 }
-// A squad in groups: ESPN's own (NFL's offense and defense, MLB's pitchers…)
-// named in the reader's language, else by position (門將, 後衛, 中場, 前鋒).
-const ROSTER_GROUP = { offense: '進攻組', defense: '防守組', specialteam: '特勤組', 'special teams': '特勤組', pitchers: '投手', catchers: '捕手', infielders: '內野手', outfielders: '外野手', 'designated hitter': '指定打擊', centers: '中鋒', forwards: '前鋒', defensemen: '防守球員', goalies: '守門員', guards: '後衛', injuredreserveorout: '傷兵', injured: '傷兵', practicesquad: '練習陣容', 'practice squad': '練習陣容' };
+// A squad in groups: ESPN's own (MLB's pitchers, catchers…) named in the
+// reader's language, else by position (門將, 後衛, 中場, 前鋒).
+const ROSTER_GROUP = { pitchers: '投手', catchers: '捕手', infielders: '內野手', outfielders: '外野手', 'designated hitter': '指定打擊', injured: '傷兵' };
 function byPosition(list, sport) {
   const zh = L() !== 'en';
   if (list.length > 1 || list[0]?.name) return list.map(g => ({ ...g, name: zh ? ROSTER_GROUP[String(g.name).toLowerCase()] || g.name : g.name }));
@@ -818,7 +804,7 @@ function byPosition(list, sport) {
   return groups.size > 1 ? [...groups].map(([name, ps]) => ({ name, players: ps })) : list;
 }
 // A table column's short name in the reader's language.
-const COL_ZH = { POD: '頒獎台', GP: '場', W: '勝', D: '和', T: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', OTL: '延敗', GAP: '落後' };
+const COL_ZH = { POD: '頒獎台', GP: '場', W: '勝', D: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', GAP: '落後' };
 const colLabel = c => (L() === 'en' ? (c === 'GAP' ? T('col_GAP') : c) : COL_ZH[c] || c);
 const tile = (label, value, sub = '') => el('div', { class: 'stat-tile' }, [el('small', { text: label }), el('strong', { class: 'num', text: value }), sub ? el('small', { class: 'muted', text: sub }) : null]);
 
@@ -1023,15 +1009,13 @@ export async function openPlayer(league, id, fallback = {}) {
       followBtn.addEventListener('click', () => (ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true }), paintFollow()));
       paintFollow();
     }
-    const sub = [zhLater(a.position), (driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team) || countryName(a.country, L()), a.record].filter(Boolean);
+    const sub = [zhLater(a.position), (driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team) || countryName(a.country, L())].filter(Boolean);
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : a.teamColor;
     const lastFive = weekends.length ? weekends.slice(0, 5).reverse().map(w => ({ name: w.e?.name || w.name, ...finishOf(w.me?.result, en) })) : raceRows.slice(0, 5).reverse().map(r => ({ ...r, text: `P${r.pos}` }));
     const shot = a.headshot || fallback.logo;
-    // Their headshot (ESPN's); no ESPN one (every footballer): TheSportsDB's
-    // cut-out instead, when it has them.
+    // Their headshot (ESPN's; none, every footballer: TheSportsDB's cut-out, personPic finds it).
     const pic = el('span', { class: 'pic-slot' }, [personPic({ id, name: a.name, headshot: a.headshot, logo: fallback.logo, flag: a.flag }, league, 'xxl round')]);
-    if (!a.headshot && a.name) playerPhoto(a.name, sport).then(url => url && pic.isConnected && pic.replaceChildren(logo(url, a.name, 'xxl round cutout')));
     // The key numbers in a strip under the hero (the season's first few).
     const keyNums = a.stats.list.slice(0, 4);
     const strip = keyNums.length

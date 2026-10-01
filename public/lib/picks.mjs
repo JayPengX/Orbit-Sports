@@ -8,7 +8,7 @@
 //   quality    how good the two sides are (their places in the table)
 //   closeness  how evenly matched they are (places close together)
 //   stakes     a top-of-the-table meeting, a final, a play-off, a series
-//   fame       a headline league, national TV, ranked college sides
+//   fame       a headline league, a final
 //   habit      what they open, follow and bet on in every Quadra app (the
 //              shared affinity map)
 //   now        live now, or starting soon
@@ -19,12 +19,9 @@
 
 import { LEAGUES, TOP_LEAGUES } from './leagues.mjs';
 import { eventKeys, teamKey } from './foryou.mjs';
-import { broadcastsOf } from './broadcast.mjs';
 
 // Minutes a match usually takes, by sport.
-export const DURATION = { soccer: 115, baseball: 185, basketball: 145, football: 195, hockey: 155, racing: 120 };
-// On a Taiwan channel or streaming service (lib/broadcast.mjs), not a league pass only.
-const onTaiwanTv = league => broadcastsOf(league).some(b => b.kind !== 'pass');
+export const DURATION = { soccer: 115, baseball: 185, basketball: 145, racing: 120 };
 const BIG_GAME = /final|semi|play-?off|postseason|wild ?card|series|championship|derby|決賽|季後/i;
 // A final, a play-off, a postseason or series game: worth staying up for.
 export const bigGame = e => ['post', 'final', 'playin'].includes(e?.stage?.key) || BIG_GAME.test(`${e?.note || ''} ${e?.name || ''}`);
@@ -85,11 +82,6 @@ export function scoreMatch(e, { sports = [], leagues = [], follows = [], tables 
   // Fame.
   if (TOP_LEAGUES.includes(e.league)) score += 0.12;
   if (e.stage?.key === 'final') score += 0.25;
-  if (onTaiwanTv(e.league)) {
-    score += 0.08;
-    reasons.push('tv');
-  }
-  if (e.home?.rank || e.away?.rank) score += 0.08;
   // Habit: the strongest thing the person is into that this match touches.
   const max = Math.max(1, ...Object.values(aff));
   const habit = Math.max(0, ...keys.map(k => (aff[k] || 0) / max));
@@ -121,10 +113,8 @@ export function clash(x, y) {
 }
 
 // events: the day's (any league); returns { plan: [...by start], also: [...by score] },
-// each { event, score, reasons }. `keep`: keys ('league:id') always in the
-// plan, on top of its n and never pushing a pick out (the games the person
-// bet on in Play: reason 'bet', `bet: true`).
-export function dayPlan(events, ctx = {}, { n = 6, also = 6, keep = new Set() } = {}) {
+// each { event, score, reasons }.
+export function dayPlan(events, ctx = {}, { n = 6, also = 6 } = {}) {
   const now = ctx.now ?? Date.now();
   const seen = new Set();
   const scored = events
@@ -135,13 +125,10 @@ export function dayPlan(events, ctx = {}, { n = 6, also = 6, keep = new Set() } 
     .sort((x, y) => y.score - x.score);
   const plan = [];
   const rest = [];
-  const kept = [];
   for (const item of scored) {
-    if (keep.has(`${item.event.league}:${item.event.id}`)) kept.push({ ...item, bet: true, reasons: ['bet', ...item.reasons.filter(r => r !== 'bet')] });
-    else if (plan.length < n && !plan.some(p => clash(p.event, item.event))) plan.push(item);
+    if (plan.length < n && !plan.some(p => clash(p.event, item.event))) plan.push(item);
     else rest.push(item);
   }
-  plan.push(...kept);
   plan.sort((x, y) => Date.parse(x.event.start) - Date.parse(y.event.start));
   return { plan, also: rest.slice(0, also) };
 }

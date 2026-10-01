@@ -2,13 +2,13 @@
 // rows, sheets. `ctx` is filled by app.js (the text, the state and the
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
-import { logoPicture, countryFlag, f1Driver } from './lib/logos.mjs';
+import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from './lib/logos.mjs';
 import { espnHeadshot, isFlag, isCutout, knownPhoto, findPhoto } from './lib/photos.mjs';
-import { liveLabel, liveNote, possessionOf } from './lib/live.mjs';
+import { liveLabel, liveNote } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
-import { broadcastsOf, AUDIO_NAMES } from './lib/broadcast.mjs';
+import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES } from './lib/espn.mjs';
-import { tvOf, channelsOf } from './lib/tv.mjs';
+import { tvOf, channelsOf, watchOf } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
 
 export const ctx = { t: k => k, locale: 'zh', state: null, openEvent: () => {}, openTeam: () => {}, openPlayer: () => {} };
@@ -63,13 +63,14 @@ export function toast(text, action = null, ms = 3200) {
   return box;
 }
 
-// ---- Watching on ELTA.tv ------------------------------------------------------------
+// ---- Watching: ELTA.tv, Apple TV ------------------------------------------------------
 //
-// On a phone a channel opens in the ELTA.tv app itself (eltatv://live/<ch>,
-// the link ELTA's own site uses), so no Safari page is left behind when the
-// app opens. If the app didn't open (not installed), a tap away from the web
-// page; once the web page is taken that way, the next taps go straight to it
-// for a month. Elsewhere, the web page.
+// On a phone an ELTA channel (or its schedule) opens in the ELTA.tv app
+// itself (eltatv://live/<ch>, eltatv://schedule/live: the links ELTA's own
+// site uses), so no Safari page is left behind when the app opens. If the app
+// didn't open (not installed), a tap away from the web page; once the web
+// page is taken that way, the next taps go straight to it for a month.
+// Elsewhere, the web page. Apple TV's link opens its app by itself.
 const APP_MISS = 'fx.eltaAppMiss';
 const phone = () => (/Android/i.test(navigator.userAgent) ? 'android' : /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'ios' : '');
 const appMissed = () => {
@@ -79,13 +80,13 @@ const appMissed = () => {
     return false;
   }
 };
-export function openElta(ev, b) {
+export function openWatch(ev, b) {
   const device = phone();
   if (!b.app || !device || appMissed()) return; // the link's own web page
   ev.preventDefault();
   if (device === 'android') {
     // Android's own fallback: the web page when the app isn't there.
-    location.href = `intent://live/${b.ch}#Intent;scheme=eltatv;package=tv.eltaott.app;${b.url ? `S.browser_fallback_url=${encodeURIComponent(b.url)};` : ''}end`;
+    location.href = `intent://${b.app.replace(/^eltatv:\/\//, '')}#Intent;scheme=eltatv;package=tv.eltaott.app;${b.url ? `S.browser_fallback_url=${encodeURIComponent(b.url)};` : ''}end`;
     return;
   }
   let left = false;
@@ -117,8 +118,23 @@ export function openElta(ev, b) {
     setTimeout(() => document.removeEventListener('visibilitychange', away), 8000);
   }, 1800);
 }
-// A link that plays a channel (`b` from tvOf: url, app), or a plain label when it can't be watched online (MOD's own).
-export const watchLink = (b, attrs, children) => (b.url ? el('a', { ...attrs, href: b.url, target: '_blank', rel: 'noopener', onclick: ev => openElta(ev, b) }, children) : el('div', attrs, children));
+// A link that plays a channel (`b` from tvOf: url, app), or a plain label when it can't be watched online.
+export const watchLink = (b, attrs, children) => (b.url ? el('a', { ...attrs, href: b.url, target: '_blank', rel: 'noopener', onclick: ev => openWatch(ev, b) }, children) : el('div', attrs, children));
+// One tap to watch a game on now (or about to start): ▶ 觀看 and where (MAX5台,
+// 愛爾達, Apple TV), straight into the app. Null when it can't be watched.
+export function watchButton(e, cls = '') {
+  const b = e.status?.state === 'post' || e.status?.void ? null : watchOf(e);
+  if (!b) return null;
+  return watchLink(b, { class: `watch-btn ${cls}`.trim(), 'aria-label': `${ctx.locale === 'en' ? 'Watch on' : '觀看'} ${b[ctx.locale === 'en' ? 'en' : 'zh']}` }, [
+    el('span', { class: 'watch-play', 'aria-hidden': 'true' }),
+    el('span', { class: 'watch-text' }, [el('strong', { text: ctx.locale === 'en' ? 'Watch' : '觀看' }), el('small', { text: b.short[ctx.locale === 'en' ? 'en' : 'zh'] })])
+  ]);
+}
+// A row with its watch button beside it (a live game's), or the row alone.
+export const withWatch = (row, e) => {
+  const watch = watchButton(e);
+  return watch ? el('div', { class: 'watch-row' }, [row, watch]) : row;
+};
 
 // ---- Logos, leagues ----------------------------------------------------------------
 
@@ -131,6 +147,8 @@ export function logo(url, name, cls = '') {
   };
   return logoPicture(freshHeadshot(url), null, `logo ${cls}`, fallback);
 }
+// A race weekend's country flag (F1, F2, F3), the emoji if the picture fails.
+export const raceFlag = (e, cls = '') => (e?.country ? logoPicture(flagUrl(e.country), null, `race-flag ${cls}`.trim(), () => el('span', { class: `race-flag emoji ${cls}`.trim(), 'aria-hidden': 'true', text: flagEmoji(e.country) })) : null);
 // An F1 driver: their headshot, else a badge in their team's colour.
 export const driverLogo = (url, name, cls = '', id = '') => personPic({ id, name, logo: url }, 'f1', cls);
 // A person (a player, a driver): their studio headshot (the feed's, ESPN's by
@@ -139,14 +157,14 @@ export const driverLogo = (url, name, cls = '', id = '') => personPic({ id, name
 // `p`: { id, name, en?, logo?, headshot?, flag? }.
 export function personPic(p, league, cls = '') {
   const name = p?.en || p?.name || '';
-  const flagUrl = p?.flag || (isFlag(p?.logo) ? p.logo : '');
+  const flag = p?.flag || (isFlag(p?.logo) ? p.logo : '');
   const urls = [...new Set([p?.headshot, isFlag(p?.logo) ? null : p?.logo, espnHeadshot(league, p?.id)].map(freshHeadshot).filter(Boolean))];
   const known = knownPhoto(name, LEAGUES[league]?.sport || '');
   if (known) urls.push(known);
   // Nothing found: the driver's badge, else the flag, else the initials;
   // a headshot looked for meanwhile, put in when it comes.
   const last = () => {
-    const stand = league === 'f1' ? driverBadge(name, cls) : flagUrl ? logoPicture(flagUrl, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls);
+    const stand = league === 'f1' ? driverBadge(name, cls) : flag ? logoPicture(flag, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls);
     if (known === undefined && name)
       findPhoto(name, league).then(url => {
         if (url && stand.isConnected) stand.replaceWith(logoPicture(url, null, `logo ${cls} photo${isCutout(url) ? ' cutout' : ''}`, () => el('span')));
@@ -230,7 +248,7 @@ function fieldStatus(text) {
 }
 // A row's status: a game on another day shows its day above its time.
 function statusEl(e, day = true) {
-  // A time not announced yet (Formula E's calendar): the day, "time TBA".
+  // A time not announced yet (an F2 or F3 round before its timetable): the day, "time TBA".
   const tbc = e.tbc || (e.sessionKey && e.sessions?.find(x => x.abbr === e.sessionKey)?.tbc);
   if (tbc && e.status.state === 'pre') return el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: ctx.locale === 'en' ? 'TBA' : '時間待定' })]);
   if (e.status.state === 'pre' && !e.status.void && localDate(Date.parse(e.start)) !== today())
@@ -240,10 +258,9 @@ function statusEl(e, day = true) {
 // A side's picture: a person's photo (a driver), a team's badge.
 export const sideLogo = (side, league, cls = '') => (side && side.athlete ? personPic(side, league, `${cls} round`) : logo(side?.logo, side?.name, cls));
 export function sideLine(side, e, win) {
-  const ball = e.status.state === 'in' && possessionOf(e) === side.homeAway;
   return el('div', { class: `side${win ? ' win' : ''}` }, [
     sideLogo(side, e.league, 'sm'),
-    el('span', { class: 'side-name' }, [side.rank ? el('small', { class: 'rank', text: String(side.rank) }) : null, document.createTextNode(side.short || side.name), ball ? el('span', { class: 'ball', title: ctx.t('possession'), text: ' 🏈' }) : null]),
+    el('span', { class: 'side-name', text: side.short || side.name }),
     e.status.state !== 'pre' && !e.status.void ? el('strong', { class: 'side-score num', text: side.score }) : null
   ]);
 }
@@ -290,12 +307,12 @@ export function eventRow(e, { league = true, day = true } = {}) {
   const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.venue;
   return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
-    el('div', { class: 'event-title' }, [sess ? el('div', { class: 'sess-head' }, [sess, el('strong', { text: e.name })]) : el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null, tvLine(e)])
+    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, el('strong', { text: e.name })]), sub ? el('small', { text: sub }) : null, tvLine(e)])
   ]);
 }
 
-// A game on now: its line (count, outs and runners; down and ball; the
-// latest goal), for the row under the sides.
+// A game on now: its line (count, outs and runners; the latest goal), for
+// the row under the sides.
 export function liveLine(e) {
   if (e.status.state !== 'in' || !e.live) return null;
   const sport = LEAGUES[e.league]?.sport;
@@ -304,7 +321,7 @@ export function liveLine(e) {
   // Baseball's count and its batter vs pitcher: a line each, so neither is cut.
   const [first, ...rest] = sport === 'baseball' ? note.split(' · ') : [note];
   const text = rest.length ? el('span', { class: 'live-two' }, [el('span', { text: first }), el('span', { text: rest.join(' · ') })]) : note ? el('span', { text: note }) : null;
-  return el('div', { class: `live-line${e.live.redZone ? ' red-zone' : ''}` }, [sport === 'baseball' && e.live.bases ? diamond(e.live.bases, e.live.outs) : null, text, e.live.redZone ? el('b', { class: 'rz', text: ctx.locale === 'en' ? 'Red zone' : '紅區' }) : null]);
+  return el('div', { class: 'live-line' }, [sport === 'baseball' && e.live.bases ? diamond(e.live.bases, e.live.outs) : null, text]);
 }
 // Baseball: the three bases (filled when a runner is on) and the outs.
 export function diamond(bases = [], outs = 0, big = false) {
@@ -335,35 +352,24 @@ export function fieldNow(e) {
 }
 
 // Where to watch it in Taiwan: small chips (the first few). A league's list,
-// or a game's own (`e`: the exact ELTA channel when its schedule has it, and
-// no ELTA when ELTA doesn't carry that game).
+// or a game's own (`e`: the exact ELTA channel when a schedule has it, and no
+// ELTA when ELTA doesn't carry that game).
 export const tvName = b => `${ctx.locale === 'en' ? b.en : b.zh}${b.note ? `（${ctx.locale === 'en' ? b.note.en : b.note.zh}）` : ''}`;
-// A game's channels on the person's services only (all of them when they haven't said which).
-const onMine = list => {
-  const mine = ctx.state?.prefs?.tv || [];
-  return mine.length ? list.filter(b => mine.includes(b.svc)) : list;
-};
 export function twChips(league, n = 3, e = null) {
-  const list = e ? onMine(tvOf(e)) : broadcastsOf(league);
+  const list = e ? tvOf(e) : broadcastsOf(league);
   if (!list.length) return null;
-  return el('div', { class: 'tw-chips' }, list.slice(0, n).map(b => el('span', { class: `tw-chip ${b.kind}${b.ch ? ' exact' : ''}`, text: tvName(b) })));
+  return el('div', { class: 'tw-chips' }, list.slice(0, n).map(b => el('span', { class: `tw-chip${b.exact ? ' exact' : ''}`, text: tvName(b) })));
 }
-// A row's 📺 line: the channels a game is on, when ELTA's schedule says (not a guess from the league).
-// Each with its commentary (原音, 中文, 雙語), the person's kind marked: the
-// best for them first (their commentary, then a MAX channel without ads).
+// A row's 📺 line: the channels a game is on, when a schedule says (not a guess from the league).
+// Each with its commentary (原音, 中文, 中文・雙語), the person's kind marked:
+// the best for them first (their commentary, then a MAX channel without ads).
 export const audioName = b => (b.audio ? AUDIO_NAMES[b.audio]?.[ctx.locale === 'en' ? 'en' : 'zh'] || '' : '');
-const audioTag = b => {
-  const want = ctx.state?.prefs?.audio || 'en';
-  const mine = b.audio === want || (want === 'en' && b.audio === 'dual');
-  return b.audio ? el('span', { class: `au-tag${mine ? ' mine' : ''}`, text: audioName(b) }) : null;
-};
+const audioTag = b => (b.audio ? el('span', { class: `au-tag${hasAudio(b, ctx.state?.prefs?.audio || 'en') ? ' mine' : ''}`, text: audioName(b) }) : null);
 export function tvLine(e) {
   if (e.status?.state === 'post' || e.status?.void) return null;
-  // ELTA's exact channels, else a free stream (YouTube, SOOP) the league is on.
-  const exact = onMine(channelsOf(e));
-  const list = exact.length ? exact : onMine(tvOf(e).filter(b => b.free && !b.practice));
+  const list = channelsOf(e);
   if (!list.length) return null;
-  const name = b => (b.short ? b.short[ctx.locale === 'en' ? 'en' : 'zh'] : tvName(b));
+  const name = b => b.short[ctx.locale === 'en' ? 'en' : 'zh'];
   const parts = list.slice(0, 2).flatMap((b, i) => [i ? document.createTextNode('、') : null, el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), audioTag(b)])]);
   return el('small', { class: 'tv-line' }, [...parts, list.length > 2 ? document.createTextNode(` +${list.length - 2}`) : null]);
 }
