@@ -349,7 +349,7 @@ function overview(d, e, table, nameOf) {
   ]);
   const when = new Date(e.start);
   // Where to watch has its own card when there's a link to it (a schedule's channel, Apple TV); the list here otherwise.
-  const exactTv = e.status.state !== 'post' && tvOf(e).some(b => b.exact || b.svc !== 'elta');
+  const exactTv = e.status.state !== 'post' && tvOf(e).some(b => b.exact);
   const info = [
     ['🕒', T('kickoff'), `${dayLabel(localDate(when.getTime()), { long: true })} ${clock(e.start)}`],
     ['📍', T('venue'), zhLater([d?.venue || e.venue, d?.city].filter(Boolean).join(' · '))],
@@ -464,7 +464,7 @@ function personName(league, p, cls = 'field-name') {
 // else the league's service.
 function twCard(league, e = null) {
   const list = e ? tvOf(e) : broadcastsOf(league);
-  const exact = list.filter(b => b.exact || b.svc !== 'elta');
+  const exact = list.filter(b => b.exact);
   const rest = list.filter(b => !exact.includes(b));
   return card(
     T('watchTw'),
@@ -480,7 +480,7 @@ function twCard(league, e = null) {
                       el('strong', { text: tvName(b) }),
                       // Its commentary and ads, then when it starts; a game NBA.com
                       // names without its channel: ELTA's schedule says which.
-                      el('small', { text: b.ch ? [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : ''].filter(Boolean).join(' · ') : b.exact ? (L() === 'en' ? "This game (NBA.com); channel in ELTA's schedule" : '這場有轉播（NBA.com）・頻道見愛爾達節目表') : L() === 'en' ? 'Every game' : '每場都有' })
+                      el('small', { text: b.ch ? [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : ''].filter(Boolean).join(' · ') : b.svc === 'appletv' ? (L() === 'en' ? 'Every game' : '每場都有') : L() === 'en' ? "This game (NBA.com); channel in ELTA's schedule" : '這場有轉播（NBA.com）・頻道見愛爾達節目表' })
                     ]),
                     b.url ? el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` }) : null
                   ])
@@ -490,7 +490,7 @@ function twCard(league, e = null) {
           rest.length ? el('div', { class: 'tw-list' }, rest.map(b => el('span', { class: 'tw-chip', text: tvName(b) }))) : null
         ])
       : el('p', { class: 'muted small', text: T('noTw') }),
-    { sub: exact.some(b => b.ch) ? (L() === 'en' ? "ELTA's schedule" : '愛爾達節目表') : exact.some(b => b.exact) ? "NBA.com" : L() === 'en' ? `Checked ${CHECKED}` : `${CHECKED} 查核` }
+    { sub: exact.some(b => b.ch) ? (L() === 'en' ? "ELTA's schedule" : '愛爾達節目表') : exact.some(b => b.svc === 'elta') ? 'NBA.com' : L() === 'en' ? `Checked ${CHECKED}` : `${CHECKED} 查核` }
   );
 }
 

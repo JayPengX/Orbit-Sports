@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson } from './quadra.mjs';
-import { ELTA_LIST, parseElta, nbaEltaGames, broadcastsFor } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, nbaEltaGames, broadcastsFor } from './broadcast.mjs';
 import { teamNameZh } from './names.mjs';
 import { NBA_ID } from './logos.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -68,7 +68,15 @@ export const tvOf = e => {
   const nba = e.league === 'nba' ? { games: nbaSchedule(), ids: { home: nbaId(e.home), away: nbaId(e.away) } } : null;
   return broadcastsFor(e, eltaSchedule(), { sides: zhSides(e), others: known(), prefer: prefer(), nba });
 };
-// Only those of this very game (a schedule's): for a row's 📺 line.
+// Only those of this very game (a schedule's, or Apple TV's every MLS game): for a row's 📺 line.
 export const channelsOf = e => tvOf(e).filter(b => b.exact);
+// On TV in Taiwan, this very game: the only ones recommended.
+export const onTv = e => channelsOf(e).length > 0;
 // The way to watch a game now: its best channel with a link, or null.
-export const watchOf = e => tvOf(e).find(b => b.url && (b.exact || b.svc !== 'elta')) || null;
+export const watchOf = e => tvOf(e).find(b => b.url && b.exact) || null;
+// Whether the lists that say what's on are in (ELTA's, NBA.com's): before
+// that no game can be said to be on, so nothing is recommended yet.
+export const tvReady = () => eltaSchedule() !== null && nbaSchedule() !== null;
+// The last day ELTA's list covers ('YYYY-MM-DD', Taiwan's), or null: past it
+// only the NBA's (NBA.com) and MLS's games can be known to be on.
+export const tvUntil = () => eltaDays(eltaSchedule() || [])?.to || null;

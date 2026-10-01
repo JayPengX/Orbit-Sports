@@ -20,7 +20,7 @@ import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
-import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref } from './lib/tv.mjs';
+import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, channelsOf } from './lib/tv.mjs';
 import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, withWatch, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from './lib/logos.mjs';
@@ -452,7 +452,8 @@ function syncPush() {
     const start = Date.parse(e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     const league = leagueName(e.league, locale);
-    if (start > now) items.push({ at: start, title: matchLine(e), body: `${league} ${L(NOTICE_TEXT.start)}`, tag: `start:${key}`, hash: 'home', kind: 'start' });
+    // Its start only when it's on TV here (where, in the notice); its final score in any case.
+    if (start > now && onTv(e)) items.push({ at: start, title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
     // The Worker fills in the score (the title) and who won ({result}) once ESPN has the final.
     if (LEAGUES[e.league].espn && /^\d+$/.test(e.id)) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} · {result}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
   }
@@ -462,6 +463,8 @@ function syncPush() {
 // A notice's words: the teams (and the score) on top, the league and what
 // happened below.
 const NOTICE_TEXT = { start: { zh: '開賽了', en: 'game started' } };
+// "MLB 美國職棒 開賽了 · 愛爾達1台": the league, and where it's on.
+const startLine = e => [`${leagueName(e.league, locale)} ${L(NOTICE_TEXT.start)}`, channelsOf(e)[0]?.short[locale === 'en' ? 'en' : 'zh']].filter(Boolean).join(' · ');
 // Who won, for the final's notice: "Yankees 贏了", or a draw.
 function resultLine(e) {
   if (e.status?.void) return L({ zh: '比賽取消', en: 'Canceled' });
@@ -483,7 +486,7 @@ function noticeChanges(events) {
     lastState.set(key, e.status.state);
     if (!was || was === e.status.state) continue;
     const league = leagueName(e.league, locale);
-    if (e.status.state === 'in') notify(q, { title: matchLine(e), body: `${league} ${L(NOTICE_TEXT.start)}`, tag: `start:${key}`, hash: 'home', kind: 'start' });
+    if (e.status.state === 'in' && onTv(e)) notify(q, { title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
     if (e.status.state === 'post') notify(q, { title: matchLine(e, true), body: `${league} · ${resultLine(e)}`, tag: `end:${key}`, hash: 'home', kind: 'end' });
   }
 }
@@ -612,7 +615,8 @@ function renderHome() {
   const h = state.home;
   const slot = state.days.get(h.date);
   h.settled = false;
-  if (!slot?.at || (slot.leagues !== leaguesKey() && !slot.stale)) {
+  // The picks are only games on TV here: none until the lists saying which are in.
+  if (!slot?.at || (slot.leagues !== leaguesKey() && !slot.stale) || !tvReady()) {
     if (!slot?.loading) loadDay(h.date);
     put(box, homeHead(), spinner());
     centerChosen(box);
@@ -629,7 +633,8 @@ function renderHome() {
     const fix = items => items.map(x => ({ ...x, event: real.get(`${x.event.league}:${x.event.id}`) || x.event }));
     return [fix(plan), fix(rest)];
   };
-  const mine = slot.events;
+  // Only what's on TV in Taiwan is recommended (賽事 has every game).
+  const mine = slot.events.filter(onTv);
   let [planList, more] = rank(filtered(mine));
   // Nothing of theirs on: the best of the rest.
   // Opened on a day with nothing of theirs: the next day they have games
@@ -653,7 +658,7 @@ function renderHome() {
       loadOthers(h.date);
     } else {
       // Worth watching on its own: the stakes and the sides, not the person's sport order.
-      [planList, more] = rank(slot.others, 12, { ...pctx, sports: [], leagues: [] });
+      [planList, more] = rank(slot.others.filter(onTv), 12, { ...pctx, sports: [], leagues: [] });
       fallback = true;
     }
   }
@@ -663,7 +668,7 @@ function renderHome() {
   // ranked as it stood before, as on a past day, and what of it was on
   // show (the plan and the first of the rest) that's over now.
   const ended = x => x.event.status.state === 'post' && !x.event.status.void;
-  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others, 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
+  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(onTv), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
   const endedPlan = wasPlan.filter(ended);
   const endedMore = wasMore.slice(0, 20).filter(ended);
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
@@ -673,8 +678,8 @@ function renderHome() {
   const rankLive = (list, c) => list.map(e => ({ event: e, ...scoreMatch(e, c) })).sort((x, y) => y.score - x.score);
   let liveItems = isToday ? rankLive(onNow(filtered(mine)), pctx) : [];
   const liveMine = liveItems.length > 0;
-  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot)), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
-  const allLive = isToday ? onNow(dayAll(slot)).length : 0;
+  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(onTv)), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
+  const allLive = isToday ? onNow(dayAll(slot)).filter(onTv).length : 0;
   const liveShown = liveItems.slice(0, liveMine ? 5 : 3);
   const liveKeys = new Set(liveShown.map(x => `${x.event.league}:${x.event.id}`));
   planList = planList.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
@@ -704,11 +709,11 @@ function renderHome() {
     homeHead(),
     !hasFollows ? sportPicker() : null,
     liveBlock,
-    (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : t('noOthers') })]) : null,
+    (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : noTvText(h.date) }), !finding && !planList.length ? fullSchedule() : null]) : null,
     finding ? spinner() : null,
     planList.length
       ? section(fallback ? t('othersPicks') : isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${past ? L(ENDED_PICKS) : t('picksOn')}`, el('div', { class: 'pick-list' }, planList.map((x, i) => pickCard(x, i))), { sub: fallback ? '' : t('recsN', { n: planList.length + more.length }) })
-      : finding || fallback || liveBlock ? null : section(t('todayPicks'), empty(t(h.filter === 'all' ? 'noRecs' : 'noPicksMine'))),
+      : finding || fallback || liveBlock ? null : section(t('todayPicks'), el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: h.filter === 'all' ? noTvText(h.date) : t('noPicksMine') }), fullSchedule()])),
     shownMore.length
       ? section(t('moreRecs'), el('div', { class: 'q-card list' }, shownMore.map(x => eventRow(x.event))), {
           action: null
@@ -722,6 +727,17 @@ function renderHome() {
   );
   centerChosen(box);
 }
+// Nothing on TV here that day: why (past ELTA's list, only the NBA's and
+// MLS's games are known), and the way to every game (賽事).
+function noTvText(date) {
+  const until = tvUntil();
+  if (until && date > until) {
+    const d = new Date(`${until}T12:00:00`);
+    return L({ zh: `愛爾達的節目表排到 ${d.getMonth() + 1}/${d.getDate()}，之後只知道 NBA 和 MLS 的轉播。`, en: `ELTA's schedule runs to ${d.getMonth() + 1}/${d.getDate()}; after that only NBA and MLS broadcasts are known.` });
+  }
+  return t('noOthers');
+}
+const fullSchedule = () => el('button', { class: 'section-more none-go', type: 'button', text: `${L({ zh: '看完整賽程', en: 'Every game' })} ›`, onclick: () => showTab('matches') });
 function homeHead() {
   const hasFollows = state.prefs.sports.length > 0;
   const h = state.home;
@@ -766,7 +782,7 @@ function sportChips() {
     filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => pickFilter(k) }))
   );
 }
-// The first day after today any followed sport plays.
+// The first day after today any followed sport plays on TV here.
 async function nextPickDay() {
   const h = state.home;
   const sets = await Promise.all(
@@ -797,7 +813,8 @@ async function pickFilter(k) {
   if (list.length && !days.has(h.date)) h.date = list.find(d => d >= today()) || list.at(-1);
   renderHome();
 }
-// The days (the date strip's stretch so far) a followed sport's leagues play.
+// The days (the date strip's stretch so far) a followed sport's leagues play
+// on TV here.
 async function sportDays(sport) {
   const leagues = pickLeagues().filter(k => LEAGUES[k].sport === sport);
   const from = addDays(today(), stripRange.from);
@@ -818,7 +835,7 @@ async function sportDays(sport) {
   const now = Date.now();
   const days = new Set();
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
-    if (e.status?.void) continue;
+    if (e.status?.void || !onTv(e)) continue;
     const ms = Date.parse(e.start);
     const d = localDate(ms);
     if (inPickDay(ms, d) && d >= from && d <= to) days.add(d);
@@ -851,8 +868,8 @@ function dayAll(slot) {
 function renderLive() {
   const box = $('panel-live');
   const slot = state.days.get(today());
-  if (!slot?.at) {
-    if (!slot?.loading) loadDay(today());
+  if (!slot?.at || !tvReady()) {
+    if (!slot?.loading && !slot?.at) loadDay(today());
     put(box, spinner());
     return;
   }
@@ -863,8 +880,9 @@ function renderLive() {
   const byKey = new Map();
   for (const d of [today(), addDays(today(), 1)]) for (const [k, e] of rawDays.get(d) || []) if (!byKey.has(k) || e.status.state === 'in') byKey.set(k, e);
   const keys = new Set();
-  const all = [...dayAll(slot), ...byKey.values()].filter(e => !keys.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && keys.add(`${e.league}:${e.id}:${e.sessionKey || ''}`));
-  // Every league's games on now, the headline leagues first in each sport.
+  // Only what's on TV in Taiwan (賽事 has every game).
+  const all = [...dayAll(slot), ...byKey.values()].filter(e => !keys.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && keys.add(`${e.league}:${e.id}:${e.sessionKey || ''}`)).filter(onTv);
+  // Every game on now, the headline leagues first.
   const live = all.filter(e => e.status.state === 'in').sort((a, b) => Boolean(LEAGUES[b.league]?.top) - Boolean(LEAGUES[a.league]?.top));
   // Nothing on: the next 24 hours, so tomorrow's too.
   const tomorrow = addDays(today(), 1);
@@ -1456,7 +1474,7 @@ const TAB_ICONS = { home: 'home', matches: 'calendar', live: 'live', following: 
 const tabNav = tabBar({ tabs: TABS.map(id => ({ id, label: t(`tab_${id}`), icon: TAB_ICONS[id] })), onSelect: (tab, { again }) => (again ? tabAgain(tab) : showTab(tab)) });
 function renderTabs() {
   tabNav.select(state.tab);
-  tabNav.badge('live', dayAll(state.days.get(today())).filter(e => e.status.state === 'in').length);
+  tabNav.badge('live', dayAll(state.days.get(today())).filter(e => e.status.state === 'in' && onTv(e)).length);
 }
 // Each tab keeps its place (the kit's tab bar); a tap on the open tab
 // scrolls it up, and at the top, home goes back to today.
@@ -1520,6 +1538,10 @@ const repaintOpen = () => {
     if (state.tab === 'live') renderLive();
     if (state.tab === 'matches' && state.scores.byDay instanceof Map && !state.scores.q) renderScores();
     if (state.tab === 'following') renderFollowing();
+    // The live count and the start notices are the games on TV: again now it's known which.
+    renderTabs();
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(syncPush, 1500);
   }, 250);
 };
 onTvChange(repaintOpen);

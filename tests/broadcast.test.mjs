@@ -134,6 +134,7 @@ test('Apple TV: every MLS game, a link its app opens; MLB only on ELTA', () => {
   const game = league => ({ id: '1', league, kind: 'match', start: '2026-09-25T23:10:00Z', status: { state: 'pre' }, away: { name: 'A' }, home: { name: 'B' } });
   const [mls] = broadcastsFor(game('mls'), programs);
   assert.equal(mls.svc, 'appletv');
+  assert.equal(mls.exact, true);
   assert.match(mls.url, /^https:\/\/tv\.apple\.com\/tw\/channel\/mls\//);
   assert.ok(!broadcastsOf('mlb').some(b => b.svc === 'appletv'));
 });

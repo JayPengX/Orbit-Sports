@@ -12,8 +12,9 @@ export const CHECKED = '2026-10';
 // ELTA's sports schedule (in its app: 直播節目表), for a game ELTA carries on
 // a channel its own list doesn't name yet (an NBA game from NBA.com, below).
 const ELTA = { zh: '愛爾達 ELTA.tv', en: 'ELTA.tv', short: { zh: '愛爾達', en: 'ELTA' }, svc: 'elta', url: 'https://eltaott.tv/channel/sports_program_detail', app: 'eltatv://schedule/live' };
-// Apple TV's MLS channel (MLS Season Pass), a link the Apple TV app opens.
-const APPLE = { zh: 'Apple TV', en: 'Apple TV', short: { zh: 'Apple TV', en: 'Apple TV' }, svc: 'appletv', url: 'https://tv.apple.com/tw/channel/mls/tvs.sbd.7000' };
+// Apple TV's MLS channel (MLS Season Pass, every game: exact to each one), a
+// link the Apple TV app opens.
+const APPLE = { zh: 'Apple TV', en: 'Apple TV', short: { zh: 'Apple TV', en: 'Apple TV' }, svc: 'appletv', url: 'https://tv.apple.com/tw/channel/mls/tvs.sbd.7000', exact: true };
 
 export const BROADCAST = {
   mlb: [ELTA],
