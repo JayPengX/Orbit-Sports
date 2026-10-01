@@ -98,11 +98,11 @@ export function fallbackLogo(league, side) {
   if (!side || side.logo) return side?.logo || null;
   // The shared kit's (Quadra Play's) logo for the club.
   const kit = teamLogo(LEAGUES[league]?.play || league, side.name);
-  if (kit || !side.id || league === 'nba') return kit;
-  const [sport, code] = (LEAGUES[league]?.espn || '').split('/');
+  // A side not decided yet (ESPN's "TBD", ids -1 and -2) has no logo.
+  if (kit || !/^\d+$/.test(String(side.id ?? '')) || league === 'nba') return kit;
+  const [sport] = (LEAGUES[league]?.espn || '').split('/');
   if (side.athlete) return HEADSHOTS[sport] ? `${CDN}/headshots/${HEADSHOTS[sport]}/players/full/${side.id}.png` : null;
   if (sport === 'soccer') return `${CDN}/teamlogos/soccer/500/${side.id}.png`;
-  if (code === 'mlb' && side.abbr) return `${CDN}/teamlogos/mlb/500/${side.abbr.toLowerCase()}.png`;
   return null;
 }
 // An NBA team's logo is always NBA.com's primary mark (the kit's): ESPN's

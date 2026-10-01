@@ -125,6 +125,8 @@ test('a missing logo falls back to ESPN\'s CDN', async () => {
   assert.equal(fallbackLogo('f1', { id: '1', logo: 'x' }), 'x');
   assert.equal(fallbackLogo('epl', { id: '359', name: 'Nobody FC' }), 'https://a.espncdn.com/i/teamlogos/soccer/500/359.png');
   assert.equal(fallbackLogo('nba', { id: '134478', name: 'London Lions', abbr: 'LON' }), null);
+  assert.equal(fallbackLogo('mlb', { id: '-1', name: 'TBD', abbr: 'TBD' }), null);
+  assert.equal(fallbackLogo('ucl', { id: '-2', name: 'TBD' }), null);
 });
 
 test('CPBL from the proxy\'s month lists', async () => {
