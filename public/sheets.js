@@ -85,18 +85,33 @@ export async function openMatch(e) {
   };
   paintHeader(null);
   // A game on (or about to start): the score, the situation and the
-  // sections again every 20 seconds while the sheet is open.
+  // sections again every 15 seconds while the sheet is open, and at once on
+  // coming back to the app. Its own day's page (a cup's default page can be
+  // another round).
   const soon = () => e.status.state === 'in' || (e.status.state === 'pre' && Date.parse(e.start) - Date.now() < 15 * 60_000);
-  const timer = setInterval(async () => {
-    if (!s.dialog.isConnected) return clearInterval(timer);
-    if (document.visibilityState !== 'visible' || !soon()) return;
-    const fresh = (await scoreboard(e.league).catch(() => [])).find(x => x.id === e.id);
-    if (fresh) e = { ...e, ...fresh };
-    if (LEAGUES[e.league].espn) data = await summary(e.league, e.id).catch(() => data);
-    paintHeader(data);
-    paint();
-  }, 20_000);
-  s.dialog.addEventListener('close', () => clearInterval(timer));
+  const gameDays = () => [...new Set([0, 5].map(h => new Date(Date.parse(e.start) - h * 3_600_000).toISOString().slice(0, 10).replaceAll('-', '')))];
+  let busy = false;
+  const refresh = async () => {
+    if (!s.dialog.isConnected) return stop();
+    if (busy || document.visibilityState !== 'visible' || !soon()) return;
+    busy = true;
+    try {
+      const fresh = (await scoreboard(e.league, LEAGUES[e.league].espn ? gameDays() : undefined).catch(() => [])).find(x => x.id === e.id);
+      if (fresh) e = { ...e, ...fresh };
+      if (LEAGUES[e.league].espn) data = await summary(e.league, e.id).catch(() => data);
+      paintHeader(data);
+      paint();
+    } finally {
+      busy = false;
+    }
+  };
+  const timer = setInterval(refresh, 15_000);
+  document.addEventListener('visibilitychange', refresh);
+  const stop = () => {
+    clearInterval(timer);
+    document.removeEventListener('visibilitychange', refresh);
+  };
+  s.dialog.addEventListener('close', stop);
   const paint = () => {
     const tabs = [['overview', T('overview')]];
     if (teamStatRows(data?.teamStats, LEAGUES[e.league]?.sport, L()).length) tabs.push(['stats', T('stats')]);

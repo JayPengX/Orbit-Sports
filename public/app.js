@@ -1679,11 +1679,10 @@ function showTab(tab) {
     if (!state.scores.touched && !state.scores.byDay && first) state.scores = { ...state.scores, sport: LEAGUES[first].sport, league: first, view: hasStandings(first) ? state.scores.view : 'games' };
     state.scores.byDay ? renderScores() : loadScores();
   }
-  if (tab === 'live') {
-    renderLive();
-    if (Date.now() - (state.days.get(today())?.at || 0) > 30_000) loadDay(today());
-  }
+  if (tab === 'live') renderLive();
   if (tab === 'following') renderFollowing();
+  // What's on now, at once rather than at the next beat.
+  liveTick();
 }
 function tabAgain(tab) {
   if (tab === 'home' && state.home.date !== today()) {
@@ -1702,20 +1701,27 @@ async function reloadNow() {
   }
 }
 
-// Live games refresh every 30 seconds while on screen; today every 2 minutes
-// in any case (so a followed team's start and finish are noticed).
-setInterval(() => {
+// Live games refresh every 15 seconds while on screen (the proxy keeps live
+// scores 10 seconds), at once on coming back to the app or to a tab that
+// shows them; today every 2 minutes in any case (so a followed team's start
+// and finish are noticed).
+const LIVE_MS = 15_000;
+function liveTick() {
   if (document.visibilityState !== 'visible' || !q.active) return;
   const day = state.days.get(today());
-  const live = dayAll(day).some(e => e.status.state === 'in');
+  // On now, or due to start (its kickoff passed or a minute away): watched as live.
+  const live = dayAll(day).some(e => e.status.state === 'in' || (e.status.state === 'pre' && Date.parse(e.start) - Date.now() < 60_000 && Date.now() - Date.parse(e.start) < 3 * 3_600_000));
   const age = Date.now() - (day?.at || 0);
-  if (((state.tab === 'home' && state.home.date === today()) || state.tab === 'live') && live && age > 25_000) loadDay(today());
+  const onScreen = (state.tab === 'home' && state.home.date === today()) || state.tab === 'live' || state.tab === 'following';
+  if (onScreen && live && age > 12_000) loadDay(today());
   else if (age > 120_000) loadDay(today());
   if (state.tab === 'home' && state.home.date !== today() && Date.now() - (state.days.get(state.home.date)?.at || 0) > 10 * 60_000) loadDay(state.home.date);
   if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in')) loadScores();
   paintStatus();
   renderTabs();
-}, 30_000);
+}
+setInterval(liveTick, LIVE_MS);
+document.addEventListener('visibilitychange', liveTick);
 
 // ELTA's schedule came in: its 📺 channels appear (or go) on the open tab.
 let repaintTimer = 0;

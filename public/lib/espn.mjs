@@ -30,6 +30,8 @@ export const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
 // remembered in memory and on the device (a list younger than `ttl` is
 // never asked for again, even after the app was closed).
 export const getJson = (url, { ttl = 60_000, trim = '' } = {}) => proxyJson(url, { ttl, trim });
+// How long a live answer (scores, a game's summary) is kept before asking again.
+export const LIVE_TTL = 10_000;
 
 export const yyyymmdd = date => date.toISOString().slice(0, 10).replaceAll('-', '');
 // ESPN files a game under the US date; a Taiwan day spans two of them.
@@ -231,7 +233,8 @@ export async function scoreboard(league, dates) {
   const l = LEAGUES[league];
   if (l?.asia) return asiaEvents(league);
   const list = [].concat(dates || []);
-  const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: 20_000 }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: 20_000 })];
+  // Scores on now: read again after 10 seconds (the proxy's live copy).
+  const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
   const seen = new Set();
   return pages
     .filter(Boolean)
@@ -378,7 +381,7 @@ export function applyKambiLive(events, live) {
 async function withKambiLive(events, league) {
   const path = CATALOG[league]?.kambi;
   if (!path) return events;
-  const data = await getJson(`${KAMBI}/${path}/in-play.json?lang=en_GB&market=GB&useCombined=true`, { ttl: 30_000, trim: 'kambi-events' }).catch(() => null);
+  const data = await getJson(`${KAMBI}/${path}/in-play.json?lang=en_GB&market=GB&useCombined=true`, { ttl: LIVE_TTL, trim: 'kambi-events' }).catch(() => null);
   return applyKambiLive(events, kambiInnings(data));
 }
 
@@ -480,7 +483,7 @@ export function parseSummary(data, league) {
 }
 export async function summary(league, id) {
   const l = LEAGUES[league];
-  return parseSummary(await getJson(`${SITE}/${l.espn}/summary?event=${encodeURIComponent(id)}`, { ttl: 20_000 }), league);
+  return parseSummary(await getJson(`${SITE}/${l.espn}/summary?event=${encodeURIComponent(id)}`, { ttl: LIVE_TTL }), league);
 }
 
 // ---- Standings ------------------------------------------------------------------------
