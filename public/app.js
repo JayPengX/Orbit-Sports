@@ -1294,12 +1294,12 @@ function renderScores() {
     const past = events.filter(e => e.status.state === 'post').reverse();
     // A race series: one card per weekend (its sessions inside), not a row per session.
     const racing = LEAGUES[sc.league]?.sport === 'racing';
-    const block = (title, list, n = 99) => (racing ? section(title, el('div', { class: 'wk-cards' }, weekends(list).slice(0, n).map(weekendCard))) : section(title, el('div', { class: 'q-card list' }, list.slice(0, n).map(e => eventRow(e, { league: false })))));
+    const block = (title, list) => (racing ? section(title, el('div', { class: 'wk-cards' }, weekends(list).map(weekendCard))) : section(title, el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { league: false })))));
     list = events.length
       ? el('div', {}, [
           current.length ? block(t('liveNow'), current) : null,
           next.length ? block(t('upcomingEvents'), next) : null,
-          past.length ? block(t('pastEvents'), past, 12) : null
+          past.length ? block(t('pastEvents'), past) : null
         ])
       : empty(t('noEvents'));
   } else if (!sc.days.length) list = empty(t('noGamesSeason'));
