@@ -1,10 +1,13 @@
-# Tests, then deploys public/ to GitHub Pages on every push to main.
+# Tests, then deploys public/ to GitHub Pages on every push to main, and
+# every six hours for NBA.com's ELTA games (scripts/nba-elta.mjs).
 # One-time setup: repo Settings -> Pages -> Source: GitHub Actions.
 name: Deploy to Pages
 
 on:
   push:
     branches: ['main']
+  schedule:
+    - cron: '17 */6 * * *'
   workflow_dispatch:
 
 permissions:
@@ -26,6 +29,8 @@ jobs:
           node-version: 22
       - name: Run tests
         run: npm test
+      - name: NBA.com's ELTA games
+        run: node scripts/nba-elta.mjs
       - name: Cache-bust every script, module and stylesheet
         # GitHub Pages caches files for 10 minutes; a per-deploy query string on
         # every local file (module imports included) makes browsers fetch the

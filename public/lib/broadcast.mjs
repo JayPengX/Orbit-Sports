@@ -165,12 +165,11 @@ export function eltaPrograms(programs, e, sides, others = []) {
 //
 // NBA.com's schedule for Taiwan (region 32, what nba.com/schedule?region=32
 // reads) names each game's broadcasters there, months beyond ELTA's own two
-// weeks, and some days ELTA has two games. The proxy sends ELTA's games only
-// ({ games: [{ id, start, home, away }] }, NBA.com's team ids: trimNba in the
-// Worker); NBA.com's own file (read from the device when the proxy can't) is
-// picked over the same way here.
+// weeks, and some days ELTA has two games. The deploy reads it
+// (scripts/nba-elta.mjs) and keeps ELTA's games on this site: { games: [{ id,
+// start, home, away }] }, NBA.com's team ids.
 export const NBA_TW_SCHEDULE = 'https://cdn.nba.com/static/json/staticData/scheduleLeagueV2_32.json';
-const onElta = g => Object.values(g.broadcasters || {}).some(list => Array.isArray(list) && list.some(b => /\bELTA\b/i.test(`${b.broadcasterDisplay} ${b.broadcasterAbbreviation}`)));
+const onElta = g => Object.values(g.broadcasters || {}).some(list => Array.isArray(list) && list.some(b => /elta/i.test(`${b.broadcasterDisplay} ${b.broadcasterAbbreviation}`)));
 // ELTA's games: [{ id, start (ms), home, away }] (team ids as numbers).
 export function nbaEltaGames(data) {
   const games = Array.isArray(data?.games)

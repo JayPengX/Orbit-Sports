@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson } from './quadra.mjs';
-import { ELTA_LIST, NBA_TW_SCHEDULE, parseElta, nbaEltaGames, broadcastsFor } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, nbaEltaGames, broadcastsFor } from './broadcast.mjs';
 import { teamNameZh } from './names.mjs';
 import { NBA_ID } from './logos.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -33,16 +33,13 @@ function schedule(read, parse, ttl) {
 }
 // ELTA's programs.
 export const eltaSchedule = schedule(() => proxyJson(ELTA_LIST, { ttl: 30 * 60_000 }), parseElta, 30 * 60_000);
-// NBA.com's ELTA games: from the proxy (only those, a few KB), else NBA.com's
-// whole file straight from the device (its CDN lets any site read it).
+// NBA.com's ELTA games, the season: the deploy's copy on this site (scripts/nba-elta.mjs).
 const nbaSchedule = schedule(
   () =>
-    proxyJson(NBA_TW_SCHEDULE, { ttl: 6 * 3_600_000 }).catch(() =>
-      fetch(NBA_TW_SCHEDULE).then(r => {
-        if (!r.ok) throw new Error(String(r.status));
-        return r.json();
-      })
-    ),
+    fetch('./nba-elta.json').then(r => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    }),
   nbaEltaGames,
   6 * 3_600_000
 );
