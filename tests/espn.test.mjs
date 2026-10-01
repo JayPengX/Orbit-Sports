@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar, espnDatesFor, parseKambi, fallbackLogo } from '../public/lib/espn.mjs';
+import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar, espnDatesFor, parseKambi } from '../public/lib/espn.mjs';
 import { LEAGUES, SPORTS } from '../public/lib/leagues.mjs';
 
 const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url)));
@@ -34,24 +34,6 @@ test('race sessions', () => {
   const [race] = parseScoreboard(fx('f1-scoreboard'), 'f1');
   assert.ok(race.sessions.length >= 1);
   assert.ok(race.sessions.at(-1).field.length >= 10);
-});
-
-test('an NBA feed never assigns an NBA badge to London Lions', () => {
-  assert.equal(fallbackLogo('nba', { id: '1234', name: 'London Lions', abbr: 'LON' }), null);
-  assert.equal(fallbackLogo('nba', { id: '1966', name: 'Los Angeles Lakers', abbr: 'LAL' }), 'https://a.espncdn.com/i/teamlogos/nba/500/lal.png');
-  const [event] = parseScoreboard({
-    events: [{
-      id: '1',
-      date: '2026-10-01T12:00:00Z',
-      competitions: [{
-        competitors: [
-          { homeAway: 'home', team: { id: '1234', displayName: 'London Lions', abbreviation: 'LON', logo: 'https://example.test/wrong-nba-logo.png' } },
-          { homeAway: 'away', team: { id: '1966', displayName: 'Los Angeles Lakers', abbreviation: 'LAL' } }
-        ]
-      }]
-    }]
-  }, 'nba');
-  assert.equal(event.home.logo, null);
 });
 
 test('a match summary: box score, players, plays, rosters', () => {

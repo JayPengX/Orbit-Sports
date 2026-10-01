@@ -40,13 +40,14 @@ test('a race weekend lists sprint qualifying, sprint, qualifying and race, not p
 
 test('broadcast services: what they carry', () => {
   assert.ok(Object.values(BROADCAST).flat().every(b => SERVICES.some(x => x.id === b.svc)));
-  assert.deepEqual(SERVICES.map(x => x.id), ['elta', 'appletv']);
-  assert.ok(watchable('epl', ['elta']));
+  assert.ok(watchable('laliga', ['dazn']));
   assert.ok(!watchable('epl', ['dazn']));
   assert.ok(watchable('epl', []));
+  // KBO: free on SOOP; Formula E on Disney+, its practice on YouTube.
+  assert.ok(watchable('kbo', ['soop']));
+  assert.ok(watchable('formulae', ['disney']) && watchable('formulae', ['youtube']));
   assert.ok(leaguesOn(['elta']).includes('nba'));
   assert.ok(!leaguesOn(['elta']).includes('laliga'));
-  assert.ok(leaguesOn(['appletv']).includes('mls'));
 });
 
 test('logos for the leagues and teams the feeds leave bare', () => {

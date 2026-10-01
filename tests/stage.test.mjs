@@ -77,8 +77,8 @@ test('stat bars read rates, times and made-attempted as numbers', () => {
 });
 
 test('Taiwan broadcasts for the big leagues', () => {
-  for (const k of ['mlb', 'nba', 'epl', 'cpbl', 'f1']) assert.ok(broadcastsOf(k).length, k);
-  assert.equal(broadcastsOf('laliga').length, 0);
+  for (const k of ['mlb', 'nba', 'epl', 'cpbl', 'f1', 'laliga']) assert.ok(broadcastsOf(k).length, k);
+  assert.ok(broadcastsOf('laliga').some(b => /DAZN/.test(b.zh)));
 });
 
 test('a long conference name fits the comparison as its initials', () => {

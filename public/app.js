@@ -20,7 +20,7 @@ import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref } from './lib/tv.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, sessionTag, raceFlag, audioName, personPic } from './ui.js';
+import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, sessionTag, audioName, personPic } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables } from './sheets.js';
 import { f1Driver, f1Constructor } from './lib/logos.mjs';
 
@@ -528,7 +528,7 @@ function pickCard(item, n) {
     ]),
     el('div', { class: 'pick-body' }, [
       el('div', { class: 'pick-top' }, [leagueChip(e.league), tag ? el('span', { class: 'stage-tag', text: tag }) : null]),
-      e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : e.sessionKey ? el('div', { class: 'sess-head pick-title' }, [raceFlag(e), sessionTag(e), el('strong', { text: e.name })]) : e.league === 'f1' ? el('div', { class: 'sess-head pick-title' }, [raceFlag(e), el('strong', { text: e.session ? `${e.name} · ${e.session}` : e.name })]) : el('strong', { class: 'pick-title', text: e.session ? `${e.name} · ${e.session}` : e.name }),
+      e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : e.sessionKey ? el('div', { class: 'sess-head pick-title' }, [sessionTag(e), el('strong', { text: e.name })]) : el('strong', { class: 'pick-title', text: e.session ? `${e.name} · ${e.session}` : e.name }),
       series ? el('small', { class: 'series-line', text: series }) : null,
       liveLine(e),
       e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : null,
@@ -961,12 +961,6 @@ function renderLive() {
   const liveF = live.filter(keep);
   const soonF = soon.filter(keep);
   const endedF = ended.filter(keep);
-  const liveRows = events => mineFirst(events).map(e => {
-    const broadcast = e.kind === 'match' ? tvOf(e).find(b => b.svc === 'elta' && b.url && b.app) : null;
-    return broadcast
-      ? el('div', { class: 'live-event-row' }, [eventRow(e), watchLink(broadcast, { class: 'live-watch', text: L({ zh: '觀看', en: 'Watch' }) })])
-      : eventRow(e);
-  });
   // The next to start (a followed team's if one is within the hour of the first).
   const first = soonF[0];
   const nextUp = first && (soonF.find(e => isFollowedEvent(e) && Date.parse(e.start) - Date.parse(first.start) < 3_600_000) || first);
@@ -986,7 +980,7 @@ function renderLive() {
     shown.length ? strip : null,
     !liveF.length && nextUp ? el('div', { class: 'q-card list' }, [eventRow(nextUp)]) : null,
     !liveF.length && !nextUp && reading ? spinner() : null,
-    liveF.length ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, liveRows(liveF))) : null,
+    liveF.length ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, mineFirst(liveF).map(e => eventRow(e)))) : null,
     endedF.length && !liveF.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(endedF).slice(0, 12).map(e => eventRow(e)))) : null,
     soonF.filter(e => e !== nextUp || liveF.length).length ? section(liveF.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, (liveF.length ? mineFirst(soonF) : soonF.filter(e => e !== nextUp)).slice(0, 30).map(e => eventRow(e)))) : null,
     endedF.length && liveF.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(endedF).slice(0, 8).map(e => eventRow(e)))) : null,

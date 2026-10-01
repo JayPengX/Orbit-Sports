@@ -8,22 +8,6 @@ import { getJson } from './espn.mjs';
 const F1 = 'https://www.formula1.com/en';
 const JOLPICA = 'https://api.jolpi.ca/ergast/f1';
 const HOUR = 3_600_000;
-const RACE_FLAG = [
-  ['abu dhabi', 'AE'], ['united states', 'US'], ['las vegas', 'US'], ['miami', 'US'], ['mexico', 'MX'],
-  ['são paulo', 'BR'], ['sao paulo', 'BR'], ['brazil', 'BR'], ['saudi', 'SA'], ['barcelona', 'ES'],
-  ['spain', 'ES'], ['spanish', 'ES'], ['madrid', 'ES'], ['australia', 'AU'], ['china', 'CN'], ['chin', 'CN'],
-  ['japan', 'JP'], ['bahrain', 'BH'], ['canada', 'CA'], ['monaco', 'MC'], ['austria', 'AT'], ['brit', 'GB'],
-  ['belgi', 'BE'], ['hungar', 'HU'], ['dutch', 'NL'], ['ital', 'IT'], ['emilia', 'IT'], ['azerbaijan', 'AZ'],
-  ['singapore', 'SG'], ['qatar', 'QA'], ['portug', 'PT'], ['turk', 'TR']
-];
-
-// A Grand Prix's flag from the event's original English title (not its
-// sponsor-led display name or its localized short name).
-export function f1RaceFlag(name) {
-  const text = String(name || '').toLowerCase();
-  const code = RACE_FLAG.find(([part]) => text.includes(part))?.[1];
-  return code ? String.fromCodePoint(...[...code].map(c => 0x1f1e6 + c.charCodeAt(0) - 65)) : '';
-}
 
 // The page's grids by their first label (the page's order can change).
 const GRID_OF = { 'Season Position': 'season', 'Grand Prix Races': 'gp', 'Sprint Races': 'sprint', 'Grands Prix Entered': 'career', 'Date of Birth': 'bio', 'Full Team Name': 'profile' };

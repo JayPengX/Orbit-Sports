@@ -101,10 +101,6 @@ img { max-width: 100%; }
 
 /* ---- Event rows ---- */
 .list { overflow: hidden; }
-.live-event-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-top: 1px solid var(--q-divider, var(--q-border)); }
-.list > .live-event-row:first-child { border-top: 0; }
-.live-event-row .event-row { border-top: 0; }
-.live-watch { margin-right: 12px; padding: 7px 10px; border-radius: 999px; background: var(--accent-wash); color: var(--accent); font-size: 12.5px; font-weight: 750; white-space: nowrap; text-decoration: none; }
 .event-row {
   display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 10px;
   width: 100%; padding: 10px 14px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none;
@@ -616,8 +612,6 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 
 /* A race weekend's session at a glance: a coloured badge before the name (the race the boldest). */
 .sess-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.race-flag { width: 30px; height: 26px; flex: none; font-size: 24px; line-height: 1; }
-.event-heading { gap: 9px; }
 .sess-head strong, .sess-head h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sess-head h3 { margin: 0; }
 .sess-tag { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 750; line-height: 1; padding: 4px 8px 4px 6px; border-radius: 999px; white-space: nowrap; }

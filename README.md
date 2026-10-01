@@ -37,10 +37,9 @@ right:
   line score, the Bet in Play link, then the overview, team stats (each
   side's own bar against the larger value, so averages and rates read
   right), player box scores, plays, line-ups and the table.
-- **Where to watch in Taiwan** (`lib/broadcast.mjs`, checked 2026-10): ELTA.tv
-  (愛爾達) and Apple TV on match sheets, pick cards and the matches tab.
-  NBA games come from ELTA's own listings first, then NBA.com's Taiwan
-  regional JSON schedule; ESPN's US networks aren't shown.
+- **Where to watch in Taiwan** (`lib/broadcast.mjs`, checked 2026-09): ELTA
+  (愛爾達), Videoland (緯來), DAZN, Sportcast (博斯), league passes… on match
+  sheets, pick cards and the matches tab. ESPN's US networks aren't shown.
 - **Stages** (`lib/stage.mjs`): preseason, regular season, NBA Cup, All-Star,
   play-in, playoffs with their rounds in Chinese (外卡賽, 分區系列賽…), finals.
 - **Teams and players**: place and key figures, schedule, results, roster,
@@ -105,7 +104,7 @@ public/
   lib/espn.mjs      fetching and parsing scoreboards, calendars, summaries, standings, teams, players
   lib/picks.mjs     the day's picks: scoring and the no-clash plan
   lib/stage.mjs     season stages and playoff rounds
-  lib/broadcast.mjs where to watch in Taiwan; lib/nba-broadcast.mjs the NBA regional schedule
+  lib/broadcast.mjs where to watch in Taiwan, by league
   lib/days.mjs      the nearest game day
   lib/foryou.mjs    the keys a match is about (shared with Play)
   lib/i18n.mjs      Traditional Chinese and English
