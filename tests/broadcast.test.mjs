@@ -74,7 +74,7 @@ const SYNTHETIC_NBA = {
   }
 };
 
-test("NBA.com's Taiwan schedule: ELTA's games only, the same from the proxy's trimmed list or NBA.com's file", () => {
+test("NBA.com's Taiwan schedule: ELTA's games only, the same from the deploy's list or NBA.com's file", () => {
   const games = nbaEltaGames(SYNTHETIC_NBA);
   assert.deepEqual(games.map(g => g.id), ['0022600201', '0022600202']);
   assert.deepEqual(games[0], { id: '0022600201', start: Date.parse('2026-11-20T00:00:00Z'), home: 1610612748, away: 1610612738 });
