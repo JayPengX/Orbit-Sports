@@ -9,7 +9,7 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
-import { teamBadge, teamLogo, raceName, playerFlag, countryName, countryCode, flagUrl, f1Driver, f1Constructor } from './logos.mjs';
+import { teamBadge, teamLogo, raceName, countryName, countryCode, flagUrl, f1Driver, f1Constructor } from './logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -113,7 +113,7 @@ export function fallbackLogo(league, side) {
 // (lib/names.mjs) when it has the team, the English kept as `en` (Play's ids
 // and the matching use it). People (players, drivers) keep their names.
 export function localSide(league, side, lang = detectLocale()) {
-  if (!side || lang === 'en' || side.athlete || LEAGUES[league]?.players) return side;
+  if (!side || lang === 'en' || side.athlete) return side;
   const en = side.en || side.name;
   const zh = teamNameZh(LEAGUES[league]?.play || league, en, LEAGUES[league]?.sport);
   if (zh) return { ...side, en, name: zh.full, short: zh.short };
@@ -310,7 +310,7 @@ export async function weekScoreboard(league, seasontype, week) {
   return parseScoreboard(data, league);
 }
 
-// ---- Kambi (EuroLeague, K League, badminton) ------------------------------------------
+// ---- Kambi (EuroLeague, K League) ---------------------------------------------------
 
 export function parseKambi(data, league) {
   const out = [];
@@ -319,25 +319,22 @@ export function parseKambi(data, league) {
     if (!e?.homeName || !e?.awayName) continue;
     const live = item.liveData;
     const state = e.state === 'STARTED' ? 'in' : e.state === 'FINISHED' ? 'post' : 'pre';
-    // Set scores (badminton) or, for baseball, the innings in the score's info ("1-0 | 0-2 | …").
+    // Baseball's innings in the score's info ("1-0 | 0-2 | …").
     const info = String(live?.score?.info || '').split('|').map(x => x.trim().split('-'));
     const innings = info.length > 1 && info.every(x => x.length === 2) ? { home: info.map(x => x[0]), away: info.map(x => x[1]) } : null;
-    const sets = live?.statistics?.sets;
-    // Players: their nation's flag (the kit's table, else the country the event is filed under).
-    const where = [e.group, ...(e.path || []).map(p => (typeof p === 'string' ? p : p?.termKey))].filter(Boolean);
     const side = (name, key) => ({
       id: name,
       name,
       short: name,
       abbr: name.slice(0, 3).toUpperCase(),
-      // Players their nation's flag; clubs their badge; a national side its flag.
-      logo: LEAGUES[league]?.players ? playerFlag(name, where) || teamBadge(LEAGUES[league]?.play || league, name) : teamBadge(LEAGUES[league]?.play || league, name) || flagUrl(countryCode(name)),
+      // A club's badge; a national side its flag.
+      logo: teamBadge(LEAGUES[league]?.play || league, name) || flagUrl(countryCode(name)),
       color: null,
       score: live?.score?.[key] ?? '',
       winner: false,
       record: '',
       rank: null,
-      lines: sets ? sets[key].filter(x => x >= 0).map(String) : innings ? innings[key] : [],
+      lines: innings ? innings[key] : [],
       homeAway: key
     });
     out.push({
@@ -886,7 +883,7 @@ export function parseGameLog(log) {
 // A player's photo from TheSportsDB (ESPN has none for footballers): the
 // studio cut-out only (its portraits are often casual pictures), when the
 // name and the sport match. Open to browsers (CORS), so not through the proxy.
-const SPORTSDB_SPORT = { soccer: 'Soccer', basketball: 'Basketball', baseball: 'Baseball', football: 'American Football', hockey: 'Ice Hockey', racing: 'Motorsport', badminton: 'Badminton' };
+const SPORTSDB_SPORT = { soccer: 'Soccer', basketball: 'Basketball', baseball: 'Baseball', football: 'American Football', hockey: 'Ice Hockey', racing: 'Motorsport' };
 const photos = new Map();
 export function pickPhoto(data, name, sport) {
   const want = normalizeTeamName(name);

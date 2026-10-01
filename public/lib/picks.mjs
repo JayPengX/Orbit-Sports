@@ -22,7 +22,7 @@ import { eventKeys, teamKey } from './foryou.mjs';
 import { broadcastsOf } from './broadcast.mjs';
 
 // Minutes a match usually takes, by sport.
-export const DURATION = { soccer: 115, baseball: 185, basketball: 145, football: 195, hockey: 155, badminton: 60, racing: 120 };
+export const DURATION = { soccer: 115, baseball: 185, basketball: 145, football: 195, hockey: 155, racing: 120 };
 // On a Taiwan channel or streaming service (lib/broadcast.mjs), not a league pass only.
 const onTaiwanTv = league => broadcastsOf(league).some(b => b.kind !== 'pass');
 const BIG_GAME = /final|semi|play-?off|postseason|wild ?card|series|championship|derby|決賽|季後/i;
@@ -90,9 +90,6 @@ export function scoreMatch(e, { sports = [], leagues = [], follows = [], tables 
     reasons.push('tv');
   }
   if (e.home?.rank || e.away?.rank) score += 0.08;
-  // Kambi's badminton list is mostly minor events (juniors, lower tours):
-  // below the rest unless the person follows it.
-  if (sport === 'badminton' && idx < 0 && !leagues.includes(e.league)) score -= 0.35;
   // Habit: the strongest thing the person is into that this match touches.
   const max = Math.max(1, ...Object.values(aff));
   const habit = Math.max(0, ...keys.map(k => (aff[k] || 0) / max));

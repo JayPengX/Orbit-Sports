@@ -8,18 +8,16 @@
 //
 // Sources: ELTA's 2026-27 football and baseball announcements, ELTA's NBA
 // 2026-2030 and F1 2026-2029 rights, DAZN Taiwan (LaLiga, NFL from
-// 2026-27, NPB, NHL), 緯來 (NBA, MLB daily), CPBL's 2026 platform list, 博斯
-// (badminton). Rights change: keep this list current.
+// 2026-27, NPB, NHL), 緯來 (NBA, MLB daily), CPBL's 2026 platform list.
+// Rights change: keep this list current.
 export const CHECKED = '2026-10';
 
 const ELTA = { zh: '愛爾達 ELTA.tv', en: 'ELTA.tv', kind: 'ott', svc: 'elta' };
-// Hami Video streams ELTA's 體育台 (not its MAX ones), 緯來 and 博斯.
+// Hami Video streams ELTA's 體育台 (not its MAX ones) and 緯來.
 const HAMI = { zh: 'Hami Video', en: 'Hami Video', kind: 'ott', svc: 'hami' };
 // 緯來體育台 streamed: Hami Video and 緯來's own app (緯來電視網).
 const VL = { zh: '緯來體育台（Hami Video・緯來 App）', en: 'Videoland Sports (Hami Video, Videoland app)', kind: 'ott', svc: 'videoland' };
 const DAZN = { zh: 'DAZN', en: 'DAZN', kind: 'ott', svc: 'dazn' };
-// 博斯's channels streamed: Hami Video, LiTV and 4gTV.
-const BOS = { zh: '博斯運動（Hami Video・LiTV・4gTV）', en: 'Sportcast (Hami Video, LiTV, 4gTV)', kind: 'ott', svc: 'sportcast' };
 // A league's own subscription: only where it's the one way to watch (WNBA,
 // EuroLeague). One sport's passes are otherwise not listed.
 const pass = (svc, zh, en = zh) => ({ zh, en, kind: 'pass', svc });
@@ -67,7 +65,6 @@ export const BROADCAST = {
   f3: [{ ...ELTA, note: { zh: 'MAX 5-8 台', en: 'MAX 5-8' } }],
   // From 2026-27 on Disney+ (every session); practice free on its YouTube.
   formulae: [DISNEY, yt('Formula E', 'Formula E', 'https://www.youtube.com/@FIAFormulaE', 'UC-DuRqsBQOEk_5o1q4Ze-Fg')],
-  badminton: [ELTA, HAMI, BOS, yt('BWF TV', 'BWF TV', 'https://www.youtube.com/@bwftv', 'UChh-akEbUM8_6ghGVnJd6cQ')],
   euroleague: [pass('euroleaguetv', 'EuroLeague TV')]
 };
 
@@ -118,7 +115,7 @@ export const ELTA_LIST = 'https://piceltaott-elta.cdn.hinet.net/production/json/
 // ELTA's league names (its English ones) → Fixtures' leagues.
 const ELTA_LEAGUE = {
   MLB: 'mlb', NBA: 'nba', CPBL: 'cpbl', 'Premier League': 'epl', UCL: 'ucl', 'UEFA Champions League': 'ucl', 'UEFA Europa League': 'uel', 'UEFA Conference League': 'uecl',
-  Bundesliga: 'bundesliga', 'Serie A': 'seriea', 'Ligue 1': 'ligue1', 'UEFA Nations League': 'nationsleague', 'Scottish Premiership': 'scotland', 'FA Cup': 'facup', F1: 'f1', F2: 'f2', F3: 'f3', 'Formula 2': 'f2', 'Formula 3': 'f3', BWF: 'badminton'
+  Bundesliga: 'bundesliga', 'Serie A': 'seriea', 'Ligue 1': 'ligue1', 'UEFA Nations League': 'nationsleague', 'Scottish Premiership': 'scotland', 'FA Cup': 'facup', F1: 'f1', F2: 'f2', F3: 'f3', 'Formula 2': 'f2', 'Formula 3': 'f3'
 };
 // Its channels: the four 體育台 (streamed on ELTA.tv and Hami Video, with
 // ads), the ten MAX (ELTA.tv only, no ads) and MOD's own 980s (its add-on
@@ -256,7 +253,6 @@ export const SERVICES = [
   { id: 'hami', zh: 'Hami Video', en: 'Hami Video' },
   { id: 'videoland', zh: '緯來（Hami Video・緯來 App）', en: 'Videoland (Hami Video, app)' },
   { id: 'dazn', zh: 'DAZN', en: 'DAZN' },
-  { id: 'sportcast', zh: '博斯（Hami Video・LiTV・4gTV）', en: 'Sportcast (Hami Video, LiTV, 4gTV)' },
   { id: 'myvideo', zh: 'MyVideo', en: 'MyVideo' },
   { id: 'appletv', zh: 'Apple TV', en: 'Apple TV' },
   { id: 'disney', zh: 'Disney+', en: 'Disney+' },

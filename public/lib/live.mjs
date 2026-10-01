@@ -5,7 +5,7 @@
 //          batter and pitcher; American football: down, distance, ball on,
 //          possession, red zone; last play) and details (soccer: goals and
 //          red cards, with the minute)
-//   Kambi  the score's innings or sets, and the match clock
+//   Kambi  the score's innings, and the match clock
 //
 // liveOf() reads them into one shape; liveLabel() is the short status a row
 // shows ("5局上", "第3節 5:32", "67'"); liveNote() the line under a game
@@ -47,13 +47,11 @@ export function liveOf(comp, status, sport) {
   return live;
 }
 
-// Kambi's live data: innings (baseball's "1-0 | 0-2 | …") or sets, the clock.
+// Kambi's live data: innings (baseball's "1-0 | 0-2 | …"), the clock.
 export function kambiLive(liveData, sport) {
   const info = String(liveData?.score?.info || '').split('|').map(x => x.trim()).filter(Boolean);
-  const sets = liveData?.statistics?.sets;
   return {
     inning: sport === 'baseball' && info.length ? info.length : 0,
-    set: sets ? Math.max(sets.home?.filter(x => x >= 0).length || 0, 1) : 0,
     minute: liveData?.matchClock?.minute ?? null
   };
 }
@@ -88,10 +86,6 @@ export function liveLabel(e, sport, lang = 'zh') {
     const m = s.clock || s.short || '';
     if (/EXTRA/.test(code)) return en ? `ET ${m}` : `延長 ${m}`;
     return m || (en ? 'Live' : '進行中');
-  }
-  if (sport === 'badminton') {
-    const set = lv.set || n;
-    return set ? (en ? `Game ${set}` : `第${set}局`) : en ? 'Live' : '進行中';
   }
   const quarters = QUARTERS[sport];
   if (quarters && n) {

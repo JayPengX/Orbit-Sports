@@ -57,7 +57,7 @@ export async function openMatch(e) {
     const st = sm?.status || e.status;
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
-        el('button', { class: 'mh-team', type: 'button', disabled: (!hasTeams(e.league) || e.kambi) && !LEAGUES[e.league]?.players ? true : null, onclick: () => (LEAGUES[e.league]?.players && (e.kambi || !hasTeams(e.league)) ? openPerson(e.league, { ...raw, ...x }) : ctx.openTeam(e.league, x.id, x)) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
+        el('button', { class: 'mh-team', type: 'button', disabled: !hasTeams(e.league) || e.kambi ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
         x.record || raw.record ? el('small', { text: x.record || raw.record }) : null,
         hasTeams(e.league) && !e.kambi ? followChip(e.league, x, () => paintHeader(sm)) : null
       ]);
@@ -465,43 +465,11 @@ function winProbCard(d, e) {
 
 // ---- Race weekends ----------------------------------------------------------------------
 
-// A person in a race (or a badminton player): their page, where ESPN has one.
+// A driver in a race: their page, where ESPN has one; else just the name.
 function personName(league, p, cls = 'field-name') {
   if (!p) return el('span', { class: cls });
-  const can = p.id && LEAGUES[league]?.espn && !/^k/.test(String(p.id)) && /^\d+$/.test(String(p.id));
-  return el('button', { class: `link ${cls}`, type: 'button', text: p.name, onclick: () => (can ? ctx.openPlayer(league, p.id, p) : openPerson(league, p)) });
-}
-// Someone ESPN has no page for (a badminton player): their headshot, a few
-// lines from Wikipedia (text only), and their matches here.
-export async function openPerson(league, p) {
-  const name = p.en || p.name;
-  const s = sheet(leagueName(league, L()), { league });
-  const content = el('div', {}, [spinner()]);
-  s.body.append(content);
-  const [wiki, events] = await Promise.all([
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name.replace(/ /g, '_'))}`)
-      .then(r => (r.ok ? r.json() : null))
-      .catch(() => null),
-    seasonEvents(league).catch(() => [])
-  ]);
-  const words = { badminton: /badminton/i }[LEAGUES[league]?.sport];
-  const fits = wiki?.type === 'standard' && (!words || words.test(`${wiki.description} ${wiki.extract}`));
-  const mine = events.filter(e => [e.home, e.away].some(x => x && (x.id === p.id || (x.en || x.name) === name))).sort((x, y) => x.start.localeCompare(y.start));
-  const next = mine.filter(e => e.status.state !== 'post').slice(0, 5);
-  const past = mine.filter(e => e.status.state === 'post').slice(-5).reverse();
-  put(
-    content,
-    el('div', { class: 'team-head player-hero' }, [
-      personPic(p, league, 'xxl round'),
-      el('div', { class: 'team-head-text' }, [el('h3', { text: p.name }), name !== p.name ? el('small', { class: 'muted', text: name }) : null, fits && wiki.description ? el('p', { class: 'muted', text: wiki.description }) : null])
-    ]),
-    fits && wiki.extract ? card(L() === 'en' ? 'About' : '簡介', el('p', { class: 'about-text' }, [document.createTextNode(wiki.extract), ' ', wiki.content_urls?.mobile?.page ? el('a', { href: wiki.content_urls.mobile.page, target: '_blank', rel: 'noopener', text: 'Wikipedia ›' }) : null])) : null,
-    next.length ? el('h3', { class: 'section-h', text: T('schedule') }) : null,
-    next.length ? el('div', { class: 'q-card list' }, next.map(x => eventRow(x, { league: false }))) : null,
-    past.length ? el('h3', { class: 'section-h', text: T('lastGames') }) : null,
-    past.length ? el('div', { class: 'q-card list' }, past.map(x => eventRow(x, { league: false }))) : null,
-    !fits && !mine.length ? empty(L() === 'en' ? 'Nothing more on them yet.' : '目前沒有更多資料。') : null
-  );
+  const can = p.id && LEAGUES[league]?.espn && /^\d+$/.test(String(p.id));
+  return can ? el('button', { class: `link ${cls}`, type: 'button', text: p.name, onclick: () => ctx.openPlayer(league, p.id, p) }) : el('span', { class: cls, text: p.name });
 }
 // Where to watch in Taiwan: a game's own channels (ELTA's schedule: the
 // channel, when it starts, a tap to watch it on ELTA.tv), then the other services.

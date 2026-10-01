@@ -20,7 +20,7 @@ test('Formula E: a round per weekend, qualifying and the race, the time marked w
 test('every league in Fixtures can be watched in Taiwan', () => {
   for (const k of Object.keys(LEAGUES)) assert.ok(broadcastsOf(k).length, k);
   assert.ok(broadcastsOf('formulae').some(b => b.svc === 'disney'));
-  assert.ok(broadcastsOf('badminton').some(b => b.svc === 'youtube' && b.url));
+  assert.ok(broadcastsOf('jleague').some(b => b.svc === 'youtube' && b.url));
 });
 
 test('Formula E results: the order by position, the winner’s time and the gaps', () => {

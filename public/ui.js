@@ -237,8 +237,8 @@ function statusEl(e, day = true) {
     return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: clock(e.start) })]) : el('span', { class: 'event-status pre', text: clock(e.start) });
   return el('span', { class: `event-status ${e.status.state}`, text: statusText(e) });
 }
-// A side's picture: a person's photo (a badminton player), a team's badge.
-export const sideLogo = (side, league, cls = '') => (side && (side.athlete || LEAGUES[league]?.players) ? personPic(side, league, `${cls} round`) : logo(side?.logo, side?.name, cls));
+// A side's picture: a person's photo (a driver), a team's badge.
+export const sideLogo = (side, league, cls = '') => (side && side.athlete ? personPic(side, league, `${cls} round`) : logo(side?.logo, side?.name, cls));
 export function sideLine(side, e, win) {
   const ball = e.status.state === 'in' && possessionOf(e) === side.homeAway;
   return el('div', { class: `side${win ? ' win' : ''}` }, [

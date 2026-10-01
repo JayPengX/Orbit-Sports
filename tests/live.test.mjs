@@ -51,9 +51,8 @@ test('basketball, hockey periods, breaks', () => {
   assert.equal(liveLabel(so, 'hockey'), '射門大戰');
 });
 
-test('Kambi: the inning from the line score, the set', () => {
+test('Kambi: the inning from the line score', () => {
   assert.equal(kambiLive({ score: { info: '1-0 | 0-2 | 0-0' } }, 'baseball').inning, 3);
-  assert.equal(kambiLive({ statistics: { sets: { home: [21, 15, -1], away: [18, 12, -1] } } }, 'racket').set, 2);
   const e = { league: 'cpbl', status: { state: 'in' }, live: kambiLive({ score: { info: '1-0 | 0-2' } }, 'baseball') };
   assert.equal(liveLabel(e, 'baseball'), '2局上');
   assert.equal(liveOf({}, {}, 'baseball').half, '');

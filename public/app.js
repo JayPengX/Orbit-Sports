@@ -57,8 +57,6 @@ function applyPrefs(payload) {
       state.prefs = { sports: [...new Set(leagues.map(k => LEAGUES[k].sport))], leagues, follows: p.follows, tv: [], audio: 'en' };
     }
   } catch {}
-  // The old 球拍與其他: badminton is what's left of it.
-  state.prefs.sports = state.prefs.sports.map(s => (s === 'racket' ? 'badminton' : s));
   state.prefs.sports = [...new Set(state.prefs.sports.filter(s => SPORTS[s]))];
   state.prefs.leagues = state.prefs.leagues.filter(k => LEAGUES[k]);
   state.prefs.tv = (state.prefs.tv || []).filter(id => SERVICES.some(x => x.id === id));
