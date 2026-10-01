@@ -17,6 +17,7 @@ import { familyOfSport } from './lib/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
+import { betsByEvent, legLeagues } from './lib/bets.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule } from './lib/tv.mjs';
@@ -266,7 +267,11 @@ async function readDay(leagues, date, { current = false } = {}) {
   const lists = await Promise.all(
     leagues.map(k => {
       const l = LEAGUES[k];
-      if (l.kind !== 'match') return (isToday ? scoreboard(k) : seasonEvents(k)).catch(() => []);
+      // A race, tournament or card: what's on that day (ESPN's dated page
+      // lists the events running then; a whole season's is 20 MB and more
+      // for tennis and golf, too much for a phone); Kambi's and Asia's lists
+      // are the season's anyway.
+      if (l.kind !== 'match') return (isToday ? scoreboard(k) : l.espn ? scoreboard(k, dates) : seasonEvents(k)).catch(() => []);
       // Soccer by its dated pages even for what's on now: a cup's current page can be a round long past.
       return scoreboard(k, l.espn && (!current || l.sport === 'soccer') ? dates : undefined).catch(() => []);
     })
@@ -339,6 +344,22 @@ async function loadDay(date) {
     clearTimeout(pushTimer);
     pushTimer = setTimeout(syncPush, 1500);
   }
+}
+// The games bet on in Play that the day's read didn't bring (a league not
+// followed): their leagues read for that day, kept apart (slot.betEvents),
+// so only those games join the picks, not their whole league.
+async function loadBets(date, legs) {
+  const slot = state.days.get(date);
+  const leagues = legLeagues(legs).filter(k => !(slot?.betLeagues || []).includes(k));
+  if (!slot || slot.betsLoading || !leagues.length) return;
+  slot.betsLoading = true;
+  try {
+    const events = await readDay(leagues, date);
+    slot.betEvents = [...(slot.betEvents || []), ...events];
+  } catch {}
+  slot.betLeagues = [...(slot.betLeagues || []), ...leagues];
+  slot.betsLoading = false;
+  if (state.tab === 'home' && state.home.date === date) renderHome();
 }
 async function loadOthers(date) {
   const slot = state.days.get(date);
@@ -581,23 +602,13 @@ function renderHome() {
   const past = h.date < today();
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
-  // 你的投注: the games the person's open Play slips are on, that day. Each
-  // is in the picks (🎫, the pick under it) on top of the usual six, never
-  // pushing one out; a pick whose game isn't in the day's list stays a line
-  // of its own under 你的投注.
+  // The games the person's open Play slips are on, that day (lib/bets.mjs):
+  // each is a pick like any other (🎫, the pick under it), on top of the
+  // usual six, never pushing one out. One whose game the day's read didn't
+  // bring has its league read for it (loadBets).
   const legs = openBetLegs().filter(b => localDate(new Date(b.s)) === h.date);
-  const byGame = new Map();
-  for (const e of dayAll(slot)) {
-    const id = e.kind === 'match' ? playGameId(e) : null;
-    if (id) byGame.set(id, e);
-  }
-  const betGames = new Map();
-  const betLoose = [];
-  for (const b of legs) {
-    const e = byGame.get(b.g);
-    if (e) (betGames.get(e) || betGames.set(e, []).get(e)).push(b);
-    else betLoose.push(b);
-  }
+  const { found: betGames, missing: betMissing } = betsByEvent(legs, [...dayAll(slot), ...(slot.betEvents || [])]);
+  if (betMissing.length) loadBets(h.date, betMissing);
   const betKeys = new Set([...betGames.keys()].map(e => `${e.league}:${e.id}`));
   const betsOf = new Map([...betGames].map(([e, list]) => [`${e.league}:${e.id}`, list]));
   // A list with the games bet on added (whatever the filter or the services).
@@ -647,15 +658,6 @@ function renderHome() {
   const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(onMyTv), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
   const endedPlan = wasPlan.filter(ended);
   const endedMore = wasMore.slice(0, 20).filter(ended);
-  const betRows = [
-    ...betLoose.slice(0, 6).map(b =>
-      el('a', { class: 'bet-row', href: appUrl('odds', 'history'), onclick: ev => (ev.preventDefault(), q.go('odds', 'history')) }, [
-        el('span', { class: 'event-status pre', text: whenText(b.s) }),
-        el('span', { class: 'bet-pick', text: b.p }),
-        el('strong', { class: 'num', text: `@${b.o}` })
-      ])
-    )
-  ];
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
   // theirs on, the best of everything on now), ranked like the picks, and
   // taken out of the lists below so no game shows twice.
@@ -696,7 +698,6 @@ function renderHome() {
     homeHead(),
     !hasFollows ? sportPicker() : null,
     tvRow(),
-    betRows.length ? section(`🎫 ${t('yourBets')}`, el('div', { class: 'q-card list' }, betRows), { action: moreButton(L({ zh: '投注紀錄', en: 'Bets' }), () => q.go('odds', 'history')) }) : null,
     liveBlock,
     (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : t('noOthers') })]) : null,
     finding ? spinner() : null,

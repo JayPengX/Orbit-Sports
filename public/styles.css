@@ -146,9 +146,6 @@ img { max-width: 100%; }
 .follow-team { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px 0; border: 0; background: none; font-weight: 750; font-size: 14px; text-align: left; }
 .follow-team span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .follow-row .event-row { border-top: 0; padding-top: 6px; }
-.bet-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 14px; border-top: 1px solid var(--q-divider, var(--q-border)); text-decoration: none; }
-.bet-row:first-child { border-top: 0; }
-.bet-pick { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---- Sheets ---- */
 .fx-sheet { width: min(640px, 100vw); }
@@ -651,9 +648,6 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .logo.round.cutout { object-fit: cover; object-position: center top; }
 
 /* 你的投注 on 首頁: the game, and the pick under it */
-.bet-game { display: grid; }
-.bet-pick-line { display: flex; justify-content: space-between; gap: 8px; padding: 0 14px 10px 100px; font-size: 12.5px; font-weight: 650; color: var(--quadra-odds, var(--q-accent)); text-decoration: none; }
-.bet-pick-line span { min-width: 0; overflow-wrap: anywhere; }
 /* A pick bet on in Play: its pick under the sides; a 🎫 on the day's chip. */
 .pick-bet { display: block; font-size: 12.5px; font-weight: 650; color: var(--accent); overflow-wrap: anywhere; }
 .day-strip .q-chip.day { position: relative; }
