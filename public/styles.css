@@ -201,12 +201,10 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .sb-top { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: baseline; font-size: 13.5px; }
 .sb-top span { color: var(--q-text-2); text-align: center; }
 .sb-top strong:last-child { text-align: right; }
-.sb-track { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; height: 6px; margin-top: 6px; }
-.sb-half { display: flex; height: 6px; border-radius: 3px; background: var(--q-sunken); overflow: hidden; }
-.sb-half.away { justify-content: flex-end; }
-.sb-half i { display: block; height: 100%; border-radius: 3px; }
-.sb-half.away i { background: var(--away); }
-.sb-half.home i { background: var(--accent); }
+.sb-track { display: flex; gap: 3px; height: 6px; margin-top: 6px; }
+.sb-track i { display: block; flex-basis: 0; min-width: 3px; border-radius: 3px; }
+.sb-track i.away { background: var(--away); }
+.sb-track i.home { background: var(--accent); }
 
 .plays { list-style: none; margin: 0; padding: 0; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: var(--q-radius); }
 .plays li { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; padding: 9px 14px; font-size: 13.5px; border-top: 1px solid var(--q-divider, var(--q-border)); }

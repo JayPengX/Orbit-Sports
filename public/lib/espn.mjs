@@ -399,7 +399,22 @@ export function parseSummary(data, league) {
   );
   const injuries = (data?.injuries || []).map(t => ({ team: String(t.team?.id ?? ''), list: (t.injuries || []).map(i => ({ id: String(i.athlete?.id ?? ''), headshot: freshHeadshot(i.athlete?.headshot?.href) || null, name: i.athlete?.displayName || '', status: i.status || i.type?.description || '', detail: i.details?.type || '' })) }));
   const winProb = (data?.winprobability || []).map(w => w.homeWinPercentage).filter(x => Number.isFinite(x));
-  const series = (data?.seasonseries || []).map(s => ({ summary: s.summary || s.description || '', events: (s.events || []).map(ev => ({ id: String(ev.id), date: ev.date, score: (ev.competitors || []).map(c => `${c.team?.abbreviation || ''} ${c.score ?? ''}`).join(' · ') })) }));
+  // The season series (a playoff or a season's meetings), or soccer's
+  // head-to-head (the last meetings, any competition): `h2h` with each
+  // side's wins and the draws, by team id.
+  const series = (data?.seasonseries || []).map(s => {
+    const events = (s.events || []).map(ev => ({ id: String(ev.id), date: ev.date, score: (ev.competitors || []).map(c => `${c.team?.abbreviation || ''} ${c.score ?? ''}`).join(' · ') }));
+    if (s.type !== 'head-to-head') return { summary: s.summary || s.description || '', events };
+    const wins = {};
+    let draws = 0;
+    const done = (s.events || []).filter(ev => ev.statusType?.completed || ev.status === 'post');
+    for (const ev of done) {
+      const winner = (ev.competitors || []).find(c => c.winner);
+      if (winner) wins[String(winner.team?.id)] = (wins[String(winner.team?.id)] || 0) + 1;
+      else draws++;
+    }
+    return { summary: '', events, h2h: { n: done.length, wins, draws } };
+  });
   const form = (data?.lastFiveGames || []).map(t => ({ team: String(t.team?.id ?? ''), games: (t.events || []).map(ev => ({ result: ev.gameResult || '', score: ev.score || '', opp: ev.opponent?.abbreviation || ev.opponent?.displayName || '', date: ev.gameDate })) }));
   const table = (data?.standings?.groups || []).flatMap(g =>
     (g.standings?.entries || []).map(en => ({ team: en.team, id: String(en.id ?? ''), stats: Object.fromEntries((en.stats || []).map(s => [s.name || s.abbreviation, s.displayValue])) }))

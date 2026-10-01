@@ -181,3 +181,9 @@ test("a cup's calendar is its stages: read by month pages", async () => {
   assert.deepEqual(monthsBetween(Date.parse('2026-09-15T00:00:00Z'), Date.parse('2026-11-02T00:00:00Z')), ['202609', '202610', '202611']);
   assert.deepEqual(monthsBetween(Date.parse('2026-12-20T00:00:00Z'), Date.parse('2027-01-05T00:00:00Z')), ['202612', '202701']);
 });
+
+test("soccer's head-to-head (the last meetings) is no series: each side's wins and the draws", () => {
+  const s = parseSummary(fx('epl-summary'), 'epl');
+  assert.deepEqual(s.series[0].h2h, { n: 5, wins: { 349: 1, 364: 4 }, draws: 0 });
+  assert.equal(s.series[0].summary, '');
+});

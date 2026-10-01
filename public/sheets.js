@@ -29,6 +29,12 @@ export function zhLater(text) {
 }
 const injuryText = s => (L() === 'en' ? s : injuryZh(s) || zhLater(s));
 const weatherText = w => weatherZh(w, L());
+// The last meetings: each side's wins and the draws ("近 5 次交手：利物浦 4 勝、伯恩茅斯 1 勝").
+function h2hText({ n, wins, draws }, e) {
+  const side = x => (L() === 'en' ? `${x.short || x.name} ${wins[x.id] || 0} won` : `${x.short || x.name} ${wins[x.id] || 0} 勝`);
+  const parts = [side(e.away), side(e.home), draws ? (L() === 'en' ? `${draws} drawn` : `和局 ${draws}`) : null].filter(Boolean);
+  return `${L() === 'en' ? `Last ${n} meetings: ` : `近 ${n} 次交手：`}${parts.join(L() === 'en' ? ', ' : '、')}`;
+}
 // A series' line in the reader's words (the sides by their names here).
 export function seriesZh(text, e) {
   if (L() === 'en') return text;
@@ -218,18 +224,16 @@ function matchSection(view, d, e, table) {
         [el('div', { class: 'sb-legend' }, [el('span', { class: 'away', text: nameOf(e.away.id) || e.away.short }), el('span', { class: 'home', text: nameOf(e.home.id) || e.home.short })])].concat(
           teamStatRows(d.teamStats, LEAGUES[e.league]?.sport, L()).flatMap((s, i, rows) => {
             const [a, h] = [statValue(s.away), statValue(s.home)];
-            const top = Math.max(Math.abs(a ?? 0), Math.abs(h ?? 0));
+            const [aa, hh] = [Math.abs(a ?? 0), Math.abs(h ?? 0)];
             // Which side did better: more, or fewer for ERA, errors, fouls…
             const better = a === h || a == null || h == null ? '' : (a > h) !== s.low ? 'away' : 'home';
-            // Each side's own bar, measured against the larger of the two
-            // (never a split of one line: an average or a rate doesn't add
-            // up to a whole with the other side's).
-            const bar = (v, cls) => el('div', { class: `sb-half ${cls}` }, [el('i', { style: `width:${top > 0 && v ? Math.max(3, (Math.abs(v) / top) * 100) : 0}%` })]);
+            // One full line split by the two sides' shares, as the leagues' own apps draw it.
+            const share = aa + hh > 0 ? (aa / (aa + hh)) * 100 : 50;
             return [
               s.group && s.group !== rows[i - 1]?.group ? el('p', { class: 'mini-h sb-group', text: s.group }) : null,
               el('div', { class: 'stat-bar' }, [
                 el('div', { class: 'sb-top' }, [el('strong', { class: `num${better === 'away' ? ' lead' : ''}`, text: s.away }), el('span', { text: s.label }), el('strong', { class: `num${better === 'home' ? ' lead' : ''}`, text: s.home })]),
-                top > 0 ? el('div', { class: 'sb-track' }, [bar(a, 'away'), bar(h, 'home')]) : null
+                aa + hh > 0 ? el('div', { class: 'sb-track' }, [el('i', { class: 'away', style: `flex-grow:${share}` }), el('i', { class: 'home', style: `flex-grow:${100 - share}` })]) : null
               ])
             ];
           })
@@ -383,7 +387,7 @@ function overview(d, e, table, nameOf) {
           )
         )
       : null,
-    d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) })) : null,
+    d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', el('p', { class: 'series-text', text: h2hText(d.series[0].h2h, e) })) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) })) : null,
     d?.injuries.some(i => i.list.length)
       ? card(
           T('injuries'),
