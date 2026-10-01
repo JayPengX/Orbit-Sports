@@ -119,8 +119,11 @@ const shownName = f => (f.athlete ? f.name : f.f1team === true ? (locale === 'en
 function isFollowed(league, id) {
   return state.prefs.follows.some(f => f.league === league && f.id === id);
 }
+// The teams whose games the person follows: the followed teams, and a
+// followed player's team.
+const followedTeams = () => state.prefs.follows.flatMap(f => (f.f1team === true ? [] : !f.athlete ? [f] : f.team ? [{ league: f.league, id: f.team.id, name: f.team.name }] : []));
 function isFollowedEvent(e) {
-  if (e.kind === 'match') return isFollowed(e.league, e.home?.id) || isFollowed(e.league, e.away?.id);
+  if (e.kind === 'match') return followedTeams().some(f => f.league === e.league && (f.id === e.home?.id || f.id === e.away?.id));
   // A race with a followed driver in it.
   const people = (e.sessions || []).flatMap(x => x.field || []);
   if (people.some(p => p && isFollowed(e.league, p.id))) return true;
@@ -132,7 +135,7 @@ function toggleFollow(league, side) {
   const p = state.prefs;
   if (isFollowed(league, side.id)) p.follows = p.follows.filter(f => !(f.league === league && f.id === side.id));
   else {
-    p.follows = [...p.follows, { league, id: side.id, name: side.en || side.name, logo: side.logo, ...(side.athlete ? { athlete: true } : {}), ...(side.f1team === true ? { f1team: true } : {}) }];
+    p.follows = [...p.follows, { league, id: side.id, name: side.en || side.name, logo: side.logo, ...(side.athlete ? { athlete: true } : {}), ...(side.team ? { team: side.team } : {}), ...(side.f1team === true ? { f1team: true } : {}) }];
     // Following a team follows its league too.
     if (!p.leagues.includes(league)) p.leagues = [...p.leagues, league];
     recordAffinity('match', [teamKey(league, side.en || side.name), `league:${leagueKey(league)}`], 4);
@@ -426,9 +429,9 @@ function loadTables() {
 }
 // Followed teams' schedules (their next and last games).
 async function loadFollowedTeams() {
-  for (const f of state.prefs.follows.slice(0, 10)) {
+  for (const f of followedTeams().slice(0, 12)) {
     const key = `${f.league}:${f.id}`;
-    if (f.athlete || f.f1team === true || state.home.teams.has(key) || LEAGUES[f.league]?.kind !== 'match') continue;
+    if (state.home.teams.has(key) || LEAGUES[f.league]?.kind !== 'match') continue;
     state.home.teams.set(key, null);
     // ESPN's team schedule; the other leagues' own season, the team's games.
     (hasTeams(f.league) ? teamSchedule(f.league, f.id) : seasonEvents(f.league).then(list => list.filter(e => e.home?.id === String(f.id) || e.away?.id === String(f.id)).sort((a, b) => a.start.localeCompare(b.start))))
@@ -449,7 +452,7 @@ function syncPush() {
   const now = Date.now();
   const items = [];
   const seen = new Set();
-  const games = [...state.prefs.follows.flatMap(f => state.home.teams.get(`${f.league}:${f.id}`) || []), ...(state.days.get(today())?.events || []).filter(isFollowedEvent)];
+  const games = [...followedTeams().flatMap(f => state.home.teams.get(`${f.league}:${f.id}`) || []), ...(state.days.get(today())?.events || []).filter(isFollowedEvent)];
   for (const e of games) {
     const key = `${e.league}:${e.id}`;
     if (e.kind !== 'match' || e.other || seen.has(key) || e.status?.state === 'post' || e.status?.void) continue;
@@ -1335,7 +1338,7 @@ const teamGames = f => state.home.teams.get(`${f.league}:${f.id}`);
 function myTvGames() {
   const now = Date.now();
   const fresh = new Map(dayAll(state.days.get(today())).map(e => [`${e.league}:${e.id}`, e]));
-  const games = state.prefs.follows.filter(f => !f.athlete && f.f1team !== true).flatMap(f => teamGames(f) || []).map(e => fresh.get(`${e.league}:${e.id}`) || e);
+  const games = followedTeams().flatMap(f => teamGames(f) || []).map(e => fresh.get(`${e.league}:${e.id}`) || e);
   const f1 = state.prefs.follows.some(f => f.league === 'f1') ? f1Races().flatMap(e => splitWeekend(e, now, locale)).filter(e => e.sessionKey) : [];
   const seen = new Set();
   return [...games, ...f1]
@@ -1390,7 +1393,7 @@ function renderFollowing() {
       { sub: L({ zh: `你追蹤的球隊接下來 ${TV_DAYS} 天在愛爾達、Apple TV 的比賽`, en: `Your teams on ELTA and Apple TV, the next ${TV_DAYS} days` }) }
     ),
     teams.length ? section(t('yourTeams'), el('div', { class: 'q-card list team-form-list' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamCard(f))))) : null,
-    people.length ? section(t('yourPlayers'), el('div', { class: 'people-strip' }, people.map(f => el('button', { class: 'person-card', type: 'button', onclick: () => openPlayer(f.league, f.id) }, [personPic(f, f.league, 'lg round'), el('strong', { text: f.name }), el('small', { class: 'muted', text: leagueName(f.league, locale) })])))) : null,
+    people.length ? section(t('yourPlayers'), el('div', { class: 'people-strip' }, people.map(f => el('button', { class: 'person-card', type: 'button', onclick: () => openPlayer(f.league, f.id) }, [personPic(f, f.league, 'lg round'), el('strong', { text: f.name }), el('small', { class: 'muted', text: f.team ? localSide(f.league, { name: f.team.name }).name : leagueName(f.league, locale) })])))) : null,
     followedLeagues().length ? leaguesBlock() : null
   );
 }

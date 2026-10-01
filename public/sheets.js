@@ -998,17 +998,16 @@ export async function openPlayer(league, id, fallback = {}) {
       ? card(W('榮譽', 'Honours'), el('ul', { class: 'award-list' }, ov.awards.map(w => el('li', {}, [el('strong', {}, [zhLater(w.name)]), w.count ? el('span', { class: 'award-count num', text: w.count.replace(/x$/i, '×') }) : null, w.seasons.length ? el('small', { class: 'muted', text: w.seasons.slice(0, 6).join(' · ') + (w.seasons.length > 6 ? ' …' : '') }) : null]))))
       : null;
     const nextRace = (races || []).find(e => e.status.state !== 'post' && Date.parse(e.end || e.start) > Date.now() - 86_400_000);
-    let followBtn = null;
-    if (individual(league)) {
-      followBtn = el('button', { class: 'q-btn', type: 'button' });
-      const paintFollow = () => {
-        const on = ctx.isFollowed(league, id);
-        followBtn.textContent = on ? T('following') : `+ ${T('follow')}`;
-        followBtn.classList.toggle('primary', !on);
-      };
-      followBtn.addEventListener('click', () => (ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true }), paintFollow()));
-      paintFollow();
-    }
+    // A player in any league; a team sport's with their team, whose games are theirs.
+    const followBtn = el('button', { class: 'q-btn', type: 'button' });
+    const paintFollow = () => {
+      const on = ctx.isFollowed(league, id);
+      followBtn.textContent = on ? T('following') : `+ ${T('follow')}`;
+      followBtn.classList.toggle('primary', !on);
+    };
+    const team = !individual(league) && a.teamId ? { id: String(a.teamId), name: a.team || '' } : null;
+    followBtn.addEventListener('click', () => (ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true, ...(team ? { team } : {}) }), paintFollow()));
+    paintFollow();
     const sub = [zhLater(a.position), (driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team) || countryName(a.country, L())].filter(Boolean);
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : a.teamColor;
