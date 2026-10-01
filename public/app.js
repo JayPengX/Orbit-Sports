@@ -11,7 +11,7 @@
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from './lib/quadra.mjs';
 import { localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
-import { statName } from './lib/statnames.mjs';
+import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
@@ -1526,6 +1526,15 @@ function crewRow(f) {
   ]);
 }
 
+// A game's four numbers worth showing, by what the line has: a hitter's hits,
+// home runs, runs batted in and walks; a pitcher's innings, hits, earned runs
+// and strikeouts; points, rebounds, assists and steals; goals, assists, shots.
+const GAME_STATS = [['IP', 'ER', 'H', 'K'], ['H', 'HR', 'RBI', 'BB'], ['PTS', 'REB', 'AST', 'STL'], ['G', 'A', 'SH', 'ST']];
+const gameStats = labels => {
+  const set = GAME_STATS.find(want => want.filter(k => labels.includes(k)).length >= 3);
+  const picked = set ? set.filter(k => labels.includes(k)).map(k => labels.indexOf(k)) : [];
+  return [...picked, ...labels.map((_, i) => i).filter(i => !picked.includes(i))].slice(0, 4);
+};
 // ---- A followed player or driver -------------------------------------------------------------
 //
 // A player: their team and position, an injury, the season's key numbers,
@@ -1559,19 +1568,22 @@ function personRow(f) {
   const a = got?.a;
   if (f.league === 'f1') return driverRow(f, a);
   const injured = a?.injuries?.[0];
-  const head = personHead(f, [a?.team ? localSide(f.league, { name: a.team }).name : f.team ? localSide(f.league, { name: f.team.name }).name : leagueName(f.league, locale), a?.position ? zhLater(a.position) : ''].filter(Boolean).join(' · '), injured ? el('span', { class: 'tf-injury', text: injured }) : null);
+  const head = personHead(f, [a?.team ? localSide(f.league, { name: a.team }).name : f.team ? localSide(f.league, { name: f.team.name }).name : leagueName(f.league, locale), a?.position ? zhLater(a.position) : ''].filter(Boolean).join(' · '), injured ? el('span', { class: 'tf-injury', text: locale === 'en' ? injured : injuryZh(injured) }) : null);
   if (!got) return el('div', { class: 'tf-row' }, [head, el('small', { class: 'muted tf-wait', text: '…' })]);
-  // The season's key numbers.
-  const season = (a?.stats.list || []).slice(0, 4).map(x => el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: x.value }), el('small', { text: statName(x.label, locale) })]));
-  // The last game: the other side, the result and the player's line.
+  // Numbers as tiles: the season's, and the last game's under its result.
+  const tiles = list => el('div', { class: 'pf-stats' }, list.map(([v, label]) => el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: v }), el('small', { text: statName(label, locale) })])));
+  const season = (a?.stats.list || []).slice(0, 4).map(x => [x.value, x.label]);
   const g = got.ov?.log?.games?.[0];
   const labels = got.ov?.log?.labels || [];
   const lastLine = g
-    ? el('div', { class: 'tf-game pf-last' }, [
-        el('small', { class: 'muted tf-k', text: L({ zh: '上一場', en: 'Last' }) }),
-        logo(g.opp.logo, g.opp.name, 'xs'),
-        el('span', { class: 'tf-opp' }, [`${g.at} ${localSide(f.league, { name: g.opp.name }).short || g.opp.abbr} `, el('small', { class: 'muted', text: labels.slice(0, 4).map((l, i) => `${g.stats[i] ?? ''} ${statName(l, locale)}`).join(' · ') })]),
-        g.result ? el('span', { class: `num result-pill ${g.result.toLowerCase()}`, text: `${locale === 'en' ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result} ${g.score}` }) : el('span')
+    ? el('div', { class: 'pf-block' }, [
+        el('div', { class: 'pf-head' }, [
+          el('small', { class: 'muted tf-k', text: L({ zh: '上一場', en: 'Last game' }) }),
+          logo(g.opp.logo, g.opp.name, 'xs'),
+          el('span', { class: 'tf-opp', text: `${g.at} ${localSide(f.league, { name: g.opp.name }).short || g.opp.abbr}` }),
+          g.result ? el('span', { class: `num result-pill ${g.result.toLowerCase()}`, text: `${locale === 'en' ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result} ${g.score}` }) : null
+        ]),
+        tiles(gameStats(labels).map(i => [g.stats[i] ?? '–', labels[i]]))
       ])
     : null;
   // Their team's next game (the team's schedule, read for 追蹤).
@@ -1586,7 +1598,10 @@ function personRow(f) {
         next.status.state === 'in' ? el('span', { class: 'num tf-score live', text: t('live') }) : el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(next.start) }), whereTv(next)])
       ])
     : null;
-  return el('div', { class: 'tf-row' }, [head, el('div', { class: 'tf-games' }, [season.length ? el('div', { class: 'pf-stats' }, season) : null, nextLine, lastLine])]);
+  return el('div', { class: 'tf-row' }, [
+    head,
+    el('div', { class: 'tf-games' }, [season.length ? el('div', { class: 'pf-block' }, [el('small', { class: 'muted tf-k', text: L({ zh: '本季', en: 'Season' }) }), tiles(season)]) : null, nextLine, lastLine])
+  ]);
 }
 function driverRow(f, a) {
   const champ = f1Table?.length ? driverSeason(f1Table, f.id) : null;
