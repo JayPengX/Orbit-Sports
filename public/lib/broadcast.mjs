@@ -72,15 +72,16 @@ export const eltaAppUrl = n => (ELTA_PLAY[n] ? `eltatv://live/${n}` : null);
 //   'en'    English, the original feed (原音, 英文解說)
 //   'dual'  雙語: Chinese commentary with the original on the second audio
 //           track (said so, and a 體育台's program that says nothing: the
-//           four 體育台 carry both)
+//           four 體育台 carry both, but for CPBL: a Taiwan league's own
+//           broadcast is in Chinese)
 //   'venue' Chinese commentary with the ground's sound on the second track
 //           (副聲道現場原音)
-//   'zh'    Chinese only (中文, or a MAX channel's program that says nothing)
+//   'zh'    Chinese only (中文, a MAX channel's program that says nothing, CPBL's)
 // `adFree`: said so, or a MAX channel.
 const SPORTS_TV = new Set([101, 105, 110, 115]);
-export function eltaAudio(title, ch) {
+export function eltaAudio(title, ch, league = '') {
   const t = String(title || '');
-  const audio = /雙語/.test(t) ? 'dual' : /副聲道/.test(t) ? 'venue' : /原音|英文|English/i.test(t) ? 'en' : /中文/.test(t) ? 'zh' : SPORTS_TV.has(ch) ? 'dual' : 'zh';
+  const audio = /雙語/.test(t) ? 'dual' : /副聲道/.test(t) ? 'venue' : /原音|英文|English/i.test(t) ? 'en' : /中文/.test(t) ? 'zh' : SPORTS_TV.has(ch) && league !== 'cpbl' ? 'dual' : 'zh';
   return { audio, adFree: /無廣告/.test(t) || (ch >= 540 && ch <= 549) };
 }
 export const AUDIO_NAMES = {
@@ -118,7 +119,7 @@ export function parseElta(data) {
       .replace(/\s*LIVE\s*$/i, '')
       .replace(/\s+\d{1,2}\/\d{1,2}(?=\s|\(|（|$)/, '')
       .trim();
-    out.push({ league, start: p.s * 1000, end: (p.e || p.s + 10_800) * 1000, ch: Number(p.ch), title, teams: vs ? [vs[1], vs[2]] : [], day: p.d, ...eltaAudio(p.t, Number(p.ch)) });
+    out.push({ league, start: p.s * 1000, end: (p.e || p.s + 10_800) * 1000, ch: Number(p.ch), title, teams: vs ? [vs[1], vs[2]] : [], day: p.d, ...eltaAudio(p.t, Number(p.ch), league) });
   }
   return out.sort((a, b) => a.start - b.start);
 }

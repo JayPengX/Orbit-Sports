@@ -148,6 +148,8 @@ test("ELTA's commentary and ads from its titles; delayed and Kids showings left 
   // A 體育台 unmarked: 雙語, with ads; one marked 原音 is English; a MAX one unmarked is Chinese.
   assert.deepEqual(eltaAudio('巴林站 正賽 LIVE', 105), { audio: 'dual', adFree: false });
   assert.deepEqual(eltaAudio('巴林站 正賽 LIVE', 545), { audio: 'zh', adFree: true });
+  // CPBL on a 體育台: Chinese only (said 雙語, it is).
+  assert.deepEqual(eltaAudio('味全 VS 富邦 例行賽 LIVE', 101, 'cpbl'), { audio: 'zh', adFree: false });
   assert.deepEqual(eltaAudio('海盜 VS 老虎 例行賽 9/27(原音) LIVE', 110), { audio: 'en', adFree: false });
   const oct = elta('2026-10-01');
   assert.ok(!oct.some(p => /^Kids|D-$/.test(p.title)), 'no Kids, no D-LIVE');
