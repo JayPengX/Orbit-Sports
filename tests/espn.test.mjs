@@ -187,3 +187,11 @@ test("soccer's head-to-head (the last meetings) is no series: each side's wins a
   assert.deepEqual(s.series[0].h2h, { n: 5, wins: { 349: 1, 364: 4 }, draws: 0 });
   assert.equal(s.series[0].summary, '');
 });
+
+test("a table in its playoff seeds' order, whatever order ESPN lists it in", () => {
+  const raw = fx('mlb-standings');
+  // ESPN's MLB list puts the first seed last: the same here.
+  for (const c of raw.children) c.standings.entries.push(c.standings.entries.shift());
+  const seedOf = r => Number(raw.children.flatMap(c => c.standings.entries).find(en => String(en.team.id) === r.id).stats.find(x => x.name === 'playoffSeed').value);
+  for (const g of parseStandings(raw, 'mlb')) assert.deepEqual(g.rows.map(seedOf), [...g.rows.map(seedOf)].sort((a, b) => a - b));
+});

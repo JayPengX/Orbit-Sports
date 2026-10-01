@@ -476,7 +476,10 @@ export function parseStandings(data, league = null) {
         }
         return league ? localSide(league, row) : row;
       });
-      groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), en: node.name || node.displayName || '', rows });
+      // ESPN's list can be out of order (MLB's first seed last): by its playoff seed when every team has one.
+      const seeds = node.standings.entries.map(en => Number((en.stats || []).find(x => x.name === 'playoffSeed')?.value));
+      const ordered = seeds.every(n => n > 0) ? rows.map((r, i) => [r, seeds[i]]).sort((x, y) => x[1] - y[1]).map(([r]) => r) : rows;
+      groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), en: node.name || node.displayName || '', rows: ordered });
     }
     for (const child of node?.children || []) walk(child);
   };
