@@ -37,7 +37,7 @@ export function liveOf(comp, status, sport) {
       redZone: Boolean(s.isRedZone)
     });
   }
-  if (sport === 'soccer' || sport === 'rugby') {
+  if (sport === 'soccer') {
     live.events = (comp?.details || [])
       .filter(d => d.scoringPlay || d.redCard)
       .map(d => ({ kind: d.redCard ? 'red' : d.ownGoal ? 'own' : d.penaltyKick ? 'pen' : 'goal', minute: d.clock?.displayValue || '', team: String(d.team?.id ?? ''), who: d.athletesInvolved?.[0]?.shortName || d.athletesInvolved?.[0]?.displayName || '' }));
@@ -89,14 +89,9 @@ export function liveLabel(e, sport, lang = 'zh') {
     if (/EXTRA/.test(code)) return en ? `ET ${m}` : `延長 ${m}`;
     return m || (en ? 'Live' : '進行中');
   }
-  if (['tennis', 'badminton', 'tabletennis', 'volleyball'].includes(sport)) {
+  if (sport === 'badminton') {
     const set = lv.set || n;
-    // Tennis plays sets (盤); badminton, table tennis and volleyball games (局).
-    return set ? (en ? `${sport === 'tennis' || sport === 'volleyball' ? 'Set' : 'Game'} ${set}` : `第${set}${sport === 'tennis' ? '盤' : '局'}`) : en ? 'Live' : '進行中';
-  }
-  if (sport === 'rugby') {
-    const m = s.clock || '';
-    return en ? `${n === 2 ? '2nd' : '1st'} half ${m}`.trim() : `${n === 2 ? '下' : '上'}半場 ${m}`.trim();
+    return set ? (en ? `Game ${set}` : `第${set}局`) : en ? 'Live' : '進行中';
   }
   const quarters = QUARTERS[sport];
   if (quarters && n) {

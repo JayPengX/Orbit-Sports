@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseElta, broadcastsFor, eltaPrograms, zhSame, eltaDays, NBA_ELTA_FROM, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '../public/lib/names.mjs';
-import { playablePair, leagueOnSale, REACH } from '../public/lib/playable.mjs';
 
 const programs = parseElta(JSON.parse(readFileSync(new URL('./fixtures/elta-2026-09-30.json', import.meta.url), 'utf8')));
 const nba = (id, start, away, home) => ({ id, league: 'nba', kind: 'match', start, status: { state: 'pre' }, away: { name: away }, home: { name: home } });
@@ -59,23 +58,6 @@ test('Chinese names match however ELTA shortens them', () => {
   assert.equal(teamNameZh('epl', 'Manchester City', 'soccer').short, '曼城');
   assert.equal(teamNameZh('cpbl', 'Uni Lions').short, '統一獅');
   assert.equal(teamNameZh('nfl', 'Nobody FC'), null);
-});
-
-test('投注 on every game of every league Play sells, within one reach', () => {
-  const now = Date.parse('2026-09-30T00:00:00Z');
-  // Every league, a bookmaker's price or not (Play prices it itself), within
-  // Play's reach (two weeks); none past it.
-  assert.equal(playablePair('nba', '2026-10-02T00:00Z', 'A', 'B', 'pre', now), true);
-  assert.equal(playablePair('nba', '2026-10-13T00:00Z', 'A', 'B', 'pre', now), true);
-  assert.equal(playablePair('nba', '2026-10-15T00:00Z', 'A', 'B', 'pre', now), false);
-  assert.equal(playablePair('epl', '2026-10-15T00:00Z', 'A', 'B', 'pre', now), false);
-  assert.equal(playablePair('cpbl', '2026-10-10T10:35Z', 'Rakuten Monkeys', 'Uni Lions', 'pre', now), true);
-  assert.equal(playablePair('tabletennis', '2026-10-01T10:35Z', 'A', 'B', 'pre', now), true);
-  assert.equal(playablePair('cpbl', '2026-10-20T10:35Z', 'Rakuten Monkeys', 'Uni Lions', 'pre', now), false);
-  assert.ok(leagueOnSale('ufc') && leagueOnSale('atp') && !leagueOnSale('pga'));
-  assert.equal(REACH, 14 * 86_400_000);
-  // A league Play doesn't sell.
-  assert.equal(playablePair('pga', '2026-10-02T00:00Z', 'A', 'B', 'pre', now), false);
 });
 
 test('ESPN words in Chinese: pitches, series, injuries, groups, positions, leaders, weather', async () => {

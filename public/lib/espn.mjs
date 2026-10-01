@@ -5,8 +5,7 @@
 // Everything is normalized into a few shapes the page draws:
 //
 //   event   { id, league, kind, name, short, start, status, venue, tv,
-//             home, away (kind 'match'), field (kind 'field'),
-//             bouts (kind 'card'), draws (kind 'draw'), note }
+//             home, away (kind 'match'), sessions (kind 'field'), note }
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score), rank }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
@@ -14,7 +13,7 @@ import { teamBadge, teamLogo, raceName, playerFlag, countryName, countryCode, fl
 import { detectLocale } from './i18n.mjs';
 import { liveOf, kambiLive } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { asiaMonth, asiaMonthOf, kambiKept, CATALOG, tsdbBoxingDays, notableFight, learnFighterNations } from './catalog.mjs';
+import { asiaMonth, asiaMonthOf } from './catalog.mjs';
 import { proxyJson } from './quadra.mjs';
 import { stageFrom } from './stage.mjs';
 import { teamNameZh } from './names.mjs';
@@ -96,7 +95,7 @@ function parseSide(c) {
 // athlete's) id or abbreviation. A guess, so the picture falls back to the
 // initial when it isn't there.
 const CDN = 'https://a.espncdn.com/i';
-const HEADSHOTS = { racing: 'rpm', tennis: 'tennis', golf: 'golf', mma: 'mma' };
+const HEADSHOTS = { racing: 'rpm' };
 export function fallbackLogo(league, side) {
   if (!side || side.logo) return side?.logo || null;
   // The shared kit's (Quadra Play's) logo for the club.
@@ -153,14 +152,9 @@ export const SESSION_NAMES = {
   SQ: { zh: '衝刺排位賽', en: 'Sprint qualifying', short: { zh: '衝刺排位', en: 'SQ' } },
   SR: { zh: '衝刺賽', en: 'Sprint', short: { zh: '衝刺賽', en: 'Sprint' } },
   Qual: { zh: '排位賽', en: 'Qualifying', short: { zh: '排位', en: 'Quali' } },
-  Race: { zh: '正賽', en: 'Race', short: { zh: '正賽', en: 'Race' } },
-  // F1 Academy's opening and reverse-grid races.
-  OR: { zh: '開幕賽', en: 'Opening race', short: { zh: '開幕賽', en: 'Race 1' } },
-  RG: { zh: '反轉發車賽', en: 'Reverse grid race', short: { zh: '反轉賽', en: 'Race 2' } },
-  R1: { zh: '第一回合', en: 'Race 1', short: { zh: '第一回合', en: 'Race 1' } },
-  R2: { zh: '第二回合', en: 'Race 2', short: { zh: '第二回合', en: 'Race 2' } }
+  Race: { zh: '正賽', en: 'Race', short: { zh: '正賽', en: 'Race' } }
 };
-const MAIN_SESSIONS = ['SS', 'SQ', 'SR', 'Qual', 'OR', 'RG', 'R1', 'R2', 'Race'];
+const MAIN_SESSIONS = ['SS', 'SQ', 'SR', 'Qual', 'Race'];
 export const sessionName = (x, lang = 'zh', short = false) => {
   const n = SESSION_NAMES[x?.abbr];
   if (!n) return x?.name || x?.abbr || '';
@@ -213,33 +207,8 @@ export function parseScoreboard(data, league) {
       const away = parseSide(comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1]);
       if (!home || !away) continue;
       out.push({ ...base, home: withLogo(league, home), away: withLogo(league, away), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '', live: base.status.state === 'in' ? liveOf(comp, e.status || comp.status, LEAGUES[league]?.sport) : null });
-    } else if (kind === 'draw') {
-      // A tennis tournament: its singles draws' matches.
-      const draws = (e.groupings || []).map(g => ({
-        name: g.grouping?.displayName || '',
-        matches: (g.competitions || []).map(m => ({
-          id: String(m.id),
-          round: m.round?.displayName || m.type?.text || '',
-          start: m.date || m.startDate,
-          status: parseStatus(m.status),
-          a: withLogo(league, parseSide(m.competitors?.[0])),
-          b: withLogo(league, parseSide(m.competitors?.[1]))
-        }))
-      }));
-      out.push({ ...base, draws });
-    } else if (kind === 'card') {
-      const bouts = (e.competitions || []).map(m => ({
-        id: String(m.id),
-        weight: m.type?.text || m.note || '',
-        start: m.date,
-        status: parseStatus(m.status),
-        a: withLogo(league, parseSide(m.competitors?.[0])),
-        b: withLogo(league, parseSide(m.competitors?.[1]))
-      }));
-      out.push({ ...base, bouts });
-    } else {
-      // A race weekend (its sessions) or a tournament: each competition's
-      // field in finishing order.
+    } else if (kind === 'field') {
+      // A race weekend: its sessions, each one's field in finishing order.
       const sessions = (e.competitions || []).map(m => ({
         id: String(m.id),
         name: m.type?.text || m.type?.abbreviation || '',
@@ -258,7 +227,6 @@ export async function scoreboard(league, dates) {
   const l = LEAGUES[league];
   if (l?.kambi) return kambiEvents(league);
   if (l?.asia) return asiaEvents(league);
-  if (l?.motogp) return motogpEvents();
   if (l?.tsdb) return tsdbRaceEvents(league);
   if (l?.fom) return fomRaceEvents(league);
   const list = [].concat(dates || []);
@@ -270,14 +238,13 @@ export async function scoreboard(league, dates) {
     .filter(e => !seen.has(e.id) && seen.add(e.id));
 }
 
-// A whole season of a race series, tour or fight promotion (ESPN answers
+// A whole season of a race series (ESPN answers
 // `dates=<year>` with every event of that year): past results and every
 // future event, not only the current one. Late in the year, next year's too.
 export async function seasonEvents(league, now = Date.now()) {
   const l = LEAGUES[league];
   if (l?.kambi) return kambiEvents(league);
   if (l?.asia) return asiaEvents(league);
-  if (l?.motogp) return motogpEvents(now);
   if (l?.tsdb) return tsdbRaceEvents(league, now);
   if (l?.fom) return fomRaceEvents(league, now);
   const d = new Date(now);
@@ -343,16 +310,16 @@ export async function weekScoreboard(league, seasontype, week) {
   return parseScoreboard(data, league);
 }
 
-// ---- Kambi (EuroLeague, B.League, badminton, table tennis, volleyball, snooker) --------
+// ---- Kambi (EuroLeague, K League, badminton) ------------------------------------------
 
 export function parseKambi(data, league) {
   const out = [];
   for (const item of data?.events || []) {
     const e = item.event;
-    if (!e?.homeName || !e?.awayName || !kambiKept(league, e)) continue;
+    if (!e?.homeName || !e?.awayName) continue;
     const live = item.liveData;
     const state = e.state === 'STARTED' ? 'in' : e.state === 'FINISHED' ? 'post' : 'pre';
-    // Set scores (tennis, volleyball…) or, for baseball, the innings in the score's info ("1-0 | 0-2 | …").
+    // Set scores (badminton) or, for baseball, the innings in the score's info ("1-0 | 0-2 | …").
     const info = String(live?.score?.info || '').split('|').map(x => x.trim().split('-'));
     const innings = info.length > 1 && info.every(x => x.length === 2) ? { home: info.map(x => x[0]), away: info.map(x => x[1]) } : null;
     const sets = live?.statistics?.sets;
@@ -363,7 +330,7 @@ export function parseKambi(data, league) {
       name,
       short: name,
       abbr: name.slice(0, 3).toUpperCase(),
-      // Players their nation's flag; clubs their badge; a national side (rugby) its flag.
+      // Players their nation's flag; clubs their badge; a national side its flag.
       logo: LEAGUES[league]?.players ? playerFlag(name, where) || teamBadge(LEAGUES[league]?.play || league, name) : teamBadge(LEAGUES[league]?.play || league, name) || flagUrl(countryCode(name)),
       color: null,
       score: live?.score?.[key] ?? '',
@@ -396,141 +363,10 @@ export async function kambiEvents(league) {
   const parts = LEAGUES[league].kambi.split('/');
   while (parts.length < 4) parts.push('all');
   const data = await getJson(`${KAMBI}/listView/${parts.join('/')}/matches.json?lang=en_GB&market=GB&useCombined=true`, { ttl: 60_000, trim: 'kambi-events' });
-  const events = parseKambi(data, league);
-  return CATALOG[league]?.notable ? notableOnly(events) : events;
+  return parseKambi(data, league);
 }
-// Boxing: only the bouts on a card TheSportsDB lists (the main events), by
-// the fight's day and the day before (Taiwan's dates; a night card runs past midnight).
-async function notableOnly(events) {
-  const day = ms => new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10);
-  const dayOf = e => [day(Date.parse(e.start)), day(Date.parse(e.start) - 86_400_000)];
-  const cards = await tsdbBoxingDays([...new Set(events.flatMap(dayOf))].slice(0, 16)).catch(() => ({}));
-  const kept = events.filter(e => dayOf(e).some(d => notableFight(e.home.id, e.away.id, cards[d])));
-  // The fighters' flags: their nations looked up (once a month), then the pictures again.
-  await Promise.race([learnFighterNations(kept.flatMap(e => [e.home.id, e.away.id])), new Promise(r => setTimeout(r, 2_500))]);
-  for (const e of kept) for (const side of [e.home, e.away]) side.logo ||= playerFlag(side.id);
-  return kept;
-}
-
-// ---- MotoGP (the series' own results API, through the proxy) -------------------------
-//
-// The season's Grands Prix (one call), each a race weekend; the ones within
-// ten days get their sessions (practice, qualifying, the sprint, the race)
-// and, once run, the order. The session codes as F1's: Q2 is the
-// qualifying that sets the grid, SPR the sprint, RAC the race.
-const MOTOGP = 'https://api.motogp.pulselive.com/motogp/v1';
-const MOTOGP_CLASS = 'e8c110ad-64aa-4e8e-8a86-f2f152f6a942';
-const MOTOGP_SESSION = { RAC: 'Race', SPR: 'SR', Q2: 'Qual' };
-const MOTOGP_ZH = { CAT: '加泰隆尼亞', ARA: '亞拉岡', RSM: '聖馬利諾', VAL: '瓦倫西亞', AME: '美洲', EMI: '艾米利亞' };
-const stateOf = st => (/FINISHED|COMPLETED/i.test(st || '') ? 'post' : /STARTED|RUNNING|LIVE|IN.?PROGRESS/i.test(st || '') && !/NOT/i.test(st || '') ? 'in' : 'pre');
+// A status from a plain state ('pre', 'in', 'post'): for the race series read from their own sites.
 const plainStatus = state => ({ state, detail: '', short: '', completed: state === 'post', void: false, delayed: false, name: '', clock: '', period: 0 });
-const titleCase = t => String(t || '').toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
-export function parseMotoGpEvents(list) {
-  return (list || [])
-    .filter(x => !x.test && x.date_start)
-    .map(x => ({
-      id: `mgp${x.id}`,
-      uuid: x.id,
-      league: 'motogp',
-      kind: 'field',
-      // "日本站", "Japanese GP": the country (San Marino's and Aragon's by their own names).
-      name: detectLocale() === 'en' ? `${titleCase(x.name).replace(/^Grand Prix (Of|De) (The )?/, '')} GP` : `${MOTOGP_ZH[x.short_name] || countryName(x.country?.name, 'zh')}站`,
-      enName: titleCase(x.sponsored_name || x.name),
-      short: x.short_name || '',
-      start: `${x.date_start}T00:00:00Z`,
-      end: x.date_end ? `${x.date_end}T23:59:00Z` : null,
-      status: plainStatus(stateOf(x.status)),
-      venue: x.circuit?.name || '',
-      tv: '',
-      note: '',
-      series: null,
-      stage: null,
-      sessions: []
-    }))
-    .sort((a, b) => a.start.localeCompare(b.start));
-}
-export function parseMotoGpSessions(list) {
-  return (list || [])
-    .filter(x => MOTOGP_SESSION[x.type + (x.number || '')] || MOTOGP_SESSION[x.type])
-    .map(x => {
-      const code = x.type === 'Q' ? `Q${x.number}` : x.type;
-      return { id: x.id, abbr: MOTOGP_SESSION[code] || code, name: code, start: x.date, status: plainStatus(stateOf(x.status)), field: [] };
-    })
-    .filter(x => ['Race', 'SR', 'Qual'].includes(x.abbr));
-}
-export const parseMotoGpOrder = data =>
-  (data?.classification || []).map(c => ({ id: c.rider?.riders_api_uuid || c.rider?.id || '', name: c.rider?.full_name || '', short: c.rider?.full_name || '', athlete: true, flag: c.rider?.country?.iso ? flagUrl(c.rider.country.iso) : '', logo: '', score: c.points ? `${c.points} 分` : c.time || c.gap?.first || '', team: c.team?.name || '' }));
-// The riders' championship (standings): one table, wins and podiums beside the points.
-export function parseMotoGpStandings(data, lang = detectLocale()) {
-  const rows = (data?.classification || []).map(c => ({
-    id: c.rider?.riders_api_uuid || c.rider?.id || '',
-    legacy: c.rider?.legacy_id ?? null,
-    name: c.rider?.full_name || '',
-    short: c.rider?.full_name || '',
-    en: c.rider?.full_name || '',
-    logo: c.rider?.country?.iso ? flagUrl(c.rider.country.iso) : '',
-    note: '',
-    color: '',
-    athlete: true,
-    team: c.team?.name || '',
-    number: c.rider?.number ?? null,
-    stats: { W: String(c.race_wins ?? 0), POD: String(c.podiums ?? 0), PTS: String(c.points ?? 0) }
-  }));
-  return rows.length ? [{ name: lang === 'en' ? 'Riders' : '車手積分', en: 'Riders', rows }] : [];
-}
-async function motogpSeason() {
-  const seasons = await getJson(`${MOTOGP}/results/seasons`, { ttl: 24 * 3_600_000 });
-  return (seasons || []).find(x => x.current) || seasons?.[0] || null;
-}
-async function motogpStandings() {
-  const season = await motogpSeason();
-  if (!season) return [];
-  return parseMotoGpStandings(await getJson(`${MOTOGP}/results/standings?seasonUuid=${season.id}&categoryUuid=${MOTOGP_CLASS}`, { ttl: 30 * 60_000 }));
-}
-// A rider: the profile (photo, team and its colour, number, birth, size)
-// and, by their legacy id, every season's figures and their career totals.
-export function parseMotoGpRider(rider, seasons = [], totals = null) {
-  const now = (rider?.career || []).find(c => c.current) || (rider?.career || []).at(-1) || {};
-  const sum = key => (totals?.[key]?.categories || []).find(c => /motogp/i.test(c.category?.name || ''))?.count ?? null;
-  return {
-    id: rider?.id || '',
-    legacy: rider?.legacy_id ?? null,
-    name: [rider?.name, rider?.surname].filter(Boolean).join(' '),
-    photo: now.pictures?.profile?.main || now.pictures?.portrait || '',
-    number: now.number ?? null,
-    team: now.sponsored_team || now.team?.name || '',
-    teamColor: now.team?.color || '',
-    bike: now.team?.constructor?.name || '',
-    country: rider?.country?.name || '',
-    born: rider?.birth_date || '',
-    birthplace: [rider?.birth_city, rider?.birth_country?.name || rider?.country?.name].filter(Boolean).join(', '),
-    height: rider?.physical_attributes?.height || null,
-    weight: rider?.physical_attributes?.weight || null,
-    since: rider?.start_year || null,
-    career: { starts: sum('all_races'), wins: sum('grand_prix_victories'), podiums: sum('podiums'), poles: sum('poles'), titles: sum('world_championship_wins'), sprintWins: (totals?.sprint_victories || []).find(c => /motogp/i.test(c.category?.name || ''))?.count ?? null },
-    seasons: (seasons || []).map(x => ({ season: Number(x.season), category: String(x.category || '').replace('™', ''), bike: x.constructor || '', starts: x.starts ?? 0, wins: x.first_position ?? 0, podiums: x.podiums ?? 0, poles: x.poles ?? 0, points: x.points ?? 0, position: x.position ?? null })).sort((a, b) => b.season - a.season)
-  };
-}
-export async function motogpRider(uuid) {
-  const rider = await getJson(`${MOTOGP}/riders/${uuid}`, { ttl: 24 * 3_600_000 });
-  const legacy = rider?.legacy_id;
-  const [seasons, totals] = legacy ? await Promise.all([getJson(`${MOTOGP}/riders/${legacy}/statistics`, { ttl: 6 * 3_600_000 }).catch(() => []), getJson(`${MOTOGP}/riders/${legacy}/stats`, { ttl: 6 * 3_600_000 }).catch(() => null)]) : [[], null];
-  return parseMotoGpRider(rider, seasons, totals);
-}
-async function motogpEvents(now = Date.now()) {
-  const season = await motogpSeason();
-  if (!season) return [];
-  const events = parseMotoGpEvents(await getJson(`${MOTOGP}/results/events?seasonUuid=${season.id}`, { ttl: 30 * 60_000 }));
-  const near = events.filter(e => Math.abs(Date.parse(e.start) - now) < 10 * 86_400_000);
-  await Promise.all(
-    near.map(async e => {
-      e.sessions = parseMotoGpSessions(await getJson(`${MOTOGP}/results/sessions?eventUuid=${e.uuid}&categoryUuid=${MOTOGP_CLASS}`, { ttl: 5 * 60_000 }).catch(() => []));
-      await Promise.all(e.sessions.filter(x => x.status.state !== 'pre').map(async x => (x.field = parseMotoGpOrder(await getJson(`${MOTOGP}/results/session/${x.id}/classification?test=false`, { ttl: 60_000 }).catch(() => null)))));
-      if (e.sessions.length) e.start = e.sessions[0].start;
-    })
-  );
-  return events;
-}
 
 // ---- Formula E (TheSportsDB's calendar, open to browsers) ------------------------------
 //
@@ -591,13 +427,6 @@ export const parseTsdbResults = data =>
 // (the others show by their dates, times to come).
 const FOM_SESSION = [
   [/feature/i, 'Race', { zh: '正賽', en: 'Feature race' }],
-  // F1 Academy's other two races.
-  [/opening/i, 'OR', { zh: '開幕賽', en: 'Opening race' }],
-  [/reverse/i, 'RG', { zh: '反轉發車賽', en: 'Reverse grid race' }],
-  // GT World Challenge: an endurance round's one race, a sprint round's two.
-  [/race 1/i, 'R1', { zh: '第一回合', en: 'Race 1' }],
-  [/race 2/i, 'R2', { zh: '第二回合', en: 'Race 2' }],
-  [/main race|24 hours|^race$/i, 'Race', { zh: '正賽', en: 'Race' }],
   [/sprint/i, 'SR', { zh: '衝刺賽', en: 'Sprint race' }],
   [/qualif/i, 'Qual', { zh: '排位賽', en: 'Qualifying' }],
   [/practice/i, 'FP', { zh: '練習賽', en: 'Practice' }]
@@ -623,12 +452,8 @@ export function parseFomRound(meeting, sessions, league, year, lang = detectLoca
     })
     .filter(Boolean)
     .sort((a, b) => a.start.localeCompare(b.start))
-    // One of each (GT's qualifying comes in parts): the combined one, or the first.
-    .filter((x, i, all) => {
-      const same = all.filter(y => y.abbr === x.abbr);
-      const pick = same.find(y => /combined/i.test(sessions[Number(y.id.split('-').pop())]?.name || '')) || same[0];
-      return pick === x;
-    });
+    // One of each.
+    .filter((x, i, all) => all.find(y => y.abbr === x.abbr) === x);
   const start = list[0]?.start || (dates ? new Date(dates.from).toISOString() : null);
   if (!start) return null;
   const end = list.at(-1)?.start || (dates ? new Date(dates.to).toISOString() : start);
@@ -639,7 +464,7 @@ export function parseFomRound(meeting, sessions, league, year, lang = detectLoca
 async function fomRaceEvents(league, now = Date.now()) {
   const host = LEAGUES[league].fom;
   const year = new Date(now).getUTCFullYear();
-  const cal = await getJson(LEAGUES[league].legacy ? `https://${host}/Racing-Series/Calendar` : LEAGUES[league].sro ? `https://${host}/calendar` : `https://${host}/en/racing/${year}`, { ttl: 6 * 3_600_000 }).catch(() => null);
+  const cal = await getJson(`https://${host}/en/racing/${year}`, { ttl: 6 * 3_600_000 }).catch(() => null);
   const meetings = cal?.meetings || [];
   const near = meetings.filter(m => {
     const d = fomDates(m.dates, year);
@@ -824,19 +649,14 @@ export function parseStandings(data, league = null) {
   walk(data);
   return groups;
 }
-// A league's tables: this season's, or a past one's (`season`: the year the
-// season started, as ESPN numbers it). The array carries the season's year.
-export async function standings(league, season = null) {
+// A league's tables this season. The array carries the season's year.
+export async function standings(league) {
   const l = LEAGUES[league];
-  if (l?.motogp) return withGaps(await motogpStandings(), 'racing');
-  const data = await getJson(`${STANDINGS}/${l.espn}/standings${season ? `?season=${season}` : ''}`, { ttl: season ? 7 * 86_400_000 : 10 * 60_000 });
+  const data = await getJson(`${STANDINGS}/${l.espn}/standings`, { ttl: 10 * 60_000 });
   const groups = withGaps(parseStandings(data, league), l.sport);
   groups.year = data?.season?.year ?? data?.children?.[0]?.standings?.season?.year ?? null;
   return groups;
 }
-// A season's name: "2025-26" where a season spans two years (soccer, the
-// NBA, the NHL), "2026" otherwise.
-export const seasonLabel = (league, year) => (['soccer', 'basketball', 'hockey'].includes(LEAGUES[league]?.sport) && !/^(wnba|mlb)$/.test(league) ? `${year}-${String((year + 1) % 100).padStart(2, '0')}` : String(year));
 // Which columns a table shows, by sport (only those present).
 export const STANDING_COLUMNS = {
   soccer: ['GP', 'W', 'D', 'L', 'GD', 'P', 'GAP'],
@@ -844,7 +664,6 @@ export const STANDING_COLUMNS = {
   basketball: ['W', 'L', 'PCT', 'GB', 'STRK'],
   football: ['W', 'L', 'T', 'PCT', 'GB', 'STRK'],
   hockey: ['GP', 'W', 'L', 'OTL', 'PTS', 'GAP'],
-  rugby: ['GP', 'W', 'L', 'PTS', 'GAP'],
   racing: ['W', 'POD', 'PTS', 'GAP']
 };
 // The columns that matter most on a narrow screen.
@@ -854,12 +673,11 @@ export const COMPACT_COLUMNS = {
   basketball: ['W', 'L', 'PCT', 'GB'],
   football: ['W', 'L', 'PCT', 'GB'],
   hockey: ['GP', 'PTS', 'GAP'],
-  rugby: ['GP', 'PTS', 'GAP'],
   racing: ['PTS', 'GAP']
 };
 
 // The gap to the top of each table: points behind the leader (soccer,
-// hockey, rugby, racing…) as GAP, and games behind (GB) where the feed
+// hockey, racing) as GAP, and games behind (GB) where the feed
 // leaves it out for a win-loss table (American football). The leader shows
 // "-".
 const num = v => {
@@ -867,7 +685,7 @@ const num = v => {
   return Number.isFinite(n) ? n : null;
 };
 export function withGaps(groups, sport) {
-  const pointsKey = { soccer: 'P', hockey: 'PTS', rugby: 'PTS', racing: 'PTS' }[sport];
+  const pointsKey = { soccer: 'P', hockey: 'PTS', racing: 'PTS' }[sport];
   return (groups || []).map(g => {
     const rows = g.rows;
     if (!rows.length) return g;
@@ -1009,13 +827,6 @@ export function parseAthlete(data) {
 export async function athlete(league, id) {
   return parseAthlete(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}`, { ttl: 60 * 60_000 }));
 }
-// A tour's world ranking (tennis): [{ id, rank, previous, points, name }].
-export function parseRankings(data) {
-  return (data?.rankings?.[0]?.ranks || []).map(r => ({ id: String(r.athlete?.id ?? ''), name: r.athlete?.displayName || '', rank: r.current, previous: r.previous, points: r.points }));
-}
-export async function rankings(league) {
-  return parseRankings(await getJson(`${SITE}/${LEAGUES[league].espn}/rankings`, { ttl: 6 * 60 * 60_000 }));
-}
 // A driver's championship this season, from the drivers' table: place,
 // points, the gap, and each race's points in order ([code, points]; a race
 // still to come is left out).
@@ -1031,33 +842,17 @@ export function driverSeason(groups, id) {
   }
   return null;
 }
-// A player's matches this season (tennis draws, fight cards): the latest
-// first, with the round, the other side, won or lost, and the score.
-export function playerMatches(events, id) {
-  const out = [];
-  for (const e of events || []) {
-    const pairs = e.kind === 'draw' ? (e.draws || []).flatMap(d => d.matches.map(m => ({ ...m, draw: d.name }))) : e.kind === 'card' ? (e.bouts || []).map(b => ({ ...b, round: b.weight })) : [];
-    for (const m of pairs) {
-      const [me, them] = m.a?.id === String(id) ? [m.a, m.b] : m.b?.id === String(id) ? [m.b, m.a] : [];
-      if (!me) continue;
-      out.push({ event: e.name, eventId: e.id, start: m.start || e.start, round: m.round || '', draw: m.draw || '', status: m.status, opp: them, won: m.status?.state === 'post' ? Boolean(me.winner) : null, score: (me.lines || []).map((x, i) => `${x}-${them?.lines?.[i] ?? ''}`).join(' ') });
-    }
-  }
-  return out.sort((a, b) => String(b.start).localeCompare(String(a.start)));
-}
-// An individual's season and form (golf, tennis, racing, fighting): season
-// numbers, rankings, the next and last events.
+// A player's season and form: season numbers and rankings, the latest word
+// on them, honours and their last games.
 export function parseOverview(data) {
   const st = data?.statistics;
   const season = st?.labels?.length && st.splits?.length ? { title: st.displayName || '', rows: st.splits.map(sp => ({ name: sp.displayName, cells: (sp.stats || []).map((v, i) => ({ label: st.labels[i], value: v })) })) } : null;
   const rankings = (data?.seasonRankings?.categories || []).slice(0, 8).map(c => ({ label: c.shortDisplayName || c.displayName, value: c.displayValue, rank: c.rankDisplayValue || '' }));
-  const fight = data?.upcomingFight?.league?.events?.[0];
-  const recent = (data?.recentTournaments?.[0]?.eventsStats || []).slice(0, 6).map(ev => ({ id: String(ev.id), name: ev.name, date: ev.date, score: ev.competitions?.[0]?.competitors?.[0]?.score?.displayValue || '', place: ev.competitions?.[0]?.competitors?.[0]?.status?.position?.displayName || '' }));
   // The latest word on them (an injury, a lineup), their honours, their last
   // games with each one's numbers, and ESPN's stories about them.
   const note = data?.rotowire?.headline ? { headline: data.rotowire.headline, story: data.rotowire.story || '', date: usDate(data.rotowire.published) } : null;
   const awards = (data?.awards || []).slice(0, 8).map(w => ({ name: w.name || '', count: w.displayCount || '', seasons: w.seasons || [] })).filter(w => w.name);
-  return { season, rankings, fight: fight ? { title: data.upcomingFight.displayName || '', name: fight.name, date: fight.date, where: fight.location || '' } : null, recent, note, awards, log: parseGameLog(data?.gameLog) };
+  return { season, rankings, note, awards, log: parseGameLog(data?.gameLog) };
 }
 // "Tue Sep 29 07:02:00 PDT 2026" (RotoWire's time) as ISO, or ''.
 const US_ZONES = { EDT: '-04:00', EST: '-05:00', CDT: '-05:00', CST: '-06:00', MDT: '-06:00', MST: '-07:00', PDT: '-07:00', PST: '-08:00', UTC: 'Z', GMT: 'Z' };
@@ -1089,14 +884,14 @@ export function parseGameLog(log) {
   return games.length ? { title: block.displayName || '', labels: block.labels.slice(0, n), games } : null;
 }
 // A player's photo from TheSportsDB (ESPN has none for footballers): the
-// cut-out, else the portrait, when the name and the sport match. Open to
-// browsers (CORS), so not through the proxy.
-const SPORTSDB_SPORT = { soccer: 'Soccer', basketball: 'Basketball', baseball: 'Baseball', football: 'American Football', hockey: 'Ice Hockey', racing: 'Motorsport', tennis: 'Tennis', golf: 'Golf', mma: 'Fighting' };
+// studio cut-out only (its portraits are often casual pictures), when the
+// name and the sport match. Open to browsers (CORS), so not through the proxy.
+const SPORTSDB_SPORT = { soccer: 'Soccer', basketball: 'Basketball', baseball: 'Baseball', football: 'American Football', hockey: 'Ice Hockey', racing: 'Motorsport', badminton: 'Badminton' };
 const photos = new Map();
 export function pickPhoto(data, name, sport) {
   const want = normalizeTeamName(name);
   const p = (data?.player || []).find(x => normalizeTeamName(x.strPlayer) === want && (!SPORTSDB_SPORT[sport] || x.strSport === SPORTSDB_SPORT[sport]));
-  return p?.strCutout || p?.strThumb || null;
+  return p?.strCutout || null;
 }
 export function playerPhoto(name, sport) {
   if (!name) return Promise.resolve(null);
@@ -1115,7 +910,7 @@ export async function athleteOverview(league, id) {
   return parseOverview(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }));
 }
 
-// ---- Quadra Play's id for a match (its "bet on this" link) ---------------------------------
+// ---- Names, compared ---------------------------------------------------------------------
 
 export function normalizeTeamName(name) {
   return (name || '')
@@ -1126,16 +921,4 @@ export function normalizeTeamName(name) {
     .replace(/\b(fc|afc|cf|sc|and)\b/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
-}
-// Play's own id for the same match: league, the start's UTC hour, the two sides.
-// A bout or a draw's match in Play (players, in either order there): its id from the two names.
-export function playPairId(league, start, a, b) {
-  const key = LEAGUES[league]?.play;
-  if (!key || !start || !a?.name || !b?.name) return null;
-  return `${key}_${new Date(start).toISOString().slice(0, 13)}_${normalizeTeamName(a.en || a.name)}_${normalizeTeamName(b.en || b.name)}`.replaceAll(' ', '');
-}
-export function playGameId(event) {
-  const key = LEAGUES[event.league]?.play;
-  if (!key || event.kind !== 'match' || !event.home || !event.away) return null;
-  return `${key}_${new Date(event.start).toISOString().slice(0, 13)}_${normalizeTeamName(event.away.en || event.away.name)}_${normalizeTeamName(event.home.en || event.home.name)}`.replaceAll(' ', '');
 }

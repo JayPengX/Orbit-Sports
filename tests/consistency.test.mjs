@@ -1,12 +1,13 @@
-// What Fixtures and Play must agree on: a delay isn't a postponement, players
-// show their nation's flag, bouts and draw matches link to Play's own games.
+// What the data must get right: a delay isn't a postponement, badminton
+// players show their nation's flag, and the purged sports are gone.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseStatus, parseKambi, playPairId, playGameId } from '../public/lib/espn.mjs';
+import { parseStatus, parseKambi } from '../public/lib/espn.mjs';
 import { liveLabel } from '../public/lib/live.mjs';
-import { LEAGUES } from '../public/lib/leagues.mjs';
+import { LEAGUES, SPORTS } from '../public/lib/leagues.mjs';
+import { BROADCAST, SERVICES } from '../public/lib/broadcast.mjs';
 
-test('a delayed or suspended game is still on (Play keeps it live); a postponed one is called off', () => {
+test('a delayed or suspended game is still on; a postponed one is called off', () => {
   const delayed = parseStatus({ type: { name: 'STATUS_DELAYED', state: 'in', shortDetail: 'Delayed' } });
   assert.equal(delayed.void, false);
   assert.equal(delayed.delayed, true);
@@ -15,43 +16,36 @@ test('a delayed or suspended game is still on (Play keeps it live); a postponed 
   assert.equal(parseStatus({ type: { name: 'STATUS_IN_PROGRESS', state: 'in', shortDetail: 'Top 5th' } }).delayed, false);
 });
 
-test("Kambi's players carry their nation's flag (the kit's table, else where the match is filed)", () => {
-  const data = {
-    events: [
-      { event: { id: 1, name: 'Radek Bartunek - Marek Placek', homeName: 'Radek Bartunek', awayName: 'Marek Placek', start: '2026-09-30T06:00:00Z', state: 'NOT_STARTED', group: 'Czech Open', path: ['badminton', 'czech_republic', 'czech_open'] } },
-      { event: { id: 2, name: 'Fan Zhendong - Lin Yun-Ju', homeName: 'Fan Zhendong', awayName: 'Lin Yun-Ju', start: '2026-09-30T08:00:00Z', state: 'NOT_STARTED', group: 'WTT Champions', path: [{ termKey: 'table_tennis' }, { termKey: 'wtt_champions' }] } },
-      { event: { id: 3, name: 'Radek Bartunek - Marek Placek', homeName: 'Radek Bartunek', awayName: 'Marek Placek', start: '2026-09-30T06:30:00Z', state: 'NOT_STARTED', group: 'Czech Liga Pro', path: ['table_tennis', 'czech_republic', 'czech_liga_pro'] } }
-    ]
-  };
-  const [czech] = parseKambi({ events: data.events.slice(0, 1) }, 'badminton');
+test("Kambi's badminton players carry their nation's flag (the kit's table, else where the match is filed)", () => {
+  const events = [
+    { event: { id: 1, name: 'Radek Bartunek - Marek Placek', homeName: 'Radek Bartunek', awayName: 'Marek Placek', start: '2026-09-30T06:00:00Z', state: 'NOT_STARTED', group: 'Czech Open', path: ['badminton', 'czech_republic', 'czech_open'] } },
+    { event: { id: 2, name: 'Tai Tzu-Ying - Chen Yufei', homeName: 'Tai Tzu-Ying', awayName: 'Chen Yufei', start: '2026-09-30T08:00:00Z', state: 'NOT_STARTED', group: 'China Open', path: ['badminton', 'china_open'] } }
+  ];
+  const [czech, open] = parseKambi({ events }, 'badminton');
   assert.match(czech.home.logo, /flags\/cz\.svg$/);
-  // Table tennis: the pro tour only, not Kambi's betting leagues (Czech Liga Pro).
-  const tt = parseKambi({ events: data.events.slice(1) }, 'tabletennis');
-  assert.deepEqual(tt.map(e => e.id), ['k2']);
-  const [wtt] = tt;
-  assert.match(wtt.home.logo, /flags\/cn\.svg$/);
-  assert.match(wtt.away.logo, /flags\/tw\.svg$/);
+  assert.match(open.home.logo, /flags\/tw\.svg$/);
+  assert.match(open.away.logo, /flags\/cn\.svg$/);
   // Clubs keep their badges.
   assert.ok(LEAGUES.euroleague && !LEAGUES.euroleague.players);
 });
 
-test("a UFC bout and a tennis match link to Play's game by the two names; UFC is a Play league now", () => {
-  assert.equal(LEAGUES.ufc.play, 'ufc');
-  // No Taiwan broadcast: off Fixtures.
-  assert.equal(LEAGUES.rugbyunion, undefined);
-  assert.equal(LEAGUES.acl, undefined);
-  for (const key of ['nrl', 'afl', 'nascar', 'indycar', 'nwsl']) assert.equal(LEAGUES[key], undefined, key);
-  assert.equal(LEAGUES.facup.play, 'facup');
-  assert.equal(playPairId('ufc', '2026-10-03T20:00:00Z', { name: 'Marvin Vettori' }, { name: 'Ismail Naurdiev' }), 'ufc_2026-10-03T20_marvinvettori_ismailnaurdiev');
-  assert.equal(playPairId('pga', '2026-10-03T20:00:00Z', { name: 'A' }, { name: 'B' }), null);
-  assert.equal(playGameId({ league: 'cpbl', kind: 'match', start: '2026-09-30T10:35:00Z', away: { en: 'Wei Chuan Dragons' }, home: { en: 'Rakuten Monkeys' } }), 'cpbl_2026-09-30T10_weichuandragons_rakutenmonkeys');
+test('the purged sports, leagues and services are gone, not hidden', () => {
+  for (const key of ['atp', 'wta', 'pga', 'lpga', 'ufc', 'boxing', 'volleyball', 'tabletennis', 'motogp', 'f1academy', 'gtwc', 'wcqeurope', 'rugbyunion', 'acl', 'ncaaf', 'snooker', 'cricket']) {
+    assert.equal(LEAGUES[key], undefined, key);
+    assert.equal(BROADCAST[key], undefined, key);
+  }
+  for (const sport of ['tennis', 'golf', 'mma', 'boxing', 'volleyball', 'tabletennis', 'snooker', 'cricket', 'rugby']) assert.equal(SPORTS[sport], undefined, sport);
+  for (const id of ['ufcpass', 'tennistv', 'vbtv', 'motogppass', 'f1tv', 'mlbtv', 'cpbltv', 'kleaguetv']) assert.ok(!SERVICES.some(x => x.id === id), id);
+  // Kept: WNBA and EuroLeague, on their own passes.
+  assert.equal(BROADCAST.wnba[0].kind, 'pass');
+  assert.equal(BROADCAST.euroleague[0].kind, 'pass');
+  // Every service listed carries a league.
+  for (const x of SERVICES) assert.ok(Object.values(BROADCAST).some(list => list.some(b => b.svc === x.id)), x.id);
+  for (const l of Object.values(LEAGUES)) assert.equal(l.off, undefined);
 });
 
-test('table tennis, badminton and volleyball play games (局), tennis sets (盤)', () => {
+test('badminton plays games (局)', () => {
   const e = set => ({ status: { state: 'in', period: set }, live: { set } });
-  assert.equal(liveLabel(e(3), 'tabletennis', 'zh'), '第3局');
   assert.equal(liveLabel(e(2), 'badminton', 'zh'), '第2局');
-  assert.equal(liveLabel(e(2), 'tennis', 'zh'), '第2盤');
-  assert.equal(liveLabel(e(2), 'volleyball', 'en'), 'Set 2');
-  assert.equal(liveLabel(e(2), 'tabletennis', 'en'), 'Game 2');
+  assert.equal(liveLabel(e(2), 'badminton', 'en'), 'Game 2');
 });

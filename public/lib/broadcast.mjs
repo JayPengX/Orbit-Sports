@@ -8,8 +8,8 @@
 //
 // Sources: ELTA's 2026-27 football and baseball announcements, ELTA's NBA
 // 2026-2030 and F1 2026-2029 rights, DAZN Taiwan (LaLiga, NFL from
-// 2026-27, NPB), 緯來 (NBA, MLB daily), CPBL's 2026 platform list, 博斯
-// (tennis, golf, badminton). Rights change: keep this list current.
+// 2026-27, NPB, NHL), 緯來 (NBA, MLB daily), CPBL's 2026 platform list, 博斯
+// (badminton). Rights change: keep this list current.
 export const CHECKED = '2026-10';
 
 const ELTA = { zh: '愛爾達 ELTA.tv', en: 'ELTA.tv', kind: 'ott', svc: 'elta' };
@@ -20,8 +20,8 @@ const VL = { zh: '緯來體育台（Hami Video・緯來 App）', en: 'Videoland 
 const DAZN = { zh: 'DAZN', en: 'DAZN', kind: 'ott', svc: 'dazn' };
 // 博斯's channels streamed: Hami Video, LiTV and 4gTV.
 const BOS = { zh: '博斯運動（Hami Video・LiTV・4gTV）', en: 'Sportcast (Hami Video, LiTV, 4gTV)', kind: 'ott', svc: 'sportcast' };
-const BOS_TENNIS = { zh: '博斯網球台（Hami Video・LiTV・4gTV）', en: 'Sportcast Tennis (Hami Video, LiTV, 4gTV)', kind: 'ott', svc: 'sportcast' };
-const BOS_GOLF = { zh: '博斯高球台（Hami Video・LiTV）', en: 'Sportcast Golf (Hami Video, LiTV)', kind: 'ott', svc: 'sportcast' };
+// A league's own subscription: only where it's the one way to watch (WNBA,
+// EuroLeague). One sport's passes are otherwise not listed.
 const pass = (svc, zh, en = zh) => ({ zh, en, kind: 'pass', svc });
 // Free on YouTube (the league's own channel): listed for a game only when the
 // channel has a video of that very game (ytVideoFor, from the channel's feed:
@@ -29,21 +29,21 @@ const pass = (svc, zh, en = zh) => ({ zh, en, kind: 'pass', svc });
 const yt = (zh, en, url, channel) => ({ zh: `YouTube ${zh}`, en: `YouTube ${en}`, kind: 'ott', svc: 'youtube', url, channel, free: true });
 const SOOP = { zh: 'SOOP（免費）', en: 'SOOP (free)', kind: 'ott', svc: 'soop', url: 'https://www.sooplive.com/station/kboglobal1', free: true };
 const DISNEY = { zh: 'Disney+', en: 'Disney+', kind: 'ott', svc: 'disney' };
-const VBTV = pass('vbtv', 'Volleyball TV');
+const APPLE = { zh: 'Apple TV', en: 'Apple TV', kind: 'ott', svc: 'appletv' };
 
 const SOCCER_ELTA = [ELTA, HAMI];
 
 export const BROADCAST = {
-  mlb: [ELTA, VL, HAMI, pass('mlbtv', 'MLB.TV'), { zh: 'Apple TV+（週五）', en: 'Apple TV+ (Fridays)', kind: 'ott', svc: 'appletv' }],
+  mlb: [ELTA, VL, HAMI, { ...APPLE, zh: 'Apple TV（週五）', en: 'Apple TV (Fridays)' }],
   npb: [DAZN, VL],
-  cpbl: [pass('cpbltv', 'CPBLTV'), VL, DAZN, ELTA, HAMI, { zh: 'MyVideo', en: 'MyVideo', kind: 'ott', svc: 'myvideo' }],
+  cpbl: [VL, DAZN, ELTA, HAMI, { zh: 'MyVideo', en: 'MyVideo', kind: 'ott', svc: 'myvideo' }],
   // Every game free on SOOP (KBO_Global), outside Korea.
   kbo: [SOOP, DAZN],
   // ELTA: one game a day, from the 2026-27 preseason (10/6); which one, its schedule says.
-  nba: [{ ...ELTA, note: { zh: '每日一場，10/6 起', en: 'one game a day from 10/6' } }, VL, pass('nbapass', 'NBA League Pass')],
+  nba: [{ ...ELTA, note: { zh: '每日一場，10/6 起', en: 'one game a day from 10/6' } }, VL],
   wnba: [pass('nbapass', 'WNBA League Pass')],
-  nfl: [DAZN, pass('dazn', 'NFL Game Pass（DAZN）', 'NFL Game Pass (DAZN)')],
-  nhl: [pass('dazn', 'NHL.TV（DAZN）', 'NHL.TV (DAZN)')],
+  nfl: [DAZN],
+  nhl: [DAZN],
   epl: [ELTA, HAMI],
   facup: SOCCER_ELTA,
   ucl: [ELTA, HAMI],
@@ -55,32 +55,19 @@ export const BROADCAST = {
   scotland: [ELTA],
   // Selected games free on the leagues' international YouTube channels.
   jleague: [yt('J.LEAGUE International', 'J.LEAGUE International', 'https://www.youtube.com/@JLEAGUEInternational', 'UCmQp6ZaAejJKKkXc_Y_lh1A')],
-  kleague: [yt('K League International', 'K League International', 'https://www.youtube.com/@KLeagueintl', 'UCrfu1VaYOZ_-FBGQMzKFfMA'), pass('kleaguetv', 'K League TV')],
+  kleague: [yt('K League International', 'K League International', 'https://www.youtube.com/@KLeagueintl', 'UCrfu1VaYOZ_-FBGQMzKFfMA')],
   worldcup: [ELTA, HAMI],
-  wcqeurope: [ELTA, HAMI],
   nationsleague: SOCCER_ELTA,
   laliga: [DAZN],
-  mls: [pass('appletv', 'MLS Season Pass（Apple TV）', 'MLS Season Pass (Apple TV)')],
-  f1: [ELTA, HAMI, pass('f1tv', 'F1 TV')],
+  // Every MLS match with an Apple TV subscription from 2026.
+  mls: [APPLE],
+  f1: [ELTA, HAMI],
   // F1's feeder series: ELTA.tv only (MAX 5-8, English commentary, no ads).
   f2: [{ ...ELTA, note: { zh: 'MAX 5-8 台', en: 'MAX 5-8' } }],
   f3: [{ ...ELTA, note: { zh: 'MAX 5-8 台', en: 'MAX 5-8' } }],
-  // F1 Academy: every session on F1 TV (in Taiwan too).
-  f1academy: [pass('f1tv', 'F1 TV'), yt('F1 ACADEMY', 'F1 ACADEMY', 'https://www.youtube.com/@F1ACADEMY', 'UCNtiHO5dvgowvZScesaKUqA')],
-  // GT World Challenge: every race live and free on SRO's channel.
-  gtwc: [yt('GTWorld', 'GTWorld', 'https://www.youtube.com/@GTWorld', 'UC-yHapH6mW1ceZ_5PDUf1_g')],
   // From 2026-27 on Disney+ (every session); practice free on its YouTube.
   formulae: [DISNEY, yt('Formula E', 'Formula E', 'https://www.youtube.com/@FIAFormulaE', 'UC-DuRqsBQOEk_5o1q4Ze-Fg')],
-  motogp: [VL, { zh: '緯來 APP', en: 'Videoland app', kind: 'ott', svc: 'videoland' }, pass('motogppass', 'MotoGP VideoPass')],
-  atp: [BOS_TENNIS, pass('tennistv', 'Tennis TV')],
-  wta: [BOS_TENNIS],
-  pga: [BOS_GOLF],
-  lpga: [BOS_GOLF],
-  ufc: [pass('ufcpass', 'UFC Fight Pass')],
   badminton: [ELTA, HAMI, BOS, yt('BWF TV', 'BWF TV', 'https://www.youtube.com/@bwftv', 'UChh-akEbUM8_6ghGVnJd6cQ')],
-  tabletennis: [ELTA, HAMI, yt('WTT', 'WTT', 'https://www.youtube.com/@WTTGlobal', 'UC9ckyA_A3MfXUa0ttxMoIZw')],
-  volleyball: [VBTV, ELTA],
-  boxing: [pass('dazn', 'DAZN（加購 Matchroom）', 'DAZN (Matchroom add-on)')],
   euroleague: [pass('euroleaguetv', 'EuroLeague TV')]
 };
 
@@ -131,7 +118,7 @@ export const ELTA_LIST = 'https://piceltaott-elta.cdn.hinet.net/production/json/
 // ELTA's league names (its English ones) → Fixtures' leagues.
 const ELTA_LEAGUE = {
   MLB: 'mlb', NBA: 'nba', CPBL: 'cpbl', 'Premier League': 'epl', UCL: 'ucl', 'UEFA Champions League': 'ucl', 'UEFA Europa League': 'uel', 'UEFA Conference League': 'uecl',
-  Bundesliga: 'bundesliga', 'Serie A': 'seriea', 'Ligue 1': 'ligue1', 'UEFA Nations League': 'nationsleague', 'Scottish Premiership': 'scotland', 'FA Cup': 'facup', F1: 'f1', F2: 'f2', F3: 'f3', 'Formula 2': 'f2', 'Formula 3': 'f3', WTT: 'tabletennis', BWF: 'badminton'
+  Bundesliga: 'bundesliga', 'Serie A': 'seriea', 'Ligue 1': 'ligue1', 'UEFA Nations League': 'nationsleague', 'Scottish Premiership': 'scotland', 'FA Cup': 'facup', F1: 'f1', F2: 'f2', F3: 'f3', 'Formula 2': 'f2', 'Formula 3': 'f3', BWF: 'badminton'
 };
 // Its channels: the four 體育台 (streamed on ELTA.tv and Hami Video, with
 // ads), the ten MAX (ELTA.tv only, no ads) and MOD's own 980s (its add-on
@@ -272,19 +259,11 @@ export const SERVICES = [
   { id: 'sportcast', zh: '博斯（Hami Video・LiTV・4gTV）', en: 'Sportcast (Hami Video, LiTV, 4gTV)' },
   { id: 'myvideo', zh: 'MyVideo', en: 'MyVideo' },
   { id: 'appletv', zh: 'Apple TV', en: 'Apple TV' },
-  { id: 'cpbltv', zh: 'CPBLTV', en: 'CPBLTV' },
-  { id: 'mlbtv', zh: 'MLB.TV', en: 'MLB.TV' },
-  { id: 'nbapass', zh: 'NBA League Pass', en: 'NBA League Pass' },
-  { id: 'f1tv', zh: 'F1 TV', en: 'F1 TV' },
-  { id: 'tennistv', zh: 'Tennis TV', en: 'Tennis TV' },
-  { id: 'ufcpass', zh: 'UFC Fight Pass', en: 'UFC Fight Pass' },
-  { id: 'euroleaguetv', zh: 'EuroLeague TV', en: 'EuroLeague TV' },
+  { id: 'disney', zh: 'Disney+', en: 'Disney+' },
   { id: 'youtube', zh: 'YouTube（免費）', en: 'YouTube (free)' },
   { id: 'soop', zh: 'SOOP（免費）', en: 'SOOP (free)' },
-  { id: 'disney', zh: 'Disney+', en: 'Disney+' },
-  { id: 'vbtv', zh: 'Volleyball TV', en: 'Volleyball TV' },
-  { id: 'kleaguetv', zh: 'K League TV', en: 'K League TV' },
-  { id: 'motogppass', zh: 'MotoGP VideoPass', en: 'MotoGP VideoPass' }
+  { id: 'nbapass', zh: 'WNBA League Pass', en: 'WNBA League Pass' },
+  { id: 'euroleaguetv', zh: 'EuroLeague TV', en: 'EuroLeague TV' }
 ];
 // Whether a league can be watched on any of these services (none picked: any Taiwan broadcast).
 export function watchable(league, services = []) {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar, playGameId, espnDatesFor, parseKambi } from '../public/lib/espn.mjs';
+import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar, espnDatesFor, parseKambi } from '../public/lib/espn.mjs';
 import { LEAGUES, SPORTS } from '../public/lib/leagues.mjs';
 
 const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url)));
@@ -9,13 +9,13 @@ const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, im
 test('every league has a sport, a source and names', () => {
   for (const [key, l] of Object.entries(LEAGUES)) {
     assert.ok(SPORTS[l.sport], key);
-    assert.ok(l.espn || l.kambi || l.asia || l.tsdb || l.motogp || l.fom, key);
+    assert.ok(l.espn || l.kambi || l.asia || l.tsdb || l.fom, key);
     assert.ok(l.zh && l.en, key);
   }
-  // Only what Taiwan can watch (2026-10-01): no ACB, no Eredivisie, no cricket.
-  assert.ok(Object.keys(LEAGUES).length >= 35);
-  for (const k of ['acb', 'eredivisie', 'cricket', 'snooker', 'rugbyunion']) assert.equal(LEAGUES[k], undefined, k);
-  assert.ok(LEAGUES.formulae && LEAGUES.motogp && LEAGUES.kbo && LEAGUES.jleague);
+  // Only what Taiwan can watch on a general service (2026-10-01).
+  assert.ok(Object.keys(LEAGUES).length >= 25);
+  for (const k of ['acb', 'eredivisie', 'cricket', 'snooker', 'rugbyunion', 'motogp', 'atp']) assert.equal(LEAGUES[k], undefined, k);
+  assert.ok(LEAGUES.formulae && LEAGUES.kbo && LEAGUES.jleague && LEAGUES.wnba && LEAGUES.euroleague);
 });
 
 test('team scoreboards: both sides, scores, status', () => {
@@ -30,16 +30,10 @@ test('team scoreboards: both sides, scores, status', () => {
   assert.ok(epl[0].home.logo?.startsWith('https://'));
 });
 
-test('tennis draws, race sessions and fight cards', () => {
-  const [tour] = parseScoreboard(fx('atp-scoreboard'), 'atp');
-  assert.ok(tour.draws.length > 0);
-  const m = tour.draws[0].matches[0];
-  assert.ok(m.a.name && m.b.name);
+test('race sessions', () => {
   const [race] = parseScoreboard(fx('f1-scoreboard'), 'f1');
   assert.ok(race.sessions.length >= 1);
   assert.ok(race.sessions.at(-1).field.length >= 10);
-  const [card] = parseScoreboard(fx('ufc-scoreboard'), 'ufc');
-  assert.ok(card.bouts.length > 0 && card.bouts[0].a.name);
 });
 
 test('a match summary: box score, players, plays, rosters', () => {
@@ -89,11 +83,7 @@ test('a season calendar: game days, days off, or weeks', () => {
   assert.equal(parseCalendar({ leagues: [{}] }), null);
 });
 
-test('Quadra Play ids for the "bet on this" link, and Taiwan days', () => {
-  const [g] = parseScoreboard(fx('epl-scoreboard'), 'epl');
-  const id = playGameId(g);
-  assert.match(id, /^epl_\d{4}-\d{2}-\d{2}T\d{2}_[a-z0-9]+_[a-z0-9]+$/);
-  assert.equal(playGameId({ ...g, league: 'nope' }), null);
+test('Taiwan days', () => {
   assert.deepEqual(espnDatesFor('2026-09-28'), ['20260927', '20260928']);
 });
 
@@ -137,8 +127,7 @@ test('NPB, KBO and CPBL from the proxy\'s month lists', async () => {
   assert.equal(done.status.state, 'post');
   assert.ok(done.home.logo);
   assert.equal(off.status.void, true);
-  // Play's link uses the English names.
-  assert.equal(playGameId({ ...done, status: { state: 'pre' } }), 'cpbl_2026-09-30T10_unipresidentlions_fubonguardians');
+  assert.equal(done.home.en, 'Fubon Guardians');
 });
 
 test('F1 headshots: the racing ones (this season), not the 2021 F1 set', async () => {

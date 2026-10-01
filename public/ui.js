@@ -3,12 +3,11 @@
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
 import { logoPicture, countryFlag, f1Driver } from './lib/logos.mjs';
-import { espnHeadshot, isFlag, knownPhoto, wikiPhoto } from './lib/photos.mjs';
+import { espnHeadshot, isFlag, isCutout, knownPhoto, findPhoto } from './lib/photos.mjs';
 import { liveLabel, liveNote, possessionOf } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { broadcastsOf, AUDIO_NAMES } from './lib/broadcast.mjs';
-import { playGameId, freshHeadshot, SESSION_NAMES } from './lib/espn.mjs';
-import { playable, leagueOnSale } from './lib/playable.mjs';
+import { freshHeadshot, SESSION_NAMES } from './lib/espn.mjs';
 import { tvOf, channelsOf } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
 
@@ -134,9 +133,9 @@ export function logo(url, name, cls = '') {
 }
 // An F1 driver: their headshot, else a badge in their team's colour.
 export const driverLogo = (url, name, cls = '', id = '') => personPic({ id, name, logo: url }, 'f1', cls);
-// A person (a player, a driver, a fighter): their photo wherever there is one
-// (the feed's, ESPN's by their id, Wikipedia's), never a flag while a face can
-// be had; the flag (or, for a driver, their team's colour) only when there's none.
+// A person (a player, a driver): their studio headshot (the feed's, ESPN's by
+// their id or name, TheSportsDB's cutout), never a flag while a face can be
+// had; the flag (or, for a driver, their team's colour) only when there's none.
 // `p`: { id, name, en?, logo?, headshot?, flag? }.
 export function personPic(p, league, cls = '') {
   const name = p?.en || p?.name || '';
@@ -145,16 +144,16 @@ export function personPic(p, league, cls = '') {
   const known = knownPhoto(name, LEAGUES[league]?.sport || '');
   if (known) urls.push(known);
   // Nothing found: the driver's badge, else the flag, else the initials;
-  // Wikipedia asked meanwhile, its photo put in when it comes.
+  // a headshot looked for meanwhile, put in when it comes.
   const last = () => {
     const stand = league === 'f1' ? driverBadge(name, cls) : flagUrl ? logoPicture(flagUrl, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls);
     if (known === undefined && name)
-      wikiPhoto(name, league).then(url => {
-        if (url && stand.isConnected) stand.replaceWith(logoPicture(url, null, `logo ${cls} photo`, () => el('span')));
+      findPhoto(name, league).then(url => {
+        if (url && stand.isConnected) stand.replaceWith(logoPicture(url, null, `logo ${cls} photo${isCutout(url) ? ' cutout' : ''}`, () => el('span')));
       });
     return stand;
   };
-  const chain = i => (i >= urls.length ? last() : logoPicture(urls[i], null, `logo ${cls}${urls[i].includes('wikimedia') ? ' photo' : ''}`, () => chain(i + 1)));
+  const chain = i => (i >= urls.length ? last() : logoPicture(urls[i], null, `logo ${cls}${isCutout(urls[i]) ? ' photo cutout' : ''}`, () => chain(i + 1)));
   return chain(0);
 }
 const initialsPic = (name, cls) =>
@@ -189,7 +188,7 @@ export function statusText(e) {
   // Waiting (rain, a late start): still on, not called off.
   if (s.delayed && s.state === 'pre') return t('delayed');
   if (s.state === 'in') {
-    const label = e.kind === 'match' ? liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale) : fieldStatus(String(s.short || s.detail || t('live')), LEAGUES[e.league]?.sport);
+    const label = e.kind === 'match' ? liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale) : fieldStatus(String(s.short || s.detail || t('live')));
     // ESPN's own word for it ("Delayed") gives way to ours.
     if (s.delayed) return /delay|suspend/i.test(label) ? t('paused') : `${label} · ${t('paused')}`;
     return label;
@@ -220,15 +219,10 @@ function finalText(text) {
   if (/^abandoned$/i.test(t)) return '比賽中止';
   return t;
 }
-// ESPN's words for a card, a tournament or a race on now, in Chinese:
-// "Walkouts", "Round 2", "End of Round 1" (回合 for fights, 輪 for golf), "In Progress".
-function fieldStatus(text, sport) {
+// ESPN's words for a race on now, in Chinese: "In Progress", "Lap 12/57".
+function fieldStatus(text) {
   if (ctx.locale === 'en') return text;
-  const round = sport === 'mma' ? '回合' : '輪';
   return text
-    .replace(/^walkouts?$/i, '選手進場')
-    .replace(/\bEnd of Round (\d+)/i, `第$1${round}結束`)
-    .replace(/\bRound (\d+)/i, `第$1${round}`)
     .replace(/\s*-\s*In Progress\b/i, ' 進行中')
     .replace(/\bIn Progress\b/i, ctx.t('live'))
     .replace(/\bLap (\d+)\s*\/\s*(\d+)/i, '第$1/$2圈')
@@ -243,7 +237,7 @@ function statusEl(e, day = true) {
     return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: clock(e.start) })]) : el('span', { class: 'event-status pre', text: clock(e.start) });
   return el('span', { class: `event-status ${e.status.state}`, text: statusText(e) });
 }
-// A side's picture: a person's photo (a player, a fighter), a team's badge.
+// A side's picture: a person's photo (a badminton player), a team's badge.
 export const sideLogo = (side, league, cls = '') => (side && (side.athlete || LEAGUES[league]?.players) ? personPic(side, league, `${cls} round`) : logo(side?.logo, side?.name, cls));
 export function sideLine(side, e, win) {
   const ball = e.status.state === 'in' && possessionOf(e) === side.homeAway;
@@ -269,43 +263,6 @@ export const seriesText = e => {
   const name = abbr => [e.home, e.away].find(x => x?.abbr && x.abbr.toUpperCase() === String(abbr).toUpperCase())?.short || abbr;
   return seriesLineZh(s, name) || s;
 };
-// 投注: straight into Quadra Play on this game (a tap on it doesn't open the game here).
-// F1 in Play: its race board (the winner, places, flags), or pole position
-// for the qualifying; nothing for practice or a sprint (Play doesn't sell them).
-// A fight card or a tennis draw: the league's board in Play (each bout or
-// match is priced there on its own).
-const F1_BOARD = { Qual: 'f1pole', Race: 'f1' };
-export function playTarget(e) {
-  if (!e || e.other || e.status.state === 'post' || e.status.void) return null;
-  if (e.league === 'f1') {
-    // F1 bets close when the session starts.
-    if (e.status.state === 'in') return null;
-    const id = e.sessionKey ? F1_BOARD[e.sessionKey] ?? null : 'f1';
-    return id ? `game=${id}` : null;
-  }
-  const play = LEAGUES[e.league]?.play;
-  if (!play) return null;
-  // Only what Play has on its board now (lib/playable.mjs): no 投注 on a game it doesn't sell.
-  if (e.kind === 'match') {
-    const id = playable(e) ? playGameId(e) : null;
-    return id ? `game=${id}` : null;
-  }
-  return (e.kind === 'card' || e.kind === 'draw') && leagueOnSale(e.league) ? `league=${play}` : null;
-}
-// Into Play at `target` (a playTarget), from a tap on a chip or a card.
-export function goPlay(target, ev) {
-  ev?.stopPropagation();
-  ev?.preventDefault();
-  ctx.track?.('toPlay', [], 2);
-  ctx.q.go('odds', target);
-}
-export function betChip(e) {
-  const target = playTarget(e);
-  if (!target) return null;
-  const go = ev => goPlay(target, ev);
-  return el('span', { class: `bet-chip${e.status.state === 'in' ? ' live' : ''}`, role: 'link', tabindex: '0', onclick: go, onkeydown: ev => ev.key === 'Enter' && go(ev) }, [document.createTextNode(ctx.t(e.status.state === 'in' ? 'betLive' : 'betChip'))]);
-}
-
 export function eventRow(e, { league = true, day = true } = {}) {
   const { t } = ctx;
   const mine = ctx.isFollowedEvent?.(e);
@@ -322,20 +279,18 @@ export function eventRow(e, { league = true, day = true } = {}) {
         series ? el('small', { class: 'series-line', text: series }) : null,
         liveLine(e),
         tvLine(e)
-      ]),
-      betChip(e)
+      ])
     ]);
   }
-  // Races, tournaments, fight cards: one row for the whole event.
+  // A race weekend (or one of its sessions): one row.
   const ended = e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1);
   // A race weekend's session: its badge says which, so the line under it doesn't repeat it.
   const sess = sessionTag(e);
   const said = sess ? '' : e.session;
-  const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.kind === 'card' ? `${e.bouts?.length || 0} ${t('card')}` : e.venue;
+  const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.venue;
   return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
-    el('div', { class: 'event-title' }, [sess ? el('div', { class: 'sess-head' }, [sess, el('strong', { text: e.name })]) : el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null, tvLine(e)]),
-    betChip(e)
+    el('div', { class: 'event-title' }, [sess ? el('div', { class: 'sess-head' }, [sess, el('strong', { text: e.name })]) : el('strong', { text: e.name }), sub ? el('small', { text: sub }) : null, tvLine(e)])
   ]);
 }
 
@@ -371,23 +326,12 @@ export function diamond(bases = [], outs = 0, big = false) {
   }
   return svg;
 }
-// A tournament, race or fight card on now: what's happening in it.
+// A race on now: who leads it.
 export function fieldNow(e) {
   const en = ctx.locale === 'en';
-  if (e.kind === 'draw') {
-    const live = (e.draws || []).flatMap(d => d.matches).filter(m => m.status.state === 'in');
-    if (!live.length) return '';
-    const m = live[0];
-    const line = `${m.a?.short || m.a?.name || ''} ${(m.a?.lines || []).join(' ')} · ${(m.b?.lines || []).join(' ')} ${m.b?.short || m.b?.name || ''}`.replace(/\s+/g, ' ').trim();
-    return live.length > 1 ? `${line}${en ? ` +${live.length - 1} more` : ` 等 ${live.length} 場`}` : line;
-  }
-  if (e.kind === 'card') {
-    const b = (e.bouts || []).find(x => x.status.state === 'in');
-    return b ? `${b.status.short || ''} ${b.a?.short || b.a?.name || ''} vs ${b.b?.short || b.b?.name || ''}`.trim() : '';
-  }
   const ss = e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.find(x => x.status.state === 'in');
   const lead = ss?.field?.[0];
-  return lead ? `${e.session ? `${e.session} · ` : ''}${en ? 'Leader' : '領先'} ${lead.short || lead.name}${lead.score && LEAGUES[e.league]?.sport === 'golf' ? ` ${lead.score}` : ''}` : '';
+  return lead ? `${e.session ? `${e.session} · ` : ''}${en ? 'Leader' : '領先'} ${lead.short || lead.name}` : '';
 }
 
 // Where to watch it in Taiwan: small chips (the first few). A league's list,

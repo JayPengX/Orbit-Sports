@@ -1,19 +1,18 @@
-// Quadra Fixtures' sheets: a match (header, the way into Play, then its data
-// by section), a race / tournament / fight card, a team, a player, and the
+// Quadra Fixtures' sheets: a match (header, then its data by section), a
+// race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { APPS, appUrl, translate } from './lib/quadra.mjs';
-import { seasonLabel, motogpRider, scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playerPhoto, playPairId, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, rankings, driverSeason, playerMatches } from './lib/espn.mjs';
+import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, playerPhoto, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { possessionOf } from './lib/live.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from './lib/logos.mjs';
-import { playablePair } from './lib/playable.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult } from './lib/f1.mjs';
 import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeams, hasStandings } from './lib/leagues.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, playTarget, goPlay, tvName, watchLink, audioName, sessionTag, personPic, sideLogo } from './ui.js';
+import { ctx, el, put, spinner, empty, logo, driverLogo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, audioName, sessionTag, personPic, sideLogo } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -74,8 +73,7 @@ export async function openMatch(e) {
       ]),
       stageTag(e, L()) || seriesText(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null]) : null,
       linescore(sm, e),
-      livePanel(e),
-      playTarget(e) ? playLink(playTarget(e), e, e.status.state === 'in' ? 'betLiveTitle' : 'betTitle') : null
+      livePanel(e)
     );
   };
   paintHeader(null);
@@ -465,16 +463,16 @@ function winProbCard(d, e) {
   return card(T('winProb'), box);
 }
 
-// ---- Races, tournaments, fight cards ---------------------------------------------------
+// ---- Race weekends ----------------------------------------------------------------------
 
-// A person in a race, tournament or fight: their page, where ESPN has one.
+// A person in a race (or a badminton player): their page, where ESPN has one.
 function personName(league, p, cls = 'field-name') {
   if (!p) return el('span', { class: cls });
   const can = p.id && LEAGUES[league]?.espn && !/^k/.test(String(p.id)) && /^\d+$/.test(String(p.id));
   return el('button', { class: `link ${cls}`, type: 'button', text: p.name, onclick: () => (can ? ctx.openPlayer(league, p.id, p) : openPerson(league, p)) });
 }
-// Someone ESPN has no page for (table tennis, badminton, snooker, a boxer):
-// their photo and a few lines from Wikipedia, their nation, and their matches here.
+// Someone ESPN has no page for (a badminton player): their headshot, a few
+// lines from Wikipedia (text only), and their matches here.
 export async function openPerson(league, p) {
   const name = p.en || p.name;
   const s = sheet(leagueName(league, L()), { league });
@@ -486,7 +484,7 @@ export async function openPerson(league, p) {
       .catch(() => null),
     seasonEvents(league).catch(() => [])
   ]);
-  const words = { badminton: /badminton/i, tabletennis: /table tennis/i, snooker: /snooker/i, boxing: /box/i, mma: /fight|martial|ufc/i, tennis: /tennis/i, volleyball: /volleyball/i }[LEAGUES[league]?.sport];
+  const words = { badminton: /badminton/i }[LEAGUES[league]?.sport];
   const fits = wiki?.type === 'standard' && (!words || words.test(`${wiki.description} ${wiki.extract}`));
   const mine = events.filter(e => [e.home, e.away].some(x => x && (x.id === p.id || (x.en || x.name) === name))).sort((x, y) => x.start.localeCompare(y.start));
   const next = mine.filter(e => e.status.state !== 'post').slice(0, 5);
@@ -539,28 +537,10 @@ function twCard(league, e = null) {
   );
 }
 
-// The Quadra Play card: this game (the F1 board, the league's board) in Play, one tap.
-function playLink(target, e, title) {
-  return el('a', { class: 'play-link', href: appUrl('odds', target), onclick: ev => (ev.preventDefault(), ctx.track('toPlay', eventKeys(e), 2), ctx.q.go('odds', target)) }, [
-    el('img', { src: `${APPS.odds.path}favicon.svg`, alt: '', width: '36', height: '36' }),
-    el('span', { class: 'play-link-text' }, [el('strong', { text: T(title) }), el('small', { text: T('betSub') })]),
-    el('span', { class: 'play-link-go', text: `${T('betGo')} ›` })
-  ]);
-}
-// One bout or draw match in Play: a small 投注 (場中 once on) chip, while it isn't over.
-function pairChip(e, start, a, b, status) {
-  if (status.state === 'post' || status.void) return null;
-  // Only a pair Play has priced.
-  if (!playablePair(e.league, start, a?.en || a?.name, b?.en || b?.name, status.state)) return null;
-  const id = playPairId(e.league, start, a, b);
-  if (!id) return null;
-  return el('button', { class: `bet-chip${status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: ev => goPlay(`game=${id}`, ev) }, [document.createTextNode(T(status.state === 'in' ? 'betLive' : 'betChip'))]);
-}
-
 export function openFieldEvent(e) {
   const s = sheet(leagueName(e.league, L()), { league: e.league });
   fillField(s, e);
-  // Something on: the order, the draw and the bouts again every 30 seconds.
+  // A session on: the order again every 30 seconds.
   const timer = setInterval(async () => {
     if (!s.dialog.isConnected) return clearInterval(timer);
     if (document.visibilityState !== 'visible' || e.status.state !== 'in') return;
@@ -612,12 +592,8 @@ function f1Field(rows, field) {
 }
 function fillField(s, e) {
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [e.sessionKey ? el('div', { class: 'sess-head field-title' }, [sessionTag(e), el('h3', { text: e.name })]) : el('h3', { class: 'field-title', text: e.name }), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') })]));
-  // F1: pole position for the qualifying, the race board otherwise (practice
-  // and sprints aren't sold); a fight card or a tennis draw: the league's board.
   const yt = highlights(e);
   if (yt) s.body.append(yt);
-  const target = playTarget(e);
-  if (target) s.body.append(playLink(target, e, target === 'game=f1pole' ? 'betPoleTitle' : target === 'game=f1' ? 'betF1Title' : e.status.state === 'in' ? 'betBoardLive' : 'betBoard'));
   if (e.kind === 'field') {
     // The weekend's (or week's) sessions, then the chosen one's order.
     const sessions = [...e.sessions].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
@@ -652,41 +628,6 @@ function fillField(s, e) {
     };
     paint();
     s.body.append(box);
-  } else if (e.kind === 'card') {
-    s.body.append(
-      el(
-        'div',
-        { class: 'bouts' },
-        // The main event first (the feed lists the card from the first bout).
-        [...e.bouts].reverse().map(b =>
-          el('div', { class: `q-card pad bout${b.status.state === 'in' ? ' live' : ''}` }, [
-            el('div', { class: 'bout-top' }, [el('small', { class: 'muted' }, joinNodes([zhLater(b.weight), statusText({ ...e, start: b.start, status: b.status })], ' · ')), pairChip(e, b.start || e.start, b.a, b.b, b.status)]),
-            el('div', { class: 'bout-row' }, [
-              el('span', { class: b.a?.winner ? 'win' : '' }, [personPic(b.a || {}, e.league, 'sm round'), personName(e.league, b.a, 'bout-name')]),
-              el('span', { class: 'vs', text: 'vs' }),
-              el('span', { class: b.b?.winner ? 'win' : '' }, [personName(e.league, b.b, 'bout-name'), personPic(b.b || {}, e.league, 'sm round')])
-            ])
-          ])
-        )
-      )
-    );
-  } else if (e.kind === 'draw') {
-    const order = { in: 0, pre: 1, post: 2 };
-    for (const dr of e.draws.map(d => ({ ...d, matches: [...d.matches].sort((a, b) => order[a.status.state] - order[b.status.state] || String(a.start).localeCompare(String(b.start))) }))) {
-      s.body.append(
-        el('h3', { class: 'section-h' }, [zhLater(dr.name)]),
-        el(
-          'div',
-          { class: 'bouts' },
-          dr.matches.map(m =>
-            el('div', { class: `q-card pad bout${m.status.state === 'in' ? ' live' : ''}` }, [
-              el('div', { class: 'bout-top' }, [el('small', { class: 'muted' }, joinNodes([zhLater(m.round), statusText({ ...e, start: m.start, status: m.status })], ' · ')), pairChip(e, m.start || e.start, m.a, m.b, m.status)]),
-              ...[m.a, m.b].filter(Boolean).map(p => el('div', { class: `draw-row${p.winner ? ' win' : ''}` }, [personPic(p, e.league, 'sm round'), personName(e.league, p), el('span', { class: 'num sets', text: p.lines.join(' ') })]))
-            ])
-          )
-        )
-      );
-    }
   }
   s.body.append(twCard(e.league, e));
 }
@@ -725,7 +666,6 @@ export async function openTeam(league, id, fallback = {}) {
         const [me, them] = x.home.id === String(id) ? [x.home, x.away] : [x.away, x.home];
         return me.winner ? 'W' : them.winner ? 'L' : Number(me.score) === Number(them.score) && me.score !== '' ? 'D' : Number(me.score) > Number(them.score) ? 'W' : 'L';
       });
-    const historyBox = el('div');
     put(
       content,
       el('div', { class: `team-head player-hero${info.color ? ' tinted' : ''}`, style: info.color ? `--hero:${info.color}` : null }, [
@@ -743,12 +683,9 @@ export async function openTeam(league, id, fallback = {}) {
       next.length ? el('div', { class: 'q-card list' }, next.map(x => eventRow(x, { league: comps }))) : null,
       past.length ? el('h3', { class: 'section-h', text: T('lastGames') }) : null,
       past.length ? el('div', { class: 'q-card list' }, past.map(x => eventRow(x, { league: comps }))) : null,
-      historyBox,
       el('h3', { class: 'section-h', text: T('roster') }),
       rosterBox
     );
-    // The last five seasons: the team's place and record in each.
-    if (groups?.year) teamHistory(league, id, groups.year).then(rows => rows.length && put(historyBox, card(L() === 'en' ? 'Past seasons' : '歷年戰績', historyTable(league, rows))));
     rosterBox.append(spinner());
     roster(league, id, info.home)
       .then(list =>
@@ -766,42 +703,6 @@ export async function openTeam(league, id, fallback = {}) {
   } catch {
     put(content, empty(T('failed')));
   }
-}
-// A team's last five seasons from the league's past tables: { year, pos,
-// group, stats } for each it played in, latest first.
-async function teamHistory(league, id, year) {
-  const years = [1, 2, 3, 4, 5].map(k => year - k);
-  const tables = await Promise.all(years.map(y => standings(league, y).catch(() => [])));
-  return years
-    .map((y, i) => {
-      for (const g of tables[i] || []) {
-        const at = g.rows.findIndex(r => r.id === String(id));
-        if (at >= 0) return { year: y, pos: at + 1, of: g.rows.length, group: g.name, stats: g.rows[at].stats, champion: at === 0 && (tables[i] || []).length === 1 };
-      }
-      return null;
-    })
-    .filter(Boolean);
-}
-function historyTable(league, rows) {
-  const sport = LEAGUES[league]?.sport;
-  const cols = (sport === 'soccer' ? ['W', 'D', 'L', 'P'] : sport === 'hockey' ? ['W', 'L', 'OTL', 'PTS'] : ['W', 'L', 'PCT']).filter(c => rows.some(r => r.stats[c] != null && r.stats[c] !== ''));
-  const en = L() === 'en';
-  return el('div', { class: 'table-wrap' }, [
-    el('table', { class: 'data team-history' }, [
-      el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: en ? 'Season' : '賽季' }), el('th', { class: 'num', text: en ? 'Place' : '名次' }), ...cols.map(c => el('th', { class: 'num', text: colLabel(c) }))])]),
-      el(
-        'tbody',
-        {},
-        rows.map(r =>
-          el('tr', {}, [
-            el('td', { class: 'left' }, [el('span', { class: 'num', text: seasonLabel(league, r.year) }), r.group && !/20\d\d/.test(r.group) ? el('small', { class: 'muted', text: r.group }) : null]),
-            el('td', { class: 'num' }, [el('span', { class: `pos-pill num${r.pos === 1 ? ' win' : r.pos <= 3 ? ' podium' : ''}`, text: `${r.pos}` })]),
-            ...cols.map(c => el('td', { class: 'num', text: r.stats[c] ?? '' }))
-          ])
-        )
-      )
-    ])
-  ]);
 }
 // A squad in groups: ESPN's own (NFL's offense and defense, MLB's pitchers…)
 // named in the reader's language, else by position (門將, 後衛, 中場, 前鋒).
@@ -888,22 +789,18 @@ function f1Weekends(weekends, en, cars) {
 }
 export async function openPlayer(league, id, fallback = {}) {
   if (!id) return;
-  if (league === 'motogp') return openRider(id, fallback);
   const s = sheet(leagueName(league, L()), { league });
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   try {
     const sport = LEAGUES[league]?.sport;
     // This season, from the league's own tables and results (ESPN's player
-    // card has little for drivers and tennis players): the championship and
-    // each race, the world ranking and the matches.
-    const [a, ov, table, races, rank, events, official] = await Promise.all([
+    // card has little for drivers): the championship and each race.
+    const [a, ov, table, races, official] = await Promise.all([
       athlete(league, id),
       athleteOverview(league, id).catch(() => null),
       sport === 'racing' && LEAGUES[league].standings ? standings(league).catch(() => null) : null,
       sport === 'racing' ? seasonEvents(league).catch(() => []) : null,
-      sport === 'tennis' ? rankings(league).then(list => list.find(r => r.id === String(id)) || null).catch(() => null) : null,
-      LEAGUES[league]?.kind === 'draw' || LEAGUES[league]?.kind === 'card' ? seasonEvents(league).catch(() => []) : null,
       // F1: formula1.com's figures and each weekend's grid, finish and sprint.
       league === 'f1' ? athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })).catch(() => null) : null
     ]);
@@ -916,13 +813,9 @@ export async function openPlayer(league, id, fallback = {}) {
       [sport === 'racing' ? W('車隊', 'Team') : T('team'), driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team || ''],
       [T('country'), countryName(a.country, L())],
       [T('position'), zhLater(a.position)],
-      [T('weightClass'), zhLater(a.weightClass)],
       [T('age'), a.age ? String(a.age) : ''],
       [T('height'), metric(a.height, L())],
       [T('weight'), metric(a.weight, L())],
-      [T('hand'), zhLater(a.hand)],
-      [T('stance'), zhLater(a.stance)],
-      [T('turnedPro'), a.turnedPro ? String(a.turnedPro) : ''],
       [T('born'), dateText(a.dob, a.born, L())],
       [T('birthPlace'), zhLater(a.birthPlace || official?.grids.bio?.find(([k]) => k === 'Place of Birth')?.[1])]
     ].filter(([, v]) => v);
@@ -1008,9 +901,6 @@ export async function openPlayer(league, id, fallback = {}) {
       ? card(W('榮譽', 'Honours'), el('ul', { class: 'award-list' }, ov.awards.map(w => el('li', {}, [el('strong', {}, [zhLater(w.name)]), w.count ? el('span', { class: 'award-count num', text: w.count.replace(/x$/i, '×') }) : null, w.seasons.length ? el('small', { class: 'muted', text: w.seasons.slice(0, 6).join(' · ') + (w.seasons.length > 6 ? ' …' : '') }) : null]))))
       : null;
     const nextRace = (races || []).find(e => e.status.state !== 'post' && Date.parse(e.end || e.start) > Date.now() - 86_400_000);
-    const matches = playerMatches(events, id);
-    const played = matches.filter(m => m.won != null);
-    const upcoming = matches.filter(m => m.status?.state !== 'post' && !m.status?.void).reverse()[0];
     let followBtn = null;
     if (individual(league)) {
       followBtn = el('button', { class: 'q-btn', type: 'button' });
@@ -1022,13 +912,13 @@ export async function openPlayer(league, id, fallback = {}) {
       followBtn.addEventListener('click', () => (ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true }), paintFollow()));
       paintFollow();
     }
-    const sub = [zhLater(a.position || a.weightClass), (driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team) || countryName(a.country, L()), a.record].filter(Boolean);
+    const sub = [zhLater(a.position), (driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team) || countryName(a.country, L()), a.record].filter(Boolean);
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : a.teamColor;
     const lastFive = weekends.length ? weekends.slice(0, 5).reverse().map(w => ({ name: w.e?.name || w.name, ...finishOf(w.me?.result, en) })) : raceRows.slice(0, 5).reverse().map(r => ({ ...r, text: `P${r.pos}` }));
     const shot = a.headshot || fallback.logo;
-    // Their photo (ESPN's, else Wikipedia's); no ESPN one (every footballer):
-    // TheSportsDB's cut-out instead, when it has them.
+    // Their headshot (ESPN's); no ESPN one (every footballer): TheSportsDB's
+    // cut-out instead, when it has them.
     const pic = el('span', { class: 'pic-slot' }, [personPic({ id, name: a.name, headshot: a.headshot, logo: fallback.logo, flag: a.flag }, league, 'xxl round')]);
     if (!a.headshot && a.name) playerPhoto(a.name, sport).then(url => url && pic.isConnected && pic.replaceChildren(logo(url, a.name, 'xxl round cutout')));
     put(
@@ -1058,28 +948,15 @@ export async function openPlayer(league, id, fallback = {}) {
       og.sprint ? card(W('衝刺賽', 'Sprint'), f1Tiles(og.sprint, en)) : null,
       weekends.length ? f1Weekends(weekends, en, [{ key: 'me', head: '' }]) : null,
       mateCard,
-      rank ? card(W('世界排名', 'World ranking'), el('div', { class: 'stat-grid' }, [tile(W('排名', 'Rank'), `#${rank.rank}`, rank.previous && rank.previous !== rank.rank ? `${rank.previous > rank.rank ? '▲' : '▼'} ${Math.abs(rank.previous - rank.rank)}` : ''), tile(W('積分', 'Points'), Number(rank.points).toLocaleString(en ? 'en-US' : 'zh-TW'))])) : null,
       nextRace ? card(W('下一站', 'Next race'), el('p', { class: 'series-text', text: [nextRace.name, whenText(nextRace.start)].filter(Boolean).join(' · ') })) : null,
-      upcoming ? card(W('下一場', 'Next match'), el('p', { class: 'series-text' }, joinNodes([upcoming.event, zhLater(upcoming.round), upcoming.opp?.name ? `vs ${upcoming.opp.name}` : '', upcoming.start ? whenText(upcoming.start) : ''], ' · '))) : null,
       !weekends.length && raceRows.length
         ? card(
             W('本季各站正賽', 'This season, race by race'),
             el('ul', { class: 'info-list results' }, raceRows.map(r => el('li', {}, [el('span', { class: 'info-k', text: r.name }), el('span', { class: `info-v num pos-pill${r.pos <= 3 ? ' podium' : ''}`, text: `P${r.pos}` })])))
           )
         : null,
-      played.length
-        ? card(
-            W('近期比賽', 'Recent matches'),
-            el(
-              'ul',
-              { class: 'info-list results' },
-              played.slice(0, 8).map(m => el('li', {}, [el('span', { class: 'info-k' }, [el('span', { text: `vs ${m.opp?.name || ''}` }), el('small', { class: 'muted' }, joinNodes([m.event, zhLater(m.round)], ' · '))]), el('span', { class: `info-v num result-pill ${m.won ? 'w' : 'l'}`, text: `${m.won ? W('勝', 'W') : W('負', 'L')}${m.score ? ` ${m.score}` : ''}` })]))
-            )
-          )
-        : null,
       a.stats.list.length ? card(statsTitle(a.stats.title, L()) || T('season'), el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(statName(x.label, L()), x.value, x.rank)))) : null,
       logCard,
-      ov?.fight ? card(statsTitle(ov.fight.title, L()) || T('nextEvent'), el('p', { class: 'series-text', text: [ov.fight.name, ov.fight.date ? whenText(ov.fight.date) : '', ov.fight.where].filter(Boolean).join(' · ') })) : null,
       ov?.season
         ? card(
             en || !/career/i.test(ov.season.title) ? statsTitle(ov.season.title, L()) || T('season') : '生涯數據',
@@ -1095,7 +972,6 @@ export async function openPlayer(league, id, fallback = {}) {
           )
         : null,
       ov?.rankings?.length ? card(T('rankings'), el('div', { class: 'stat-grid' }, ov.rankings.map(x => tile(statName(x.label, L()), x.value, x.rank)))) : null,
-      ov?.recent?.length ? card(T('recentEvents'), el('ul', { class: 'info-list' }, ov.recent.map(x => el('li', {}, [el('span', { class: 'info-k', text: x.name }), el('span', { class: 'info-v num', text: [x.place, x.score].filter(Boolean).join(' · ') || dayLabel(localDate(Date.parse(x.date))) })])))) : null,
       og.career ? card(W('生涯數據', 'Career'), f1Tiles(og.career, en)) : null,
       awardsCard,
       facts.length ? card(T('profile'), el('ul', { class: 'info-list' }, facts.map(([k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [v])])))) : null,
@@ -1255,76 +1131,6 @@ export async function openConstructor(row) {
   }
 }
 
-// A MotoGP rider: the series' own profile, their place this season, career
-// totals in the class and every season (any class) they've raced.
-export async function openRider(id, fallback = {}) {
-  const league = 'motogp';
-  const en = L() === 'en';
-  const W = (zh, eng) => (en ? eng : zh);
-  const s = sheet(leagueName(league, L()), { league });
-  const content = el('div', {}, [spinner()]);
-  s.body.append(content);
-  try {
-    const [r, table] = await Promise.all([motogpRider(id), standings(league).catch(() => [])]);
-    const rows = table?.[0]?.rows || [];
-    const at = rows.findIndex(x => x.id === id);
-    const me = rows[at];
-    const followBtn = el('button', { class: 'q-btn small', type: 'button' });
-    const paintFollow = () => {
-      const on = ctx.isFollowed(league, id);
-      followBtn.textContent = on ? T('following') : `+ ${T('follow')}`;
-      followBtn.classList.toggle('primary', !on);
-    };
-    paintFollow();
-    followBtn.addEventListener('click', () => (ctx.toggleFollow(league, { id, name: r.name || fallback.name, logo: r.photo, athlete: true }), paintFollow()));
-    const age = r.born ? Math.floor((Date.now() - Date.parse(r.born)) / (365.25 * 86_400_000)) : null;
-    const c = r.career;
-    const n = x => (x == null ? '–' : String(x));
-    put(
-      content,
-      el('div', { class: `team-head player-hero${r.teamColor ? ' tinted' : ''}`, style: r.teamColor ? `--hero:${r.teamColor}` : null }, [
-        el('span', { class: 'pic-slot' }, [r.photo ? logo(r.photo, r.name, 'xxl round cutout') : personPic({ id, name: r.name, logo: fallback.logo }, league, 'xxl round')]),
-        el('div', { class: 'team-head-text' }, [
-          el('h3', { text: `${r.name || fallback.name || ''}${r.number != null ? ` #${r.number}` : ''}` }),
-          el('p', { class: 'muted', text: [r.team, r.bike, countryName(r.country, L())].filter(Boolean).join(' · ') })
-        ]),
-        followBtn
-      ]),
-      me
-        ? card(
-            W(`${new Date().getFullYear()} 車手積分榜`, `${new Date().getFullYear()} riders' championship`),
-            el('div', { class: 'stat-grid' }, [tile(W('排名', 'Place'), `P${at + 1}`, W(`共 ${rows.length} 位`, `of ${rows.length}`)), tile(W('積分', 'Points'), me.stats.PTS), tile(W('分站冠軍', 'Wins'), me.stats.W), tile(W('頒獎台', 'Podiums'), me.stats.POD), at > 0 ? tile(W('落後領先者', 'Behind the leader'), String(Number(rows[0].stats.PTS) - Number(me.stats.PTS))) : null].filter(Boolean))
-          )
-        : null,
-      card(W('MotoGP 生涯', 'MotoGP career'), el('div', { class: 'stat-grid dense' }, [tile(W('出賽', 'Starts'), n(c.starts)), tile(W('冠軍', 'Wins'), n(c.wins)), tile(W('頒獎台', 'Podiums'), n(c.podiums)), tile(W('桿位', 'Poles'), n(c.poles)), tile(W('衝刺賽冠軍', 'Sprint wins'), n(c.sprintWins)), tile(W('世界冠軍', 'Titles'), n(c.titles))])),
-      r.seasons.length
-        ? card(
-            W('歷年成績', 'Season by season'),
-            el('div', { class: 'table-wrap' }, [
-              el('table', { class: 'data rider-seasons' }, [
-                el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: W('賽季', 'Season') }), el('th', { class: 'left', text: W('組別', 'Class') }), el('th', { class: 'num', text: W('名次', 'Pos') }), el('th', { class: 'num', text: W('勝', 'W') }), el('th', { class: 'num', text: W('台', 'Pod') }), el('th', { class: 'num', text: W('分', 'Pts') })])]),
-                el('tbody', {}, r.seasons.map(x => el('tr', {}, [el('td', { class: 'left num', text: String(x.season) }), el('td', { class: 'left' }, [el('span', { text: x.category }), x.bike ? el('small', { class: 'muted', text: x.bike }) : null]), el('td', { class: 'num' }, [x.position ? el('span', { class: `pos-pill num${x.position === 1 ? ' win' : x.position <= 3 ? ' podium' : ''}`, text: `P${x.position}` }) : el('span', { class: 'muted', text: '–' })]), el('td', { class: 'num', text: String(x.wins) }), el('td', { class: 'num', text: String(x.podiums) }), el('td', { class: 'num', text: String(x.points) })])))
-              ])
-            ])
-          )
-        : null,
-      card(
-        W('車手資料', 'Profile'),
-        el('ul', { class: 'info-list' }, [
-          r.born ? [W('生日', 'Born'), `${r.born.replace(/-/g, '/')}${age ? W(`（${age} 歲）`, ` (${age})`) : ''}`] : null,
-          r.birthplace ? [W('出生地', 'Birthplace'), r.birthplace] : null,
-          r.height ? [W('身高', 'Height'), `${r.height} cm`] : null,
-          r.weight ? [W('體重', 'Weight'), `${r.weight} kg`] : null,
-          r.since ? [W('出道', 'Since'), String(r.since)] : null
-        ]
-          .filter(Boolean)
-          .map(([k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v', text: v })])))
-      )
-    );
-  } catch {
-    put(content, empty(T('failed')));
-  }
-}
 
 // ---- Standings tables -----------------------------------------------------------------------
 

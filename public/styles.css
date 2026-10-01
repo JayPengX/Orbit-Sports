@@ -160,12 +160,6 @@ img { max-width: 100%; }
 .mh-mid { display: grid; justify-items: center; gap: 4px; padding-top: 10px; min-width: 88px; }
 .mh-score { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; line-height: 1.1; }
 .mh-time { font-size: 26px; font-weight: 800; white-space: nowrap; }
-.play-link { display: flex; align-items: center; gap: 12px; margin: 12px 0 0; padding: 12px 14px; border-radius: var(--q-radius); background: linear-gradient(135deg, color-mix(in srgb, var(--quadra-odds) 14%, var(--q-surface)), var(--q-surface)); border: 1px solid color-mix(in srgb, var(--quadra-odds) 30%, var(--q-border)); color: var(--q-text); text-decoration: none; }
-.play-link img { flex: none; border-radius: 10px; }
-.play-link-text { display: grid; gap: 1px; flex: 1; min-width: 0; }
-.play-link-text strong { font-size: 15px; }
-.play-link-text small { font-size: 12px; color: var(--q-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.play-link-go { flex: none; padding: 8px 14px; border-radius: 10px; background: var(--quadra-odds); color: #fff; font-weight: 800; font-size: 14px; }
 
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
@@ -237,21 +231,13 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 
 /* Races, tournaments, fight cards, draws */
 .field { list-style: none; margin: 8px 0 0; padding: 0; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: var(--q-radius); }
+.field .link.field-name { text-align: left; font-weight: 600; }
 .field li { display: grid; grid-template-columns: 28px auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 14px; }
 .field li:first-child { border-top: 0; }
 .pos { color: var(--q-muted); font-weight: 700; text-align: right; }
 .field li:nth-child(-n + 3) .pos { color: var(--accent); }
 .field-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .field small { color: var(--q-muted); white-space: nowrap; }
-.bouts { display: grid; gap: 10px; }
-.bouts .q-card + .q-card { margin-top: 0; }
-.bout { display: grid; gap: 6px; }
-.bout-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; font-size: 14px; }
-.bout-row > span { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.bout-row > span:last-child { justify-content: flex-end; }
-.bout-row .vs { color: var(--q-muted); font-size: 12px; }
-.bout-row .win, .draw-row.win { font-weight: 800; }
-.draw-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 14px; }
 .sets { letter-spacing: 0.08em; }
 
 /* Teams and players */
@@ -480,9 +466,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 
 /* People in races, tournaments and fights */
 .field li.mine { background: var(--accent-wash); }
-.field .link.field-name, .draw-row .link.field-name { text-align: left; font-weight: 600; }
-.bout-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bout-row .link { font-weight: 650; }
 
 /* Sideways rows run to the screen's edges on phones (they scroll off the
    edge instead of stopping short of it). */
@@ -547,8 +530,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .lp-goals li .num { color: var(--q-muted); font-weight: 700; flex: none; }
 .lp-goals li span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .lp-last { margin: 0; font-size: 13px; line-height: 1.45; color: var(--q-text-2); display: grid; gap: 2px; }
-.bout.live { box-shadow: inset 3px 0 0 var(--live); }
-.bout.live > small { color: var(--live); font-weight: 750; }
 
 /* ---- 推薦: one sport's days ---- */
 .day-strip-wait { display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 0 4px; }
@@ -578,13 +559,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .league-head .tw-chips { flex-wrap: wrap; overflow: visible; }
 
 /* Quadra Play, quietly: a small outlined chip on games Play sells. */
-.bet-chip { align-self: center; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 11px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--quadra-odds) 14%, transparent); color: color-mix(in srgb, var(--quadra-odds) 88%, var(--q-text)); font-size: 0.76rem; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; cursor: pointer; transition: transform 0.12s ease, filter 0.12s ease; }
-.bet-chip:active { transform: scale(0.95); }
-.bet-chip.live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--live, #e11d48); }
-.pick-time .bet-chip.live::before { background: #fff; }
-.event-row:has(.bet-chip) { align-items: center; }
-.pick-time .bet-chip { margin-top: 10px; width: 100%; padding: 7px 0; background: var(--quadra-odds); color: #fff; box-shadow: 0 2px 8px color-mix(in srgb, var(--quadra-odds) 35%, transparent); }
-.event-row:has(> .bet-chip) { grid-template-columns: 76px minmax(0, 1fr) auto; }
 
 /* ---- Nothing cut on a phone: live status, league names, live lines and titles take two lines ---- */
 .event-status.in { white-space: normal; line-height: 1.25; overflow-wrap: anywhere; }
@@ -594,19 +568,12 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .live-line .live-two { display: flex; flex-direction: column; min-width: 0; -webkit-line-clamp: unset; }
 .live-line .live-two > span { -webkit-line-clamp: 2; }
 .event-title strong, .event-title small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; line-height: 1.3; }
-.play-link-text small { white-space: normal; line-height: 1.3; }
-.bout-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
-.bout-top > small { min-width: 0; }
-.bout.live .bout-top > small { color: var(--live); font-weight: 750; }
 .logo.player-flag { border-radius: 50%; }
 /* 首頁's games on now */
 .live-strip .event-row { border-left: 0; }
 .live-strip-more { display: block; width: 100%; padding: 11px 14px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: var(--live); font-weight: 750; font-size: 13.5px; text-align: center; }
 .live-now .q-section-head h2 { color: var(--live); }
 .side-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; line-height: 1.25; overflow-wrap: anywhere; }
-.bout-row > span { white-space: normal; }
-.bout-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; line-height: 1.25; overflow-wrap: anywhere; }
-.bout-row > span:last-child .bout-name { text-align: right; }
 
 /* ---- Player and team sheets ---- */
 /* The head in the team's colour: a soft wash, the picture on a ring of it. */
@@ -642,9 +609,7 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 
 /* 你的投注 on 首頁: the game, and the pick under it */
 /* A pick bet on in Play: its pick under the sides; a 🎫 on the day's chip. */
-.pick-bet { display: block; font-size: 12.5px; font-weight: 650; color: var(--accent); overflow-wrap: anywhere; }
 .day-strip .q-chip.day { position: relative; }
-.day-bet { position: absolute; top: -4px; right: -2px; font-size: 11px; line-height: 1; }
 
 /* A race weekend's session at a glance: a coloured badge before the name (the race the boldest). */
 .sess-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
@@ -772,12 +737,5 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .svc-strip .q-chip { display: inline-flex; align-items: center; gap: 6px; }
 .svc-n { font-size: 11px; opacity: 0.7; }
 
-.rider-seasons td.left small { display: block; font-size: 11px; }
-.rider-seasons td, .rider-seasons th { padding-left: 4px; padding-right: 4px; }
-.rider-seasons .pos-pill { padding: 2px 7px; }
 
 /* 排名: past seasons, and a past season's champion. */
-.season-chips { margin: 0 0 10px; }
-.champ-card { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-.champ-card strong { display: block; font-size: 16px; }
-.team-history td.left small { display: block; font-size: 11px; }
