@@ -427,7 +427,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .sb-top strong { color: var(--q-text-2); font-weight: 700; }
 .wp { display: grid; gap: 6px; }
 .wp-labels { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 750; color: var(--q-text-2); }
-.team-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-bottom: 4px; }
+.team-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 4px; }
 .standings tr.marked > * { background: var(--q-sunken); }
 .field-title { font-size: 17px; margin-bottom: 4px; }
 .play-text b { font-weight: 750; }
@@ -710,3 +710,20 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .team-disc-img { width: 74%; height: 74%; object-fit: contain; }
 .share-line { display: grid; gap: 4px; width: 100%; justify-items: center; }
 .share-line small { font-size: 0.7rem; }
+/* F1: a retirement, and a sprint's finish beside the race's. */
+.pos-pill.out { background: color-mix(in srgb, var(--q-bad) 18%, transparent); color: var(--q-bad); }
+.pos-pill.small { font-size: 11px; padding: 0 6px; margin-left: 4px; opacity: 0.85; }
+.f1-weekends td.left small { margin-left: 6px; }
+.f1-weekends td.num { white-space: nowrap; }
+/* An F1 result: driver over team, time over gained places and points. */
+.f1-field li { grid-template-columns: 34px auto minmax(0, 1fr) auto; }
+.f1-field .pos.out { font-size: 11px; color: var(--q-bad); }
+.f1-who { display: grid; min-width: 0; }
+.f1-team { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--q-muted); min-width: 0; text-align: left; }
+.f1-team .logo.xxs { width: 14px; height: 14px; font-size: 7px; }
+.f1-res { display: grid; justify-items: end; gap: 2px; }
+.f1-tags { display: inline-flex; gap: 6px; align-items: center; }
+.f1-tags .up { color: var(--q-good); }
+.f1-tags .down { color: var(--q-bad); }
+.f1-tags .fl { color: #a855f7; }
+.f1-tags .pts { font-size: 12px; }
