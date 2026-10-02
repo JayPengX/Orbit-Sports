@@ -139,10 +139,12 @@ img { max-width: 100%; }
 .event-title small { color: var(--q-muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* A game on now with 觀看 beside its row: one tap into ELTA.tv's (or Apple TV's) app. */
-.watch-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-top: 1px solid var(--q-divider, var(--q-border)); }
+/* A live row's 觀看: on a line of its own under the row, at the right, so
+   it never sits on the scores or the row's lines. */
+.watch-row { display: flex; flex-direction: column; border-top: 1px solid var(--q-divider, var(--q-border)); }
 .list > .watch-row:first-child { border-top: 0; }
-.watch-row > .event-row { border-top: 0; padding-right: 4px; }
-.watch-row > .watch-btn { margin-right: 12px; }
+.watch-row > .event-row { border-top: 0; padding-bottom: 6px; }
+.watch-row > .watch-btn { align-self: flex-end; margin: 0 14px 12px; }
 .watch-btn { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 8px 13px 8px 11px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); text-decoration: none; line-height: 1.1; }
 .watch-play { flex: none; width: 0; height: 0; border-style: solid; border-width: 6px 0 6px 10px; border-color: transparent transparent transparent currentColor; }
 .watch-text { display: grid; }
