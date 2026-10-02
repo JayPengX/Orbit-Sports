@@ -311,35 +311,48 @@ export function eventRow(e, { league = true, day = true } = {}) {
 }
 
 // A game on now: its line (count, outs and runners; the latest goal), for
-// the row under the sides.
+// the row under the sides. Baseball: the bases and outs drawn, the count,
+// then who bats against whom by last name, quietly.
 export function liveLine(e) {
   if (e.status.state !== 'in' || !e.live) return null;
   const sport = LEAGUES[e.league]?.sport;
+  if (sport === 'baseball' && e.live.bases) {
+    const lv = e.live;
+    const en = ctx.locale === 'en';
+    const last = name => String(name || '').replace(/\s+(Jr\.?|Sr\.?|II|III|IV)$/i, '').split(' ').at(-1);
+    const who = lv.batter && lv.pitcher ? `${last(lv.batter)} vs ${last(lv.pitcher)}` : last(lv.batter);
+    return el('div', { class: 'live-line base' }, [
+      diamond(lv.bases, lv.outs),
+      el('span', { class: 'live-text' }, [
+        el('span', { class: 'live-count num', text: en ? `${lv.balls ?? 0}-${lv.strikes ?? 0} · ${lv.outs ?? 0} out` : `${lv.balls ?? 0}壞${lv.strikes ?? 0}好 · ${lv.outs ?? 0}出局` }),
+        who ? el('span', { class: 'live-who', text: who }) : null
+      ])
+    ]);
+  }
   const note = liveNote(e, sport, ctx.locale);
-  if (!note && !(sport === 'baseball' && e.live.bases)) return null;
-  // Baseball's count and its batter vs pitcher: a line each, so neither is cut.
-  const [first, ...rest] = sport === 'baseball' ? note.split(' · ') : [note];
-  const text = rest.length ? el('span', { class: 'live-two' }, [el('span', { text: first }), el('span', { text: rest.join(' · ') })]) : note ? el('span', { text: note }) : null;
-  return el('div', { class: 'live-line' }, [sport === 'baseball' && e.live.bases ? diamond(e.live.bases, e.live.outs) : null, text]);
+  return note ? el('div', { class: 'live-line' }, [el('span', { text: note })]) : null;
 }
-// Baseball: the three bases (filled when a runner is on) and the outs.
+// Baseball: the three bases (filled when a runner is on) and, unless
+// `outs` is null, the outs as three dots under them.
 export function diamond(bases = [], outs = 0, big = false) {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 34 22');
-  svg.setAttribute('class', `diamond${big ? ' big' : ''}`);
-  svg.setAttribute('aria-label', `${bases.map((b, i) => (b ? i + 1 : '')).join('')} ${outs}`);
+  const withOuts = outs != null;
+  svg.setAttribute('viewBox', withOuts ? '0 0 30 30' : '0 0 30 21');
+  svg.setAttribute('class', `diamond${big ? ' big' : ''}${withOuts ? '' : ' bare'}`);
+  svg.setAttribute('aria-label', `${bases.map((b, i) => (b ? i + 1 : '')).join('')} ${outs ?? ''}`.trim());
   const base = (x, y, on) => {
     const r = document.createElementNS(ns, 'rect');
-    for (const [k, v] of Object.entries({ x: x - 3.6, y: y - 3.6, width: 7.2, height: 7.2, transform: `rotate(45 ${x} ${y})`, class: on ? 'on' : '' })) r.setAttribute(k, v);
+    for (const [k, v] of Object.entries({ x: x - 3.4, y: y - 3.4, width: 6.8, height: 6.8, rx: 1, transform: `rotate(45 ${x} ${y})`, class: on ? 'on' : '' })) r.setAttribute(k, v);
     return r;
   };
-  svg.append(base(24, 10, bases[0]), base(17, 4, bases[1]), base(10, 10, bases[2]));
-  for (let i = 0; i < 3; i++) {
-    const c = document.createElementNS(ns, 'circle');
-    for (const [k, v] of Object.entries({ cx: 11 + i * 6, cy: 19, r: 1.9, class: i < outs ? 'on' : '' })) c.setAttribute(k, v);
-    svg.append(c);
-  }
+  svg.append(base(23, 13, bases[0]), base(15, 5.5, bases[1]), base(7, 13, bases[2]));
+  if (withOuts)
+    for (let i = 0; i < 3; i++) {
+      const c = document.createElementNS(ns, 'circle');
+      for (const [k, v] of Object.entries({ cx: 9 + i * 6, cy: 26.5, r: 2.2, class: i < outs ? 'on' : '' })) c.setAttribute(k, v);
+      svg.append(c);
+    }
   return svg;
 }
 // A race on now: who leads it.

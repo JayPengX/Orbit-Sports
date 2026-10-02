@@ -179,6 +179,9 @@ export function pitchZh(text) {
   if (/^Pitchout$/i.test(t)) return '故意偏投';
   if (/^Hit By Pitch$/i.test(t)) return '觸身球';
   if (/^Intentional Ball$/i.test(t)) return '故意壞球';
+  // "Grant Holmes pitches to J.T. Realmuto": who's up, in the players' own names.
+  m = /^(.+?) pitches to (.+?)\.?$/i.exec(t);
+  if (m) return `${m[1]} 對 ${m[2]}，準備投球`;
   return null;
 }
 // Height and weight in metres and kilos ("6' 2\"" → 188 公分, "195 lbs" → 88 公斤).

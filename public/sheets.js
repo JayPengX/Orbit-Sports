@@ -154,7 +154,7 @@ function livePanel(e) {
   if (sport === 'baseball' && lv.bases) {
     rows.push(
       el('div', { class: 'lp-baseball' }, [
-        diamond(lv.bases, lv.outs, true),
+        diamond(lv.bases, null, true),
         el('div', { class: 'lp-count' }, [
           el('span', {}, [el('small', { text: 'B' }), dots(lv.balls, 4, 'ball')]),
           el('span', {}, [el('small', { text: 'S' }), dots(lv.strikes, 3, 'strike')]),
