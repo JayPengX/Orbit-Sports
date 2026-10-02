@@ -308,16 +308,20 @@ const rawDays = new Map();
 async function readDay(leagues, date, { current = false } = {}) {
   const dates = espnDaysOf(date);
   const isToday = date === today();
+  // A league that couldn't be read is counted, never taken for "no games".
+  let failed = 0;
+  const miss = () => (failed++, []);
   const lists = await Promise.all(
     leagues.map(k => {
       const l = LEAGUES[k];
       // A race weekend: what's on that day (ESPN's dated page lists the
       // events running then); the other sources' lists are the season's anyway.
-      if (l.kind !== 'match') return (isToday ? scoreboard(k) : l.espn ? scoreboard(k, dates) : seasonEvents(k)).catch(() => []);
+      if (l.kind !== 'match') return (isToday ? scoreboard(k) : l.espn ? scoreboard(k, dates) : seasonEvents(k)).catch(miss);
       // Soccer by its dated pages even for what's on now: a cup's current page can be a round long past.
-      return scoreboard(k, l.espn && (!current || l.sport === 'soccer') ? dates : undefined).catch(() => []);
+      return scoreboard(k, l.espn && (!current || l.sport === 'soccer') ? dates : undefined).catch(miss);
     })
   );
+  if (leagues.length && failed === leagues.length) throw new Error('unread');
   const now = Date.now();
   const raw = lists
     .flat()
@@ -331,7 +335,9 @@ async function readDay(leagues, date, { current = false } = {}) {
   // Results are the whole day's: a game in the small hours that's over (or
   // any of a past day's) counts for its day, it just wasn't one to wake up for.
   const past = date < today();
-  return raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || (inDay(Date.parse(e.start), date) && nightWorthy(e)) || ((past || e.status.state === 'post') && inDay(Date.parse(e.start), date)) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
+  const out = raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || (inDay(Date.parse(e.start), date) && nightWorthy(e)) || ((past || e.status.state === 'post') && inDay(Date.parse(e.start), date)) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
+  out.failed = failed;
+  return out;
 }
 function repaintDay(date) {
   paintStatus();
@@ -347,17 +353,25 @@ async function loadDay(date) {
   const isToday = date === today();
   loadTables();
   const key = leaguesKey();
+  let retry = false;
   try {
     const events = await readDay(pickLeagues(), date);
-    if (isToday) noticeChanges(events);
-    Object.assign(slot, { events, at: Date.now(), stale: false, leagues: key });
-    if (isToday) saveDay(date, slot);
+    // Some leagues unread: what came is shown (with what was there of the
+    // others), and the day is read again shortly.
+    const kept = events.failed ? [...events, ...slot.events.filter(e => !events.some(x => x.league === e.league))] : events;
+    if (isToday) noticeChanges(kept);
+    Object.assign(slot, { events: kept, at: Date.now(), stale: false, leagues: key });
+    if (isToday && !events.failed) saveDay(date, slot);
+    retry = events.failed > 0;
   } catch {
-    // Tried for these follows (a failed read isn't read again at once).
+    // Nothing read: the last copy stays, and it's tried again shortly.
     Object.assign(slot, { at: slot.at || Date.now(), stale: false, leagues: key });
+    retry = true;
   } finally {
     slot.loading = false;
   }
+  if (retry && (slot.retries = (slot.retries || 0) + 1) <= 4) setTimeout(() => loadDay(date), 4000 * slot.retries);
+  else if (!retry) slot.retries = 0;
   // The follows changed while reading: read again for them.
   if (key !== leaguesKey()) return loadDay(date);
   // The others (and the rest) again too, once they've been read for this day;
@@ -801,8 +815,11 @@ async function nextPickDay() {
   const h = state.home;
   const sets = await Promise.all(
     followedSports().map(async sp => {
-      if (!h.sportDays.has(sp)) h.sportDays.set(sp, await sportDays(sp).catch(() => new Set()));
-      return h.sportDays.get(sp);
+      if (!h.sportDays.has(sp) && tvReady()) {
+        const days = await sportDays(sp).catch(() => null);
+        if (days && (days.size || !days.failed)) h.sportDays.set(sp, days);
+      }
+      return h.sportDays.get(sp) || new Set();
     })
   );
   return [...new Set(sets.flatMap(x => [...x]))].filter(d => d > today()).sort()[0] || null;
@@ -813,12 +830,15 @@ async function pickFilter(k) {
   h.shown = 20;
   renderHome();
   if (!SPORTS[k]) return;
+  // The days are the ones on TV here: worked out once the TV lists are in
+  // (they repaint, and pick again, when they come), and not kept when the
+  // leagues couldn't be read.
   if (!h.sportDays.has(k)) {
-    try {
-      h.sportDays.set(k, await sportDays(k));
-    } catch {
-      h.sportDays.set(k, new Set());
-    }
+    if (!tvReady()) return;
+    const days = await sportDays(k).catch(() => null);
+    if (!days) return;
+    if (days.size || !days.failed) h.sportDays.set(k, days);
+    else return void setTimeout(() => h.filter === k && pickFilter(k), 5000);
   }
   const days = h.sportDays.get(k);
   if (h.filter !== k) return;
@@ -835,19 +855,23 @@ async function sportDays(sport) {
   const to = addDays(today(), stripRange.to);
   const usFrom = yyyymmdd(new Date(Date.parse(`${from}T00:00:00`) - 12 * 3_600_000));
   const usTo = yyyymmdd(new Date(Date.parse(`${to}T23:59:59`)));
+  let failed = 0;
+  const miss = () => (failed++, []);
   const lists = await Promise.all(
     leagues.map(async k => {
       const l = LEAGUES[k];
-      if (l.kind !== 'match') return seasonEvents(k).catch(() => []);
-      if (l.asia) return scoreboard(k).catch(() => []);
+      if (l.kind !== 'match') return seasonEvents(k).catch(miss);
+      if (l.asia) return scoreboard(k).catch(miss);
       const cal = await seasonCalendar(k).catch(() => null);
-      if (cal?.months) return scoreboard(k, monthsBetween(Date.parse(`${from}T00:00:00`) - 86_400_000, Date.parse(`${to}T23:59:59`))).catch(() => []);
+      if (!cal) return miss();
+      if (cal?.months) return scoreboard(k, monthsBetween(Date.parse(`${from}T00:00:00`) - 86_400_000, Date.parse(`${to}T23:59:59`))).catch(miss);
       const us = (cal?.days || []).filter(d => d >= usFrom && d <= usTo);
-      return us.length ? scoreboard(k, us).catch(() => []) : [];
+      return us.length ? scoreboard(k, us).catch(miss) : [];
     })
   );
   const now = Date.now();
   const days = new Set();
+  days.failed = failed;
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
     if (e.status?.void || (e.status?.state !== 'post' && !onTv(e))) continue;
     const ms = Date.parse(e.start);
@@ -1730,6 +1754,9 @@ audioPref(() => state.prefs.audio || 'en');
 const repaintOpen = () => {
   clearTimeout(repaintTimer);
   repaintTimer = setTimeout(() => {
+    // Which days a sport plays on TV here changes with the lists: worked out again.
+    state.home.sportDays.clear();
+    if (state.tab === 'home' && SPORTS[state.home.filter]) pickFilter(state.home.filter);
     if (document.querySelector('dialog[open]')) return;
     if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
     if (state.tab === 'live') renderLive();
