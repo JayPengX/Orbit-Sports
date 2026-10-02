@@ -130,6 +130,13 @@ export async function openMatch(e) {
         paint();
       })
       .catch(() => {});
+  // A league ESPN doesn't cover (CPBL): the table counted from its own season.
+  else if (LEAGUES[e.league].asia && e.kind === 'match')
+    ownTeam(e.league, e.home.id, e.home)
+      .then(([, , groups]) => {
+        if (groups) (table = groups), paint();
+      })
+      .catch(() => {});
   if (!LEAGUES[e.league].espn) {
     paint();
     return;
@@ -358,7 +365,8 @@ function overview(d, e, table, nameOf) {
   const forms = sides.map(s => d?.form.find(f => f.team === s.id)?.games || []);
   const sm = side => d?.byId?.[side.id] || side;
   const compareRows = [
-    [T('record'), ...sides.map(s => sm(s).record || s.record || '—')],
+    // The record: the feed's, else the table's wins and losses.
+    [T('record'), ...sides.map((s, i) => sm(s).record || s.record || (places[i]?.row?.stats?.W != null ? `${places[i].row.stats.W}-${places[i].row.stats.L}` : '—'))],
     places.some(Boolean) ? [T('standing'), ...places.map(p => (p ? placeCell(p, (table?.length || 0) > 1) : '—'))] : null,
     ...(places.every(Boolean) ? keyStats(e.league, places) : [])
   ].filter(Boolean);
