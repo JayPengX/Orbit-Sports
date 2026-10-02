@@ -128,7 +128,7 @@ export function watchButton(e, cls = '') {
   if (!b) return null;
   return watchLink(b, { class: `watch-btn ${cls}`.trim(), 'aria-label': `${ctx.locale === 'en' ? 'Watch on' : '觀看'} ${b[ctx.locale === 'en' ? 'en' : 'zh']}` }, [
     el('span', { class: 'watch-play', 'aria-hidden': 'true' }),
-    el('span', { class: 'watch-text' }, [el('strong', { text: ctx.locale === 'en' ? 'Watch' : '觀看' }), el('small', { text: b.short[ctx.locale === 'en' ? 'en' : 'zh'] })])
+    el('span', { class: 'watch-text' }, [el('strong', { text: ctx.locale === 'en' ? 'Watch' : '觀看' }), cls.includes('wide') ? el('small', { text: b.short[ctx.locale === 'en' ? 'en' : 'zh'] }) : null])
   ]);
 }
 // A row with its watch button beside it (a live game's), or the row alone.
@@ -321,11 +321,13 @@ export function liveLine(e) {
     const en = ctx.locale === 'en';
     const last = name => String(name || '').replace(/\s+(Jr\.?|Sr\.?|II|III|IV)$/i, '').split(' ').at(-1);
     const who = lv.batter && lv.pitcher ? `${last(lv.batter)} vs ${last(lv.pitcher)}` : last(lv.batter);
+    // The batter's and pitcher's faces, overlapping.
+    const faces = [lv.batterWho, lv.pitcherWho].filter(Boolean);
     return el('div', { class: 'live-line base' }, [
       diamond(lv.bases, lv.outs),
       el('span', { class: 'live-text' }, [
         el('span', { class: 'live-count num', text: en ? `${lv.balls ?? 0}-${lv.strikes ?? 0} · ${lv.outs ?? 0} out` : `${lv.balls ?? 0}壞${lv.strikes ?? 0}好 · ${lv.outs ?? 0}出局` }),
-        who ? el('span', { class: 'live-who', text: who }) : null
+        who ? el('span', { class: 'live-who' }, [faces.length ? el('span', { class: 'live-faces', 'aria-hidden': 'true' }, faces.map(p => personPic({ ...p, en: p.name }, e.league, 'xs round'))) : null, el('span', { class: 'live-names', text: who })]) : null
       ])
     ]);
   }

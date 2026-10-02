@@ -160,7 +160,10 @@ function livePanel(e) {
           el('span', {}, [el('small', { text: 'S' }), dots(lv.strikes, 3, 'strike')]),
           el('span', {}, [el('small', { text: 'O' }), dots(lv.outs, 3, 'out')])
         ]),
-        el('div', { class: 'lp-who' }, [lv.batter ? el('p', {}, [el('small', { text: T('batter') }), el('strong', { text: lv.batter })]) : null, lv.pitcher ? el('p', {}, [el('small', { text: T('pitcher') }), el('strong', { text: lv.pitcher })]) : null])
+        el('div', { class: 'lp-who' }, [
+          lv.batter ? el('div', { class: 'lp-person' }, [lv.batterWho ? personPic({ ...lv.batterWho, en: lv.batterWho.name }, e.league, 'md round') : null, el('p', {}, [el('small', { text: T('batter') }), el('strong', { text: lv.batter })])]) : null,
+          lv.pitcher ? el('div', { class: 'lp-person' }, [lv.pitcherWho ? personPic({ ...lv.pitcherWho, en: lv.pitcherWho.name }, e.league, 'md round') : null, el('p', {}, [el('small', { text: T('pitcher') }), el('strong', { text: lv.pitcher })])]) : null
+        ])
       ])
     );
   }

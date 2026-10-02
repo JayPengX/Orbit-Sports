@@ -10,6 +10,14 @@
 
 const name = a => a?.athlete?.shortName || a?.athlete?.displayName || a?.shortName || a?.displayName || '';
 
+const who = a => {
+  const x = a?.athlete || a;
+  const id = String(x?.id ?? a?.playerId ?? '');
+  if (!id && !x?.displayName) return null;
+  const shot = typeof x?.headshot === 'string' ? x.headshot : x?.headshot?.href || '';
+  return { id, name: x?.fullName || x?.displayName || '', ...(shot ? { headshot: shot } : {}) };
+};
+
 // comp: ESPN's competition; status: its status; sport: Fixtures' sport key.
 export function liveOf(comp, status, sport) {
   const s = comp?.situation || {};
@@ -21,7 +29,10 @@ export function liveOf(comp, status, sport) {
       outs: s.outs ?? 0,
       bases: [Boolean(s.onFirst), Boolean(s.onSecond), Boolean(s.onThird)],
       batter: name(s.batter),
-      pitcher: name(s.pitcher)
+      pitcher: name(s.pitcher),
+      // Who they are, for their pictures: { id, name, headshot }.
+      batterWho: who(s.batter),
+      pitcherWho: who(s.pitcher)
     });
   }
   if (sport === 'soccer') {
