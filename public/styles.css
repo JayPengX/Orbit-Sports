@@ -904,23 +904,6 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .live-line.goal .live-ball { flex: none; font-size: 18px; line-height: 1; }
 /* A sheet's watch button with nothing under it but a card: room between them. */
 .watch-btn.wide + .q-card, .watch-btn.wide + .card, .match-head > .watch-btn.wide:last-child { margin-bottom: 12px; }
-/* ---- A bracket: a column a round, the later rounds between the ties that feed them ---- */
-.bracket { display: flex; gap: 14px; overflow-x: auto; margin: 4px -16px 0; padding: 4px 16px 12px; scroll-padding-inline: 16px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
-.br-col { flex: 0 0 172px; display: flex; flex-direction: column; scroll-snap-align: start; }
-.br-title { margin: 0 0 8px; font-size: 13px; font-weight: 800; color: var(--q-muted); letter-spacing: .02em; }
-.br-ties { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
-.br-tie { position: relative; display: grid; gap: 4px; width: 100%; padding: 9px 10px; text-align: left; font: inherit; color: inherit; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-.br-col:not(:last-child) .br-tie::after { content: ''; position: absolute; top: 50%; right: -15px; width: 14px; border-top: 1.5px solid var(--q-border); }
-.br-tie.live { border-color: color-mix(in srgb, var(--live) 55%, var(--q-border)); }
-.br-tie.tbd { min-height: 74px; place-items: center; border-style: dashed; background: transparent; box-shadow: none; color: var(--q-muted); font-size: 13px; }
-.br-side { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; font-size: 14px; }
-.br-side .logo { width: 20px; height: 20px; }
-.br-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-.br-score { font-weight: 800; min-width: 14px; text-align: right; }
-.br-side.win .br-name, .br-side.win .br-score { font-weight: 800; color: var(--q-text); }
-.br-side.out { opacity: .45; }
-.br-note { font-size: 11.5px; font-weight: 650; color: var(--q-muted); border-top: 1px solid var(--q-border); padding-top: 4px; margin-top: 2px; }
-.br-note.live { color: var(--live); }
 /* ---- While live numbers are read: their shape in grey, then a soft fade in (nothing jumps) ---- */
 .skel-block { display: grid; gap: 7px; min-width: 0; }
 .skel { display: block; height: 11px; border-radius: 6px; background: linear-gradient(90deg, var(--q-sunken) 25%, color-mix(in srgb, var(--q-sunken) 45%, var(--q-surface)) 50%, var(--q-sunken) 75%); background-size: 200% 100%; animation: skel 1.3s ease-in-out infinite; }
@@ -936,7 +919,35 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 @keyframes skel { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes fade-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .skel, .fade-in { animation: none; } }
-.br-title-skel { width: 64px; height: 12px; margin-bottom: 10px; }
-.bracket.waiting .br-tie { min-height: 74px; align-content: center; gap: 9px; }
 .skel-short { width: 45%; }
 .lp-person > .skel-block { flex: 1; }
+/* ---- The playoffs, a round at a time: the rounds as chips, the round's ties as full rows ---- */
+.playoffs { display: grid; gap: 12px; margin-top: 4px; }
+.po-banner { margin: 0; padding: 9px 12px; border-radius: 12px; background: var(--accent-wash); font-size: 13px; line-height: 1.4; color: var(--q-text-2); }
+.po-banner strong { color: var(--accent); }
+.po-rounds { gap: 8px; }
+.po-round { flex: none; display: grid; gap: 2px; min-width: 92px; padding: 8px 12px; text-align: left; font: inherit; color: inherit; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: 14px; }
+.po-round strong { font-size: 14px; white-space: nowrap; }
+.po-round small { font-size: 11.5px; font-weight: 650; color: var(--q-muted); white-space: nowrap; }
+.po-round.live small { color: var(--live); }
+.po-round.done small::before { content: '✓ '; }
+.po-round[aria-pressed='true'] { background: var(--q-text); border-color: var(--q-text); color: var(--q-surface); }
+.po-round[aria-pressed='true'] small { color: color-mix(in srgb, var(--q-surface) 75%, transparent); }
+.po-ties { display: grid; gap: 10px; }
+.po-tie { display: grid; gap: 6px; width: 100%; padding: 12px 14px; text-align: left; font: inherit; color: inherit; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: 16px; }
+.po-tie.live { border-color: color-mix(in srgb, var(--live) 55%, var(--q-border)); }
+.po-tie.projected { background: color-mix(in srgb, var(--q-surface) 70%, var(--q-surface-2)); border-style: dashed; }
+.po-tie.empty { background: transparent; border-style: dashed; }
+.po-side { display: grid; grid-template-columns: 18px auto minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: 15px; }
+.po-seed { font-size: 12px; font-weight: 800; color: var(--q-muted); text-align: center; }
+.po-name { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-weight: 650; }
+.po-name > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.po-label { flex: none; font-size: 11px; font-weight: 700; color: var(--q-muted); }
+.po-score { font-size: 17px; font-weight: 800; min-width: 18px; text-align: right; }
+.po-side.win .po-name, .po-side.win .po-score { font-weight: 800; color: var(--q-text); }
+.po-side.out { opacity: .45; }
+.po-side.tbd .po-name { color: var(--q-muted); font-weight: 600; }
+.po-tbd-logo { border: 1.5px dashed var(--q-border); border-radius: 50%; background: transparent; }
+.po-note { padding-top: 6px; border-top: 1px solid var(--q-border); font-size: 12px; font-weight: 650; color: var(--q-muted); }
+.po-note.live { color: var(--live); }
+.playoffs.waiting .po-round, .playoffs.waiting .po-tie { min-height: 60px; align-content: center; gap: 8px; }

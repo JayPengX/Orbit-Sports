@@ -10,7 +10,7 @@
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from './lib/quadra.mjs';
-import { localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
+import { localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
@@ -20,7 +20,7 @@ import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
 import { liveTiming } from './lib/f1.mjs';
-import { buildBracket } from './lib/bracket.mjs';
+import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList } from './lib/tv.mjs';
@@ -1089,62 +1089,134 @@ function openScores(league, date, view = 'games') {
 // Which days (or weeks) to read, then the games of each, grouped by the
 // viewer's own day: the strip shows only days with games. Races, tours and
 // fight promotions: the whole season, past and to come.
-// ---- The playoffs or a cup's knockout rounds, as a bracket ---------------------------
+// ---- The playoffs or a cup's knockout rounds ----------------------------------------
 //
-// MLB, the NBA, MLS: their games on the days around now (the season's
-// calendar), playoff games kept; a cup: its season's games (seasonEvents),
-// the knockout rounds kept. Read once a league is opened, kept 10 minutes.
+// Every league with playoffs or knockout rounds (lib/playoffs.mjs): the real
+// games while they're on (MLB, the NBA, MLS: the days around now; a cup:
+// its season's games), the first round predicted from the table while the
+// season's on, last season's when this one hasn't begun. Read once a league
+// is opened, kept 10 minutes.
 const brackets = new Map();
-const hasBracket = k => LEAGUES[k]?.kind === 'match' && !LEAGUES[k].asia && Boolean(LEAGUES[k].cup || ['mlb', 'nba', 'mls'].includes(k));
-// The bracket's shape while it's read: three rounds of grey ties.
-const bracketShape = () =>
-  el('div', { class: 'bracket waiting', 'aria-hidden': 'true' }, [4, 2, 1].map(n => el('section', { class: 'br-col' }, [el('i', { class: 'skel br-title-skel' }), el('div', { class: 'br-ties' }, Array.from({ length: n }, () => el('div', { class: 'br-tie' }, [el('i', { class: 'skel' }), el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })])))])));
+const hasBracket = k => LEAGUES[k]?.kind === 'match' && !LEAGUES[k].asia && Boolean(FORMATS[k]);
+const played = r => Number(r.stats?.GP ?? r.stats?.gamesPlayed ?? 0) || Number(r.stats?.W || 0) + Number(r.stats?.L || 0);
 async function postseason(league) {
-  if (LEAGUES[league].cup) return (await seasonEvents(league)).filter(e => e.round);
   const cal = await seasonCalendar(league).catch(() => null);
   const from = yyyymmdd(new Date(Date.now() - 75 * 86_400_000));
   const to = yyyymmdd(new Date(Date.now() + 10 * 86_400_000));
   const days = (cal?.days || []).filter(d => d >= from && d <= to);
-  if (!days.length) return [];
-  const list = await scoreboard(league, days);
-  return list.filter(e => e.round);
+  return days.length ? (await scoreboard(league, days)).filter(e => e.round) : [];
+}
+// Last season's playoff games: the end of its calendar (its last 70 game days).
+async function lastSeason(league, info) {
+  const start = Date.parse(info?.season?.start || '') || Date.now();
+  const prev = await seasonInfo(league, yyyymmdd(new Date(start - 3 * 86_400_000))).catch(() => null);
+  const days = (prev?.days || []).slice(-70);
+  const events = days.length ? (await scoreboard(league, days).catch(() => [])).filter(e => e.round) : [];
+  return { mode: 'last', events, season: prev?.season?.name || '' };
+}
+async function playoffData(league) {
+  const info = await seasonInfo(league).catch(() => null);
+  const season = info?.season || {};
+  const stages = info?.stages || [];
+  const table = async () => {
+    const groups = await standings(league).catch(() => null);
+    return groups?.some(g => g.rows.some(r => played(r) > 0)) ? groups : null;
+  };
+  if (LEAGUES[league].cup) {
+    const start = Date.parse(season.start) || 0;
+    const all = (await seasonEvents(league).catch(() => [])).filter(e => e.round);
+    const now = all.filter(e => Date.parse(e.start) >= start);
+    // ESPN can keep a finished season as its current one (the FA Cup's, all summer): last season, said so.
+    if (now.length) return { mode: Date.parse(season.end) < Date.now() ? 'last' : 'live', events: now, stages, season: season.name };
+    const groups = FORMATS[league].project ? await table() : null;
+    if (groups) return { mode: 'projected', events: [], groups, stages, season: season.name };
+    // A season under way with no knockout games or table yet (the FA Cup's early rounds): its rounds' dates.
+    if (season.phase && season.phase !== 'off' && stages.length && !FORMATS[league].project) return { mode: 'live', events: [], stages, season: season.name };
+    let before = all.filter(e => Date.parse(e.start) < start);
+    if (!before.length) before = (await seasonEvents(league, start - 30 * 86_400_000).catch(() => [])).filter(e => e.round);
+    return { mode: 'last', events: before, season: '' };
+  }
+  if (season.phase === 'post') return { mode: 'live', events: await postseason(league), stages, season: season.name };
+  if (season.phase === 'regular') {
+    const groups = await table();
+    const last = info?.days?.at(-1);
+    if (groups) return { mode: 'projected', events: [], groups, stages, season: season.name, startsAfter: last ? Date.parse(`${last.slice(0, 4)}-${last.slice(4, 6)}-${last.slice(6, 8)}T12:00:00`) : 0 };
+  }
+  return lastSeason(league, info);
 }
 function loadBracket(league) {
   const had = brackets.get(league);
   if (!hasBracket(league) || (had && (had.loading || Date.now() - had.at < 10 * 60_000))) return;
-  brackets.set(league, { ...(had || { rounds: [] }), loading: true });
-  postseason(league)
-    .then(events => brackets.set(league, { rounds: buildBracket(events, league), at: Date.now() }))
-    .catch(() => brackets.set(league, { rounds: had?.rounds || [], at: Date.now() }))
+  brackets.set(league, { ...(had || {}), loading: true });
+  playoffData(league)
+    .then(d => brackets.set(league, { model: playoffModel({ league, ...d }), at: Date.now() }))
+    .catch(() => brackets.set(league, { model: had?.model || null, at: Date.now() }))
     .finally(() => state.tab === 'matches' && state.scores.league === league && renderScores());
 }
-// The bracket: a column a round (the later ones between the ties that feed
-// them), each tie its two sides with the series wins or aggregate, who went
-// through (the other greyed), or the next game, or that it's on now.
-function bracketView(rounds, league) {
+// The playoffs, a round at a time: the rounds as chips (each done, on now,
+// or its dates), then the chosen round's ties as full rows: each side's
+// seed, logo and name with its wins (or aggregate, or score), who went
+// through, the next game, or 待定 with the round's dates. A prediction or
+// last season says so on top.
+const md = ms => {
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+};
+const roundDates = r => (!r.dates ? '' : r.dates.about ? `${locale === 'en' ? 'c.' : '約'} ${md(r.dates.from)}${locale === 'en' ? '' : ' 起'}` : md(r.dates.from) === md(r.dates.to) ? md(r.dates.from) : `${md(r.dates.from)}–${md(r.dates.to)}`);
+function playoffView(model, league) {
   const en = locale === 'en';
-  const note = t => {
+  const sc = state.scores;
+  sc.poRound ||= {};
+  const at = Math.min(model.rounds.length - 1, sc.poRound[league] ?? openRound(model) - 1);
+  const r = model.rounds[at];
+  const chipSub = x => (x.state === 'done' ? (en ? 'Done' : '已完成') : x.state === 'live' ? (en ? 'On now' : '進行中') : roundDates(x) || (en ? 'TBD' : '待定'));
+  const chips = el(
+    'div',
+    { class: 'q-chips po-rounds' },
+    model.rounds.map((x, i) =>
+      el('button', { class: `po-round ${x.state}`, type: 'button', 'aria-pressed': String(i === at), onclick: () => ((sc.poRound[league] = i), renderScores()) }, [el('strong', { text: en ? x.title.en : x.title.zh }), el('small', { text: chipSub(x) })])
+    )
+  );
+  const banner =
+    model.mode === 'projected'
+      ? el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Predicted' : '預測' }), document.createTextNode(en ? ' from the table as it stands: it changes until the playoffs start.' : '　依目前排名推算，開打前會變動。')])
+      : model.mode === 'last'
+        ? el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Last season' : '上季' }), document.createTextNode(`${model.season ? ` ${model.season}` : ''}${en ? ': this season’s playoffs haven’t begun.' : '　本季季後賽尚未開打。'}`)])
+        : null;
+  const sideRow = (s, t, i) => {
+    const id = s ? String(s.id) : '';
+    const seed = t.projected ? t.seeds[i] : s?.seed;
+    const label = t.projected ? t.labels?.[i] : '';
+    const score = !t.projected && s ? t.score[id] : undefined;
+    return el('div', { class: `po-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}${s ? '' : ' tbd'}` }, [
+      el('span', { class: 'po-seed num', text: seed ? String(seed) : '' }),
+      s ? sideLogo(s, league, 'sm') : el('span', { class: 'logo sm po-tbd-logo', 'aria-hidden': 'true' }),
+      el('span', { class: 'po-name' }, [el('span', { text: s ? s.short || s.name : label || (en ? 'TBD' : '待定') }), s && label ? el('small', { class: 'po-label', text: label }) : null]),
+      el('strong', { class: 'num po-score', text: score ?? '' })
+    ]);
+  };
+  const tieNote = t => {
+    if (!t) return roundDates(r) ? `${en ? 'Expected' : '預計'} ${roundDates(r)}` : en ? 'To be decided' : '待定';
+    if (t.projected) return roundDates(r) ? `${en ? 'Predicted · expected' : '預測 · 預計'} ${roundDates(r)}` : en ? 'Predicted' : '預測';
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
-    if (won) return en ? `${won.short || won.name} through` : `${won.short || won.name} 晉級`;
+    if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}${t.kind === 'series' ? ` ${Math.max(...Object.values(t.score))}-${Math.min(...Object.values(t.score))}` : ''}`;
     if (t.live) return en ? 'On now' : '進行中';
     if (t.next) return `${t.kind === 'series' ? `G${t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${clock(t.next.start)}`;
     return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : '';
   };
-  const tie = t =>
-    t
-      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openEvent(t.games.find(g => g.status.state === 'in') || t.next || t.games.at(-1)) }, [
-          ...t.sides.map(s =>
-            el('div', { class: `br-side${t.winner ? (t.winner === String(s.id) ? ' win' : ' out') : ''}` }, [sideLogo(s, league, 'xs'), el('span', { class: 'br-name', text: s.short || s.name }), el('strong', { class: 'num br-score', text: t.score[String(s.id)] ?? '' })])
-          ),
-          note(t) ? el('small', { class: `br-note${t.live ? ' live' : ''}`, text: note(t) }) : null
-        ])
-      : el('div', { class: 'br-tie tbd' }, [el('span', { text: en ? 'To be decided' : '待定' })]);
-  // Faded in the first time it's drawn, not on every repaint.
+  const tie = t => {
+    const open = t && !t.projected ? () => openEvent(t.games.find(g => g.status.state === 'in') || t.next || t.games.at(-1)) : null;
+    const sides = t ? t.sides : [null, null];
+    const body = [sideRow(sides[0], t || { projected: true, seeds: [], labels: [] }, 0), sideRow(sides[1], t || { projected: true, seeds: [], labels: [] }, 1), el('small', { class: `po-note${t?.live ? ' live' : ''}`, text: tieNote(t) })];
+    return open ? el('button', { class: `po-tie${t.live ? ' live' : ''}`, type: 'button', onclick: open }, body) : el('div', { class: `po-tie${t?.projected ? ' projected' : ' empty'}` }, body);
+  };
   const entry = brackets.get(league);
   const fade = entry && !entry.shown;
   if (entry) entry.shown = true;
-  return el('div', { class: `bracket${fade ? ' fade-in' : ''}` }, rounds.map(r => el('section', { class: 'br-col' }, [el('h4', { class: 'br-title', text: en ? r.title.en : r.title.zh }), el('div', { class: 'br-ties' }, r.ties.map(tie))])));
+  return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, chips, el('div', { class: 'po-ties' }, r.ties.map(tie))]);
 }
+// Its shape while it's read: the round chips and four ties in grey.
+const bracketShape = () => el('div', { class: 'playoffs waiting', 'aria-hidden': 'true' }, [el('div', { class: 'q-chips po-rounds' }, [0, 1, 2, 3].map(() => el('span', { class: 'po-round' }, [el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })]))), el('div', { class: 'po-ties' }, [0, 1, 2, 3].map(() => el('div', { class: 'po-tie empty' }, [el('i', { class: 'skel' }), el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })])))]);
 
 async function loadScores() {
   const sc = state.scores;
@@ -1422,14 +1494,13 @@ function renderScores() {
   let list;
   let stages = null;
   loadBracket(sc.league);
-  const rounds = brackets.get(sc.league)?.rounds || [];
-  // The tab from the start when the schedule already has playoff (or a cup's
-  // knockout) games, the bracket's shape while it's read: nothing appears late.
-  const likely = hasBracket(sc.league) && (Boolean(LEAGUES[sc.league].cup) || (sc.all || []).some(e => e.round));
-  const reading = Boolean(brackets.get(sc.league)?.loading) && likely;
-  const knockView = sc.view === 'bracket' && (rounds.length > 0 || reading);
+  // Every league with playoffs has the tab from the start (its shape while it's read).
+  const po = brackets.get(sc.league);
+  const rounds = po?.model?.rounds || [];
+  const reading = hasBracket(sc.league) && !po?.model;
+  const knockView = sc.view === 'bracket' && hasBracket(sc.league) && (rounds.length > 0 || reading);
   const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
-  if (knockView) list = rounds.length ? bracketView(rounds, sc.league) : bracketShape();
+  if (knockView) list = rounds.length ? playoffView(po.model, sc.league) : bracketShape();
   else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));

@@ -318,6 +318,24 @@ export function monthsBetween(fromMs, toMs) {
   for (let y = d.getUTCFullYear(), m = d.getUTCMonth(); Date.UTC(y, m, 1) <= toMs && out.length < 24; m === 11 ? ((m = 0), y++) : m++) out.push(`${y}${String(m + 1).padStart(2, '0')}`);
   return out;
 }
+// A league's season as its scoreboard says, on a day (today without one):
+// { season: { year, name, start, end, phase: 'pre' | 'regular' | 'post' | 'off' | '' },
+//   days: ['YYYYMMDD'…] (its game days), stages: [{ label, start, end }] (a cup's rounds) }.
+export async function seasonInfo(league, date = null) {
+  const l = LEAGUES[league];
+  if (!l?.espn) return null;
+  const data = await getJson(`${SITE}/${l.espn}/scoreboard${date ? `?dates=${date}` : ''}`, { ttl: date ? 6 * 3_600_000 : 10 * 60_000 });
+  const L = data?.leagues?.[0] || {};
+  const t = L.season?.type || {};
+  const name = `${t.name || ''} ${t.abbreviation || ''}`;
+  const phase = t.type === 3 || /post|playoff|final|knockout/i.test(name) ? 'post' : t.type === 2 || /regular|league phase|group/i.test(name) ? 'regular' : t.type === 1 || /^\s*pre/i.test(name) ? 'pre' : t.type === 4 || /off/i.test(name) ? 'off' : '';
+  const cal = parseCalendar(data);
+  return {
+    season: { year: L.season?.year || 0, name: L.season?.displayName || '', start: L.season?.startDate || '', end: L.season?.endDate || '', phase },
+    days: cal?.days || [],
+    stages: (L.calendar || []).flatMap(c => (c && typeof c === 'object' ? c.entries || [] : [])).map(x => ({ label: x.label || '', start: x.startDate || '', end: x.endDate || '' }))
+  };
+}
 export async function seasonCalendar(league) {
   const l = LEAGUES[league];
   if (!l?.espn) return null;

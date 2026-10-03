@@ -47,7 +47,7 @@ function finish(t) {
   return t;
 }
 
-export function buildBracket(events, league) {
+export function buildBracket(events, league, { shape: given = null } = {}) {
   const ties = new Map();
   for (const e of events || []) {
     if (!e?.round || e.kind !== 'match' || !e.home?.id || !e.away?.id || e.status?.void) continue;
@@ -66,7 +66,7 @@ export function buildBracket(events, league) {
   for (const t of all) (byRound.get(t.round) || byRound.set(t.round, []).get(t.round)).push(t);
   const firstGame = list => Math.min(...list.map(t => Date.parse(t.games[0].start)));
   let rounds;
-  const shape = SHAPES[league];
+  const shape = given || SHAPES[league];
   if (shape && [...byRound.keys()].every(k => shape.some(r => r[0] === k))) {
     rounds = shape.map(([key, zh, en, n]) => ({ key, title: { zh, en }, n, ties: byRound.get(key) || [] }));
   } else {
