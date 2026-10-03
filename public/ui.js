@@ -3,7 +3,7 @@
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from './lib/logos.mjs';
-import { espnHeadshot, smallPhoto, isFlag, isCutout, knownPhoto, findPhoto } from './lib/photos.mjs';
+import { espnHeadshot, smallPhoto, isFlag, personPhoto } from './lib/photos.mjs';
 import { liveLabel, liveNote } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
@@ -157,24 +157,11 @@ export const raceFlag = (e, cls = '') => (e?.country ? logoPicture(flagUrl(e.cou
 export function personPic(p, league, cls = '') {
   const name = p?.en || p?.name || '';
   const flag = p?.flag || (isFlag(p?.logo) ? p.logo : '');
-  // The feed's own picture, then one found before (this device, checked to
-  // exist), and only then ESPN's by id (a guess: a miss costs its retries
-  // before the next is tried, and the picture would change late).
-  const known = knownPhoto(name, LEAGUES[league]?.sport || '');
-  const guessed = smallPhoto(freshHeadshot(espnHeadshot(league, p?.id)));
-  const urls = [...new Set([p?.headshot, isFlag(p?.logo) ? null : p?.logo, known, espnHeadshot(league, p?.id)].map(u => smallPhoto(freshHeadshot(u))).filter(Boolean))];
-  // Nothing found: the driver's badge, else the flag, else the initials;
-  // a headshot looked for meanwhile, put in when it comes.
-  const last = () => {
-    const stand = league === 'f1' ? driverBadge(name, cls) : flag ? logoPicture(flag, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls);
-    if (known === undefined && name)
-      findPhoto(name, league).then(url => {
-        if (url && stand.isConnected) stand.replaceWith(logoPicture(url, null, `logo ${cls} photo${isCutout(url) ? ' cutout' : ''}`, () => el('span')));
-      });
-    return stand;
-  };
-  const chain = i => (i >= urls.length ? last() : logoPicture(urls[i], null, `logo ${cls}${isCutout(urls[i]) ? ' photo cutout' : ''}`, () => chain(i + 1), { guess: urls[i] === guessed }));
-  return chain(0);
+  // The feed's own pictures, then the kit's way (photos.mjs personPhoto):
+  // one found before, ESPN's by id (a guess), then a search by name; the
+  // driver's badge, the flag or the initials meanwhile or when there's none.
+  const stand = () => (league === 'f1' ? driverBadge(name, cls) : flag ? logoPicture(flag, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls));
+  return personPhoto(name, league, { urls: [p?.headshot, isFlag(p?.logo) ? null : p?.logo].map(freshHeadshot), guess: freshHeadshot(espnHeadshot(league, p?.id)), cls: `logo ${cls}`, fallback: stand });
 }
 const initialsPic = (name, cls) =>
   el('span', {
