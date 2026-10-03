@@ -3,6 +3,7 @@
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from './lib/logos.mjs';
+import { keptTiming } from './lib/f1.mjs';
 import { espnHeadshot, smallPhoto, isFlag, personPhoto } from './lib/photos.mjs';
 import { liveLabel, liveNote } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
@@ -374,7 +375,10 @@ export function diamond(bases = [], outs = 0, big = false) {
 // A race on now: who leads it.
 // F1's live timing for the session on now (app.js keeps it, from the
 // proxy's copy of F1's own feed): `key` the session event's id.
-export const f1Live = { feed: null, key: '' };
+export const f1Live = { feed: null, key: '', failed: false };
+// A block's shape while its numbers are read: grey bars where they'll be,
+// so nothing moves when they come (`lines`: [width%…], `cls` the block's).
+export const skeleton = (lines, cls = '') => el('div', { class: `skel-block ${cls}`.trim(), 'aria-hidden': 'true' }, lines.map(w => el('i', { class: 'skel', style: `width:${w}%` })));
 const mmss = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
 // A card's brief of an F1 session on now, as baseball's shows the count:
 // the part (or lap) and the time left, then the top three with their
@@ -389,11 +393,15 @@ export function f1Brief(e) {
 }
 export function fillF1Brief(box, e) {
   const en = ctx.locale === 'en';
-  const f = f1Live.key === e.id ? f1Live.feed : null;
+  const f = (f1Live.key === e.id && f1Live.feed) || keptTiming(e.sessionKey, e.official || e.start);
   if (!f) {
+    // The feed not in yet: its shape (the head and three rows); ESPN's leader only if it can't be read.
+    if (!f1Live.failed) return put(box, skeleton([38, 82, 76, 70], 'f1-brief-skel'));
     const lead = fieldNow(e);
     return put(box, lead ? el('small', { class: 'live-line', text: lead }) : null);
   }
+  // Faded in only when it takes the place of its shape (a repaint draws it straight).
+  const first = Boolean(box.querySelector('.f1-brief-skel'));
   const race = e.sessionKey === 'Race' || e.sessionKey === 'SR';
   const quali = /^(Qual|SS|SQ)$/.test(e.sessionKey || '');
   const left = Math.max(0, f.clock.left - (f.clock.running ? (Date.now() - f.at) / 1000 : 0));
@@ -419,6 +427,7 @@ export function fillF1Brief(box, e) {
       })
     )
   );
+  if (first) box.classList.add('fade-in');
 }
 export function fieldNow(e) {
   const en = ctx.locale === 'en';

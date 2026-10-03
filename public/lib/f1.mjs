@@ -238,9 +238,23 @@ export function sameSession(feed, abbr, start) {
   const named = kind === 'Sprint' ? s.name === 'Sprint' : kind === 'Race' ? s.type === 'Race' && s.name !== 'Sprint' : kind === 'Sprint Qualifying' ? /sprint/i.test(s.name) && /qualifying|shootout/i.test(`${s.name} ${s.type}`) : s.type === kind && !/sprint/i.test(s.name);
   return named && Math.abs(at - Date.parse(start)) < 3 * 3_600_000;
 }
+// The last reading, kept for the session (sessionStorage too, so a reload
+// or a sheet opened from a card draws it at once, not after the read).
+const KEPT = 'fx.f1live';
+let last = null;
+try {
+  last = JSON.parse(sessionStorage.getItem(KEPT) || 'null');
+} catch {}
 export async function liveTiming(abbr, start) {
   const feed = await getJson(LIVE, { ttl: 4_000 });
-  return feed?.cars?.length && sameSession(feed, abbr, start) ? feed : null;
+  if (!feed?.cars?.length) return null;
+  last = feed;
+  try {
+    sessionStorage.setItem(KEPT, JSON.stringify(feed));
+  } catch {}
+  return sameSession(feed, abbr, start) ? feed : null;
 }
+// The last reading of this session if it's recent (10 minutes), else null.
+export const keptTiming = (abbr, start) => (last && Date.now() - last.at < 10 * 60_000 && sameSession(last, abbr, start) ? last : null);
 // Where a qualifying part cuts (NoEntries: [22, 16, 10]): the last place through, or 0.
 export const qualiCut = (part, entries = []) => (part >= 1 && part < entries.length ? entries[part] : 0);

@@ -6,12 +6,12 @@ import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSc
 import { stageTag } from './lib/stage.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from './lib/logos.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, qualiCut } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
 import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, put, spinner, empty, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo } from './ui.js';
+import { ctx, el, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -191,8 +191,13 @@ function livePanel(e, sm = null) {
         )
       );
     }
-    return el('div', { class: 'live-panel' }, rows);
+    // Faded in once, as it takes its shape's place; the 15-second refreshes draw it straight.
+    const fade = !e.panelShown;
+    e.panelShown = true;
+    return el('div', { class: `live-panel${fade ? ' fade-in' : ''}` }, rows);
   }
+  // Basketball before the box score is in: the panel's shape, so it doesn't push the page down when it comes.
+  if (sport === 'basketball' && !sm) return el('div', { class: 'live-panel waiting' }, [el('div', { class: 'lp-who lp-bb' }, [0, 1].map(() => el('div', { class: 'lp-person' }, [el('i', { class: 'skel skel-face' }), skeleton([55, 80, 65, 45])]))), skeleton([18, 92, 84, 88, 76])]);
   if (!e.live) return null;
   if (sport === 'baseball' && lv.bases) {
     rows.push(
@@ -677,7 +682,30 @@ function f1Field(rows, field) {
 // interval (race), and in the pits or out. In qualifying a line where the
 // part cuts, the cars under it shaded; the ones already out greyed.
 const TRACK = { 1: ['綠旗', 'Green', 'green'], 2: ['黃旗', 'Yellow', 'yellow'], 4: ['安全車', 'Safety car', 'yellow'], 5: ['紅旗', 'Red flag', 'red'], 6: ['虛擬安全車', 'VSC', 'yellow'], 7: ['虛擬安全車結束', 'VSC ending', 'yellow'] };
-const TYRE = { SOFT: ['S', 'soft'], MEDIUM: ['M', 'medium'], HARD: ['H', 'hard'], INTERMEDIATE: ['I', 'inter'], WET: ['W', 'wet'] };
+const TYRE = { SOFT: ['S', '#e10600'], MEDIUM: ['M', '#ffd12e'], HARD: ['H', '#f2f2f2'], INTERMEDIATE: ['I', '#43b02a'], WET: ['W', '#0067ad'] };
+// A tyre as Pirelli draws it: the black tyre, its compound's coloured band
+// and letter, the letter centred by the drawing itself (not a font's box).
+function tyreIcon(compound) {
+  const t = TYRE[compound];
+  if (!t) return null;
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('class', 'tyre');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', compound);
+  const add = (tag, attrs) => {
+    const n = document.createElementNS(ns, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    svg.append(n);
+    return n;
+  };
+  add('circle', { cx: 12, cy: 12, r: 11.5, fill: '#16171b' });
+  add('circle', { cx: 12, cy: 12, r: 8.4, fill: 'none', stroke: t[1], 'stroke-width': 2.4 });
+  const letter = add('text', { x: 12, y: 12, fill: t[1], 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 9.5, 'font-weight': 900, 'font-family': 'system-ui, -apple-system, Helvetica, Arial, sans-serif' });
+  letter.textContent = t[0];
+  return svg;
+}
 const mmss = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
 function f1LiveBoard(b, ss) {
   const en = L() === 'en';
@@ -713,7 +741,7 @@ function f1LiveBoard(b, ss) {
       main: quali ? c.best : i === 0 ? (en ? 'Leader' : '領先') : c.gap,
       tags: [
         state ? el('small', { class: `lb-state${c.inPit || c.pitOut ? ' pit' : ''}`, text: state }) : null,
-        tyre ? el('b', { class: `tyre ${tyre[1]}`, title: c.tyre, text: tyre[0] }) : null,
+        tyreIcon(c.tyre),
         tyre && c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? 'L' : '圈'}` }) : null,
         quali ? (i > 0 && c.gap ? el('small', { class: 'num', text: c.gap }) : null) : i > 0 && c.interval ? el('small', { class: 'num', text: `${en ? 'int ' : '前車 '}${c.interval}` }) : null
       ]
@@ -765,11 +793,27 @@ function fillField(s, e) {
       // F1, a session on now: F1's own live timing, again every 5 seconds in place.
       clearInterval(liveTimer);
       if (e.league === 'f1' && ss.status.state === 'in') {
+        // The last reading at once if there is one, else the board's shape;
+        // ESPN's order comes back only if F1's feed can't be read.
+        const espnOrder = box.querySelector('ol.field, .empty');
+        const kept = keptTiming(ss.abbr, ss.start);
+        const shape = () => el('div', { class: 'live-board' }, [skeleton([22, 30], 'lb-head-skel'), el('ol', { class: 'field f1-field lb-rows' }, Array.from({ length: 10 }, () => el('li', { class: 'skel-row' }, [skeleton([70], 'skel-pos'), el('i', { class: 'skel skel-pic' }), skeleton([62, 40]), skeleton([90, 50], 'skel-right')])))]);
+        espnOrder?.replaceWith(kept ? f1LiveBoard(kept, ss) : shape());
+        if (!kept) box.querySelector('.live-board')?.classList.add('waiting');
         const tick = () => {
           if (!box.isConnected || at !== pick) return clearInterval(liveTimer);
           if (document.visibilityState !== 'visible') return;
           liveTiming(ss.abbr, ss.start)
-            .then(b => b && at === pick && box.isConnected && (box.querySelector('ol.field, .live-board, .empty') || box.lastChild).replaceWith(f1LiveBoard(b, ss)))
+            .then(b => {
+              if (at !== pick || !box.isConnected) return;
+              const now = box.querySelector('.live-board');
+              if (b) {
+                const board = f1LiveBoard(b, ss);
+                if (now?.classList.contains('waiting')) board.classList.add('fade-in');
+                return now ? now.replaceWith(board) : box.append(board);
+              }
+              if (now?.classList.contains('waiting') && espnOrder) now.replaceWith(espnOrder);
+            })
             .catch(() => {});
         };
         tick();

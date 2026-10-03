@@ -799,6 +799,8 @@ function renderHome() {
     teamRows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null
   );
   centerChosen(box);
+  // An F1 session on: its live timing read now, not at the next tick.
+  if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
 }
 // Nothing on TV here that day: why (past ELTA's list, only the NBA's and
 // MLS's games are known), and the way to every game (賽事).
@@ -1094,6 +1096,9 @@ function openScores(league, date, view = 'games') {
 // the knockout rounds kept. Read once a league is opened, kept 10 minutes.
 const brackets = new Map();
 const hasBracket = k => LEAGUES[k]?.kind === 'match' && !LEAGUES[k].asia && Boolean(LEAGUES[k].cup || ['mlb', 'nba', 'mls'].includes(k));
+// The bracket's shape while it's read: three rounds of grey ties.
+const bracketShape = () =>
+  el('div', { class: 'bracket waiting', 'aria-hidden': 'true' }, [4, 2, 1].map(n => el('section', { class: 'br-col' }, [el('i', { class: 'skel br-title-skel' }), el('div', { class: 'br-ties' }, Array.from({ length: n }, () => el('div', { class: 'br-tie' }, [el('i', { class: 'skel' }), el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })])))])));
 async function postseason(league) {
   if (LEAGUES[league].cup) return (await seasonEvents(league)).filter(e => e.round);
   const cal = await seasonCalendar(league).catch(() => null);
@@ -1134,7 +1139,11 @@ function bracketView(rounds, league) {
           note(t) ? el('small', { class: `br-note${t.live ? ' live' : ''}`, text: note(t) }) : null
         ])
       : el('div', { class: 'br-tie tbd' }, [el('span', { text: en ? 'To be decided' : '待定' })]);
-  return el('div', { class: 'bracket' }, rounds.map(r => el('section', { class: 'br-col' }, [el('h4', { class: 'br-title', text: en ? r.title.en : r.title.zh }), el('div', { class: 'br-ties' }, r.ties.map(tie))])));
+  // Faded in the first time it's drawn, not on every repaint.
+  const entry = brackets.get(league);
+  const fade = entry && !entry.shown;
+  if (entry) entry.shown = true;
+  return el('div', { class: `bracket${fade ? ' fade-in' : ''}` }, rounds.map(r => el('section', { class: 'br-col' }, [el('h4', { class: 'br-title', text: en ? r.title.en : r.title.zh }), el('div', { class: 'br-ties' }, r.ties.map(tie))])));
 }
 
 async function loadScores() {
@@ -1414,9 +1423,13 @@ function renderScores() {
   let stages = null;
   loadBracket(sc.league);
   const rounds = brackets.get(sc.league)?.rounds || [];
-  const knockView = sc.view === 'bracket' && rounds.length > 0;
+  // The tab from the start when the schedule already has playoff (or a cup's
+  // knockout) games, the bracket's shape while it's read: nothing appears late.
+  const likely = hasBracket(sc.league) && (Boolean(LEAGUES[sc.league].cup) || (sc.all || []).some(e => e.round));
+  const reading = Boolean(brackets.get(sc.league)?.loading) && likely;
+  const knockView = sc.view === 'bracket' && (rounds.length > 0 || reading);
   const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
-  if (knockView) list = bracketView(rounds, sc.league);
+  if (knockView) list = rounds.length ? bracketView(rounds, sc.league) : bracketShape();
   else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
@@ -1477,7 +1490,7 @@ function renderScores() {
     ]),
     twChips(sc.league, 3)
   ]);
-  const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : [])];
+  const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : [])];
   const views = viewList.length > 1 ? segmented(viewList, knockView ? 'bracket' : tableView ? 'table' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
   const other = tableView || knockView;
   put(box, sportChips, leagueChips, tools, views, other ? null : strip, other ? null : stages, list);
@@ -1889,19 +1902,23 @@ new MutationObserver(() => fitNumbers([...document.querySelectorAll('.mh-score')
 
 // An F1 session on now: F1's own live timing every 10 seconds, its cards'
 // briefs (the top three) filled again in place, never the whole page.
+let f1Polling = false;
 async function pollF1Live() {
-  if (document.visibilityState !== 'visible') return;
+  if (document.visibilityState !== 'visible' || f1Polling) return;
   const on = dayAll(state.days.get(today())).find(e => e.league === 'f1' && e.sessionKey && e.status.state === 'in');
   if (!on) return void (f1Live.key = '');
+  f1Polling = true;
   const feed = await liveTiming(on.sessionKey, on.official || on.start).catch(() => null);
-  if (!feed) return;
+  f1Polling = false;
+  // Not read: the cards fall back to ESPN's leader rather than wait on.
+  f1Live.failed = !feed;
+  if (!feed) return void document.querySelectorAll(`[data-f1-brief="${CSS.escape(on.id)}"]`).forEach(node => fillF1Brief(node, on));
   f1Live.feed = feed;
   f1Live.key = on.id;
   for (const node of document.querySelectorAll(`[data-f1-brief="${CSS.escape(on.id)}"]`)) fillF1Brief(node, on);
 }
 setInterval(pollF1Live, 10_000);
 document.addEventListener('visibilitychange', pollF1Live);
-setTimeout(pollF1Live, 3000);
 
 window.__fxStarted = true;
 const gated = installGate('match', locale);
