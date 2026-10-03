@@ -192,6 +192,23 @@ export function parseSeries(s) {
   return { summary: s.summary || '', completed: Boolean(s.completed), games: s.totalCompetitions || 0, wins: Object.fromEntries((s.competitors || []).map(c => [String(c.id), c.wins ?? 0])) };
 }
 
+// A playoff or knockout game's round, for the bracket: `key` the round
+// (ESPN's RD16 / QTR / SEMI / FINAL for the US leagues' playoffs, the
+// season's stage for a cup: round-of-16, quarterfinals…), its name, the leg
+// and the sides the tie's over for (a cup's second leg says who went
+// through). Null for any other game (a cup's league phase or groups too).
+export function knockoutRound(e, comp, league) {
+  const slug = String(e?.season?.slug || '');
+  const note = comp?.notes?.[0]?.headline || '';
+  const cup = Boolean(LEAGUES[league]?.cup);
+  if (/play-?in/i.test(`${slug} ${note}`)) return null;
+  const post = e?.season?.type === 3 || /post-?season/i.test(slug);
+  if (!post && !(cup && slug && !/league-phase|group|regular|qualif|preliminary/i.test(slug))) return null;
+  const key = cup ? slug : comp?.type?.abbreviation || slug;
+  if (!key) return null;
+  const title = comp?.series?.title || (cup ? slug.replace(/-/g, ' ') : note.replace(/\s*-\s*(Game|Leg)\b.*$/i, '')) || key;
+  return { key, title, leg: Number(comp?.leg?.value) || 0, through: (comp?.series?.competitors || []).filter(c => c.winner).map(c => String(c.id)) };
+}
 export function parseScoreboard(data, league) {
   const kind = LEAGUES[league]?.kind || 'match';
   const out = [];
@@ -212,6 +229,7 @@ export function parseScoreboard(data, league) {
       tv: [...new Set((comp?.broadcasts || []).flatMap(b => b.names || []))].join(' · '),
       note: comp?.notes?.[0]?.headline || '',
       series: parseSeries(comp?.series),
+      round: knockoutRound(e, comp, league),
       stage: stageFrom({ seasonType: e.season?.type, seasonSlug: e.season?.slug, typeAbbr: comp?.type?.abbreviation, note: comp?.notes?.[0]?.headline || '', name: e.name, cup: LEAGUES[league]?.cup })
     };
     if (kind === 'match' && comp) {

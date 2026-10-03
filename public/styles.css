@@ -909,3 +909,20 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .live-line.goal .live-ball { flex: none; font-size: 18px; line-height: 1; }
 /* A sheet's watch button with nothing under it but a card: room between them. */
 .watch-btn.wide + .q-card, .watch-btn.wide + .card, .match-head > .watch-btn.wide:last-child { margin-bottom: 12px; }
+/* ---- A bracket: a column a round, the later rounds between the ties that feed them ---- */
+.bracket { display: flex; gap: 14px; overflow-x: auto; margin: 4px -16px 0; padding: 4px 16px 12px; scroll-padding-inline: 16px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.br-col { flex: 0 0 172px; display: flex; flex-direction: column; scroll-snap-align: start; }
+.br-title { margin: 0 0 8px; font-size: 13px; font-weight: 800; color: var(--q-muted); letter-spacing: .02em; }
+.br-ties { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
+.br-tie { position: relative; display: grid; gap: 4px; width: 100%; padding: 9px 10px; text-align: left; font: inherit; color: inherit; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.br-col:not(:last-child) .br-tie::after { content: ''; position: absolute; top: 50%; right: -15px; width: 14px; border-top: 1.5px solid var(--q-border); }
+.br-tie.live { border-color: color-mix(in srgb, var(--live) 55%, var(--q-border)); }
+.br-tie.tbd { min-height: 74px; place-items: center; border-style: dashed; background: transparent; box-shadow: none; color: var(--q-muted); font-size: 13px; }
+.br-side { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; font-size: 14px; }
+.br-side .logo { width: 20px; height: 20px; }
+.br-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.br-score { font-weight: 800; min-width: 14px; text-align: right; }
+.br-side.win .br-name, .br-side.win .br-score { font-weight: 800; color: var(--q-text); }
+.br-side.out { opacity: .45; }
+.br-note { font-size: 11.5px; font-weight: 650; color: var(--q-muted); border-top: 1px solid var(--q-border); padding-top: 4px; margin-top: 2px; }
+.br-note.live { color: var(--live); }

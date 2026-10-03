@@ -20,10 +20,11 @@ import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
 import { liveTiming } from './lib/f1.mjs';
+import { buildBracket } from './lib/bracket.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList } from './lib/tv.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
+import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from './lib/logos.mjs';
 
@@ -1086,6 +1087,56 @@ function openScores(league, date, view = 'games') {
 // Which days (or weeks) to read, then the games of each, grouped by the
 // viewer's own day: the strip shows only days with games. Races, tours and
 // fight promotions: the whole season, past and to come.
+// ---- The playoffs or a cup's knockout rounds, as a bracket ---------------------------
+//
+// MLB, the NBA, MLS: their games on the days around now (the season's
+// calendar), playoff games kept; a cup: its season's games (seasonEvents),
+// the knockout rounds kept. Read once a league is opened, kept 10 minutes.
+const brackets = new Map();
+const hasBracket = k => LEAGUES[k]?.kind === 'match' && !LEAGUES[k].asia && Boolean(LEAGUES[k].cup || ['mlb', 'nba', 'mls'].includes(k));
+async function postseason(league) {
+  if (LEAGUES[league].cup) return (await seasonEvents(league)).filter(e => e.round);
+  const cal = await seasonCalendar(league).catch(() => null);
+  const from = yyyymmdd(new Date(Date.now() - 75 * 86_400_000));
+  const to = yyyymmdd(new Date(Date.now() + 10 * 86_400_000));
+  const days = (cal?.days || []).filter(d => d >= from && d <= to);
+  if (!days.length) return [];
+  const list = await scoreboard(league, days);
+  return list.filter(e => e.round);
+}
+function loadBracket(league) {
+  const had = brackets.get(league);
+  if (!hasBracket(league) || (had && (had.loading || Date.now() - had.at < 10 * 60_000))) return;
+  brackets.set(league, { ...(had || { rounds: [] }), loading: true });
+  postseason(league)
+    .then(events => brackets.set(league, { rounds: buildBracket(events, league), at: Date.now() }))
+    .catch(() => brackets.set(league, { rounds: had?.rounds || [], at: Date.now() }))
+    .finally(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+}
+// The bracket: a column a round (the later ones between the ties that feed
+// them), each tie its two sides with the series wins or aggregate, who went
+// through (the other greyed), or the next game, or that it's on now.
+function bracketView(rounds, league) {
+  const en = locale === 'en';
+  const note = t => {
+    const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
+    if (won) return en ? `${won.short || won.name} through` : `${won.short || won.name} 晉級`;
+    if (t.live) return en ? 'On now' : '進行中';
+    if (t.next) return `${t.kind === 'series' ? `G${t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${clock(t.next.start)}`;
+    return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : '';
+  };
+  const tie = t =>
+    t
+      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openEvent(t.games.find(g => g.status.state === 'in') || t.next || t.games.at(-1)) }, [
+          ...t.sides.map(s =>
+            el('div', { class: `br-side${t.winner ? (t.winner === String(s.id) ? ' win' : ' out') : ''}` }, [sideLogo(s, league, 'xs'), el('span', { class: 'br-name', text: s.short || s.name }), el('strong', { class: 'num br-score', text: t.score[String(s.id)] ?? '' })])
+          ),
+          note(t) ? el('small', { class: `br-note${t.live ? ' live' : ''}`, text: note(t) }) : null
+        ])
+      : el('div', { class: 'br-tie tbd' }, [el('span', { text: en ? 'To be decided' : '待定' })]);
+  return el('div', { class: 'bracket' }, rounds.map(r => el('section', { class: 'br-col' }, [el('h4', { class: 'br-title', text: en ? r.title.en : r.title.zh }), el('div', { class: 'br-ties' }, r.ties.map(tie))])));
+}
+
 async function loadScores() {
   const sc = state.scores;
   const league = sc.league;
@@ -1356,13 +1407,17 @@ function renderScores() {
     { class: 'q-chips small' },
     shownLeaguesOf(sc.sport)
       .sort((a, b) => mine.has(b) - mine.has(a))
-      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), leagueName(k, locale)]))
+      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), leagueName(k, locale)]))
   );
   let strip = null;
   let list;
   let stages = null;
-  const tableView = sc.view === 'table' && hasStandings(sc.league);
-  if (tableView) list = tableOf(sc.league);
+  loadBracket(sc.league);
+  const rounds = brackets.get(sc.league)?.rounds || [];
+  const knockView = sc.view === 'bracket' && rounds.length > 0;
+  const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
+  if (knockView) list = bracketView(rounds, sc.league);
+  else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
   else if (sc.mode === 'event') {
@@ -1422,8 +1477,10 @@ function renderScores() {
     ]),
     twChips(sc.league, 3)
   ]);
-  const views = hasStandings(sc.league) ? segmented([['games', t('schedule')], ['table', t('table')]], tableView ? 'table' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
-  put(box, sportChips, leagueChips, tools, views, tableView ? null : strip, tableView ? null : stages, list);
+  const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : [])];
+  const views = viewList.length > 1 ? segmented(viewList, knockView ? 'bracket' : tableView ? 'table' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
+  const other = tableView || knockView;
+  put(box, sportChips, leagueChips, tools, views, other ? null : strip, other ? null : stages, list);
   centerChosen(box);
 }
 
