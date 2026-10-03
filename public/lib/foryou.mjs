@@ -8,9 +8,9 @@
 // league, ranked or leading sides (standings), and a followed team (the
 // strongest signal, added to its affinity by following it).
 import { LEAGUES, TOP_LEAGUES } from './leagues.mjs';
-import { familyOfSport } from './catalog.mjs';
+import { familyOfSport } from '#kit/catalog.mjs';
 import { normalizeTeamName } from './espn.mjs';
-import { rank } from './quadra.mjs';
+import { rank } from '#kit/quadra.mjs';
 
 export const leagueKey = league => LEAGUES[league]?.play || league;
 // The kind of sport, as every Quadra app keys it.

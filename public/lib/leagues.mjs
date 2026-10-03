@@ -8,8 +8,8 @@
 //   asia    CPBL from its own site (through the proxy)
 //   play    the catalogue's key for the league's logos and names
 //   kind    'match' two sides; 'field' a race weekend
-import { leagueLogo as kitLeagueLogo } from './logos.mjs';
-import { SPORTS as ALL_SPORTS, CATALOG } from './catalog.mjs';
+import { leagueLogo as kitLeagueLogo } from '#kit/logos.mjs';
+import { SPORTS as ALL_SPORTS, CATALOG } from '#kit/catalog.mjs';
 import { BROADCAST } from './broadcast.mjs';
 
 export const LEAGUES = Object.fromEntries(

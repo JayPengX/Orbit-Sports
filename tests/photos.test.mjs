@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 test('photos: only studio headshots (ESPN by id or name, TheSportsDB cutouts), never a casual picture', async () => {
-  const P = await import('../public/lib/photos.mjs');
+  const P = await import('#kit/photos.mjs');
   assert.equal(P.espnHeadshot('nba', 1966), 'https://a.espncdn.com/i/headshots/nba/players/full/1966.png');
   assert.equal(P.espnHeadshot('epl', 22), 'https://a.espncdn.com/i/headshots/soccer/players/full/22.png');
   assert.equal(P.espnHeadshot('cpbl', 22), null);

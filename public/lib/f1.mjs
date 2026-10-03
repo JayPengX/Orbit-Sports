@@ -4,7 +4,7 @@
 // and each weekend's results from Jolpica (the grid, the finish, a retirement
 // and the sprint).
 import { getJson } from './espn.mjs';
-import { f1Driver } from './logos.mjs';
+import { f1Driver } from '#kit/logos.mjs';
 
 const F1 = 'https://www.formula1.com/en';
 const JOLPICA = 'https://api.jolpi.ca/ergast/f1';

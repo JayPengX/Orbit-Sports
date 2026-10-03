@@ -2,9 +2,9 @@
 // rows, sheets. `ctx` is filled by app.js (the text, the state and the
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
-import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from './lib/logos.mjs';
+import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
 import { keptTiming } from './lib/f1.mjs';
-import { espnHeadshot, smallPhoto, isFlag, personPhoto } from './lib/photos.mjs';
+import { espnHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
 import { liveLabel, liveNote } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';

@@ -10,14 +10,14 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score) }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
-import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from './logos.mjs';
+import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { asiaMonth, asiaMonthOf, CATALOG } from './catalog.mjs';
-import { proxyJson } from './quadra.mjs';
+import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
+import { proxyJson } from '#kit/quadra.mjs';
 import { stageFrom } from './stage.mjs';
-import { teamNameZh } from './names.mjs';
+import { teamNameZh } from '#kit/names.mjs';
 import { groupZh } from './statnames.mjs';
 
 export const SITE = 'https://site.api.espn.com/apis/site/v2/sports';

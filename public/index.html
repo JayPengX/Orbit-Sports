@@ -5,37 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#c2410c" />
 <meta name="build-version" content="dev" />
-<title>Quadra Fixtures</title>
+<!-- brand: Shared-Proxy/brand/generate.mjs writes this block -->
+<title>Orbit Sports</title>
 <meta name="description" content="所有運動的賽程、比分、排名與球員數據，還有依你追蹤的運動排好的今日推薦。" />
+<meta name="application-name" content="Orbit Sports" />
+<meta name="apple-mobile-web-app-title" content="Sports" />
 <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="./icons/favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
-<meta name="apple-mobile-web-app-title" content="Fixtures" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Orbit" />
+<meta property="og:title" content="Orbit Sports" />
+<meta property="og:description" content="所有運動的賽程、比分、排名與球員數據，還有依你追蹤的運動排好的今日推薦。" />
+<meta property="og:url" content="https://jaypengx.github.io/Orbit-Sports/" />
+<meta property="og:locale" content="zh_TW" />
+<meta property="og:locale:alternate" content="en_US" />
+<meta property="og:image" content="https://jaypengx.github.io/Orbit-Sports/share/og.jpg" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Orbit Sports：所有運動的賽程、比分與數據" />
+<meta property="og:image" content="https://jaypengx.github.io/Orbit-Sports/share/square.jpg" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="1200" />
+<meta property="og:image:alt" content="Orbit Sports：所有運動的賽程、比分與數據" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Orbit Sports" />
+<meta name="twitter:description" content="所有運動的賽程、比分、排名與球員數據，還有依你追蹤的運動排好的今日推薦。" />
+<meta name="twitter:image" content="https://jaypengx.github.io/Orbit-Sports/share/x.jpg" />
+<meta name="twitter:image:alt" content="Orbit Sports：所有運動的賽程、比分與數據" />
+<!-- /brand -->
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="application-name" content="Quadra Fixtures" />
 <link rel="manifest" href="./manifest.webmanifest" />
-<meta property="og:type" content="website" />
-<meta property="og:site_name" content="Quadra Fixtures" />
-<meta property="og:title" content="Quadra Fixtures" />
-<meta property="og:description" content="所有運動的賽程、比分、排名與球員數據，還有依你追蹤的運動排好的今日推薦。" />
-<meta property="og:url" content="https://jaypengx.github.io/Quadra-Fixtures/" />
-<meta property="og:image" content="https://jaypengx.github.io/Quadra-Fixtures/og-image.jpg" />
-<meta property="og:image:width" content="1200" />
-<meta property="og:image:height" content="630" />
-<meta property="og:image" content="https://jaypengx.github.io/Quadra-Fixtures/og-image-square.jpg" />
-<meta property="og:image:width" content="1200" />
-<meta property="og:image:height" content="1200" />
-<meta name="twitter:card" content="summary_large_image" />
 <link rel="preconnect" href="https://orbit-workers-proxy.pengzjay.workers.dev" crossorigin />
 <link rel="preconnect" href="https://sports-proxy.pengzjay.workers.dev" crossorigin />
 <link rel="preconnect" href="https://a.espncdn.com" crossorigin />
 <link rel="stylesheet" href="./styles.css" />
-<link rel="stylesheet" href="./quadra.css" />
+<!-- kit:head: where the app's stylesheets end, before any module. The kit
+     comes from one place for every app (Shared-Proxy's GitHub Pages, same
+     site as the apps), at the version this device last saw (quadra.kit, set
+     by the kit's watchUpdates), so a change to the kit is one push to
+     Shared-Proxy and every app has it the next time it's opened. -->
+<script>!function(b,v,q,m,f,i){try{v=localStorage.getItem('quadra.kit')||''}catch(e){v=''}q=v?'?v='+encodeURIComponent(v):'';m={'#kit/':b};f=['quadra.mjs','logos.mjs','names.mjs','photos.mjs','catalog.mjs'];for(i=0;i<f.length;i++)m['#kit/'+f[i]]=b+f[i]+q;window.QUADRA_KIT={base:b,version:v,url:function(x){return b+x+q}};document.write('<script type="import'+'map">'+JSON.stringify({imports:m})+'<\/script><link rel="stylesheet" href="'+b+'quadra.css'+q+'"><link rel="modulepreload" href="'+b+'quadra.mjs'+q+'">')}('../Shared-Proxy/kit/')</script>
+<!-- /kit:head -->
 </head>
 <body>
-<div id="loading" data-title="Quadra Fixtures" data-cache="quadra-fixtures-"></div>
-<script src="./boot.js"></script>
+<div id="loading" data-title="Orbit Sports" data-cache="quadra-fixtures-"></div>
+<!-- kit:boot: right after <div id="loading">. -->
+<script>document.write('<script src="'+QUADRA_KIT.url('boot.js')+'"><\/script>')</script>
+<!-- /kit:boot -->
 <header class="q-appbar">
   <div class="q-appbar-inner">
     <div class="q-brand">

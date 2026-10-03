@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { splitWeekend, sessionName } from '../public/lib/espn.mjs';
-import { teamBadge, leagueLogo } from '../public/lib/logos.mjs';
+import { teamBadge, leagueLogo } from '#kit/logos.mjs';
 
 const st = state => ({ state, detail: '', short: '', completed: state === 'post', void: false });
 const weekend = {

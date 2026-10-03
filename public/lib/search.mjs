@@ -3,7 +3,7 @@
 // league Fixtures knows it by (ESPN's league id in the result's uid,
 // "s:40~l:46~t:2" = the NBA's team 2).
 import { LEAGUES } from './leagues.mjs';
-import { teamLogo } from './logos.mjs';
+import { teamLogo } from '#kit/logos.mjs';
 
 // ESPN's league ids, by Fixtures' league key's (from each scoreboard's league id).
 export const ESPN_LEAGUE_ID = { mlb: '10', nba: '46', epl: '700', seriea: '730', bundesliga: '720', ligue1: '710', ucl: '775', uel: '776', uecl: '20296', scotland: '735', mls: '770', facup: '3918', nationsleague: '2395', f1: '2030' };

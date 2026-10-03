@@ -1,3 +1,5 @@
 node_modules/
 # Written by the deploy (scripts/nba-elta.mjs).
 public/nba-elta.json
+.kit
+.shared
