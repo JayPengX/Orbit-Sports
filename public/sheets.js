@@ -6,7 +6,7 @@ import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSc
 import { stageTag } from './lib/stage.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from './lib/logos.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying } from './lib/f1.mjs';
 import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
@@ -604,6 +604,8 @@ function f1Field(rows, field) {
         el('span', { class: 'f1-res' }, [
           el('small', { class: 'num', text: r.out ? r.why : r.time || (r.status === 'Lapped' ? (en ? 'Lapped' : '被套圈') : '') }),
           el('span', { class: 'f1-tags' }, [
+            r.gap ? el('small', { class: 'num', text: r.gap }) : null,
+            r.outIn ? el('small', { class: 'q-out', title: en ? `Out in ${r.outIn}` : `${r.outIn} 淘汰`, text: r.outIn }) : null,
             gained ? el('small', { class: `num ${gained > 0 ? 'up' : 'down'}`, text: `${gained > 0 ? '▲' : '▼'}${Math.abs(gained)}` }) : null,
             r.fastest ? el('small', { class: 'fl', title: en ? 'Fastest lap' : '最快圈', text: en ? 'FL' : '最快圈' }) : null,
             r.points ? el('strong', { class: 'num pts', text: `+${r.points}` }) : null
@@ -631,13 +633,23 @@ function fillField(s, e) {
         el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
         ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField'))
       );
-      // F1, a race or sprint that's over: the official result (each car's
-      // team, time or retirement, points and places gained from the grid).
+      // F1, a session that's over: the official numbers. A race or sprint:
+      // each car's team, time or retirement, points and places gained from
+      // the grid; a qualifying (or the sprint's): each one's best lap, the
+      // gap to pole and the part the others went out in.
       const at = pick;
-      if (e.league === 'f1' && ss.status.state === 'post' && (ss.abbr === 'Race' || ss.abbr === 'SR'))
-        raceResult(ss.start, ss.abbr === 'SR', L() === 'en')
-          .then(rows => rows.length && at === pick && box.isConnected && box.querySelector('ol.field')?.replaceWith(f1Field(rows, ss.field)))
-          .catch(() => {});
+      const weekend = e.weekend || e.id;
+      const numbers =
+        e.league !== 'f1' || ss.status.state !== 'post'
+          ? null
+          : ss.abbr === 'Race' || ss.abbr === 'SR'
+            ? raceResult(ss.start, ss.abbr === 'SR', L() === 'en')
+            : ss.abbr === 'Qual'
+              ? qualifyingResult(ss.start).then(rows => (rows.length ? rows : espnQualifying(weekend, ss.id, ss.field)))
+              : ss.abbr === 'SS' || ss.abbr === 'SQ'
+                ? espnQualifying(weekend, ss.id, ss.field, 'SQ')
+                : null;
+      numbers?.then(rows => rows.length && at === pick && box.isConnected && box.querySelector('ol.field')?.replaceWith(f1Field(rows, ss.field))).catch(() => {});
     };
     paint();
     s.body.append(box);

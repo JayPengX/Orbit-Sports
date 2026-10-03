@@ -727,6 +727,7 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .f1-tags .down { color: var(--q-bad); }
 .f1-tags .fl { color: #a855f7; }
 .f1-tags .pts { font-size: 12px; }
+.f1-tags .q-out { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--q-sunken); color: var(--q-text-2); }
 /* ---- 追蹤: your teams' last and next games, your players, your leagues ---- */
 .follow-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 4px 2px 8px; }
 .follow-head .hero-title { margin: 0; }

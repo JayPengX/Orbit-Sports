@@ -4,9 +4,11 @@
 // and each weekend's results from Jolpica (the grid, the finish, a retirement
 // and the sprint).
 import { getJson } from './espn.mjs';
+import { f1Driver } from './logos.mjs';
 
 const F1 = 'https://www.formula1.com/en';
 const JOLPICA = 'https://api.jolpi.ca/ergast/f1';
+const CORE = 'https://sports.core.api.espn.com/v2/sports/racing/leagues/f1';
 const HOUR = 3_600_000;
 
 // The page's grids by their first label (the page's order can change).
@@ -148,11 +150,16 @@ export async function f1Official(kind, { page, name }) {
 // A race's (or sprint's) full result by the session's date: [{ pos, text,
 // out, why, driver: { givenName, familyName, code }, team, grid, time,
 // points, laps }], empty until it's in.
-export async function raceResult(start, sprint = false, en = false) {
+// The season's round a session belongs to (Jolpica's schedule), or null.
+async function roundOf(start) {
   const year = new Date(start).getFullYear();
   const sched = await getJson(`${JOLPICA}/${year}.json?limit=40`, { ttl: 12 * HOUR });
   const t = Date.parse(start);
-  const race = (sched?.MRData?.RaceTable?.Races || []).find(r => Math.abs(Date.parse(r.date) - t) < 3 * 86_400_000);
+  return (sched?.MRData?.RaceTable?.Races || []).find(r => Math.abs(Date.parse(r.date) - t) < 3 * 86_400_000) || null;
+}
+export async function raceResult(start, sprint = false, en = false) {
+  const year = new Date(start).getFullYear();
+  const race = await roundOf(start);
   if (!race) return [];
   const d = await getJson(`${JOLPICA}/${year}/${race.round}/${sprint ? 'sprint' : 'results'}.json?limit=40`, { ttl: HOUR });
   const r = d?.MRData?.RaceTable?.Races?.[0];
@@ -166,4 +173,52 @@ export async function raceResult(start, sprint = false, en = false) {
     points: Number(x.points || 0),
     fastest: x.FastestLap?.rank === '1'
   }));
+}
+
+// A lap time as written ("1:11.608", "58.112") in ms; 0 for none ("", "0.000").
+export function lapMs(t) {
+  const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(t || '').trim());
+  return m ? Math.round((Number(m[1] || 0) * 60 + Number(m[2])) * 1000) : 0;
+}
+// A qualifying's rows ({ pos, driver, team, q: its Q1, Q2, Q3 laps as
+// written }) with each car's best lap (`time`, the last part it set one in),
+// the gap to pole for the cars in the last part (a Q1 lap against a Q3 one
+// says nothing), and the part the others went out in (`outIn`: Q1, Q2; SQ1,
+// SQ2 for the sprint's).
+export function qualiRows(rows, prefix = 'Q') {
+  const withBest = rows.map(r => {
+    const part = [2, 1, 0].find(i => lapMs(r.q[i])) ?? -1;
+    return { ...r, part, time: part >= 0 ? r.q[part] : '' };
+  });
+  const top = Math.max(-1, ...withBest.map(r => r.part));
+  const pole = lapMs(withBest.find(r => r.part === top)?.time);
+  return withBest.map(r => ({
+    pos: r.pos,
+    driver: r.driver,
+    team: r.team,
+    time: r.time,
+    gap: r.part === top && r.pos > 1 && pole && lapMs(r.time) ? `+${((lapMs(r.time) - pole) / 1000).toFixed(3)}` : '',
+    outIn: r.part >= 0 && r.part < top ? `${prefix}${r.part + 1}` : '',
+    out: false
+  }));
+}
+// Qualifying's numbers from Jolpica (one call), [] until they're in.
+export async function qualifyingResult(start) {
+  const race = await roundOf(start);
+  if (!race) return [];
+  const d = await getJson(`${JOLPICA}/${race.season}/${race.round}/qualifying.json?limit=40`, { ttl: HOUR });
+  const list = d?.MRData?.RaceTable?.Races?.[0]?.QualifyingResults || [];
+  return qualiRows(list.map(x => ({ pos: Number(x.position), driver: x.Driver || {}, team: x.Constructor?.name || '', q: [x.Q1 || '', x.Q2 || '', x.Q3 || ''] })));
+}
+// A qualifying's numbers from ESPN, car by car (Jolpica has no sprint
+// qualifying, and its qualifying comes in later): `field` the session's
+// order (ESPN's), each car's laps from its own statistics.
+export async function espnQualifying(eventId, sessionId, field, prefix = 'Q') {
+  const stats = await Promise.all(field.map(c => getJson(`${CORE}/events/${eventId}/competitions/${sessionId}/competitors/${c.id}/statistics`, { ttl: 6 * HOUR }).catch(() => null)));
+  const rows = field.map((c, i) => {
+    const s = Object.fromEntries((stats[i]?.splits?.categories || []).flatMap(k => k.stats || []).map(x => [x.name, x.displayValue]));
+    const [given, ...family] = String(c.name || '').split(' ');
+    return { pos: i + 1, driver: { givenName: given, familyName: family.join(' ') }, team: f1Driver(c.name).team, q: [s.qual1TimeMS, s.qual2TimeMS, s.qual3TimeMS].map(v => v || '') };
+  });
+  return rows.some(r => r.q.some(lapMs)) ? qualiRows(rows, prefix) : [];
 }

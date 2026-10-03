@@ -1370,14 +1370,24 @@ function renderScores() {
     const past = events.filter(e => e.status.state === 'post').reverse();
     // A race series: one card per weekend (its sessions inside), not a row per session.
     const racing = LEAGUES[sc.league]?.sport === 'racing';
-    const block = (title, list) => (racing ? section(title, el('div', { class: 'wk-cards' }, weekends(list).map(weekendCard))) : section(title, el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { league: false })))));
-    list = events.length
-      ? el('div', {}, [
-          current.length ? block(t('liveNow'), current) : null,
-          next.length ? block(t('upcomingEvents'), next) : null,
-          past.length ? block(t('pastEvents'), past) : null
-        ])
-      : empty(t('noEvents'));
+    const block = (title, list) => section(title, el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { league: false }))));
+    // A race series: one card per weekend (its sessions inside), placed by
+    // the whole weekend: on while a session is, to come while one is (its
+    // practice over or not), over once they all are.
+    const wkBlock = (title, list) => section(title, el('div', { class: 'wk-cards' }, list.map(weekendCard)));
+    const wks = racing ? weekends(events) : [];
+    const wkNow = wks.filter(w => w.some(x => x.status.state === 'in'));
+    const wkNext = wks.filter(w => !wkNow.includes(w) && w.some(x => x.status.state === 'pre' && Date.parse(x.end || x.start) > now - 86_400_000));
+    const wkPast = wks.filter(w => !wkNow.includes(w) && !wkNext.includes(w)).reverse();
+    list = !events.length
+      ? empty(t('noEvents'))
+      : racing
+        ? el('div', {}, [wkNow.length ? wkBlock(t('liveNow'), wkNow) : null, wkNext.length ? wkBlock(t('upcomingEvents'), wkNext) : null, wkPast.length ? wkBlock(t('pastEvents'), wkPast) : null])
+        : el('div', {}, [
+            current.length ? block(t('liveNow'), current) : null,
+            next.length ? block(t('upcomingEvents'), next) : null,
+            past.length ? block(t('pastEvents'), past) : null
+          ]);
   } else if (!sc.days.length) list = empty(t('noGamesSeason'));
   else {
     // The same date strip as 首頁: the league's game days, more of them as
