@@ -1,11 +1,11 @@
 // Search in 賽事: leagues by name (in either language), and teams and players
 // from ESPN's search (site.api.espn.com/apis/search/v2), each placed in the
-// league Fixtures knows it by (ESPN's league id in the result's uid,
+// league Orbit Sports knows it by (ESPN's league id in the result's uid,
 // "s:40~l:46~t:2" = the NBA's team 2).
 import { LEAGUES } from './leagues.mjs';
 import { teamLogo } from '#kit/logos.mjs';
 
-// ESPN's league ids, by Fixtures' league key's (from each scoreboard's league id).
+// ESPN's league ids, by Orbit Sports' league key's (from each scoreboard's league id).
 export const ESPN_LEAGUE_ID = { mlb: '10', nba: '46', epl: '700', seriea: '730', bundesliga: '720', ligue1: '710', ucl: '775', uel: '776', uecl: '20296', scotland: '735', mls: '770', facup: '3918', nationsleague: '2395', f1: '2030' };
 const BY_ID = Object.fromEntries(Object.entries(ESPN_LEAGUE_ID).map(([k, id]) => [id, k]));
 // Soccer's clubs and players carry no league id ("s:600~t:382"): their
@@ -22,7 +22,7 @@ export function findLeagues(query) {
 }
 
 // ESPN's answer: { teams: [{ league, id, name, logo }], players: [...] }, only
-// those of leagues Fixtures has.
+// those of leagues Orbit Sports has.
 export function parseSearch(data) {
   const out = { teams: [], players: [] };
   for (const r of data?.results || []) {

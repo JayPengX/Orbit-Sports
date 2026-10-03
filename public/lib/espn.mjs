@@ -1,4 +1,4 @@
-// Sports data for Quadra Fixtures: ESPN's public site API (CPBL from its
+// Sports data for Orbit Sports: ESPN's public site API (CPBL from its
 // own site), through the Quadra data proxy, which caches every
 // answer for every viewer and answers signed-in apps only.
 //
@@ -658,14 +658,14 @@ const clubPath = league => (LEAGUES[league].espn.startsWith('soccer/') ? 'soccer
 export async function team(league, id) {
   return localSide(league, parseTeam(await getJson(`${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}`, { ttl: 10 * 60_000 })));
 }
-// Fixtures' league for an ESPN path ("soccer/eng.1" → epl).
+// Orbit Sports' league for an ESPN path ("soccer/eng.1" → epl).
 const BY_PATH = Object.fromEntries(Object.entries(LEAGUES).filter(([, l]) => l.espn).map(([k, l]) => [l.espn, k]));
 export function parseSchedule(data, league) {
   const sport = (LEAGUES[league]?.espn || '').split('/')[0];
   return (data?.events || []).map(e => {
     const comp = e.competitions?.[0];
     // Each game in its own competition (a club's cup and European games too);
-    // one Fixtures doesn't have (a friendly) stays under the club's league, named, never sold.
+    // one Orbit Sports doesn't have (a friendly) stays under the club's league, named, never sold.
     const own = e.league?.slug ? BY_PATH[`${sport}/${e.league.slug}`] : league;
     const lg = own || league;
     const home = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'home')));

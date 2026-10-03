@@ -1,4 +1,4 @@
-// Every league Quadra Fixtures covers: the shared catalogue's (catalog.mjs,
+// Every league Orbit Sports covers: the shared catalogue's (catalog.mjs,
 // the kit's leagues.mjs, which Play reads too) that are on ELTA.tv or Apple
 // TV in Taiwan (lib/broadcast.mjs), with its sport, where its data comes from
 // and, when Quadra Play sells it, Play's key for it.

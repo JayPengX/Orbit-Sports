@@ -18,7 +18,7 @@ const who = a => {
   return { id, name: x?.fullName || x?.displayName || '', ...(shot ? { headshot: shot } : {}) };
 };
 
-// comp: ESPN's competition; status: its status; sport: Fixtures' sport key.
+// comp: ESPN's competition; status: its status; sport: Orbit Sports' sport key.
 export function liveOf(comp, status, sport) {
   const s = comp?.situation || {};
   const live = { lastPlay: s.lastPlay?.text || '' };
@@ -59,7 +59,7 @@ const ord = n => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`
 const QUARTERS = 4;
 
 // The short status of a game on now (or at a break): the period and clock,
-// in the viewer's language. e: a Fixtures match event.
+// in the viewer's language. e: a Orbit Sports match event.
 export function liveLabel(e, sport, lang = 'zh') {
   const s = e.status || {};
   const en = lang === 'en';

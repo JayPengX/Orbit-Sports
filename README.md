@@ -1,11 +1,13 @@
-# Quadra Fixtures
+# Orbit Sports
 
-A related add-on of Quadra: the scores, schedules, match details, standings,
+An Orbit app (Orbit: the everyday tools, beside Quadra's Securities and
+Play), signed in with the Quadra Pass: the scores, schedules, match details, standings,
 teams and players of every league you can watch in Taiwan on ELTA.tv
 (愛爾達) or Apple TV, a day planned around the sports you follow, and one tap
 to watch a game in the ELTA.tv (or Apple TV) app.
 
-**https://jaypengx.github.io/Quadra-Fixtures/**
+**https://jaypengx.github.io/Orbit-Sports/** (was Quadra Fixtures, at
+`/Quadra-Fixtures/`, until the repo is renamed)
 
 ## What's in it
 
@@ -83,8 +85,8 @@ A static site (GitHub Pages) with no build step.
   them at once while fresh ones load.
 - A Quadra Pass is required: the sign-in, the account button, the account sheet
   and the one-app-at-a-time session are the shared kit
-  (`public/lib/quadra.mjs` and `public/quadra.css`, copied from
-  `Shared-Proxy/kit` by `node kit/sync.mjs`; don't edit the copies).
+  (loaded from Shared-Proxy's Pages: `#kit/quadra.mjs`, `#kit/logos.mjs`…,
+  the page's `kit:head` and `kit:boot`, `Shared-Proxy/kit/loader.html`).
 - What you follow is this app's payload on the pass
   (`{ v: 3, sports, leagues, follows }`, sports in priority order), with a
   copy in the wallet (setting `follow:match`, Play's league keys) so Quadra
@@ -106,7 +108,6 @@ public/
   lib/days.mjs      the nearest game day
   lib/foryou.mjs    the keys a match is about (shared with Play)
   lib/i18n.mjs      Traditional Chinese and English
-  lib/quadra.mjs    shared Quadra kit (copy)
 ```
 
 ## Develop

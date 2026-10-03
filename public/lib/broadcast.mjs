@@ -1,5 +1,5 @@
 // Where to watch in Taiwan: ELTA.tv (愛爾達's streaming service) and Apple
-// TV, the only two Quadra Fixtures shows, and every league it covers is on
+// TV, the only two Orbit Sports shows, and every league it covers is on
 // one of them (lib/leagues.mjs keeps only these of the shared catalogue).
 //
 // Checked October 2026 against ELTA's own schedule (its league names below)
@@ -47,7 +47,7 @@ export const broadcastsOf = league => BROADCAST[league] || [];
 // doesn't carry isn't said to be on ELTA.
 export const ELTA_LIST = 'https://piceltaott-elta.cdn.hinet.net/production/json/program_list/sports_live_program_list.json';
 // ELTA's league names (its English one, else its Chinese one: 蘇超 has no
-// English name) → Fixtures' leagues.
+// English name) → Orbit Sports' leagues.
 const ELTA_LEAGUE = {
   MLB: 'mlb', CPBL: 'cpbl', NBA: 'nba', 'Premier League': 'epl', 'Serie A': 'seriea', Bundesliga: 'bundesliga', 'Ligue 1': 'ligue1',
   UCL: 'ucl', UEL: 'uel', UECL: 'uecl', 蘇超: 'scotland', 'FA Cup': 'facup', 英足總盃: 'facup', 'UEFA Nations League': 'nationsleague', F1: 'f1'

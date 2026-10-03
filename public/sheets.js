@@ -1,4 +1,4 @@
-// Quadra Fixtures' sheets: a match (header, then its data by section), a
+// Orbit Sports' sheets: a match (header, then its data by section), a
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate } from '#kit/quadra.mjs';

@@ -1,4 +1,4 @@
-// Quadra Fixtures' shared pieces: small DOM helpers, days and times, event
+// Orbit Sports' shared pieces: small DOM helpers, days and times, event
 // rows, sheets. `ctx` is filled by app.js (the text, the state and the
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
@@ -184,7 +184,7 @@ export function leagueMark(key, cls = 'lg-mark') {
   return el('span', { class: `league-badge ${cls}` }, [logoPicture(leagueLogo(key), null, 'league-img', icon)]);
 }
 export const leagueChip = key => el('span', { class: 'league-tag' }, [leagueMark(key), el('span', { text: leagueName(key, ctx.locale) })]);
-// An event's competition: its league, or (a friendly, a cup Fixtures doesn't have) its own name.
+// An event's competition: its league, or (a friendly, a cup Orbit Sports doesn't have) its own name.
 const compChip = e => (e.other ? el('span', { class: 'league-tag other' }, [el('span', { text: e.other })]) : leagueChip(e.league));
 
 // ---- Events --------------------------------------------------------------------------

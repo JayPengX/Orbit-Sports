@@ -1,4 +1,4 @@
-// Quadra Fixtures' service worker: keeps the page's own files so the app opens
+// Orbit Sports' service worker: keeps the page's own files so the app opens
 // without a connection and can be installed. Scores and news go to other
 // sites and are never touched here.
 //

@@ -1,4 +1,4 @@
-// Quadra Fixtures' text, Traditional Chinese and English (the page follows
+// Orbit Sports' text, Traditional Chinese and English (the page follows
 // the browser's language).
 export const STRINGS = {
   zh: {

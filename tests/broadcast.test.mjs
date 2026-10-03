@@ -27,7 +27,7 @@ test("ELTA's league names as it writes them: UEL, UECL, and 蘇超 with no Engli
   const oct = elta('2026-10-01');
   const leagues = new Set(oct.map(p => p.league));
   for (const k of ['uel', 'uecl', 'scotland', 'ucl', 'epl', 'mlb', 'cpbl', 'nba', 'f1']) assert.ok(leagues.has(k), k);
-  // Only Fixtures' leagues: not the Asian Games, BWF, WTT…
+  // Only Orbit Sports' leagues: not the Asian Games, BWF, WTT…
   assert.ok([...leagues].every(k => broadcastsOf(k).length), [...leagues].join());
 });
 

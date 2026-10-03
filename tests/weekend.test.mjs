@@ -47,7 +47,7 @@ test('logos for the leagues and teams the feeds leave bare', () => {
   assert.match(leagueLogo('cpbl'), /^https:/);
 });
 
-test('search: leagues by name, ESPN teams in the leagues Fixtures has', async () => {
+test('search: leagues by name, ESPN teams in the leagues Orbit Sports has', async () => {
   const { findLeagues, parseSearch } = await import('../public/lib/search.mjs');
   const { readFileSync } = await import('node:fs');
   assert.ok(findLeagues('英超').includes('epl'));

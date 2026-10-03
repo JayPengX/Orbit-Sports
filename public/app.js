@@ -1,5 +1,5 @@
-// Quadra Fixtures: a sports app that goes with Quadra (a related add-on, like
-// Orbit Class). Every supported sport's scores, schedules, match details (box
+// Orbit Sports (was Quadra Fixtures): an Orbit app, one of the everyday
+// tools, signed in with the Quadra Pass. Every supported sport's scores, schedules, match details (box
 // scores, plays, line-ups, win probability), standings, teams and players,
 // and a day planned around what the person follows, for the leagues on
 // ELTA.tv and Apple TV in Taiwan, with a tap to watch them there. The data is
@@ -103,7 +103,7 @@ function applyPrefs(payload) {
     const p = payload ? JSON.parse(payload) : null;
     if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
   } catch {}
-  // Only the leagues Fixtures has; an NBA team with NBA.com's logo, as everywhere.
+  // Only the leagues Orbit Sports has; an NBA team with NBA.com's logo, as everywhere.
   state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
   state.prefsLoaded = true;
 }
