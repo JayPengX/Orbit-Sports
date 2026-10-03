@@ -171,14 +171,18 @@ function livePanel(e, sm = null) {
       return best ? { id: best.id, name: best.name, line: [`${best.stats[i]}${en ? ' pts' : '分'}`, reb >= 0 ? `${best.stats[reb]}${en ? ' reb' : '籃板'}` : '', ast >= 0 ? `${best.stats[ast]}${en ? ' ast' : '助攻'}` : ''].filter(Boolean).join(' ') } : null;
     };
     const fouls = sm.teamStats.find(s => s.key === 'fouls');
-    const side = (id, cls) => {
+    // Each side's top scorer as baseball shows batter and pitcher: the face, then who and their line.
+    const person = id => {
       const t = top(id);
-      return el('div', { class: `lp-bb-side ${cls}` }, [el('small', { class: 'muted', text: en ? 'Top scorer' : '本場得分王' }), t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, t ? el('strong', { text: t.name }) : null, t ? el('span', { class: 'num', text: t.line }) : null, fouls ? el('small', { class: 'muted num', text: `${en ? 'Fouls' : '犯規'} ${cls === 'away' ? fouls.away : fouls.home}` }) : null]);
+      const name = sm.byId[id]?.short || sm.byId[id]?.name || '';
+      const f = fouls ? (id === e.away.id ? fouls.away : fouls.home) : '';
+      return el('div', { class: 'lp-person' }, [t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, el('p', {}, [el('small', { text: `${name} · ${en ? 'top scorer' : '得分王'}` }), el('strong', { text: t?.name || '–' }), t?.line ? el('small', { class: 'num lp-line', text: t.line }) : null, f !== '' ? el('small', { class: 'num', text: `${en ? 'Team fouls' : '全隊犯規'} ${f}` }) : null])]);
     };
-    rows.push(el('div', { class: 'lp-bb' }, [side(e.away.id, 'away'), side(e.home.id, 'home')]));
+    rows.push(el('div', { class: 'lp-who lp-bb' }, [person(e.away.id), person(e.home.id)]));
     const last = sm.feed.slice(-4).reverse();
     if (last.length) {
       const nameOf = id => sm.byId[id]?.short || sm.byId[id]?.name || '';
+      rows.push(el('small', { class: 'lp-feed-h', text: en ? 'Latest' : '最新' }));
       rows.push(
         el(
           'ol',
@@ -726,7 +730,10 @@ function fillField(s, e) {
   if (e.kind === 'field') {
     // The weekend's (or week's) sessions, then the chosen one's order.
     const sessions = [...e.sessions].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
-    if (sessions.length > 1) s.body.append(card(T('schedule'), weekendTimeline(sessions, e.league)));
+    // A session on: its live board first, the weekend's schedule after it.
+    const liveNow = sessions.some(x => x.status.state === 'in');
+    const schedule = sessions.length > 1 ? card(T('schedule'), weekendTimeline(sessions, e.league)) : null;
+    if (schedule && !liveNow) s.body.append(schedule);
     let pick = e.sessionKey ? Math.max(0, sessions.findIndex(x => x.abbr === e.sessionKey)) : Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
     const box = el('div');
     let liveTimer = 0;
@@ -771,6 +778,7 @@ function fillField(s, e) {
     };
     paint();
     s.body.append(box);
+    if (schedule && liveNow) s.body.append(schedule);
   }
   s.body.append(twCard(e.league, e));
 }

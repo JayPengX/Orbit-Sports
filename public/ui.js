@@ -318,7 +318,34 @@ export function liveLine(e) {
       ])
     ]);
   }
+  // Soccer: the latest goal, as two lines like baseball's (the minute, then who).
+  const goal = sport === 'soccer' ? (e.live.events || []).filter(x => x.kind !== 'red').at(-1) : null;
+  if (goal) {
+    const en = ctx.locale === 'en';
+    const side = [e.home, e.away].find(s => String(s?.id) === goal.team);
+    return el('div', { class: 'live-line base goal' }, [
+      el('span', { class: 'live-ball', 'aria-hidden': 'true', text: '⚽' }),
+      el('span', { class: 'live-text' }, [
+        el('span', { class: 'live-count num', text: `${en ? 'Goal' : '最新進球'} ${goal.minute}` }),
+        el('span', { class: 'live-who' }, [el('span', { class: 'live-names', text: `${goal.who}${goal.kind === 'pen' ? (en ? ' (pen)' : '（PK）') : goal.kind === 'own' ? (en ? ' (OG)' : '（烏龍）') : ''}${side ? ` · ${side.short || side.name}` : ''}` })])
+      ])
+    ]);
+  }
   const note = liveNote(e, sport, ctx.locale);
+  // Basketball: each side's points leader now, faces and points, the way baseball's shows batter and pitcher.
+  const sc = e.live.scorers;
+  if (sport === 'basketball' && (sc?.away || sc?.home)) {
+    const en = ctx.locale === 'en';
+    const last = p => String(p.short || p.name || '').split(' ').at(-1);
+    const both = [sc.away, sc.home].filter(Boolean);
+    return el('div', { class: 'live-line base hoop' }, [
+      el('span', { class: 'live-faces', 'aria-hidden': 'true' }, both.map(p => personPic({ ...p, en: p.name }, e.league, 'xs round'))),
+      el('span', { class: 'live-text' }, [
+        el('span', { class: 'live-count', text: en ? 'Top scorers' : '得分王' }),
+        el('span', { class: 'live-who' }, [el('span', { class: 'live-names num', text: both.map(p => `${last(p)} ${p.value}`).join(' · ') })])
+      ])
+    ]);
+  }
   return note ? el('div', { class: 'live-line' }, [el('span', { text: note })]) : null;
 }
 // Baseball: the three bases (filled when a runner is on) and, unless

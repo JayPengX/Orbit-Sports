@@ -40,6 +40,16 @@ export function liveOf(comp, status, sport) {
       .filter(d => d.scoringPlay || d.redCard)
       .map(d => ({ kind: d.redCard ? 'red' : d.ownGoal ? 'own' : d.penaltyKick ? 'pen' : 'goal', minute: d.clock?.displayValue || '', team: String(d.team?.id ?? ''), who: d.athletesInvolved?.[0]?.shortName || d.athletesInvolved?.[0]?.displayName || '' }));
   }
+  // Basketball: each side's points leader as it stands (the scoreboard's own), for the card.
+  if (sport === 'basketball') {
+    const lead = c => {
+      const l = (c?.leaders || []).find(x => x.name === 'points')?.leaders?.[0];
+      const p = l && who(l.athlete);
+      return p ? { ...p, short: l.athlete?.shortName || p.name, value: l.displayValue || '' } : null;
+    };
+    const side = h => lead((comp?.competitors || []).find(c => c.homeAway === h));
+    live.scorers = { away: side('away'), home: side('home') };
+  }
   const prefix = /^(top|bot|bottom|mid|middle|end)\b/i.exec(status?.type?.shortDetail || status?.type?.detail || '')?.[1]?.toLowerCase() || '';
   live.half = prefix.startsWith('top') ? 'top' : prefix.startsWith('bot') ? 'bot' : prefix.startsWith('mid') ? 'mid' : prefix === 'end' ? 'end' : '';
   return live;

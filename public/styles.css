@@ -888,17 +888,24 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 :root[data-theme='dark'] .lb-flag.red { color: #f87171; }
 /* ---- An F1 session's card brief: the part and time left, the top three with their faces ---- */
 .f1-brief { display: grid; gap: 4px; margin-top: 4px; }
-.f1-brief-head { font-weight: 700; color: var(--q-bad); }
+.f1-brief-head { font-weight: 750; color: var(--q-text); }
 .f1-brief-top { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
 .f1-brief-top li { display: grid; grid-template-columns: 14px auto minmax(0, 1fr) auto; align-items: center; gap: 6px; font-size: 13px; }
 .f1-brief-top .pos { font-weight: 800; color: var(--q-muted); text-align: center; }
 .f1-brief-name { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .f1-brief-v { font-weight: 650; color: var(--q-muted); }
-/* ---- Basketball live: each side's top scorer and fouls, then the last plays ---- */
-.lp-bb { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.lp-bb-side { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.lp-bb-side.home { text-align: right; align-items: flex-end; }
-.lp-bb-side strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.lp-feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
-.lp-feed li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
-.lp-feed li.scoring { font-weight: 650; }
+/* ---- Basketball live: each side's top scorer as baseball's batter and pitcher, then the last plays ---- */
+.lp-bb { grid-template-columns: 1fr 1fr; gap: 10px; }
+.lp-bb .lp-person { align-items: flex-start; }
+.lp-bb small, .lp-bb strong { white-space: normal; overflow-wrap: anywhere; }
+.live-panel .lp-bb .lp-line { font-size: 12px; font-weight: 650; color: var(--q-text-2); white-space: nowrap; overflow-wrap: normal; }
+.lp-feed-h { font-size: 11px; color: var(--q-muted); font-weight: 700; }
+.lp-feed { list-style: none; margin: -4px 0 0; padding: 0; display: grid; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--q-text-2); }
+.lp-feed li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+.lp-feed li .play-when { color: var(--q-muted); font-weight: 650; }
+.lp-feed li b { color: var(--q-text); font-weight: 700; }
+.lp-feed li strong { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--accent-wash); color: var(--accent); }
+/* Soccer's latest goal on a card, the ball where baseball has its diamond. */
+.live-line.goal .live-ball { flex: none; font-size: 18px; line-height: 1; }
+/* A sheet's watch button with nothing under it but a card: room between them. */
+.watch-btn.wide + .q-card, .watch-btn.wide + .card, .match-head > .watch-btn.wide:last-child { margin-bottom: 12px; }
