@@ -92,7 +92,9 @@ export const tvReady = () => eltaSchedule() !== null && nbaSchedule() !== null;
 // The last day ELTA's list covers ('YYYY-MM-DD', Taiwan's), or null: past it
 // only the NBA's (NBA.com) and MLS's games can be known to be on.
 export const tvUntil = () => eltaDays(eltaSchedule() || [])?.to || null;
-// Whether it's known if a game is on TV: MLS always (Apple TV, every game),
-// the NBA once NBA.com's list is in, the rest within ELTA's list.
+// Whether it's known if a game is on TV: MLS and F1 always (Apple TV's
+// every game, ELTA's every session), the NBA once NBA.com's list is in, the
+// rest within ELTA's list.
 export const tvKnown = e =>
-  e.league === 'mls' || (e.league === 'nba' && Boolean(nbaSchedule()?.length)) || Boolean(tvUntil() && new Date(Date.parse(e.start) + 8 * 3_600_000).toISOString().slice(0, 10) <= tvUntil());
+  e.league === 'mls' ||
+  e.league === 'f1' || (e.league === 'nba' && Boolean(nbaSchedule()?.length)) || Boolean(tvUntil() && new Date(Date.parse(e.start) + 8 * 3_600_000).toISOString().slice(0, 10) <= tvUntil());

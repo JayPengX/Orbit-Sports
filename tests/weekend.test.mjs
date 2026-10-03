@@ -21,16 +21,17 @@ const weekend = {
   ]
 };
 
-test('a race weekend lists sprint qualifying, sprint, qualifying and race, not practice', () => {
+test('a race weekend lists every session, practice too', () => {
   const now = Date.parse('2026-10-10T10:00Z');
   const list = splitWeekend(weekend, now);
-  assert.deepEqual(list.map(e => e.sessionKey), ['SS', 'SR', 'Qual', 'Race']);
-  assert.deepEqual(list.map(e => e.session), ['衝刺排位賽', '衝刺賽', '排位賽', '正賽']);
-  assert.equal(list[1].status.state, 'in');
-  assert.equal(list[3].start, '2026-10-11T12:00Z');
-  assert.equal(new Set(list.map(e => e.id)).size, 4);
+  assert.deepEqual(list.map(e => e.sessionKey), ['FP1', 'SS', 'SR', 'Qual', 'Race']);
+  assert.deepEqual(list.map(e => e.session), ['第一次練習', '衝刺排位賽', '衝刺賽', '排位賽', '正賽']);
+  assert.equal(list[0].start, '2026-10-09T08:30Z');
+  assert.equal(list[2].status.state, 'in');
+  assert.equal(list[4].start, '2026-10-11T12:00Z');
+  assert.equal(new Set(list.map(e => e.id)).size, 5);
   // A session the feed leaves "on" for hours is over.
-  assert.equal(splitWeekend(weekend, Date.parse('2026-10-10T20:00Z'))[1].status.state, 'post');
+  assert.equal(splitWeekend(weekend, Date.parse('2026-10-10T20:00Z'))[2].status.state, 'post');
   assert.equal(sessionName({ abbr: 'SS' }, 'en'), 'Sprint qualifying');
   // Not a race: as it is.
   const game = { id: '9', league: 'nba', kind: 'match' };

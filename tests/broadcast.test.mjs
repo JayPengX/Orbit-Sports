@@ -186,6 +186,28 @@ test("a race's channels: the person's commentary first, a MAX channel without ad
   assert.equal(top.short.zh, 'MAX5台');
 });
 
+test("every F1 session is on ELTA: practice by its name when ELTA's time differs, its channel to come past the list", () => {
+  const oct = elta('2026-10-01');
+  const f1 = (k, start) => ({ id: `600061000~${k}`, league: 'f1', kind: 'field', sessionKey: k, start, status: { state: 'pre' } });
+  // Bahrain's practice: each session its own program (第1節, 第2節, 第3節).
+  for (const [k, start] of [['FP1', '2026-10-02T04:30Z'], ['FP2', '2026-10-02T08:00Z'], ['FP3', '2026-10-03T04:30Z']]) {
+    const [b, ...more] = broadcastsFor(f1(k, start), oct);
+    assert.equal(more.length, 0, k);
+    assert.match(b.title, new RegExp(`第${k.at(-1)}節自由練習`), k);
+  }
+  // Singapore's first practice: ELTA's 17:15 against the official 16:30 (Taipei).
+  assert.equal(broadcastsFor(f1('FP1', '2026-10-09T08:30Z'), oct)[0].ch, 544);
+  // Its sprint, in the days the list covers but not in it yet: ELTA, channel to come.
+  const [sprint] = broadcastsFor(f1('SR', '2026-10-10T09:00Z'), oct);
+  assert.equal(sprint.svc, 'elta');
+  assert.equal(sprint.ch, undefined);
+  assert.ok(sprint.exact && sprint.every);
+  // Past the list (Austin): the same.
+  assert.ok(broadcastsFor(f1('Race', '2026-10-25T20:00Z'), oct)[0].exact);
+  // Other leagues past the list: ELTA, not this very game.
+  assert.ok(!broadcastsFor({ id: 'x', league: 'epl', kind: 'match', start: '2026-11-20T15:00Z', status: { state: 'pre' } }, oct)[0].exact);
+});
+
 test("ELTA's channels: MOD's 980s aren't on ELTA.tv; the app opens a channel the way ELTA's site does", () => {
   assert.equal(eltaChannel(983).zh, 'MOD 983台');
   assert.equal(eltaWatchUrl(983), null);

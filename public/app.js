@@ -537,8 +537,11 @@ function noticeChanges(events) {
 // A sideways row of chips scrolled so the chosen one sits in the middle
 // (the row only, never the page).
 function centerChosen(box) {
+  // A date strip the person scrolled stays where they left it (dateStrip).
+  for (const row of box.querySelectorAll('.day-strip')) if (row.keepLeft != null) row.scrollLeft = row.keepLeft;
   for (const chip of box.querySelectorAll('.q-chips [aria-pressed="true"], .segmented [aria-pressed="true"]')) {
     const row = chip.parentElement;
+    if (row.keepLeft != null) continue;
     if (row.scrollWidth > row.clientWidth) row.scrollLeft = chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2;
   }
 }
@@ -597,30 +600,39 @@ function dayChip(d, current, onPick) {
   ]);
 }
 // `range`: the stretch of days shown (home's own by default; 賽事 keeps one
-// per league); `only`: just these days (a sport's or a league's game days);
-// `grow`: read more of them before the strip grows.
+// per league), and the person's own scroll of it (`held`, at `left`);
+// `only`: just these days (a sport's or a league's game days); `grow`: read
+// more of them before the strip grows.
 function dateStrip(current, onPick, { only = null, grow = null, range = stripRange } = {}) {
   const stripRange = range;
   if (current) reach(current, range);
+  // A day picked: the strip is centred on it again.
+  const pickDay = d => ((range.held = false), onPick(d));
   const row = el('div', { class: 'q-chips day-strip' });
+  // Scrolled by the person: a repaint (a day or a team read, the live
+  // refresh) keeps it where they left it (centerChosen), not back on the day.
+  row.keepLeft = range.held ? range.left : null;
   const days = () => {
     const list = [];
     for (let i = stripRange.from; i <= stripRange.to; i++) list.push(addDays(today(), i));
     return only ? list.filter(d => only.has(d)) : list;
   };
-  const fill = () => put(row, days().map(d => dayChip(d, current, onPick)));
+  const fill = () => put(row, days().map(d => dayChip(d, current, pickDay)));
   fill();
-  // Near an end: two more weeks that way. After a pick (or on opening) the
-  // chosen day is centred again once they're in; while the person is
-  // scrolling the strip themselves, the days in view stay put.
+  // Near an end: two more weeks that way, the days in view staying put.
+  // Only the person's own scrolling grows it: never a centring or a
+  // repaint's scroll. (A sport's few days barely overflow, so every place
+  // is near an end: each centring grew it, refilled it and centred it again,
+  // and on iPhone Safari that never stopped.)
   let busy = false;
-  let touchedAt = 0;
-  for (const ev of ['pointerdown', 'touchstart', 'wheel']) row.addEventListener(ev, () => (touchedAt = Date.now()), { passive: true });
+  for (const ev of ['pointerdown', 'touchstart', 'wheel']) row.addEventListener(ev, () => (range.held = true), { passive: true });
   row.addEventListener(
     'scroll',
     () => {
       // (A strip being replaced reports a scroll with no size: not the person's.)
-      if (busy || !row.isConnected || !row.clientWidth) return;
+      if (!row.isConnected || !row.clientWidth || !range.held) return;
+      range.left = row.scrollLeft;
+      if (busy) return;
       const nearEnd = row.scrollLeft + row.clientWidth > row.scrollWidth - 120;
       const nearStart = row.scrollLeft < 120;
       if (!nearEnd && !nearStart) return;
@@ -631,9 +643,8 @@ function dateStrip(current, onPick, { only = null, grow = null, range = stripRan
       const done = () => {
         const left = row.scrollLeft;
         fill();
-        const chosen = row.querySelector('[aria-pressed="true"]');
-        if (chosen && Date.now() - touchedAt > 1500) row.scrollLeft = chosen.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chosen.clientWidth / 2;
-        else if (nearStart) row.scrollLeft = left + (row.scrollWidth - before);
+        if (!nearEnd) row.scrollLeft = left + (row.scrollWidth - before);
+        range.left = row.scrollLeft;
         requestAnimationFrame(() => (busy = false));
       };
       // One sport's days are read for the new stretch first.
@@ -646,7 +657,7 @@ function dateStrip(current, onPick, { only = null, grow = null, range = stripRan
   pick.addEventListener('change', () => {
     if (!pick.value) return;
     reach(pick.value, range);
-    onPick(pick.value);
+    pickDay(pick.value);
   });
   const cal = el('label', { class: 'q-chip day-pick', title: L({ zh: '選擇日期', en: 'Pick a date' }) }, [el('span', { class: 'day-pick-icon', 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2"/></svg>' }), pick]);
   return el('div', { class: 'day-strip-wrap' }, [row, cal]);
@@ -695,6 +706,7 @@ function renderHome() {
       h.jumping = false;
       if (d && state.home.date === today()) {
         state.home.date = d;
+        stripRange.held = false;
         if (state.tab === 'home') renderHome();
       }
     });
@@ -827,7 +839,7 @@ function sportChips() {
   return el(
     'div',
     { class: 'q-chips small filter-chips' },
-    filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => pickFilter(k) }))
+    filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => ((stripRange.held = false), pickFilter(k)) }))
   );
 }
 // The first day after today any followed sport plays on TV here.

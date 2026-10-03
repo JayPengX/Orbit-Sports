@@ -146,9 +146,8 @@ export function settleField(e, now = Date.now()) {
   return { ...e, at: on?.start || e.start, session: on?.name || '', status: live ? { ...e.status, state: 'in' } : e.status.state === 'in' ? { ...e.status, state: 'pre' } : e.status };
 }
 
-// A race weekend's sessions by their feed code. The ones that count
-// (qualifying, the sprint's qualifying, the sprint, the race) are listed as
-// events of their own; practice stays inside the weekend.
+// A race weekend's sessions by their feed code, each listed as an event of
+// its own (practice too: ELTA carries every F1 session live).
 export const SESSION_NAMES = {
   FP1: { zh: '第一次練習', en: 'Practice 1', short: { zh: '一練', en: 'FP1' } },
   FP2: { zh: '第二次練習', en: 'Practice 2', short: { zh: '二練', en: 'FP2' } },
@@ -159,13 +158,13 @@ export const SESSION_NAMES = {
   Qual: { zh: '排位賽', en: 'Qualifying', short: { zh: '排位', en: 'Quali' } },
   Race: { zh: '正賽', en: 'Race', short: { zh: '正賽', en: 'Race' } }
 };
-const MAIN_SESSIONS = ['SS', 'SQ', 'SR', 'Qual', 'Race'];
+const MAIN_SESSIONS = ['FP1', 'FP2', 'FP3', 'SS', 'SQ', 'SR', 'Qual', 'Race'];
 export const sessionName = (x, lang = 'zh', short = false) => {
   const n = SESSION_NAMES[x?.abbr];
   if (!n) return x?.name || x?.abbr || '';
   return short ? n.short[lang === 'en' ? 'en' : 'zh'] : n[lang === 'en' ? 'en' : 'zh'];
 };
-// A race weekend as its main sessions, each an event (the weekend's other
+// A race weekend as its sessions, each an event (the weekend's other
 // fields kept, so its sheet opens on that session). Anything else as it is.
 export function splitWeekend(e, now = Date.now(), lang = 'zh') {
   if (e?.kind !== 'field' || LEAGUES[e.league]?.sport !== 'racing' || e.sessionKey) return [e];

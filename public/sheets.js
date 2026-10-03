@@ -510,7 +510,7 @@ function twCard(league, e = null) {
                       el('strong', { text: tvName(b) }),
                       // Its commentary and ads, then when it starts; a game NBA.com
                       // names without its channel: ELTA's schedule says which.
-                      el('small', { text: b.ch ? [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : ''].filter(Boolean).join(' · ') : b.svc === 'appletv' ? (L() === 'en' ? 'Every game' : '每場都有') : L() === 'en' ? "This game (NBA.com); channel in ELTA's schedule" : '這場有轉播（NBA.com）・頻道見愛爾達節目表' })
+                      el('small', { text: b.ch ? [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : ''].filter(Boolean).join(' · ') : b.svc === 'appletv' ? (L() === 'en' ? 'Every game' : '每場都有') : b.every ? (L() === 'en' ? "Every session; channel in ELTA's schedule" : '每節都轉播・頻道見愛爾達節目表') : L() === 'en' ? "This game (NBA.com); channel in ELTA's schedule" : '這場有轉播（NBA.com）・頻道見愛爾達節目表' })
                     ]),
                     b.url ? el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` }) : null
                   ])
@@ -1251,7 +1251,7 @@ export async function openConstructor(row) {
       og.gp ? card(W('正賽', 'Grand Prix'), f1Tiles(og.gp, en)) : null,
       og.sprint ? card(W('衝刺賽', 'Sprint'), f1Tiles(og.sprint, en)) : null,
       next ? el('h3', { class: 'section-h', text: W('下一站', 'Next') }) : null,
-      next ? el('div', { class: 'q-card list' }, splitWeekend(next, Date.now(), L()).filter(x => x.status.state !== 'post').slice(0, 3).map(x => eventRow(x, { league: false }))) : null,
+      next ? el('div', { class: 'q-card list' }, splitWeekend(next, Date.now(), L()).filter(x => x.status.state !== 'post').map(x => eventRow(x, { league: false }))) : null,
       jw.length && cars.length ? f1Weekends(jw, en, cars) : null,
       og.career ? card(W('車隊歷史', 'Highlights'), f1Tiles(og.career, en)) : null,
       og.profile ? card(W('車隊資料', 'Team profile'), el('ul', { class: 'info-list' }, og.profile.map(([k, v]) => el('li', {}, [el('span', { class: 'info-k', text: f1Label(k, en) }), el('span', { class: 'info-v' }, [k === 'Base' && !en ? zhLater(v) : v])])))) : null,

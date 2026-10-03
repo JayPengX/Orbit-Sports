@@ -33,7 +33,8 @@ export const BROADCAST = {
   mls: [APPLE],
   facup: [ELTA],
   nationsleague: [ELTA],
-  f1: [ELTA]
+  // Every session, practice too (2026-2029): its channel once ELTA's list names it.
+  f1: [{ ...ELTA, every: true }]
 };
 
 export const broadcastsOf = league => BROADCAST[league] || [];
@@ -148,12 +149,16 @@ export function zhSame(a, b) {
 export function eltaPrograms(programs, e, sides, others = []) {
   if (!programs?.length || !e) return [];
   const t = Date.parse(e.start);
-  const near = p => p.league === e.league && p.start >= t - 60 * 60_000 && p.start <= t + 20 * 60_000;
-  const cand = programs.filter(near);
+  const within = (before, after) => p => p.league === e.league && p.start >= t - before * 60_000 && p.start <= t + after * 60_000;
+  const cand = programs.filter(within(60, 20));
   if (e.kind !== 'match') {
-    // A race weekend's session: the program naming it (排位賽, 正賽, 衝刺賽).
-    const word = { Qual: '排位賽', Race: '正賽', SR: '衝刺賽', SS: '衝刺排位', SQ: '衝刺排位' }[e.sessionKey] || '';
-    return cand.filter(p => !word || (p.title.includes(word) && !(word === '排位賽' && p.title.includes('衝刺'))));
+    // A race weekend's session: the program naming it (第1節自由練習,
+    // 排位賽, 正賽, 衝刺賽), within 3 hours either side: ELTA's time can be
+    // the official one's give or take an hour (Singapore 2026's first
+    // practice: 17:15 against 16:30), and the names tell the sessions apart.
+    const word = { FP1: '第1節', FP2: '第2節', FP3: '第3節', Qual: '排位賽', Race: '正賽', SR: '衝刺賽', SS: '衝刺排位', SQ: '衝刺排位' }[e.sessionKey] || '';
+    if (!word) return cand;
+    return programs.filter(within(180, 180)).filter(p => p.title.includes(word) && !(word === '排位賽' && p.title.includes('衝刺')));
   }
   const named = cand.filter(p => p.teams.length && p.teams.some(x => sides.some(s => zhSame(x, s))));
   if (named.length) return named;
@@ -217,6 +222,8 @@ export function broadcastsFor(e, programs, { sides = [], others = [], prefer = '
     const g = nbaEltaGame(nba?.games, e, nba?.ids);
     return g ? [{ ...base[0], note: null, at: g.start, exact: true }] : [];
   }
+  // Every session on ELTA (F1): this one too, its channel not yet named.
+  if (base[0].every && e.kind !== 'match') return [{ ...base[0], exact: true }];
   // ELTA's list covers the day and hasn't the game: not on ELTA.
   return listed ? [] : base;
 }

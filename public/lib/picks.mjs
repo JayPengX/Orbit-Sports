@@ -73,6 +73,8 @@ export function scoreMatch(e, { leagues = [], follows = [], tables = {}, aff = {
   // Fame.
   if (TOP_LEAGUES.includes(e.league)) score += 0.12;
   if (e.stage?.key === 'final') score += 0.25;
+  // A race weekend's practice: on, but less than its qualifying and race.
+  if (/^FP\d$/.test(e.sessionKey || '')) score -= 0.5;
   // Habit: the strongest thing the person is into that this match touches.
   const max = Math.max(1, ...Object.values(aff));
   const habit = Math.max(0, ...keys.map(k => (aff[k] || 0) / max));
