@@ -921,33 +921,34 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 @media (prefers-reduced-motion: reduce) { .skel, .fade-in { animation: none; } }
 .skel-short { width: 45%; }
 .lp-person > .skel-block { flex: 1; }
-/* ---- The playoffs, a round at a time: the rounds as chips, the round's ties as full rows ---- */
-.playoffs { display: grid; gap: 12px; margin-top: 4px; }
+/* ---- The playoffs: a map swiped across, a column a round, the later rounds between the ties that feed them ---- */
+.playoffs { display: grid; gap: 10px; margin-top: 4px; }
 .po-banner { margin: 0; padding: 9px 12px; border-radius: 12px; background: var(--accent-wash); font-size: 13px; line-height: 1.4; color: var(--q-text-2); }
 .po-banner strong { color: var(--accent); }
-.po-rounds { gap: 8px; }
-.po-round { flex: none; display: grid; gap: 2px; min-width: 92px; padding: 8px 12px; text-align: left; font: inherit; color: inherit; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: 14px; }
-.po-round strong { font-size: 14px; white-space: nowrap; }
-.po-round small { font-size: 11.5px; font-weight: 650; color: var(--q-muted); white-space: nowrap; }
-.po-round.live small { color: var(--live); }
-.po-round.done small::before { content: '✓ '; }
-.po-round[aria-pressed='true'] { background: var(--q-text); border-color: var(--q-text); color: var(--q-surface); }
-.po-round[aria-pressed='true'] small { color: color-mix(in srgb, var(--q-surface) 75%, transparent); }
-.po-ties { display: grid; gap: 10px; }
-.po-tie { display: grid; gap: 6px; width: 100%; padding: 12px 14px; text-align: left; font: inherit; color: inherit; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: 16px; }
-.po-tie.live { border-color: color-mix(in srgb, var(--live) 55%, var(--q-border)); }
-.po-tie.projected { background: color-mix(in srgb, var(--q-surface) 70%, var(--q-surface-2)); border-style: dashed; }
-.po-tie.empty { background: transparent; border-style: dashed; }
-.po-side { display: grid; grid-template-columns: 18px auto minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: 15px; }
-.po-seed { font-size: 12px; font-weight: 800; color: var(--q-muted); text-align: center; }
-.po-name { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-weight: 650; }
-.po-name > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.po-label { flex: none; font-size: 11px; font-weight: 700; color: var(--q-muted); }
-.po-score { font-size: 17px; font-weight: 800; min-width: 18px; text-align: right; }
-.po-side.win .po-name, .po-side.win .po-score { font-weight: 800; color: var(--q-text); }
-.po-side.out { opacity: .45; }
-.po-side.tbd .po-name { color: var(--q-muted); font-weight: 600; }
-.po-tbd-logo { border: 1.5px dashed var(--q-border); border-radius: 50%; background: transparent; }
-.po-note { padding-top: 6px; border-top: 1px solid var(--q-border); font-size: 12px; font-weight: 650; color: var(--q-muted); }
-.po-note.live { color: var(--live); }
-.playoffs.waiting .po-round, .playoffs.waiting .po-tie { min-height: 60px; align-content: center; gap: 8px; }
+.bracket { display: flex; gap: 18px; overflow-x: auto; margin: 0 -16px; padding: 2px 16px 14px; scroll-padding-inline: 16px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.br-col { flex: 0 0 184px; display: flex; flex-direction: column; scroll-snap-align: start; }
+.br-head { position: sticky; top: 0; display: grid; gap: 1px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--q-border); }
+.br-head strong { font-size: 15px; font-weight: 800; }
+.br-head small { font-size: 12px; font-weight: 650; color: var(--q-muted); }
+.br-col.live .br-head { border-color: var(--live); }
+.br-col.live .br-head small { color: var(--live); }
+.br-col.done .br-head small::before { content: '✓ '; }
+.br-ties { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 12px; }
+.br-tie { position: relative; display: grid; gap: 6px; width: 100%; padding: 10px 11px; text-align: left; font: inherit; color: inherit; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: 14px; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
+.br-col:not(:last-child) .br-tie::after { content: ''; position: absolute; top: 50%; right: -19px; width: 18px; border-top: 1.5px solid var(--q-border); }
+.br-tie.live { border-color: color-mix(in srgb, var(--live) 55%, var(--q-border)); }
+.br-tie.projected { border-style: dashed; background: color-mix(in srgb, var(--q-surface) 70%, var(--q-surface-2)); box-shadow: none; }
+.br-tie.tbd { border-style: dashed; background: transparent; box-shadow: none; }
+.br-side { display: grid; grid-template-columns: 16px auto minmax(0, 1fr) auto; align-items: center; gap: 7px; font-size: 14.5px; }
+.br-seed { font-size: 11px; font-weight: 800; color: var(--q-muted); text-align: center; }
+.br-side .logo { width: 22px; height: 22px; }
+.br-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 650; }
+.br-score { font-size: 16px; font-weight: 800; min-width: 14px; text-align: right; }
+.br-side.win .br-name, .br-side.win .br-score { font-weight: 800; color: var(--q-text); }
+.br-side.out { opacity: .42; }
+.br-side.tbd .br-name { color: var(--q-muted); font-weight: 600; }
+.br-tbd-logo { border: 1.5px dashed var(--q-border); border-radius: 50%; background: transparent; }
+.br-note { padding-top: 6px; border-top: 1px solid var(--q-border); font-size: 11.5px; font-weight: 650; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.br-note.live { color: var(--live); }
+.playoffs.waiting .br-tie { min-height: 84px; align-content: center; gap: 9px; }
+.playoffs.waiting .br-head { gap: 6px; }
