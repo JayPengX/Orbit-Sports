@@ -2,7 +2,7 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate } from './lib/quadra.mjs';
-import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason } from './lib/espn.mjs';
+import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from './lib/logos.mjs';
@@ -527,7 +527,7 @@ function twCard(league, e = null) {
 // A race weekend's sessions as a timeline, by day: each session's time,
 // its badge (正賽 marked out), and whether it's over, on or to come.
 const SESSION_KIND = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' };
-function weekendTimeline(sessions) {
+function weekendTimeline(sessions, league) {
   const byDay = new Map();
   for (const x of sessions) {
     const d = localDate(Date.parse(x.start));
@@ -549,7 +549,7 @@ function weekendTimeline(sessions) {
             const kind = SESSION_KIND[x.abbr] || 'other';
             const state = x.status.state;
             return el('div', { class: `wk-row ${kind}${state === 'in' ? ' live' : ''}${x === next ? ' next' : ''}${state === 'post' ? ' done' : ''}` }, [
-              el('span', { class: 'wk-time num', text: clock(x.start) }),
+              el('span', { class: 'wk-time num', text: clock(titlesAt(league, x.abbr, x.start)) }),
               el('span', { class: 'wk-name' }, [el('span', { class: `sess-tag ${kind}`, text: sessionName(x, L()) })]),
               el('span', { class: `wk-state ${state}`, text: state === 'post' ? T('final') : state === 'in' ? T('live') : x === next ? (L() === 'en' ? 'Next' : '下一場') : '' })
             ]);
@@ -666,13 +666,13 @@ function f1LiveBoard(b, ss) {
   return el('div', { class: 'live-board' }, [head, msg, el('ol', { class: 'lb-rows' }, rows)]);
 }
 function fillField(s, e) {
-  s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), el('p', { class: 'muted', text: [e.venue, whenText(e.start)].filter(Boolean).join(' · ') }), watchButton(e, 'wide')]));
+  s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), el('p', { class: 'muted', text: [e.venue, whenText(e.start), e.official && e.official !== e.start ? (L() === 'en' ? `titles; starts ${clock(e.official)}` : `片頭・${clock(e.official)} 開始`) : ''].filter(Boolean).join(' · ') }), watchButton(e, 'wide')]));
   const yt = highlights(e);
   if (yt) s.body.append(yt);
   if (e.kind === 'field') {
     // The weekend's (or week's) sessions, then the chosen one's order.
     const sessions = [...e.sessions].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
-    if (sessions.length > 1) s.body.append(card(T('schedule'), weekendTimeline(sessions)));
+    if (sessions.length > 1) s.body.append(card(T('schedule'), weekendTimeline(sessions, e.league)));
     let pick = e.sessionKey ? Math.max(0, sessions.findIndex(x => x.abbr === e.sessionKey)) : Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
     const box = el('div');
     let liveTimer = 0;

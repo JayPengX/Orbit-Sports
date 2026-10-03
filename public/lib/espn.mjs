@@ -159,6 +159,13 @@ export const SESSION_NAMES = {
   Race: { zh: '正賽', en: 'Race', short: { zh: '正賽', en: 'Race' } }
 };
 const MAIN_SESSIONS = ['FP1', 'FP2', 'FP3', 'SS', 'SQ', 'SR', 'Qual', 'Race'];
+// F1 on TV here (ELTA, from Sky's coverage of F1's international feed)
+// opens with the title sequence, F1's theme, a few minutes before the
+// session's official time: the time shown is the titles', so they're never
+// missed. Minutes before; estimates (F1 publishes none: the race's come after
+// the anthem, the others just before the session), tuned here.
+export const TITLES_BEFORE = { Race: 10, SR: 5, Qual: 4, SS: 4, SQ: 4, FP1: 4, FP2: 4, FP3: 4 };
+export const titlesAt = (league, abbr, start) => (league === 'f1' && TITLES_BEFORE[abbr] && start ? new Date(Date.parse(start) - TITLES_BEFORE[abbr] * 60_000).toISOString().replace(':00.000Z', 'Z') : start);
 export const sessionName = (x, lang = 'zh', short = false) => {
   const n = SESSION_NAMES[x?.abbr];
   if (!n) return x?.name || x?.abbr || '';
@@ -174,7 +181,8 @@ export function splitWeekend(e, now = Date.now(), lang = 'zh') {
     // The feed can leave a session "on" (or "to come") long after it ended.
     const done = Date.parse(x.start) + SESSION_MS < now;
     const status = done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true } : x.status;
-    return { ...e, id: `${e.id}~${x.abbr}`, weekend: e.id, start: x.start, at: x.start, end: null, session: sessionName(x, lang), sessionKey: x.abbr, status };
+    const shown = titlesAt(e.league, x.abbr, x.start);
+    return { ...e, id: `${e.id}~${x.abbr}`, weekend: e.id, start: shown, at: shown, official: x.start, end: null, session: sessionName(x, lang), sessionKey: x.abbr, status };
   });
 }
 
