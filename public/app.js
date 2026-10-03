@@ -1119,7 +1119,7 @@ async function playoffData(league) {
   const season = info?.season || {};
   const stages = info?.stages || [];
   const table = async () => {
-    const groups = await standings(league).catch(() => null);
+    const groups = (await standings(league).catch(() => null)) || (await standings(league).catch(() => null));
     return groups?.some(g => g.rows.some(r => played(r) > 0)) ? groups : null;
   };
   if (LEAGUES[league].cup) {
@@ -1153,10 +1153,11 @@ function loadBracket(league) {
     .catch(() => brackets.set(league, { model: had?.model || null, at: Date.now() }))
     .finally(() => state.tab === 'matches' && state.scores.league === league && renderScores());
 }
-// The playoffs, a round at a time: the rounds as chips (each done, on now,
-// or its dates), then the chosen round's ties as full rows: each side's
-// seed, logo and name with its wins (or aggregate, or score), who went
-// through, the next game, or 待定 with the round's dates. A prediction or
+// The playoffs as a map you swipe across: a column a round (its name, and
+// done / on now / its dates under it), the later rounds between the ties
+// that feed them. Each tie: each side's seed, logo and name with its wins (or
+// aggregate, or score), who went through (the other greyed), the next game,
+// or 待定 with the round's dates; a predicted tie dashed. A prediction or
 // last season says so on top.
 const md = ms => {
   const d = new Date(ms);
@@ -1165,58 +1166,57 @@ const md = ms => {
 const roundDates = r => (!r.dates ? '' : r.dates.about ? `${locale === 'en' ? 'c.' : '約'} ${md(r.dates.from)}${locale === 'en' ? '' : ' 起'}` : md(r.dates.from) === md(r.dates.to) ? md(r.dates.from) : `${md(r.dates.from)}–${md(r.dates.to)}`);
 function playoffView(model, league) {
   const en = locale === 'en';
-  const sc = state.scores;
-  sc.poRound ||= {};
-  const at = Math.min(model.rounds.length - 1, sc.poRound[league] ?? openRound(model) - 1);
-  const r = model.rounds[at];
-  const chipSub = x => (x.state === 'done' ? (en ? 'Done' : '已完成') : x.state === 'live' ? (en ? 'On now' : '進行中') : roundDates(x) || (en ? 'TBD' : '待定'));
-  const chips = el(
-    'div',
-    { class: 'q-chips po-rounds' },
-    model.rounds.map((x, i) =>
-      el('button', { class: `po-round ${x.state}`, type: 'button', 'aria-pressed': String(i === at), onclick: () => ((sc.poRound[league] = i), renderScores()) }, [el('strong', { text: en ? x.title.en : x.title.zh }), el('small', { text: chipSub(x) })])
-    )
-  );
   const banner =
     model.mode === 'projected'
       ? el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Predicted' : '預測' }), document.createTextNode(en ? ' from the table as it stands: it changes until the playoffs start.' : '　依目前排名推算，開打前會變動。')])
       : model.mode === 'last'
         ? el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Last season' : '上季' }), document.createTextNode(`${model.season ? ` ${model.season}` : ''}${en ? ': this season’s playoffs haven’t begun.' : '　本季季後賽尚未開打。'}`)])
         : null;
+  const stateText = r => (r.state === 'done' ? (en ? 'Done' : '已完成') : r.state === 'live' ? (en ? 'On now' : '進行中') : roundDates(r) || (en ? 'TBD' : '待定'));
   const sideRow = (s, t, i) => {
     const id = s ? String(s.id) : '';
-    const seed = t.projected ? t.seeds[i] : s?.seed;
+    const seed = t.projected ? t.seeds?.[i] : s?.seed;
     const label = t.projected ? t.labels?.[i] : '';
-    const score = !t.projected && s ? t.score[id] : undefined;
-    return el('div', { class: `po-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}${s ? '' : ' tbd'}` }, [
-      el('span', { class: 'po-seed num', text: seed ? String(seed) : '' }),
-      s ? sideLogo(s, league, 'sm') : el('span', { class: 'logo sm po-tbd-logo', 'aria-hidden': 'true' }),
-      el('span', { class: 'po-name' }, [el('span', { text: s ? s.short || s.name : label || (en ? 'TBD' : '待定') }), s && label ? el('small', { class: 'po-label', text: label }) : null]),
-      el('strong', { class: 'num po-score', text: score ?? '' })
+    const score = !t.projected && s ? t.score?.[id] : undefined;
+    return el('div', { class: `br-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}${s ? '' : ' tbd'}` }, [
+      el('span', { class: 'br-seed num', text: seed ? String(seed) : '' }),
+      s ? sideLogo(s, league, 'xs') : el('span', { class: 'logo xs br-tbd-logo', 'aria-hidden': 'true' }),
+      el('span', { class: 'br-name', text: s ? s.short || s.name : label || (en ? 'TBD' : '待定') }),
+      el('strong', { class: 'num br-score', text: score ?? '' })
     ]);
   };
-  const tieNote = t => {
+  const note = (t, r) => {
     if (!t) return roundDates(r) ? `${en ? 'Expected' : '預計'} ${roundDates(r)}` : en ? 'To be decided' : '待定';
-    if (t.projected) return roundDates(r) ? `${en ? 'Predicted · expected' : '預測 · 預計'} ${roundDates(r)}` : en ? 'Predicted' : '預測';
+    if (t.projected) return [t.labels?.find(Boolean) && t.sides.every(Boolean) ? t.labels.filter(Boolean).join(' v ') : '', en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
-    if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}${t.kind === 'series' ? ` ${Math.max(...Object.values(t.score))}-${Math.min(...Object.values(t.score))}` : ''}`;
+    if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}`;
     if (t.live) return en ? 'On now' : '進行中';
     if (t.next) return `${t.kind === 'series' ? `G${t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${clock(t.next.start)}`;
     return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : '';
   };
-  const tie = t => {
-    const open = t && !t.projected ? () => openEvent(t.games.find(g => g.status.state === 'in') || t.next || t.games.at(-1)) : null;
-    const sides = t ? t.sides : [null, null];
-    const body = [sideRow(sides[0], t || { projected: true, seeds: [], labels: [] }, 0), sideRow(sides[1], t || { projected: true, seeds: [], labels: [] }, 1), el('small', { class: `po-note${t?.live ? ' live' : ''}`, text: tieNote(t) })];
-    return open ? el('button', { class: `po-tie${t.live ? ' live' : ''}`, type: 'button', onclick: open }, body) : el('div', { class: `po-tie${t?.projected ? ' projected' : ' empty'}` }, body);
+  const tie = (t, r) => {
+    const blank = { projected: true, seeds: [], labels: [] };
+    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), el('small', { class: `br-note${t?.live ? ' live' : ''}`, text: note(t, r) })];
+    return t && !t.projected
+      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openEvent(t.games.find(g => g.status.state === 'in') || t.next || t.games.at(-1)) }, body)
+      : el('div', { class: `br-tie ${t ? 'projected' : 'tbd'}` }, body);
   };
   const entry = brackets.get(league);
   const fade = entry && !entry.shown;
   if (entry) entry.shown = true;
-  return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, chips, el('div', { class: 'po-ties' }, r.ties.map(tie))]);
+  const map = el(
+    'div',
+    { class: 'bracket' },
+    model.rounds.map(r => el('section', { class: `br-col ${r.state}` }, [el('div', { class: 'br-head' }, [el('strong', { text: en ? r.title.en : r.title.zh }), el('small', { text: stateText(r) })]), el('div', { class: 'br-ties' }, r.ties.map(t => tie(t, r)))]))
+  );
+  // Opened on the round that's on (or next), not always the first.
+  const at = openRound(model) - 1;
+  if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.children[at]?.offsetLeft - map.offsetLeft - 16));
+  return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, map]);
 }
 // Its shape while it's read: the round chips and four ties in grey.
-const bracketShape = () => el('div', { class: 'playoffs waiting', 'aria-hidden': 'true' }, [el('div', { class: 'q-chips po-rounds' }, [0, 1, 2, 3].map(() => el('span', { class: 'po-round' }, [el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })]))), el('div', { class: 'po-ties' }, [0, 1, 2, 3].map(() => el('div', { class: 'po-tie empty' }, [el('i', { class: 'skel' }), el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })])))]);
+const bracketShape = () =>
+  el('div', { class: 'playoffs waiting', 'aria-hidden': 'true' }, [el('div', { class: 'bracket' }, [4, 2, 1].map(n => el('section', { class: 'br-col' }, [el('div', { class: 'br-head' }, [el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })]), el('div', { class: 'br-ties' }, Array.from({ length: n }, () => el('div', { class: 'br-tie tbd' }, [el('i', { class: 'skel' }), el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })])))])))]);
 
 async function loadScores() {
   const sc = state.scores;
