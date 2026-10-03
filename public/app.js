@@ -320,6 +320,8 @@ function restoreDay() {
 // the other picks (nightOnly), never 今日推薦; a followed team's can be.
 const AWAKE_FROM = 5;
 const nightWorthy = e => bigGame(e) || isFollowedEvent(e);
+// A race weekend's practice: in 賽事 and the race's sheet, never among 首頁's picks or days.
+const practice = e => /^FP\d$/.test(e.sessionKey || '');
 const nightOnly = e => new Date(Date.parse(e.start)).getHours() < AWAKE_FROM && !isFollowedEvent(e);
 const inDay = (ms, date) => ms >= Date.parse(`${date}T00:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
@@ -699,7 +701,7 @@ function renderHome() {
   };
   // Only what's on TV in Taiwan is recommended (賽事 has every game); a
   // result is a result (ELTA's list doesn't reach far back).
-  const shown = e => e.status.state === 'post' || past || onTv(e);
+  const shown = e => !practice(e) && (e.status.state === 'post' || past || onTv(e));
   const mine = slot.events.filter(shown);
   let [planList, more] = rank(filtered(mine));
   // Nothing of theirs on: the best of the rest.
@@ -747,7 +749,7 @@ function renderHome() {
   const rankLive = (list, c) => list.map(e => ({ event: e, ...scoreMatch(e, c) })).sort((x, y) => y.score - x.score);
   let liveItems = isToday ? rankLive(onNow(filtered(mine)), pctx) : [];
   const liveMine = liveItems.length > 0;
-  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(onTv)), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
+  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e))), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
   const allLive = isToday ? onNow(dayAll(slot)).filter(onTv).length : 0;
   const liveShown = liveItems.slice(0, liveMine ? 5 : 3);
   const liveKeys = new Set(liveShown.map(x => `${x.event.league}:${x.event.id}`));
@@ -914,7 +916,7 @@ async function sportDays(sport) {
   const days = new Set();
   days.failed = failed;
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
-    if (e.status?.void || (e.status?.state !== 'post' && !onTv(e))) continue;
+    if (e.status?.void || practice(e) || (e.status?.state !== 'post' && !onTv(e))) continue;
     const ms = Date.parse(e.start);
     const d = localDate(ms);
     if (inPickDay(ms, d) && d >= from && d <= to) days.add(d);
