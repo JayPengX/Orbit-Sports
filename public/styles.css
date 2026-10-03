@@ -172,7 +172,7 @@ img { max-width: 100%; }
 
 /* ---- Sheets ---- */
 .fx-sheet { width: min(640px, 100vw); }
-@media (max-width: 719px) { .fx-sheet { max-height: 94vh; } }
+@media (max-width: 719px) { .fx-sheet { max-height: 94vh; max-height: 94dvh; } }
 .sheet-body { padding-bottom: 8px; }
 .match-head { display: grid; gap: 12px; padding: 4px 0 2px; }
 .mh-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 8px; }
