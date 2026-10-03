@@ -80,7 +80,7 @@ export async function openMatch(e) {
       // On now or about to start: one tap to watch it, at the top.
       watchButton({ ...e, status: st }, 'wide'),
       linescore(sm, e),
-      livePanel(e)
+      livePanel(e, sm)
     );
   };
   paintHeader(null);
@@ -152,12 +152,44 @@ export async function openMatch(e) {
 
 // The situation of a game on now, by sport: the bases, count and outs, and
 // who bats against whom; the goals and red cards by minute; and the last play.
-function livePanel(e) {
-  const lv = e.live;
-  if (e.status.state !== 'in' || !lv) return null;
+function livePanel(e, sm = null) {
+  const lv = e.live || {};
+  if (e.status.state !== 'in') return null;
   const sport = LEAGUES[e.league]?.sport;
   const en = L() === 'en';
   const rows = [];
+  // Basketball, from the box score as it stands (read every 15 seconds):
+  // each side's top scorer now, the team fouls, then the last plays.
+  if (sport === 'basketball' && sm) {
+    const top = id => {
+      const tb = sm.players.find(p => p.team === id)?.tables[0];
+      const i = tb?.labels.indexOf('PTS') ?? -1;
+      if (!tb || i < 0) return null;
+      const reb = tb.labels.indexOf('REB');
+      const ast = tb.labels.indexOf('AST');
+      const best = [...tb.rows].sort((a, b) => Number(b.stats[i] || 0) - Number(a.stats[i] || 0))[0];
+      return best ? { name: best.name, line: [`${best.stats[i]}${en ? ' pts' : '分'}`, reb >= 0 ? `${best.stats[reb]}${en ? ' reb' : '籃板'}` : '', ast >= 0 ? `${best.stats[ast]}${en ? ' ast' : '助攻'}` : ''].filter(Boolean).join(' ') } : null;
+    };
+    const fouls = sm.teamStats.find(s => s.key === 'fouls');
+    const side = (id, cls) => {
+      const t = top(id);
+      return el('div', { class: `lp-bb-side ${cls}` }, [el('small', { class: 'muted', text: en ? 'Top scorer' : '本場得分王' }), t ? el('strong', { text: t.name }) : null, t ? el('span', { class: 'num', text: t.line }) : null, fouls ? el('small', { class: 'muted num', text: `${en ? 'Fouls' : '犯規'} ${cls === 'away' ? fouls.away : fouls.home}` }) : null]);
+    };
+    rows.push(el('div', { class: 'lp-bb' }, [side(e.away.id, 'away'), side(e.home.id, 'home')]));
+    const last = sm.feed.slice(-4).reverse();
+    if (last.length) {
+      const nameOf = id => sm.byId[id]?.short || sm.byId[id]?.name || '';
+      rows.push(
+        el(
+          'ol',
+          { class: 'lp-feed' },
+          last.map(p => el('li', { class: p.scoring ? 'scoring' : '' }, [el('span', { class: 'num play-when', text: p.clock }), el('span', {}, [p.team && nameOf(p.team) ? el('b', { text: `${nameOf(p.team)} ` }) : null, document.createTextNode(p.text)]), p.scoring ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null]))
+        )
+      );
+    }
+    return el('div', { class: 'live-panel' }, rows);
+  }
+  if (!e.live) return null;
   if (sport === 'baseball' && lv.bases) {
     rows.push(
       el('div', { class: 'lp-baseball' }, [
@@ -297,7 +329,8 @@ function matchSection(view, d, e, table) {
     );
   }
   if (view === 'plays' && d) {
-    const list = d.keyEvents.length ? d.keyEvents : d.plays;
+    // Basketball: every play (scores stand out); soccer its key moments; baseball the scoring plays.
+    const list = LEAGUES[e.league]?.sport === 'basketball' && d.feed.length ? d.feed : d.keyEvents.length ? d.keyEvents : d.plays;
     return el(
       'ol',
       { class: 'plays' },
