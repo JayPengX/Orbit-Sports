@@ -316,9 +316,11 @@ function restoreDay() {
 // is while everyone sleeps, and isn't recommended on either day. Unless it's
 // worth staying up for (nightWorthy): a play-off, a final or a series game
 // (an MLB wild-card decider at 02:00), or a followed team's; that one counts
-// on its own day, at its hour.
+// on its own day, at its hour. A big game of the small hours is only among
+// the other picks (nightOnly), never 今日推薦; a followed team's can be.
 const AWAKE_FROM = 5;
 const nightWorthy = e => bigGame(e) || isFollowedEvent(e);
+const nightOnly = e => new Date(Date.parse(e.start)).getHours() < AWAKE_FROM && !isFollowedEvent(e);
 const inDay = (ms, date) => ms >= Date.parse(`${date}T00:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 
@@ -686,7 +688,11 @@ function renderHome() {
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
   const rank = (list, also = 999, ctx = pctx, before = past) => {
-    const { plan, also: rest } = dayPlan(before ? list.map(e => ({ ...e, status: { ...e.status, state: 'pre' } })) : list, ctx, { n: 6, also });
+    const asBefore = l => (before ? l.map(e => ({ ...e, status: { ...e.status, state: 'pre' } })) : l);
+    const { plan, also: awake } = dayPlan(asBefore(list.filter(e => !nightOnly(e))), ctx, { n: 6, also });
+    // The small hours' big games: with the rest, by their score.
+    const { also: night } = dayPlan(asBefore(list.filter(nightOnly)), ctx, { n: 0, also });
+    const rest = [...awake, ...night].sort((x, y) => y.score - x.score).slice(0, also);
     const real = new Map(list.map(e => [`${e.league}:${e.id}`, e]));
     const fix = items => items.map(x => ({ ...x, event: real.get(`${x.event.league}:${x.event.id}`) || x.event }));
     return [fix(plan), fix(rest)];
@@ -718,8 +724,11 @@ function renderHome() {
       finding = true;
       loadOthers(h.date);
     } else {
-      // Worth watching on its own: the stakes and the sides, not the person's sport order.
+      // Worth watching on its own: the stakes and the sides, not the person's sport order
+      // (their own small hours' big games kept first among the rest).
+      const night = more;
       [planList, more] = rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] });
+      more = [...night, ...more];
       fallback = true;
     }
   }
