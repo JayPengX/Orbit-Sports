@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { f1Grids, f1Label, f1Value, finishOf, eventOfRace, lapMs, qualiRows } from '../public/lib/f1.mjs';
+import { f1Grids, f1Label, f1Value, finishOf, eventOfRace, lapMs, qualiRows, sameSession, qualiCut } from '../public/lib/f1.mjs';
 
 test("formula1.com's grids are found by their first label, in the app's words", () => {
   const g = f1Grids([[['Season Position', '1st'], ['Season Points', '302']], [['Grands Prix Entered', '39'], ['Highest Race Finish', '1 (x8)']], [['Date of Birth', '25/08/2006']]]);
@@ -46,4 +46,22 @@ test("qualifying's numbers: the best lap, the gap to pole in the last part, the 
     ['1:13.500', '', 'SQ1'],
     ['', '', '']
   ]);
+});
+
+test("F1's live feed is this session's only when its kind and time agree", () => {
+  const feed = (type, name, start) => ({ session: { type, name, start, gmt: '08:00:00' }, cars: [{}] });
+  // Bahrain (at Sepang) 2026: qualifying 16:00 local = 08:00Z.
+  const q = feed('Qualifying', 'Qualifying', '2026-10-03T16:00:00');
+  assert.ok(sameSession(q, 'Qual', '2026-10-03T08:00Z'));
+  assert.ok(!sameSession(q, 'Race', '2026-10-04T07:00Z'));
+  assert.ok(!sameSession(q, 'Qual', '2026-10-10T13:00Z'));
+  assert.ok(sameSession(feed('Race', 'Race', '2026-10-04T15:00:00'), 'Race', '2026-10-04T07:00Z'));
+  assert.ok(sameSession(feed('Race', 'Sprint', '2026-10-10T17:00:00'), 'SR', '2026-10-10T09:00Z'));
+  assert.ok(!sameSession(feed('Race', 'Sprint', '2026-10-10T17:00:00'), 'Race', '2026-10-10T09:00Z'));
+  assert.ok(sameSession(feed('Qualifying', 'Sprint Qualifying', '2026-10-09T20:30:00'), 'SS', '2026-10-09T12:30Z'));
+  assert.ok(!sameSession(feed('Qualifying', 'Sprint Qualifying', '2026-10-09T20:30:00'), 'Qual', '2026-10-09T12:30Z'));
+  // The cut: 16 through Q1, 10 through Q2, none in Q3.
+  assert.equal(qualiCut(1, [22, 16, 10]), 16);
+  assert.equal(qualiCut(2, [22, 16, 10]), 10);
+  assert.equal(qualiCut(3, [22, 16, 10]), 0);
 });
