@@ -19,10 +19,12 @@ import { familyOfSport } from './lib/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
+import { liveTiming } from './lib/f1.mjs';
+import { buildBracket } from './lib/bracket.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList } from './lib/tv.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
+import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from './lib/logos.mjs';
 
@@ -320,6 +322,8 @@ function restoreDay() {
 // the other picks (nightOnly), never 今日推薦; a followed team's can be.
 const AWAKE_FROM = 5;
 const nightWorthy = e => bigGame(e) || isFollowedEvent(e);
+// A race weekend's practice: in 賽事 and the race's sheet, never among 首頁's picks or days.
+const practice = e => /^FP\d$/.test(e.sessionKey || '');
 const nightOnly = e => new Date(Date.parse(e.start)).getHours() < AWAKE_FROM && !isFollowedEvent(e);
 const inDay = (ms, date) => ms >= Date.parse(`${date}T00:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
@@ -566,7 +570,7 @@ function pickCard(item, n) {
       e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : el('div', { class: 'sess-head pick-title' }, [raceFlag(e), sessionTag(e), el('strong', { text: e.sessionKey || !e.session ? e.name : `${e.name} · ${e.session}` })]),
       series ? el('small', { class: 'series-line', text: series }) : null,
       liveLine(e),
-      e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : null,
+      e.league === 'f1' && e.status.state === 'in' ? f1Brief(e) : e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : null,
       reasons.length ? el('div', { class: 'why-row' }, reasons.map(r => el('span', { class: 'why', text: r }))) : null,
       twChips(e.league, 2, e)
     ])
@@ -699,7 +703,7 @@ function renderHome() {
   };
   // Only what's on TV in Taiwan is recommended (賽事 has every game); a
   // result is a result (ELTA's list doesn't reach far back).
-  const shown = e => e.status.state === 'post' || past || onTv(e);
+  const shown = e => !practice(e) && (e.status.state === 'post' || past || onTv(e));
   const mine = slot.events.filter(shown);
   let [planList, more] = rank(filtered(mine));
   // Nothing of theirs on: the best of the rest.
@@ -747,7 +751,7 @@ function renderHome() {
   const rankLive = (list, c) => list.map(e => ({ event: e, ...scoreMatch(e, c) })).sort((x, y) => y.score - x.score);
   let liveItems = isToday ? rankLive(onNow(filtered(mine)), pctx) : [];
   const liveMine = liveItems.length > 0;
-  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(onTv)), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
+  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e))), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
   const allLive = isToday ? onNow(dayAll(slot)).filter(onTv).length : 0;
   const liveShown = liveItems.slice(0, liveMine ? 5 : 3);
   const liveKeys = new Set(liveShown.map(x => `${x.event.league}:${x.event.id}`));
@@ -795,6 +799,8 @@ function renderHome() {
     teamRows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null
   );
   centerChosen(box);
+  // An F1 session on: its live timing read now, not at the next tick.
+  if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
 }
 // Nothing on TV here that day: why (past ELTA's list, only the NBA's and
 // MLS's games are known), and the way to every game (賽事).
@@ -914,7 +920,7 @@ async function sportDays(sport) {
   const days = new Set();
   days.failed = failed;
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
-    if (e.status?.void || (e.status?.state !== 'post' && !onTv(e))) continue;
+    if (e.status?.void || practice(e) || (e.status?.state !== 'post' && !onTv(e))) continue;
     const ms = Date.parse(e.start);
     const d = localDate(ms);
     if (inPickDay(ms, d) && d >= from && d <= to) days.add(d);
@@ -1083,6 +1089,63 @@ function openScores(league, date, view = 'games') {
 // Which days (or weeks) to read, then the games of each, grouped by the
 // viewer's own day: the strip shows only days with games. Races, tours and
 // fight promotions: the whole season, past and to come.
+// ---- The playoffs or a cup's knockout rounds, as a bracket ---------------------------
+//
+// MLB, the NBA, MLS: their games on the days around now (the season's
+// calendar), playoff games kept; a cup: its season's games (seasonEvents),
+// the knockout rounds kept. Read once a league is opened, kept 10 minutes.
+const brackets = new Map();
+const hasBracket = k => LEAGUES[k]?.kind === 'match' && !LEAGUES[k].asia && Boolean(LEAGUES[k].cup || ['mlb', 'nba', 'mls'].includes(k));
+// The bracket's shape while it's read: three rounds of grey ties.
+const bracketShape = () =>
+  el('div', { class: 'bracket waiting', 'aria-hidden': 'true' }, [4, 2, 1].map(n => el('section', { class: 'br-col' }, [el('i', { class: 'skel br-title-skel' }), el('div', { class: 'br-ties' }, Array.from({ length: n }, () => el('div', { class: 'br-tie' }, [el('i', { class: 'skel' }), el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })])))])));
+async function postseason(league) {
+  if (LEAGUES[league].cup) return (await seasonEvents(league)).filter(e => e.round);
+  const cal = await seasonCalendar(league).catch(() => null);
+  const from = yyyymmdd(new Date(Date.now() - 75 * 86_400_000));
+  const to = yyyymmdd(new Date(Date.now() + 10 * 86_400_000));
+  const days = (cal?.days || []).filter(d => d >= from && d <= to);
+  if (!days.length) return [];
+  const list = await scoreboard(league, days);
+  return list.filter(e => e.round);
+}
+function loadBracket(league) {
+  const had = brackets.get(league);
+  if (!hasBracket(league) || (had && (had.loading || Date.now() - had.at < 10 * 60_000))) return;
+  brackets.set(league, { ...(had || { rounds: [] }), loading: true });
+  postseason(league)
+    .then(events => brackets.set(league, { rounds: buildBracket(events, league), at: Date.now() }))
+    .catch(() => brackets.set(league, { rounds: had?.rounds || [], at: Date.now() }))
+    .finally(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+}
+// The bracket: a column a round (the later ones between the ties that feed
+// them), each tie its two sides with the series wins or aggregate, who went
+// through (the other greyed), or the next game, or that it's on now.
+function bracketView(rounds, league) {
+  const en = locale === 'en';
+  const note = t => {
+    const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
+    if (won) return en ? `${won.short || won.name} through` : `${won.short || won.name} 晉級`;
+    if (t.live) return en ? 'On now' : '進行中';
+    if (t.next) return `${t.kind === 'series' ? `G${t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${clock(t.next.start)}`;
+    return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : '';
+  };
+  const tie = t =>
+    t
+      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openEvent(t.games.find(g => g.status.state === 'in') || t.next || t.games.at(-1)) }, [
+          ...t.sides.map(s =>
+            el('div', { class: `br-side${t.winner ? (t.winner === String(s.id) ? ' win' : ' out') : ''}` }, [sideLogo(s, league, 'xs'), el('span', { class: 'br-name', text: s.short || s.name }), el('strong', { class: 'num br-score', text: t.score[String(s.id)] ?? '' })])
+          ),
+          note(t) ? el('small', { class: `br-note${t.live ? ' live' : ''}`, text: note(t) }) : null
+        ])
+      : el('div', { class: 'br-tie tbd' }, [el('span', { text: en ? 'To be decided' : '待定' })]);
+  // Faded in the first time it's drawn, not on every repaint.
+  const entry = brackets.get(league);
+  const fade = entry && !entry.shown;
+  if (entry) entry.shown = true;
+  return el('div', { class: `bracket${fade ? ' fade-in' : ''}` }, rounds.map(r => el('section', { class: 'br-col' }, [el('h4', { class: 'br-title', text: en ? r.title.en : r.title.zh }), el('div', { class: 'br-ties' }, r.ties.map(tie))])));
+}
+
 async function loadScores() {
   const sc = state.scores;
   const league = sc.league;
@@ -1353,13 +1416,21 @@ function renderScores() {
     { class: 'q-chips small' },
     shownLeaguesOf(sc.sport)
       .sort((a, b) => mine.has(b) - mine.has(a))
-      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), leagueName(k, locale)]))
+      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), leagueName(k, locale)]))
   );
   let strip = null;
   let list;
   let stages = null;
-  const tableView = sc.view === 'table' && hasStandings(sc.league);
-  if (tableView) list = tableOf(sc.league);
+  loadBracket(sc.league);
+  const rounds = brackets.get(sc.league)?.rounds || [];
+  // The tab from the start when the schedule already has playoff (or a cup's
+  // knockout) games, the bracket's shape while it's read: nothing appears late.
+  const likely = hasBracket(sc.league) && (Boolean(LEAGUES[sc.league].cup) || (sc.all || []).some(e => e.round));
+  const reading = Boolean(brackets.get(sc.league)?.loading) && likely;
+  const knockView = sc.view === 'bracket' && (rounds.length > 0 || reading);
+  const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
+  if (knockView) list = rounds.length ? bracketView(rounds, sc.league) : bracketShape();
+  else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
   else if (sc.mode === 'event') {
@@ -1419,8 +1490,10 @@ function renderScores() {
     ]),
     twChips(sc.league, 3)
   ]);
-  const views = hasStandings(sc.league) ? segmented([['games', t('schedule')], ['table', t('table')]], tableView ? 'table' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
-  put(box, sportChips, leagueChips, tools, views, tableView ? null : strip, tableView ? null : stages, list);
+  const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : [])];
+  const views = viewList.length > 1 ? segmented(viewList, knockView ? 'bracket' : tableView ? 'table' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
+  const other = tableView || knockView;
+  put(box, sportChips, leagueChips, tools, views, other ? null : strip, other ? null : stages, list);
   centerChosen(box);
 }
 
@@ -1826,6 +1899,26 @@ function paintStatus() {
   $('status').textContent = at ? t('updated', { time: clock(new Date(at).toISOString()) }) : '';
 }
 new MutationObserver(() => fitNumbers([...document.querySelectorAll('.mh-score')])).observe(document.body, { childList: true, subtree: true });
+
+// An F1 session on now: F1's own live timing every 10 seconds, its cards'
+// briefs (the top three) filled again in place, never the whole page.
+let f1Polling = false;
+async function pollF1Live() {
+  if (document.visibilityState !== 'visible' || f1Polling) return;
+  const on = dayAll(state.days.get(today())).find(e => e.league === 'f1' && e.sessionKey && e.status.state === 'in');
+  if (!on) return void (f1Live.key = '');
+  f1Polling = true;
+  const feed = await liveTiming(on.sessionKey, on.official || on.start).catch(() => null);
+  f1Polling = false;
+  // Not read: the cards fall back to ESPN's leader rather than wait on.
+  f1Live.failed = !feed;
+  if (!feed) return void document.querySelectorAll(`[data-f1-brief="${CSS.escape(on.id)}"]`).forEach(node => fillF1Brief(node, on));
+  f1Live.feed = feed;
+  f1Live.key = on.id;
+  for (const node of document.querySelectorAll(`[data-f1-brief="${CSS.escape(on.id)}"]`)) fillF1Brief(node, on);
+}
+setInterval(pollF1Live, 10_000);
+document.addEventListener('visibilitychange', pollF1Live);
 
 window.__fxStarted = true;
 const gated = installGate('match', locale);

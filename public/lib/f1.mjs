@@ -222,3 +222,39 @@ export async function espnQualifying(eventId, sessionId, field, prefix = 'Q') {
   });
   return rows.some(r => r.q.some(lapMs)) ? qualiRows(rows, prefix) : [];
 }
+
+// A session on now, from F1's own live timing (the sports proxy's
+// f1-live.js: ESPN's copy is minutes behind and its gaps stand still): the
+// part and the clock, the flag, the race's lap, race control's latest, and
+// each car. Null when the feed's session isn't this one (`abbr`, `start`).
+const LIVE = 'https://f1-live.quadra/now.json';
+const FEED_KIND = { FP1: 'Practice', FP2: 'Practice', FP3: 'Practice', Qual: 'Qualifying', SS: 'Sprint Qualifying', SQ: 'Sprint Qualifying', SR: 'Sprint', Race: 'Race' };
+export function sameSession(feed, abbr, start) {
+  const s = feed?.session;
+  if (!s?.start) return false;
+  const [h, m] = String(s.gmt || '0:0').split(':').map(Number);
+  const at = Date.parse(`${s.start}Z`) - ((h || 0) * 60 + (m || 0)) * 60_000;
+  const kind = FEED_KIND[abbr];
+  const named = kind === 'Sprint' ? s.name === 'Sprint' : kind === 'Race' ? s.type === 'Race' && s.name !== 'Sprint' : kind === 'Sprint Qualifying' ? /sprint/i.test(s.name) && /qualifying|shootout/i.test(`${s.name} ${s.type}`) : s.type === kind && !/sprint/i.test(s.name);
+  return named && Math.abs(at - Date.parse(start)) < 3 * 3_600_000;
+}
+// The last reading, kept for the session (sessionStorage too, so a reload
+// or a sheet opened from a card draws it at once, not after the read).
+const KEPT = 'fx.f1live';
+let last = null;
+try {
+  last = JSON.parse(sessionStorage.getItem(KEPT) || 'null');
+} catch {}
+export async function liveTiming(abbr, start) {
+  const feed = await getJson(LIVE, { ttl: 4_000 });
+  if (!feed?.cars?.length) return null;
+  last = feed;
+  try {
+    sessionStorage.setItem(KEPT, JSON.stringify(feed));
+  } catch {}
+  return sameSession(feed, abbr, start) ? feed : null;
+}
+// The last reading of this session if it's recent (10 minutes), else null.
+export const keptTiming = (abbr, start) => (last && Date.now() - last.at < 10 * 60_000 && sameSession(last, abbr, start) ? last : null);
+// Where a qualifying part cuts (NoEntries: [22, 16, 10]): the last place through, or 0.
+export const qualiCut = (part, entries = []) => (part >= 1 && part < entries.length ? entries[part] : 0);

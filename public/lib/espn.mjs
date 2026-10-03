@@ -159,6 +159,13 @@ export const SESSION_NAMES = {
   Race: { zh: '正賽', en: 'Race', short: { zh: '正賽', en: 'Race' } }
 };
 const MAIN_SESSIONS = ['FP1', 'FP2', 'FP3', 'SS', 'SQ', 'SR', 'Qual', 'Race'];
+// F1 on TV here (ELTA, from Sky's coverage of F1's international feed)
+// opens with the title sequence, F1's theme, a few minutes before the
+// session's official time: the time shown is the titles', so they're never
+// missed. Minutes before; estimates (F1 publishes none: the race's come after
+// the anthem, the others just before the session), tuned here.
+export const TITLES_BEFORE = { Race: 10, SR: 5, Qual: 4, SS: 4, SQ: 4, FP1: 4, FP2: 4, FP3: 4 };
+export const titlesAt = (league, abbr, start) => (league === 'f1' && TITLES_BEFORE[abbr] && start ? new Date(Date.parse(start) - TITLES_BEFORE[abbr] * 60_000).toISOString().replace(':00.000Z', 'Z') : start);
 export const sessionName = (x, lang = 'zh', short = false) => {
   const n = SESSION_NAMES[x?.abbr];
   if (!n) return x?.name || x?.abbr || '';
@@ -174,7 +181,8 @@ export function splitWeekend(e, now = Date.now(), lang = 'zh') {
     // The feed can leave a session "on" (or "to come") long after it ended.
     const done = Date.parse(x.start) + SESSION_MS < now;
     const status = done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true } : x.status;
-    return { ...e, id: `${e.id}~${x.abbr}`, weekend: e.id, start: x.start, at: x.start, end: null, session: sessionName(x, lang), sessionKey: x.abbr, status };
+    const shown = titlesAt(e.league, x.abbr, x.start);
+    return { ...e, id: `${e.id}~${x.abbr}`, weekend: e.id, start: shown, at: shown, official: x.start, end: null, session: sessionName(x, lang), sessionKey: x.abbr, status };
   });
 }
 
@@ -184,6 +192,23 @@ export function parseSeries(s) {
   return { summary: s.summary || '', completed: Boolean(s.completed), games: s.totalCompetitions || 0, wins: Object.fromEntries((s.competitors || []).map(c => [String(c.id), c.wins ?? 0])) };
 }
 
+// A playoff or knockout game's round, for the bracket: `key` the round
+// (ESPN's RD16 / QTR / SEMI / FINAL for the US leagues' playoffs, the
+// season's stage for a cup: round-of-16, quarterfinals…), its name, the leg
+// and the sides the tie's over for (a cup's second leg says who went
+// through). Null for any other game (a cup's league phase or groups too).
+export function knockoutRound(e, comp, league) {
+  const slug = String(e?.season?.slug || '');
+  const note = comp?.notes?.[0]?.headline || '';
+  const cup = Boolean(LEAGUES[league]?.cup);
+  if (/play-?in/i.test(`${slug} ${note}`)) return null;
+  const post = e?.season?.type === 3 || /post-?season/i.test(slug);
+  if (!post && !(cup && slug && !/league-phase|group|regular|qualif|preliminary/i.test(slug))) return null;
+  const key = cup ? slug : comp?.type?.abbreviation || slug;
+  if (!key) return null;
+  const title = comp?.series?.title || (cup ? slug.replace(/-/g, ' ') : note.replace(/\s*-\s*(Game|Leg)\b.*$/i, '')) || key;
+  return { key, title, leg: Number(comp?.leg?.value) || 0, through: (comp?.series?.competitors || []).filter(c => c.winner).map(c => String(c.id)) };
+}
 export function parseScoreboard(data, league) {
   const kind = LEAGUES[league]?.kind || 'match';
   const out = [];
@@ -204,6 +229,7 @@ export function parseScoreboard(data, league) {
       tv: [...new Set((comp?.broadcasts || []).flatMap(b => b.names || []))].join(' · '),
       note: comp?.notes?.[0]?.headline || '',
       series: parseSeries(comp?.series),
+      round: knockoutRound(e, comp, league),
       stage: stageFrom({ seasonType: e.season?.type, seasonSlug: e.season?.slug, typeAbbr: comp?.type?.abbreviation, note: comp?.notes?.[0]?.headline || '', name: e.name, cup: LEAGUES[league]?.cup })
     };
     if (kind === 'match' && comp) {
@@ -427,7 +453,7 @@ export function parseSummary(data, league) {
   const rosters = (data?.rosters || []).map(r => ({
     team: String(r.team?.id ?? ''),
     formation: r.formation || '',
-    players: (r.roster || []).map(x => ({ id: String(x.athlete?.id ?? ''), name: x.athlete?.displayName || '', headshot: freshHeadshot(x.athlete?.headshot?.href) || null, jersey: x.jersey || '', pos: x.position?.abbreviation || '', starter: Boolean(x.starter) }))
+    players: (r.roster || []).map(x => ({ id: String(x.athlete?.id ?? ''), name: x.athlete?.displayName || '', short: x.athlete?.shortName || '', headshot: freshHeadshot(x.athlete?.headshot?.href) || null, jersey: x.jersey || '', pos: x.position?.abbreviation || '', starter: Boolean(x.starter), played: Boolean(x.starter || x.subbedIn), stats: Object.fromEntries((x.stats || []).map(s => [s.name, s.displayValue])) }))
   }));
   const leaders = (data?.leaders || []).flatMap(t =>
     (t.leaders || []).map(l => ({ team: String(t.team?.id ?? ''), stat: l.displayName || l.name, id: String(l.leaders?.[0]?.athlete?.id ?? ''), name: l.leaders?.[0]?.athlete?.shortName || l.leaders?.[0]?.athlete?.displayName || '', full: l.leaders?.[0]?.athlete?.displayName || '', headshot: freshHeadshot(l.leaders?.[0]?.athlete?.headshot?.href) || null, value: l.leaders?.[0]?.displayValue || '' }))
@@ -454,6 +480,18 @@ export function parseSummary(data, league) {
   const table = (data?.standings?.groups || []).flatMap(g =>
     (g.standings?.entries || []).map(en => ({ team: en.team, id: String(en.id ?? ''), stats: Object.fromEntries((en.stats || []).map(s => [s.name || s.abbreviation, s.displayValue])) }))
   );
+  // Soccer has no box score: each side's players who played, from the
+  // lineups' own numbers (goals, assists, shots, cards, a keeper's saves).
+  if (!players.length && rosters.some(r => r.players.some(p => p.played && Object.keys(p.stats).length))) {
+    const en = detectLocale() === 'en';
+    const cols = [['totalGoals', '進球', 'G'], ['goalAssists', '助攻', 'A'], ['totalShots', '射門', 'SH'], ['shotsOnTarget', '射正', 'SOT'], ['foulsCommitted', '犯規', 'FC'], ['yellowCards', '黃牌', 'YC'], ['redCards', '紅牌', 'RC'], ['saves', '撲救', 'SV']];
+    for (const r of rosters) {
+      const rows = r.players.filter(p => p.played).map(p => ({ id: p.id, name: p.short || p.name, pos: p.pos, starter: p.starter, stats: cols.map(([k]) => p.stats[k] ?? '0') }));
+      if (rows.length) players.push({ team: r.team, tables: [{ name: en ? 'Players' : '球員', labels: cols.map(c => (en ? c[2] : c[1])), rows, totals: [] }] });
+    }
+  }
+  // Every play, the latest 80 (basketball's live feed and play-by-play).
+  const feed = (data?.plays || []).slice(-80).map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore, scoring: Boolean(p.scoringPlay) }));
   const info = data?.gameInfo || {};
   return {
     league,
@@ -465,6 +503,7 @@ export function parseSummary(data, league) {
     teamStats,
     players,
     plays,
+    feed,
     keyEvents,
     rosters,
     leaders,
