@@ -169,15 +169,15 @@ test('雙語 is Chinese with the original on the second track: it suits both, an
   assert.deepEqual(chs('en'), [544, 110]);
 });
 
-test("a race's channels: the person's commentary first, a MAX channel without ads before the 體育台", () => {
+test("a race's channels: MAX (no ads) before the 體育台 whatever the commentary, then the person's commentary", () => {
   const oct = elta('2026-10-01');
   const f1 = (k, start) => ({ id: `600060990~${k}`, league: 'f1', kind: 'field', sessionKey: k, start, status: { state: 'pre' } });
   const chs = (e, prefer) => broadcastsFor(e, oct, { prefer }).map(b => b.ch);
   // Bahrain (at Sepang): the race on MAX5 原音, MAX6 中文 without ads, 體育2台 雙語.
-  assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'en'), [544, 105, 545]);
-  assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'zh'), [545, 105, 544]);
+  assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'en'), [544, 545, 105]);
+  assert.deepEqual(chs(f1('Race', '2026-10-04T07:00Z'), 'zh'), [545, 544, 105]);
   // Qualifying: no sprint qualifying mixed in; Singapore's sprint qualifying only on MAX5.
-  assert.deepEqual(chs(f1('Qual', '2026-10-03T08:00Z'), 'en'), [544, 110, 545]);
+  assert.deepEqual(chs(f1('Qual', '2026-10-03T08:00Z'), 'en'), [544, 545, 110]);
   assert.deepEqual(chs(f1('SQ', '2026-10-09T12:30Z'), 'en'), [544]);
   const [top] = broadcastsFor(f1('Race', '2026-10-04T07:00Z'), oct, { prefer: 'en' });
   assert.equal(top.audio, 'en');

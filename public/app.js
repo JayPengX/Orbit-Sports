@@ -12,7 +12,7 @@
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
-import { eltaChannel, hasAudio } from './lib/broadcast.mjs';
+import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
 import { familyOfSport } from '#kit/catalog.mjs';
@@ -1025,6 +1025,8 @@ function guideItems() {
     if (!shows.has(key)) shows.set(key, { ...p, channels: [] });
     shows.get(key).channels.push({ ch: p.ch, audio: p.audio, adFree: p.adFree });
   }
+  // MAX (no ads) first: 觀看 opens the first.
+  for (const p of shows.values()) p.channels.sort((a, b) => channelRank(a, state.prefs.audio || 'en') - channelRank(b, state.prefs.audio || 'en') || a.ch - b.ch);
   return [...shows.values(), ...nbaAfterList()].sort((a, b) => a.start - b.start);
 }
 const guideTitle = p => (p.teams.length === 2 ? `${p.teams[0]} vs ${p.teams[1]}` : p.title.replace(/[【（(][^】）)]*[】）)]/g, '').replace(STAGE_WORD, '').trim() || p.title);

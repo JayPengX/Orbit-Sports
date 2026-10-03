@@ -97,12 +97,13 @@ export const AUDIO_NAMES = {
 // Whether a channel has the commentary the person likes: Chinese on every
 // kind but 'en'; the original on 'en' and on 'dual' (its second track).
 export const hasAudio = (c, prefer = 'en') => (prefer === 'zh' ? c.audio !== 'en' : c.audio === 'en' || c.audio === 'dual');
-// How well a channel suits the person: their commentary first (on its main
-// track before a second one), then no ads (a MAX channel before the 體育台
-// with the same game). Lower is better.
+// How well a channel suits the person: no ads first (a MAX channel before
+// the 體育台 with the same game, whatever their commentary: the owner's
+// call), then their commentary (on its main track before a second one).
+// Lower is better.
 export function channelRank(c, prefer = 'en') {
   const order = prefer === 'zh' ? { zh: 0, dual: 0, venue: 0, local: 0, en: 3 } : { en: 0, dual: 1, venue: 2, local: 3, zh: 3 };
-  return (order[c.audio] ?? 3) * 10 + (c.adFree ? 0 : 5);
+  return (c.adFree ? 0 : 10) + (order[c.audio] ?? 3);
 }
 
 // The list (trimmed by the proxy, or ELTA's own) as programs: { league, start,
