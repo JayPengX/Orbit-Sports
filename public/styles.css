@@ -853,39 +853,31 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .watch-row > .watch-btn:not(.wide) { padding: 7px 12px 7px 10px; gap: 6px; }
 .watch-row > .watch-btn:not(.wide) .watch-text strong { font-size: 13px; }
 .watch-row > .watch-btn:not(.wide) .watch-play { border-width: 5px 0 5px 8px; }
-/* ---- F1 live board: the part or lap and the flag, then the cars as F1's timing screen reads ---- */
+/* ---- F1 live board: the part or lap, the time left and the flag on top, then the cars in the result's own rows ---- */
 .live-board { display: grid; gap: 8px; }
 .lb-head { display: flex; align-items: center; gap: 8px; }
 .lb-part { font-size: 18px; font-weight: 800; }
+.lb-clock { font-weight: 700; color: var(--q-muted); }
 .lb-flag { margin-left: auto; font-size: 12px; font-weight: 750; padding: 3px 9px; border-radius: 999px; background: var(--q-sunken); }
 .lb-flag.green { background: color-mix(in srgb, #16a34a 18%, transparent); color: #15803d; }
 .lb-flag.yellow { background: color-mix(in srgb, #eab308 24%, transparent); color: #a16207; }
 .lb-flag.red { background: color-mix(in srgb, #dc2626 18%, transparent); color: #b91c1c; }
-.lb-rows { list-style: none; margin: 0; padding: 0; border-radius: 14px; overflow: hidden; background: var(--q-surface); }
-.lb-rows li { display: grid; grid-template-columns: 26px 4px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--q-border); }
-.lb-rows li:first-child { border-top: 0; }
-.lb-rows .pos { font-weight: 800; text-align: center; }
-.lb-team { width: 4px; height: 26px; border-radius: 2px; }
-.lb-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
-.lb-who strong, .lb-who small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lb-right { display: flex; flex-direction: column; align-items: flex-end; min-width: 72px; line-height: 1.2; }
-.lb-best { font-weight: 750; }
-.lb-gap { color: var(--q-text-2); }
-.lb-clock { font-weight: 700; color: var(--q-text-2); }
 .lb-msg { margin: 0; padding: 8px 12px; border-radius: 12px; background: var(--q-sunken); font-size: 13px; line-height: 1.35; }
-.lb-msg small { display: block; font-weight: 700; color: var(--q-text-2); }
-.lb-rows li.gone { opacity: .5; }
-.tyre { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; font-size: 9px; font-weight: 900; vertical-align: -3px; }
-.tyre.soft { color: #e10600; }
-.tyre.medium { color: #d4a500; }
-.tyre.hard { color: var(--q-text-2); }
-.tyre.inter { color: #16a34a; }
-.tyre.wet { color: #2563eb; }
-.lb-state { font-size: 11px; font-weight: 750; padding: 2px 7px; border-radius: 999px; background: var(--q-sunken); color: var(--q-text-2); }
+.lb-msg small { display: block; font-weight: 700; color: var(--q-muted); }
+.lb-rows { margin-top: 0; }
 .lb-rows li.drop { background: color-mix(in srgb, var(--q-bad) 7%, transparent); }
 .lb-rows li.drop .pos { color: var(--q-bad); }
-.lb-rows li.mine { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.lb-rows li.lb-cut { display: block; padding: 2px 12px; border-top: 2px dashed var(--q-bad); font-size: 11px; font-weight: 700; color: var(--q-bad); text-align: right; }
+.lb-rows li.gone { opacity: .5; }
+.lb-rows li.lb-cut { display: block; padding: 2px 14px; border-top: 2px dashed var(--q-bad); font-size: 11px; font-weight: 700; color: var(--q-bad); text-align: right; }
+.f1-main { font-size: 14px; font-weight: 750; }
+.lb-state { font-size: 11px; font-weight: 750; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--q-bad) 14%, transparent); color: var(--q-bad); }
+.lb-state.pit { background: var(--q-sunken); color: var(--q-muted); }
+.tyre { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; font-size: 9px; font-weight: 900; line-height: 1; }
+.tyre.soft { color: #e10600; }
+.tyre.medium { color: #d4a500; }
+.tyre.hard { color: var(--q-muted); }
+.tyre.inter { color: #16a34a; }
+.tyre.wet { color: #2563eb; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .lb-flag.green { color: #4ade80; }
   :root:not([data-theme='light']) .lb-flag.yellow { color: #facc15; }
@@ -894,6 +886,14 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 :root[data-theme='dark'] .lb-flag.green { color: #4ade80; }
 :root[data-theme='dark'] .lb-flag.yellow { color: #facc15; }
 :root[data-theme='dark'] .lb-flag.red { color: #f87171; }
+/* ---- An F1 session's card brief: the part and time left, the top three with their faces ---- */
+.f1-brief { display: grid; gap: 4px; margin-top: 4px; }
+.f1-brief-head { font-weight: 700; color: var(--q-bad); }
+.f1-brief-top { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.f1-brief-top li { display: grid; grid-template-columns: 14px auto minmax(0, 1fr) auto; align-items: center; gap: 6px; font-size: 13px; }
+.f1-brief-top .pos { font-weight: 800; color: var(--q-muted); text-align: center; }
+.f1-brief-name { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f1-brief-v { font-weight: 650; color: var(--q-muted); }
 /* ---- Basketball live: each side's top scorer and fouls, then the last plays ---- */
 .lp-bb { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .lp-bb-side { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

@@ -168,12 +168,12 @@ function livePanel(e, sm = null) {
       const reb = tb.labels.indexOf('REB');
       const ast = tb.labels.indexOf('AST');
       const best = [...tb.rows].sort((a, b) => Number(b.stats[i] || 0) - Number(a.stats[i] || 0))[0];
-      return best ? { name: best.name, line: [`${best.stats[i]}${en ? ' pts' : '分'}`, reb >= 0 ? `${best.stats[reb]}${en ? ' reb' : '籃板'}` : '', ast >= 0 ? `${best.stats[ast]}${en ? ' ast' : '助攻'}` : ''].filter(Boolean).join(' ') } : null;
+      return best ? { id: best.id, name: best.name, line: [`${best.stats[i]}${en ? ' pts' : '分'}`, reb >= 0 ? `${best.stats[reb]}${en ? ' reb' : '籃板'}` : '', ast >= 0 ? `${best.stats[ast]}${en ? ' ast' : '助攻'}` : ''].filter(Boolean).join(' ') } : null;
     };
     const fouls = sm.teamStats.find(s => s.key === 'fouls');
     const side = (id, cls) => {
       const t = top(id);
-      return el('div', { class: `lp-bb-side ${cls}` }, [el('small', { class: 'muted', text: en ? 'Top scorer' : '本場得分王' }), t ? el('strong', { text: t.name }) : null, t ? el('span', { class: 'num', text: t.line }) : null, fouls ? el('small', { class: 'muted num', text: `${en ? 'Fouls' : '犯規'} ${cls === 'away' ? fouls.away : fouls.home}` }) : null]);
+      return el('div', { class: `lp-bb-side ${cls}` }, [el('small', { class: 'muted', text: en ? 'Top scorer' : '本場得分王' }), t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, t ? el('strong', { text: t.name }) : null, t ? el('span', { class: 'num', text: t.line }) : null, fouls ? el('small', { class: 'muted num', text: `${en ? 'Fouls' : '犯規'} ${cls === 'away' ? fouls.away : fouls.home}` }) : null]);
     };
     rows.push(el('div', { class: 'lp-bb' }, [side(e.away.id, 'away'), side(e.home.id, 'home')]));
     const last = sm.feed.slice(-4).reverse();
@@ -619,35 +619,51 @@ export function openFieldEvent(e) {
 // An F1 result, row by row: the place (or the retirement), the driver (to
 // their page) and team (to its page), the time or gap, the places gained and
 // the points.
+// One car in an F1 list, the same in a result and live: the place, the
+// driver's picture and name (to their page), the team's badge and name (to
+// its page), then the number that matters (a time, a gap) over its tags.
+// `field`: the session's cars from ESPN (their ids, so the pictures match
+// the rest of the app's).
+const plainName = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+function f1Row({ pos, posText = '', posOut = false, full, family, team, field, main = '', tags = [], cls = '' }) {
+  const en = L() === 'en';
+  const c = field.find(x => plainName(x.name) === plainName(full)) || field.find(x => plainName(x.name).endsWith(plainName(family))) || { name: full };
+  const who = { ...c, name: en ? c.name : f1Driver(full).zh || c.name };
+  const car = f1Constructor(team || f1Driver(full).team);
+  return el('li', { class: `${ctx.isFollowed('f1', c.id) ? 'mine' : ''}${cls ? ` ${cls}` : ''}`.trim() }, [
+    el('span', { class: `pos num${posOut ? ' out' : ''}`, text: posText || String(pos) }),
+    personPic(c, 'f1', 'sm round'),
+    el('span', { class: 'f1-who' }, [
+      personName('f1', who),
+      el('button', { class: 'link f1-team', type: 'button', onclick: () => openConstructor({ id: '', name: car.name, en: car.name }) }, [constructorBadge(car.name, 'xxs'), el('span', { text: en ? car.name : car.zh })])
+    ]),
+    el('span', { class: 'f1-res' }, [el('span', { class: 'num f1-main', text: main }), tags.some(Boolean) ? el('span', { class: 'f1-tags' }, tags) : null])
+  ]);
+}
 function f1Field(rows, field) {
   const en = L() === 'en';
-  const plain = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   return el(
     'ol',
     { class: 'field f1-field' },
     rows.map(r => {
-      const full = `${r.driver.givenName} ${r.driver.familyName}`;
-      const c = field.find(x => plain(x.name).endsWith(plain(r.driver.familyName))) || { name: full };
-      const who = { ...c, name: en ? c.name : f1Driver(full).zh || c.name };
       const gained = r.grid && !r.out ? r.grid - r.pos : 0;
-      return el('li', { class: ctx.isFollowed('f1', c.id) ? 'mine' : '' }, [
-        el('span', { class: `pos num${r.out ? ' out' : ''}`, text: r.out ? r.text : String(r.pos) }),
-        personPic(c, 'f1', 'sm round'),
-        el('span', { class: 'f1-who' }, [
-          personName('f1', who),
-          el('button', { class: 'link f1-team', type: 'button', onclick: () => openConstructor({ id: '', name: r.team, en: r.team }) }, [constructorBadge(f1Constructor(r.team).name, 'xxs'), el('span', { text: en ? f1Constructor(r.team).name : f1Constructor(r.team).zh })])
-        ]),
-        el('span', { class: 'f1-res' }, [
-          el('small', { class: 'num', text: r.out ? r.why : r.time || (r.status === 'Lapped' ? (en ? 'Lapped' : '被套圈') : '') }),
-          el('span', { class: 'f1-tags' }, [
-            r.gap ? el('small', { class: 'num', text: r.gap }) : null,
-            r.outIn ? el('small', { class: 'q-out', title: en ? `Out in ${r.outIn}` : `${r.outIn} 淘汰`, text: r.outIn }) : null,
-            gained ? el('small', { class: `num ${gained > 0 ? 'up' : 'down'}`, text: `${gained > 0 ? '▲' : '▼'}${Math.abs(gained)}` }) : null,
-            r.fastest ? el('small', { class: 'fl', title: en ? 'Fastest lap' : '最快圈', text: en ? 'FL' : '最快圈' }) : null,
-            r.points ? el('strong', { class: 'num pts', text: `+${r.points}` }) : null
-          ])
-        ])
-      ]);
+      return f1Row({
+        pos: r.pos,
+        posText: r.out ? r.text : '',
+        posOut: r.out,
+        full: `${r.driver.givenName} ${r.driver.familyName}`,
+        family: r.driver.familyName,
+        team: r.team,
+        field,
+        main: r.out ? r.why : r.time || (r.status === 'Lapped' ? (en ? 'Lapped' : '被套圈') : ''),
+        tags: [
+          r.gap ? el('small', { class: 'num', text: r.gap }) : null,
+          r.outIn ? el('small', { class: 'q-out', title: en ? `Out in ${r.outIn}` : `${r.outIn} 淘汰`, text: r.outIn }) : null,
+          gained ? el('small', { class: `num ${gained > 0 ? 'up' : 'down'}`, text: `${gained > 0 ? '▲' : '▼'}${Math.abs(gained)}` }) : null,
+          r.fastest ? el('small', { class: 'fl', title: en ? 'Fastest lap' : '最快圈', text: en ? 'FL' : '最快圈' }) : null,
+          r.points ? el('strong', { class: 'num pts', text: `+${r.points}` }) : null
+        ]
+      });
     })
   );
 }
@@ -680,23 +696,28 @@ function f1LiveBoard(b, ss) {
     flag ? el('span', { class: `lb-flag ${flag[2]}`, text: en ? flag[1] : flag[0] }) : null
   ]);
   const rows = b.cars.flatMap((c, i) => {
-    const d = f1Driver(c.name);
     const tyre = TYRE[c.tyre];
     const state = c.retired || c.stopped ? (en ? 'Out' : '退賽') : c.out ? (en ? 'Out' : '淘汰') : c.inPit ? (en ? 'Pit' : '進站') : c.pitOut ? (en ? 'Out lap' : '出站') : '';
-    const right = quali
-      ? [el('span', { class: 'num lb-best', text: c.best || '–' }), el('small', { class: 'num lb-gap', text: i === 0 || !c.gap ? '' : c.gap })]
-      : [el('span', { class: 'num lb-best', text: i === 0 ? (en ? 'Leader' : '領先') : c.gap || '' }), el('small', { class: 'num lb-gap', text: i === 0 ? '' : c.interval ? `${en ? 'int' : '前車'} ${c.interval}` : '' })];
-    const row = el('li', { class: `${ctx.isFollowed('f1', String(c.no)) ? 'mine' : ''}${cut && c.pos > cut && !c.out ? ' drop' : ''}${c.out || c.retired ? ' gone' : ''}` }, [
-      el('span', { class: 'pos num', text: String(c.pos) }),
-      el('i', { class: 'lb-team', style: `background:${c.colour || d.color}` }),
-      el('span', { class: 'lb-who' }, [el('strong', { text: en ? c.name : d.zh && d.zh !== c.name ? d.zh : c.name }), el('small', { class: 'muted' }, [tyre ? el('b', { class: `tyre ${tyre[1]}`, text: tyre[0] }) : null, document.createTextNode(`${tyre && c.tyreLaps ? ` ${c.tyreLaps}${en ? ' laps' : '圈'} · ` : tyre ? ' · ' : ''}${en ? f1Constructor(d.team || c.team).name : f1Constructor(d.team || c.team).zh}`)])]),
-      state ? el('span', { class: 'lb-state', text: state }) : el('span'),
-      el('span', { class: 'lb-right' }, right)
-    ]);
+    const row = f1Row({
+      pos: c.pos,
+      full: c.name,
+      family: c.name.split(' ').slice(1).join(' ') || c.name,
+      team: c.team,
+      field: ss.field,
+      cls: `${cut && c.pos > cut && !c.out ? 'drop' : ''}${c.out || c.retired ? ' gone' : ''}`.trim(),
+      // Qualifying: the best lap of this part, the gap to the top under it; a race: the gap, the car ahead's interval under it.
+      main: quali ? c.best : i === 0 ? (en ? 'Leader' : '領先') : c.gap,
+      tags: [
+        state ? el('small', { class: `lb-state${c.inPit || c.pitOut ? ' pit' : ''}`, text: state }) : null,
+        tyre ? el('b', { class: `tyre ${tyre[1]}`, title: c.tyre, text: tyre[0] }) : null,
+        tyre && c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? 'L' : '圈'}` }) : null,
+        quali ? (i > 0 && c.gap ? el('small', { class: 'num', text: c.gap }) : null) : i > 0 && c.interval ? el('small', { class: 'num', text: `${en ? 'int ' : '前車 '}${c.interval}` }) : null
+      ]
+    });
     return cut && c.pos === cut ? [row, el('li', { class: 'lb-cut', 'aria-hidden': 'true' }, [el('span', { text: en ? `Out after ${prefix}${b.part}` : `${prefix}${b.part} 淘汰線` })])] : [row];
   });
   const msg = b.message?.text ? el('p', { class: 'lb-msg' }, [el('small', { text: en ? 'Race control' : '賽事幹事' }), document.createTextNode(b.message.text)]) : null;
-  return el('div', { class: 'live-board' }, [head, msg, el('ol', { class: 'lb-rows' }, rows)]);
+  return el('div', { class: 'live-board' }, [head, msg, el('ol', { class: 'field f1-field lb-rows' }, rows)]);
 }
 function fillField(s, e) {
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), el('p', { class: 'muted', text: [e.venue, whenText(e.start), e.official && e.official !== e.start ? (L() === 'en' ? `titles; starts ${clock(e.official)}` : `片頭・${clock(e.official)} 開始`) : ''].filter(Boolean).join(' · ') }), watchButton(e, 'wide')]));

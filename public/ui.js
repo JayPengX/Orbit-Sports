@@ -293,7 +293,7 @@ export function eventRow(e, { league = true, day = true } = {}) {
   const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.venue;
   return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
-    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, el('strong', { text: e.name })]), sub ? el('small', { text: sub }) : null, tvLine(e)])
+    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, el('strong', { text: e.name })]), e.league === 'f1' && e.status.state === 'in' ? f1Brief(e) : sub ? el('small', { text: sub }) : null, tvLine(e)])
   ]);
 }
 
@@ -345,6 +345,54 @@ export function diamond(bases = [], outs = 0, big = false) {
   return svg;
 }
 // A race on now: who leads it.
+// F1's live timing for the session on now (app.js keeps it, from the
+// proxy's copy of F1's own feed): `key` the session event's id.
+export const f1Live = { feed: null, key: '' };
+const mmss = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
+// A card's brief of an F1 session on now, as baseball's shows the count:
+// the part (or lap) and the time left, then the top three with their
+// pictures and best lap (qualifying, practice) or gap (a race). A slot
+// (`data-f1-brief`) app.js fills again as the feed moves; until the feed is
+// in, the leader as ESPN has it.
+export function f1Brief(e) {
+  if (e?.league !== 'f1' || e.status?.state !== 'in') return null;
+  const box = el('div', { class: 'f1-brief', 'data-f1-brief': e.id });
+  fillF1Brief(box, e);
+  return box;
+}
+export function fillF1Brief(box, e) {
+  const en = ctx.locale === 'en';
+  const f = f1Live.key === e.id ? f1Live.feed : null;
+  if (!f) {
+    const lead = fieldNow(e);
+    return put(box, lead ? el('small', { class: 'live-line', text: lead }) : null);
+  }
+  const race = e.sessionKey === 'Race' || e.sessionKey === 'SR';
+  const quali = /^(Qual|SS|SQ)$/.test(e.sessionKey || '');
+  const left = Math.max(0, f.clock.left - (f.clock.running ? (Date.now() - f.at) / 1000 : 0));
+  const head = race && f.lap?.now ? (en ? `Lap ${f.lap.now}/${f.lap.of}` : `第 ${f.lap.now}/${f.lap.of} 圈`) : [quali && f.part ? `${e.sessionKey === 'Qual' ? 'Q' : 'SQ'}${f.part}` : '', `${en ? '' : '剩 '}${mmss(left)}${en ? ' left' : ''}`].filter(Boolean).join(' · ');
+  const field = (e.sessions || []).find(x => x.abbr === e.sessionKey)?.field || [];
+  const plain = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  put(
+    box,
+    el('small', { class: 'f1-brief-head num', text: head }),
+    el(
+      'ol',
+      { class: 'f1-brief-top' },
+      f.cars.slice(0, 3).map((c, i) => {
+        const espn = field.find(x => plain(x.name) === plain(c.name)) || { name: c.name };
+        const zh = f1Driver(c.name).zh;
+        const last = String(en || !zh || zh === c.name ? c.name : zh).split(/[.\s]/).at(-1);
+        return el('li', {}, [
+          el('span', { class: 'pos num', text: String(c.pos) }),
+          personPic({ ...espn, en: c.name }, 'f1', 'xs round'),
+          el('span', { class: 'f1-brief-name', text: last }),
+          el('span', { class: 'num f1-brief-v', text: race ? (i === 0 ? '' : c.gap) : c.best || (i === 0 ? '' : c.gap) || '' })
+        ]);
+      })
+    )
+  );
+}
 export function fieldNow(e) {
   const en = ctx.locale === 'en';
   const ss = e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.find(x => x.status.state === 'in');

@@ -19,10 +19,11 @@ import { familyOfSport } from './lib/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
+import { liveTiming } from './lib/f1.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList } from './lib/tv.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
+import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from './lib/logos.mjs';
 
@@ -568,7 +569,7 @@ function pickCard(item, n) {
       e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : el('div', { class: 'sess-head pick-title' }, [raceFlag(e), sessionTag(e), el('strong', { text: e.sessionKey || !e.session ? e.name : `${e.name} · ${e.session}` })]),
       series ? el('small', { class: 'series-line', text: series }) : null,
       liveLine(e),
-      e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : null,
+      e.league === 'f1' && e.status.state === 'in' ? f1Brief(e) : e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : null,
       reasons.length ? el('div', { class: 'why-row' }, reasons.map(r => el('span', { class: 'why', text: r }))) : null,
       twChips(e.league, 2, e)
     ])
@@ -1828,6 +1829,22 @@ function paintStatus() {
   $('status').textContent = at ? t('updated', { time: clock(new Date(at).toISOString()) }) : '';
 }
 new MutationObserver(() => fitNumbers([...document.querySelectorAll('.mh-score')])).observe(document.body, { childList: true, subtree: true });
+
+// An F1 session on now: F1's own live timing every 10 seconds, its cards'
+// briefs (the top three) filled again in place, never the whole page.
+async function pollF1Live() {
+  if (document.visibilityState !== 'visible') return;
+  const on = dayAll(state.days.get(today())).find(e => e.league === 'f1' && e.sessionKey && e.status.state === 'in');
+  if (!on) return void (f1Live.key = '');
+  const feed = await liveTiming(on.sessionKey, on.official || on.start).catch(() => null);
+  if (!feed) return;
+  f1Live.feed = feed;
+  f1Live.key = on.id;
+  for (const node of document.querySelectorAll(`[data-f1-brief="${CSS.escape(on.id)}"]`)) fillF1Brief(node, on);
+}
+setInterval(pollF1Live, 10_000);
+document.addEventListener('visibilitychange', pollF1Live);
+setTimeout(pollF1Live, 3000);
 
 window.__fxStarted = true;
 const gated = installGate('match', locale);
