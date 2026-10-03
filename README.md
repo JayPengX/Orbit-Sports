@@ -6,8 +6,7 @@ teams and players of every league you can watch in Taiwan on ELTA.tv
 (愛爾達) or Apple TV, a day planned around the sports you follow, and one tap
 to watch a game in the ELTA.tv (or Apple TV) app.
 
-**https://jaypengx.github.io/Orbit-Sports/** (was Quadra Fixtures, at
-`/Quadra-Fixtures/`, until the repo is renamed)
+**https://jaypengx.github.io/Orbit-Sports/** (was Quadra Fixtures)
 
 ## What's in it
 
