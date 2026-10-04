@@ -25,7 +25,7 @@ import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList } from './lib/tv.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
+import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 
@@ -571,9 +571,9 @@ function pickCard(item, n) {
       e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : el('div', { class: 'sess-head pick-title' }, [raceFlag(e), sessionTag(e), el('strong', { text: e.sessionKey || !e.session ? e.name : `${e.name} · ${e.session}` })]),
       series ? el('small', { class: 'series-line', text: series }) : null,
       liveLine(e),
-      e.league === 'f1' && e.status.state === 'in' ? f1Brief(e) : e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : null,
+      e.league === 'f1' && e.status.state === 'in' ? f1Brief(e) : e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : podium(e),
       reasons.length ? el('div', { class: 'why-row' }, reasons.map(r => el('span', { class: 'why', text: r }))) : null,
-      twChips(e.league, 2, e)
+      e.status.state === 'post' ? null : twChips(e.league, 2, e)
     ])
   ]);
 }
@@ -1913,10 +1913,8 @@ function tableOf(league) {
   const sport = LEAGUES[league].sport;
   const now = liveTable(groups, recentOf(league), sport, { teamOf: side => f1Driver(side.en || side.name).team });
   const races = now.map(g => standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league), team: sport === 'racing' && !g.rows.some(r => r.athlete) }));
-  const fresh = now.fresh ? now.flatMap(g => g.rows).some(r => r.fresh === 'in') : false;
   return el('div', {}, [
     standingsTables(now, league, { races, many: sport !== 'racing' && now.length > 1 }),
-    now.fresh ? el('p', { class: 'muted small table-note fresh-note' }, [el('i', { class: `fresh-dot${fresh ? ' in' : ''}` }), L({ zh: fresh ? `含進行中與剛結束的 ${now.fresh} ${sport === 'racing' ? '站' : '場'}，依目前名次暫計，官方積分榜更新後以官方為準` : `含剛結束的 ${now.fresh} ${sport === 'racing' ? '站' : '場'}，官方積分榜還沒更新`, en: fresh ? `Includes ${now.fresh} game(s) on now or just ended (provisional)` : `Includes ${now.fresh} game(s) just ended, not in the official table yet` })]) : null,
     el('p', { class: 'muted small table-note', text: t('gapHint') })
   ]);
 }

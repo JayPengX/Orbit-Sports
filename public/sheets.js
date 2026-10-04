@@ -1558,7 +1558,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
               rows.map(r => {
                 const i = g.rows.indexOf(r);
                 const name = [el('span', { class: 'nm-full', text: r.name }), el('span', { class: 'nm-short', text: r.short || r.name })];
-                const rowCls = [ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '', r.fresh ? `fresh ${r.fresh}` : '', out.has(r.id) ? 'out' : ''].filter(Boolean).join(' ');
+                const rowCls = [ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '', out.has(r.id) ? 'out' : ''].filter(Boolean).join(' ');
                 return el('tr', { class: rowCls }, [
                   el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null }, [String(i + 1), settled.has(r.id) ? glyph('lock', 'rank-lock') : null]),
                   el('th', { class: 'left name-cell' }, [

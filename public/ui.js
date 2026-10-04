@@ -294,7 +294,7 @@ export function eventRow(e, { league = true, day = true } = {}) {
   const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.venue;
   return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
-    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, el('strong', { text: e.name })]), e.league === 'f1' && e.status.state === 'in' ? f1Brief(e) : sub ? el('small', { text: sub }) : null, tvLine(e)])
+    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, el('strong', { text: e.name })]), e.league === 'f1' && e.status.state === 'in' ? f1Brief(e) : podium(e) || (sub ? el('small', { text: sub }) : null), tvLine(e)])
   ]);
 }
 
@@ -428,6 +428,23 @@ export function fillF1Brief(box, e) {
     )
   );
   if (first) box.classList.add('fade-in');
+}
+// A finished race or session: its top three, each with their photo, in a line.
+export function podium(e) {
+  if (e.kind === 'match' || e.status?.state !== 'post') return null;
+  const ss = e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1);
+  const top = (ss?.field || e.field || []).slice(0, 3);
+  if (top.length < 3) return null;
+  const en = ctx.locale === 'en';
+  const nameOf = x => {
+    const zh = e.league === 'f1' ? f1Driver(x.name).zh : '';
+    return String(en || !zh || zh === x.name ? x.short || x.name : zh).split(/[.\s]/).filter(Boolean).at(-1);
+  };
+  return el('ol', { class: 'podium' }, top.map((x, i) => el('li', { class: `p${i + 1}` }, [
+    el('span', { class: 'pos num', text: String(i + 1) }),
+    personPic({ ...x, en: x.name }, e.league, 'xs round'),
+    el('span', { class: 'podium-name', text: nameOf(x) })
+  ])));
 }
 export function fieldNow(e) {
   const en = ctx.locale === 'en';
