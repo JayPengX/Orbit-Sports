@@ -743,7 +743,8 @@ function renderHome() {
   const ended = x => x.event.status.state === 'post' && !x.event.status.void;
   const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
   const endedPlan = wasPlan.filter(ended);
-  const endedMore = wasMore.slice(0, 20).filter(ended);
+  // A few of the rest, not the whole day's results (賽事 has those).
+  const endedMore = wasMore.slice(0, 20).filter(ended).slice(0, 4);
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
   // theirs on, the best of everything on now), ranked like the picks, and
   // taken out of the lists below so no game shows twice.

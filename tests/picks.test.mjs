@@ -50,3 +50,17 @@ test('a play-off or series game is worth staying up for', () => {
   assert.ok(!bigGame({ note: '', stage: { key: 'regular' } }));
 });
 
+
+test('live: a close game late on is the one to switch to, a rout drops; evenings beat working hours', () => {
+  const ctx = { leagues: ['nba', 'mlb'], now: NOW };
+  const live = (league, id, period, hs, as) => match(league, id, 0, { ...side('1', 'A'), score: String(as) }, { ...side('2', 'B'), score: String(hs) }, { status: { state: 'in', period } });
+  const tight = scoreMatch(live('mlb', 'a', 8, 3, 2), ctx);
+  const rout = scoreMatch(live('mlb', 'b', 8, 10, 1), ctx);
+  const early = scoreMatch(live('mlb', 'c', 2, 1, 0), ctx);
+  assert.ok(tight.score > early.score && early.score > rout.score);
+  assert.deepEqual(tight.reasons.slice(0, 2), ['live', 'tight']);
+  // Friday 3 Oct 2026, Taiwan time: 20:00 against 11:00.
+  const evening = scoreMatch(match('mlb', 'd', 12, side('1', 'A'), side('2', 'B')), ctx);
+  const office = scoreMatch(match('mlb', 'e', 3, side('1', 'A'), side('2', 'B')), ctx);
+  assert.ok(evening.score > office.score);
+});

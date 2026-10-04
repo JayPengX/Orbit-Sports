@@ -81,14 +81,38 @@ export function scoreMatch(e, { leagues = [], follows = [], tables = {}, aff = {
   // Now.
   if (e.status?.state === 'in') {
     score += 0.2;
+    // How it's going: a close game late on is the one to switch to; a rout
+    // isn't worth turning on.
+    const sport = LEAGUES[e.league]?.sport;
+    const [hs, as] = [Number(e.home?.score), Number(e.away?.score)];
+    if (GAME[sport] && Number.isFinite(hs) && Number.isFinite(as) && e.home.score !== '' && e.away.score !== '') {
+      const { late, tight, rout } = GAME[sport];
+      const gap = Math.abs(hs - as);
+      const isLate = (e.status.period || 0) >= late;
+      if (gap <= tight && isLate) {
+        score += 0.3;
+        reasons.unshift('tight');
+      } else if (gap >= rout) score -= isLate ? 0.35 : 0.15;
+    }
     reasons.unshift('live');
   } else {
     const hours = (Date.parse(e.start) - now) / 3_600_000;
     if (hours >= 0 && hours < 2) score += 0.08;
+    // When it's on in Taiwan: an evening game is easy to watch, one in a
+    // weekday's working hours isn't.
+    const tw = new Date(Date.parse(e.start) + 8 * 3_600_000);
+    const hr = tw.getUTCHours();
+    const weekday = tw.getUTCDay() > 0 && tw.getUTCDay() < 6;
+    if (hr >= 18 && hr <= 23) score += 0.08;
+    else if (weekday && hr >= 9 && hr < 17) score -= 0.06;
   }
   if (TOP_LEAGUES.includes(e.league) && !reasons.length) reasons.push('top');
   return { score: Math.round(score * 1000) / 1000, reasons };
 }
+
+// A live game, by sport: when it's late (the period), a close one (the
+// gap) and a rout.
+const GAME = { soccer: { late: 2, tight: 1, rout: 3 }, baseball: { late: 7, tight: 2, rout: 6 }, basketball: { late: 4, tight: 6, rout: 20 } };
 
 const minutes = e => DURATION[LEAGUES[e.league]?.sport] || 150;
 const window = e => {

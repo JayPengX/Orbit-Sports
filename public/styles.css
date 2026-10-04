@@ -952,3 +952,11 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .br-note.live { color: var(--live); }
 .playoffs.waiting .br-tie { min-height: 84px; align-content: center; gap: 9px; }
 .playoffs.waiting .br-head { gap: 6px; }
+
+/* What's over sits back: the picks still to come are what the page is for. */
+.ended-picks {
+  opacity: 0.72;
+}
+.ended-picks .pick-card {
+  box-shadow: none;
+}
