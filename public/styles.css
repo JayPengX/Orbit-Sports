@@ -961,24 +961,67 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
   box-shadow: none;
 }
 
-/* The title race above a table: won (🏆), or how soon it can be (⏳). */
+/* What's still to play for, above a table: a quiet list, a line each. */
+.race {
+  display: grid;
+  margin: 0 0 12px;
+  border-radius: 12px;
+  background: var(--q-sunken);
+  overflow: hidden;
+}
 .race-line {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
-  padding: 9px 12px;
-  border-radius: 12px;
-  background: var(--q-accent-wash);
-  font-size: 13.5px;
-  font-weight: 600;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
   line-height: 1.4;
 }
-.race-line.done {
-  background: color-mix(in srgb, #f5b301 18%, transparent);
+.race-line + .race-line {
+  border-top: 0.5px solid var(--q-divider);
 }
-.race-ic {
+.race-g {
+  display: grid;
   flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-top: -2px;
+  border-radius: 8px;
+  background: var(--q-accent-wash);
+  color: var(--q-accent);
+}
+.race-line.won .race-g {
+  background: color-mix(in srgb, #d4a106 18%, transparent);
+  color: #b8860b;
+}
+.race-line.zone .race-g {
+  background: color-mix(in srgb, var(--zone, var(--q-muted)) 16%, transparent);
+  color: var(--zone, var(--q-muted));
+}
+.race-t {
+  display: grid;
+  min-width: 0;
+}
+.race-t b {
+  font-weight: 700;
+}
+.race-t small {
+  color: var(--q-muted);
+  font-size: 12.5px;
+}
+.rank-cell .rank-lock {
+  display: inline-grid;
+  width: auto;
+  height: auto;
+  margin: 0 0 0 2px;
+  background: none;
+  color: var(--q-muted);
+  vertical-align: -2px;
+}
+.rank-lock svg {
+  width: 11px;
+  height: 11px;
 }
 /* Rows with a game the official table hasn't counted yet (on now: red dot;
    just ended: grey), and sides that can no longer catch the leader. */

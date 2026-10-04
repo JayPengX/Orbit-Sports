@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { liveTable, titleRace } from '../public/lib/title.mjs';
+import { liveTable, titleRace, standingsRace } from '../public/lib/title.mjs';
 
 const row = (id, stats) => ({ id, name: id, stats });
 const soccerTable = () => [{ name: '', rows: [row('A', { GP: '30', W: '22', D: '4', L: '4', F: '60', A: '20', GD: '+40', P: '70' }), row('B', { GP: '30', W: '20', D: '6', L: '4', F: '55', A: '25', GD: '+30', P: '66' }), row('C', { GP: '30', W: '10', D: '5', L: '15', F: '30', A: '45', GD: '-15', P: '35' })] }];
@@ -57,4 +57,32 @@ test('the title race: won, the magic number and the soonest round', () => {
   // F1: 3 races (one sprint) left, worth 83 at most. Leader 350, next 300: 300+83-350+1 = 34.
   const f1 = titleRace({ rows: [row('V', { PTS: '350' }), row('N', { PTS: '300' })] }, 'racing', { left: { races: 3, sprints: 1 } });
   assert.deepEqual([f1.magic, f1.soonest, f1.done], [34, 1, false]);
+});
+
+test('every place: settled ones, the places still open, the zones', () => {
+  // 4 sides, 6 games each, 1 to go: A 15, B 12, C 7, D 1.
+  const rows = [row('A', { GP: '5', P: '15' }), row('B', { GP: '5', P: '12' }), row('C', { GP: '5', P: '7' }), row('D', { GP: '5', P: '1' })];
+  rows[0].note = rows[1].note = 'Champions League';
+  rows[3].note = 'Relegation';
+  const r = standingsRace({ rows }, 'soccer');
+  assert.equal(r.title.done, false, 'B can reach 15');
+  assert.deepEqual(r.rows.map(x => [x.best, x.worst]), [[1, 2], [1, 2], [3, 3], [4, 4]]);
+  assert.deepEqual(r.places, [], 'the title not settled: no fight for 2nd yet');
+  const won = standingsRace({ rows: [row('A', { GP: '5', P: '15' }), row('B', { GP: '5', P: '9' }), row('C', { GP: '5', P: '8' }), row('D', { GP: '5', P: '1' })] }, 'soccer');
+  assert.deepEqual([won.title.done, won.places.map(p => [p.pos, p.rows.map(r => r.id)])], [true, [[2, ['B', 'C']]]]);
+  assert.deepEqual(r.zones.map(z => [z.note, z.sure]), [['Champions League', ['A', 'B']], ['Relegation', ['D']]]);
+});
+
+test('F1: a race on now counts by the running order until its column has numbers; constructors by their drivers', () => {
+  const drivers = { name: '車手', rows: [row('1', { PTS: '300', MYS: '-' }), row('2', { PTS: '290', MYS: '-' })].map(r => ({ ...r, athlete: true })), rounds: [{ key: 'MYS', name: 'Malaysia GP' }] };
+  const teams = { name: '車隊', rows: [{ ...row('m', { PTS: '500', MYS: ' ' }), en: 'Mercedes' }, { ...row('r', { PTS: '480', MYS: ' ' }), en: 'Red Bull' }], rounds: [{ key: 'MYS', name: 'Malaysia GP' }] };
+  const race = { abbr: 'Race', status: { state: 'in' }, field: [{ id: '2', en: 'Max Verstappen' }, { id: '1', en: 'Kimi Antonelli' }] };
+  const ev = { id: 'w', name: 'Malaysia GP', kind: 'field', start: new Date().toISOString(), sessions: [race] };
+  const teamOf = s => ({ 'Max Verstappen': 'Red Bull Racing', 'Kimi Antonelli': 'Mercedes' })[s.en];
+  const out = liveTable([drivers, teams], [ev], 'racing', { teamOf });
+  assert.deepEqual(out[0].rows.map(r => [r.id, r.stats.PTS, r.fresh]), [['2', '315', 'in'], ['1', '318', 'in']].sort((a, b) => b[1] - a[1]));
+  assert.deepEqual(out[1].rows.map(r => [r.id, r.stats.PTS]), [['m', '518'], ['r', '505']]);
+  // Counted (numbers in the column): nothing more.
+  const done = { ...drivers, rows: [row('1', { PTS: '318', MYS: '18' }), row('2', { PTS: '315', MYS: '25' })].map(r => ({ ...r, athlete: true })) };
+  assert.equal(liveTable([done], [ev], 'racing', { teamOf }).fresh, 0);
 });

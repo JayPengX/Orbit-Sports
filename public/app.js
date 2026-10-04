@@ -18,7 +18,7 @@ import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from '
 import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { liveTable, titleRace, SEASON_GAMES } from './lib/title.mjs';
+import { liveTable, standingsRace, SEASON_GAMES } from './lib/title.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
 import { liveTiming } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
@@ -1908,12 +1908,12 @@ function tableOf(league) {
   if (!groups.length) return empty(t('noStandings'));
   // The games the official table hasn't counted yet, in; then each table's race.
   const sport = LEAGUES[league].sport;
-  const now = liveTable(groups, recentOf(league), sport);
-  const races = now.map(g => titleRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league) }));
+  const now = liveTable(groups, recentOf(league), sport, { teamOf: side => f1Driver(side.en || side.name).team });
+  const races = now.map(g => standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league), team: sport === 'racing' && !g.rows.some(r => r.athlete) }));
   const fresh = now.fresh ? now.flatMap(g => g.rows).some(r => r.fresh === 'in') : false;
   return el('div', {}, [
     standingsTables(now, league, { races, many: sport !== 'racing' && now.length > 1 }),
-    now.fresh ? el('p', { class: 'muted small table-note fresh-note' }, [el('i', { class: `fresh-dot${fresh ? ' in' : ''}` }), L({ zh: fresh ? `含進行中與剛結束的 ${now.fresh} 場（官方積分榜還沒更新，暫定）` : `含剛結束的 ${now.fresh} 場（官方積分榜還沒更新）`, en: fresh ? `Includes ${now.fresh} game(s) on now or just ended (provisional)` : `Includes ${now.fresh} game(s) just ended, not in the official table yet` })]) : null,
+    now.fresh ? el('p', { class: 'muted small table-note fresh-note' }, [el('i', { class: `fresh-dot${fresh ? ' in' : ''}` }), L({ zh: fresh ? `含進行中與剛結束的 ${now.fresh} ${sport === 'racing' ? '站' : '場'}，依目前名次暫計，官方積分榜更新後以官方為準` : `含剛結束的 ${now.fresh} ${sport === 'racing' ? '站' : '場'}，官方積分榜還沒更新`, en: fresh ? `Includes ${now.fresh} game(s) on now or just ended (provisional)` : `Includes ${now.fresh} game(s) just ended, not in the official table yet` })]) : null,
     el('p', { class: 'muted small table-note', text: t('gapHint') })
   ]);
 }

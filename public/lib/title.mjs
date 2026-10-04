@@ -20,7 +20,6 @@ const num = v => {
 const has = v => v != null && v !== '';
 // A season's games for each side, where it isn't each other side twice.
 export const SEASON_GAMES = { mlb: 162, nba: 82, wnba: 44, nbl: 29, mls: 34, nfl: 17, nhl: 82 };
-const RACE = { race: 25, sprint: 8 };
 
 const playedOf = (r, sport) => (sport === 'soccer' ? num(r.stats.GP) : num(r.stats.W) + num(r.stats.L) + num(r.stats.T));
 // "4-0-1", "90-72": the games in a record.
@@ -30,7 +29,8 @@ const recordGames = rec => (/^\d+(-\d+)+$/.test(String(rec || '').trim()) ? Stri
 // league's recent games (any state). → the groups, the uncounted games in,
 // re-ordered, their rows marked `fresh` ('in' on now, 'post' final, not yet
 // in the official table); `.fresh` on the array: how many games were added.
-export function liveTable(groups, events, sport) {
+export function liveTable(groups, events, sport, { teamOf = null } = {}) {
+  if (sport === 'racing') return liveRacing(groups, events, teamOf);
   if (!groups?.length || !['soccer', 'baseball', 'basketball'].includes(sport)) return groups;
   const games = (events || []).filter(e => e.kind === 'match' && !e.status?.void && (e.status?.state === 'in' || e.status?.state === 'post') && e.home?.id && e.away?.id);
   games.sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
@@ -119,53 +119,165 @@ export function liveTable(groups, events, sport) {
   return out;
 }
 
-// One table's race. `total`: each side's games in the season (null: a
-// double round-robin, from the table's size); for racing, `left`: the
-// season's races and sprints still to run ({ races, sprints }).
-// → { leader, done (the title won), magic (points or wins still needed if
-// every rival wins out), soonest (the fewest games or race weekends to it),
-// unit ('pts' | 'wins'), out: [ids that can't catch the leader] } or null.
-export function titleRace(group, sport, { total = null, left = null } = {}) {
+// Every place in one table, as far as the maths goes: each side's lowest
+// and highest total by the end (what it has; that plus everything still to
+// play for), so the best and worst place it can finish. A place is settled
+// when the best and worst are the same. Ties count against certainty (a
+// side level on the most it can make could still go above).
+//
+// opts: `total` (each side's games in the season; null: twice each other
+// side), `left` (racing: { races, sprints } still to run), `team` (racing:
+// a constructors' table, two cars scoring).
+// → { unit ('pts' | 'wins'), rows: [{ id, best, worst, settled }], title,
+// places: [{ pos, rows }] (the next places still open, who's in them),
+// zones: [{ note, color, from, to, bottom, sure: [ids] }] } or null.
+const RACE_MAX = { driver: { race: 25, sprint: 8 }, team: { race: 25 + 18, sprint: 8 + 7 } };
+export function standingsRace(group, sport, { total = null, left = null, team = false } = {}) {
   const rows = group?.rows || [];
   if (rows.length < 2) return null;
-  const [lead, ...rest] = rows;
+  let have;
+  let more;
+  let unit = 'pts';
   if (sport === 'racing') {
     if (!left) return null;
-    const most = left.races * RACE.race + left.sprints * RACE.sprint;
-    const pts = r => num(r.stats.PTS);
-    const best = Math.max(...rest.map(pts));
-    const magic = best + most - pts(lead) + 1;
-    // A weekend at most: the leader wins (25, 8 a sprint), the rival scores nothing.
-    const weekends = left.races;
-    let soonest = null;
-    for (let k = 1, gain = 0; k <= weekends; k++) {
-      gain += RACE.race * 2 + (k <= left.sprints ? RACE.sprint * 2 : 0);
+    const m = RACE_MAX[team ? 'team' : 'driver'];
+    have = r => num(r.stats.PTS);
+    more = () => left.races * m.race + left.sprints * m.sprint;
+  } else if (sport === 'soccer') {
+    const games = total || (rows.length > 3 ? 2 * (rows.length - 1) : null);
+    if (!games) return null;
+    have = r => num(r.stats.P);
+    more = r => 3 * Math.max(0, games - num(r.stats.GP));
+  } else if (sport === 'baseball' || sport === 'basketball') {
+    if (!total) return null;
+    unit = 'wins';
+    have = r => num(r.stats.W);
+    more = r => Math.max(0, total - num(r.stats.W) - num(r.stats.L));
+  } else return null;
+  const lo = rows.map(have);
+  const hi = rows.map((r, i) => lo[i] + more(r));
+  const out = rows.map((r, i) => {
+    let best = 1;
+    let worst = 1;
+    rows.forEach((_, j) => {
+      if (j === i) return;
+      if (lo[j] > hi[i]) best++;
+      if (hi[j] >= lo[i]) worst++;
+    });
+    return { id: r.id, best, worst, settled: best === worst, row: r };
+  });
+  // The title: won, or how many more the leader needs if every rival wins
+  // out (points, or wins and rivals' losses: baseball's magic number), and
+  // the soonest it can be (each game the leader wins and the nearest rival
+  // doesn't, it comes closer by both).
+  const lead = rows[0];
+  const rivalBest = Math.max(...hi.slice(1));
+  const magic = Math.max(0, rivalBest - lo[0] + 1);
+  const step = sport === 'racing' ? 2 * RACE_MAX[team ? 'team' : 'driver'].race : sport === 'soccer' ? 6 : 2;
+  const leadLeft = sport === 'racing' ? left.races : sport === 'soccer' ? more(lead) / 3 : more(lead);
+  let soonest = magic === 0 ? 0 : Math.ceil(magic / step);
+  if (sport === 'racing') {
+    // A weekend's most, the sprint's too while there are sprints.
+    soonest = null;
+    const m = RACE_MAX[team ? 'team' : 'driver'];
+    for (let k = 1, gain = 0; k <= left.races; k++) {
+      gain += 2 * m.race + (k <= left.sprints ? 2 * m.sprint : 0);
       if (gain >= magic) {
         soonest = k;
         break;
       }
     }
-    return { leader: lead, done: magic <= 0, magic: Math.max(0, magic), soonest, unit: 'pts', out: rest.filter(r => pts(r) + most < pts(lead)).map(r => r.id), left: weekends };
+    if (magic === 0) soonest = 0;
+  } else if (soonest > leadLeft) soonest = null;
+  const title = { leader: lead, done: out[0].settled && out[0].best === 1, magic, soonest, round: sport === 'soccer' && soonest != null ? num(lead.stats.GP) + soonest : null, left: leadLeft };
+  // A table not in order of what's counted (MLB's, by playoff seed), or a
+  // season over: no places to work out, only the title.
+  const ordered = lo.every((v, i) => i === 0 || v <= lo[i - 1]);
+  const over = rows.every(r => more(r) === 0);
+  if (!ordered || over) for (const x of out) x.settled = false;
+  // The next places still open, each once the one above it is settled (the
+  // fight for 2nd once the title's won): who can still finish there.
+  const places = [];
+  if (ordered && !over)
+    for (let pos = 2; pos <= Math.min(rows.length, 3); pos++) {
+      if (!out.some(x => x.settled && x.best === pos - 1)) break;
+      const can = out.filter(x => !x.settled && x.best <= pos && x.worst >= pos);
+      if (can.length > 1) {
+        places.push({ pos, rows: can.map(x => x.row) });
+        break;
+      }
+    }
+  // ESPN's zones (its notes on the rows: Champions League, relegation…): the
+  // places they cover, and who's sure of being in.
+  const zones = [];
+  rows.forEach((r, i) => {
+    if (!r.note) return;
+    const z = zones.at(-1);
+    if (z && z.note === r.note && z.to === i) z.to = i + 1;
+    else zones.push({ note: r.note, color: r.color || '', from: i + 1, to: i + 1 });
+  });
+  if (!ordered || over) zones.length = 0;
+  for (const z of zones) {
+    z.bottom = z.to === rows.length;
+    z.sure = out.filter(x => (z.bottom ? x.best >= z.from : x.worst <= z.to && x.best >= z.from)).map(x => x.id);
   }
-  if (sport === 'soccer') {
-    const games = total || (rows.length > 3 ? 2 * (rows.length - 1) : null);
-    if (!games) return null;
-    const left = r => Math.max(0, games - num(r.stats.GP));
-    const most = r => num(r.stats.P) + 3 * left(r);
-    const best = Math.max(...rest.map(most));
-    const magic = best - num(lead.stats.P) + 1;
-    // Each round at most 6 closer: the leader wins, the nearest rival loses.
-    const soonest = magic <= 0 ? 0 : Math.ceil(magic / 6) <= left(lead) ? Math.ceil(magic / 6) : null;
-    return { leader: lead, done: magic <= 0, magic: Math.max(0, magic), soonest, round: soonest != null ? num(lead.stats.GP) + soonest : null, unit: 'pts', out: rest.filter(r => most(r) < num(lead.stats.P)).map(r => r.id), left: left(lead) };
-  }
-  if (sport === 'baseball' || sport === 'basketball') {
-    if (!total) return null;
-    // The rival who could still win the most: the fewest losses.
-    const fewest = Math.min(...rest.map(r => num(r.stats.L)));
-    const magic = total + 1 - num(lead.stats.W) - fewest;
-    const left = total - num(lead.stats.W) - num(lead.stats.L);
-    const soonest = magic <= 0 ? 0 : Math.ceil(magic / 2) <= left ? Math.ceil(magic / 2) : null;
-    return { leader: lead, done: magic <= 0, magic: Math.max(0, magic), soonest, unit: 'wins', out: rest.filter(r => total - num(r.stats.L) < num(lead.stats.W)).map(r => r.id), left };
-  }
-  return null;
+  return { unit, rows: out, title, places, zones };
 }
+
+// The title alone (the home page and tests): won, magic, soonest.
+export function titleRace(group, sport, opts = {}) {
+  const r = standingsRace(group, sport, opts);
+  if (!r) return null;
+  return { ...r.title, unit: r.unit, out: r.rows.filter(x => x.best > 1).map(x => x.id) };
+}
+
+// F1: a race (or sprint) on now or just over, its points by the running
+// order, until the championship's own column for that weekend has them.
+// ESPN's table has a column a weekend (its points; "-" or blank until it's
+// counted, "-" also a weekend without points): counted once any side has a
+// number there. A sprint weekend's column can hold the sprint alone (its
+// points, 36 in all, at most): then the race still goes in.
+export const POINTS = { Race: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], SR: [8, 7, 6, 5, 4, 3, 2, 1] };
+const SPRINT_TOTAL = 36;
+function liveRacing(groups, events, teamOf) {
+  if (!groups?.length) return groups;
+  const out = groups.map(g => ({ ...g, rows: g.rows.map(r => ({ ...r, stats: { ...r.stats } })) }));
+  const weekends = new Map();
+  for (const e of events || []) if (e.sessions?.length && !weekends.has(e.weekend || e.id)) weekends.set(e.weekend || e.id, e);
+  let fresh = 0;
+  for (const e of weekends.values()) {
+    const scoring = e.sessions.filter(x => POINTS[x.abbr] && (x.status?.state === 'in' || x.status?.state === 'post') && x.field?.length);
+    if (!scoring.length) continue;
+    let added = false;
+    for (const g of out) {
+      const col = g.rounds?.find(r => r.name === e.name)?.key;
+      if (!col) continue;
+      const sum = g.rows.reduce((a, r) => a + (/\d/.test(String(r.stats[col] ?? '')) ? num(r.stats[col]) : 0), 0);
+      const counted = g.rows.some(r => /\d/.test(String(r.stats[col] ?? '')));
+      const todo = !counted ? scoring : sum <= SPRINT_TOTAL && e.sessions.some(x => x.abbr === 'SR') ? scoring.filter(x => x.abbr === 'Race') : [];
+      if (!todo.length) continue;
+      const team = !g.rows.some(r => r.athlete);
+      for (const x of todo)
+        x.field.forEach((side, i) => {
+          const pts = POINTS[x.abbr][i];
+          if (!pts) return;
+          const r = team ? g.rows.find(r => teamOf && teamOf(side) && sameTeam(teamOf(side), r)) : g.rows.find(r => r.id === side.id);
+          if (!r) return;
+          r.stats.PTS = String(num(r.stats.PTS) + pts);
+          r.fresh = x.status.state === 'in' ? 'in' : r.fresh || 'post';
+        });
+      g.rows.sort((a, b) => num(b.stats.PTS) - num(a.stats.PTS));
+      const top = num(g.rows[0].stats.PTS);
+      g.rows.forEach((r, i) => (r.stats.GAP = i === 0 ? '-' : String(top - num(r.stats.PTS))));
+      added = true;
+    }
+    if (added) fresh++;
+  }
+  out.fresh = fresh;
+  return out;
+}
+const plain = s => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+const sameTeam = (name, r) => {
+  const [a, b] = [plain(name), plain(r.en || r.name)];
+  return Boolean(a && b) && (a.includes(b) || b.includes(a));
+};

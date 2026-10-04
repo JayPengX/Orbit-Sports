@@ -1468,28 +1468,65 @@ export async function openConstructor(row) {
 // ---- Standings tables -----------------------------------------------------------------------
 
 // mark: team ids to highlight (a match's two sides); followed teams always are.
-// The title race above a table (title.mjs): won; close (the magic number
-// and the soonest it can be); or early on, only the soonest it can be and
-// the lead. `many`: the league's divisions or conferences (each its own top
-// spot), not separate championships (F1's drivers and constructors).
-function raceLine(race, g, league, many) {
-  if (!race || !race.leader) return null;
+// The race above a table (title.mjs standingsRace), a line each, like a
+// sports app's "what's still to play for": the title (won; close: what the
+// leader still needs; early: the soonest it can be), the next places still
+// open (F1's runner-up, or once the title's gone), and what ESPN's zones
+// (Champions League, relegation…) have settled. Settled places get a lock.
+const GLYPH = {
+  trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5.5a2.5 2.5 0 0 0 2.6 3.6M16 6h2.5a2.5 2.5 0 0 1-2.6 3.6M12 13v4M8.5 20h7"/>',
+  clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/>',
+  medal: '<circle cx="12" cy="14.5" r="4.5"/><path d="M8.5 3.5 12 10l3.5-6.5"/>',
+  lock: '<rect x="6.5" y="11" width="11" height="8.5" rx="2"/><path d="M9 11V8.5a3 3 0 0 1 6 0V11"/>'
+};
+const glyph = (k, cls = '') => el('span', { class: `race-g ${cls}`.trim(), html: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GLYPH[k]}</svg>` });
+const ZONE_ZH = [[/champions league/i, '歐冠'], [/europa league/i, '歐霸'], [/conference league/i, '歐協聯'], [/relegation play/i, '降級附加賽'], [/relegation/i, '降級'], [/promotion play/i, '升級附加賽'], [/promotion/i, '升級'], [/play-?off/i, '季後賽'], [/play-?in/i, '附加賽']];
+const zoneName = n => (L() === 'en' ? n : ZONE_ZH.find(([re]) => re.test(n))?.[1] || n);
+const PLACE = { 1: ['冠軍', 'the title'], 2: ['亞軍', '2nd place'], 3: ['季軍', '3rd place'] };
+function raceBlock(race, g, league, many) {
+  if (!race) return null;
   const W = (zh, eng) => (L() === 'en' ? eng : zh);
-  const who = race.leader.short || race.leader.name;
   const sport = LEAGUES[league]?.sport;
-  const champ = sport === 'racing' && g.name ? W(`（${g.name}）`, ` (${g.en || g.name})`) : '';
-  const goal = many ? W(`確定${g.name}第一`, `clinch ${g.en || g.name}`) : W(`封王${champ}`, `title${champ}`);
-  let text;
-  if (race.done) text = many ? W(`${who} 確定${g.name}第一`, `${who} have clinched ${g.en || g.name}`) : W(`${who} 已封王${champ}`, `${who}: champions${champ}`);
-  else if (race.soonest != null) {
-    const when = sport === 'soccer' ? W(`第 ${race.round} 輪`, `round ${race.round}`) : sport === 'racing' ? W(`${race.soonest} 站後`, `${race.soonest} race weekend(s) away`) : W(`${race.soonest} 場後`, `${race.soonest} game(s) away`);
-    const unit = race.unit === 'pts' ? W(' 分', ' pts') : W(' 勝', ' wins');
+  const nm = r => r.short || r.name;
+  const line = (icon, main, sub = '', cls = '') => el('div', { class: `race-line ${cls}`.trim() }, [glyph(icon), el('span', { class: 'race-t' }, [el('span', { html: main }), sub ? el('small', { text: sub }) : null])]);
+  const b = x => `<b>${String(x).replace(/[<>&]/g, '')}</b>`;
+  const lines = [];
+  const t = race.title;
+  const top = many ? W(`${g.name}第一`, `top of ${g.en || g.name}`) : '';
+  const unit = race.unit === 'pts' ? W(' 分', ' pts') : W(' 場', '');
+  const when = t.soonest == null ? '' : sport === 'soccer' ? W(`最快第 ${t.round} 輪`, `round ${t.round} at the earliest`) : sport === 'racing' ? W(`最快 ${t.soonest} 站後`, `${t.soonest} race weekend(s) away at the earliest`) : W(`最快 ${t.soonest} 場後`, `${t.soonest} game(s) away at the earliest`);
+  if (t.done) {
+    const early = t.left > 0;
+    lines.push(line('trophy', many ? W(`${b(nm(t.leader))} 拿下${top}`, `${b(nm(t.leader))} have clinched ${top}`) : W(`${b(nm(t.leader))} ${early ? '提前封王' : '奪冠'}`, `${b(nm(t.leader))} ${early ? 'have clinched the title' : 'are champions'}`), early ? W(`還剩 ${t.left} ${sport === 'racing' ? '站' : sport === 'soccer' ? '輪' : '場'}`, `${t.left} to go`) : '', 'won'));
+  } else if (t.soonest != null && t.soonest <= 5) {
+    const main = race.unit === 'wins' ? W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`) : W(`${b(nm(t.leader))} 再拿 ${b(t.magic)} 分${many ? `確定${top}` : '封王'}`, `${b(nm(t.leader))} need ${b(t.magic)} more pts`);
+    lines.push(line('clock', main, when));
+  } else if (t.soonest != null) {
     const second = g.rows[1];
-    const lead = sport === 'soccer' ? Number(race.leader.stats.P) - Number(second?.stats.P) : sport === 'racing' ? Number(race.leader.stats.PTS) - Number(second?.stats.PTS) : Number(second?.stats.GB);
-    const leadText = Number.isFinite(lead) && lead > 0 ? W(`・${who} 領先 ${lead}${sport === 'soccer' || sport === 'racing' ? ' 分' : ' 場'}`, ` · ${who} lead by ${lead}`) : '';
-    text = race.soonest <= 5 ? W(`${who} 魔術數字 ${race.magic}${unit}・最快${when}${goal}`, `${who}: magic number ${race.magic}${unit} · ${goal} ${when} at the earliest`) : W(`最快${when}${goal}${leadText}`, `${goal} ${when} at the earliest${leadText}`);
-  } else return null;
-  return el('div', { class: `race-line${race.done ? ' done' : ''}` }, [el('span', { class: 'race-ic', text: race.done ? '🏆' : '⏳' }), el('span', { text })]);
+    const gap = second ? (race.unit === 'wins' ? Number(second.stats.GB) : Number(t.leader.stats[sport === 'racing' ? 'PTS' : 'P']) - Number(second.stats[sport === 'racing' ? 'PTS' : 'P'])) : 0;
+    lines.push(line('clock', W(`${many ? top : '冠軍'}${when}才會確定`, `${many ? top : 'The title'}: ${when}`), gap > 0 ? W(`${nm(t.leader)} 領先 ${gap}${unit}`, `${nm(t.leader)} lead by ${gap}`) : ''));
+  }
+  // The next places still open: F1's always (a championship's 2nd and 3rd
+  // matter), a league's once its title is settled.
+  for (const p of race.places) {
+    if (p.pos === 1 || (sport !== 'racing' && !t.done)) continue;
+    const names = p.rows.slice(0, 3).map(nm).join('、') + (p.rows.length > 3 ? W(` 等 ${p.rows.length} ${race.unit === 'wins' ? '隊' : '位'}`, ` +${p.rows.length - 3}`) : '');
+    const pts = r => Number(r.stats[sport === 'racing' ? 'PTS' : sport === 'soccer' ? 'P' : 'W']);
+    const spread = p.rows.length > 1 ? pts(p.rows[0]) - pts(p.rows[Math.min(p.rows.length, 3) - 1]) : 0;
+    lines.push(line('medal', W(`${b(PLACE[p.pos][0] + '之爭')} ${names}`, `${b(`Fight for ${PLACE[p.pos][1]}`)} ${names}`), spread > 0 ? W(`前後相差 ${spread}${unit}`, `${spread}${unit} apart`) : ''));
+  }
+  // What the zones have settled.
+  for (const z of race.zones) {
+    if (!z.sure.length || z.sure.length === g.rows.length) continue;
+    const who = z.sure.map(id => g.rows.find(r => r.id === id)).filter(Boolean);
+    const names = who.slice(0, 4).map(nm).join('、') + (who.length > 4 ? W(` 等 ${who.length} 隊`, ` +${who.length - 4}`) : '');
+    const zn = zoneName(z.note);
+    const row = line('lock', z.bottom ? W(`${b(`確定${zn}`)} ${names}`, `${b(`Confirmed: ${zn}`)} ${names}`) : W(`${b(`確定${zn}`)} ${names}`, `${b(`Sure of ${zn}`)} ${names}`));
+    if (z.color) row.style.setProperty('--zone', z.color);
+    row.classList.add('zone');
+    lines.push(row);
+  }
+  return lines.length ? el('div', { class: 'race' }, lines) : null;
 }
 export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false } = {}) {
   const sport = LEAGUES[league]?.sport;
@@ -1506,10 +1543,12 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
       // Columns beyond the essentials go on narrow screens (and in compact tables).
       const cls = c => `num${!small.includes(c) ? ' extra' : ''}${c === 'GAP' || c === 'GB' ? ' gap' : ''}`;
       const race = races[groups.indexOf(g)];
-      const out = new Set(race?.out || []);
+      // A lock on a settled place (not when the whole table is: the season's over).
+      const settled = new Set(race && race.rows.some(x => !x.settled) ? race.rows.filter(x => x.settled).map(x => x.id) : []);
+      const out = new Set(race ? race.rows.filter(x => x.best > 1 && !race.title.done).map(x => x.id) : []);
       return el('div', { class: 'q-card pad fx-card' }, [
         g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
-        raceLine(race, g, league, many),
+        raceBlock(race, g, league, many),
         el('div', { class: 'table-wrap' }, [
           el('table', { class: `data standings${compact ? ' compact' : ''}` }, [
             el('thead', {}, [el('tr', {}, [el('th', { class: 'left rank-cell', text: '#' }), el('th', { class: 'left name-cell' }), ...cols.map(c => el('th', { class: cls(c), text: colName(c) }))])]),
@@ -1521,7 +1560,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
                 const name = [el('span', { class: 'nm-full', text: r.name }), el('span', { class: 'nm-short', text: r.short || r.name })];
                 const rowCls = [ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '', r.fresh ? `fresh ${r.fresh}` : '', out.has(r.id) ? 'out' : ''].filter(Boolean).join(' ');
                 return el('tr', { class: rowCls }, [
-                  el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null, text: String(i + 1) }),
+                  el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null }, [String(i + 1), settled.has(r.id) ? glyph('lock', 'rank-lock') : null]),
                   el('th', { class: 'left name-cell' }, [
                     el('button', { class: 'link team-link', type: 'button', onclick: () => (r.athlete ? r.id && ctx.openPlayer(league, r.id, r) : league === 'f1' ? openConstructor(r) : r.id && openTeam(league, r.id, r)) }, [r.athlete ? personPic(r, league, 'xs round') : league === 'f1' ? constructorBadge(r.en || r.name, 'xs') : logo(r.logo, r.name, 'xs'), el('span', { class: 'nm' }, name)])
                   ]),
