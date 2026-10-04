@@ -1891,7 +1891,9 @@ function racesLeft(league) {
       .then(list => {
         const ahead = (list || []).filter(e => e.sessions?.length);
         const open = abbr => ahead.filter(e => e.sessions.some(x => x.abbr === abbr && x.status?.state !== 'post')).length;
-        f1Left = ahead.length ? { races: open('Race'), sprints: open('SR') } : undefined;
+        // The weekends still to come, in order, each with whether it has a sprint (when a title can be settled, by name).
+        const weeks = ahead.filter(e => e.sessions.some(x => x.abbr === 'Race' && x.status?.state !== 'post')).sort((a, b) => Date.parse(a.start || a.date || 0) - Date.parse(b.start || b.date || 0)).map(e => ({ name: e.name, sprint: e.sessions.some(x => x.abbr === 'SR' && x.status?.state !== 'post') }));
+        f1Left = ahead.length ? { races: open('Race'), sprints: open('SR'), list: weeks } : undefined;
       })
       .catch(() => {})
       .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());

@@ -182,22 +182,26 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
   const step = sport === 'racing' ? 2 * RACE_MAX[team ? 'team' : 'driver'].race : sport === 'soccer' ? 6 : 2;
   const leadLeft = sport === 'racing' ? left.races : sport === 'soccer' ? more(lead) / 3 : more(lead);
   let soonest = magic === 0 ? 0 : Math.ceil(magic / step);
+  let atName = '';
   if (sport === 'racing') {
     // A weekend's most, the sprint's too while there are sprints.
     soonest = null;
     const m = RACE_MAX[team ? 'team' : 'driver'];
+    // (The calendar's own weekends when known: which have a sprint, and their names.)
+    const weeks = left.list?.length === left.races ? left.list : null;
     for (let k = 1, gain = 0; k <= left.races; k++) {
-      gain += 2 * m.race + (k <= left.sprints ? 2 * m.sprint : 0);
+      gain += 2 * m.race + ((weeks ? weeks[k - 1].sprint : k <= left.sprints) ? 2 * m.sprint : 0);
       if (gain >= magic) {
         soonest = k;
         break;
       }
     }
+    if (weeks && soonest) atName = weeks[soonest - 1].name;
     if (magic === 0) soonest = 0;
   } else if (soonest > leadLeft) soonest = null;
   // The lead over the nearest rival, and the most that rival can still score: past it, it's settled.
   const ri = hi.indexOf(rivalBest, 1);
-  const title = { leader: lead, done: out[0].settled && out[0].best === 1, magic, soonest, gap: lo[0] - lo[ri], avail: hi[ri] - lo[ri], round: sport === 'soccer' && soonest != null ? num(lead.stats.GP) + soonest : null, left: leadLeft };
+  const title = { leader: lead, done: out[0].settled && out[0].best === 1, magic, soonest, gap: lo[0] - lo[ri], avail: hi[ri] - lo[ri], at: atName, round: sport === 'soccer' && soonest != null ? num(lead.stats.GP) + soonest : null, left: leadLeft };
   // A table not in order of what's counted (MLB's, by playoff seed), or a
   // season over: no places to work out, only the title.
   const ordered = lo.every((v, i) => i === 0 || v <= lo[i - 1]);

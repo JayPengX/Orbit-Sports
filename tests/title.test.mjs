@@ -57,6 +57,10 @@ test('the title race: won, the magic number and the soonest round', () => {
   // F1: 3 races (one sprint) left, worth 83 at most. Leader 350, next 300: 300+83-350+1 = 34.
   const f1 = titleRace({ rows: [row('V', { PTS: '350' }), row('N', { PTS: '300' })] }, 'racing', { left: { races: 3, sprints: 1 } });
   assert.deepEqual([f1.magic, f1.soonest, f1.done], [34, 1, false]);
+  // The calendar's own weekends: the sprint is the last one, so 54 can't come in one (50), but in the 2nd, by its name.
+  const list = [{ name: '美國站', sprint: false }, { name: '墨西哥站', sprint: false }, { name: '巴西站', sprint: true }];
+  const f1b = titleRace({ rows: [row('V', { PTS: '330' }), row('N', { PTS: '300' })] }, 'racing', { left: { races: 3, sprints: 1, list } });
+  assert.deepEqual([f1b.magic, f1b.soonest, f1b.at], [54, 2, '墨西哥站']);
 });
 
 test('every place: settled ones, the places still open, the zones', () => {

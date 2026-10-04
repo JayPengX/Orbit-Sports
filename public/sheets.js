@@ -1494,7 +1494,7 @@ function raceBlock(race, g, league, many) {
   const t = race.title;
   const top = many ? W(`${g.name}第一`, `top of ${g.en || g.name}`) : '';
   const unit = race.unit === 'pts' ? W(' 分', ' pts') : W(' 場', '');
-  const when = t.soonest == null ? '' : sport === 'soccer' ? W(`最快第 ${t.round} 輪`, `round ${t.round} at the earliest`) : sport === 'racing' ? W(`最快 ${t.soonest} 站後`, `${t.soonest} race weekend(s) away at the earliest`) : W(`最快 ${t.soonest} 場後`, `${t.soonest} game(s) away at the earliest`);
+  const when = t.soonest == null ? '' : sport === 'soccer' ? W(`最快第 ${t.round} 輪`, `round ${t.round} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快${t.at}`, `${t.at} at the earliest`) : W(`最快再 ${t.soonest} 站`, `${t.soonest} race weekends from now at the earliest`)) : W(`最快 ${t.soonest} 場後`, `${t.soonest} game(s) away at the earliest`);
   if (t.done) {
     const early = t.left > 0;
     lines.push(line('trophy', many ? W(`${b(nm(t.leader))} 拿下${top}`, `${b(nm(t.leader))} have clinched ${top}`) : W(`${b(nm(t.leader))} ${early ? '提前封王' : '奪冠'}`, `${b(nm(t.leader))} ${early ? 'have clinched the title' : 'are champions'}`), early ? W(`還剩 ${t.left} ${sport === 'racing' ? '站' : sport === 'soccer' ? '輪' : '場'}`, `${t.left} to go`) : '', 'won'));
@@ -1505,7 +1505,7 @@ function raceBlock(race, g, league, many) {
     if (race.unit === 'wins') lines.push(line('clock', W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`), when));
     else {
       const what = many ? W(`確定${top}`, `clinch ${top}`) : W('封王', 'clinch the title');
-      const at = sport === 'soccer' ? W(`最快第 ${b(t.round)} 輪`, `in round ${b(t.round)} at the earliest`) : sport === 'racing' ? W(`最快 ${b(t.soonest)} 站後`, `${b(t.soonest)} race weekend(s) away at the earliest`) : W(`最快 ${b(t.soonest)} 場後`, `${b(t.soonest)} game(s) away at the earliest`);
+      const at = sport === 'soccer' ? W(`最快第 ${b(t.round)} 輪`, `in round ${b(t.round)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : W(`最快 ${b(t.soonest)} 場後`, `${b(t.soonest)} game(s) away at the earliest`);
       lines.push(line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} can ${what}, ${at}`), W(`領先 ${t.gap} 分・還有 ${t.avail} 分可拿`, `${t.gap} pts ahead, ${t.avail} still to win`)));
     }
   } else if (t.soonest != null) {
