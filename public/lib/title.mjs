@@ -195,7 +195,9 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
     }
     if (magic === 0) soonest = 0;
   } else if (soonest > leadLeft) soonest = null;
-  const title = { leader: lead, done: out[0].settled && out[0].best === 1, magic, soonest, round: sport === 'soccer' && soonest != null ? num(lead.stats.GP) + soonest : null, left: leadLeft };
+  // The lead over the nearest rival, and the most that rival can still score: past it, it's settled.
+  const ri = hi.indexOf(rivalBest, 1);
+  const title = { leader: lead, done: out[0].settled && out[0].best === 1, magic, soonest, gap: lo[0] - lo[ri], avail: hi[ri] - lo[ri], round: sport === 'soccer' && soonest != null ? num(lead.stats.GP) + soonest : null, left: leadLeft };
   // A table not in order of what's counted (MLB's, by playoff seed), or a
   // season over: no places to work out, only the title.
   const ordered = lo.every((v, i) => i === 0 || v <= lo[i - 1]);

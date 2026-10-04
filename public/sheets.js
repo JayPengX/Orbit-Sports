@@ -1499,8 +1499,15 @@ function raceBlock(race, g, league, many) {
     const early = t.left > 0;
     lines.push(line('trophy', many ? W(`${b(nm(t.leader))} 拿下${top}`, `${b(nm(t.leader))} have clinched ${top}`) : W(`${b(nm(t.leader))} ${early ? '提前封王' : '奪冠'}`, `${b(nm(t.leader))} ${early ? 'have clinched the title' : 'are champions'}`), early ? W(`還剩 ${t.left} ${sport === 'racing' ? '站' : sport === 'soccer' ? '輪' : '場'}`, `${t.left} to go`) : '', 'won'));
   } else if (t.soonest != null && t.soonest <= 5) {
-    const main = race.unit === 'wins' ? W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`) : W(`${b(nm(t.leader))} 再拿 ${b(t.magic)} 分${many ? `確定${top}` : '封王'}`, `${b(nm(t.leader))} need ${b(t.magic)} more pts`);
-    lines.push(line('clock', main, when));
+    // Wins: baseball's magic number (the leader's wins and the rivals' losses together).
+    // Points: a title closes from both sides (the leader scoring, the rival
+    // not), so say when at the soonest, and the lead against what's still to be won.
+    if (race.unit === 'wins') lines.push(line('clock', W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`), when));
+    else {
+      const what = many ? W(`確定${top}`, `clinch ${top}`) : W('封王', 'clinch the title');
+      const at = sport === 'soccer' ? W(`最快第 ${b(t.round)} 輪`, `in round ${b(t.round)} at the earliest`) : sport === 'racing' ? W(`最快 ${b(t.soonest)} 站後`, `${b(t.soonest)} race weekend(s) away at the earliest`) : W(`最快 ${b(t.soonest)} 場後`, `${b(t.soonest)} game(s) away at the earliest`);
+      lines.push(line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} can ${what}, ${at}`), W(`領先 ${t.gap} 分・還有 ${t.avail} 分可拿`, `${t.gap} pts ahead, ${t.avail} still to win`)));
+    }
   } else if (t.soonest != null) {
     const second = g.rows[1];
     const gap = second ? (race.unit === 'wins' ? Number(second.stats.GB) : Number(t.leader.stats[sport === 'racing' ? 'PTS' : 'P']) - Number(second.stats[sport === 'racing' ? 'PTS' : 'P'])) : 0;
