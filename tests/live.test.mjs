@@ -51,4 +51,9 @@ test("CPBL on now: the inning and score from Kambi's live feed, matched by nickn
   const [e] = applyKambiLive([game], live);
   assert.deepEqual([e.home.score, e.away.score, e.status.period], [1, 3, 5]);
   assert.equal(liveLabel(e, 'baseball', 'zh'), '5局');
+  // 0-0 in the first: Kambi sends no score yet; it's 0, not blank.
+  const [z] = kambiInnings({ events: [{ event: { state: 'STARTED', homeName: 'Uni-President 7-Eleven Lions', awayName: 'CTBC Brothers' }, liveData: {} }] });
+  assert.deepEqual([z.homeScore, z.awayScore], [0, 0]);
+  const [g] = applyKambiLive([{ ...game, home: side('CTBC Brothers', ''), away: side('Uni-President Lions', '') }], [z]);
+  assert.deepEqual([g.home.score, g.away.score], [0, 0]);
 });

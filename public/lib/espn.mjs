@@ -407,7 +407,7 @@ export function kambiInnings(data) {
     .filter(x => x.event?.state === 'STARTED')
     .map(x => {
       const periods = String(x.liveData?.score?.info || '').split('|').filter(p => /\d+\s*-\s*\d+/.test(p));
-      return { home: nickname(x.event.homeName), away: nickname(x.event.awayName), inning: periods.length || null, homeScore: Number(x.liveData?.score?.home), awayScore: Number(x.liveData?.score?.away) };
+      return { home: nickname(x.event.homeName), away: nickname(x.event.awayName), inning: periods.length || null, homeScore: Number(x.liveData?.score?.home ?? 0), awayScore: Number(x.liveData?.score?.away ?? 0) };
     });
 }
 export function applyKambiLive(events, live) {
