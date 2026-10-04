@@ -401,13 +401,26 @@ export async function asiaEvents(league, extra = 0, now = Date.now()) {
 // only say it's on. Matched by the clubs' nicknames (Kambi writes "Uni-
 // President 7-Eleven Lions", the league "Uni-President Lions").
 const KAMBI = 'https://eu-offering-api.kambicdn.com/offering/v2018/ub/listView';
-const nickname = name => String(name || '').trim().split(/\s+/).at(-1).toLowerCase();
-export function kambiInnings(data) {
+// Kambi writes "Uni-Lions" too: the last word, hyphens splitting as well.
+const nickname = name => String(name || '').trim().split(/[\s-]+/).at(-1).toLowerCase();
+// A STARTED game: its inning (one period a run line has begun), the score
+// (none yet is 0-0) and each inning's runs ("3-0 | 0-1", home first) as the
+// sides' line score. `path`: only that league's games (the all-baseball list).
+export function kambiInnings(data, path = '') {
   return (data?.events || [])
     .filter(x => x.event?.state === 'STARTED')
+    .filter(x => !path || !Array.isArray(x.event.path) || x.event.path.map(p => p?.termKey ?? p).join('/') === path)
     .map(x => {
-      const periods = String(x.liveData?.score?.info || '').split('|').filter(p => /\d+\s*-\s*\d+/.test(p));
-      return { home: nickname(x.event.homeName), away: nickname(x.event.awayName), inning: periods.length || null, homeScore: Number(x.liveData?.score?.home ?? 0), awayScore: Number(x.liveData?.score?.away ?? 0) };
+      const periods = String(x.liveData?.score?.info || '').split('|').map(p => /(\d+)\s*-\s*(\d+)/.exec(p)).filter(Boolean);
+      return {
+        home: nickname(x.event.homeName),
+        away: nickname(x.event.awayName),
+        inning: periods.length || null,
+        homeScore: Number(x.liveData?.score?.home ?? 0),
+        awayScore: Number(x.liveData?.score?.away ?? 0),
+        homeLines: periods.map(m => m[1]),
+        awayLines: periods.map(m => m[2])
+      };
     });
 }
 export function applyKambiLive(events, live) {
@@ -416,16 +429,21 @@ export function applyKambiLive(events, live) {
     const k = e.status.state === 'in' && live.find(x => (x.home === h && x.away === a) || (x.home === a && x.away === h));
     if (!k) return e;
     // Kambi may list the clubs the other way round.
-    const [hs, as] = k.home === h ? [k.homeScore, k.awayScore] : [k.awayScore, k.homeScore];
-    const score = (side, v) => (Number.isFinite(v) ? { ...side, score: v } : side);
-    return { ...e, status: { ...e.status, period: k.inning || 0 }, live: { inning: k.inning }, home: score(e.home, hs), away: score(e.away, as) };
+    const same = k.home === h;
+    const [hs, as] = same ? [k.homeScore, k.awayScore] : [k.awayScore, k.homeScore];
+    const [hl, al] = same ? [k.homeLines, k.awayLines] : [k.awayLines, k.homeLines];
+    const side = (x, v, lines) => ({ ...x, ...(Number.isFinite(v) ? { score: v } : {}), ...(lines?.length ? { lines } : {}) });
+    return { ...e, status: { ...e.status, period: k.inning || 0 }, live: { inning: k.inning }, home: side(e.home, hs, hl), away: side(e.away, as, al) };
   });
 }
+// Kambi's list for one league answers 404 (CPBL's, since October 2026);
+// the list of all baseball on now works, and is one ask for NPB, KBO and
+// CPBL alike.
 async function withKambiLive(events, league) {
   const path = CATALOG[league]?.kambi;
   if (!path) return events;
-  const data = await getJson(`${KAMBI}/${path}/in-play.json?lang=en_GB&market=GB&useCombined=true`, { ttl: LIVE_TTL, trim: 'kambi-events' }).catch(() => null);
-  return applyKambiLive(events, kambiInnings(data));
+  const data = await getJson(`${KAMBI}/baseball/all/all/all/in-play.json?lang=en_GB&market=GB&useCombined=true`, { ttl: LIVE_TTL, trim: 'kambi-events' }).catch(() => null);
+  return applyKambiLive(events, kambiInnings(data, path));
 }
 
 // ---- A match's summary --------------------------------------------------------------

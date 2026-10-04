@@ -51,6 +51,16 @@ test("CPBL on now: the inning and score from Kambi's live feed, matched by nickn
   const [e] = applyKambiLive([game], live);
   assert.deepEqual([e.home.score, e.away.score, e.status.period], [1, 3, 5]);
   assert.equal(liveLabel(e, 'baseball', 'zh'), '5局');
+  assert.deepEqual([e.home.lines, e.away.lines], [['0', '1', '0', '0', '0'], ['0', '2', '1', '0', '0']], 'each inning’s runs, the right way round');
+  // The all-baseball list (the league's own answers 404): that league's only; "Uni-Lions" is the Lions.
+  const all = { events: [
+    { event: { state: 'STARTED', homeName: 'Fubon Guardians', awayName: 'Uni-Lions', path: ['baseball', 'taiwan', 'chinese_professional_baseball'] }, liveData: { score: { home: '0', away: '1', info: '0-1 | 0-0' } } },
+    { event: { state: 'STARTED', homeName: 'Yokohama Bay Stars', awayName: 'Hanshin Tigers', path: ['baseball', 'japan', 'npb'] }, liveData: { score: { home: '1', away: '0', info: '1-0' } } }
+  ] };
+  const cpbl = kambiInnings(all, 'baseball/taiwan/chinese_professional_baseball');
+  assert.equal(cpbl.length, 1);
+  const [f] = applyKambiLive([{ ...game, home: side('Fubon Guardians', ''), away: side('Uni-President Lions', '') }], cpbl);
+  assert.deepEqual([f.home.score, f.away.score, f.status.period], [0, 1, 2]);
   // 0-0 in the first: Kambi sends no score yet; it's 0, not blank.
   const [z] = kambiInnings({ events: [{ event: { state: 'STARTED', homeName: 'Uni-President 7-Eleven Lions', awayName: 'CTBC Brothers' }, liveData: {} }] });
   assert.deepEqual([z.homeScore, z.awayScore], [0, 0]);
