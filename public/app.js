@@ -10,7 +10,7 @@
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
-import { localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
+import { weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
@@ -1549,7 +1549,10 @@ function renderScores() {
       stages = segmented([['all', t('f_all')], ...keys.map(k => [k, stageOf((sc.all || []).find(e => stageOf(e).key === k))[locale === 'en' ? 'en' : 'zh']])], sc.stage, v => ((sc.stage = v), renderScores()), 'scroll stage-filter');
     }
     const shown = sc.stage === 'all' ? games : games.filter(e => stageOf(e).key === sc.stage);
-    list = el('div', {}, [el('p', { class: 'day-head', text: `${dayLabel(sc.date, { long: true })} · ${t('gamesN', { n: shown.length })}` }), shown.length ? el('div', { class: 'q-card list' }, shown.map(e => eventRow(e, { league: false, day: false }))) : empty(t('noGames'))]);
+    // A football league's day: its matchweek (第 6 輪, or 第 6–7 輪 across a postponed game).
+    const weeks = [...new Set(shown.map(e => weekOf(e, () => state.tab === 'matches' && renderScores())).filter(Boolean))].sort((a, b) => a - b);
+    const wk = weeks.length ? L({ zh: `第 ${weeks[0]}${weeks.length > 1 ? `–${weeks.at(-1)}` : ''} 輪`, en: `Matchweek ${weeks[0]}${weeks.length > 1 ? `–${weeks.at(-1)}` : ''}` }) : '';
+    list = el('div', {}, [el('p', { class: 'day-head', text: [dayLabel(sc.date, { long: true }), wk, t('gamesN', { n: shown.length })].filter(Boolean).join(' · ') }), shown.length ? el('div', { class: 'q-card list' }, shown.map(e => eventRow(e, { league: false, day: false }))) : empty(t('noGames'))]);
   }
   // The league: its logo and name, where its season is, what's on now,
   // following it, and where to watch it in Taiwan.

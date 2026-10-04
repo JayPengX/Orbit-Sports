@@ -86,3 +86,14 @@ test('F1: a race on now counts by the running order until its column has numbers
   const done = { ...drivers, rows: [row('1', { PTS: '318', MYS: '18' }), row('2', { PTS: '315', MYS: '25' })].map(r => ({ ...r, athlete: true })) };
   assert.equal(liveTable([done], [ev], 'racing', { teamOf }).fresh, 0);
 });
+
+test('a football matchweek: one more than either side’s league games before it; pre-season out of the NBA table', async () => {
+  const { weeksFrom } = await import('../public/lib/espn.mjs');
+  const m = (id, d, h, a) => ({ id, kind: 'match', start: `2026-08-${d}T14:00Z`, status: {}, home: { id: h }, away: { id: a } });
+  // Week 1: A-B, C-D; week 2: A-C, then B-D put back to after week 3; week 3: A-D, B-C.
+  const w = weeksFrom([m('1', '15', 'A', 'B'), m('2', '15', 'C', 'D'), m('3', '22', 'A', 'C'), m('5', '29', 'A', 'D'), m('6', '29', 'B', 'C'), m('4', '30', 'B', 'D')], Date.UTC(2026, 6, 1));
+  assert.deepEqual(['1', '2', '3', '5', '6'].map(id => w.get(id)), [1, 1, 2, 3, 3]);
+  const t = [{ rows: [row('T', { W: '0', L: '0' }), row('U', { W: '0', L: '0' })] }];
+  const pre = { ...game('p', 'post', 'T', 'U', 100, 90, '1-0', '0-1'), stage: { key: 'pre' } };
+  assert.equal(liveTable(t, [pre], 'basketball').fresh, 0);
+});

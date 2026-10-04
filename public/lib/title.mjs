@@ -21,6 +21,7 @@ const has = v => v != null && v !== '';
 // A season's games for each side, where it isn't each other side twice.
 export const SEASON_GAMES = { mlb: 162, nba: 82, wnba: 44, nbl: 29, mls: 34, nfl: 17, nhl: 82 };
 
+const COUNTS = e => !['pre', 'post', 'final', 'playin', 'allstar', 'off'].includes(e.stage?.key || '');
 const playedOf = (r, sport) => (sport === 'soccer' ? num(r.stats.GP) : num(r.stats.W) + num(r.stats.L) + num(r.stats.T));
 // "4-0-1", "90-72": the games in a record.
 const recordGames = rec => (/^\d+(-\d+)+$/.test(String(rec || '').trim()) ? String(rec).split('-').reduce((a, n) => a + Number(n), 0) : null);
@@ -32,7 +33,9 @@ const recordGames = rec => (/^\d+(-\d+)+$/.test(String(rec || '').trim()) ? Stri
 export function liveTable(groups, events, sport, { teamOf = null } = {}) {
   if (sport === 'racing') return liveRacing(groups, events, teamOf);
   if (!groups?.length || !['soccer', 'baseball', 'basketball'].includes(sport)) return groups;
-  const games = (events || []).filter(e => e.kind === 'match' && !e.status?.void && (e.status?.state === 'in' || e.status?.state === 'post') && e.home?.id && e.away?.id);
+  // Only what the table counts: the regular season (not pre-season, the
+  // play-ins, play-offs or an all-star game).
+  const games = (events || []).filter(e => e.kind === 'match' && !e.status?.void && (e.status?.state === 'in' || e.status?.state === 'post') && e.home?.id && e.away?.id && COUNTS(e));
   games.sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
   // Each side's record (as of its latest game here: ESPN's is the season so
   // far, finals in) and its games in time order: a final is the record's
@@ -154,6 +157,9 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
     have = r => num(r.stats.W);
     more = r => Math.max(0, total - num(r.stats.W) - num(r.stats.L));
   } else return null;
+  // Before a ball's been kicked (or a race run): nothing to say yet.
+  const played = r => (sport === 'soccer' ? num(r.stats.GP) : sport === 'racing' ? num(r.stats.PTS) : num(r.stats.W) + num(r.stats.L));
+  if (!rows.some(r => played(r) > 0)) return null;
   const lo = rows.map(have);
   const hi = rows.map((r, i) => lo[i] + more(r));
   const out = rows.map((r, i) => {
@@ -250,7 +256,8 @@ function liveRacing(groups, events, teamOf) {
     if (!scoring.length) continue;
     let added = false;
     for (const g of out) {
-      const col = g.rounds?.find(r => r.name === e.name)?.key;
+      // By the feed's own name for the weekend (the shown one is "新加坡站").
+      const col = g.rounds?.find(r => r.name === (e.enName || e.name))?.key;
       if (!col) continue;
       const sum = g.rows.reduce((a, r) => a + (/\d/.test(String(r.stats[col] ?? '')) ? num(r.stats[col]) : 0), 0);
       const counted = g.rows.some(r => /\d/.test(String(r.stats[col] ?? '')));

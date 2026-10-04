@@ -2,7 +2,7 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate } from '#kit/quadra.mjs';
-import { scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
+import { weekOf, scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
@@ -76,7 +76,7 @@ export async function openMatch(e) {
         ]),
         side(home, e.home)
       ]),
-      stageTag(e, L()) || seriesText(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null]) : null,
+      stageTag(e, L()) || seriesText(e) || weekOf(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null, weekOf(e) ? el('small', { text: L() === 'en' ? `Matchweek ${weekOf(e)}` : `第 ${weekOf(e)} 輪` }) : null]) : null,
       // On now or about to start: one tap to watch it, at the top.
       watchButton({ ...e, status: st }, 'wide'),
       linescore(sm, e),
@@ -1526,7 +1526,7 @@ function raceBlock(race, g, league, many) {
     row.classList.add('zone');
     lines.push(row);
   }
-  return lines.length ? el('div', { class: 'race' }, lines) : null;
+  return lines.length ? el('div', { class: 'title-race' }, lines) : null;
 }
 export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false } = {}) {
   const sport = LEAGUES[league]?.sport;

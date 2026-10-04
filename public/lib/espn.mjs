@@ -285,6 +285,49 @@ export async function seasonEvents(league, now = Date.now()) {
   return events.length ? events : scoreboard(league);
 }
 
+// ---- A football league's matchweek (第 N 輪) ----------------------------------------
+//
+// ESPN gives none: a match's week is one more than the most league games
+// either side had played before it this season (a game put back is counted
+// where it's played). The season from July (Europe's) or the year's start;
+// both years' lists, kept 6 hours.
+export function weeksFrom(events, from) {
+  const played = new Map();
+  const out = new Map();
+  for (const e of [...events].filter(x => x.kind === 'match' && !x.status?.void && Date.parse(x.start) >= from).sort((a, b) => Date.parse(a.start) - Date.parse(b.start))) {
+    const [h, a] = [played.get(e.home?.id) || 0, played.get(e.away?.id) || 0];
+    out.set(e.id, Math.max(h, a) + 1);
+    played.set(e.home?.id, h + 1);
+    played.set(e.away?.id, a + 1);
+  }
+  return out;
+}
+const weekMemo = new Map();
+// The matchweek of a football league's match, once its season's been read
+// (null until then; `onLoad` runs when it has).
+export function weekOf(e, onLoad) {
+  const l = LEAGUES[e?.league];
+  if (!l?.espn || l.sport !== 'soccer' || l.cup || e.kind !== 'match') return null;
+  const memo = weekMemo.get(e.league);
+  if (memo instanceof Map) return memo.get(e.id) ?? null;
+  if (!memo) {
+    const d = new Date(Date.parse(e.start) || Date.now());
+    const y = d.getUTCMonth() >= 6 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
+    const july = Date.UTC(y, 6, 1);
+    const load = Promise.all([y, y + 1].map(yr => getJson(`${SITE}/${l.espn}/scoreboard?dates=${yr}&limit=500`, { ttl: 6 * 3_600_000 }).catch(() => null)))
+      .then(pages => {
+        const events = pages.filter(Boolean).flatMap(p => parseScoreboard(p, e.league));
+        // A league that starts in the year's spring (MLS) counts from its first game.
+        const from = events.some(x => Date.parse(x.start) >= july && Date.parse(x.start) < july + 60 * 86_400_000) ? july : Date.UTC(d.getUTCFullYear(), 0, 1);
+        weekMemo.set(e.league, weeksFrom(events, from));
+      })
+      .catch(() => weekMemo.set(e.league, new Map()));
+    weekMemo.set(e.league, load);
+  }
+  if (onLoad) weekMemo.get(e.league).then?.(() => onLoad());
+  return null;
+}
+
 // ---- The season's calendar: which days a league plays -------------------------------
 //
 // ESPN's scoreboard carries the season's calendar: for most leagues the US
@@ -601,7 +644,10 @@ export function parseStandings(data, league = null) {
 // A league's tables this season. The array carries the season's year.
 export async function standings(league) {
   const l = LEAGUES[league];
-  const data = await getJson(`${STANDINGS}/${l.espn}/standings`, { ttl: 10 * 60_000 });
+  // The regular season's table: ESPN's default counts pre-season games in
+  // (the NBA's in October: Toronto 0-1 before a real game).
+  const regular = ['baseball', 'basketball', 'football', 'hockey'].includes(l.sport) ? '?seasontype=2' : '';
+  const data = await getJson(`${STANDINGS}/${l.espn}/standings${regular}`, { ttl: 10 * 60_000 });
   const groups = withGaps(parseStandings(data, league), l.sport);
   groups.year = data?.season?.year ?? data?.children?.[0]?.standings?.season?.year ?? null;
   return groups;
