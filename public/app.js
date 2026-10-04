@@ -18,6 +18,7 @@ import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from '
 import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
+import { liveTable, titleRace, SEASON_GAMES } from './lib/title.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
 import { liveTiming } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
@@ -1868,6 +1869,32 @@ function driverRow(f, a) {
 
 // A league's tables this season.
 const tables = new Map();
+// The league's games of the last few days that the app has (the day lists
+// and the league's own schedule), for the table's games not counted yet.
+function recentOf(league) {
+  const since = Date.now() - 3 * 86_400_000;
+  const seen = new Set();
+  const sc = state.scores;
+  const lists = [...[...state.days.values()].map(dayAll), ...(sc.league === league && sc.byDay instanceof Map ? [...sc.byDay.values()] : [])];
+  return lists.flat().filter(e => e.league === league && Date.parse(e.start) > since && !seen.has(e.id) && seen.add(e.id));
+}
+// F1: the race weekends (and sprints) still to run, for the title's maths.
+let f1Left = null;
+function racesLeft(league) {
+  if (league !== 'f1') return null;
+  if (f1Left === null) {
+    f1Left = undefined;
+    seasonEvents(league)
+      .then(list => {
+        const ahead = (list || []).filter(e => e.sessions?.length);
+        const open = abbr => ahead.filter(e => e.sessions.some(x => x.abbr === abbr && x.status?.state !== 'post')).length;
+        f1Left = ahead.length ? { races: open('Race'), sprints: open('SR') } : undefined;
+      })
+      .catch(() => {})
+      .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+  }
+  return f1Left || null;
+}
 function tableOf(league) {
   const groups = tables.get(league);
   if (groups === undefined) {
@@ -1878,7 +1905,17 @@ function tableOf(league) {
       .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
   }
   if (!groups) return spinner();
-  return groups.length ? el('div', {}, [standingsTables(groups, league), el('p', { class: 'muted small table-note', text: t('gapHint') })]) : empty(t('noStandings'));
+  if (!groups.length) return empty(t('noStandings'));
+  // The games the official table hasn't counted yet, in; then each table's race.
+  const sport = LEAGUES[league].sport;
+  const now = liveTable(groups, recentOf(league), sport);
+  const races = now.map(g => titleRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league) }));
+  const fresh = now.fresh ? now.flatMap(g => g.rows).some(r => r.fresh === 'in') : false;
+  return el('div', {}, [
+    standingsTables(now, league, { races, many: sport !== 'racing' && now.length > 1 }),
+    now.fresh ? el('p', { class: 'muted small table-note fresh-note' }, [el('i', { class: `fresh-dot${fresh ? ' in' : ''}` }), L({ zh: fresh ? `含進行中與剛結束的 ${now.fresh} 場（官方積分榜還沒更新，暫定）` : `含剛結束的 ${now.fresh} 場（官方積分榜還沒更新）`, en: fresh ? `Includes ${now.fresh} game(s) on now or just ended (provisional)` : `Includes ${now.fresh} game(s) just ended, not in the official table yet` })]) : null,
+    el('p', { class: 'muted small table-note', text: t('gapHint') })
+  ]);
 }
 
 // ---- Tabs, refresh, start ---------------------------------------------------------------------

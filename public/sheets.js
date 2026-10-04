@@ -1468,7 +1468,30 @@ export async function openConstructor(row) {
 // ---- Standings tables -----------------------------------------------------------------------
 
 // mark: team ids to highlight (a match's two sides); followed teams always are.
-export function standingsTables(groups, league, { mark = [], top = 0, compact = false } = {}) {
+// The title race above a table (title.mjs): won; close (the magic number
+// and the soonest it can be); or early on, only the soonest it can be and
+// the lead. `many`: the league's divisions or conferences (each its own top
+// spot), not separate championships (F1's drivers and constructors).
+function raceLine(race, g, league, many) {
+  if (!race || !race.leader) return null;
+  const W = (zh, eng) => (L() === 'en' ? eng : zh);
+  const who = race.leader.short || race.leader.name;
+  const sport = LEAGUES[league]?.sport;
+  const champ = sport === 'racing' && g.name ? W(`（${g.name}）`, ` (${g.en || g.name})`) : '';
+  const goal = many ? W(`確定${g.name}第一`, `clinch ${g.en || g.name}`) : W(`封王${champ}`, `title${champ}`);
+  let text;
+  if (race.done) text = many ? W(`${who} 確定${g.name}第一`, `${who} have clinched ${g.en || g.name}`) : W(`${who} 已封王${champ}`, `${who}: champions${champ}`);
+  else if (race.soonest != null) {
+    const when = sport === 'soccer' ? W(`第 ${race.round} 輪`, `round ${race.round}`) : sport === 'racing' ? W(`${race.soonest} 站後`, `${race.soonest} race weekend(s) away`) : W(`${race.soonest} 場後`, `${race.soonest} game(s) away`);
+    const unit = race.unit === 'pts' ? W(' 分', ' pts') : W(' 勝', ' wins');
+    const second = g.rows[1];
+    const lead = sport === 'soccer' ? Number(race.leader.stats.P) - Number(second?.stats.P) : sport === 'racing' ? Number(race.leader.stats.PTS) - Number(second?.stats.PTS) : Number(second?.stats.GB);
+    const leadText = Number.isFinite(lead) && lead > 0 ? W(`・${who} 領先 ${lead}${sport === 'soccer' || sport === 'racing' ? ' 分' : ' 場'}`, ` · ${who} lead by ${lead}`) : '';
+    text = race.soonest <= 5 ? W(`${who} 魔術數字 ${race.magic}${unit}・最快${when}${goal}`, `${who}: magic number ${race.magic}${unit} · ${goal} ${when} at the earliest`) : W(`最快${when}${goal}${leadText}`, `${goal} ${when} at the earliest${leadText}`);
+  } else return null;
+  return el('div', { class: `race-line${race.done ? ' done' : ''}` }, [el('span', { class: 'race-ic', text: race.done ? '🏆' : '⏳' }), el('span', { text })]);
+}
+export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false } = {}) {
   const sport = LEAGUES[league]?.sport;
   const want = STANDING_COLUMNS[sport] || ['W', 'L'];
   const small = COMPACT_COLUMNS[sport] || want;
@@ -1482,8 +1505,11 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
       const rows = top ? g.rows.filter((r, i) => i < top || ctx.isFollowed(league, r.id)) : g.rows;
       // Columns beyond the essentials go on narrow screens (and in compact tables).
       const cls = c => `num${!small.includes(c) ? ' extra' : ''}${c === 'GAP' || c === 'GB' ? ' gap' : ''}`;
+      const race = races[groups.indexOf(g)];
+      const out = new Set(race?.out || []);
       return el('div', { class: 'q-card pad fx-card' }, [
         g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
+        raceLine(race, g, league, many),
         el('div', { class: 'table-wrap' }, [
           el('table', { class: `data standings${compact ? ' compact' : ''}` }, [
             el('thead', {}, [el('tr', {}, [el('th', { class: 'left rank-cell', text: '#' }), el('th', { class: 'left name-cell' }), ...cols.map(c => el('th', { class: cls(c), text: colName(c) }))])]),
@@ -1493,7 +1519,8 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
               rows.map(r => {
                 const i = g.rows.indexOf(r);
                 const name = [el('span', { class: 'nm-full', text: r.name }), el('span', { class: 'nm-short', text: r.short || r.name })];
-                return el('tr', { class: ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '' }, [
+                const rowCls = [ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '', r.fresh ? `fresh ${r.fresh}` : '', out.has(r.id) ? 'out' : ''].filter(Boolean).join(' ');
+                return el('tr', { class: rowCls }, [
                   el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null, text: String(i + 1) }),
                   el('th', { class: 'left name-cell' }, [
                     el('button', { class: 'link team-link', type: 'button', onclick: () => (r.athlete ? r.id && ctx.openPlayer(league, r.id, r) : league === 'f1' ? openConstructor(r) : r.id && openTeam(league, r.id, r)) }, [r.athlete ? personPic(r, league, 'xs round') : league === 'f1' ? constructorBadge(r.en || r.name, 'xs') : logo(r.logo, r.name, 'xs'), el('span', { class: 'nm' }, name)])

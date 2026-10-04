@@ -960,3 +960,53 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
 .ended-picks .pick-card {
   box-shadow: none;
 }
+
+/* The title race above a table: won (🏆), or how soon it can be (⏳). */
+.race-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--q-accent-wash);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.race-line.done {
+  background: color-mix(in srgb, #f5b301 18%, transparent);
+}
+.race-ic {
+  flex: none;
+}
+/* Rows with a game the official table hasn't counted yet (on now: red dot;
+   just ended: grey), and sides that can no longer catch the leader. */
+.standings tr.fresh .team-link .nm::after,
+.fresh-dot {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 0 1px 6px;
+  border-radius: 50%;
+  background: var(--q-muted);
+  vertical-align: middle;
+}
+.standings tr.fresh.in .team-link .nm::after,
+.fresh-dot.in {
+  background: var(--q-bad);
+  animation: q-pulse 1.6s ease-in-out infinite;
+}
+.fresh-dot {
+  margin: 0 6px 1px 0;
+}
+.standings tr.out .name-cell,
+.standings tr.out td {
+  opacity: 0.55;
+}
+@keyframes q-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
