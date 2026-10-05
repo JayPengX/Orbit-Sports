@@ -459,7 +459,9 @@ export async function asiaEvents(league, extra = 0, now = Date.now()) {
   const [y, m] = asiaMonthOf(now).split('-').map(Number);
   const months = [];
   for (let d = -1 - extra; d <= 1 + extra; d++) months.push(new Date(Date.UTC(y, m - 1 + d, 1)).toISOString().slice(0, 7));
-  const lists = await Promise.all(months.map(m => asiaMonth(url => getJson(url, { ttl: 60_000 }), LEAGUES[league].asia, m).catch(() => [])));
+  // This month unread is a failure, never "no games" (the others only fill out the stretch).
+  const now0 = asiaMonthOf(now);
+  const lists = await Promise.all(months.map(m => asiaMonth(url => getJson(url, { ttl: m < now0 ? 6 * 3_600_000 : 2 * 60_000 }), LEAGUES[league].asia, m).catch(error => (m === now0 ? Promise.reject(error) : []))));
   const seen = new Set();
   const events = parseAsia(lists.flat(), league)
     .filter(e => !seen.has(e.id) && seen.add(e.id))
