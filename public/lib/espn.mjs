@@ -15,7 +15,8 @@ import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
-import { proxyJson } from '#kit/quadra.mjs';
+import * as kit from '#kit/quadra.mjs';
+const { proxyJson } = kit;
 import { stageFrom } from './stage.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { groupZh } from './statnames.mjs';
@@ -296,6 +297,16 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   );
 }
 
+// A league's whole year of games: the nightly pack (Transit-Data, built
+// at midnight), never ESPN's 6 MB year page through the proxy (a few at once
+// ran the proxy out of memory, and parsing them froze the phone). Only an
+// older kit, or a pack not built yet, reads the page itself.
+export function yearPage(league, year) {
+  const l = LEAGUES[league];
+  const direct = () => getJson(`${SITE}/${l.espn}/scoreboard?dates=${year}&limit=500`, { ttl: 6 * 3_600_000 });
+  return kit.packJson ? kit.packJson(`sports/${league}/${year}.json`).catch(direct) : direct();
+}
+
 // A whole season of a race series (ESPN answers
 // `dates=<year>` with every event of that year): past results and every
 // future event, not only the current one. Late in the year, next year's too.
@@ -304,9 +315,11 @@ export async function seasonEvents(league, now = Date.now()) {
   if (l?.asia) return asiaEvents(league);
   const d = new Date(now);
   const years = [d.getUTCFullYear(), ...(d.getUTCMonth() >= 10 ? [d.getUTCFullYear() + 1] : [])];
-  const pages = await Promise.all(years.map(y => getJson(`${SITE}/${l.espn}/scoreboard?dates=${y}&limit=400`, { ttl: 5 * 60_000 }).catch(() => null)));
+  // The year from last night's pack; this week's state (a race just run, its
+  // results) from the current scoreboard over it.
+  const [now0, ...pages] = await Promise.all([getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: 5 * 60_000 }).catch(() => null), ...years.map(y => yearPage(league, y).catch(() => null))]);
   const seen = new Set();
-  const events = pages
+  const events = [now0, ...pages]
     .filter(Boolean)
     .flatMap(p => parseScoreboard(p, league))
     .filter(e => !seen.has(e.id) && seen.add(e.id))
@@ -343,7 +356,7 @@ export function weekOf(e, onLoad) {
     const d = new Date(Date.parse(e.start) || Date.now());
     const y = d.getUTCMonth() >= 6 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
     const july = Date.UTC(y, 6, 1);
-    const load = Promise.all([y, y + 1].map(yr => getJson(`${SITE}/${l.espn}/scoreboard?dates=${yr}&limit=500`, { ttl: 6 * 3_600_000 }).catch(() => null)))
+    const load = Promise.all([y, y + 1].map(yr => yearPage(e.league, yr).catch(() => null)))
       .then(pages => {
         const events = pages.filter(Boolean).flatMap(p => parseScoreboard(p, e.league));
         // A league that starts in the year's spring (MLS) counts from its first game.
