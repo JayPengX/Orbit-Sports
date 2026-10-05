@@ -789,7 +789,7 @@ export async function teamSchedule(league, id) {
   const base = `${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}/schedule`;
   if (clubPath(league) !== 'soccer/all') {
     // In the playoffs ESPN gives only the playoff games: the regular season before them too.
-    const data = await getJson(base, { ttl: 10 * 60_000 });
+    const data = await getJson(base, { ttl: 3 * 60_000 });
     const earlier = data?.requestedSeason?.type === 3 ? await getJson(`${base}?seasontype=2`, { ttl: 60 * 60_000 }).catch(() => null) : null;
     const seen = new Set();
     return [...parseSchedule(earlier, league), ...parseSchedule(data, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).map(freshGame).sort((a, b) => a.start.localeCompare(b.start));
