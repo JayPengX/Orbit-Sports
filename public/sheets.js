@@ -1581,3 +1581,27 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
     })
   );
 }
+
+// ---- A playoff series or a knockout tie: every game of it ---------------------------------
+
+// The tie (bracket.mjs): its two sides with the wins (or aggregate), who
+// went through or what's next, then each game, G1 first, each opening its match.
+export function openTie(t, league, roundTitle = '') {
+  const en = L() === 'en';
+  const s = sheet(leagueName(league, L()), { league });
+  const won = t.winner && t.sides.find(x => String(x.id) === t.winner);
+  const sideRow = x => {
+    const id = String(x.id);
+    return el('div', { class: `tie-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}` }, [sideLogo(x, league, 'sm'), el('strong', { class: 'tie-name', text: x.short || x.name }), el('strong', { class: 'num tie-score', text: t.score?.[id] ?? '' })]);
+  };
+  const said = won ? (en ? `${won.short || won.name} through` : `${won.short || won.name} 晉級`) : t.live ? (en ? 'On now' : '進行中') : t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : t.kind === 'series' ? (en ? 'Series' : '系列賽') : '';
+  const label = (g, i) => [t.kind === 'series' ? (en ? `Game ${i + 1}` : `第 ${i + 1} 戰`) : t.kind === 'agg' ? (en ? `Leg ${i + 1}` : `第 ${i + 1} 回合`) : '', dayLabel(localDate(Date.parse(g.start)))].filter(Boolean).join(' · ');
+  s.body.append(
+    el('div', { class: 'tie-head' }, [roundTitle ? el('p', { class: 'mini-h', text: roundTitle }) : null, ...t.sides.map(sideRow), said ? el('small', { class: `muted tie-said${t.live ? ' live' : ''}`, text: said }) : null]),
+    el(
+      'div',
+      { class: 'q-card list tie-games' },
+      t.games.map((g, i) => el('div', { class: 'tie-game' }, [label(g, i) ? el('small', { class: 'tie-gn', text: label(g, i) }) : null, eventRow(g, { league: false })]))
+    )
+  );
+}

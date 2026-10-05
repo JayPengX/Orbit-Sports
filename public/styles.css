@@ -1039,3 +1039,18 @@ table.game-log .split-name { white-space: normal; min-width: 7.5em; max-width: 1
     opacity: 0.35;
   }
 }
+
+/* A playoff series' sheet: the two sides and their wins, then each game. */
+.tie-head { display: grid; gap: 8px; padding: 4px 2px 14px; }
+.tie-head .mini-h { margin: 0; }
+.tie-side { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: 17px; color: var(--q-text-2, var(--q-muted)); }
+.tie-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.tie-score { font-size: 22px; min-width: 1.4em; text-align: right; }
+.tie-side.win { color: var(--q-text); }
+.tie-side.win .tie-name, .tie-side.win .tie-score { font-weight: 800; }
+.tie-side.out { opacity: .55; }
+.tie-said { font-size: 13px; }
+.tie-said.live { color: var(--q-live, #ff5a5f); }
+.tie-game + .tie-game { border-top: 1px solid var(--q-divider, var(--q-border)); }
+.tie-game .event-row { border-top: 0; }
+.tie-gn { display: block; padding: 9px 14px 0; font-size: 12px; font-weight: 650; color: var(--q-muted); }

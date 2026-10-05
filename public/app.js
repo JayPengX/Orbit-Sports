@@ -10,7 +10,7 @@
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
-import { weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
+import { freshGame, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
@@ -26,7 +26,7 @@ import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList } from './lib/tv.mjs';
 import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
-import { openMatch, openFieldEvent, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
+import { openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 
 // ---- What's on: leagues with games from two weeks back to two months on ---------------
@@ -477,21 +477,35 @@ function loadTables() {
     });
 }
 // Followed teams' schedules (their next and last games).
+// Read again while the app stays open (an iPhone keeps it for hours in the
+// background): every 10 minutes, every 2 while one of its games is on or
+// due to end. Until then a game's state comes from the live scoreboards
+// (freshGame), so a game over is never left 'on'.
+const teamsAt = new Map();
+const TEAM_MS = 10 * 60_000;
+const teamDue = list => (list || []).some(e => e.status?.state === 'in' || (e.status?.state === 'pre' && Date.parse(e.start) < Date.now()));
 async function loadFollowedTeams() {
   for (const f of followedTeams().slice(0, 12)) {
     const key = `${f.league}:${f.id}`;
-    if (state.home.teams.has(key) || LEAGUES[f.league]?.kind !== 'match') continue;
-    state.home.teams.set(key, null);
+    if (LEAGUES[f.league]?.kind !== 'match') continue;
+    const had = state.home.teams.get(key);
+    if (state.home.teams.has(key) && (had === null || teamsAt.get(key) === 'loading' || Date.now() - (teamsAt.get(key) || 0) < (teamDue(had) ? 2 * 60_000 : TEAM_MS))) continue;
+    if (!had) state.home.teams.set(key, null);
+    teamsAt.set(key, 'loading');
     // ESPN's team schedule; the other leagues' own season, the team's games.
     (hasTeams(f.league) ? teamSchedule(f.league, f.id) : seasonEvents(f.league).then(list => list.filter(e => e.home?.id === String(f.id) || e.away?.id === String(f.id)).sort((a, b) => a.start.localeCompare(b.start))))
       .then(list => {
+        teamsAt.set(key, Date.now());
         state.home.teams.set(key, list);
         if (state.tab === 'home') renderHome();
         if (state.tab === 'following') renderFollowing();
         clearTimeout(pushTimer);
         pushTimer = setTimeout(syncPush, 1500);
       })
-      .catch(() => state.home.teams.delete(key));
+      .catch(() => {
+        teamsAt.delete(key);
+        if (!had) state.home.teams.delete(key);
+      });
   }
 }
 // Followed teams' coming games, for notices while the app is closed: the
@@ -501,7 +515,8 @@ function syncPush() {
   const now = Date.now();
   const items = [];
   const seen = new Set();
-  const games = [...followedTeams().flatMap(f => state.home.teams.get(`${f.league}:${f.id}`) || []), ...(state.days.get(today())?.events || []).filter(isFollowedEvent)];
+  // The live scoreboards' copy of a game first (the schedules are minutes older).
+  const games = [...(state.days.get(today())?.events || []).filter(isFollowedEvent), ...followedTeams().flatMap(f => state.home.teams.get(`${f.league}:${f.id}`) || [])].map(freshGame);
   for (const e of games) {
     const key = `${e.league}:${e.id}`;
     if (e.kind !== 'match' || e.other || seen.has(key) || e.status?.state === 'post' || e.status?.void) continue;
@@ -772,7 +787,7 @@ function renderHome() {
   // Followed teams that play today, with that game (the rest are on 追蹤).
   const teamRows = isToday
     ? state.prefs.follows.flatMap(f => {
-        const list = state.home.teams.get(`${f.league}:${f.id}`) || [];
+        const list = (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame);
         const e = list.find(x => localDate(Date.parse(x.start)) === h.date);
         if (!e) return [];
         return el('div', { class: 'follow-row' }, [
@@ -1110,12 +1125,25 @@ function openScores(league, date, view = 'games') {
 const brackets = new Map();
 const hasBracket = k => LEAGUES[k]?.kind === 'match' && !LEAGUES[k].asia && Boolean(FORMATS[k]);
 const played = r => Number(r.stats?.GP ?? r.stats?.gamesPlayed ?? 0) || Number(r.stats?.W || 0) + Number(r.stats?.L || 0);
+// The playoffs so far: the game days back a week at a time from the next
+// ten, until a week without a playoff game (the regular season), not every
+// day of the last months (MLB's were 85 pages at each look).
 async function postseason(league) {
   const cal = await seasonCalendar(league).catch(() => null);
-  const from = yyyymmdd(new Date(Date.now() - 75 * 86_400_000));
-  const to = yyyymmdd(new Date(Date.now() + 10 * 86_400_000));
-  const days = (cal?.days || []).filter(d => d >= from && d <= to);
-  return days.length ? (await scoreboard(league, days)).filter(e => e.round) : [];
+  const from = yyyymmdd(new Date(Date.now() - 80 * 86_400_000));
+  const days = (cal?.days || []).filter(d => d >= from && d <= yyyymmdd(new Date(Date.now() + 10 * 86_400_000))).reverse();
+  const today = yyyymmdd(new Date());
+  const ms = d => Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6));
+  const out = [];
+  for (let i = 0; i < days.length; ) {
+    let j = i;
+    while (j < days.length && ms(days[j]) > ms(days[i]) - 7 * 86_400_000) j++;
+    const week = days.slice(i, (i = j));
+    const games = (await scoreboard(league, week)).filter(e => e.round);
+    out.push(...games);
+    if (!games.length && week[0] < today) break;
+  }
+  return out;
 }
 // Last season's playoff games: the end of its calendar (its last 70 game days).
 async function lastSeason(league, info) {
@@ -1209,7 +1237,7 @@ function playoffView(model, league) {
     const blank = { projected: true, seeds: [], labels: [] };
     const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), el('small', { class: `br-note${t?.live ? ' live' : ''}`, text: note(t, r) })];
     return t && !t.projected
-      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openEvent(t.games.find(g => g.status.state === 'in') || t.next || t.games.at(-1)) }, body)
+      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openTie({ ...t, games: t.games.map(freshGame) }, league, en ? r.title.en : r.title.zh) }, body)
       : el('div', { class: `br-tie ${t ? 'projected' : 'tbd'}` }, body);
   };
   const entry = brackets.get(league);
@@ -1610,7 +1638,7 @@ function f1Races() {
   }
   return f1Season || [];
 }
-const teamGames = f => state.home.teams.get(`${f.league}:${f.id}`);
+const teamGames = f => state.home.teams.get(`${f.league}:${f.id}`)?.map(freshGame);
 // The followed teams' (and F1's) games on TV in the next week, live first, by start.
 function myTvGames() {
   const now = Date.now();

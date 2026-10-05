@@ -195,3 +195,18 @@ test("a table in its playoff seeds' order, whatever order ESPN lists it in", () 
   const seedOf = r => Number(raw.children.flatMap(c => c.standings.entries).find(en => String(en.team.id) === r.id).stats.find(x => x.name === 'playoffSeed').value);
   for (const g of parseStandings(raw, 'mlb')) assert.deepEqual(g.rows.map(seedOf), [...g.rows.map(seedOf)].sort((a, b) => a - b));
 });
+
+test("a team schedule's game takes the newest state read live, never an older one", async () => {
+  const { freshGame, noteLatest } = await import('../public/lib/espn.mjs');
+  const side = (id, score, winner = false) => ({ id, name: id, score, winner });
+  const sched = { id: '401918010', league: 'nba', kind: 'match', start: '2026-10-04T23:00Z', status: { state: 'in' }, away: side('9', '80'), home: side('12', '90') };
+  assert.equal(freshGame(sched), sched, 'nothing read live: as it is');
+  noteLatest([{ ...sched, status: { state: 'post', completed: true }, away: side('9', '96'), home: side('12', '111', true) }]);
+  const f = freshGame(sched);
+  assert.equal(f.status.state, 'post');
+  assert.equal(f.home.score, '111');
+  assert.equal(f.home.winner, true);
+  // An older live copy (still on) never takes a game back from over.
+  noteLatest([{ ...sched, status: { state: 'in' } }]);
+  assert.equal(freshGame({ ...sched, status: { state: 'post' } }).status.state, 'post');
+});

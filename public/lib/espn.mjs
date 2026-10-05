@@ -254,20 +254,45 @@ export function parseScoreboard(data, league) {
   return out;
 }
 
+// The newest copy of each game read from a live list (a scoreboard, a
+// match's summary): a team's schedule is kept for minutes (the proxy longer),
+// and its copy of a game on now, or just over, is behind. freshGame(e) is
+// `e` with the newest state and score known.
+const latest = new Map();
+export const noteLatest = list => {
+  const at = Date.now();
+  for (const e of list) if (e?.kind === 'match' && e.status) latest.set(`${e.league}:${e.id}`, { at, e });
+  if (latest.size > 3000) for (const k of [...latest.keys()].slice(0, 1000)) latest.delete(k);
+  return list;
+};
+const STATE_ORDER = { pre: 0, in: 1, post: 2 };
+export function freshGame(e) {
+  const got = e && latest.get(`${e.league}:${e.id}`);
+  if (!got || got.e === e) return e;
+  const f = got.e;
+  // Never backwards (a list cached longer saying 'on' after one said 'over').
+  if ((STATE_ORDER[f.status.state] ?? 0) < (STATE_ORDER[e.status?.state] ?? 0)) return e;
+  const side = (mine, theirs) => (mine && theirs && String(mine.id) === String(theirs.id) ? { ...mine, score: theirs.score, winner: theirs.winner } : mine);
+  return { ...e, status: f.status, series: f.series || e.series, live: f.live ?? e.live, home: side(e.home, f.home), away: side(e.away, f.away) };
+}
+
 export async function scoreboard(league, dates) {
   const l = LEAGUES[league];
   if (l?.asia) return asiaEvents(league);
   const list = [].concat(dates || []);
   // Scores on now: read again after 10 seconds (the proxy's live copy).
-  const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
+  // A day two or more back is over: kept on the phone 6 hours, not asked again every 10 seconds.
+  const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: /^\d{8}$/.test(d) && d < yyyymmdd(new Date(Date.now() - 2 * 86_400_000)) ? 6 * 3_600_000 : LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
   // Not one page read: a failure, never "no games" (a day saved without the
   // league, or the league taken for out of season).
   if (!pages.some(Boolean)) throw new Error(`${league}: unread`);
   const seen = new Set();
-  return pages
-    .filter(Boolean)
-    .flatMap(p => parseScoreboard(p, league))
-    .filter(e => !seen.has(e.id) && seen.add(e.id));
+  return noteLatest(
+    pages
+      .filter(Boolean)
+      .flatMap(p => parseScoreboard(p, league))
+      .filter(e => !seen.has(e.id) && seen.add(e.id))
+  );
 }
 
 // A whole season of a race series (ESPN answers
@@ -749,7 +774,7 @@ export function parseSchedule(data, league) {
 export async function playoffRun(league, id) {
   if (clubPath(league) === 'soccer/all') return null;
   const data = await getJson(`${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}/schedule`, { ttl: 10 * 60_000 });
-  return data?.requestedSeason?.type === 3 ? parseSchedule(data, league) : null;
+  return data?.requestedSeason?.type === 3 ? parseSchedule(data, league).map(freshGame) : null;
 }
 // Out of the playoffs: its last playoff game lost and none to come.
 export function knockedOut(games, id) {
@@ -767,11 +792,11 @@ export async function teamSchedule(league, id) {
     const data = await getJson(base, { ttl: 10 * 60_000 });
     const earlier = data?.requestedSeason?.type === 3 ? await getJson(`${base}?seasontype=2`, { ttl: 60 * 60_000 }).catch(() => null) : null;
     const seen = new Set();
-    return [...parseSchedule(earlier, league), ...parseSchedule(data, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).sort((a, b) => a.start.localeCompare(b.start));
+    return [...parseSchedule(earlier, league), ...parseSchedule(data, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).map(freshGame).sort((a, b) => a.start.localeCompare(b.start));
   }
   const [done, next] = await Promise.all([getJson(base, { ttl: 10 * 60_000 }), getJson(`${base}?fixture=true`, { ttl: 10 * 60_000 }).catch(() => null)]);
   const seen = new Set();
-  return [...parseSchedule(done, league), ...parseSchedule(next, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).sort((a, b) => a.start.localeCompare(b.start));
+  return [...parseSchedule(done, league), ...parseSchedule(next, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).map(freshGame).sort((a, b) => a.start.localeCompare(b.start));
 }
 export function parseRoster(data) {
   const groups = Array.isArray(data?.athletes?.[0]?.items) ? data.athletes : [{ position: '', items: data?.athletes || [] }];
