@@ -562,14 +562,14 @@ export function parseSummary(data, league) {
     tables: (p.statistics || []).map(st => ({
       name: st.name || st.type || st.text || '',
       labels: st.labels || st.names || [],
-      rows: (st.athletes || []).map(a => ({ id: String(a.athlete?.id ?? ''), name: a.athlete?.shortName || a.athlete?.displayName || '', pos: a.position?.abbreviation || '', starter: Boolean(a.starter), stats: a.stats || [] })),
+      rows: (st.athletes || []).map(a => ({ id: String(a.athlete?.id ?? ''), name: a.athlete?.shortName || a.athlete?.displayName || '', full: a.athlete?.displayName || '', headshot: freshHeadshot(a.athlete?.headshot?.href) || null, pos: a.position?.abbreviation || '', starter: Boolean(a.starter), stats: a.stats || [] })),
       totals: st.totals || []
     }))
   }));
   // Scoring and key moments.
   const plays = (data?.scoringPlays || data?.plays?.filter(p => p.scoringPlay) || [])
     .slice(-60)
-    .map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore }));
+    .map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), periodNum: p.period?.number || 0, periodType: p.period?.type || '', clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore }));
   const keyEvents = (data?.keyEvents || [])
     .filter(k => k.type?.type !== 'kickoff' && k.type?.type !== 'halftime' && k.type?.type !== 'end-regular-time')
     .map(k => ({ text: k.text || k.type?.text || '', type: k.type?.type || '', clock: k.clock?.displayValue || '', team: String(k.team?.id ?? ''), scoring: Boolean(k.scoringPlay) }));
@@ -609,12 +609,12 @@ export function parseSummary(data, league) {
     const en = detectLocale() === 'en';
     const cols = [['totalGoals', '進球', 'G'], ['goalAssists', '助攻', 'A'], ['totalShots', '射門', 'SH'], ['shotsOnTarget', '射正', 'SOT'], ['foulsCommitted', '犯規', 'FC'], ['yellowCards', '黃牌', 'YC'], ['redCards', '紅牌', 'RC'], ['saves', '撲救', 'SV']];
     for (const r of rosters) {
-      const rows = r.players.filter(p => p.played).map(p => ({ id: p.id, name: p.short || p.name, pos: p.pos, starter: p.starter, stats: cols.map(([k]) => p.stats[k] ?? '0') }));
+      const rows = r.players.filter(p => p.played).map(p => ({ id: p.id, name: p.short || p.name, full: p.name, headshot: p.headshot, pos: p.pos, starter: p.starter, stats: cols.map(([k]) => p.stats[k] ?? '0') }));
       if (rows.length) players.push({ team: r.team, tables: [{ name: en ? 'Players' : '球員', labels: cols.map(c => (en ? c[2] : c[1])), rows, totals: [] }] });
     }
   }
   // Every play, the latest 80 (basketball's live feed and play-by-play).
-  const feed = (data?.plays || []).slice(-80).map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore, scoring: Boolean(p.scoringPlay) }));
+  const feed = (data?.plays || []).slice(-80).map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), periodNum: p.period?.number || 0, periodType: p.period?.type || '', clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore, scoring: Boolean(p.scoringPlay) }));
   const info = data?.gameInfo || {};
   return {
     league,

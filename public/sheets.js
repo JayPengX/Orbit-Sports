@@ -4,6 +4,7 @@
 import { translate } from '#kit/quadra.mjs';
 import { weekOf, scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
+import { playPeriod } from './lib/live.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
@@ -325,8 +326,10 @@ function matchSection(view, d, e, table) {
                     {},
                     tb.rows.map(r =>
                       el('tr', {}, [
-                        el('th', { class: 'left' }, [el('button', { class: 'link', type: 'button', text: r.name, onclick: () => ctx.openPlayer(e.league, r.id) }), r.pos ? el('small', { text: ` ${r.pos}` }) : null]),
-                        ...r.stats.map(v => el('td', { class: 'num', text: v }))
+                        // Each player's face (live too: the box score's own, else the kit's way).
+                        el('th', { class: 'left' }, [el('button', { class: 'link roster-name', type: 'button', disabled: r.id ? null : true, onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', { text: r.name })]), r.pos ? el('small', { text: ` ${r.pos}` }) : null]),
+                        // One cell per column for a player yet to come on (no numbers), so the row's line runs across.
+                        ...tb.labels.map((_, i) => el('td', { class: 'num', text: r.stats[i] ?? '' }))
                       ])
                     )
                   )
@@ -348,7 +351,8 @@ function matchSection(view, d, e, table) {
         .reverse()
         .map(p =>
           el('li', { class: p.scoring ? 'scoring' : '' }, [
-            el('span', { class: 'play-when', text: [p.period, p.clock].filter(Boolean).join(' ') }),
+            // The period over the clock, a designed two lines in a narrow column.
+            el('span', { class: 'play-when' }, [playPeriod(p, LEAGUES[e.league]?.sport, L()) ? el('small', { text: playPeriod(p, LEAGUES[e.league]?.sport, L()) }) : null, el('span', { class: 'num', text: p.clock })]),
             el('span', { class: 'play-text' }, [p.team && nameOf(p.team) ? el('b', { text: `${nameOf(p.team)} ` }) : null, document.createTextNode(p.text)]),
             p.home != null && p.away != null ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null
           ])

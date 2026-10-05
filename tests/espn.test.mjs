@@ -62,6 +62,9 @@ test('a match summary: box score, players, plays, rosters', () => {
   assert.ok(s.teamStats.length > 10);
   assert.ok(s.players[0].tables[0].rows.length > 5);
   assert.ok(s.plays.length > 0);
+  // Each player's face in the box score (live too), and each play's period by number and half.
+  assert.match(s.players[0].tables[0].rows[0].headshot, /headshots\/mlb\/players\/full\/\d+\.png/);
+  assert.ok(s.plays[0].periodNum >= 1 && /top|bottom/i.test(s.plays[0].periodType));
   assert.ok(s.winProb.length > 10);
   const e = parseSummary(fx('epl-summary'), 'epl');
   assert.ok(e.teamStats.some(x => x.key === 'possessionPct'));

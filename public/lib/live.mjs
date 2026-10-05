@@ -112,3 +112,27 @@ export function liveNote(e, sport, lang = 'zh') {
   }
   return '';
 }
+
+// A play's period, short enough for the plays list's time column ("第1節",
+// "3局下", "OT"), never ESPN's "1st Quarter" running into the play. p: a
+// parsed play ({ period, periodNum, periodType }).
+export function playPeriod(p, sport, lang = 'zh') {
+  const en = lang === 'en';
+  const n = p?.periodNum || 0;
+  const dv = p?.period || '';
+  if (!n) return /^\d+$/.test(dv) ? '' : dv;
+  if (sport === 'soccer') return '';
+  if (sport === 'baseball') {
+    const t = String(p.periodType || '').toLowerCase();
+    const half = t.startsWith('top') ? 'top' : t.startsWith('bot') ? 'bot' : '';
+    return en ? `${half === 'top' ? 'Top ' : half === 'bot' ? 'Bot ' : ''}${ord(n)}` : `${n}局${half === 'top' ? '上' : half === 'bot' ? '下' : ''}`;
+  }
+  const halves = /half/i.test(dv);
+  const regular = halves ? 2 : sport === 'hockey' ? 3 : QUARTERS;
+  if (n > regular) {
+    const ot = n - regular;
+    return en ? (ot > 1 ? `${ot}OT` : 'OT') : ot > 1 ? `延長${ot}` : '延長';
+  }
+  if (halves) return en ? `H${n}` : n === 1 ? '上半場' : '下半場';
+  return en ? `${sport === 'hockey' ? 'P' : 'Q'}${n}` : `第${n}節`;
+}

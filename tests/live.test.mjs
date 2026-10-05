@@ -67,3 +67,18 @@ test("CPBL on now: the inning and score from Kambi's live feed, matched by nickn
   const [g] = applyKambiLive([{ ...game, home: side('CTBC Brothers', ''), away: side('Uni-President Lions', '') }], [z]);
   assert.deepEqual([g.home.score, g.away.score], [0, 0]);
 });
+
+test("a play's period fits the plays list's time column, in the viewer's words", async () => {
+  const { playPeriod } = await import('../public/lib/live.mjs');
+  const q = n => ({ period: n > 4 ? 'OT' : '1st Quarter', periodNum: n });
+  assert.equal(playPeriod(q(1), 'basketball'), '第1節');
+  assert.equal(playPeriod(q(1), 'basketball', 'en'), 'Q1');
+  assert.equal(playPeriod(q(5), 'basketball'), '延長');
+  assert.equal(playPeriod(q(6), 'basketball', 'en'), '2OT');
+  assert.equal(playPeriod({ period: '2nd Half', periodNum: 2 }, 'basketball'), '下半場');
+  assert.equal(playPeriod({ period: '7th Inning', periodNum: 7, periodType: 'Bottom' }, 'baseball'), '7局下');
+  assert.equal(playPeriod({ period: '7th Inning', periodNum: 7, periodType: 'Top' }, 'baseball', 'en'), 'Top 7th');
+  assert.equal(playPeriod({ period: '', periodNum: 0 }, 'soccer'), '');
+  // Never ESPN's long words, whatever the sport.
+  for (const n of [1, 2, 3, 4, 5]) assert.ok(playPeriod(q(n), 'basketball').length <= 3);
+});
