@@ -297,7 +297,7 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   );
 }
 
-// A league's whole year of games: the nightly pack (Transit-Data, built
+// A league's whole year of games: the nightly pack (Shared-Data, built
 // at midnight), never ESPN's 6 MB year page through the proxy (a few at once
 // ran the proxy out of memory, and parsing them froze the phone). Only an
 // older kit, or a pack not built yet, reads the page itself.
