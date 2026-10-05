@@ -34,7 +34,11 @@ import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // A league out of season (or a tournament not being played, the Nations
 // League between editions) is hidden, and a sport with none left with it. Checked
 // once and kept on the device for 12 hours.
-const ACTIVE_KEY = 'fx.active.v1';
+const ACTIVE_KEY = 'fx.active.v2';
+// The copies of before (v1, fx.day.v3), which could hold a failed read as "no games", go.
+try {
+  for (const k of ['fx.active.v1', 'fx.day.v3']) localStorage.removeItem(k);
+} catch {}
 let activeSet = (() => {
   try {
     const x = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null');
@@ -57,9 +61,9 @@ async function leagueHasGames(k, from, to) {
     const cal = await seasonCalendar(k).catch(() => null);
     const us = d => Date.parse(`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}T12:00:00Z`);
     if (cal?.days) return cal.days.some(d => us(d) >= from && us(d) <= to);
-    return near(await scoreboard(k, monthsBetween(from, to)).catch(() => []));
+    return near(await scoreboard(k, monthsBetween(from, to)));
   }
-  return near(await seasonEvents(k).catch(() => []));
+  return near(await seasonEvents(k));
 }
 async function checkActive() {
   if (activeSet) return;
@@ -67,10 +71,13 @@ async function checkActive() {
   const from = now - 14 * 86_400_000;
   const to = now + 60 * 86_400_000;
   const keys = Object.keys(LEAGUES);
-  const on = await Promise.all(keys.map(k => leagueHasGames(k, from, to).catch(() => true)));
+  // A league that couldn't be read is shown (never hidden for a failed read),
+  // and only a check with every league read is kept on the device.
+  let unread = 0;
+  const on = await Promise.all(keys.map(k => leagueHasGames(k, from, to).catch(() => (unread++, true))));
   activeSet = new Set(keys.filter((k, i) => on[i]));
   try {
-    localStorage.setItem(ACTIVE_KEY, JSON.stringify({ at: now, keys: [...activeSet] }));
+    if (!unread) localStorage.setItem(ACTIVE_KEY, JSON.stringify({ at: now, keys: [...activeSet] }));
   } catch {}
   if (state.tab === 'matches') renderScores();
   if (state.tab === 'home') renderHome();
@@ -301,7 +308,7 @@ const espnDaysOf = date => {
 };
 
 // The last day read is kept on the device, so the app opens on it at once.
-const DAY_KEY = 'fx.day.v3';
+const DAY_KEY = 'fx.day.v4';
 function saveDay(date, slot) {
   try {
     localStorage.setItem(DAY_KEY, JSON.stringify({ date, at: slot.at, events: slot.events.slice(0, 300), leagues: pickLeagues().join() }));
@@ -387,12 +394,12 @@ async function loadDay(date) {
     // others), and the day is read again shortly.
     const kept = events.failed ? [...events, ...slot.events.filter(e => !events.some(x => x.league === e.league))] : events;
     if (isToday) noticeChanges(kept);
-    Object.assign(slot, { events: kept, at: Date.now(), stale: false, leagues: key });
+    Object.assign(slot, { events: kept, at: Date.now(), stale: false, leagues: key, partial: events.failed || 0 });
     if (isToday && !events.failed) saveDay(date, slot);
     retry = events.failed > 0;
   } catch {
     // Nothing read: the last copy stays, and it's tried again shortly.
-    Object.assign(slot, { at: slot.at || Date.now(), stale: false, leagues: key });
+    Object.assign(slot, { at: slot.at || Date.now(), stale: false, leagues: key, partial: pickLeagues().length });
     retry = true;
   } finally {
     slot.loading = false;
@@ -784,7 +791,7 @@ function renderHome() {
     homeHead(),
     !hasFollows ? sportPicker() : null,
     liveBlock,
-    (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : noTvText(h.date) }), !finding && !planList.length ? fullSchedule() : null]) : null,
+    (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: slot.partial ? t('someUnread') : hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : noTvText(h.date) }), !finding && !planList.length ? fullSchedule() : null]) : null,
     finding ? spinner() : null,
     planList.length
       ? section(fallback ? t('othersPicks') : isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${past ? L(ENDED_PICKS) : t('picksOn')}`, el('div', { class: 'pick-list' }, planList.map((x, i) => pickCard(x, i))), { sub: fallback ? '' : t('recsN', { n: planList.length + more.length }) })

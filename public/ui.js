@@ -440,10 +440,10 @@ export function podium(e) {
     const zh = e.league === 'f1' ? f1Driver(x.name).zh : '';
     return String(en || !zh || zh === x.name ? x.short || x.name : zh).split(/[.\s]/).filter(Boolean).at(-1);
   };
-  return el('ol', { class: 'podium' }, top.map((x, i) => el('li', { class: `p${i + 1}` }, [
+  return el('ol', { class: 'top-three' }, top.map((x, i) => el('li', { class: `p${i + 1}` }, [
     el('span', { class: 'pos num', text: String(i + 1) }),
     personPic({ ...x, en: x.name }, e.league, 'xs round'),
-    el('span', { class: 'podium-name', text: nameOf(x) })
+    el('span', { class: 'top-three-name', text: nameOf(x) })
   ])));
 }
 export function fieldNow(e) {

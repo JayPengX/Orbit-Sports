@@ -260,6 +260,9 @@ export async function scoreboard(league, dates) {
   const list = [].concat(dates || []);
   // Scores on now: read again after 10 seconds (the proxy's live copy).
   const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
+  // Not one page read: a failure, never "no games" (a day saved without the
+  // league, or the league taken for out of season).
+  if (!pages.some(Boolean)) throw new Error(`${league}: unread`);
   const seen = new Set();
   return pages
     .filter(Boolean)
