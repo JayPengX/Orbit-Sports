@@ -823,6 +823,30 @@ export function parseRoster(data) {
 }
 // The squad: a soccer club's from its own league (`home`, the team's
 // defaultLeague: a cup's list can be last season's).
+// A team's players hurt now, from its roster: ESPN's game page leaves some
+// out (LeBron James, out for rest, missing from a game's list while his own
+// page says day-to-day). Read through the proxy, never the nightly copy
+// (`enable=injuries` keeps it off the mirror): injuries change on game day.
+export function parseRosterInjuries(data) {
+  return (data?.athletes || [])
+    .flatMap(x => (Array.isArray(x?.items) ? x.items : [x]))
+    .filter(a => a?.injuries?.length)
+    .map(a => ({ id: String(a.id ?? ''), headshot: freshHeadshot(a.headshot?.href) || null, name: a.displayName || a.fullName || '', status: a.injuries[0].status || a.injuries[0].type?.description || '', detail: '' }));
+}
+export async function teamInjuries(league, id) {
+  return parseRosterInjuries(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}/roster?enable=injuries`, { ttl: 10 * 60_000, trim: 'espn-roster' }));
+}
+// A game's injuries ([{ team, list }]) with each team's own (byTeam: { id:
+// list }) added: everyone on either, the game page's word first.
+export function mergeInjuries(injuries = [], byTeam = {}) {
+  const out = injuries.map(t => ({ ...t, list: [...t.list] }));
+  for (const [team, list] of Object.entries(byTeam)) {
+    let t = out.find(x => x.team === team);
+    if (!t) out.push((t = { team, list: [] }));
+    for (const x of list || []) if (!t.list.some(y => (x.id && y.id === x.id) || y.name === x.name)) t.list.push(x);
+  }
+  return out;
+}
 export async function roster(league, id, home = '') {
   const path = home && LEAGUES[league].espn.startsWith('soccer/') ? `soccer/${home}` : LEAGUES[league].espn;
   return parseRoster(await getJson(`${SITE}/${path}/teams/${encodeURIComponent(id)}/roster`, { ttl: 60 * 60_000 }));

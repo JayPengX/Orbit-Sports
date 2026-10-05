@@ -2,7 +2,7 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate } from '#kit/quadra.mjs';
-import { weekOf, scoreboard, splitWeekend, settleField, summary, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
+import { weekOf, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
@@ -57,6 +57,8 @@ export async function openMatch(e) {
   let view = 'overview';
   let data = null;
   let table = null;
+  // Each side's injuries from its roster (ESPN's game page leaves some out).
+  let hurt = {};
   const paintHeader = sm => {
     const home = sm?.home || e.home;
     const away = sm?.away || e.away;
@@ -121,7 +123,7 @@ export async function openMatch(e) {
     if (data?.rosters.some(r => r.players.length)) tabs.push(['lineups', T('lineups')]);
     if (table?.length || data?.table.length) tabs.push(['table', T('table')]);
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
-    put(content, matchSection(view, data, e, table));
+    put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table));
   };
   // The league's table: both sides' places, and the Table section.
   if (hasStandings(e.league))
@@ -142,6 +144,12 @@ export async function openMatch(e) {
     paint();
     return;
   }
+  // A game to come or on: who's out, from each team's roster too (soccer's rosters say nothing of it).
+  if (e.kind === 'match' && e.status.state !== 'post' && LEAGUES[e.league].sport !== 'soccer')
+    Promise.all([e.away, e.home].map(x => (x?.id ? teamInjuries(e.league, x.id).then(list => [x.id, list]).catch(() => null) : null))).then(got => {
+      hurt = Object.fromEntries(got.filter(Boolean));
+      if (Object.values(hurt).some(l => l.length)) paint();
+    });
   try {
     data = await summary(e.league, e.id);
     paintHeader(data);
@@ -470,7 +478,7 @@ function overview(d, e, table, nameOf) {
               .filter(i => i.list.length)
               // Away first, as everywhere in the sheet.
               .sort((x, y) => (x.team === e.home.id) - (y.team === e.home.id))
-              .map(i => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(i.team) }), el('ul', { class: 'inj-list' }, i.list.slice(0, 8).map(x => el('li', {}, [x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, x.id, { name: x.name, logo: x.headshot }) }, [personPic(x, e.league, 'xs round'), el('span', { text: x.name })]) : el('span', { text: x.name }), el('small', {}, [injuryText(x.status)])])))]))
+              .map(i => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(i.team) }), el('ul', { class: 'inj-list' }, i.list.slice(0, 12).map(x => el('li', {}, [x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, x.id, { name: x.name, logo: x.headshot }) }, [personPic(x, e.league, 'xs round'), el('span', { text: x.name })]) : el('span', { text: x.name }), el('small', {}, [injuryText(x.status)])])))]))
           )
         )
       : null,

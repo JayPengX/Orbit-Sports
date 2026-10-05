@@ -213,3 +213,18 @@ test("a team schedule's game takes the newest state read live, never an older on
   noteLatest([{ ...sched, status: { state: 'in' } }]);
   assert.equal(freshGame({ ...sched, status: { state: 'post' } }).status.state, 'post');
 });
+
+test("a game's injuries take in each team's roster: everyone out, never only the game page's list", async () => {
+  const { parseRosterInjuries, mergeInjuries } = await import('../public/lib/espn.mjs');
+  // The 76ers on 2026-10-05: the game page listed five, the roster eight (LeBron James, Joel Embiid, Tacko Fall too).
+  const roster = parseRosterInjuries(fx('nba-roster-injuries'));
+  assert.ok(roster.some(x => x.name === 'LeBron James' && x.status === 'Day-To-Day' && x.id === '1966'));
+  const game = [{ team: '20', list: [{ id: '4278053', name: 'Tyrese Maxey', status: 'Day-To-Day' }] }];
+  const merged = mergeInjuries(game, { 20: roster, 18: [] });
+  const phi = merged.find(t => t.team === '20');
+  assert.equal(phi.list[0].name, 'Tyrese Maxey');
+  assert.equal(phi.list.filter(x => x.name === 'Tyrese Maxey').length, 1);
+  assert.equal(phi.list.length, roster.length);
+  assert.ok(phi.list.some(x => x.name === 'LeBron James'));
+  assert.deepEqual(game[0].list.length, 1);
+});
