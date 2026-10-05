@@ -882,15 +882,29 @@ function sportChips() {
     filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => ((stripRange.held = false), pickFilter(k)) }))
   );
 }
+// A sport's days read (again): one with a league unread is read again (15
+// seconds on), keeping the days it had (a day never drops off the strip
+// because a league failed once).
+const needDays = sp => {
+  const had = state.home.sportDays.get(sp);
+  return !had || (had.failed && Date.now() - had.at > 15_000);
+};
+async function readSportDays(sp) {
+  const h = state.home;
+  const days = await sportDays(sp).catch(() => null);
+  if (!days) return null;
+  const old = h.sportDays.get(sp);
+  if (days.failed && old) for (const d of old) days.add(d);
+  days.at = Date.now();
+  if (days.size || !days.failed) h.sportDays.set(sp, days);
+  return days;
+}
 // The first day after today any followed sport plays on TV here.
 async function nextPickDay() {
   const h = state.home;
   const sets = await Promise.all(
     followedSports().map(async sp => {
-      if (!h.sportDays.has(sp) && tvReady()) {
-        const days = await sportDays(sp).catch(() => null);
-        if (days && (days.size || !days.failed)) h.sportDays.set(sp, days);
-      }
+      if (needDays(sp) && tvReady()) await readSportDays(sp);
       return h.sportDays.get(sp) || new Set();
     })
   );
@@ -905,12 +919,12 @@ async function pickFilter(k) {
   // The days are the ones on TV here: worked out once the TV lists are in
   // (they repaint, and pick again, when they come), and not kept when the
   // leagues couldn't be read.
-  if (!h.sportDays.has(k)) {
+  if (needDays(k)) {
     if (!tvReady()) return;
-    const days = await sportDays(k).catch(() => null);
+    const days = await readSportDays(k);
     if (!days) return;
-    if (days.size || !days.failed) h.sportDays.set(k, days);
-    else return void setTimeout(() => h.filter === k && pickFilter(k), 5000);
+    if (days.failed) setTimeout(() => h.filter === k && pickFilter(k), 16_000);
+    if (!h.sportDays.has(k)) return;
   }
   const days = h.sportDays.get(k);
   if (h.filter !== k) return;
