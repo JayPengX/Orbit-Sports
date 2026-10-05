@@ -767,20 +767,17 @@ function fillField(s, e) {
     let liveTimer = 0;
     const paint = () => {
       const ss = sessions[pick];
-      put(
-        box,
-        sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,
-        el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
-        ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField'))
-      );
       // F1, a session that's over: the official numbers. A race or sprint:
       // each car's team, time or retirement, points and places gained from
       // the grid; a qualifying (or the sprint's): each one's best lap, the
-      // gap to pole and the part the others went out in.
+      // gap to pole and the part the others went out in. Read once a
+      // session (a reopen draws them at once); while they come, rows in
+      // their shape (never ESPN's order first and the numbers jumping in).
       const at = pick;
       const weekend = e.weekend || e.id;
+      const key = `${weekend}:${ss.id}`;
       const numbers =
-        e.league !== 'f1' || ss.status.state !== 'post'
+        f1Numbers.has(key) || e.league !== 'f1' || ss.status.state !== 'post'
           ? null
           : ss.abbr === 'Race' || ss.abbr === 'SR'
             ? raceResult(ss.start, ss.abbr === 'SR', L() === 'en')
@@ -789,7 +786,26 @@ function fillField(s, e) {
               : ss.abbr === 'SS' || ss.abbr === 'SQ'
                 ? espnQualifying(weekend, ss.id, ss.field, 'SQ')
                 : null;
-      numbers?.then(rows => rows.length && at === pick && box.isConnected && box.querySelector('ol.field')?.replaceWith(f1Field(rows, ss.field))).catch(() => {});
+      const espnList = () => (ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField')));
+      const known = f1Numbers.get(key);
+      const shape = () => el('ol', { class: 'field f1-field waiting' }, Array.from({ length: Math.max(1, Math.min(ss.field.length || 10, 22)) }, () => el('li', { class: 'skel-row' }, [skeleton([70], 'skel-pos'), el('i', { class: 'skel skel-pic' }), skeleton([62, 40]), skeleton([90, 50], 'skel-right')])));
+      put(
+        box,
+        sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,
+        el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
+        known?.length ? f1Field(known, ss.field) : numbers ? shape() : espnList()
+      );
+      numbers
+        ?.catch(() => [])
+        .then(rows => {
+          if (rows.length) f1Numbers.set(key, rows);
+          if (at !== pick || !box.isConnected) return;
+          const waiting = box.querySelector('ol.field.waiting');
+          if (!waiting) return;
+          const done = rows.length ? f1Field(rows, ss.field) : espnList();
+          done.classList.add('fade-in');
+          waiting.replaceWith(done);
+        });
       // F1, a session on now: F1's own live timing, again every 5 seconds in place.
       clearInterval(liveTimer);
       if (e.league === 'f1' && ss.status.state === 'in') {
@@ -826,6 +842,9 @@ function fillField(s, e) {
   }
   s.body.append(twCard(e.league, e));
 }
+
+// A finished session's official numbers, once read (they don't change).
+const f1Numbers = new Map();
 
 // ---- A team -------------------------------------------------------------------------------
 
