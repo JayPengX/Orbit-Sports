@@ -1126,13 +1126,12 @@ function openScores(league, date, view = 'games') {
 const brackets = new Map();
 const hasBracket = k => LEAGUES[k]?.kind === 'match' && !LEAGUES[k].asia && Boolean(FORMATS[k]);
 const played = r => Number(r.stats?.GP ?? r.stats?.gamesPlayed ?? 0) || Number(r.stats?.W || 0) + Number(r.stats?.L || 0);
-// The playoffs so far: the game days back a week at a time from the next
-// ten, until a week without a playoff game (the regular season), not every
-// day of the last months (MLB's were 85 pages at each look).
-async function postseason(league) {
-  const cal = await seasonCalendar(league).catch(() => null);
-  const from = yyyymmdd(new Date(Date.now() - 80 * 86_400_000));
-  const days = (cal?.days || []).filter(d => d >= from && d <= yyyymmdd(new Date(Date.now() + 10 * 86_400_000))).reverse();
+// Playoff games read back a week of game days at a time from the latest of
+// `days`, until a week with none (the regular season): one small batch after
+// another, never a season's days at once (MLB's were 85 pages, the NBA's last
+// season 70, enough to hit the proxy's limit and fail every league after).
+// A week unread is a failure (thrown), never "the playoffs are over".
+async function playoffWeeks(league, days, ttl) {
   const today = yyyymmdd(new Date());
   const ms = d => Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6));
   const out = [];
@@ -1140,26 +1139,34 @@ async function postseason(league) {
     let j = i;
     while (j < days.length && ms(days[j]) > ms(days[i]) - 7 * 86_400_000) j++;
     const week = days.slice(i, (i = j));
-    const games = (await scoreboard(league, week)).filter(e => e.round);
+    const games = (await scoreboard(league, week, ttl)).filter(e => e.round);
     out.push(...games);
     if (!games.length && week[0] < today) break;
   }
   return out;
 }
-// Last season's playoff games: the end of its calendar (its last 70 game days).
+// The playoffs so far: from the next ten days back.
+async function postseason(league) {
+  const cal = await seasonCalendar(league);
+  const from = yyyymmdd(new Date(Date.now() - 80 * 86_400_000));
+  return playoffWeeks(league, (cal?.days || []).filter(d => d >= from && d <= yyyymmdd(new Date(Date.now() + 10 * 86_400_000))).reverse());
+}
+// Last season's playoffs: from the end of its calendar back (kept a month on the phone: it's over).
 async function lastSeason(league, info) {
   const start = Date.parse(info?.season?.start || '') || Date.now();
-  const prev = await seasonInfo(league, yyyymmdd(new Date(start - 3 * 86_400_000))).catch(() => null);
-  const days = (prev?.days || []).slice(-70);
-  const events = days.length ? (await scoreboard(league, days).catch(() => [])).filter(e => e.round) : [];
+  const prev = await seasonInfo(league, yyyymmdd(new Date(start - 3 * 86_400_000)));
+  const events = await playoffWeeks(league, (prev?.days || []).slice(-90).reverse(), 30 * 86_400_000);
+  // Every league here had playoffs: none found is a read gone wrong.
+  if (!events.length) throw new Error(`${league}: last playoffs unread`);
   return { mode: 'last', events, season: prev?.season?.name || '' };
 }
 async function playoffData(league) {
-  const info = await seasonInfo(league).catch(() => null);
+  // Unread is a failure (asked again soon), never taken for "no season".
+  const info = await seasonInfo(league);
   const season = info?.season || {};
   const stages = info?.stages || [];
   const table = async () => {
-    const groups = (await standings(league).catch(() => null)) || (await standings(league).catch(() => null));
+    const groups = await standings(league).catch(() => standings(league));
     return groups?.some(g => g.rows.some(r => played(r) > 0)) ? groups : null;
   };
   if (LEAGUES[league].cup) {
@@ -1184,13 +1191,18 @@ async function playoffData(league) {
   }
   return lastSeason(league, info);
 }
+// A read that failed is asked again after a minute (the kit holds a failure
+// that long), its last good model kept meanwhile; with none, the view says so.
 function loadBracket(league) {
   const had = brackets.get(league);
-  if (!hasBracket(league) || (had && (had.loading || Date.now() - had.at < 10 * 60_000))) return;
+  if (!hasBracket(league) || (had && (had.loading || Date.now() - had.at < (had.failed ? 61_000 : 10 * 60_000)))) return;
   brackets.set(league, { ...(had || {}), loading: true });
   playoffData(league)
     .then(d => brackets.set(league, { model: playoffModel({ league, ...d }), at: Date.now() }))
-    .catch(() => brackets.set(league, { model: had?.model || null, at: Date.now() }))
+    .catch(() => {
+      brackets.set(league, { model: had?.model || null, at: Date.now(), failed: true });
+      setTimeout(() => state.tab === 'matches' && state.scores.league === league && state.scores.view === 'bracket' && renderScores(), 61_500);
+    })
     .finally(() => state.tab === 'matches' && state.scores.league === league && renderScores());
 }
 // The playoffs as a map you swipe across: a column a round (its name, and
@@ -1273,6 +1285,8 @@ async function loadScores() {
     events = await fetchScores(sc);
   } catch {
     if (sc.loadingKey === key) sc.byDay = 'failed';
+    // Asked again once the kit stops holding the failure (a minute), if it's still in view.
+    setTimeout(() => state.scores === sc && sc.loadingKey === key && sc.byDay === 'failed' && loadScores(), 61_000);
   }
   if (sc.loadingKey !== key) return;
   sc.loading = false;
@@ -1538,9 +1552,10 @@ function renderScores() {
   const po = brackets.get(sc.league);
   const rounds = po?.model?.rounds || [];
   const reading = hasBracket(sc.league) && !po?.model;
+  const poFailed = reading && po?.failed && !po.loading;
   const knockView = sc.view === 'bracket' && hasBracket(sc.league) && (rounds.length > 0 || reading);
   const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
-  if (knockView) list = rounds.length ? playoffView(po.model, sc.league) : bracketShape();
+  if (knockView) list = rounds.length ? playoffView(po.model, sc.league) : poFailed ? empty(t('failed')) : bracketShape();
   else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
