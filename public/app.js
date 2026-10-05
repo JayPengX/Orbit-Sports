@@ -1436,7 +1436,8 @@ function scoresShell() {
     state.scores.q = input.value.trim();
     clear.hidden = !input.value;
     clearTimeout(timer);
-    timer = setTimeout(() => (state.scores.q ? runSearch(state.scores.q) : renderScores()), 280);
+    // Asked once typing pauses, not at every letter (each would be a read of its own).
+    timer = setTimeout(() => (state.scores.q ? runSearch(state.scores.q) : renderScores()), 450);
   };
   input.addEventListener('input', go);
   clear.addEventListener('click', () => {
@@ -1458,7 +1459,7 @@ function scoresShell() {
 // Search: leagues by name, then ESPN's teams and players (a Chinese query is
 // read in English first: "洋基" finds the Yankees).
 let searchSeq = 0;
-async function runSearch(query) {
+async function runSearch(query, again = false) {
   const box = scoresShell();
   const seq = ++searchSeq;
   const leagues = findLeagues(query);
@@ -1468,13 +1469,24 @@ async function runSearch(query) {
       leagues.length ? section(t('leagues'), el('div', { class: 'q-card list' }, leagues.slice(0, 8).map(k => el('button', { class: 'search-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k, 'lg-mark mid'), el('span', { text: leagueName(k, locale) }), el('small', { text: L(SPORTS[LEAGUES[k].sport]) })])))) : null,
       found?.teams.length ? section(t('teamsFound'), el('div', { class: 'q-card list' }, found.teams.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openTeam(x.league, x.id, x) }, [logo(x.logo, x.name, 'sm'), el('span', { text: localSide(x.league, { name: x.name }).name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
       found?.players.length ? section(t('playersFound'), el('div', { class: 'q-card list' }, found.players.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openPlayer(x.league, x.id) }, [personPic(x, x.league, 'sm round'), el('span', { text: x.name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
-      busy ? spinner() : !leagues.length && !found?.teams.length && !found?.players.length ? empty(t('noResults')) : null
+      busy
+        ? spinner()
+        : found?.failed
+          ? el('div', { class: 'empty' }, [el('p', { class: 'muted', text: t('searchFailed') }), el('button', { class: 'q-btn small', type: 'button', text: t('retry'), onclick: () => runSearch(query) })])
+          : !leagues.length && !found?.teams.length && !found?.players.length
+            ? empty(t('noResults'))
+            : null
     );
+  // One letter: leagues only (ESPN's search answers nothing for one).
+  if ([...query].length < 2) return paint({ teams: [], players: [] }, false);
   paint(null, true);
   let q = query;
   if (/[\u3400-\u9fff]/.test(query)) q = await translate(query, 'en', 'zh-TW').catch(() => query);
-  const found = await searchEspn(q).catch(() => ({ teams: [], players: [] }));
-  if (seq === searchSeq && state.scores.q === query) paint(found, false);
+  // A search that couldn't be read says so (never "nothing matches"), and is asked again once a little later.
+  const found = await searchEspn(q).catch(() => ({ teams: [], players: [], failed: true }));
+  if (seq !== searchSeq || state.scores.q !== query) return;
+  paint(found, false);
+  if (found.failed && !again) setTimeout(() => seq === searchSeq && state.scores.q === query && runSearch(query, true), 16_000);
 }
 
 // Sessions grouped back into their weekends (in the order given).
