@@ -724,9 +724,10 @@ function renderHome() {
     const fix = items => items.map(x => ({ ...x, event: real.get(`${x.event.league}:${x.event.id}`) || x.event }));
     return [fix(plan), fix(rest)];
   };
-  // Only what's on TV in Taiwan is recommended (賽事 has every game); a
-  // result is a result (ELTA's list doesn't reach far back).
-  const shown = e => !practice(e) && (e.status.state === 'post' || past || onTv(e));
+  // Only what's on TV in Taiwan is recommended (賽事 has every game), a game
+  // over too: a result is among the picks only if it was on. Only where it
+  // can't be known (before the days ELTA's list reaches) is any result kept.
+  const shown = e => !practice(e) && (onTv(e) || ((e.status.state === 'post' || past) && !tvKnown(e)));
   const mine = slot.events.filter(shown);
   let [planList, more] = rank(filtered(mine));
   // Nothing of theirs on: the best of the rest.
@@ -944,7 +945,7 @@ async function sportDays(sport) {
   const days = new Set();
   days.failed = failed;
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
-    if (e.status?.void || practice(e) || (e.status?.state !== 'post' && !onTv(e))) continue;
+    if (e.status?.void || practice(e) || !(onTv(e) || (e.status?.state === 'post' && !tvKnown(e)))) continue;
     const ms = Date.parse(e.start);
     const d = localDate(ms);
     if (inPickDay(ms, d) && d >= from && d <= to) days.add(d);

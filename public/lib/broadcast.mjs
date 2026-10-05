@@ -219,9 +219,13 @@ export function broadcastsFor(e, programs, { sides = [], others = [], prefer = '
     : [];
   // The best for the person first (their commentary, no ads).
   if (channels.length) return channels.sort((a, b) => channelRank(a, prefer) - channelRank(b, prefer) || a.ch - b.ch);
+  // NBA.com's word that ELTA has the game stands in for ELTA's own only where
+  // ELTA's list can't say (past its last day), or where ELTA's list has an NBA
+  // game then whose names it didn't match. Within the list, nothing then is nothing.
   if (e.league === 'nba') {
     const g = nbaEltaGame(nba?.games, e, nba?.ids);
-    return g ? [{ ...base[0], note: null, at: g.start, exact: true }] : [];
+    const near = g && programs?.some(p => p.league === 'nba' && Math.abs(p.start - g.start) <= 30 * 60_000);
+    return g && (!listed || near) ? [{ ...base[0], note: null, at: g.start, exact: true }] : [];
   }
   // Every session on ELTA (F1): this one too, its channel not yet named.
   if (base[0].every && e.kind !== 'match') return [{ ...base[0], exact: true }];

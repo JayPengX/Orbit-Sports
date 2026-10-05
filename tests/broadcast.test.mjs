@@ -221,3 +221,16 @@ test('CPBL and the NBA: only some games on ELTA, said so; a game in its list has
   for (const k of ['cpbl', 'nba']) assert.equal(broadcastsOf(k)[0].note.zh, '部分場次', k);
   assert.equal(broadcastsOf('mlb')[0].note, undefined);
 });
+
+test("within ELTA's list, NBA.com's word counts only when ELTA has an NBA game then", () => {
+  const games = nbaEltaGames(SYNTHETIC_NBA);
+  const bos = nba('8', '2026-11-20T00:10Z', 'Boston Celtics', 'Miami Heat');
+  const ids = { games, ids: { away: 1610612738, home: 1610612748 } };
+  const day = ms => ({ league: 'mlb', start: ms, end: ms + 3_600_000, ch: 101, title: 'x', teams: [], day: '2026-11-20' });
+  // ELTA's list covers the day and has no NBA game then: not on.
+  const covered = [day(Date.parse('2026-11-19T02:00Z')), day(Date.parse('2026-11-21T02:00Z'))];
+  assert.deepEqual(on(bos, covered, { nba: ids }), []);
+  // It has an NBA game then, written so the names didn't match: NBA.com's word settles it.
+  const withNba = [...covered, { ...day(Date.parse('2026-11-20T00:10Z')), league: 'nba', title: '綠衫軍 VS 熱火' }];
+  assert.equal(on(bos, withNba, { nba: ids })[0]?.svc, 'elta');
+});
