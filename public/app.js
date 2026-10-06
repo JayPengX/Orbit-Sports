@@ -25,8 +25,8 @@ import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList } from './lib/tv.mjs';
-import { ctx, el, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
-import { openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
+import { ctx, el, shownStart, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
+import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 
 // ---- What's on: leagues with games from two weeks back to two months on ---------------
@@ -585,7 +585,7 @@ function pickCard(item, n) {
   const series = seriesText(e);
   return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => openEvent(e) }, [
     el('div', { class: 'pick-time' }, [
-      el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : clock(e.start) }),
+      el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : clock(shownStart(e)) }),
       el('small', { text: e.status.state === 'in' ? statusText(e) : n === 0 ? t('firstUp') : '' })
     ]),
     el('div', { class: 'pick-body' }, [
@@ -1521,7 +1521,7 @@ function weekendCard(sessions) {
           list.map(x => {
             const kind = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' }[x.sessionKey] || 'other';
             return el('div', { class: `wk-row ${kind}${x.status.state === 'in' ? ' live' : ''}${x.status.state === 'post' ? ' done' : ''}`, onclick: ev => (ev.stopPropagation(), openEvent(x)) }, [
-              el('span', { class: 'wk-time num' }, [el('small', { text: dayLabel(localDate(Date.parse(x.start))) }), document.createTextNode(clock(x.start))]),
+              el('span', { class: 'wk-time num' }, [el('small', { text: dayLabel(localDate(Date.parse(x.start))) }), document.createTextNode(clock(shownStart(x)))]),
               el('span', { class: 'wk-name' }, [sessionTag(x)]),
               el('span', { class: `wk-state ${x.status.state}`, text: x.status.state === 'post' ? t('final') : x.status.state === 'in' ? t('live') : '' })
             ]);
@@ -1605,7 +1605,13 @@ function renderScores() {
     list = !events.length
       ? empty(t('noEvents'))
       : racing
-        ? el('div', {}, [wkNow.length ? wkBlock(t('liveNow'), wkNow) : null, wkNext.length ? wkBlock(t('upcomingEvents'), wkNext) : null, wkPast.length ? wkBlock(t('pastEvents'), wkPast) : null])
+        ? (() => {
+            // 接下來 or 已結束, one at a time (a season's every weekend in one
+            // list put the finished ones a long scroll down); the one on, in both.
+            const part = sc.racePart === 'past' && wkPast.length ? 'past' : wkNext.length ? 'next' : 'past';
+            const pick = wkNext.length && wkPast.length ? segmented([['next', t('upcomingEvents')], ['past', t('pastEvents')]], part, v => ((sc.racePart = v), renderScores()), 'views race-part') : null;
+            return el('div', {}, [wkNow.length ? wkBlock(t('liveNow'), wkNow) : null, pick, pick ? el('div', { class: 'wk-cards' }, (part === 'next' ? wkNext : wkPast).map(weekendCard)) : part === 'next' ? wkBlock(t('upcomingEvents'), wkNext) : wkBlock(t('pastEvents'), wkPast)]);
+          })()
         : el('div', {}, [
             current.length ? block(t('liveNow'), current) : null,
             next.length ? block(t('upcomingEvents'), next) : null,
@@ -1641,7 +1647,7 @@ function renderScores() {
     el('div', { class: 'lh-row' }, [
       leagueMark(sc.league, 'lg-mark big'),
       el('div', { class: 'lh-text' }, [el('strong', { text: leagueName(sc.league, locale) }), stage || liveN ? el('small', {}, [stage ? el('span', { class: 'stage-tag', text: stage }) : null, liveN ? el('span', { class: 'lh-live', text: `● ${t('liveN', { n: liveN })}` }) : null]) : null]),
-      el('button', { class: `q-chip small${mine.has(sc.league) ? ' on' : ''}`, type: 'button', text: mine.has(sc.league) ? t('following') : `+ ${t('followLeague')}`, onclick: () => (toggleLeague(sc.league), renderScores()) })
+      followButton(() => mine.has(sc.league), () => (toggleLeague(sc.league), renderScores()), t('followLeague'))
     ]),
     twChips(sc.league, 3)
   ]);

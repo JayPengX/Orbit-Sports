@@ -3,11 +3,11 @@
 // standings tables they share with the Standings tab.
 import { translate } from '#kit/quadra.mjs';
 import { splitName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
-import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment } from './lib/wpline.mjs';
-import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText } from './lib/moments.mjs';
+import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors } from './lib/wpline.mjs';
+import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
@@ -16,7 +16,7 @@ import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo } from './ui.js';
+import { ctx, el, shownStart, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -225,7 +225,7 @@ function livePanel(e, sm = null) {
         el(
           'ol',
           { class: 'lp-feed' },
-          last.map(p => el('li', { class: p.scoring ? 'scoring' : '' }, [el('span', { class: 'num play-when', text: p.clock }), playLine(e.league, p, nameOf(p.team)), p.scoring ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null]))
+          last.map(p => el('li', { class: p.scoring ? 'scoring' : '' }, [el('span', { class: 'num play-when', text: p.clock }), playLine(e.league, p, sm.byId[p.team] || nameOf(p.team)), p.scoring ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null]))
         )
       );
     }
@@ -270,17 +270,22 @@ function livePanel(e, sm = null) {
 // A count as dots: balls of 4, strikes and outs of 3.
 const dots = (n, of, cls) => el('span', { class: `lp-dots ${cls}` }, Array.from({ length: of }, (_, i) => el('i', { class: i < n ? 'on' : '' })));
 
+// One follow button everywhere (a game's sides, a team, a player, a
+// constructor, a league): the same small pill, filled until followed, then
+// quiet with a tick. `isOn()` says whether it's followed; `toggle()` flips it.
+export function followButton(isOn, toggle, label = T('follow')) {
+  const b = el('button', { class: 'follow-btn', type: 'button' });
+  const paint = () => {
+    const on = isOn();
+    b.textContent = on ? `✓ ${T('following')}` : `+ ${label}`;
+    b.classList.toggle('on', on);
+  };
+  b.addEventListener('click', ev => (ev.stopPropagation(), toggle(), paint()));
+  paint();
+  return b;
+}
 function followChip(league, side, after) {
-  const on = ctx.isFollowed(league, side.id);
-  return el('button', {
-    class: `q-chip small${on ? ' on' : ''}`,
-    type: 'button',
-    text: on ? T('following') : `+ ${T('follow')}`,
-    onclick: () => {
-      ctx.toggleFollow(league, side);
-      after();
-    }
-  });
+  return followButton(() => ctx.isFollowed(league, side.id), () => (ctx.toggleFollow(league, side), after()));
 }
 
 function linescore(sm, e) {
@@ -395,7 +400,7 @@ function matchSection(view, d, e, table, lw = {}) {
           el('li', { class: p.scoring ? 'scoring' : '' }, [
             // The period over the clock, a designed two lines in a narrow column.
             el('span', { class: 'play-when' }, [playPeriod(p, LEAGUES[e.league]?.sport, L()) ? el('small', { text: playPeriod(p, LEAGUES[e.league]?.sport, L()) }) : null, el('span', { class: 'num', text: p.clock })]),
-            playLine(e.league, p, nameOf(p.team)),
+            playLine(e.league, p, d.byId[p.team] || (p.team === e.home.id ? e.home : p.team === e.away.id ? e.away : nameOf(p.team))),
             p.home != null && p.away != null ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null
           ])
         )
@@ -594,7 +599,8 @@ function winChanceCard(odds, e) {
   return card(
     T('winChance'),
     el('div', { class: 'wp' }, [
-      el('div', { class: 'wp-labels' }, [el('span', { class: 'away', text: `${e.away.short || e.away.name} ${away}%` }), draw != null ? el('span', { class: 'draw', text: `${en ? 'Draw' : '和局'} ${draw}%` }) : null, el('span', { class: 'home', text: `${e.home.short || e.home.name} ${home}%` })]),
+      // Each side with its small logo beside its name and chance.
+      el('div', { class: 'wp-labels wc-labels' }, [el('span', { class: 'away' }, [logo(e.away.logo, e.away.name, 'xs'), document.createTextNode(`${e.away.short || e.away.name} ${away}%`)]), draw != null ? el('span', { class: 'draw', text: `${en ? 'Draw' : '和局'} ${draw}%` }) : null, el('span', { class: 'home' }, [document.createTextNode(`${e.home.short || e.home.name} ${home}%`), logo(e.home.logo, e.home.name, 'xs')])]),
       el('div', { class: 'wc-bar', 'aria-hidden': 'true' }, [el('span', { class: 'away', style: `flex:${away}` }), draw ? el('span', { class: 'draw', style: `flex:${draw}` }) : null, el('span', { class: 'home', style: `flex:${home}` })])
     ])
   );
@@ -609,7 +615,7 @@ function winChanceCard(odds, e) {
 // one (it snaps to it). A game on: the latest swing, just now. ESPN's, else
 // Polymarket's market on it (said under it).
 function winProbCard(line, e, timeline, events = []) {
-  const pts = line.points;
+  const pts = holdToEnd(line.points, timeline);
   const sport = LEAGUES[e.league]?.sport;
   const en = L() === 'en';
   const w = 320;
@@ -626,6 +632,14 @@ function winProbCard(line, e, timeline, events = []) {
   const marks = periodMarks(timeline, sport, pts, en);
   const grid = marks.filter(m => m.x > 0.01).map(m => `<line x1="${(m.x * w).toFixed(1)}" x2="${(m.x * w).toFixed(1)}" y1="0" y2="${h}" class="wp-grid"/>`).join('');
   const sideName = s => s.short || s.name;
+  // Each side in its own colour: the home side's chance above the middle in
+  // its colour, the away side's below in theirs (the app's colour, and a grey,
+  // where a team has none).
+  const tint = sideColors(e.home, e.away);
+  const homeC = tint.home || 'var(--accent)';
+  const awayC = tint.away || 'var(--q-text-2)';
+  const sideC = s => (s === 'home' ? homeC : awayC);
+  const uid = `wp${Math.random().toString(36).slice(2, 8)}`;
   const side = { home: { id: e.home.id, name: sideName(e.home) }, away: { id: e.away.id, name: sideName(e.away) }, en };
   const moments = (pts.every(p => p.n) ? playMoments(pts, sport, side) : eventMoments(pts, events, sport, side, pts.map(p => p.t))).filter(m => !isQuiet(m.i));
   // When it was: the period (a stretch, its periods), the clock in the last two minutes, the score after it.
@@ -638,6 +652,7 @@ function winProbCard(line, e, timeline, events = []) {
   };
   // Whose chance it lifted, and by how much.
   const gain = m => `${side[m.delta >= 0 ? 'home' : 'away'].name} +${Math.round(Math.abs(m.delta) * 100)}%`;
+  const gainChip = m => el('span', { class: `wp-gain ${m.side}`, style: `--side:${sideC(m.delta >= 0 ? 'home' : 'away')}`, text: gain(m) });
   // The key moment closest to a finger (within 2.5% of the chart), if any.
   const near = i => nearestMoment(moments, xs, i);
   // Away on the left, home on the right (as everywhere in the sheet), adding up to 100.
@@ -658,7 +673,7 @@ function winProbCard(line, e, timeline, events = []) {
   const face = m => (m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : el('span', { text: m.icon }));
   const tell = (m, label) => {
     why.hidden = !m;
-    if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, m.text]), el('span', { class: `wp-gain ${m.side}`, text: gain(m) }));
+    if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, m.text]), gainChip(m));
   };
   const show = (j, picked) => {
     // A moment picked from the list: that one; a finger close to one: on it.
@@ -687,15 +702,14 @@ function winProbCard(line, e, timeline, events = []) {
   const weight = m => (m.turned ? 1 : 0) + Math.abs(m.delta);
   const dotted = [];
   for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
-  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${(1 - up(pts[m.i])) * 100}%` }));
-  const plot = scrubPlot(xs, show, [
-    el('span', { class: 'wp-edge top', text: sideName(e.home) }),
-    el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${grid}<path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${quiet.length ? traded : path}" class="wp-line"/>${gaps ? `<path d="${gaps}" class="wp-gap"/>` : ''}</svg>` }),
-    el('span', { class: 'wp-edge bottom', text: sideName(e.away) }),
-    ...pins,
-    rule,
-    dot
-  ]);
+  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${(1 - up(pts[m.i])) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
+  // Above the middle the home side's colour, below it the away side's: the
+  // area and the line each cut at the middle (two clips of one shape).
+  const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true"><defs><clipPath id="${uid}t"><rect x="0" y="0" width="${w}" height="${h / 2}"/></clipPath><clipPath id="${uid}b"><rect x="0" y="${h / 2}" width="${w}" height="${h / 2}"/></clipPath></defs>${grid}<path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area" clip-path="url(#${uid}t)" style="fill:color-mix(in srgb, ${homeC} 30%, transparent)"/><path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area" clip-path="url(#${uid}b)" style="fill:color-mix(in srgb, ${awayC} 30%, transparent)"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${quiet.length ? traded : path}" class="wp-line" clip-path="url(#${uid}t)" style="stroke:${homeC}"/><path d="${quiet.length ? traded : path}" class="wp-line" clip-path="url(#${uid}b)" style="stroke:${awayC}"/>${gaps ? `<path d="${gaps}" class="wp-gap"/>` : ''}</svg>`;
+  const plot = scrubPlot(xs, show, [el('div', { html: svg }), ...pins, rule, dot]);
+  dot.style.background = 'var(--q-text)';
+  // Whose half is whose: each side's logo beside the chart (never over the line).
+  const frame = el('div', { class: 'wp-frame' }, [el('div', { class: 'wp-sides', 'aria-hidden': 'true' }, [sideLogo(e.home, e.league, 'xs'), sideLogo(e.away, e.league, 'xs')]), plot]);
   // The key moments, in the game's order: a tap puts the chart on that one (brought into view).
   const rows = moments.map(m =>
     // The face to the player's page, the rest to the chart.
@@ -703,7 +717,7 @@ function winProbCard(line, e, timeline, events = []) {
       el('span', { class: 'wp-mo-face' }, [face(m)]),
       el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [
         el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text', text: m.text })]),
-        el('span', { class: `wp-gain ${m.side}`, text: gain(m) })
+        gainChip(m)
       ])
     ])
   );
@@ -715,10 +729,10 @@ function winProbCard(line, e, timeline, events = []) {
       ])
     : null;
   const box = el('div', { class: 'wp' }, [
-    el('div', { class: 'wp-labels' }, [away, draw, home]),
+    el('div', { class: 'wp-labels wc-labels' }, [el('span', { class: 'away' }, [sideLogo(e.away, e.league, 'xs'), away]), draw, el('span', { class: 'home' }, [home, sideLogo(e.home, e.league, 'xs')])]),
     at,
-    plot,
-    axisRow(marks),
+    frame,
+    el('div', { class: 'wp-axis-in' }, [axisRow(marks)]),
     why,
     list
   ]);
@@ -782,7 +796,7 @@ function raceChanceCard(line, ss, feed = null) {
         el(
           'div',
           { class: 'rc-bars' },
-          line.drivers.map(d => el('div', { class: 'rc-bar' }, [el('span', { class: 'rc-name', text: driverShort(d.name, en) }), el('span', { class: 'rc-track' }, [el('i', { style: `width:${Math.max(2, d.chance * 100)}%;background:${f1Driver(d.name).color}` })]), el('strong', { class: 'num', text: `${Math.round(d.chance * 100)}%` })]))
+          line.drivers.map(d => el('div', { class: 'rc-bar' }, [el('span', { class: 'rc-name' }, [personPic({ name: d.name }, 'f1', 'xs round'), el('span', { text: driverShort(d.name, en) })]), el('span', { class: 'rc-track' }, [el('i', { style: `width:${Math.max(2, d.chance * 100)}%;background:${f1Driver(d.name).color}` })]), el('strong', { class: 'num', text: `${Math.round(d.chance * 100)}%` })]))
         )
       ])
     );
@@ -813,7 +827,7 @@ function raceChanceCard(line, ss, feed = null) {
     const mate = teams.has(team || name);
     teams.add(team || name);
     const who = fieldDriver(ss.field, name);
-    return el(who?.id ? 'button' : 'span', { class: `rc-chip${mate ? ' mate' : ''}`, type: who?.id ? 'button' : null, onclick: who?.id ? () => ctx.openPlayer('f1', who.id, who) : null }, [el('i', { style: mate ? `border-color:${color}` : `background:${color}` }), el('span', { text: driverShort(name, en) }), el('strong', { class: 'num' })]);
+    return el(who?.id ? 'button' : 'span', { class: `rc-chip${mate ? ' mate' : ''}`, type: who?.id ? 'button' : null, onclick: who?.id ? () => ctx.openPlayer('f1', who.id, who) : null }, [el('i', { class: 'rc-face', style: `--team:${color}` }, [personPic(who || { name }, 'f1', 'xs round')]), el('span', { text: driverShort(name, en) }), el('strong', { class: 'num' })]);
   });
   // What turned it: the safety car (the race's kept turns, or a race on, the live feed's), stops, leads.
   const last = pts.length - 1;
@@ -913,13 +927,16 @@ function personName(league, p, cls = 'field-name') {
   return can ? el('button', { class: `link ${cls}`, type: 'button', text: p.name, onclick: () => ctx.openPlayer(league, p.id, p) }) : el('span', { class: cls, text: p.name });
 }
 // A play in 過程 (and the live panel's latest): the player's face (a tap
-// opens them), the team, then what happened in Chinese (lib/moments.mjs's
-// feedText; English: ESPN's words).
-function playLine(league, p, team) {
-  const text = feedText(LEAGUES[league]?.sport, p, L() === 'en', team);
-  const lead = team && !text.startsWith(team) ? el('b', { text: `${team} ` }) : null;
-  const face = p.pic ? personTap(league, p.pic, personPic(p.pic, league, 'xs round')) : null;
-  return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face, el('span', {}, [lead, document.createTextNode(text)])]);
+// opens them), or the team's logo for a team's play; what happened in
+// Chinese on one line (lib/moments.mjs's feedText; English: ESPN's words),
+// and under it, small, the team and who helped (an assist, a steal), so no
+// line wraps. `side`: the team ({ name, short, logo }) or its name.
+function playLine(league, p, side) {
+  const team = typeof side === 'string' ? side : side?.short || side?.name || '';
+  const { main, sub } = playParts(feedText(LEAGUES[league]?.sport, p, L() === 'en', team), team);
+  const face = p.pic ? personTap(league, p.pic, personPic(p.pic, league, 'xs round')) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
+  // A play with neither (the period's end): its words in the same column as the rest.
+  return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null])]);
 }
 
 // Where to watch in Taiwan: a game's own channels (a schedule's: the
@@ -982,7 +999,7 @@ function weekendTimeline(sessions, league) {
             const kind = SESSION_KIND[x.abbr] || 'other';
             const state = x.status.state;
             return el('div', { class: `wk-row ${kind}${state === 'in' ? ' live' : ''}${x === next ? ' next' : ''}${state === 'post' ? ' done' : ''}` }, [
-              el('span', { class: 'wk-time num', text: clock(titlesAt(league, x.abbr, x.start)) }),
+              el('span', { class: 'wk-time num', text: clock(x.start) }),
               el('span', { class: 'wk-name' }, [el('span', { class: `sess-tag ${kind}`, text: sessionName(x, L()) })]),
               el('span', { class: `wk-state ${state}`, text: state === 'post' ? T('final') : state === 'in' ? T('live') : x === next ? (L() === 'en' ? 'Next' : '下一場') : '' })
             ]);
@@ -1145,7 +1162,10 @@ function f1LiveBoard(b, ss) {
   return el('div', { class: 'live-board' }, [head, msg, el('ol', { class: 'field f1-field lb-rows' }, rows)]);
 }
 function fillField(s, e) {
-  s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), el('p', { class: 'muted', text: [e.venue, whenText(e.start), e.official && e.official !== e.start ? (L() === 'en' ? `titles; starts ${clock(e.official)}` : `片頭・${clock(e.official)} 開始`) : ''].filter(Boolean).join(' · ') }), watchButton(e, 'wide')]));
+  s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), // The place, then the day and the official start: two designed lines (the
+      // titles' time isn't said: the broadcast card says when the channel's on air).
+      el('p', { class: 'muted sess-where', text: e.venue || '' }),
+      el('p', { class: 'muted sess-when', text: whenText(shownStart(e)) }), watchButton(e, 'wide')]));
   const yt = highlights(e);
   if (yt) s.body.append(yt);
   if (e.kind === 'field') {
@@ -1298,14 +1318,7 @@ export async function openTeam(league, id, fallback = {}) {
     const past = played.slice(-10).reverse();
     const upcoming = sched.filter(x => x.status.state !== 'post' && !x.status.void && Date.parse(x.start) > now - 4 * 3_600_000);
     const side = { id: info.id, name: info.name, en: info.en, logo: info.logo };
-    const followBtn = el('button', { class: 'q-chip small follow-pill', type: 'button' });
-    const paintFollow = () => {
-      const on = ctx.isFollowed(league, id);
-      followBtn.textContent = on ? T('following') : `+ ${T('follow')}`;
-      followBtn.classList.toggle('on', on);
-    };
-    followBtn.addEventListener('click', () => (ctx.toggleFollow(league, side), paintFollow()));
-    paintFollow();
+    const followBtn = followButton(() => ctx.isFollowed(league, id), () => ctx.toggleFollow(league, side));
     const place = placeOf(groups, id);
     // A club in several competitions: each game says which.
     const comps = new Set(sched.map(x => x.other || x.league)).size > 1;
@@ -1655,15 +1668,8 @@ export async function openPlayer(league, id, fallback = {}) {
       : null;
     const nextRace = (races || []).find(e => e.status.state !== 'post' && Date.parse(e.end || e.start) > Date.now() - 86_400_000);
     // A player in any league; a team sport's with their team, whose games are theirs.
-    const followBtn = el('button', { class: 'q-btn', type: 'button' });
-    const paintFollow = () => {
-      const on = ctx.isFollowed(league, id);
-      followBtn.textContent = on ? T('following') : `+ ${T('follow')}`;
-      followBtn.classList.toggle('primary', !on);
-    };
-    const team = !individual(league) && a.teamId ? { id: String(a.teamId), name: a.team || '' } : null;
-    followBtn.addEventListener('click', () => (ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true, ...(team ? { team } : {}) }), paintFollow()));
-    paintFollow();
+        const team = !individual(league) && a.teamId ? { id: String(a.teamId), name: a.team || '' } : null;
+    const followBtn = followButton(() => ctx.isFollowed(league, id), () => ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true, ...(team ? { team } : {}) }));
     const sub = [zhLater(a.position), (driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team) || countryName(a.country, L())].filter(Boolean);
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : a.teamColor;
@@ -1826,14 +1832,7 @@ export async function openConstructor(row) {
     const gap = lead && lead !== me ? Number(lead.stats?.PTS) - Number(pts) : 0;
     // Followed by the kit's name (ESPN's constructor ids aren't kept anywhere else).
     const side = { id: `f1team:${c.name}`, name: c.name, en: c.name, f1team: true };
-    const followBtn = el('button', { class: 'q-btn small', type: 'button' });
-    const paintFollow = () => {
-      const on = ctx.isFollowed(league, side.id);
-      followBtn.textContent = on ? T('following') : `+ ${T('follow')}`;
-      followBtn.classList.toggle('primary', !on);
-    };
-    paintFollow();
-    followBtn.addEventListener('click', () => (ctx.toggleFollow(league, side), paintFollow()));
+    const followBtn = followButton(() => ctx.isFollowed(league, side.id), () => ctx.toggleFollow(league, side));
     put(
       content,
       el('div', { class: 'team-head player-hero tinted', style: `--hero:${c.color}` }, [

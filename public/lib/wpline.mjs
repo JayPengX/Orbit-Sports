@@ -36,6 +36,31 @@ export function gameTime(timeline = []) {
   };
 }
 
+// A market's line that stopped before the final whistle (no one trades a
+// game that's decided: Arsenal 3–0 up, its last price at 49'): its last
+// price held to the end, so the chart spans the whole game and the second
+// half isn't squeezed into its last few pixels.
+export function holdToEnd(points, timeline = []) {
+  if (byPlay(points) || !byTime(points)) return points;
+  const end = timeline.find(e => END.has(e.type))?.t;
+  return end != null && end > points.at(-1).t + 60 ? [...points, { ...points.at(-1), t: end, held: true }] : points;
+}
+
+// Each side's colour on the chart: its own, else its second when the two
+// are too alike to tell apart (two reds) or it would vanish (near black or
+// white). Colours as '#rrggbb'; null where a side has none.
+const rgb = c => (/^#?[0-9a-f]{6}$/i.test(c || '') ? [0, 2, 4].map(i => parseInt(c.replace('#', '').slice(i, i + 2), 16)) : null);
+const lum = ([r, g, b]) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+const apart = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const usable = c => rgb(c) && lum(rgb(c)) > 0.07 && lum(rgb(c)) < 0.93;
+export function sideColors(home, away) {
+  const pick = s => [s?.color, s?.alt].find(usable) || null;
+  const h = pick(home);
+  let a = pick(away);
+  if (h && a && apart(rgb(h), rgb(a)) < 90) a = [away?.alt, away?.color].find(c => usable(c) && apart(rgb(c), rgb(h)) >= 90) || null;
+  return { home: h, away: a };
+}
+
 export function lineXs(points, timeline = []) {
   if (!byPlay(points) && byTime(points)) {
     const g = gameTime(timeline);

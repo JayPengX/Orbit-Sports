@@ -209,7 +209,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .sb-track i.home { background: var(--accent); }
 
 .plays { list-style: none; margin: 0; padding: 0; background: var(--q-surface); border: 1px solid var(--q-border); border-radius: var(--q-radius); }
-.plays li { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; padding: 9px 14px; font-size: 13.5px; border-top: 1px solid var(--q-divider, var(--q-border)); }
+.plays li { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 14px; font-size: 13.5px; border-top: 1px solid var(--q-divider, var(--q-border)); }
 .plays li:first-child { border-top: 0; }
 .plays li.scoring { background: var(--accent-wash); }
 .plays li.scoring .play-text { font-weight: 650; }
@@ -269,7 +269,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .team-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; margin: 4px 0 12px; }
 .team-head h3 { font-size: 20px; font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .team-head p { font-size: 13.5px; margin-top: 3px; }
-@media (max-width: 420px) { .team-head { grid-template-columns: auto minmax(0, 1fr); } .team-head .q-btn { grid-column: 1 / -1; } }
+/* The follow button stays a small pill at the top right on a phone too (it was a full-width bar under the name). */
+.team-head > .follow-btn, .team-hero > .follow-btn { align-self: start; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
 .stat-tile { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: var(--q-sunken); min-width: 0; }
 .stat-tile small { font-size: 11.5px; color: var(--q-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -452,7 +453,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .rc-chart { height: 110px; }
 .rc-line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .rc-bars { display: grid; gap: 7px; margin: 4px 0 6px; }
-.rc-bar { display: grid; grid-template-columns: 5.5em 1fr 3em; align-items: center; gap: 8px; font-size: 13px; }
+.rc-bar { display: grid; grid-template-columns: 7.4em 1fr 3em; align-items: center; gap: 8px; font-size: 13px; }
 .rc-name { font-weight: 700; color: var(--q-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rc-track { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--q-border) 60%, transparent); overflow: hidden; }
 .rc-track i { display: block; height: 100%; border-radius: 4px; }
@@ -517,8 +518,17 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .play-text b { font-weight: 750; }
 /* A line that wraps breaks between words, never inside one (命|中). */
 .plays .play-text, .lp-feed .play-text { word-break: keep-all; overflow-wrap: anywhere; }
-.play-text.has-face { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.play-text.has-face > :last-child { min-width: 0; }
+/* The face (or the team's logo) never squeezed by the words beside it; the
+   play on one line, the team and who helped small beneath. */
+.play-text { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.play-text > .wp-who, .play-text > .logo, .play-text > .logo-wrap, .play-text > .play-none { flex: none; }
+.plays .play-text .logo, .plays .play-text > .play-none { width: 30px; height: 30px; vertical-align: 0; }
+.lp-feed .play-text .logo, .lp-feed .play-text > .play-none { width: 22px; height: 22px; vertical-align: 0; }
+.play-text .logo-wrap { display: inline-flex; }
+.play-text .logo.play-team { object-fit: contain; border-radius: 0; background: none; }
+.play-words { display: grid; gap: 1px; min-width: 0; }
+.play-main { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.play-sub { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11.5px; font-weight: 600; color: var(--q-muted); }
 .event-status.two { display: grid; gap: 1px; line-height: 1.25; }
 .event-status.two span { font-size: 11.5px; color: var(--q-muted); font-weight: 650; }
 .event-status.two b { font-size: 13.5px; }
@@ -907,7 +917,6 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .team-hero-text small { font-size: 12.5px; }
 .team-hero-sub { font-size: 13.5px; color: var(--q-text-2); margin-top: 2px; }
 .team-hero .hero-form { margin-top: 6px; }
-.follow-pill { align-self: start; }
 .team-strip { display: flex; margin: 0 0 14px; border-radius: 16px; background: var(--q-surface); border: 1px solid var(--q-border); overflow: hidden; }
 .ts-cell { flex: 1; min-width: 0; display: grid; justify-items: center; gap: 2px; padding: 10px 4px; border-left: 1px solid var(--q-divider, var(--q-border)); }
 .ts-cell:first-child { border-left: 0; }
@@ -981,7 +990,7 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .live-panel .lp-bb .lp-line { font-size: 12px; font-weight: 650; color: var(--q-text-2); white-space: nowrap; overflow-wrap: normal; }
 .lp-feed-h { font-size: 11px; color: var(--q-muted); font-weight: 700; }
 .lp-feed { list-style: none; margin: -4px 0 0; padding: 0; display: grid; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--q-text-2); }
-.lp-feed li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+.lp-feed li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .lp-feed li .play-when { color: var(--q-muted); font-weight: 650; }
 .lp-feed li b { color: var(--q-text); font-weight: 700; }
 .lp-feed li strong { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--accent-wash); color: var(--accent); }
@@ -1140,3 +1149,35 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .tie-game .event-row { border-top: 0; }
 .tie-gn { display: block; padding: 9px 14px 0; font-size: 12px; font-weight: 650; color: var(--q-muted); }
 .wp-mo.on { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 8px; }
+
+/* An F1 session's card: the circuit, then the day and start with the titles' time, one line each. */
+.sess-where, .sess-when { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sess-where:empty { display: none; }
+.sess-when { margin-bottom: 4px; }
+/* 勝率預測 to come: each side's logo by its name; each driver's face by theirs. */
+.wc-labels span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.wc-labels .logo.xs { width: 20px; height: 20px; flex: none; vertical-align: 0; }
+.rc-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.rc-name > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rc-name .logo { width: 24px; height: 24px; flex: none; vertical-align: 0; font-size: 9.5px; }
+.race-part { margin: 4px 0 12px; }
+/* The one follow button (sheets.js followButton): a small pill, the app's
+   colour until followed, then quiet with a tick; the same on every page. */
+.follow-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font: inherit; font-size: 13.5px; font-weight: 750; white-space: nowrap; cursor: pointer; }
+.follow-btn.on { background: var(--accent-wash); color: var(--accent); }
+.mh-side .follow-btn { margin-top: 4px; }
+/* 勝率走勢: each side's logo in a column beside the chart (home at the top,
+   away at the bottom, as the halves are coloured), the marks under it lined up. */
+.wp-frame { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; margin-top: 6px; }
+.wp-frame .wp-plot { margin-top: 0; }
+.wp-sides { display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 2px 0; }
+.wp-sides .logo, .wc-labels .logo { width: 20px; height: 20px; flex: none; vertical-align: 0; object-fit: contain; }
+.wp-axis-in { margin-left: 30px; }
+.wp-gain { --side: var(--q-text-2); color: var(--side); background: color-mix(in srgb, var(--side) 16%, transparent); }
+.wp-gain.home, .wp-gain.away { color: var(--side); background: color-mix(in srgb, var(--side) 16%, transparent); }
+.wp-line { stroke-width: 2.4; }
+/* The F1 chart's drivers: each face in a ring of their team's colour (a teammate's dashed, as their line). */
+.rc-chips { gap: 6px 12px; }
+.rc-chip i.rc-face { display: inline-grid; width: 24px; height: 24px; border-radius: 50%; background: none; box-sizing: border-box; border: 2px solid var(--team); padding: 1px; }
+.rc-chip.mate i.rc-face { width: 24px; height: 24px; border: 2px dashed var(--team); }
+.rc-chip i.rc-face .logo { width: 100%; height: 100%; vertical-align: 0; font-size: 8px; }

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseSummary } from '../public/lib/espn.mjs';
-import { lineXs, periodMarks, stampAt, pointStamp, periodName } from '../public/lib/wpline.mjs';
+import { lineXs, periodMarks, stampAt, pointStamp, periodName, holdToEnd, sideColors } from '../public/lib/wpline.mjs';
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 
@@ -117,4 +117,36 @@ test('a finger snaps to the closest key moment, not the first one near it', asyn
   assert.equal(nearestMoment(moments, xs, 3).i, 3);
   assert.equal(nearestMoment(moments, xs, 5).i, 4);
   assert.equal(nearestMoment(moments, xs, 1), null);
+});
+
+test("a market that stopped trading early (Coventry 0–3 Arsenal, its last price at 49'): held to the whistle, so 下半 sits near the middle", () => {
+  const k = 1787338812;
+  const timeline = [
+    { t: k, n: 1, type: 'kickoff' },
+    { t: k + 1600, n: 1, type: 'goal' },
+    { t: k + 47 * 60 + 13, n: 1, type: 'halftime' },
+    { t: k + 62 * 60 + 16, n: 2, type: 'start-2nd-half' },
+    { t: k + 65 * 60 + 36, n: 2, type: 'goal' },
+    { t: k + 111 * 60 + 57, n: 2, type: 'end-regular-time' }
+  ];
+  const points = Array.from({ length: 30 }, (_, i) => ({ t: k + 5 + i * 136, home: 0.6 + i / 100 }));
+  const before = periodMarks(timeline, 'soccer', points, false).find(m => m.label === '下半').x;
+  const held = holdToEnd(points, timeline);
+  assert.equal(held.length, points.length + 1);
+  assert.equal(held.at(-1).home, points.at(-1).home);
+  const after = periodMarks(timeline, 'soccer', held, false).find(m => m.label === '下半').x;
+  assert.ok(before > 0.9, `before: ${before}`);
+  assert.ok(after > 0.4 && after < 0.6, `after: ${after}`);
+  // A line by plays (ESPN's) is left as it is.
+  const plays = [{ n: 1, home: 0.5 }, { n: 2, home: 0.6 }];
+  assert.equal(holdToEnd(plays, timeline), plays);
+});
+
+test("each side in its colour; the away side's second colour when the two are alike, none when it would vanish", () => {
+  assert.deepEqual(sideColors({ color: '#ef0107' }, { color: '#6cabdd' }), { home: '#ef0107', away: '#6cabdd' });
+  // Arsenal against Liverpool: two reds, so Liverpool's second.
+  assert.deepEqual(sideColors({ color: '#ef0107', alt: '#ffffff' }, { color: '#d00027', alt: '#00b2a9' }), { home: '#ef0107', away: '#00b2a9' });
+  // Black (Newcastle's) is its second colour; with none usable, null (the app's colour stands in).
+  assert.equal(sideColors({ color: '#000000', alt: '#41b6e6' }, {}).home, '#41b6e6');
+  assert.equal(sideColors({ color: '#000000' }, {}).home, null);
 });

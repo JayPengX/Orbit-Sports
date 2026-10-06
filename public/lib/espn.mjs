@@ -13,7 +13,7 @@
 import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
-import { polymarketLine, polymarketNow, monthPath, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
+import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox } from './mlb.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
@@ -83,6 +83,7 @@ function parseSide(c) {
     abbr: who.abbreviation || (who.shortName || '').slice(0, 3).toUpperCase(),
     logo: logoOf(team) || athlete.flag?.href || freshHeadshot(athlete.headshot?.href) || null,
     color: team.color ? `#${team.color}` : null,
+    alt: team.alternateColor ? `#${team.alternateColor}` : null,
     score: c.score?.displayValue ?? (typeof c.score === 'string' || typeof c.score === 'number' ? String(c.score) : ''),
     winner: Boolean(c.winner),
     record: record || '',
@@ -164,10 +165,12 @@ export const SESSION_NAMES = {
 const MAIN_SESSIONS = ['FP1', 'FP2', 'FP3', 'SS', 'SQ', 'SR', 'Qual', 'Race'];
 // F1 on TV here (ELTA, from Sky's coverage of F1's international feed)
 // opens with the title sequence, F1's theme, a few minutes before the
-// session's official time: the time shown is the titles', so they're never
-// missed. Minutes before; estimates (F1 publishes none: the race's come after
+// session's official time. Schedules show the official time (what every
+// schedule says, 16:30 not 16:26); reminders use the titles' time (`at`),
+// so they're never missed, without a second time on screen. The race's
+// titles follow the anthem about 5 minutes before (the owner's watching). Minutes before; estimates (F1 publishes none: the race's come after
 // the anthem, the others just before the session), tuned here.
-export const TITLES_BEFORE = { Race: 10, SR: 5, Qual: 4, SS: 4, SQ: 4, FP1: 4, FP2: 4, FP3: 4 };
+export const TITLES_BEFORE = { Race: 5, SR: 5, Qual: 4, SS: 4, SQ: 4, FP1: 4, FP2: 4, FP3: 4 };
 export const titlesAt = (league, abbr, start) => (league === 'f1' && TITLES_BEFORE[abbr] && start ? new Date(Date.parse(start) - TITLES_BEFORE[abbr] * 60_000).toISOString().replace(':00.000Z', 'Z') : start);
 export const sessionName = (x, lang = 'zh', short = false) => {
   const n = SESSION_NAMES[x?.abbr];
@@ -185,7 +188,7 @@ export function splitWeekend(e, now = Date.now(), lang = 'zh') {
     const done = Date.parse(x.start) + SESSION_MS < now;
     const status = done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true } : x.status;
     const shown = titlesAt(e.league, x.abbr, x.start);
-    return { ...e, id: `${e.id}~${x.abbr}`, weekend: e.id, start: shown, at: shown, official: x.start, end: null, session: sessionName(x, lang), sessionKey: x.abbr, status };
+    return { ...e, id: `${e.id}~${x.abbr}`, weekend: e.id, start: shown, at: shown, official: x.start, titles: shown, end: null, session: sessionName(x, lang), sessionKey: x.abbr, status };
   });
 }
 
@@ -759,7 +762,7 @@ export async function winNow(e) {
 export async function winLine(e) {
   if (!PM_LEAGUE[e.league] || e.kind !== 'match' || (e.status.state !== 'in' && e.status.state !== 'post')) return null;
   if (e.status.state === 'post' && kit.packJson) {
-    const month = await kit.packJson(monthPath(e.league, e.start), { ttl: 6 * 3_600_000 }).catch(() => null);
+    const month = await kit.packJson(monthPack(e.league, e.start), { ttl: 6 * 3_600_000 }).catch(() => null);
     const kept = month?.games?.[gameKey(e.league, e)];
     if (kept?.none) return null;
     if (kept) return unpackLine(kept);
@@ -777,7 +780,7 @@ export async function raceWinLine(ss) {
   const state = ss.status.state;
   if (state === 'pre') return raceNow(ss.start, (url, { trim = '', kind }) => getJson(url, { trim, ttl: PM_TTL[kind] ?? 5 * 60_000 }));
   if (state === 'post' && kit.packJson) {
-    const month = await kit.packJson(monthPath('f1', ss.start), { ttl: 6 * 3_600_000 }).catch(() => null);
+    const month = await kit.packJson(monthPack('f1', ss.start), { ttl: 6 * 3_600_000 }).catch(() => null);
     const kept = month?.games?.[raceKey(ss.start)];
     if (kept?.none) return null;
     if (kept) return unpackRace(kept);

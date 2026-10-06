@@ -133,6 +133,13 @@ export function mergeHistories(series) {
 export const PM_PACK = 'winprob';
 export const gameKey = (league, { id, start, home }) => (league === 'cpbl' ? `${new Date(start).toISOString().slice(0, 10)}-${plain(home?.en || home?.name).split(' ').at(-1)}` : String(id));
 export const monthPath = (league, start) => `${PM_PACK}/${league}/${new Date(start).toISOString().slice(0, 7)}.json`;
+// What the app asks for: the month's file with the version of its meaning.
+// When the lines' meaning changes (Shared-Data's LINE: F1 lines read again,
+// a race once marked { none } drawn), this goes up, so a phone's kept copy
+// (the kit keeps a pack 6 hours and opens on it) is asked afresh on the
+// app's next open instead of being waited out.
+export const PACK_V = 2;
+export const monthPack = (league, start) => `${monthPath(league, start)}?v=${PACK_V}`;
 // A line as kept (a fifth of its size) and back.
 export function packLine(line) {
   const t0 = line.points[0].t;

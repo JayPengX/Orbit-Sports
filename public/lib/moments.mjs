@@ -457,3 +457,13 @@ export function feedText(sport, play, en, team = '') {
   // A scoring play's runs (a list of the scoring plays doesn't mark them scoring).
   return playText(sport, { ...play, scoring: play.scoring || play.value > 0 }, false, team);
 }
+
+// A play's words split for its row: the play itself (one line) and, small
+// beneath, the team (unless the play already starts with it) and who helped
+// (an assist, a steal, said in brackets).
+export function playParts(text, team) {
+  const aside = /^(.*?)\s*[（(]([^（）()]+)[）)]$/.exec(text);
+  const main = aside ? aside[1] : text;
+  const own = Boolean(team) && main.startsWith(team);
+  return { main, sub: [own ? '' : team, aside?.[2] || ''].filter(Boolean).join(' · ') };
+}

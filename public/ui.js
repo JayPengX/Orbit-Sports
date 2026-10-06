@@ -203,7 +203,7 @@ export function statusText(e) {
     return label;
   }
   if (s.state === 'post') return s.short && !/^final$/i.test(s.short) ? finalText(s.short) : t('final');
-  return whenText(e.start);
+  return whenText(shownStart(e));
 }
 // A finished game's ESPN status in Chinese: "Final/OT" 終場（延長）, "Final/10"
 // 終場（10 局）, "FT", "AET", "FT-Pens"…; anything else as ESPN wrote it.
@@ -237,10 +237,13 @@ function fieldStatus(text) {
     .replace(/\bLap (\d+)\s*\/\s*(\d+)/i, '第$1/$2圈')
     .replace(/\bLap (\d+)/i, '第$1圈');
 }
+// The time a schedule shows: an F1 session's official start (its `start`
+// is when the titles come, a few minutes before).
+export const shownStart = e => e?.official || e?.start;
 // A row's status: a game on another day shows its day above its time.
 function statusEl(e, day = true) {
   if (e.status.state === 'pre' && !e.status.void && localDate(Date.parse(e.start)) !== today())
-    return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: clock(e.start) })]) : el('span', { class: 'event-status pre', text: clock(e.start) });
+    return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: clock(shownStart(e)) })]) : el('span', { class: 'event-status pre', text: clock(shownStart(e)) });
   return el('span', { class: `event-status ${e.status.state}`, text: statusText(e) });
 }
 // A side's picture: a person's photo (a driver), a team's badge.

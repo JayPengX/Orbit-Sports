@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nameScore, findMarket, mergeHistories, polymarketLine, gameKey, monthPath, packLine, unpackLine, historyUrl } from '../public/lib/winprob.mjs';
+import { nameScore, findMarket, mergeHistories, polymarketLine, gameKey, monthPath, monthPack, PACK_V, packLine, unpackLine, historyUrl } from '../public/lib/winprob.mjs';
 
 const events = [
   { slug: 'mlb-nyy-tb-2026-10-05', startTime: '2026-10-06T00:00:00Z', series: '3', markets: [{ outcomes: '["New York Yankees", "Tampa Bay Rays"]', clobTokenIds: '["Y", "R"]' }] },
@@ -65,6 +65,9 @@ test('no market, no line; a league Polymarket lacks, nothing asked', async () =>
 
 test("a finished game's kept line: in its month's file, a fifth the size, the same line back", async () => {
   assert.equal(monthPath('epl', '2026-01-01T17:30Z'), 'winprob/epl/2026-01.json');
+  // Asked with its version, so a phone's copy from before the F1 lines were redrawn isn't the one shown.
+  assert.ok(PACK_V >= 2);
+  assert.equal(monthPack('f1', '2026-03-15T07:00Z'), `winprob/f1/2026-03.json?v=${PACK_V}`);
   assert.equal(gameKey('epl', { id: '740780', start: '2026-01-01T17:30Z', home: { name: 'Crystal Palace' } }), '740780');
   assert.equal(gameKey('cpbl', { id: 'cpbl-tsdb-1', start: '2026-09-27T07:05:00Z', home: { en: 'Uni-President Lions', name: '統一獅' } }), '2026-09-27-lions');
   const line = await polymarketLine('bundesliga', { start: '2026-09-19T13:30Z', home: 'Hamburg SV', away: 'FC Cologne' }, getJson);

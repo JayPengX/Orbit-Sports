@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseSummary } from '../public/lib/espn.mjs';
-import { playMoments, eventMoments, swings } from '../public/lib/moments.mjs';
+import { playMoments, eventMoments, swings, playParts } from '../public/lib/moments.mjs';
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 const sideOf = s => ({ home: { id: s.home.id, name: 'H' }, away: { id: s.away.id, name: 'A' } });
@@ -229,4 +229,12 @@ test('過程: every play in Chinese, with its player', async () => {
   const nba = said('nba-summary-feed.json', 'nba', 'basketball').map(r => r.zh);
   assert.ok(nba.some(t => /三分命中/.test(t)) && nba.some(t => /罰進 \d\/\d/.test(t)));
   assert.ok(!nba.some(t => /跳投/.test(t) && /(charge|review)/i.test(t)));
+});
+
+test("過程's row: the play on one line, the team and who helped small beneath (no bracket left to wrap)", () => {
+  assert.deepEqual(playParts('J. Akins 三分命中（McCullar Jr. 助攻）', '尼克'), { main: 'J. Akins 三分命中', sub: '尼克 · McCullar Jr. 助攻' });
+  assert.deepEqual(playParts('K. McCullar Jr. 失誤（Nelson Jr. 抄截）', '尼克'), { main: 'K. McCullar Jr. 失誤', sub: '尼克 · Nelson Jr. 抄截' });
+  // A team's own play: the team isn't said twice.
+  assert.deepEqual(playParts('76人 失誤', '76人'), { main: '76人 失誤', sub: '' });
+  assert.deepEqual(playParts('D. Jones 罰進 2/2', '76人'), { main: 'D. Jones 罰進 2/2', sub: '76人' });
 });
