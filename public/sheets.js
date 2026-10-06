@@ -10,13 +10,13 @@ import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, neares
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
-import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
+import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
 import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, shownStart, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo } from './ui.js';
+import { ctx, el, shownStart, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -1528,7 +1528,7 @@ function f1Weekends(weekends, en, cars) {
                   return el('td', { class: 'num' }, [el('span', { class: 'f1-cell' }, [finishPill(finishOf(r?.result, en)), sprints ? (r?.sprint ? finishPill(finishOf(r.sprint, en), ' small') : el('span', { class: 'pos-pill small blank' })) : null])]);
                 });
             return el('tr', { class: open ? 'tap' : null, onclick: open }, [
-              el('td', { class: 'left' }, [el('span', { text: w.e?.name || w.name }), el('small', { class: 'muted num', text: `R${w.round}` })]),
+              el('td', { class: 'left' }, [el('span', { class: 'race-cell' }, [raceFlag(w.e), el('span', {}, [el('span', { text: w.e?.name || w.name }), el('small', { class: 'muted num', text: `R${w.round}` })])])]),
               ...cells.filter(Boolean),
               el('td', { class: 'num', text: String(one ? Number(w.me?.result?.points || 0) + Number(w.me?.sprint?.points || 0) : w.points) })
             ]);
@@ -1553,6 +1553,31 @@ function noteBody(note) {
   const more = points.length > 2 ? el('button', { class: 'link note-more', type: 'button', text: L() === 'en' ? 'More' : '更多', onclick: () => (list.append(...points.slice(2).map(item)), more.remove()) }) : null;
   return el('div', { class: 'player-note' }, [el('strong', { class: 'note-head' }, [zhLater(note.headline)]), points.length ? list : null, more]);
 }
+// A fact with its mark (a team's badge, a country's flag) before it; the text alone without one.
+const withMark = (mark, text) => (text && mark ? el('span', { class: 'fact-mark' }, [mark, el('span', { text })]) : text);
+// The next race weekend, to tap: its flag, name and circuit, how soon the
+// race is, and the sessions still to come (each opening its own sheet).
+function nextRaceCard(e, en) {
+  const W = (zh, eng) => (en ? eng : zh);
+  const left = splitWeekend(e, Date.now(), L()).filter(x => x.status.state !== 'post');
+  const race = left.find(x => x.sessionKey === 'Race') || left.at(-1) || e;
+  const days = Math.round((Date.parse(localDate(Date.parse(race.official || race.start))) - Date.parse(today())) / 86_400_000);
+  const soon = days <= 0 ? W('今天', 'Today') : days === 1 ? W('明天', 'Tomorrow') : W(`${days} 天後`, `In ${days} days`);
+  return el('button', { class: 'q-card next-race', type: 'button', onclick: () => ctx.openEvent(race) }, [
+    el('div', { class: 'next-race-head' }, [
+      raceFlag(e, 'big'),
+      el('span', { class: 'next-race-text' }, [el('small', { class: 'muted', text: W('下一站', 'Next race') }), el('strong', { text: e.name }), e.venue ? el('small', { class: 'muted', text: e.venue }) : null]),
+      el('span', { class: 'next-race-soon', text: soon })
+    ]),
+    left.length > 1
+      ? el(
+          'div',
+          { class: 'next-race-sessions' },
+          left.map(x => el('span', { class: `nr-sess${x === race ? ' main' : ''}`, onclick: ev => (ev.stopPropagation(), ctx.openEvent(x)) }, [sessionTag(x), el('small', { class: 'num', text: `${dayLabel(localDate(Date.parse(x.official || x.start)))} ${clock(shownStart(x))}` })]))
+        )
+      : el('small', { class: 'muted num', text: whenText(race.start) })
+  ]);
+}
 export async function openPlayer(league, id, fallback = {}) {
   if (!id) return;
   const s = sheet(leagueName(league, L()), { league });
@@ -1576,8 +1601,8 @@ export async function openPlayer(league, id, fallback = {}) {
     const champ = table ? driverSeason(table, id) : null;
     const name = driver && !en && driver.zh !== a.name ? `${driver.zh}` : a.name;
     const facts = [
-      [sport === 'racing' ? W('車隊', 'Team') : T('team'), driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team || ''],
-      [T('country'), countryName(a.country, L())],
+      [sport === 'racing' ? W('車隊', 'Team') : T('team'), withMark(driver?.team ? constructorBadge(driver.team, 'xs') : a.teamLogo ? logo(a.teamLogo, a.team, 'xs') : null, driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team || '')],
+      [T('country'), withMark(countryFlag(a.country) ? el('span', { class: 'fact-flag', 'aria-hidden': 'true', text: countryFlag(a.country) }) : null, countryName(a.country, L()))],
       [T('position'), zhLater(a.position)],
       [T('age'), a.age ? String(a.age) : ''],
       [T('height'), metric(a.height, L())],
@@ -1592,7 +1617,7 @@ export async function openPlayer(league, id, fallback = {}) {
       .flatMap(e => {
         const race = (e.sessions || []).find(x => x.abbr === 'Race' && x.status.state === 'post');
         const at = race ? race.field.findIndex(c => c.id === String(id)) : -1;
-        return at >= 0 ? [{ name: e.name, start: race.start, pos: at + 1 }] : [];
+        return at >= 0 ? [{ name: e.name, start: race.start, pos: at + 1, e }] : [];
       })
       .sort((x, y) => y.start.localeCompare(x.start));
     // The season in four numbers: wins, podiums, the best and the average finish.
@@ -1624,8 +1649,8 @@ export async function openPlayer(league, id, fallback = {}) {
           W(`隊友對比 · ${mateName}`, `Against teammate ${mateName}`),
           el('div', { class: 'mate-grid' }, [
             el('span'),
-            el('strong', { class: 'mate-me', text: name }),
-            el('button', { class: 'link mate-them', type: 'button', text: mateName, onclick: () => ctx.openPlayer(league, mateRow.id, mateRow) }),
+            el('span', { class: 'mate-who mate-me' }, [personPic({ id, name: a.name, headshot: a.headshot, logo: fallback.logo }, league, 'lg round'), el('strong', { text: name })]),
+            el('button', { class: 'mate-who mate-them', type: 'button', onclick: () => ctx.openPlayer(league, mateRow.id, mateRow) }, [personPic(mateRow, league, 'lg round'), el('strong', { text: `${mateName} ›` })]),
             ...[
               [W('排名', 'Place'), `P${champ?.pos ?? '–'}`, `P${mate.pos}`, (champ?.pos ?? 99) < mate.pos],
               [W('積分', 'Points'), String(champ?.points ?? '–'), String(mate.points), Number(champ?.points) > Number(mate.points)],
@@ -1673,7 +1698,7 @@ export async function openPlayer(league, id, fallback = {}) {
     const sub = [zhLater(a.position), (driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team) || countryName(a.country, L())].filter(Boolean);
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : a.teamColor;
-    const lastFive = weekends.length ? weekends.slice(0, 5).reverse().map(w => ({ name: w.e?.name || w.name, ...finishOf(w.me?.result, en) })) : raceRows.slice(0, 5).reverse().map(r => ({ ...r, text: `P${r.pos}` }));
+    const lastFive = weekends.length ? weekends.slice(0, 5).reverse().map(w => ({ name: w.e?.name || w.name, e: w.e, ...finishOf(w.me?.result, en) })) : raceRows.slice(0, 5).reverse().map(r => ({ ...r, text: `P${r.pos}` }));
     const shot = a.headshot || fallback.logo;
     // Their headshot (ESPN's; none, every footballer: TheSportsDB's cut-out, personPic finds it).
     const pic = el('span', { class: 'pic-slot' }, [personPic({ id, name: a.name, headshot: a.headshot, logo: fallback.logo, flag: a.flag }, league, 'xxl round')]);
@@ -1697,7 +1722,7 @@ export async function openPlayer(league, id, fallback = {}) {
             el('div', { class: 'stat-grid' }, [tile(W('排名', 'Place'), T('placeN', { n: champ.pos }), W(`共 ${champ.of} 位`, `of ${champ.of}`)), tile(W('積分', 'Points'), champ.points), champ.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null, tile(W('完成站數', 'Races'), String(champ.races.length))].filter(Boolean))
           )
         : null,
-      nextRace ? card(W('下一站', 'Next race'), el('p', { class: 'series-text', text: [nextRace.name, whenText(nextRace.start)].filter(Boolean).join(' · ') })) : null,
+      nextRace ? nextRaceCard(nextRace, en) : null,
       mateCard,
       !racing && a.stats.list.length ? card(statsTitle(a.stats.title, L()) || T('season'), el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(statName(x.label, L()), x.value, x.rank)))) : null
     ]);
@@ -1733,8 +1758,8 @@ export async function openPlayer(league, id, fallback = {}) {
     const bio = keep([
       facts.length ? card(T('profile'), el('ul', { class: 'info-list' }, facts.map(([k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [v])])))) : null,
       awardsCard,
-      a.teamId && !individual(league) ? el('button', { class: 'q-btn block', type: 'button', text: `${a.team} ›`, onclick: () => openTeam(league, a.teamId, { name: a.team }) }) : null,
-      driver?.team ? el('button', { class: 'q-btn block', type: 'button', text: `${en ? driver.team : f1Constructor(driver.team).zh} ›`, onclick: () => openConstructor({ id: '', name: driver.team, en: driver.team }) }) : null
+      a.teamId && !individual(league) ? el('button', { class: 'q-btn block with-mark', type: 'button', onclick: () => openTeam(league, a.teamId, { name: a.team, logo: a.teamLogo }) }, [a.teamLogo ? logo(a.teamLogo, a.team, 'sm') : null, el('span', { text: `${a.team} ›` })]) : null,
+      driver?.team ? el('button', { class: 'q-btn block with-mark', type: 'button', onclick: () => openConstructor({ id: '', name: driver.team, en: driver.team }) }, [constructorBadge(driver.team, 'sm'), el('span', { text: `${en ? driver.team : f1Constructor(driver.team).zh} ›` })]) : null
     ]);
     const views = [['overview', W('概況', 'Overview'), overview], ['numbers', W('數據', 'Stats'), numbers], ['games', racing ? W('各站成績', 'Races') : W('近期比賽', 'Games'), games], ['bio', W('資料', 'Bio'), bio]].filter(v => v[2].length);
     let view = views[0]?.[0];
@@ -1753,9 +1778,19 @@ export async function openPlayer(league, id, fallback = {}) {
           name !== a.name ? el('small', { class: 'muted', text: a.name }) : null,
           el('p', { class: 'muted' }, joinNodes(sub, ' · ')),
           a.injuries.length ? el('p', { class: 'injury-tag' }, joinNodes(['🩹', ...a.injuries.map(injuryText)], ' ')) : null,
-          lastFive.length ? el('div', { class: 'hero-form' }, [el('small', { class: 'muted', text: W('近5站', 'Last 5') }), ...lastFive.map(r => el('span', { class: `pos-pill num${r.out ? ' out' : r.pos <= 3 ? ' podium' : ''}`, title: [r.name, r.out ? r.text : ''].filter(Boolean).join(' · '), text: r.code || r.text }))]) : null
         ]),
-        followBtn
+        followBtn,
+        lastFive.length
+          ? el('div', { class: 'hero-races' }, [
+              el('small', { class: 'muted', text: W(`近${lastFive.length}站`, `Last ${lastFive.length}`) }),
+              ...lastFive.map(r =>
+                el('button', { class: 'hero-race', type: 'button', title: [r.name, r.out ? r.text : ''].filter(Boolean).join(' · '), onclick: r.e ? () => ctx.openEvent(splitWeekend(r.e, Date.now(), L()).find(x => x.sessionKey === 'Race') || r.e) : null }, [
+                  raceFlag(r.e) || el('span', { class: 'race-flag' }),
+                  el('span', { class: `pos-pill num${r.out ? ' out' : r.pos <= 3 ? ' podium' : ''}${r.pos === 1 ? ' win' : ''}`, text: r.code || r.text })
+                ])
+              )
+            ])
+          : null
       ]),
       strip,
       tabsBox,

@@ -1008,6 +1008,7 @@ export function parseAthlete(data) {
     team: a.team?.displayName || '',
     teamId: String(a.team?.id ?? ''),
     teamColor: a.team?.color ? `#${a.team.color}` : '',
+    teamLogo: a.team?.logos?.[0]?.href || a.team?.logo || '',
     age: a.age || null,
     born: a.displayDOB || '',
     dob: a.dateOfBirth || '',

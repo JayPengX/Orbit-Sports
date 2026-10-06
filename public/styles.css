@@ -692,16 +692,46 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .hero-form { display: flex; align-items: center; gap: 4px; margin-top: 8px; min-width: 0; overflow: hidden; }
 .hero-form small { flex: none; margin-right: 2px; white-space: nowrap; }
 .hero-form .pos-pill { flex: none; font-size: 12px; padding: 1px 6px; }
+/* A driver's last races, under the head across its width: each race's flag over the finish, the latest on the right. */
+.player-hero .team-head-text > p.muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hero-races { grid-column: 1 / -1; display: flex; align-items: flex-end; gap: 6px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--hero, var(--q-border)) 25%, var(--q-border)); }
+.hero-races > small { flex: none; align-self: center; margin-right: auto; font-size: 12.5px; }
+.hero-race { flex: 0 1 52px; min-width: 0; display: grid; justify-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.hero-race .race-flag { width: 20px; height: 20px; }
+.hero-race .pos-pill { justify-self: stretch; text-align: center; font-size: 12px; padding: 2px 4px; }
+/* The next weekend, to tap: flag, name and circuit, how soon, then its sessions. */
+.next-race { display: grid; gap: 12px; width: 100%; padding: 14px; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.next-race-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.next-race-head .race-flag.big { width: 40px; height: 40px; }
+.next-race-head .race-flag.emoji.big { font-size: 34px; }
+.next-race-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.next-race-text strong { font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.next-race-text small { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.next-race-soon { flex: none; padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--q-accent, #ea580c) 16%, transparent); color: var(--q-accent, #ea580c); font-size: 13px; font-weight: 750; white-space: nowrap; }
+.next-race-head::after { content: '›'; flex: none; color: var(--q-muted); font-size: 20px; line-height: 1; }
+.next-race-sessions { display: grid; gap: 4px; }
+.nr-sess { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px 6px 8px; border-radius: 10px; background: var(--q-sunken); min-width: 0; }
+.nr-sess small { white-space: nowrap; color: var(--q-text-2); font-size: 13px; }
+.nr-sess.main { outline: 1px solid color-mix(in srgb, var(--accent, #e10600) 45%, transparent); }
+/* A fact with its badge or flag; a race's name with its flag. */
+.fact-mark, .race-cell { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.fact-flag { font-size: 16px; line-height: 1; }
+.race-cell .race-flag { width: 20px; height: 20px; }
+.q-btn.with-mark { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .injury-tag { margin-top: 6px; font-size: 12.5px; font-weight: 650; color: var(--loss); }
 .player-note { display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
 .player-note .note-head { font-size: 15px; line-height: 1.4; }
 .note-points { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; color: var(--q-text-2); }
 .note-points li::marker { color: var(--q-accent, #ea580c); }
 .note-more { justify-self: start; font-size: 13px; font-weight: 650; }
-.mate-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px 18px; font-size: 14px; }
-.mate-grid .mate-me, .mate-grid .mate-them { font-size: 12.5px; text-align: right; }
-.mate-grid .mate-them { justify-self: end; font-weight: 700; }
-.mate-grid > strong.num { text-align: right; font-size: 17px; color: var(--q-text-2); }
+.mate-grid { display: grid; grid-template-columns: minmax(0, 1fr) 84px 84px; align-items: center; gap: 8px 10px; font-size: 14px; }
+/* Each side's face over their name; the teammate's opens their sheet. */
+.mate-who { display: grid; justify-items: center; gap: 5px; min-width: 0; font: inherit; color: inherit; background: none; border: 0; padding: 0; }
+.mate-who strong { max-width: 100%; font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mate-who .logo.round { object-position: center 18%; }
+.mate-them { cursor: pointer; }
+.mate-them strong { color: var(--q-accent, #ea580c); }
+.mate-grid > strong.num { text-align: center; font-size: 17px; color: var(--q-text-2); }
 .mate-grid > strong.mate-win { color: var(--q-text); }
 .mate-grid .mate-k { color: var(--q-text-2); }
 table.game-log td, table.game-log th { white-space: nowrap; }
