@@ -18,10 +18,29 @@ const REGULAR = { basketball: 4, football: 4, hockey: 3, soccer: 2, baseball: 9 
 const byPlay = points => points.length > 0 && points.every(p => p.n);
 const byTime = points => points.length > 1 && points.every((p, i) => Number.isFinite(p.t) && (!i || p.t >= points[i - 1].t)) && points.at(-1).t > points[0].t;
 
-export function lineXs(points) {
+// The game's own time from the clock's: the breaks between periods (half
+// time, between quarters) taken out, and nothing after the final whistle
+// (a market can take a while to settle), so the halves sit side by side.
+const END = new Set(['end-regular-time', 'end-extra-time', 'end-of-game', 'final']);
+export function gameTime(timeline = []) {
+  const at = starts(timeline);
+  const breaks = [];
+  for (const [n, s] of at) {
+    const before = timeline.filter(e => e.n === n - 1 && e.t <= s).at(-1);
+    if (before && s - before.t > 5 * 60) breaks.push([before.t, s]);
+  }
+  const end = timeline.find(e => END.has(e.type))?.t;
+  return t => {
+    const c = end != null ? Math.min(t, end + 120) : t;
+    return breaks.reduce((x, [a, b]) => x - Math.max(0, Math.min(c, b) - a), c);
+  };
+}
+
+export function lineXs(points, timeline = []) {
   if (!byPlay(points) && byTime(points)) {
-    const [t0, span] = [points[0].t, points.at(-1).t - points[0].t];
-    return points.map(p => (p.t - t0) / span);
+    const g = gameTime(timeline);
+    const [g0, g1] = [g(points[0].t), g(points.at(-1).t)];
+    if (g1 > g0) return points.map(p => (g(p.t) - g0) / (g1 - g0));
   }
   return points.map((_, i) => i / Math.max(1, points.length - 1));
 }
@@ -60,7 +79,7 @@ function starts(timeline) {
 }
 
 export function periodMarks(timeline, sport, points, en) {
-  const xs = lineXs(points);
+  const xs = lineXs(points, timeline);
   if (byPlay(points)) {
     const marks = [];
     let top = 0;
@@ -71,7 +90,8 @@ export function periodMarks(timeline, sport, points, en) {
   }
   if (!byTime(points)) return [];
   const [t0, t1] = [points[0].t, points.at(-1).t];
-  const x = t => (t - t0) / (t1 - t0);
+  const g = gameTime(timeline);
+  const x = t => (g(t) - g(t0)) / (g(t1) - g(t0) || 1);
   if (timeline?.length) return spaced([...starts(timeline)].map(([n, t]) => ({ x: Math.max(0, x(t)), label: periodName(sport, n, en) })));
   // No plays: the clock's hours.
   const marks = [];

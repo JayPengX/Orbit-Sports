@@ -95,3 +95,16 @@ test('a market standing still: its stretch read as no price, never a quiet game'
   // ESPN's line (by play) is never read so.
   assert.deepEqual(quietRuns(pts.map(p => ({ ...p, n: 1 }))), []);
 });
+
+test('by game time: half time taken out, nothing after the final whistle, the halves side by side', () => {
+  const s = parseSummary(fixture('epl-summary.json'), 'epl');
+  const kick = Date.parse('2026-09-20T13:00:41Z') / 1000;
+  // Every two minutes from kickoff to an hour after the whistle (the market settling).
+  const pts = Array.from({ length: 150 }, (_, i) => ({ t: kick + i * 120, home: 0.5 }));
+  const marks = periodMarks(s.timeline, 'soccer', pts, false);
+  assert.equal(marks[0].x, 0);
+  assert.ok(Math.abs(marks[1].x - 0.48) < 0.03, `下半 at ${marks[1].x}`);
+  const xs = lineXs(pts, s.timeline);
+  assert.equal(xs.at(-1), 1);
+  assert.ok(xs.every((x, i) => !i || x >= xs[i - 1]));
+});

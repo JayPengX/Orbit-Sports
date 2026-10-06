@@ -6,6 +6,7 @@ import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleF
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns } from './lib/wpline.mjs';
+import { playMoments, eventMoments } from './lib/moments.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
@@ -478,7 +479,7 @@ function overview(d, e, table, nameOf, line = null) {
       : d?.winProb.length > 3
         ? winProbCard({ points: d.winProb }, e, d.timeline)
         : line?.points?.length > 3 && !mostlyQuiet(line.points)
-          ? winProbCard(line, e, d?.timeline)
+          ? winProbCard(line, e, d?.timeline, d?.events)
           : null,
     leadersBy.some(x => x.length)
       ? card(
@@ -565,15 +566,19 @@ function winChanceCard(odds, e) {
 
 // The win probability over the game: the home side's chance up, the away
 // side's down (a draw counts half to each, so a level game sits on the
-// middle line), the periods marked under it. A finger (or a mouse) on it
-// reads any moment: each side's chance then and the period it was in. ESPN's, else Polymarket's market on it (said under it).
-function winProbCard(line, e, timeline) {
+// middle line), the periods marked under it. Its key moments (lib/
+// moments.mjs: the plays and runs that turned it, a soccer game's goals)
+// dotted on it and listed under it; a finger (or a mouse) on it reads any
+// moment: each side's chance then, the period, and the moment if it's near
+// one (it snaps to it). A game on: the latest swing, just now. ESPN's, else
+// Polymarket's market on it (said under it).
+function winProbCard(line, e, timeline, events = []) {
   const pts = line.points;
   const sport = LEAGUES[e.league]?.sport;
   const en = L() === 'en';
   const w = 320;
   const h = 90;
-  const xs = lineXs(pts);
+  const xs = lineXs(pts, timeline);
   const up = p => p.home + (p.draw ?? 0) / 2;
   const xy = i => `${(xs[i] * w).toFixed(1)},${(h - up(pts[i]) * h).toFixed(1)}`;
   const path = pts.map((p, i) => `${i ? 'L' : 'M'}${xy(i)}`).join(' ');
@@ -584,43 +589,78 @@ function winProbCard(line, e, timeline) {
   const gaps = quiet.map(([a, b]) => `M${xy(a)} L${xy(b)}`).join(' ');
   const marks = periodMarks(timeline, sport, pts, en);
   const grid = marks.filter(m => m.x > 0.01).map(m => `<line x1="${(m.x * w).toFixed(1)}" x2="${(m.x * w).toFixed(1)}" y1="0" y2="${h}" class="wp-grid"/>`).join('');
+  const sideName = s => s.short || s.name;
+  const side = { home: { id: e.home.id, name: sideName(e.home) }, away: { id: e.away.id, name: sideName(e.away) }, en };
+  const moments = (pts.every(p => p.n) ? playMoments(pts, sport, side) : eventMoments(pts, events, sport, side, pts.map(p => p.t))).filter(m => !isQuiet(m.i));
+  // Whose chance it lifted, and by how much.
+  const gain = m => `${side[m.delta >= 0 ? 'home' : 'away'].name} +${Math.round(Math.abs(m.delta) * 100)}%`;
+  const near = i => moments.find(m => Math.abs(xs[m.i] - xs[i]) < 0.025);
   // Away on the left, home on the right (as everywhere in the sheet), adding up to 100.
   const away = el('span', { class: 'away' });
   const draw = pts.some(p => p.draw != null) ? el('span', { class: 'draw' }) : null;
   const home = el('span', { class: 'home' });
   const at = el('small', { class: 'wp-at' });
+  const why = el('div', { class: 'wp-why', hidden: true });
   const rule = el('span', { class: 'wp-rule', hidden: true });
   const dot = el('span', { class: 'wp-dot', hidden: true });
+  const live = e.status.state === 'in';
   const rest = e.status.state === 'post' ? (en ? 'Final' : '終場') : pointStamp(timeline, sport, pts.at(-1), en) || (en ? 'Now' : '目前');
-  const show = i => {
+  // A game on: a swing among its last few points is news.
+  const latest = live ? moments.find(m => pts.length - 1 - m.i <= Math.max(2, pts.length * 0.03)) : null;
+  const tell = (m, label) => {
+    why.hidden = !m;
+    if (m) put(why, el('span', { class: 'wp-why-icon', text: m.icon }), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, m.text]), el('span', { class: `wp-gain ${m.side}`, text: gain(m) }));
+  };
+  const show = j => {
+    // Close to a key moment: on it.
+    const m = j != null ? near(j) : null;
+    const i = m ? m.i : j;
     const p = pts[i ?? pts.length - 1];
     const [hh, dd] = [Math.round(p.home * 100), p.draw != null ? Math.round(p.draw * 100) : 0];
     const none = i != null && isQuiet(i);
     const pct = v => (none ? '–' : `${v}%`);
-    away.textContent = `${e.away.short || e.away.name} ${pct(Math.max(0, 100 - hh - dd))}`;
+    away.textContent = `${sideName(e.away)} ${pct(Math.max(0, 100 - hh - dd))}`;
     if (draw) draw.textContent = `${en ? 'Draw' : '和局'} ${pct(dd)}`;
-    home.textContent = `${e.home.short || e.home.name} ${pct(hh)}`;
+    home.textContent = `${sideName(e.home)} ${pct(hh)}`;
     const stamp = pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`;
     at.textContent = i == null ? `${rest} · ${en ? 'Hold and slide on the chart to look back' : '按住圖表左右滑動查看'}` : none ? `${stamp} · ${en ? 'no trading' : '無報價'}` : stamp;
     at.classList.toggle('on', i != null);
+    tell(i == null ? latest : m, i == null && latest ? (en ? 'Just now' : '剛剛') : '');
     rule.hidden = dot.hidden = i == null;
     if (i == null) return;
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
     dot.style.top = `${(1 - up(p)) * 100}%`;
   };
+  const pins = moments.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${(1 - up(pts[m.i])) * 100}%` }));
   const plot = scrubPlot(xs, show, [
-    el('span', { class: 'wp-edge top', text: e.home.short || e.home.name }),
+    el('span', { class: 'wp-edge top', text: sideName(e.home) }),
     el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${grid}<path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${quiet.length ? traded : path}" class="wp-line"/>${gaps ? `<path d="${gaps}" class="wp-gap"/>` : ''}</svg>` }),
-    el('span', { class: 'wp-edge bottom', text: e.away.short || e.away.name }),
+    el('span', { class: 'wp-edge bottom', text: sideName(e.away) }),
+    ...pins,
     rule,
     dot
   ]);
   show();
+  // The key moments, in the game's order: a tap puts the chart on it.
+  const list = moments.length
+    ? el('div', { class: 'wp-moments' }, [
+        el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
+        ...moments.map(m =>
+          el('button', { type: 'button', class: 'wp-mo', onclick: () => show(m.i) }, [
+            el('small', { class: 'wp-mo-at', text: pointStamp(timeline, sport, pts[m.i], en) }),
+            el('span', { class: 'wp-mo-text', text: `${m.icon} ${m.text}` }),
+            el('span', { class: `wp-gain ${m.side}`, text: gain(m) })
+          ])
+        )
+      ])
+    : null;
   const box = el('div', { class: 'wp' }, [
     el('div', { class: 'wp-labels' }, [away, draw, home]),
     at,
     plot,
     axisRow(marks),
+    why,
+    list,
     line.source === 'polymarket' ? el('small', { class: 'wp-source', text: en ? 'From Polymarket’s market on the game' : '依 Polymarket 市場價格' }) : null
   ]);
   return card(T('winProb'), box);

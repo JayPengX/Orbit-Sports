@@ -600,13 +600,31 @@ export function parseSummary(data, league) {
   // ESPN's win probability, play by play: the home side's chance (and a draw's, where there can be one).
   // The game's plays by the wall clock (t in seconds): what the chart's marks and a finger on it go by.
   const wall = p => Date.parse(p?.wallclock || '') / 1000;
-  const timed = [...(data?.plays || []), ...(data?.drives?.previous || []).flatMap(d => d.plays || []), ...(data?.drives?.current?.plays || []), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
+  // A drive's plays (football) carry its team.
+  const drivePlays = d => (d?.plays || []).map(p => (p.team ? p : { ...p, team: d.team }));
+  const timed = [...(data?.plays || []), ...(data?.drives?.previous || []).flatMap(drivePlays), ...drivePlays(data?.drives?.current), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
+  // What each play was, for the chart's key moments (lib/moments.mjs): who (the batter, the shooter, the scorer), what, the score after it.
+  const names = new Map();
+  for (const t of data?.boxscore?.players || []) for (const st of t.statistics || []) for (const a of st.athletes || []) if (a.athlete?.id) names.set(String(a.athlete.id), a.athlete.shortName || a.athlete.displayName);
+  for (const r of data?.rosters || []) for (const x of r.roster || []) if (x.athlete?.id) names.set(String(x.athlete.id), x.athlete.shortName || x.athlete.displayName);
+  const whoOf = p => {
+    const a = ((p.participants || []).find(q => q.type === 'batter') || p.participants?.[0])?.athlete;
+    return names.get(String(a?.id ?? '')) || a?.shortName || a?.displayName || '';
+  };
+  const playOf = p => ({ text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), who: whoOf(p), home: p.homeScore, away: p.awayScore });
+  // The plays that move a market (a game drawn from Polymarket's): the scores, a red card, a penalty missed.
+  const events = timed
+    .filter(p => p.scoringPlay || /red-card|penalty---(missed|saved)/.test(p.type?.type || ''))
+    .map(p => ({ t: wall(p), n: p.period.number, ...(/^(top|bottom)$/i.test(p.period.type || '') ? { half: p.period.type.toLowerCase() } : {}), kind: /red-card/.test(p.type?.type || '') ? 'red' : /penalty---/.test(p.type?.type || '') && !p.scoringPlay ? 'miss' : 'score', play: playOf(p) }))
+    .sort((a, b) => a.t - b.t);
   const timeline = timed.map(p => ({ t: wall(p), n: p.period.number, half: /^(top|bottom)$/i.test(p.period.type || '') ? p.period.type.toLowerCase() : '', type: p.type?.type || '' })).sort((a, b) => a.t - b.t);
   // Each of ESPN's points takes its play's period (its wall clock can be off: a play logged late).
-  const playAt = new Map(timed.map(p => [String(p.id), { n: p.period.number, ...(/^(top|bottom)$/i.test(p.period.type || '') ? { half: p.period.type.toLowerCase() } : {}) }]));
+  const playAt = new Map(timed.map(p => [String(p.id), { n: p.period.number, ...(/^(top|bottom)$/i.test(p.period.type || '') ? { half: p.period.type.toLowerCase() } : {}), play: playOf(p) }]));
   const winProb = (data?.winprobability || [])
     .filter(w => Number.isFinite(w.homeWinPercentage))
-    .map(w => ({ home: w.homeWinPercentage, ...(w.tiePercentage > 0 ? { draw: w.tiePercentage } : {}), ...playAt.get(String(w.playId)) }));
+    .map(w => ({ home: w.homeWinPercentage, ...(w.tiePercentage > 0 ? { draw: w.tiePercentage } : {}), ...playAt.get(String(w.playId)) }))
+    // A point whose play ESPN left out: the period of the one before it (the first, of the first that has one).
+    .map((p, i, all) => (p.n ? p : ((p.n = i ? all[i - 1].n : all.find(q => q.n)?.n), i && all[i - 1].half && (p.half = all[i - 1].half), p)));
   // A game to come: each side's chance, ESPN's own prediction, else the
   // sportsbook's moneylines (its margin taken out): { home, draw?, source }.
   const predictor = data?.predictor;
@@ -673,6 +691,7 @@ export function parseSummary(data, league) {
     injuries,
     winProb,
     timeline,
+    events,
     predict,
     series,
     form,
