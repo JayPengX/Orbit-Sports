@@ -30,6 +30,8 @@ import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, 
 import { ctx, el, shownStart, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
+// New kit names through the module (a phone can still run an older kit).
+import * as kitLogos from '#kit/logos.mjs';
 
 // ---- What's on: leagues with games from two weeks back to two months on ---------------
 //
@@ -627,7 +629,7 @@ function syncPush() {
     const title = `${e.name} · ${e.session}`;
     if (start > now && e.status.state === 'pre') items.push({ at: start, title, body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: 'live', kind: 'start' });
     if (e.sessionKey !== 'Qual' && LEAGUES[e.league].espn && /^\d+$/.test(String(e.weekend)))
-      items.push({ at: Math.max(now + 60_000, start + (e.sessionKey === 'Race' ? 100 : 40) * 60_000), title, body: `${leagueName(e.league, locale)} · {result}`, tag: `end:${e.league}:${e.id}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } });
+      items.push({ at: Math.max(now + 60_000, start + (e.sessionKey === 'Race' ? 100 : 40) * 60_000), title, body: `${leagueName(e.league, locale)} · {result}`, tag: `end:${e.league}:${e.id}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', ''), ...(locale !== 'en' && kitLogos.F1_NAMES_ZH ? { zh: kitLogos.F1_NAMES_ZH } : {}) } });
   }
   schedulePush(q, items);
 }
