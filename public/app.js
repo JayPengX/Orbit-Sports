@@ -837,6 +837,8 @@ function renderHome() {
       })
     : [];
   const hasFollows = state.prefs.leagues.length > 0;
+  // A first pick keeps the picker up for the next ones (in order), until 完成.
+  if (!hasFollows && state.prefsLoaded) h.picking = true;
   // Everything the picks lean on is in: the day read fresh, the tables,
   // the followed teams, and no search for other games or days going on.
   h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !h.tablesPending && ![...h.teams.values()].includes(null);
@@ -844,7 +846,7 @@ function renderHome() {
   put(
     box,
     homeHead(),
-    !hasFollows ? sportPicker() : null,
+    !hasFollows || h.picking ? sportPicker() : null,
     liveBlock,
     (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: slot.partial ? t('someUnread') : hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : noTvText(h.date) }), !finding && !planList.length ? fullSchedule() : null]) : null,
     finding ? spinner() : null,
@@ -991,18 +993,30 @@ async function sportDays(sport) {
   return days;
 }
 
-// First run: the sports, tapped in order of priority.
+// First run: the sports, tapped in order of priority. Each a tile in its
+// colour with its leagues' marks; a tapped one shows its place in the order.
 function sportPicker() {
+  const mine = followedSports();
   return el('div', { class: 'q-card pad sport-picker' }, [
-    el('p', { class: 'muted small', text: t('pickSportsHint') }),
+    el('div', { class: 'sp-head' }, [el('strong', { text: L({ zh: '從喜歡的運動開始', en: 'Start with what you like' }) }), el('small', { class: 'muted', text: L({ zh: '依喜好順序點選，第一個最優先', en: 'Tap in order: the first counts most' }) })]),
     el(
       'div',
       { class: 'sport-grid' },
-      Object.entries(SPORTS).filter(([k]) => isActiveSport(k)).map(([k, sp]) => {
-        const i = followedSports().indexOf(k);
-        return el('button', { class: `sport-tile${i >= 0 ? ' on' : ''}`, type: 'button', onclick: () => toggleSport(k) }, [el('span', { class: 'sport-icon', text: sp.icon }), el('span', { text: L(sp) }), i >= 0 ? el('b', { class: 'sport-n num', text: String(i + 1) }) : null]);
-      })
-    )
+      Object.entries(SPORTS)
+        .filter(([k]) => isActiveSport(k))
+        .map(([k, sp]) => {
+          const i = mine.indexOf(k);
+          const leagues = leaguesOf(k).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top)).slice(0, 4);
+          const more = leaguesOf(k).length - leagues.length;
+          return el('button', { class: `sport-tile${i >= 0 ? ' on' : ''}`, type: 'button', 'data-sport': k, 'aria-pressed': String(i >= 0), onclick: () => toggleSport(k) }, [
+            el('span', { class: 'sport-icon', 'aria-hidden': 'true', text: sp.icon }),
+            el('b', { class: `sport-n num${i >= 0 ? '' : ' add'}`, text: i >= 0 ? String(i + 1) : '+' }),
+            el('strong', { class: 'sport-name', text: L(sp) }),
+            el('span', { class: 'sport-leagues' }, [...leagues.map(x => leagueMark(x)), more > 0 ? el('small', { class: 'num', text: `+${more}` }) : null])
+          ]);
+        })
+    ),
+    mine.length ? el('button', { class: 'q-btn primary block sp-done', type: 'button', text: L({ zh: `完成（已選 ${mine.length} 項）`, en: `Done (${mine.length} picked)` }), onclick: () => ((state.home.picking = false), renderHome()) }) : null
   ]);
 }
 
