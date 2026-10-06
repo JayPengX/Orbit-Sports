@@ -2127,7 +2127,7 @@ function paintStatus() {
   const at = state.days.get(today())?.at;
   $('status').textContent = at ? t('updated', { time: clock(new Date(at).toISOString()) }) : '';
 }
-new MutationObserver(() => fitNumbers([...document.querySelectorAll('.mh-score')])).observe(document.body, { childList: true, subtree: true });
+new MutationObserver(() => fitNumbers([...document.querySelectorAll('.mh-score, .team-head h3')])).observe(document.body, { childList: true, subtree: true });
 
 // An F1 session on now: F1's own live timing every 10 seconds, its cards'
 // briefs (the top three) filled again in place, never the whole page.

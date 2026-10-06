@@ -143,7 +143,7 @@ test('basketball: the stretch it drifted over and the possessions that decided i
   // The last possessions, who did what.
   const texts = list.map(m => m.text);
   assert.ok(texts.includes('V. Wembanyama 跳投不進'));
-  assert.ok(texts.includes('J. Brunson 罰球不進'));
+  assert.ok(texts.includes('J. Brunson 罰球命中 · 超前'));
   assert.ok(!texts.some(t => /掌握局勢|\\b2-0 攻勢/.test(t)));
   // The clock where it tells: the final seconds.
   const last = list.at(-1);
@@ -151,15 +151,38 @@ test('basketball: the stretch it drifted over and the possessions that decided i
   assert.equal(lateClock('basketball', s.winProb[10]), '');
 });
 
-test("the game's end, whole: every play there that moved it, tied it or put a side ahead (Finals game 2)", () => {
+test("the game's end: the stops that decided it, five at most, a lead taken or tied always among them (Finals game 2)", () => {
   const s = parseSummary(fixture('nba-finals-g2.json'), 'nba');
   const list = playMoments(s.winProb, 'basketball', { home: { id: s.home.id, name: '馬刺' }, away: { id: s.away.id, name: '尼克' }, en: false });
   const texts = list.map(m => m.text);
-  // Brunson's fadeaway tying it at 104 with 39 seconds left: never left out.
+  // Brunson's fadeaway tying it at 104 with 39 seconds left, and his free throw ahead: never left out.
   assert.ok(texts.includes('J. Brunson 跳投命中 · 追平'));
   assert.ok(texts.includes('J. Brunson 罰球命中 · 超前'));
-  assert.ok(texts.some(t => /^V\. Wembanyama 失誤（Jalen Brunson 抄截）$/.test(t)));
+  // Few enough to read: five from the closing stretch, ten in all.
+  assert.ok(list.filter(m => m.clutch).length <= 5);
+  assert.ok(list.length <= 10, `${list.length} moments`);
   // A team's own play by the side's name, one play once.
   assert.ok(!texts.some(t => /Knicks|Spurs/.test(t)));
   assert.equal(new Set(list.map(m => m.i)).size, list.length);
+});
+
+test("a play ESPN filed late sits where it happened, never as a spike (Suns at Pistons, preseason)", () => {
+  const s = parseSummary(fixture('nba-preseason-late-plays.json'), 'nba');
+  // Each period's clock only runs down along the line, and nothing comes after the final buzzer.
+  const secs = c => (c.includes(':') ? c.split(':').reduce((m, x) => m * 60 + Number(x), 0) : Number(c));
+  s.winProb.forEach((p, i) => {
+    const q = s.winProb[i - 1];
+    if (q?.play?.clock && p.play?.clock && q.n === p.n) assert.ok(secs(p.play.clock) <= secs(q.play.clock) + 1, `point ${i}: ${q.play.clock} then ${p.play.clock}`);
+  });
+  assert.match(s.winProb.at(-1).play.text, /End of Game/);
+  const list = playMoments(s.winProb, 'basketball', { home: { id: s.home.id, name: '活塞' }, away: { id: s.away.id, name: '太陽' }, en: false });
+  const texts = list.map(m => m.text);
+  // The turnover at 11:41 of the first quarter, filed at 3:41, isn't a swing at 0–0.
+  assert.ok(!texts.some(t => /D\. Booker 失誤/.test(t)));
+  assert.ok(texts.includes('K. Peat 灌籃命中 · 追平'));
+  assert.ok(texts.includes('E. Okorie 上籃命中 · 超前'));
+  // A thief by family name; a free throw made and one missed on the same clock count as one stop.
+  assert.ok(texts.includes('C. Lanier 失誤（Chandler 抄截）'));
+  assert.ok(!texts.some(t => /罰球不進/.test(t)) || !texts.some(t => /罰球命中$/.test(t)));
+  assert.ok(list.length <= 10, `${list.length} moments`);
 });

@@ -2,6 +2,7 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate } from '#kit/quadra.mjs';
+import { splitName } from './lib/compname.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
@@ -650,7 +651,9 @@ function winProbCard(line, e, timeline, events = []) {
   // A game on: a swing among its last few points is news.
   const latest = live ? moments.find(m => pts.length - 1 - m.i <= Math.max(2, pts.length * 0.03)) : null;
   // The player's face (the batter, the scorer), else the team's badge (a run), else the sport's sign.
-  const face = m => (m.pic ? personPic(m.pic, e.league, 'sm round') : m.team ? sideLogo(String(m.team) === String(e.home.id) ? e.home : e.away, e.league, 'sm') : el('span', { text: m.icon }));
+  // A run's team badge to the team's page.
+  const teamTap = x => (hasTeamPage(e.league) && x.id ? el('button', { class: 'wp-who team', type: 'button', 'aria-label': x.name || '', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, x.id, x)) }, [sideLogo(x, e.league, 'sm')]) : sideLogo(x, e.league, 'sm'));
+  const face = m => (m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : el('span', { text: m.icon }));
   const tell = (m, label) => {
     why.hidden = !m;
     if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, m.text]), el('span', { class: `wp-gain ${m.side}`, text: gain(m) }));
@@ -677,8 +680,11 @@ function winProbCard(line, e, timeline, events = []) {
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
     dot.style.top = `${(1 - up(p)) * 100}%`;
   };
-  // Dotted on the line: the big swings and a lead taken or tied (the closing stretch's every play is in the list).
-  const pins = moments.filter(m => Math.abs(m.delta) >= 0.1 || m.turned).map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${(1 - up(pts[m.i])) * 100}%` }));
+  // Dotted on the line: the big swings and a lead taken or tied, never two crowding each other (the bigger kept; a lead taken first).
+  const weight = m => (m.turned ? 1 : 0) + Math.abs(m.delta);
+  const dotted = [];
+  for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
+  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${(1 - up(pts[m.i])) * 100}%` }));
   const plot = scrubPlot(xs, show, [
     el('span', { class: 'wp-edge top', text: sideName(e.home) }),
     el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${grid}<path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${quiet.length ? traded : path}" class="wp-line"/>${gaps ? `<path d="${gaps}" class="wp-gap"/>` : ''}</svg>` }),
@@ -693,10 +699,13 @@ function winProbCard(line, e, timeline, events = []) {
     ? el('div', { class: 'wp-moments' }, [
         el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
         ...moments.map(m =>
-          el('button', { type: 'button', class: 'wp-mo', onclick: () => show(m.i) }, [
+          // The face to the player's page, the rest to the chart.
+          el('div', { class: 'wp-mo' }, [
             el('span', { class: 'wp-mo-face' }, [face(m)]),
-            el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text', text: m.text })]),
-            el('span', { class: `wp-gain ${m.side}`, text: gain(m) })
+            el('button', { type: 'button', class: 'wp-mo-go', onclick: () => show(m.i) }, [
+              el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text', text: m.text })]),
+              el('span', { class: `wp-gain ${m.side}`, text: gain(m) })
+            ])
           ])
         )
       ])
@@ -794,7 +803,8 @@ function raceChanceCard(line, ss, feed = null) {
     const { color, team } = f1Driver(name);
     const mate = teams.has(team || name);
     teams.add(team || name);
-    return el('span', { class: `rc-chip${mate ? ' mate' : ''}` }, [el('i', { style: mate ? `border-color:${color}` : `background:${color}` }), el('span', { text: driverShort(name, en) }), el('strong', { class: 'num' })]);
+    const who = fieldDriver(ss.field, name);
+    return el(who?.id ? 'button' : 'span', { class: `rc-chip${mate ? ' mate' : ''}`, type: who?.id ? 'button' : null, onclick: who?.id ? () => ctx.openPlayer('f1', who.id, who) : null }, [el('i', { style: mate ? `border-color:${color}` : `background:${color}` }), el('span', { text: driverShort(name, en) }), el('strong', { class: 'num' })]);
   });
   // What turned it: the safety car (the race's kept turns, or a race on, the live feed's), stops, leads.
   const last = pts.length - 1;
@@ -822,7 +832,11 @@ function raceChanceCard(line, ss, feed = null) {
   const names = line.drivers.map(n => driverShort(n, en));
   const moments = raceMoments(pts, names, bands, events, en, n => driverShort(n, en));
   // The driver's face: the one a moment is about (a band, its cause).
-  const face = m => personPic({ name: m.band ? m.driver || '' : line.drivers[m.k] }, 'f1', 'sm round');
+  const face = m => {
+    const name = m.band ? m.driver || '' : line.drivers[m.k];
+    const who = fieldDriver(ss.field, name);
+    return personTap('f1', who, personPic(who || { name }, 'f1', 'sm round'));
+  };
   const colorOf = k => f1Driver(line.drivers[k]).color;
   const gainChip = m => el('span', { class: 'wp-gain', style: `color:${colorOf(m.k)};background:color-mix(in srgb, ${colorOf(m.k)} 16%, transparent)`, text: `${names[m.k]} ${m.delta >= 0 ? '+' : '−'}${Math.round(Math.abs(m.delta) * 100)}%` });
   const shade = bands.map(b => `<rect x="${(xs[b.i0] * w).toFixed(1)}" y="0" width="${Math.max(2, (xs[b.i1] - xs[b.i0]) * w).toFixed(1)}" height="${h}" class="rc-band ${b.kind}"/>`).join('');
@@ -870,7 +884,7 @@ function raceChanceCard(line, ss, feed = null) {
   const list = moments.length
     ? el('div', { class: 'wp-moments' }, [
         el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
-        ...moments.map(m => el('button', { type: 'button', class: 'wp-mo', onclick: () => show(m.i) }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text', text: m.band && m.driver ? `${m.icon} ${m.text}` : m.text })]), gainChip(m)]))
+        ...moments.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => show(m.i) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text', text: m.band && m.driver ? `${m.icon} ${m.text}` : m.text })]), gainChip(m)])]))
       ])
     : null;
   return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, strip, plot, axisRow(marks), why, list]));
@@ -879,6 +893,11 @@ function raceChanceCard(line, ss, feed = null) {
 // ---- Race weekends ----------------------------------------------------------------------
 
 // A driver in a race: their page, where ESPN has one; else just the name.
+// A face that opens its person's page (a moment's player, a race's driver), else just the face.
+function personTap(league, p, pic) {
+  const can = p?.id && LEAGUES[league]?.espn && /^\d+$/.test(String(p.id));
+  return can ? el('button', { class: 'wp-who', type: 'button', 'aria-label': p.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(league, p.id, p)) }, [pic]) : pic;
+}
 function personName(league, p, cls = 'field-name') {
   if (!p) return el('span', { class: cls });
   const can = p.id && LEAGUES[league]?.espn && /^\d+$/.test(String(p.id));
@@ -987,9 +1006,11 @@ export function openFieldEvent(e) {
 // `field`: the session's cars from ESPN (their ids, so the pictures match
 // the rest of the app's).
 const plainName = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+// A driver of the session's cars by their name (full, else the family name).
+const fieldDriver = (field = [], full, family = String(full || '').split(' ').slice(1).join(' ') || full) => field.find(x => plainName(x.name) === plainName(full)) || field.find(x => plainName(x.name).endsWith(plainName(family))) || null;
 function f1Row({ pos, posText = '', posOut = false, full, family, team, field, main = '', tags = [], cls = '' }) {
   const en = L() === 'en';
-  const c = field.find(x => plainName(x.name) === plainName(full)) || field.find(x => plainName(x.name).endsWith(plainName(family))) || { name: full };
+  const c = fieldDriver(field, full, family) || { name: full };
   const who = { ...c, name: en ? c.name : f1Driver(full).zh || c.name };
   const car = f1Constructor(team || f1Driver(full).team);
   return el('li', { class: `${ctx.isFollowed('f1', c.id) ? 'mine' : ''}${cls ? ` ${cls}` : ''}`.trim() }, [
@@ -1433,7 +1454,6 @@ const resultPills = list => el('div', { class: 'form-pills' }, list.map(r => el(
 // Individual sports (races, tours, fights): the person is followed like a team.
 const individual = league => LEAGUES[league]?.kind !== 'match';
 const LOG_WORDS = { Started: '先發', Sub: '替補', Substitute: '替補', 'Did not play': '未上場', DNP: '未上場' };
-const SPLIT_ZH = { Career: '生涯', 'Regular Season': '例行賽', Postseason: '季後賽', Playoffs: '季後賽' };
 
 // formula1.com's figures as tiles, in the app's words.
 // "P1（133 次）" reads as P1 with "133 次" under it: a tile is too narrow for both on a line.
@@ -1666,7 +1686,7 @@ export async function openPlayer(league, id, fallback = {}) {
               ? el('div', { class: 'table-wrap' }, [
                   el('table', { class: 'data game-log' }, [
                     el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...ov.season.rows[0].cells.map(c => el('th', { class: 'num', title: c.label, text: statName(c.label, L()) }))])]),
-                    el('tbody', {}, ov.season.rows.map(r => el('tr', {}, [el('th', { class: 'left split-name' }, [en ? r.name : SPLIT_ZH[r.name] || zhLater(r.name)]), ...r.cells.map(c => el('td', { class: 'num', text: c.value }))])))
+                    el('tbody', {}, ov.season.rows.map(r => el('tr', {}, [el('th', { class: 'left split-name' }, [splitName(r.name, ov.season.rows, en) || zhLater(r.name)]), ...r.cells.map(c => el('td', { class: 'num', text: c.value }))])))
                   ])
                 ])
               : el('div', { class: 'stat-grid dense' }, ov.season.rows[0].cells.map(c => tile(statName(c.label, L()), c.value)))
@@ -1708,7 +1728,7 @@ export async function openPlayer(league, id, fallback = {}) {
           name !== a.name ? el('small', { class: 'muted', text: a.name }) : null,
           el('p', { class: 'muted' }, joinNodes(sub, ' · ')),
           a.injuries.length ? el('p', { class: 'injury-tag' }, joinNodes(['🩹', ...a.injuries.map(injuryText)], ' ')) : null,
-          lastFive.length ? el('div', { class: 'hero-form' }, [el('small', { class: 'muted', text: W('近 5 站', 'Last 5') }), ...lastFive.map(r => el('span', { class: `pos-pill num${r.out ? ' out' : r.pos <= 3 ? ' podium' : ''}`, title: r.name, text: r.text }))]) : null
+          lastFive.length ? el('div', { class: 'hero-form' }, [el('small', { class: 'muted', text: W('近5站', 'Last 5') }), ...lastFive.map(r => el('span', { class: `pos-pill num${r.out ? ' out' : r.pos <= 3 ? ' podium' : ''}`, title: [r.name, r.out ? r.text : ''].filter(Boolean).join(' · '), text: r.code || r.text }))]) : null
         ]),
         followBtn
       ]),

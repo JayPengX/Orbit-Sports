@@ -14,7 +14,7 @@ test("formula1.com's grids are found by their first label, in the app's words", 
 
 test('a finish reads as a place or a retirement, with its reason', () => {
   assert.deepEqual(finishOf({ position: '3', positionText: '3', status: 'Finished' }, false), { pos: 3, text: 'P3', out: false, why: '' });
-  assert.deepEqual(finishOf({ position: '19', positionText: 'R', status: 'Engine' }, false), { pos: 0, text: '退賽', out: true, why: '引擎' });
+  assert.deepEqual(finishOf({ position: '19', positionText: 'R', status: 'Engine' }, false), { pos: 0, text: '退賽', code: 'DNF', out: true, why: '引擎' });
   assert.equal(finishOf({ position: '20', positionText: 'R', status: 'Retired' }, true).why, '');
   assert.equal(finishOf({ position: '20', positionText: 'W', status: 'Did not start' }, true).text, 'DNS');
 });

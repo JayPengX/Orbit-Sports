@@ -94,13 +94,15 @@ const NFL_ZH = [
   [/pass/i, '傳球推進'],
   [/rush/i, '跑球推進']
 ];
+// A thief by family name ("Ronald Holland II" → "Holland II"): the row stays one line.
+const initial = name => (name ? name.replace(/^\S+\s+(?=\S)/, '') : name);
 // A basketball play in a few words: made or missed and what, a free throw,
 // a turnover (and who stole it), a foul, a rebound, a block.
 function basketballZh(play) {
   const t = `${play.type} ${play.text}`;
   const made = play.scoring || /\bmakes\b/i.test(play.text);
   if (/turnover|bad pass|traveling|lost ball|offensive foul/i.test(t)) {
-    const thief = /\(([^)]+?) steals?\)/i.exec(play.text)?.[1];
+    const thief = initial(/\(([^)]+?) steals?\)/i.exec(play.text)?.[1]);
     return `失誤${thief ? `（${thief} 抄截）` : ''}`;
   }
   if (/free throw/i.test(t)) return made ? '罰球命中' : '罰球不進';
@@ -162,13 +164,13 @@ function swingMoments(points, sport, side) {
     }
     return biggest(found);
   }
-  // The possessions that swung it (a game's last minutes), each by who did what.
+  // The possessions that swung it before the closing stretch (its own list has those), each by who did what.
   const plays = [];
-  for (let i = 1; i < points.length; i++) {
-    const delta = vals[i] - vals[i - 1];
-    const play = points[i].play;
-    if (Math.abs(delta) >= PLAY_SWING && play && !/end (period|of|game)/i.test(`${play.type} ${play.text}`))
-      plays.push({ i, delta, side: home(delta), icon: ICON.basketball, text: playText(sport, play, side.en, teamName(play.team, side)), pic: play.pic, team: play.team || sideOf(delta, side).id, play: true, src: play });
+  for (const g of stops(points)) {
+    const delta = vals[g.to] - vals[g.from - 1];
+    const play = points[g.key].play;
+    if (Math.abs(delta) >= PLAY_SWING && play && !lateClock(sport, points[g.to]))
+      plays.push({ i: g.key, delta, side: home(delta), icon: ICON.basketball, text: playText(sport, play, side.en, teamName(play.team, side)), pic: play.pic, team: play.team || sideOf(delta, side).id, play: true, src: play });
   }
   // The stretches it drifted over (a slow slide over a quarter or two): each told by the points each side scored over it.
   const stretches = swings(vals, STRETCH)
@@ -182,9 +184,9 @@ function swingMoments(points, sport, side) {
       const text = side.en ? `${who.name} ${mine}-${theirs}` : `${who.name} ${mine}-${theirs} ${to - from > RUN_PLAYS ? '拉開' : '攻勢'}`;
       return { i: to, from, delta, side: home(delta), icon: ICON.basketball, text, team: who.id, periods: [points[from].n, points[to].n] };
     });
-  // The two biggest stretches and the six biggest possessions, in the game's order.
+  // The two biggest stretches and the three biggest possessions, in the game's order.
   const top = (list, n) => [...list].sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta)).slice(0, n);
-  return [...top(stretches, 2), ...top(plays, 6)].sort((x, y) => x.i - y.i);
+  return [...top(stretches, 2), ...top(plays, 3)].sort((x, y) => x.i - y.i);
 }
 
 export function playMoments(points, sport, side) {
@@ -200,33 +202,63 @@ export function playMoments(points, sport, side) {
   return found.sort((x, y) => x.i - y.i);
 }
 
+// One stop in play: the plays on the same clock (a foul and its free
+// throws, a miss and its rebound), told by the one that moved it most and
+// counted by what they did together (a free throw made and one missed can
+// cancel out). { from, to, key } as points' indexes. Baseball has no clock:
+// each play its own.
+function stops(points) {
+  const out = [];
+  for (let i = 1; i < points.length; i++) {
+    const p = points[i];
+    const clock = p.play?.clock;
+    const last = out.at(-1);
+    if (last && clock && points[last.to].n === p.n && points[last.to].play?.clock === clock) last.to = i;
+    else out.push({ from: i, to: i });
+  }
+  const vals = points.map(value);
+  for (const g of out) {
+    let key = g.from;
+    for (let i = g.from; i <= g.to; i++) if (points[i].play && !/end (period|of|game)|timeout/i.test(`${points[i].play.type} ${points[i].play.text}`) && (!points[key].play || Math.abs(vals[i] - vals[i - 1]) > Math.abs(vals[key] - vals[key - 1]))) key = i;
+    // A score that changed who's ahead tells it (the dunk, not the foul before it).
+    for (let i = g.from; i <= g.to; i++) if (points[i].play?.scoring && lead(points[i].play) !== lead(points[g.from - 1]?.play)) key = i;
+    g.key = key;
+  }
+  return out;
+}
+
 // The closing stretch (the last two minutes of the last period or overtime; a
-// baseball game's 9th inning on): each play that moved the chance 5 points
-// or more, and each that tied the game or changed who's ahead, however
-// little the chance moved.
-const CLUTCH = 0.05;
+// baseball game's 9th inning on): the stops that decided it, five at most: each
+// that tied the game or changed who's ahead first, then the biggest swings
+// (8 points or more), in the game's order. Every play there is still on the
+// line for a finger.
+const CLUTCH = 0.08;
+const CLOSE_MAX = 5;
 const lead = p => (p && p.home != null && p.away != null ? Math.sign(Number(p.home) - Number(p.away)) : null);
 function clutchMoments(points, sport, side) {
   const vals = points.map(value);
   const out = [];
   let before = null;
-  for (let i = 1; i < points.length; i++) {
-    const p = points[i];
-    let play = p.play;
+  for (const g of stops(points)) {
     const was = before;
-    if (lead(play) != null) before = lead(play);
+    for (let i = g.from; i <= g.to; i++) if (lead(points[i].play) != null) before = lead(points[i].play);
+    const p = points[g.key];
+    let play = p.play;
     if (!play || /end (period|of|game)|timeout/i.test(`${play.type} ${play.text}`)) continue;
     if (!(sport === 'baseball' ? p.n >= 9 : lateClock(sport, p))) continue;
     // ESPN puts a score's swing on the kickoff after it: the score's.
-    if (/kickoff|kicks/i.test(`${play.type} ${play.text}`)) play = points.slice(Math.max(0, i - 3), i).reverse().find(q => q.play?.scoring)?.play || play;
-    const delta = vals[i] - vals[i - 1];
-    const turned = play.scoring && was != null && lead(play) != null && lead(play) !== was;
+    if (/kickoff|kicks/i.test(`${play.type} ${play.text}`)) play = points.slice(Math.max(0, g.key - 3), g.key).reverse().find(q => q.play?.scoring)?.play || play;
+    const delta = vals[g.to] - vals[g.from - 1];
+    const turned = was != null && before != null && before !== was && points.slice(g.from, g.to + 1).some(q => q.play?.scoring);
     if (Math.abs(delta) < CLUTCH && !turned) continue;
-    const tied = turned && lead(play) === 0;
+    const tied = turned && before === 0;
     const text = playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name) + (turned ? (side.en ? (tied ? ' · ties it' : ' · takes the lead') : tied ? ' · 追平' : ' · 超前') : '');
-    out.push({ i, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON[sport] || '•', text, pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id, clutch: true, src: play, turned: turned ? (tied ? 'tie' : 'lead') : '' });
+    out.push({ i: g.key, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON[sport] || '•', text, pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id, clutch: true, src: play, turned: turned ? (tied ? 'tie' : 'lead') : '' });
   }
-  return out;
+  return [...out]
+    .sort((a, b) => Number(Boolean(b.turned)) - Number(Boolean(a.turned)) || Math.abs(b.delta) - Math.abs(a.delta))
+    .slice(0, CLOSE_MAX)
+    .sort((a, b) => a.i - b.i);
 }
 
 // A Polymarket line: each event the market moved on (its price a minute

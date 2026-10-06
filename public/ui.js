@@ -7,6 +7,7 @@ import { keptTiming } from './lib/f1.mjs';
 import { espnHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
 import { liveLabel, liveNote } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
+import { otherName } from './lib/compname.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES } from './lib/espn.mjs';
 import { tvOf, channelsOf, watchOf } from './lib/tv.mjs';
@@ -185,7 +186,7 @@ export function leagueMark(key, cls = 'lg-mark') {
 }
 export const leagueChip = key => el('span', { class: 'league-tag' }, [leagueMark(key), el('span', { text: leagueName(key, ctx.locale) })]);
 // An event's competition: its league, or (a friendly, a cup Orbit Sports doesn't have) its own name.
-const compChip = e => (e.other ? el('span', { class: 'league-tag other' }, [el('span', { text: e.other })]) : leagueChip(e.league));
+const compChip = e => (e.other ? el('span', { class: 'league-tag other' }, [el('span', { text: otherName(e.other, ctx.locale === 'en') })]) : leagueChip(e.league));
 
 // ---- Events --------------------------------------------------------------------------
 

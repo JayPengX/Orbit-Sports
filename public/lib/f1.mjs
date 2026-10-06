@@ -92,7 +92,7 @@ export function finishOf(r, en) {
   const out = OUT[r.positionText];
   const pos = Number(r.position);
   return out
-    ? { pos: 0, text: out[en ? 1 : 0], out: true, why: r.status && !/^(Retired|Did not start|Lapped|Finished)$/i.test(r.status) ? (en ? r.status : WHY_ZH[r.status] || r.status) : '' }
+    ? { pos: 0, text: out[en ? 1 : 0], code: out[1], out: true, why: r.status && !/^(Retired|Did not start|Lapped|Finished)$/i.test(r.status) ? (en ? r.status : WHY_ZH[r.status] || r.status) : '' }
     : { pos, text: `P${pos}`, out: false, why: '' };
 }
 const mapRaces = (races, key) => new Map((races || []).map(r => [r.round, r[key] || []]));

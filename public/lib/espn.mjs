@@ -623,9 +623,15 @@ export function parseSummary(data, league) {
   const timeline = timed.map(p => ({ t: wall(p), n: p.period.number, half: /^(top|bottom)$/i.test(p.period.type || '') ? p.period.type.toLowerCase() : '', type: p.type?.type || '' })).sort((a, b) => a.t - b.t);
   // Each of ESPN's points takes its play's period (its wall clock can be off: a play logged late).
   const playAt = new Map(timed.map(p => [String(p.id), { n: p.period.number, ...(/^(top|bottom)$/i.test(p.period.type || '') ? { half: p.period.type.toLowerCase() } : {}), play: playOf(p) }]));
+  // In the plays' own order: ESPN's list sometimes files a play late (a first quarter turnover among the plays at 3:41, one after the final
+  // buzzer), with its chance from when it happened, a spike on the line. A point with no play keeps its place after the one before it.
+  const seq = new Map(timed.map((p, i) => [String(p.id), i]));
+  let at = -1;
   const winProb = (data?.winprobability || [])
     .filter(w => Number.isFinite(w.homeWinPercentage))
-    .map(w => ({ home: w.homeWinPercentage, ...(w.tiePercentage > 0 ? { draw: w.tiePercentage } : {}), ...playAt.get(String(w.playId)) }))
+    .map((w, k) => ({ w, k, at: (at = seq.get(String(w.playId)) ?? at + 1e-6 * (k + 1)) }))
+    .sort((a, b) => a.at - b.at || a.k - b.k)
+    .map(({ w }) => ({ home: w.homeWinPercentage, ...(w.tiePercentage > 0 ? { draw: w.tiePercentage } : {}), ...playAt.get(String(w.playId)) }))
     // A point whose play ESPN left out: the period of the one before it (the first, of the first that has one).
     .map((p, i, all) => (p.n ? p : ((p.n = i ? all[i - 1].n : all.find(q => q.n)?.n), i && all[i - 1].half && (p.half = all[i - 1].half), p)));
   // A game to come: each side's chance, ESPN's own prediction, else the
