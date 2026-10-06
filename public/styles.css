@@ -481,7 +481,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .rc-band { fill: color-mix(in srgb, #f5b400 16%, transparent); }
 .rc-band.vsc { fill: color-mix(in srgb, #f5b400 9%, transparent); }
 .rc-band.red { fill: color-mix(in srgb, #e5484d 18%, transparent); }
-.rc-band-tag { position: absolute; top: 2px; padding: 0 4px; border-radius: 4px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.02em; color: #b58300; background: color-mix(in srgb, #f5b400 22%, var(--q-surface, #fff)); pointer-events: none; }
+.rc-band-tags { position: relative; height: 16px; margin-top: 4px; }
+.rc-band-tag { position: absolute; top: 0; padding: 0 4px; border-radius: 4px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.02em; color: #b58300; background: color-mix(in srgb, #f5b400 22%, var(--q-surface, #fff)); pointer-events: none; }
 .rc-band-tag.red { color: #e5484d; background: color-mix(in srgb, #e5484d 18%, var(--q-surface, #fff)); }
 /* Key moments: dotted on the line, told under it (the one at the finger, or just now), listed. */
 .wp-moment { position: absolute; width: 9px; height: 9px; border-radius: 50%; transform: translate(-50%, -50%); border: 2px solid var(--q-surface, #fff); pointer-events: none; background: var(--q-text-2); }

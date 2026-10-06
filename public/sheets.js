@@ -817,8 +817,13 @@ function raceChanceCard(line, ss, feed = null) {
   const colorOf = k => f1Driver(line.drivers[k]).color;
   const gainChip = m => el('span', { class: 'wp-gain', style: `color:${colorOf(m.k)};background:color-mix(in srgb, ${colorOf(m.k)} 16%, transparent)`, text: `${names[m.k]} ${m.delta >= 0 ? '+' : '−'}${Math.round(Math.abs(m.delta) * 100)}%` });
   const shade = bands.map(b => `<rect x="${(xs[b.i0] * w).toFixed(1)}" y="0" width="${Math.max(2, (xs[b.i1] - xs[b.i0]) * w).toFixed(1)}" height="${h}" class="rc-band ${b.kind}"/>`).join('');
-  // A tag close after another (a virtual safety car turned real) goes below it.
-  const tags = bands.map((b, j) => el('span', { class: `rc-band-tag ${b.kind}`, style: `left:${xs[b.i0] * 100}%;top:${j && xs[b.i0] - xs[bands[j - 1].i0] < 0.1 ? 20 : 2}px`, text: b.kind === 'red' ? (en ? 'RED' : '紅旗') : b.kind.toUpperCase() }));
+  // Tagged in a strip above the chart (never over the lines), each at its band's start; one close after another (a virtual safety car turned real) just after it.
+  let free = 0;
+  const tags = bands.map(b => {
+    const x = Math.min(0.9, Math.max(xs[b.i0], free));
+    free = x + 0.1;
+    return el('span', { class: `rc-band-tag ${b.kind}`, style: `left:${x * 100}%`, text: b.kind === 'red' ? (en ? 'RED' : '紅旗') : b.kind.toUpperCase() });
+  });
   const pins = moments.filter(m => !m.band).map(m => el('span', { class: 'wp-moment', style: `left:${xs[m.i] * 100}%;top:${(1 - pts[m.i].c[m.k]) * 100}%;background:${colorOf(m.k)}` }));
   const at = el('small', { class: 'wp-at' });
   const why = el('div', { class: 'wp-why', hidden: true });
@@ -849,7 +854,8 @@ function raceChanceCard(line, ss, feed = null) {
     rule.hidden = i == null;
     if (i != null) rule.style.left = `${xs[i] * 100}%`;
   };
-  const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${shade}${grid}${paths}</svg>` }), ...tags, ...pins, rule]);
+  const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${shade}${grid}${paths}</svg>` }), ...pins, rule]);
+  const strip = tags.length ? el('div', { class: 'rc-band-tags', 'aria-hidden': 'true' }, tags) : null;
   show();
   const list = moments.length
     ? el('div', { class: 'wp-moments' }, [
@@ -857,7 +863,7 @@ function raceChanceCard(line, ss, feed = null) {
         ...moments.map(m => el('button', { type: 'button', class: 'wp-mo', onclick: () => show(m.i) }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text', text: m.band && m.driver ? `${m.icon} ${m.text}` : m.text })]), gainChip(m)]))
       ])
     : null;
-  return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, plot, axisRow(marks), why, list]));
+  return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, strip, plot, axisRow(marks), why, list]));
 }
 
 // ---- Race weekends ----------------------------------------------------------------------
