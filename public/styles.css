@@ -305,26 +305,20 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .why { font-size: 11.5px; font-weight: 750; color: var(--accent); background: var(--accent-wash); border-radius: 999px; padding: 2px 8px; }
 .event-row.mine { box-shadow: inset 3px 0 0 var(--accent); }
 
-.sport-picker { display: grid; gap: 12px; margin-bottom: 18px; }
+.sport-picker { display: grid; gap: 12px; margin: 14px 0 22px; }
 .sp-head { display: grid; gap: 2px; }
 .sp-head strong { font-size: 16px; font-weight: 800; }
 .sp-head small { font-size: 12.5px; }
-/* A sport each: its colour washed in, the icon large, its leagues' marks underneath. */
-.sport-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.sport-tile { --sp: #64748b; position: relative; display: grid; justify-items: start; align-content: start; gap: 6px; min-height: 128px; padding: 14px; border-radius: 18px; border: 1.5px solid color-mix(in srgb, var(--sp) 22%, transparent); background: linear-gradient(150deg, color-mix(in srgb, var(--sp) 26%, var(--q-surface)) 0%, color-mix(in srgb, var(--sp) 6%, var(--q-surface)) 100%); color: var(--q-text); text-align: left; font: inherit; cursor: pointer; transition: transform 0.12s ease, border-color 0.12s ease; }
-.sport-tile:active { transform: scale(0.97); }
-.sport-tile[data-sport='soccer'] { --sp: #16a34a; }
-.sport-tile[data-sport='baseball'] { --sp: #2563eb; }
-.sport-tile[data-sport='basketball'] { --sp: #ea580c; }
-.sport-tile[data-sport='racing'] { --sp: #dc2626; }
-.sport-tile.on { border-color: var(--sp); box-shadow: 0 0 0 1px var(--sp) inset; }
-.sport-icon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: color-mix(in srgb, var(--sp) 22%, var(--q-surface)); font-size: 26px; line-height: 1; }
-.sport-name { font-size: 16px; font-weight: 800; margin-top: 2px; }
-.sport-leagues { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.sport-leagues .league-badge { --s: 22px; }
-.sport-leagues small { font-size: 11.5px; color: var(--q-muted); font-weight: 650; }
-.sport-n { position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 50%; background: var(--sp); color: #fff; font-size: 13px; font-weight: 800; display: grid; place-items: center; }
-.sport-n.add { background: color-mix(in srgb, var(--q-text) 10%, transparent); color: var(--q-text-2); font-size: 17px; font-weight: 600; }
+/* The sports as 追蹤's suggestion cards: the leagues' marks overlapping, the sport and its leagues, + or its place. */
+.sport-picker .suggest-grid { margin: 0; grid-template-columns: minmax(0, 1fr); }
+.sport-tile { min-height: 64px; padding: 12px 14px; gap: 12px; border-radius: 14px; }
+.sport-marks { display: flex; flex: none; width: 70px; }
+.sport-marks .league-badge { --s: 26px; box-shadow: 0 0 0 2px var(--q-surface); }
+.sport-marks .league-badge + .league-badge { margin-left: -9px; }
+.sport-tile .suggest-name strong { font-size: 15px; }
+.sport-tile .suggest-name small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sport-tile .suggest-add { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; font-size: 18px; line-height: 1; }
+.sport-tile .suggest-add.sport-n { background: var(--accent); color: var(--accent-ink, #fff); font-size: 12.5px; font-weight: 800; }
 
 /* ---- The follow editor ---- */
 .order-list { list-style: none; margin: 0 0 10px; padding: 0; border: 1px solid transparent; border-radius: var(--q-radius-sm); background: var(--q-surface); overflow: hidden; }

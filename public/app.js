@@ -188,6 +188,14 @@ function toggleFollowGame(e) {
   pushTimer = setTimeout(syncPush, 1500);
 }
 // The followed matches, each its newest copy (today's board, else the one read for 追蹤).
+// What 追蹤的比賽 says it'll tell: a match's start and final; a race weekend's qualifying, sprint and race.
+function gamesNote(list) {
+  const races = list.some(e => e.kind === 'field');
+  const matches = list.some(e => e.kind !== 'field');
+  if (races && matches) return L({ zh: '比賽開始和結果都會通知你（賽車：排位、衝刺、正賽）', en: 'Told when each starts and ends (races: qualifying, sprint, race)' });
+  if (races) return L({ zh: '排位賽、衝刺賽、正賽開始和結果都會通知你', en: 'Told when qualifying, the sprint and the race start, and the results' });
+  return L({ zh: '開賽和終場比分都會通知你', en: 'Told when it starts and the final score' });
+}
 // A followed race weekend: its sessions still to come (all of them over: the race).
 const followedGames = () => {
   const day = new Map(dayAll(state.days.get(today())).filter(e => e.kind === 'match').map(e => [gameKey(e), e]));
@@ -610,11 +618,16 @@ function syncPush() {
     // The Worker fills in the score (the title) and who won ({result}) once ESPN has the final.
     if (LEAGUES[e.league].espn && /^\d+$/.test(e.id)) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} · {result}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
   }
-  // A followed race weekend: each qualifying, sprint and race starting.
+  // A followed race weekend: each qualifying, sprint and race starting, and
+  // the sprint's and the race's result (the Worker reads the podium off ESPN's day).
   for (const e of followedGames()) {
-    if (e.kind !== 'field' || !['Qual', 'SR', 'Race'].includes(e.sessionKey) || e.status.state !== 'pre') continue;
+    if (e.kind !== 'field' || !['Qual', 'SR', 'Race'].includes(e.sessionKey) || e.status.state === 'post') continue;
     const start = Date.parse(e.official || e.start);
-    if (start > now && start < now + 8 * 86_400_000) items.push({ at: start, title: `${e.name} · ${e.session}`, body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: 'live', kind: 'start' });
+    if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
+    const title = `${e.name} · ${e.session}`;
+    if (start > now && e.status.state === 'pre') items.push({ at: start, title, body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: 'live', kind: 'start' });
+    if (e.sessionKey !== 'Qual' && LEAGUES[e.league].espn && /^\d+$/.test(String(e.weekend)))
+      items.push({ at: Math.max(now + 60_000, start + (e.sessionKey === 'Race' ? 100 : 40) * 60_000), title, body: `${leagueName(e.league, locale)} · {result}`, tag: `end:${e.league}:${e.id}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } });
   }
   schedulePush(q, items);
 }
@@ -910,8 +923,9 @@ function noTvText(date) {
 }
 const fullSchedule = () => el('button', { class: 'section-more none-go', type: 'button', text: `${L({ zh: '看完整賽程', en: 'Every game' })} ›`, onclick: () => showTab('matches') });
 function homeHead() {
-  const hasFollows = state.prefs.leagues.length > 0;
   const h = state.home;
+  // Still picking (a newcomer, until 完成): the welcome, and no sport filter yet.
+  const hasFollows = state.prefs.leagues.length > 0 && !h.picking;
   const sport = SPORTS[h.filter] ? h.filter : null;
   const days = sport ? h.sportDays.get(sport) : null;
   return el('div', {}, [
@@ -919,7 +933,7 @@ function homeHead() {
       el('div', {}, [el('p', { class: 'hero-kicker', text: dayLabel(h.date, { long: true }) }), el('h2', { class: 'hero-title', text: hasFollows ? t(h.date === today() ? 'heroTitle' : 'heroTitleDay') : t('heroTitleNew') })]),
       el('button', { class: 'q-btn small', type: 'button', text: hasFollows ? t('editFollows') : t('pickSports'), onclick: openFollowEditor })
     ]),
-    sportChips(),
+    hasFollows ? sportChips() : null,
     // One sport: only the days it plays (read first, then shown).
     sport && !days
       ? el('div', { class: 'day-strip-wait' }, [el('div', { class: 'spinner small' }), el('span', { class: 'muted small', text: t('findingDays') })])
@@ -1023,26 +1037,26 @@ async function sportDays(sport) {
   return days;
 }
 
-// First run: the sports, tapped in order of priority. Each a tile in its
-// colour with its leagues' marks; a tapped one shows its place in the order.
+// First run: the sports, tapped in order of priority, drawn like 追蹤's
+// suggestions: each a card with its leagues' marks and names, + turning into
+// its place in the order once tapped; 完成 when there's one.
 function sportPicker() {
   const mine = followedSports();
-  return el('div', { class: 'q-card pad sport-picker' }, [
+  return el('div', { class: 'sport-picker' }, [
     el('div', { class: 'sp-head' }, [el('strong', { text: L({ zh: '從喜歡的運動開始', en: 'Start with what you like' }) }), el('small', { class: 'muted', text: L({ zh: '依喜好順序點選，第一個最優先', en: 'Tap in order: the first counts most' }) })]),
     el(
       'div',
-      { class: 'sport-grid' },
+      { class: 'suggest-grid sport-grid' },
       Object.entries(SPORTS)
         .filter(([k]) => isActiveSport(k))
         .map(([k, sp]) => {
           const i = mine.indexOf(k);
-          const leagues = leaguesOf(k).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top)).slice(0, 4);
-          const more = leaguesOf(k).length - leagues.length;
-          return el('button', { class: `sport-tile${i >= 0 ? ' on' : ''}`, type: 'button', 'data-sport': k, 'aria-pressed': String(i >= 0), onclick: () => toggleSport(k) }, [
-            el('span', { class: 'sport-icon', 'aria-hidden': 'true', text: sp.icon }),
-            el('b', { class: `sport-n num${i >= 0 ? '' : ' add'}`, text: i >= 0 ? String(i + 1) : '+' }),
-            el('strong', { class: 'sport-name', text: L(sp) }),
-            el('span', { class: 'sport-leagues' }, [...leagues.map(x => leagueMark(x)), more > 0 ? el('small', { class: 'num', text: `+${more}` }) : null])
+          const all = leaguesOf(k).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top));
+          const names = all.slice(0, 4).map(x => leagueName(x, locale).replace(/\s.*$/, '')).join(locale === 'en' ? ', ' : '、') + (all.length > 4 ? L({ zh: ` 等 ${all.length} 個聯賽`, en: ` and ${all.length - 4} more` }) : '');
+          return el('button', { class: `suggest sport-tile${i >= 0 ? ' on' : ''}`, type: 'button', 'aria-pressed': String(i >= 0), onclick: () => toggleSport(k) }, [
+            el('span', { class: 'sport-marks' }, all.slice(0, 3).map(x => leagueMark(x))),
+            el('span', { class: 'suggest-name' }, [el('strong', { text: L(sp) }), el('small', { class: 'muted', text: names })]),
+            el('b', { class: `suggest-add${i >= 0 ? ' sport-n num' : ''}`, text: i >= 0 ? String(i + 1) : '+' })
           ]);
         })
     ),
@@ -1766,7 +1780,7 @@ function renderFollowing() {
     ? section(
         L({ zh: '追蹤的比賽', en: 'Matches you follow' }),
         el('div', { class: 'q-card list followed-games' }, games.map(e => el('div', { class: 'fg-row' }, [withWatch(eventRow(e), e), el('button', { class: 'fg-off', type: 'button', 'aria-label': L({ zh: '取消追蹤這場', en: 'Unfollow this match' }), text: '★', onclick: () => toggleFollowGame(e) })]))),
-        { sub: L({ zh: '開賽和終場都會通知你', en: 'Told when it starts and ends' }) }
+        { sub: gamesNote(games) }
       )
     : null;
   if (!teams.length && !people.length) {

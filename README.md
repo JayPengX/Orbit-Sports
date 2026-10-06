@@ -50,6 +50,11 @@ right:
 - **Teams and players**: place and key figures, schedule, results, roster,
   follow. F1 drivers and teams get their pages too (formula1.com's figures,
   each weekend), and can be followed.
+- **One match or race weekend, followed on its own** (追蹤這場比賽 on a match,
+  追蹤這一站 on an F1 session): first on 首頁 that day (even off Taiwan TV),
+  at the top of 追蹤, and told when it starts and ends (a race weekend:
+  qualifying, sprint and race starting, the sprint's and race's podium).
+  Let go two days after.
 - **Notices**: a followed team's game starting and its final score.
 
 ## Today's picks
