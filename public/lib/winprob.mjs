@@ -189,15 +189,17 @@ export async function findRaceMarket(start, getJson) {
 const OPENF1 = 'https://api.openf1.org/v1';
 async function raceSession(start, getJson) {
   const at = Date.parse(start);
-  const sessions = (await getJson(`${OPENF1}/sessions?year=${new Date(at).getUTCFullYear()}&session_name=Race`, { kind: 'laps' })) || [];
+  const got = await getJson(`${OPENF1}/sessions?year=${new Date(at).getUTCFullYear()}&session_name=Race`, { kind: 'laps' });
+  const sessions = Array.isArray(got) ? got : [];
   return sessions.find(x => Math.abs(Date.parse(x.date_start) - at) < 6 * 3_600_000) || null;
 }
 export async function raceLaps(start, getJson) {
   const race = await raceSession(start, getJson);
   if (!race) return null;
-  const [won] = (await getJson(`${OPENF1}/session_result?session_key=${race.session_key}&position=1`, { kind: 'laps' })) || [];
+  const list = x => (Array.isArray(x) ? x : []);
+  const [won] = list(await getJson(`${OPENF1}/session_result?session_key=${race.session_key}&position=1`, { kind: 'laps' }));
   if (!won?.driver_number) return null;
-  const laps = ((await getJson(`${OPENF1}/laps?session_key=${race.session_key}&driver_number=${won.driver_number}`, { kind: 'laps' })) || []).filter(l => l.date_start).sort((x, y) => x.lap_number - y.lap_number);
+  const laps = list(await getJson(`${OPENF1}/laps?session_key=${race.session_key}&driver_number=${won.driver_number}`, { kind: 'laps' })).filter(l => l.date_start).sort((x, y) => x.lap_number - y.lap_number);
   if (laps.length < 3) return null;
   const sec = d => Date.parse(d) / 1000;
   return [{ lap: 0, t: sec(laps[0].date_start) }, ...laps.map((l, i) => ({ lap: l.lap_number, t: laps[i + 1] ? sec(laps[i + 1].date_start) : sec(l.date_start) + (Number(l.lap_duration) || 0) }))];
@@ -245,9 +247,9 @@ export function causeOf(messages, at, out = [], nameOf = () => '') {
 
 // What turned a race, from OpenF1 once it's over: the safety car, the
 // virtual one and red flags ([[from lap, to lap, 'sc' | 'vsc' | 'red']]), and
-// for the drivers drawn their pit stops, each time one took the lead and a
-// retirement ([[lap, 'pit' | 'lead' | 'out', driver]], the driver its place
-// in `names`).
+// for the drivers drawn their pit stops and a retirement ([[lap, 'pit' |
+// 'out', driver]], the driver its place in `names`), and every change of
+// leader ([lap, 'lead', its place in names, or the name of one not drawn]).
 export async function raceEvents(start, getJson, laps, names) {
   const race = await raceSession(start, getJson);
   if (!race || !laps?.length) return null;
@@ -292,28 +294,26 @@ export async function raceEvents(start, getJson, laps, names) {
     const k = numbers.indexOf(r.driver_number);
     if (k >= 0 && (r.dnf || r.dns) && r.number_of_laps < last) ev.push([Math.max(1, r.number_of_laps), 'out', k]);
   }
-  // Who of them led at each lap's end: a change of leader is a moment.
-  const places = [];
-  for (const n of numbers) {
-    const got = n ? await read('position', `&driver_number=${n}`) : [];
-    if (!got) return null;
-    places.push(got);
-  }
-  const placeAt = (k, t) => {
-    let pos = 0;
-    for (const x of places[k] || []) {
+  // Who led at each lap's end, whoever it was (every car's places, one read): a drawn
+  // driver by its place in names, another by name ([lap, 'lead', k | name]).
+  const places = await read('position');
+  if (!places) return null;
+  const byTime = [...places].sort((x, y) => sec(x.date) - sec(y.date));
+  const leaderAt = t => {
+    let car = null;
+    for (const x of byTime) {
       if (sec(x.date) > t) break;
-      pos = x.position;
+      if (x.position === 1) car = x.driver_number;
     }
-    return pos;
+    return car;
   };
-  let leader = numbers.findIndex((_, k) => placeAt(k, laps[0].t) === 1);
-  // Who of them led away (the chart says who leads at each lap).
-  if (leader >= 0) ev.push([0, 'lead', leader]);
+  const who = car => (numbers.includes(car) ? numbers.indexOf(car) : nameOf(car) || null);
+  let leader = leaderAt(laps[0].t);
+  if (leader != null && who(leader) != null) ev.push([0, 'lead', who(leader)]);
   for (const l of laps.slice(1)) {
-    const now = numbers.findIndex((_, k) => placeAt(k, l.t) === 1);
-    if (now >= 0 && now !== leader) ev.push([l.lap, 'lead', now]);
-    if (now >= 0) leader = now;
+    const now = leaderAt(l.t);
+    if (now != null && now !== leader && who(now) != null) ev.push([l.lap, 'lead', who(now)]);
+    if (now != null) leader = now;
   }
   return { bands, events: ev.sort((a, b) => a[0] - b[0]) };
 }

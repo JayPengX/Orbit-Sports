@@ -133,3 +133,34 @@ test("F1: a race's chances by lap, the laps as they really ran (OpenF1), kept a 
   assert.deepEqual(unpackRace(kept), line);
   assert.equal(raceKey(start), '2026-10-04');
 });
+
+test("F1: who led at each lap, whoever it was (every car's places in one read)", async () => {
+  const { raceEvents } = await import('../public/lib/winprob.mjs');
+  const s = iso => Date.parse(iso) / 1000;
+  const laps = [0, 1, 2, 3].map(lap => ({ lap, t: s('2026-03-15T07:03:00Z') + lap * 100 }));
+  const at = k => new Date((laps[0].t + k) * 1000).toISOString();
+  const reply = {
+    race_control: [],
+    drivers: [
+      { driver_number: 12, first_name: 'Kimi', last_name: 'Antonelli' },
+      { driver_number: 44, first_name: 'Lewis', last_name: 'Hamilton' },
+      { driver_number: 16, first_name: 'Charles', last_name: 'Leclerc' }
+    ],
+    pit: [],
+    session_result: [],
+    position: [
+      { date: at(-60), driver_number: 12, position: 1 },
+      { date: at(-60), driver_number: 44, position: 2 },
+      { date: at(50), driver_number: 44, position: 1 },
+      { date: at(150), driver_number: 12, position: 1 }
+    ]
+  };
+  const getJson = async url => {
+    const u = new URL(url);
+    if (u.pathname.endsWith('/sessions')) return [{ session_key: 1, date_start: '2026-03-15T07:00:00+00:00' }];
+    return reply[u.pathname.split('/').pop()];
+  };
+  const ev = await raceEvents('2026-03-15T07:00:00Z', getJson, laps, ['Charles Leclerc']);
+  // None of them drawn (only Leclerc is): each by name.
+  assert.deepEqual(ev.events.filter(e => e[1] === 'lead'), [[0, 'lead', 'Kimi Antonelli'], [1, 'lead', 'Lewis Hamilton'], [2, 'lead', 'Kimi Antonelli']]);
+});

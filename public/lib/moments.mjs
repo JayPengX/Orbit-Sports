@@ -217,8 +217,8 @@ export function raceMoments(points, names, bands, events, en, nameOf = null) {
     found.push({ i: Math.min(b.i1, b.i0 + 1), k, delta: gains[k], icon: b.kind === 'red' ? '🟥' : '🚨', text, band: true, driver: b.who?.[0] || null, laps: b.from != null ? [b.from, b.to] : null });
   }
   for (const ev of events) {
-    // Leading away isn't a moment (the chart says who leads).
-    if (!ev.i) continue;
+    // Leading away isn't a moment (the chart says who leads), nor a lead by one not drawn (no line of theirs).
+    if (!ev.i || typeof ev.k !== 'number') continue;
     if (ev.kind === 'pit' && bands.some(b => ev.i >= b.i0 && ev.i <= b.i1)) continue;
     const delta = ev.kind === 'out' ? c(ev.i + 1, ev.k) - c(ev.i - 2, ev.k) : c(ev.i + (ev.kind === 'pit' ? 3 : 1), ev.k) - c(ev.i - 1, ev.k);
     if (ev.kind === 'pit' && Math.abs(delta) < 0.08) continue;

@@ -843,7 +843,8 @@ function raceChanceCard(line, ss, feed = null) {
     const k = i ?? last;
     const lead = [...events].reverse().find(ev => ev.kind === 'lead' && ev.i <= k);
     const under = bands.find(b => k > b.i0 && k <= b.i1);
-    const state = [lead ? (en ? `${names[lead.k]} leads` : `${names[lead.k]} 領先`) : '', under ? bandName(under.kind, en) : ''].filter(Boolean).map(x => ` · ${x}`).join('');
+    const leader = lead ? (typeof lead.k === 'number' ? names[lead.k] : driverShort(lead.k, en)) : '';
+    const state = [leader ? (en ? `${leader} leads` : `${leader} 領先`) : '', under ? bandName(under.kind, en) : ''].filter(Boolean).map(x => ` · ${x}`).join('');
     at.textContent = i == null ? `${ss.status.state === 'post' ? (en ? 'Final' : '終場') : lapText(p)}${state} · ${en ? 'Hold to look back' : '按住圖表查看'}` : `${lapText(p)}${state}`;
     at.classList.toggle('on', i != null);
     // On a moment, or under the safety car: what it was.
