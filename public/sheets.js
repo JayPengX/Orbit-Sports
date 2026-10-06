@@ -629,7 +629,8 @@ function winProbCard(line, e, timeline, events = []) {
   // When it was: the period (a stretch, its periods), the clock in the last two minutes, the score after it.
   const momentAt = m => {
     const [a, b] = m.periods || [];
-    const when = a && b && b > a ? `${periodName(sport, a, en)}–${en ? periodName(sport, b, en) : periodName(sport, b, en).replace(/^第/, '')}` : pointStamp(timeline, sport, pts[m.i], en);
+    // 第2–3節, 2–3局 (one word for both ends).
+    const when = a && b && b > a ? (en ? `${periodName(sport, a, en)}–${periodName(sport, b, en)}` : `${periodName(sport, a, en).replace(/[節局]$/, '')}–${periodName(sport, b, en).replace(/^第/, '')}`) : pointStamp(timeline, sport, pts[m.i], en);
     const score = scoreAt(pts, m.i, events, e.home.id);
     return [when, lateClock(sport, pts[m.i]), score ? `${score[0]}–${score[1]}` : ''].filter(Boolean).join(' · ');
   };
