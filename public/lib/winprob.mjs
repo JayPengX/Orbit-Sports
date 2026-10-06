@@ -212,7 +212,7 @@ export function controlBands(messages, at, end) {
     const msg = String(m.message || '').toUpperCase();
     const flag = String(m.flag || '').toUpperCase();
     // A red flag is sometimes only said ("RED FLAG - RACE SUSPENDED"), its flag left out.
-    const kind = /(VIRTUAL SAFETY CAR|VSC) DEPLOYED/.test(msg) ? 'vsc' : /SAFETY CAR DEPLOYED/.test(msg) ? 'sc' : flag === 'RED' || /RED FLAG/.test(msg) ? 'red' : '';
+    const kind = /(VIRTUAL SAFETY CAR|VSC) DEPLOYED/.test(msg) ? 'vsc' : /SAFETY CAR DEPLOYED/.test(msg) ? 'sc' : flag === 'RED' || /\bRED FLAG\b/.test(msg) ? 'red' : '';
     const clear = msg === 'TRACK CLEAR';
     const ends = open && ((open.kind === 'vsc' && (/(VIRTUAL SAFETY CAR|VSC) ENDING/.test(msg) || clear)) || (open.kind === 'sc' && (/SAFETY CAR IN THIS LAP/.test(msg) || clear)) || (open.kind === 'red' && (flag === 'GREEN' || clear || /RESUME|START/.test(msg))));
     // One turned into another (a virtual safety car into the real one): the first ends there.

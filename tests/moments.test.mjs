@@ -123,7 +123,9 @@ test('F1: a red flag only said ends the safety car; it ends when the track is cl
       { category: 'Flag', flag: 'CLEAR', message: 'TRACK CLEAR', lap: 4 },
       { category: 'Other', message: 'RACE WILL RESUME AT 15:39', lap: 4 },
       { category: 'SafetyCar', message: 'VIRTUAL SAFETY CAR DEPLOYED', lap: 28 },
-      { category: 'SafetyCar', message: 'VIRTUAL SAFETY CAR ENDING', lap: 29 }
+      { category: 'SafetyCar', message: 'VIRTUAL SAFETY CAR ENDING', lap: 29 },
+      // The chequered flag isn't a red one.
+      { category: 'Flag', flag: 'CHEQUERED', message: 'CHEQUERED FLAG', lap: 53 }
     ],
     m => m.lap,
     53
