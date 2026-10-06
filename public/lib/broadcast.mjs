@@ -38,6 +38,14 @@ export const BROADCAST = {
 };
 
 export const broadcastsOf = league => BROADCAST[league] || [];
+// Where a game's channels came from, under the card: ELTA's schedule (a
+// channel named), NBA.com (its ELTA games, the channel not yet), else when
+// the list was checked. A league ELTA carries whole (F1) is no NBA.com game.
+export function twSource(exact, en) {
+  if (exact.some(b => b.ch)) return en ? "ELTA's schedule" : '愛爾達節目表';
+  if (exact.some(b => b.svc === 'elta' && !b.every)) return 'NBA.com';
+  return en ? `Checked ${CHECKED}` : `${CHECKED} 查核`;
+}
 
 // ---- ELTA's own schedule: which game each channel carries ---------------------------
 //

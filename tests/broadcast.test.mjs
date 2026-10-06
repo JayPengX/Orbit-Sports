@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaPrograms, zhSame, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaPrograms, zhSame, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -234,3 +234,12 @@ test("within ELTA's list, NBA.com's word counts only when ELTA has an NBA game t
   const withNba = [...covered, { ...day(Date.parse('2026-11-20T00:10Z')), league: 'nba', title: '綠衫軍 VS 熱火' }];
   assert.equal(on(bos, withNba, { nba: ids })[0]?.svc, 'elta');
 });
+
+// The Dutch GP's 台灣轉播 said NBA.com under ELTA's every-session line: any ELTA entry was taken for NBA.com's list.
+test("where a game's channels came from: NBA.com only for an NBA.com game, never F1's every session", () => {
+  const f1 = broadcastsOf('f1').map(b => ({ ...b, exact: true }));
+  assert.equal(twSource(f1, false), `${CHECKED_OF()} 查核`);
+  assert.equal(twSource([{ ...broadcastsOf('nba')[0], exact: true }], false), 'NBA.com');
+  assert.equal(twSource([{ ...broadcastsOf('nba')[0], exact: true, ch: 1 }], true), "ELTA's schedule");
+});
+const CHECKED_OF = () => /\d{4}-\d{2}/.exec(twSource([], false))[0];

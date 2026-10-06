@@ -13,7 +13,7 @@ import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLine
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
 import { tvOf } from './lib/tv.mjs';
-import { broadcastsOf, CHECKED } from './lib/broadcast.mjs';
+import { broadcastsOf, twSource } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { ctx, el, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo } from './ui.js';
@@ -942,7 +942,7 @@ function twCard(league, e = null) {
           rest.length ? el('div', { class: 'tw-list' }, rest.map(b => el('span', { class: 'tw-chip', text: tvName(b) }))) : null
         ])
       : el('p', { class: 'muted small', text: T('noTw') }),
-    { sub: exact.some(b => b.ch) ? (L() === 'en' ? "ELTA's schedule" : '愛爾達節目表') : exact.some(b => b.svc === 'elta') ? 'NBA.com' : L() === 'en' ? `Checked ${CHECKED}` : `${CHECKED} 查核` }
+    { sub: twSource(exact, L() === 'en') }
   );
 }
 
