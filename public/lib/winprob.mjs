@@ -252,13 +252,14 @@ export async function raceEvents(start, getJson, laps, names) {
   const last = laps.at(-1).lap;
   // The lap running at a moment.
   const lapAt = t => Math.min(last, Math.max(1, laps.filter(l => l.t <= t).length));
-  // One at a time, a little apart (OpenF1 answers three a second).
-  const gap = () => new Promise(r => setTimeout(r, 400));
-  const read = async (k, more = '') => (await gap(), getJson(`${OPENF1}/${k}?${q}${more}`, { kind: 'laps' }).catch(() => []).then(x => (Array.isArray(x) ? x : [])));
+  // One at a time, a second apart (OpenF1 turns away a burst); a read refused is no answer, never "none".
+  const gap = () => new Promise(r => setTimeout(r, 1000));
+  const read = async (k, more = '') => (await gap(), getJson(`${OPENF1}/${k}?${q}${more}`, { kind: 'laps' }).catch(() => null).then(x => (Array.isArray(x) ? x : null)));
   const control = await read('race_control');
   const drivers = await read('drivers');
   const pits = await read('pit');
   const result = await read('session_result');
+  if (!control || !drivers || !pits || !result) return null;
   const sorted = [...control].sort((a, b) => sec(a.date) - sec(b.date));
   // A car's driver, by name ("Valtteri Bottas": the app shows it its own way, with the face).
   const nameOf = n => {
@@ -289,7 +290,11 @@ export async function raceEvents(start, getJson, laps, names) {
   }
   // Who of them led at each lap's end: a change of leader is a moment.
   const places = [];
-  for (const n of numbers) places.push(n ? await read('position', `&driver_number=${n}`) : []);
+  for (const n of numbers) {
+    const got = n ? await read('position', `&driver_number=${n}`) : [];
+    if (!got) return null;
+    places.push(got);
+  }
   const placeAt = (k, t) => {
     let pos = 0;
     for (const x of places[k] || []) {
