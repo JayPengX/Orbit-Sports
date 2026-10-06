@@ -13,7 +13,7 @@
 import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
-import { polymarketLine, packPath, PM_LEAGUE } from './winprob.mjs';
+import { polymarketLine, monthPath, gameKey, unpackLine, PM_LEAGUE } from './winprob.mjs';
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox } from './mlb.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
@@ -689,16 +689,17 @@ async function withMlbBox(sm, start) {
 // ---- Win probability where ESPN draws none ----------------------------------------------
 
 // Polymarket's line for a game on or over (lib/winprob.mjs): a finished
-// one's kept for good in Shared-Data (read once, kept on the phone), else
-// read through the proxy. Null where there's no market.
+// one's from Shared-Data's month of them (one read covers the month's games),
+// else read through the proxy (a game just over, or one too old to be kept).
+// Null where there's no market.
 const PM_TTL = { game: 6 * 3_600_000 };
 export async function winLine(e) {
   if (!PM_LEAGUE[e.league] || e.kind !== 'match' || (e.status.state !== 'in' && e.status.state !== 'post')) return null;
-  const game = { id: e.id, start: e.start, home: e.home, away: e.away };
   if (e.status.state === 'post' && kit.packJson) {
-    const kept = await kit.packJson(packPath(e.league, game), { ttl: 30 * 86_400_000 }).catch(() => null);
-    if (kept?.points?.length) return kept;
+    const month = await kit.packJson(monthPath(e.league, e.start), { ttl: 6 * 3_600_000 }).catch(() => null);
+    const kept = month?.games?.[gameKey(e.league, e)];
     if (kept?.none) return null;
+    if (kept) return unpackLine(kept);
   }
   return polymarketLine(e.league, { start: e.start, home: e.home.en || e.home.name, away: e.away.en || e.away.name }, (url, { trim = '', kind }) =>
     getJson(url, { trim, ttl: PM_TTL[kind] ?? (e.status.state === 'in' ? 60_000 : 6 * 3_600_000) })

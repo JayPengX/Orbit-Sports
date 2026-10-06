@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nameScore, findMarket, mergeHistories, polymarketLine, gameKey, packPath, historyUrl } from '../public/lib/winprob.mjs';
+import { nameScore, findMarket, mergeHistories, polymarketLine, gameKey, monthPath, packLine, unpackLine, historyUrl } from '../public/lib/winprob.mjs';
 
 const events = [
   { slug: 'mlb-nyy-tb-2026-10-05', startTime: '2026-10-06T00:00:00Z', series: '3', markets: [{ outcomes: '["New York Yankees", "Tampa Bay Rays"]', clobTokenIds: '["Y", "R"]' }] },
@@ -63,8 +63,15 @@ test('no market, no line; a league Polymarket lacks, nothing asked', async () =>
   assert.equal(asked.length, before);
 });
 
-test("a finished game's kept line: ESPN's games by id, CPBL's by the day and the home side", () => {
-  assert.equal(packPath('epl', { id: '740780', start: '2026-01-01T17:30Z', home: { name: 'Crystal Palace' } }), 'winprob/epl/740780.json');
+test("a finished game's kept line: in its month's file, a fifth the size, the same line back", async () => {
+  assert.equal(monthPath('epl', '2026-01-01T17:30Z'), 'winprob/epl/2026-01.json');
+  assert.equal(gameKey('epl', { id: '740780', start: '2026-01-01T17:30Z', home: { name: 'Crystal Palace' } }), '740780');
   assert.equal(gameKey('cpbl', { id: 'cpbl-tsdb-1', start: '2026-09-27T07:05:00Z', home: { en: 'Uni-President Lions', name: '統一獅' } }), '2026-09-27-lions');
+  const line = await polymarketLine('bundesliga', { start: '2026-09-19T13:30Z', home: 'Hamburg SV', away: 'FC Cologne' }, getJson);
+  const kept = packLine(line);
+  assert.deepEqual(kept.p[0], [0, 300, 300]);
+  assert.deepEqual(unpackLine(JSON.parse(JSON.stringify(kept))).points, line.points);
+  assert.ok(JSON.stringify(kept).length < JSON.stringify(line).length / 2);
+  assert.equal(unpackLine({ none: 'espn' }), null);
   assert.equal(mergeHistories({ home: [] }).length, 0);
 });

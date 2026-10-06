@@ -122,13 +122,25 @@ export function mergeHistories(series) {
   return points.slice(0, end).map(p => ({ t: p.t, home: Math.round(p.home * 1000) / 1000, ...(p.draw != null ? { draw: Math.round(p.draw * 1000) / 1000 } : {}) }));
 }
 
-// A finished game's line is kept for good in Shared-Data (winprob.mjs there),
-// at winprob/<league>/<gameKey>.json: { source, points } or { none } (ESPN
-// draws its own, or Polymarket had no market). ESPN's games by their id;
+// A finished game's line, kept in Shared-Data (winprob.mjs there) while
+// the app can show the game: its league's current season, and before the
+// next one's regular season its playoffs. A month's games in one file,
+// winprob/<league>/<YYYY-MM>.json (the start's UTC month): { games: { key:
+// { m, t0, p: [[minutes, home‰, draw‰?]…] } | { none } } }, none where ESPN
+// draws its own or Polymarket had no market. ESPN's games by their id;
 // CPBL's (whose ids change with the source) by the day and the home side.
 export const PM_PACK = 'winprob';
 export const gameKey = (league, { id, start, home }) => (league === 'cpbl' ? `${new Date(start).toISOString().slice(0, 10)}-${plain(home?.en || home?.name).split(' ').at(-1)}` : String(id));
-export const packPath = (league, game) => `${PM_PACK}/${league}/${gameKey(league, game)}.json`;
+export const monthPath = (league, start) => `${PM_PACK}/${league}/${new Date(start).toISOString().slice(0, 7)}.json`;
+// A line as kept (a fifth of its size) and back.
+export function packLine(line) {
+  const t0 = line.points[0].t;
+  return { m: line.market || '', t0, p: line.points.map(x => [Math.round((x.t - t0) / 60), Math.round(x.home * 1000), ...(x.draw != null ? [Math.round(x.draw * 1000)] : [])]) };
+}
+export function unpackLine(kept) {
+  if (!Array.isArray(kept?.p) || kept.p.length < 4) return null;
+  return { source: 'polymarket', market: kept.m, points: kept.p.map(([dt, h, d]) => ({ t: kept.t0 + dt * 60, home: h / 1000, ...(d != null ? { draw: d / 1000 } : {}) })) };
+}
 
 export async function polymarketLine(league, game, getJson) {
   const market = await findMarket(league, game, getJson);
