@@ -13,6 +13,8 @@
 import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
+import { polymarketLine, packPath, PM_LEAGUE } from './winprob.mjs';
+import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox } from './mlb.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
 import * as kit from '#kit/quadra.mjs';
@@ -289,12 +291,25 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   // league, or the league taken for out of season).
   if (!pages.some(Boolean)) throw new Error(`${league}: unread`);
   const seen = new Set();
-  return noteLatest(
-    pages
-      .filter(Boolean)
-      .flatMap(p => parseScoreboard(p, league))
-      .filter(e => !seen.has(e.id) && seen.add(e.id))
-  );
+  const events = pages
+    .filter(Boolean)
+    .flatMap(p => parseScoreboard(p, league))
+    .filter(e => !seen.has(e.id) && seen.add(e.id));
+  return noteLatest(league === 'mlb' ? await withMlbLive(events) : events);
+}
+
+// An MLB game on now without ESPN's count (its feed can go innings with the
+// score alone): the count, runners, batter, pitcher and last play from MLB's own.
+const blankLive = e => e.status.state === 'in' && e.live?.outs == null;
+const mlbGames = async date => mlbLiveGames(await getJson(mlbScheduleUrl(date), { ttl: LIVE_TTL }));
+async function withMlbLive(events) {
+  const days = [...new Set(events.filter(blankLive).map(e => mlbDate(e.start)))];
+  if (!days.length) return events;
+  const games = (await Promise.all(days.map(d => mlbGames(d).catch(() => [])))).flat();
+  return events.map(e => {
+    const g = blankLive(e) && mlbGameOf(games, e);
+    return g ? { ...e, live: { ...e.live, ...g.live } } : e;
+  });
 }
 
 // A league's whole year of games: the nightly pack (Shared-Data, built
@@ -582,7 +597,8 @@ export function parseSummary(data, league) {
     (t.leaders || []).map(l => ({ team: String(t.team?.id ?? ''), stat: l.displayName || l.name, id: String(l.leaders?.[0]?.athlete?.id ?? ''), name: l.leaders?.[0]?.athlete?.shortName || l.leaders?.[0]?.athlete?.displayName || '', full: l.leaders?.[0]?.athlete?.displayName || '', headshot: freshHeadshot(l.leaders?.[0]?.athlete?.headshot?.href) || null, value: l.leaders?.[0]?.displayValue || '' }))
   );
   const injuries = (data?.injuries || []).map(t => ({ team: String(t.team?.id ?? ''), list: (t.injuries || []).map(i => ({ id: String(i.athlete?.id ?? ''), headshot: freshHeadshot(i.athlete?.headshot?.href) || null, name: i.athlete?.displayName || '', status: i.status || i.type?.description || '', detail: i.details?.type || '' })) }));
-  const winProb = (data?.winprobability || []).map(w => w.homeWinPercentage).filter(x => Number.isFinite(x));
+  // ESPN's win probability, play by play: the home side's chance (and a draw's, where there can be one).
+  const winProb = (data?.winprobability || []).filter(w => Number.isFinite(w.homeWinPercentage)).map(w => (w.tiePercentage > 0 ? { home: w.homeWinPercentage, draw: w.tiePercentage } : { home: w.homeWinPercentage }));
   // The season series (a playoff or a season's meetings), or soccer's
   // head-to-head (the last meetings, any competition): `h2h` with each
   // side's wins and the draws, by team id.
@@ -644,7 +660,49 @@ export function parseSummary(data, league) {
 }
 export async function summary(league, id) {
   const l = LEAGUES[league];
-  return parseSummary(await getJson(`${SITE}/${l.espn}/summary?event=${encodeURIComponent(id)}`, { ttl: LIVE_TTL }), league);
+  const data = await getJson(`${SITE}/${l.espn}/summary?event=${encodeURIComponent(id)}`, { ttl: LIVE_TTL });
+  const sm = parseSummary(data, league);
+  return league === 'mlb' && sm.status.state === 'in' && emptyBox(sm.players) ? withMlbBox(sm, data?.header?.competitions?.[0]?.date).catch(() => sm) : sm;
+}
+// ESPN's box score of a game on now with no numbers in it: MLB's own, each
+// player kept as ESPN's (their page, their picture) where ESPN lists them.
+async function withMlbBox(sm, start) {
+  if (!start || !sm.home || !sm.away) return sm;
+  const g = mlbGameOf(await mlbGames(mlbDate(start)), sm);
+  if (!g) return sm;
+  const box = await getJson(mlbBoxUrl(g.pk), { ttl: LIVE_TTL });
+  const plain = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const players = [];
+  for (const side of [sm.away, sm.home]) {
+    const tables = mlbBoxTables(box, side === sm.home ? 'home' : 'away');
+    if (!tables) continue;
+    const espn = new Map(sm.players.filter(p => p.team === side.id).flatMap(p => p.tables.flatMap(tb => tb.rows)).map(r => [plain(r.full || r.name), r]));
+    const rows = list => list.map(r => {
+      const mine = espn.get(plain(r.full));
+      return { id: mine?.id || '', name: r.name, full: r.full, headshot: mine?.headshot || r.headshot, pos: r.pos || mine?.pos || '', starter: r.starter, stats: r.stats };
+    });
+    players.push({ team: side.id, tables: ['batting', 'pitching'].map(k => ({ name: k, labels: tables[k].labels, rows: rows(tables[k].rows), totals: [] })) });
+  }
+  return players.length ? { ...sm, players } : sm;
+}
+
+// ---- Win probability where ESPN draws none ----------------------------------------------
+
+// Polymarket's line for a game on or over (lib/winprob.mjs): a finished
+// one's kept for good in Shared-Data (read once, kept on the phone), else
+// read through the proxy. Null where there's no market.
+const PM_TTL = { game: 6 * 3_600_000 };
+export async function winLine(e) {
+  if (!PM_LEAGUE[e.league] || e.kind !== 'match' || (e.status.state !== 'in' && e.status.state !== 'post')) return null;
+  const game = { id: e.id, start: e.start, home: e.home, away: e.away };
+  if (e.status.state === 'post' && kit.packJson) {
+    const kept = await kit.packJson(packPath(e.league, game), { ttl: 30 * 86_400_000 }).catch(() => null);
+    if (kept?.points?.length) return kept;
+    if (kept?.none) return null;
+  }
+  return polymarketLine(e.league, { start: e.start, home: e.home.en || e.home.name, away: e.away.en || e.away.name }, (url, { trim = '', kind }) =>
+    getJson(url, { trim, ttl: PM_TTL[kind] ?? (e.status.state === 'in' ? 60_000 : 6 * 3_600_000) })
+  );
 }
 
 // ---- Standings ------------------------------------------------------------------------

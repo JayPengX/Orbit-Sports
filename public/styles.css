@@ -440,6 +440,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .sb-top strong { color: var(--q-text-2); font-weight: 700; }
 .wp { display: grid; gap: 6px; }
 .wp-labels { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 750; color: var(--q-text-2); }
+.wp-labels .draw { color: var(--q-muted); font-weight: 650; }
+.wp-source { color: var(--q-muted); font-size: 11px; }
 .team-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 4px; }
 .standings tr.marked > * { background: var(--q-sunken); }
 .field-title { font-size: 17px; margin-bottom: 4px; }
@@ -628,6 +630,9 @@ table.game-log .result-pill { font-size: 12px; padding: 1px 8px; }
 .roster-name .logo.round { width: 26px; height: 26px; }
 table.data .roster-name { gap: 6px; font-weight: 600; }
 table.data .roster-name .logo.round { width: 22px; height: 22px; flex: none; }
+table.data th.left { min-width: max-content; }
+.box-who { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.box-who small { flex: none; line-height: 1; }
 .inj-dot { font-size: 11px; }
 .stat-grid.dense { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
 .stat-grid.dense .stat-tile { padding: 8px; }

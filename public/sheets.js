@@ -2,7 +2,7 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate } from '#kit/quadra.mjs';
-import { weekOf, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
+import { weekOf, winLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
@@ -59,6 +59,16 @@ export async function openMatch(e) {
   let table = null;
   // Each side's injuries from its roster (ESPN's game page leaves some out).
   let hurt = {};
+  // Polymarket's win probability where ESPN draws none (a game on: again each minute).
+  let line = null;
+  let lineAt = 0;
+  const loadLine = () => {
+    if (data?.winProb.length > 3 || Date.now() - lineAt < 60_000) return;
+    lineAt = Date.now();
+    winLine(e)
+      .then(l => l && ((line = l), paint()))
+      .catch(() => {});
+  };
   const paintHeader = sm => {
     const home = sm?.home || e.home;
     const away = sm?.away || e.away;
@@ -104,6 +114,7 @@ export async function openMatch(e) {
       if (LEAGUES[e.league].espn) data = await summary(e.league, e.id).catch(() => data);
       paintHeader(data);
       paint();
+      loadLine();
     } finally {
       busy = false;
     }
@@ -123,7 +134,7 @@ export async function openMatch(e) {
     if (data?.rosters.some(r => r.players.length)) tabs.push(['lineups', T('lineups')]);
     if (table?.length || data?.table.length) tabs.push(['table', T('table')]);
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
-    put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table));
+    put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table, line));
   };
   // The league's table: both sides' places, and the Table section.
   if (hasStandings(e.league))
@@ -142,6 +153,7 @@ export async function openMatch(e) {
       .catch(() => {});
   if (!LEAGUES[e.league].espn) {
     paint();
+    loadLine();
     return;
   }
   // A game to come or on: who's out, from each team's roster too (soccer's rosters say nothing of it).
@@ -157,6 +169,7 @@ export async function openMatch(e) {
   } catch {
     paint();
   }
+  loadLine();
 }
 
 // The situation of a game on now, by sport: the bases, count and outs, and
@@ -288,7 +301,10 @@ function placeOf(groups, id) {
   return null;
 }
 
-function matchSection(view, d, e, table) {
+// A box score table's name: ESPN's "batting" and "pitching" in the viewer's language.
+const BOX_TABLES = { batting: ['打擊', 'Batting'], pitching: ['投球', 'Pitching'], fielding: ['守備', 'Fielding'] };
+const boxTableName = name => BOX_TABLES[String(name).toLowerCase()]?.[L() === 'en' ? 1 : 0] || name;
+function matchSection(view, d, e, table, line = null) {
   const nameOf = id => d?.byId[id]?.short || d?.byId[id]?.name || (id === e.home.id ? e.home.short : id === e.away.id ? e.away.short : '');
   if (view === 'stats' && d) {
     return card(
@@ -325,7 +341,7 @@ function matchSection(view, d, e, table) {
           .filter(tb => tb.rows.length)
           .map(tb =>
             card(
-              `${nameOf(p.team)} · ${tb.name}`,
+              `${nameOf(p.team)} · ${boxTableName(tb.name)}`,
               el('div', { class: 'table-wrap' }, [
                 el('table', { class: 'data' }, [
                   el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...tb.labels.map(l => el('th', { text: l }))])]),
@@ -334,8 +350,9 @@ function matchSection(view, d, e, table) {
                     {},
                     tb.rows.map(r =>
                       el('tr', {}, [
-                        // Each player's face (live too: the box score's own, else the kit's way).
-                        el('th', { class: 'left' }, [el('button', { class: 'link roster-name', type: 'button', disabled: r.id ? null : true, onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', { text: r.name })]), r.pos ? el('small', { text: ` ${r.pos}` }) : null]),
+                        // Each player's face (live too: the box score's own, else the kit's way), name and
+                        // position on one line (Safari dropped the position below, over the numbers).
+                        el('th', { class: 'left' }, [el('span', { class: 'box-who' }, [el('button', { class: 'link roster-name', type: 'button', disabled: r.id ? null : true, onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', { text: r.name })]), r.pos ? el('small', { text: r.pos }) : null])]),
                         // One cell per column for a player yet to come on (no numbers), so the row's line runs across.
                         ...tb.labels.map((_, i) => el('td', { class: 'num', text: r.stats[i] ?? '' }))
                       ])
@@ -385,7 +402,7 @@ function matchSection(view, d, e, table) {
     const groups = table?.length ? table : [{ name: '', rows: (d?.table || []).map(r => ({ id: r.id, name: r.team, short: r.team, logo: null, stats: r.stats })) }];
     return standingsTables(groups, e.league, { mark: [e.home.id, e.away.id] });
   }
-  return overview(d, e, table, nameOf);
+  return overview(d, e, table, nameOf, line);
 }
 
 // An ended game's highlights: YouTube's search for them (the league's own
@@ -413,7 +430,7 @@ function highlights(e) {
 
 // The overview: the teams side by side, what the match is (where, when, TV),
 // the win probability, each side's leaders, the season series and injuries.
-function overview(d, e, table, nameOf) {
+function overview(d, e, table, nameOf, line = null) {
   const sides = [e.away, e.home];
   const places = sides.map(s => placeOf(table, s.id));
   const forms = sides.map(s => d?.form.find(f => f.team === s.id)?.games || []);
@@ -451,7 +468,7 @@ function overview(d, e, table, nameOf) {
   return el('div', { class: 'stack' }, [
     highlights(e),
     card(T('matchup'), compare),
-    d?.winProb.length > 3 ? winProbCard(d, e) : null,
+    d?.winProb.length > 3 ? winProbCard({ points: d.winProb }, e) : line?.points.length > 3 ? winProbCard(line, e) : null,
     leadersBy.some(x => x.length)
       ? card(
           T('leaders'),
@@ -516,21 +533,28 @@ const cmpValue = v => (Array.isArray(v) ? el('strong', { class: 'cmp-val' }, [el
 const cmpTeam = (s, cls, league) => el('div', { class: `cmp-team ${cls}` }, [sideLogo(s, league, 'sm'), el('span', { text: s.short || s.name })]);
 const formPills = games => el('div', { class: 'form-pills' }, games.slice(-5).map(g => el('span', { class: `pill ${g.result}`, title: `${g.opp} ${g.score}`, text: g.result })));
 
-function winProbCard(d, e) {
-  const pts = d.winProb;
+// The win probability over the game: the home side's chance up, the away
+// side's down (a draw counts half to each, so a level game sits on the
+// middle line). ESPN's, else Polymarket's market on it (said under it).
+function winProbCard(line, e) {
+  const pts = line.points;
   const w = 320;
   const h = 90;
-  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${((i / (pts.length - 1)) * w).toFixed(1)},${(h - p * h).toFixed(1)}`).join(' ');
+  const y = p => h - (p.home + (p.draw ?? 0) / 2) * h;
+  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${((i / (pts.length - 1)) * w).toFixed(1)},${y(p).toFixed(1)}`).join(' ');
   const last = pts.at(-1);
   // Away on the left, home on the right (as everywhere in the sheet), adding up to 100.
-  const home = Math.round(last * 100);
+  const home = Math.round(last.home * 100);
+  const draw = last.draw != null ? Math.round(last.draw * 100) : null;
+  const en = L() === 'en';
   const box = el('div', { class: 'wp' }, [
-    el('div', { class: 'wp-labels' }, [el('span', { class: 'away', text: `${e.away.short || e.away.name} ${100 - home}%` }), el('span', { class: 'home', text: `${e.home.short || e.home.name} ${home}%` })]),
+    el('div', { class: 'wp-labels' }, [el('span', { class: 'away', text: `${e.away.short || e.away.name} ${Math.max(0, 100 - home - (draw ?? 0))}%` }), draw != null ? el('span', { class: 'draw', text: `${en ? 'Draw' : '和局'} ${draw}%` }) : null, el('span', { class: 'home', text: `${e.home.short || e.home.name} ${home}%` })]),
     el('div', { class: 'wp-plot' }, [
       el('span', { class: 'wp-edge top', text: e.home.short || e.home.name }),
       el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true"><path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${path}" class="wp-line"/></svg>` }),
       el('span', { class: 'wp-edge bottom', text: e.away.short || e.away.name })
-    ])
+    ]),
+    line.source === 'polymarket' ? el('small', { class: 'wp-source', text: en ? 'From Polymarket’s market on the game' : '依 Polymarket 市場價格' }) : null
   ]);
   return card(T('winProb'), box);
 }
