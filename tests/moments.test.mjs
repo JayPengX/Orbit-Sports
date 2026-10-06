@@ -77,7 +77,7 @@ test("F1: the safety car told with who stopped under it and who gained; a lead t
   // Verstappen 34% before the safety car, 65% after it; Antonelli the other way.
   const points = Array.from({ length: 21 }, (_, lap) => ({ lap, c: lap < 9 ? [0.34, 0.57] : lap < 14 ? [0.65, 0.31] : [0.8, 0.15] }));
   const list = raceMoments(points, ['維斯塔潘', '安東內利'], [{ i0: 8, i1: 12, kind: 'sc', from: 9, to: 12, why: 'out', who: ['Bottas'] }], [{ i: 3, kind: 'lead', k: 1 }, { i: 9, kind: 'pit', k: 0 }, { i: 13, kind: 'lead', k: 0 }], false);
-  assert.deepEqual(list.map(m => m.text), ['安東內利 取得領先', '安全車 · 起因：Bottas 退賽 · 維斯塔潘 進站', '維斯塔潘 取得領先']);
+  assert.deepEqual(list.map(m => m.text), ['安東內利 取得領先', '安全車 · Bottas 退賽', '維斯塔潘 取得領先']);
   assert.equal(list[1].k, 0);
   assert.deepEqual(list[1].laps, [9, 12]);
   assert.ok(list[1].delta > 0.3);
@@ -95,4 +95,21 @@ test('F1: why the safety car came out: a car out just before, else one stopped, 
   assert.deepEqual(causeOf(msgs.slice(0, 1), 150, [], n => names[n]), { kind: 'crash', who: ['Leclerc', 'Hulkenberg'] });
   // A collision noted long before isn't the cause.
   assert.equal(causeOf(msgs.slice(0, 1), 400, [], n => names[n]), null);
+});
+
+test('the score at a moment: the play\'s, the last scoring play\'s, or the goals so far', async () => {
+  const { scoreAt } = await import('../public/lib/moments.mjs');
+  const s = parseSummary(fixture('mlb-summary-moments.json'), 'mlb');
+  const hr = s.winProb.findIndex(p => /homered/.test(p.play?.text || ''));
+  const [a, h] = scoreAt(s.winProb, hr);
+  assert.equal(a, s.winProb[hr].play.away);
+  assert.equal(h, s.winProb[hr].play.home);
+  assert.deepEqual(scoreAt(s.winProb, 0), [0, 0]);
+  // Soccer on Polymarket's line: Isak's goal for Liverpool (away at Bournemouth).
+  const epl = parseSummary(fixture('epl-summary.json'), 'epl');
+  const goal = epl.events.find(ev => ev.kind === 'score');
+  const pts = [{ t: goal.t - 60, home: 0.4 }, { t: goal.t + 60, home: 0.2 }];
+  assert.deepEqual(scoreAt(pts, 0, epl.events, epl.home.id), [0, 0]);
+  assert.deepEqual(scoreAt(pts, 1, epl.events, epl.home.id), String(goal.play.team) === String(epl.home.id) ? [0, 1] : [1, 0]);
+  assert.equal(scoreAt(pts, 1, [], ''), null);
 });

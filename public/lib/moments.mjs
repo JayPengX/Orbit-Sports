@@ -197,8 +197,8 @@ function biggest(list) {
 // bands: [{ i0, i1, kind: 'sc' | 'vsc' | 'red', from, to }] (points' indexes,
 // and laps); events: [{ i, kind: 'pit' | 'lead' | 'out', k }] (k: the
 // driver's place in names, each its short name). Each band told with its
-// cause (b.why, b.who: family names, nameOf turns into the shown name), the
-// drawn drivers who stopped under it and who gained most (its laps, `laps`); a lead taken, a
+// cause (b.why, b.who: names, nameOf turns into the shown name) and who
+// gained most (its laps, `laps`); a lead taken, a
 // retirement, a stop that moved a chance 8 points: the five biggest, by lap.
 const BAND = { sc: ['安全車', 'Safety car'], vsc: ['虛擬安全車', 'Virtual safety car'], red: ['紅旗', 'Red flag'] };
 export const bandName = (kind, en) => BAND[kind]?.[en ? 1 : 0] || kind;
@@ -209,14 +209,16 @@ export function raceMoments(points, names, bands, events, en, nameOf = null) {
   for (const b of bands) {
     const gains = names.map((_, k) => c(b.i1 + 2, k) - c(b.i0 - 1, k));
     const k = gains.reduce((m, g, j) => (Math.abs(g) > Math.abs(gains[m]) ? j : m), 0);
-    const stopped = [...new Set(events.filter(ev => ev.kind === 'pit' && ev.i >= b.i0 && ev.i <= b.i1).map(ev => names[ev.k]))];
     const who = (b.who || []).map(n => (nameOf ? nameOf(n) : n)).join(en ? ' and ' : '、');
-    const cause = !who ? '' : en ? ` · ${b.why === 'crash' ? `${who} collided` : b.why === 'stopped' ? `${who} stopped` : `${who} out`}` : ` · 起因：${who} ${b.why === 'crash' ? '碰撞' : b.why === 'stopped' ? '停車' : '退賽'}`;
-    const text = `${bandName(b.kind, en)}${cause}${stopped.length ? (en ? ` · ${stopped.join(', ')} pitted` : ` · ${stopped.join('、')} 進站`) : ''}`;
+    // What sent it out, in a few words (the drivers who stopped under it show on the chart).
+    const cause = !who ? '' : en ? ` · ${who} ${b.why === 'crash' ? 'collided' : b.why === 'stopped' ? 'stopped' : 'out'}` : ` · ${who} ${b.why === 'crash' ? '碰撞' : b.why === 'stopped' ? '停車' : '退賽'}`;
+    const text = `${bandName(b.kind, en)}${cause}`;
     // At its first lap (the shading starts at the lap before's end).
     found.push({ i: Math.min(b.i1, b.i0 + 1), k, delta: gains[k], icon: b.kind === 'red' ? '🟥' : '🚨', text, band: true, driver: b.who?.[0] || null, laps: b.from != null ? [b.from, b.to] : null });
   }
   for (const ev of events) {
+    // Leading away isn't a moment (the chart says who leads).
+    if (!ev.i) continue;
     if (ev.kind === 'pit' && bands.some(b => ev.i >= b.i0 && ev.i <= b.i1)) continue;
     const delta = ev.kind === 'out' ? c(ev.i + 1, ev.k) - c(ev.i - 2, ev.k) : c(ev.i + (ev.kind === 'pit' ? 3 : 1), ev.k) - c(ev.i - 1, ev.k);
     if (ev.kind === 'pit' && Math.abs(delta) < 0.08) continue;
@@ -228,4 +230,24 @@ export function raceMoments(points, names, bands, events, en, nameOf = null) {
     .sort((a, b) => Number(Boolean(b.band)) - Number(Boolean(a.band)) || Math.abs(b.delta) - Math.abs(a.delta))
     .slice(0, KEEP)
     .sort((a, b) => a.i - b.i);
+}
+
+// The score at a point: ESPN's line, its play's (after it); Polymarket's, the
+// last scoring play's by then (baseball's carry it), else the goals so far by
+// each side (soccer's don't). [away, home] or null where there's nothing to go by.
+export function scoreAt(points, i, events = [], homeId = '') {
+  if (points[0]?.n) {
+    for (let k = i; k >= 0; k--) {
+      const p = points[k].play;
+      if (Number.isFinite(Number(p?.home)) && Number.isFinite(Number(p?.away)) && p.home !== null && p.away !== null) return [Number(p.away), Number(p.home)];
+    }
+    return [0, 0];
+  }
+  const t = points[i]?.t;
+  if (!Number.isFinite(t) || !events.length) return null;
+  const by = events.filter(ev => ev.kind === 'score' && ev.t <= t);
+  const told = [...by].reverse().find(ev => ev.play?.home != null && ev.play?.away != null);
+  if (told) return [Number(told.play.away), Number(told.play.home)];
+  const home = by.filter(ev => String(ev.play?.team) === String(homeId)).length;
+  return [by.length - home, home];
 }

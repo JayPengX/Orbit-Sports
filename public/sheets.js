@@ -6,8 +6,8 @@ import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleF
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns } from './lib/wpline.mjs';
-import { playMoments, eventMoments, raceMoments } from './lib/moments.mjs';
-import { controlBands, causeOf } from './lib/winprob.mjs';
+import { playMoments, eventMoments, raceMoments, scoreAt, bandName } from './lib/moments.mjs';
+import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
@@ -67,14 +67,20 @@ export async function openMatch(e) {
   // prediction of its own.
   let line = null;
   let lineAt = 0;
+  // What's still coming (the win chance cards wait in their shape, never a source standing in for another).
+  const wait = { summary: !LEAGUES[e.league].espn, line: false };
   const loadLine = () => {
     const now = { ...e, status: data?.status || e.status };
     const pre = now.status.state === 'pre';
     if ((pre ? data?.predict?.source === 'espn' : data?.winProb.length > 3) || Date.now() - lineAt < 60_000) return;
     lineAt = Date.now();
     (pre ? winNow : winLine)(now)
-      .then(l => l && ((line = l), paint()))
-      .catch(() => {});
+      .then(l => l && (line = l))
+      .catch(() => {})
+      .finally(() => {
+        wait.line = true;
+        paint();
+      });
   };
   const paintHeader = sm => {
     const home = sm?.home || e.home;
@@ -141,7 +147,7 @@ export async function openMatch(e) {
     if (data?.rosters.some(r => r.players.length)) tabs.push(['lineups', T('lineups')]);
     if (table?.length || data?.table.length) tabs.push(['table', T('table')]);
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
-    put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table, line));
+    put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table, { line, wait }));
   };
   // The league's table: both sides' places, and the Table section.
   if (hasStandings(e.league))
@@ -171,9 +177,11 @@ export async function openMatch(e) {
     });
   try {
     data = await summary(e.league, e.id);
+    wait.summary = true;
     paintHeader(data);
     paint();
   } catch {
+    wait.summary = true;
     paint();
   }
   loadLine();
@@ -311,7 +319,7 @@ function placeOf(groups, id) {
 // A box score table's name: ESPN's "batting" and "pitching" in the viewer's language.
 const BOX_TABLES = { batting: ['打擊', 'Batting'], pitching: ['投球', 'Pitching'], fielding: ['守備', 'Fielding'] };
 const boxTableName = name => BOX_TABLES[String(name).toLowerCase()]?.[L() === 'en' ? 1 : 0] || name;
-function matchSection(view, d, e, table, line = null) {
+function matchSection(view, d, e, table, lw = {}) {
   const nameOf = id => d?.byId[id]?.short || d?.byId[id]?.name || (id === e.home.id ? e.home.short : id === e.away.id ? e.away.short : '');
   if (view === 'stats' && d) {
     return card(
@@ -409,7 +417,7 @@ function matchSection(view, d, e, table, line = null) {
     const groups = table?.length ? table : [{ name: '', rows: (d?.table || []).map(r => ({ id: r.id, name: r.team, short: r.team, logo: null, stats: r.stats })) }];
     return standingsTables(groups, e.league, { mark: [e.home.id, e.away.id] });
   }
-  return overview(d, e, table, nameOf, line);
+  return overview(d, e, table, nameOf, lw);
 }
 
 // An ended game's highlights: YouTube's search for them (the league's own
@@ -437,7 +445,7 @@ function highlights(e) {
 
 // The overview: the teams side by side, what the match is (where, when, TV),
 // the win probability, each side's leaders, the season series and injuries.
-function overview(d, e, table, nameOf, line = null) {
+function overview(d, e, table, nameOf, { line = null, wait = { summary: true, line: true } } = {}) {
   const sides = [e.away, e.home];
   const places = sides.map(s => placeOf(table, s.id));
   const forms = sides.map(s => d?.form.find(f => f.team === s.id)?.games || []);
@@ -475,13 +483,7 @@ function overview(d, e, table, nameOf, line = null) {
   return el('div', { class: 'stack' }, [
     highlights(e),
     card(T('matchup'), compare),
-    (d?.status || e.status).state === 'pre'
-      ? winChanceCard(d?.predict?.source === 'espn' ? d.predict : line?.home != null ? line : d?.predict, e)
-      : d?.winProb.length > 3
-        ? winProbCard({ points: d.winProb }, e, d.timeline)
-        : line?.points?.length > 3 && !mostlyQuiet(line.points)
-          ? winProbCard(line, e, d?.timeline, d?.events)
-          : null,
+    winCard(d, e, line, wait),
     leadersBy.some(x => x.length)
       ? card(
           T('leaders'),
@@ -546,6 +548,39 @@ const cmpValue = v => (Array.isArray(v) ? el('strong', { class: 'cmp-val' }, [el
 const cmpTeam = (s, cls, league) => el('div', { class: `cmp-team ${cls}` }, [sideLogo(s, league, 'sm'), el('span', { text: s.short || s.name })]);
 const formPills = games => el('div', { class: 'form-pills' }, games.slice(-5).map(g => el('span', { class: `pill ${g.result}`, title: `${g.opp} ${g.score}`, text: g.result })));
 
+// The game's win chance card: to come, each side's chance; on or over, the
+// chart. One source for a game, decided before it shows: ESPN's own, else
+// (a league Polymarket covers) its market, else the sportsbook's; while the
+// one it waits for is coming, the card in its shape, the real one fading in.
+const waited = new WeakMap();
+function winCard(d, e, line, wait) {
+  const state = (d?.status || e.status).state;
+  const market = Boolean(PM_LEAGUE[e.league]) && e.kind === 'match';
+  const sport = LEAGUES[e.league]?.sport;
+  let real = null;
+  let coming = false;
+  if (state === 'pre') {
+    const espn = d?.predict?.source === 'espn' ? d.predict : null;
+    real = espn || (line?.home != null ? line : null) || (wait.summary && (!market || wait.line) ? d?.predict : null);
+    coming = !real && (!wait.summary || (market && !wait.line));
+    if (real) real = winChanceCard(real, e);
+  } else {
+    real = d?.winProb.length > 3 ? winProbCard({ points: d.winProb }, e, d.timeline) : line?.points?.length > 3 ? winProbCard(line, e, d?.timeline, d?.events) : null;
+    coming = !real && ((!wait.summary && (market || ['baseball', 'basketball', 'football'].includes(sport))) || (market && wait.summary && !wait.line));
+  }
+  if (coming) {
+    waited.set(wait, true);
+    return state === 'pre'
+      ? card(T('winChance'), el('div', { class: 'wp waiting' }, [skeleton([22, 16, 22], 'wc-skel'), el('i', { class: 'skel wc-skel-bar' })]))
+      : card(T('winProb'), el('div', { class: 'wp waiting' }, [skeleton([22, 22], 'wc-skel'), el('i', { class: 'skel wp-skel-chart' })]));
+  }
+  if (real && waited.get(wait)) {
+    real.classList.add('fade-in');
+    waited.delete(wait);
+  }
+  return real;
+}
+
 // A game to come: each side's chance (and a draw's), one bar split by them;
 // ESPN's prediction, else Polymarket's price, else a sportsbook's odds.
 function winChanceCard(odds, e) {
@@ -554,13 +589,11 @@ function winChanceCard(odds, e) {
   const home = Math.round(odds.home * 100);
   const draw = odds.draw != null ? Math.round(odds.draw * 100) : null;
   const away = Math.max(0, 100 - home - (draw ?? 0));
-  const source = odds.source === 'espn' ? (en ? 'ESPN’s prediction' : '依 ESPN 預測模型') : odds.source === 'polymarket' ? (en ? 'From Polymarket’s market on the game' : '依 Polymarket 市場價格') : en ? `From ${odds.source}’s odds` : `依 ${odds.source} 賠率`;
   return card(
     T('winChance'),
     el('div', { class: 'wp' }, [
       el('div', { class: 'wp-labels' }, [el('span', { class: 'away', text: `${e.away.short || e.away.name} ${away}%` }), draw != null ? el('span', { class: 'draw', text: `${en ? 'Draw' : '和局'} ${draw}%` }) : null, el('span', { class: 'home', text: `${e.home.short || e.home.name} ${home}%` })]),
-      el('div', { class: 'wc-bar', 'aria-hidden': 'true' }, [el('span', { class: 'away', style: `flex:${away}` }), draw ? el('span', { class: 'draw', style: `flex:${draw}` }) : null, el('span', { class: 'home', style: `flex:${home}` })]),
-      el('small', { class: 'wp-source', text: source })
+      el('div', { class: 'wc-bar', 'aria-hidden': 'true' }, [el('span', { class: 'away', style: `flex:${away}` }), draw ? el('span', { class: 'draw', style: `flex:${draw}` }) : null, el('span', { class: 'home', style: `flex:${home}` })])
     ])
   );
 }
@@ -620,13 +653,15 @@ function winProbCard(line, e, timeline, events = []) {
     const i = m ? m.i : j;
     const p = pts[i ?? pts.length - 1];
     const [hh, dd] = [Math.round(p.home * 100), p.draw != null ? Math.round(p.draw * 100) : 0];
-    const none = i != null && isQuiet(i);
-    const pct = v => (none ? '–' : `${v}%`);
+    const pct = v => `${v}%`;
     away.textContent = `${sideName(e.away)} ${pct(Math.max(0, 100 - hh - dd))}`;
     if (draw) draw.textContent = `${en ? 'Draw' : '和局'} ${pct(dd)}`;
     home.textContent = `${sideName(e.home)} ${pct(hh)}`;
+    // Where the game was: the period and the score then (away–home, as the sides sit).
+    const score = scoreAt(pts, i ?? pts.length - 1, events, e.home.id);
+    const tally = score ? ` · ${score[0]}–${score[1]}` : '';
     const stamp = pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`;
-    at.textContent = i == null ? `${rest} · ${en ? 'Hold and slide on the chart to look back' : '按住圖表左右滑動查看'}` : none ? `${stamp} · ${en ? 'no trading' : '無報價'}` : stamp;
+    at.textContent = i == null ? `${rest}${tally} · ${en ? 'Hold to look back' : '按住圖表查看'}` : `${stamp}${tally}`;
     at.classList.toggle('on', i != null);
     tell(i == null ? latest : m, i == null && latest ? (en ? 'Just now' : '剛剛') : '');
     rule.hidden = dot.hidden = i == null;
@@ -663,14 +698,10 @@ function winProbCard(line, e, timeline, events = []) {
     plot,
     axisRow(marks),
     why,
-    list,
-    line.source === 'polymarket' ? el('small', { class: 'wp-source', text: en ? 'From Polymarket’s market on the game' : '依 Polymarket 市場價格' }) : null
+    list
   ]);
   return card(T('winProb'), box);
 }
-
-// A market that stood still for more than half the game says nothing of it: no chart.
-const mostlyQuiet = pts => quietRuns(pts).reduce((n, [a, b]) => n + pts[b].t - pts[a].t, 0) > (pts.at(-1).t - pts[0].t) / 2;
 
 // A chart's plot a finger (or a mouse) reads: show(i) for the point nearest
 // it while it's down, show() again once it lets go.
@@ -717,7 +748,6 @@ const axisRow = marks => (marks.length ? el('div', { class: 'wp-axis', 'aria-hid
 const driverShort = (name, en) => (en ? f1Driver(name).surname || name.split(' ').at(-1) : String(f1Driver(name).zh).split('.').at(-1));
 function raceChanceCard(line, ss, feed = null) {
   const en = L() === 'en';
-  const note = el('small', { class: 'wp-source', text: en ? 'From Polymarket’s market on the race' : '依 Polymarket 市場價格' });
   if (line.drivers[0]?.chance != null)
     return card(
       T('winChance'),
@@ -726,8 +756,7 @@ function raceChanceCard(line, ss, feed = null) {
           'div',
           { class: 'rc-bars' },
           line.drivers.map(d => el('div', { class: 'rc-bar' }, [el('span', { class: 'rc-name', text: driverShort(d.name, en) }), el('span', { class: 'rc-track' }, [el('i', { style: `width:${Math.max(2, d.chance * 100)}%;background:${f1Driver(d.name).color}` })]), el('strong', { class: 'num', text: `${Math.round(d.chance * 100)}%` })]))
-        ),
-        note
+        )
       ])
     );
   const pts = line.points;
@@ -805,7 +834,12 @@ function raceChanceCard(line, ss, feed = null) {
     const i = near ? near.i : j;
     const p = pts[i ?? last];
     chips.forEach((c, k) => (c.lastChild.textContent = `${Math.round(p.c[k] * 100)}%`));
-    at.textContent = i == null ? `${ss.status.state === 'post' ? (en ? 'Final' : '終場') : lapText(p)} · ${en ? 'Hold and slide on the chart to look back' : '按住圖表左右滑動查看'}` : lapText(p);
+    // Who led then (of the drivers drawn), and the safety car if it was out.
+    const k = i ?? last;
+    const lead = [...events].reverse().find(ev => ev.kind === 'lead' && ev.i <= k);
+    const under = bands.find(b => k > b.i0 && k <= b.i1);
+    const state = [lead ? (en ? `${names[lead.k]} leads` : `${names[lead.k]} 領先`) : '', under ? bandName(under.kind, en) : ''].filter(Boolean).map(x => ` · ${x}`).join('');
+    at.textContent = i == null ? `${ss.status.state === 'post' ? (en ? 'Final' : '終場') : lapText(p)}${state} · ${en ? 'Hold to look back' : '按住圖表查看'}` : `${lapText(p)}${state}`;
     at.classList.toggle('on', i != null);
     // On a moment, or under the safety car: what it was.
     const bandOf = m => bands.find(b => m.i === Math.min(b.i1, b.i0 + 1));
@@ -823,7 +857,7 @@ function raceChanceCard(line, ss, feed = null) {
         ...moments.map(m => el('button', { type: 'button', class: 'wp-mo', onclick: () => show(m.i) }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text', text: m.band && m.driver ? `${m.icon} ${m.text}` : m.text })]), gainChip(m)]))
       ])
     : null;
-  return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, plot, axisRow(marks), why, list, note]));
+  return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, plot, axisRow(marks), why, list]));
 }
 
 // ---- Race weekends ----------------------------------------------------------------------
@@ -1080,13 +1114,19 @@ function fillField(s, e) {
       if ((kept && ss.status.state === 'post') || Date.now() - raceAt < 60_000) return;
       raceAt = Date.now();
       const at = pick;
+      // Read for the first time: the card in its shape meanwhile, the real one fading in.
+      const shaped = !raceBox.childElementCount;
+      if (shaped) put(raceBox, card(T(ss.status.state === 'pre' ? 'winChance' : 'winProb'), el('div', { class: 'wp waiting' }, [skeleton([30, 24, 30], 'wc-skel'), el('i', { class: `skel ${ss.status.state === 'pre' ? 'rc-skel-bars' : 'wp-skel-chart'}` })])));
       raceWinLine(ss)
         .then(l => {
-          if (!l || at !== pick || !box.isConnected) return;
+          if (at !== pick || !box.isConnected) return;
+          if (!l) return shaped && put(raceBox);
           raceLines.set(key, l);
-          put(raceBox, raceChanceCard(l, ss, keptTiming(ss.abbr, ss.start)));
+          const done = raceChanceCard(l, ss, keptTiming(ss.abbr, ss.start));
+          if (shaped) done.classList.add('fade-in');
+          put(raceBox, done);
         })
-        .catch(() => {});
+        .catch(() => shaped && at === pick && put(raceBox));
     };
     const paint = () => {
       const ss = sessions[pick];

@@ -304,6 +304,8 @@ export async function raceEvents(start, getJson, laps, names) {
     return pos;
   };
   let leader = numbers.findIndex((_, k) => placeAt(k, laps[0].t) === 1);
+  // Who of them led away (the chart says who leads at each lap).
+  if (leader >= 0) ev.push([0, 'lead', leader]);
   for (const l of laps.slice(1)) {
     const now = numbers.findIndex((_, k) => placeAt(k, l.t) === 1);
     if (now >= 0 && now !== leader) ev.push([l.lap, 'lead', now]);

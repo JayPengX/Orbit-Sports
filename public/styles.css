@@ -457,6 +457,12 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .rc-track { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--q-border) 60%, transparent); overflow: hidden; }
 .rc-track i { display: block; height: 100%; border-radius: 4px; }
 .rc-bar strong { text-align: right; }
+/* A win chance card while it's coming: its shape. */
+.wp.waiting { display: grid; gap: 10px; }
+.wc-skel { grid-template-columns: repeat(3, 1fr); }
+.wc-skel-bar { height: 10px; border-radius: 5px; }
+.wp-skel-chart { height: 90px; border-radius: 10px; }
+.rc-skel-bars { height: 110px; border-radius: 10px; }
 /* A game to come: one bar split by each side's chance. */
 .wc-bar { display: flex; gap: 3px; height: 10px; margin: 8px 0 6px; }
 .wc-bar span { border-radius: 5px; min-width: 4px; }
