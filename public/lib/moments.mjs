@@ -192,3 +192,37 @@ function biggest(list) {
     .slice(0, KEEP)
     .sort((a, b) => a.i - b.i);
 }
+
+// ---- An F1 race: what turned it ----
+// bands: [{ i0, i1, kind: 'sc' | 'vsc' | 'red', from, to }] (points' indexes,
+// and laps); events: [{ i, kind: 'pit' | 'lead' | 'out', k }] (k: the
+// driver's place in names, each its short name). Each band told with the
+// drawn drivers who stopped under it and who gained most; a lead taken, a
+// retirement, a stop that moved a chance 8 points: the five biggest, by lap.
+const BAND = { sc: ['安全車', 'Safety car'], vsc: ['虛擬安全車', 'Virtual safety car'], red: ['紅旗', 'Red flag'] };
+export const bandName = (kind, en) => BAND[kind]?.[en ? 1 : 0] || kind;
+export function raceMoments(points, names, bands, events, en) {
+  const last = points.length - 1;
+  const c = (i, k) => points[Math.max(0, Math.min(last, i))].c[k];
+  const lapsText = (a, b) => (a == null ? '' : en ? ` (lap${b > a ? 's' : ''} ${a}${b > a ? `–${b}` : ''})` : ` 第 ${a}${b > a ? `–${b}` : ''} 圈`);
+  const found = [];
+  for (const b of bands) {
+    const gains = names.map((_, k) => c(b.i1 + 2, k) - c(b.i0 - 1, k));
+    const k = gains.reduce((m, g, j) => (Math.abs(g) > Math.abs(gains[m]) ? j : m), 0);
+    const stopped = [...new Set(events.filter(ev => ev.kind === 'pit' && ev.i >= b.i0 && ev.i <= b.i1).map(ev => names[ev.k]))];
+    const text = `${bandName(b.kind, en)}${lapsText(b.from, b.to)}${stopped.length ? (en ? ` · ${stopped.join(', ')} pitted` : ` · ${stopped.join('、')} 進站`) : ''}`;
+    found.push({ i: b.i0, k, delta: gains[k], icon: b.kind === 'red' ? '🟥' : '🚨', text, band: true });
+  }
+  for (const ev of events) {
+    if (ev.kind === 'pit' && bands.some(b => ev.i >= b.i0 && ev.i <= b.i1)) continue;
+    const delta = ev.kind === 'out' ? c(ev.i + 1, ev.k) - c(ev.i - 2, ev.k) : c(ev.i + (ev.kind === 'pit' ? 3 : 1), ev.k) - c(ev.i - 1, ev.k);
+    if (ev.kind === 'pit' && Math.abs(delta) < 0.08) continue;
+    const name = names[ev.k];
+    const text = ev.kind === 'lead' ? (en ? `${name} takes the lead` : `${name} 取得領先`) : ev.kind === 'out' ? (en ? `${name} retires` : `${name} 退賽`) : en ? `${name} pits` : `${name} 進站`;
+    found.push({ i: ev.i, k: ev.k, delta, icon: ev.kind === 'lead' ? '🏁' : ev.kind === 'out' ? '❌' : '🔧', text });
+  }
+  return [...found]
+    .sort((a, b) => Number(Boolean(b.band)) - Number(Boolean(a.band)) || Math.abs(b.delta) - Math.abs(a.delta))
+    .slice(0, KEEP)
+    .sort((a, b) => a.i - b.i);
+}

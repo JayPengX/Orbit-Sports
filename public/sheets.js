@@ -6,7 +6,8 @@ import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleF
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns } from './lib/wpline.mjs';
-import { playMoments, eventMoments } from './lib/moments.mjs';
+import { playMoments, eventMoments, raceMoments } from './lib/moments.mjs';
+import { controlBands } from './lib/winprob.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
@@ -712,7 +713,7 @@ const axisRow = marks => (marks.length ? el('div', { class: 'wp-axis', 'aria-hid
 // runs); a finger on it reads each one's chance at that lap. To come: each
 // one's chance now, the likeliest first.
 const driverShort = (name, en) => (en ? f1Driver(name).surname || name.split(' ').at(-1) : String(f1Driver(name).zh).split('.').at(-1));
-function raceChanceCard(line, ss) {
+function raceChanceCard(line, ss, feed = null) {
   const en = L() === 'en';
   const note = el('small', { class: 'wp-source', text: en ? 'From Polymarket’s market on the race' : '依 Polymarket 市場價格' });
   if (line.drivers[0]?.chance != null)
@@ -755,20 +756,63 @@ function raceChanceCard(line, ss) {
     teams.add(team || name);
     return el('span', { class: `rc-chip${mate ? ' mate' : ''}` }, [el('i', { style: mate ? `border-color:${color}` : `background:${color}` }), el('span', { text: driverShort(name, en) }), el('strong', { class: 'num' })]);
   });
+  // What turned it: the safety car (the race's kept turns, or a race on, the live feed's), stops, leads.
+  const last = pts.length - 1;
+  const idxOfLap = lap => Math.max(0, Math.min(last, pts.findIndex(p => p.lap >= lap) < 0 ? last : pts.findIndex(p => p.lap >= lap)));
+  const idxOfT = t => {
+    let k = 0;
+    while (k < last && pts[k + 1].t <= t) k++;
+    return k;
+  };
+  let bands = [];
+  let events = [];
+  if (byLap && line.bands) {
+    bands = line.bands.map(([from, to, kind]) => ({ i0: idxOfLap(from - 1), i1: idxOfLap(to), kind, from, to }));
+    events = (line.events || []).map(([lap, kind, k]) => ({ i: idxOfLap(lap), kind, k }));
+  } else if (!byLap && feed?.control?.length) {
+    const msgs = feed.control.map(m => ({ ...m, t: Date.parse(/Z|[+-]\d\d:?\d\d$/.test(m.at) ? m.at : `${m.at}Z`) / 1000 })).filter(m => Number.isFinite(m.t));
+    const lapOf = t => msgs.find(m => m.t === t)?.lap || null;
+    bands = controlBands(msgs, m => m.t, pts.at(-1).t).map(([a, b, kind]) => ({ i0: idxOfT(a), i1: idxOfT(b), kind, from: lapOf(a), to: lapOf(b) || feed.lap?.now || null }));
+  }
+  const names = line.drivers.map(n => driverShort(n, en));
+  const moments = raceMoments(pts, names, bands, events, en);
+  const colorOf = k => f1Driver(line.drivers[k]).color;
+  const gainChip = m => el('span', { class: 'wp-gain', style: `color:${colorOf(m.k)};background:color-mix(in srgb, ${colorOf(m.k)} 16%, transparent)`, text: `${names[m.k]} ${m.delta >= 0 ? '+' : '−'}${Math.round(Math.abs(m.delta) * 100)}%` });
+  const shade = bands.map(b => `<rect x="${(xs[b.i0] * w).toFixed(1)}" y="0" width="${Math.max(2, (xs[b.i1] - xs[b.i0]) * w).toFixed(1)}" height="${h}" class="rc-band ${b.kind}"/>`).join('');
+  const tags = bands.map(b => el('span', { class: `rc-band-tag ${b.kind}`, style: `left:${xs[b.i0] * 100}%`, text: b.kind === 'red' ? (en ? 'RED' : '紅旗') : b.kind.toUpperCase() }));
+  const pins = moments.filter(m => !m.band).map(m => el('span', { class: 'wp-moment', style: `left:${xs[m.i] * 100}%;top:${(1 - pts[m.i].c[m.k]) * 100}%;background:${colorOf(m.k)}` }));
   const at = el('small', { class: 'wp-at' });
+  const why = el('div', { class: 'wp-why', hidden: true });
   const rule = el('span', { class: 'wp-rule', hidden: true });
   const lapText = p => (byLap ? (p.lap ? (en ? `Lap ${p.lap}` : `第 ${p.lap} 圈`) : en ? 'The start' : '起跑') : stampAt([], 'f1', p.t, en));
-  const show = i => {
-    const p = pts[i ?? pts.length - 1];
+  const open = ss.status.state === 'in' ? bands.find(b => b.i1 >= last) : null;
+  const tell = (m, label) => {
+    why.hidden = !m;
+    if (m) put(why, el('span', { class: 'wp-why-icon', text: m.icon }), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, m.text]), gainChip(m));
+  };
+  const show = j => {
+    const near = j != null ? moments.find(m => Math.abs(xs[m.i] - xs[j]) < 0.025 && !m.band) : null;
+    const i = near ? near.i : j;
+    const p = pts[i ?? last];
     chips.forEach((c, k) => (c.lastChild.textContent = `${Math.round(p.c[k] * 100)}%`));
     at.textContent = i == null ? `${ss.status.state === 'post' ? (en ? 'Final' : '終場') : lapText(p)} · ${en ? 'Hold and slide on the chart to look back' : '按住圖表左右滑動查看'}` : lapText(p);
     at.classList.toggle('on', i != null);
+    // On a moment, or under the safety car: what it was.
+    const inBand = i != null && !near ? moments.find(m => m.band && bands.some(b => b.i0 === m.i && i >= b.i0 && i <= b.i1)) : null;
+    if (i == null) tell(open ? moments.find(m => m.band && m.i === open.i0) : null, open ? (en ? 'Now' : '出動中') : '');
+    else tell(near || inBand, '');
     rule.hidden = i == null;
     if (i != null) rule.style.left = `${xs[i] * 100}%`;
   };
-  const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${grid}${paths}</svg>` }), rule]);
+  const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${shade}${grid}${paths}</svg>` }), ...tags, ...pins, rule]);
   show();
-  return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, plot, axisRow(marks), note]));
+  const list = moments.length
+    ? el('div', { class: 'wp-moments' }, [
+        el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
+        ...moments.map(m => el('button', { type: 'button', class: 'wp-mo', onclick: () => show(m.i) }, [el('small', { class: 'wp-mo-at', text: lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text', text: `${m.icon} ${m.text}` }), gainChip(m)]))
+      ])
+    : null;
+  return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, plot, axisRow(marks), why, list, note]));
 }
 
 // ---- Race weekends ----------------------------------------------------------------------
@@ -1021,7 +1065,7 @@ function fillField(s, e) {
       const key = `${e.weekend || e.id}:${ss.id}:${ss.status.state}`;
       if (e.league !== 'f1' || ss.abbr !== 'Race') return put(raceBox);
       const kept = raceLines.get(key);
-      if (kept && !raceBox.childElementCount) put(raceBox, raceChanceCard(kept, ss));
+      if (kept && !raceBox.childElementCount) put(raceBox, raceChanceCard(kept, ss, keptTiming(ss.abbr, ss.start)));
       if ((kept && ss.status.state === 'post') || Date.now() - raceAt < 60_000) return;
       raceAt = Date.now();
       const at = pick;
@@ -1029,7 +1073,7 @@ function fillField(s, e) {
         .then(l => {
           if (!l || at !== pick || !box.isConnected) return;
           raceLines.set(key, l);
-          put(raceBox, raceChanceCard(l, ss));
+          put(raceBox, raceChanceCard(l, ss, keptTiming(ss.abbr, ss.start)));
         })
         .catch(() => {});
     };

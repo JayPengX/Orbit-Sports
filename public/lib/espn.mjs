@@ -13,7 +13,7 @@
 import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
-import { polymarketLine, polymarketNow, monthPath, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceNow, raceKey, unpackRace } from './winprob.mjs';
+import { polymarketLine, polymarketNow, monthPath, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox } from './mlb.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
@@ -771,7 +771,10 @@ export async function raceWinLine(ss) {
   }
   const get = (url, { trim = '', kind }) => getJson(url, { trim, ttl: PM_TTL[kind] ?? (state === 'in' ? 60_000 : 6 * 3_600_000) });
   const laps = state === 'post' ? await raceLaps(ss.start, get).catch(() => null) : null;
-  return raceLine(ss.start, get, laps);
+  const line = await raceLine(ss.start, get, laps);
+  // What turned it (the safety car, the drawn drivers' stops and leads), once the laps are in.
+  if (line && laps) Object.assign(line, (await raceEvents(ss.start, get, laps, line.drivers).catch(() => null)) || {});
+  return line;
 }
 
 // ---- Standings ------------------------------------------------------------------------

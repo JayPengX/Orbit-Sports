@@ -185,10 +185,13 @@ export async function findRaceMarket(start, getJson) {
 // the winner's laps, as they really ran (a start held an hour and a half
 // for rain moves every lap; the race's set time says nothing of it).
 const OPENF1 = 'https://api.openf1.org/v1';
-export async function raceLaps(start, getJson) {
+async function raceSession(start, getJson) {
   const at = Date.parse(start);
   const sessions = (await getJson(`${OPENF1}/sessions?year=${new Date(at).getUTCFullYear()}&session_name=Race`, { kind: 'laps' })) || [];
-  const race = sessions.find(x => Math.abs(Date.parse(x.date_start) - at) < 6 * 3_600_000);
+  return sessions.find(x => Math.abs(Date.parse(x.date_start) - at) < 6 * 3_600_000) || null;
+}
+export async function raceLaps(start, getJson) {
+  const race = await raceSession(start, getJson);
   if (!race) return null;
   const [won] = (await getJson(`${OPENF1}/session_result?session_key=${race.session_key}&position=1`, { kind: 'laps' })) || [];
   if (!won?.driver_number) return null;
@@ -196,6 +199,84 @@ export async function raceLaps(start, getJson) {
   if (laps.length < 3) return null;
   const sec = d => Date.parse(d) / 1000;
   return [{ lap: 0, t: sec(laps[0].date_start) }, ...laps.map((l, i) => ({ lap: l.lap_number, t: laps[i + 1] ? sec(laps[i + 1].date_start) : sec(l.date_start) + (Number(l.lap_duration) || 0) }))];
+}
+
+// The safety car, the virtual one and red flags from race control's
+// messages ({ category, flag, message }, OpenF1's or F1's live feed's, in
+// order): [[from, to, 'sc' | 'vsc' | 'red']], from and to by `at` (a lap, or
+// a time); one still out runs to `end`.
+export function controlBands(messages, at, end) {
+  const bands = [];
+  let open = null;
+  for (const m of messages) {
+    const msg = String(m.message || '').toUpperCase();
+    const flag = String(m.flag || '').toUpperCase();
+    const kind = /VIRTUAL SAFETY CAR DEPLOYED/.test(msg) ? 'vsc' : /SAFETY CAR DEPLOYED/.test(msg) ? 'sc' : flag === 'RED' ? 'red' : '';
+    if (kind && !open) open = { kind, from: at(m) };
+    else if (open && ((open.kind === 'vsc' && /VIRTUAL SAFETY CAR ENDING/.test(msg)) || (open.kind === 'sc' && /SAFETY CAR IN THIS LAP/.test(msg)) || (open.kind === 'red' && (flag === 'GREEN' || /RESUME|START/.test(msg))))) {
+      bands.push([open.from, Math.max(open.from, at(m)), open.kind]);
+      open = null;
+    }
+  }
+  if (open) bands.push([open.from, Math.max(open.from, end), open.kind]);
+  return bands;
+}
+
+// What turned a race, from OpenF1 once it's over: the safety car, the
+// virtual one and red flags ([[from lap, to lap, 'sc' | 'vsc' | 'red']]), and
+// for the drivers drawn their pit stops, each time one took the lead and a
+// retirement ([[lap, 'pit' | 'lead' | 'out', driver]], the driver its place
+// in `names`).
+export async function raceEvents(start, getJson, laps, names) {
+  const race = await raceSession(start, getJson);
+  if (!race || !laps?.length) return null;
+  const q = `session_key=${race.session_key}`;
+  const sec = d => Date.parse(d) / 1000;
+  const last = laps.at(-1).lap;
+  // The lap running at a moment.
+  const lapAt = t => Math.min(last, Math.max(1, laps.filter(l => l.t <= t).length));
+  // One at a time, a little apart (OpenF1 answers three a second).
+  const gap = () => new Promise(r => setTimeout(r, 400));
+  const read = async (k, more = '') => (await gap(), getJson(`${OPENF1}/${k}?${q}${more}`, { kind: 'laps' }).catch(() => []).then(x => (Array.isArray(x) ? x : [])));
+  const control = await read('race_control');
+  const drivers = await read('drivers');
+  const pits = await read('pit');
+  const result = await read('session_result');
+  const bands = controlBands(
+    [...control].sort((a, b) => sec(a.date) - sec(b.date)),
+    m => m.lap_number || lapAt(sec(m.date)),
+    last
+  );
+  // The drawn drivers' numbers, by the family name.
+  const flat = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const numbers = names.map(n => drivers.find(d => d.last_name && flat(n).endsWith(flat(d.last_name)))?.driver_number);
+  const ev = [];
+  for (const p of pits) {
+    const k = numbers.indexOf(p.driver_number);
+    if (k >= 0 && p.lap_number) ev.push([p.lap_number, 'pit', k]);
+  }
+  for (const r of result) {
+    const k = numbers.indexOf(r.driver_number);
+    if (k >= 0 && (r.dnf || r.dns) && r.number_of_laps < last) ev.push([Math.max(1, r.number_of_laps), 'out', k]);
+  }
+  // Who of them led at each lap's end: a change of leader is a moment.
+  const places = [];
+  for (const n of numbers) places.push(n ? await read('position', `&driver_number=${n}`) : []);
+  const placeAt = (k, t) => {
+    let pos = 0;
+    for (const x of places[k] || []) {
+      if (sec(x.date) > t) break;
+      pos = x.position;
+    }
+    return pos;
+  };
+  let leader = numbers.findIndex((_, k) => placeAt(k, laps[0].t) === 1);
+  for (const l of laps.slice(1)) {
+    const now = numbers.findIndex((_, k) => placeAt(k, l.t) === 1);
+    if (now >= 0 && now !== leader) ev.push([l.lap, 'lead', now]);
+    if (now >= 0) leader = now;
+  }
+  return { bands, events: ev.sort((a, b) => a[0] - b[0]) };
 }
 
 // A driver's price at a moment: the last one by then (the first, before any).
@@ -261,13 +342,14 @@ export async function raceNow(start, getJson) {
   return drivers.length ? { source: 'polymarket', market: market.slug, drivers } : null;
 }
 // A finished race's line as kept in Shared-Data (winprob/f1/<YYYY-MM>.json,
-// keyed by the race's UTC day): { m, d: [names], by, t0?, p: [[lap | minutes, ‰…]] }.
+// keyed by the race's UTC day): { m, d: [names], by, t0?, b?, e?, p: [[lap | minutes, ‰…]] }
+// (b, e: raceEvents' bands and events).
 export const raceKey = start => new Date(start).toISOString().slice(0, 10);
 export function packRace(line) {
   const t0 = line.points[0].t;
-  return { m: line.market, d: line.drivers, by: line.by, ...(line.by === 'time' ? { t0 } : {}), p: line.points.map(x => [line.by === 'lap' ? x.lap : Math.round((x.t - t0) / 60), ...x.c.map(c => Math.round(c * 1000))]) };
+  return { m: line.market, d: line.drivers, by: line.by, ...(line.by === 'time' ? { t0 } : {}), ...(line.bands ? { b: line.bands, e: line.events } : {}), p: line.points.map(x => [line.by === 'lap' ? x.lap : Math.round((x.t - t0) / 60), ...x.c.map(c => Math.round(c * 1000))]) };
 }
 export function unpackRace(kept) {
   if (!Array.isArray(kept?.p) || kept.p.length < 4 || !Array.isArray(kept.d)) return null;
-  return { source: 'polymarket', market: kept.m, drivers: kept.d, by: kept.by, points: kept.p.map(([x, ...c]) => ({ ...(kept.by === 'lap' ? { lap: x } : { t: kept.t0 + x * 60 }), c: c.map(v => v / 1000) })) };
+  return { source: 'polymarket', market: kept.m, drivers: kept.d, by: kept.by, ...(kept.b ? { bands: kept.b, events: kept.e || [] } : {}), points: kept.p.map(([x, ...c]) => ({ ...(kept.by === 'lap' ? { lap: x } : { t: kept.t0 + x * 60 }), c: c.map(v => v / 1000) })) };
 }
