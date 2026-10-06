@@ -148,7 +148,10 @@ export async function openMatch(e) {
     if (data?.players.some(p => p.tables.some(tb => tb.rows.length))) tabs.push(['players', T('players')]);
     if (data?.plays.length || data?.keyEvents.length) tabs.push(['plays', T('plays')]);
     if (data?.rosters.some(r => r.players.length)) tabs.push(['lineups', T('lineups')]);
-    if (table?.length || data?.table.length) tabs.push(['table', T('table')]);
+    // The table only once it has a game in it (a preseason's is all zeros in the feed's order).
+    const shownTable = table?.length ? table : data?.table.length ? [{ rows: data.table.map(r => ({ id: r.id, stats: r.stats })) }] : [];
+    if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
+    else if (view === 'table') view = 'overview';
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
     put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table, { line, wait }));
   };
@@ -288,6 +291,27 @@ function gameFollow(e, st, after) {
       el('span', { text: on ? (en ? 'Following this match' : '已追蹤這場') : en ? 'Follow this match' : '追蹤這場比賽' })
     ])
   ]);
+}
+// A race weekend followed from any of its sessions (every session of it counts):
+// offered until its last session is over.
+function weekendFollow(e) {
+  if (!ctx.isFollowedGame || e.kind !== 'field') return null;
+  const box = el('div', { class: 'mh-follow' });
+  const paint = () => {
+    const on = ctx.isFollowedGame(e);
+    const over = (e.sessions || []).length > 0 && e.sessions.every(x => x.status.state === 'post');
+    if (!on && over) return put(box);
+    const en = L() === 'en';
+    put(
+      box,
+      el('button', { class: `game-follow${on ? ' on' : ''}`, type: 'button', 'aria-pressed': String(on), onclick: () => (ctx.toggleFollowGame(e), paint()) }, [
+        el('span', { class: 'gf-star', 'aria-hidden': 'true', text: on ? '★' : '☆' }),
+        el('span', { text: on ? (en ? 'Following this race weekend' : '已追蹤這一站') : en ? 'Follow this race weekend' : '追蹤這一站' })
+      ])
+    );
+  };
+  paint();
+  return box;
 }
 export function followButton(isOn, toggle, label = T('follow')) {
   const b = el('button', { class: 'follow-btn', type: 'button' });
@@ -1181,7 +1205,7 @@ function fillField(s, e) {
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), // The place, then the day and the official start: two designed lines (the
       // titles' time isn't said: the broadcast card says when the channel's on air).
       el('p', { class: 'muted sess-where', text: e.venue || '' }),
-      el('p', { class: 'muted sess-when', text: whenText(shownStart(e)) }), watchButton(e, 'wide')]));
+      el('p', { class: 'muted sess-when', text: whenText(shownStart(e)) }), weekendFollow(e), watchButton(e, 'wide')]));
   const yt = highlights(e);
   if (yt) s.body.append(yt);
   if (e.kind === 'field') {

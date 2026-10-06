@@ -83,3 +83,11 @@ test('a match followed on its own comes first, with its reason', () => {
   assert.ok(scoreMatch(a, ctx).reasons.includes('game'));
   assert.ok(!scoreMatch(b, ctx).reasons.includes('game'));
 });
+
+test("a followed race weekend counts for each of its sessions", () => {
+  const race = { id: '600~Race', weekend: '600', league: 'f1', kind: 'field', start: at(12), status: { state: 'pre' } };
+  const other = { ...race, id: '601~Race', weekend: '601' };
+  const ctx = { leagues: ['f1'], games: ['f1:600'], now: NOW };
+  assert.ok(scoreMatch(race, ctx).reasons.includes('game'));
+  assert.ok(!scoreMatch(other, ctx).reasons.includes('game'));
+});

@@ -53,7 +53,7 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   const reasons = [];
   let score = 0.2;
   // A match followed on its own: the person asked for this one.
-  if (games.includes(`${e.league}:${e.id}`)) {
+  if (games.includes(`${e.league}:${e.weekend || e.id}`)) {
     score += 2;
     reasons.push('game');
   }

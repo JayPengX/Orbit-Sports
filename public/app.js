@@ -160,7 +160,8 @@ const followedTeams = () => state.prefs.follows.flatMap(f => (f.f1team === true 
 // doesn't follow): kept as they were when followed, the live copy laid over
 // them (freshGame), and let go two days after the start.
 const GAME_KEEP = 2 * 86_400_000;
-const gameKey = e => `${e.league}:${e.id}`;
+// A race weekend's sessions all share its key (the weekend's id).
+const gameKey = e => `${e.league}:${e.weekend || e.id}`;
 const keptGames = list => (list || []).filter(g => g && LEAGUES[g.league] && g.id && Date.parse(g.start) > Date.now() - GAME_KEEP);
 const slimSide = x => (x ? { id: String(x.id ?? ''), name: x.name, short: x.short, en: x.en, abbr: x.abbr, logo: x.logo, color: x.color } : x);
 function isFollowedGame(e) {
@@ -170,15 +171,37 @@ function toggleFollowGame(e) {
   const p = state.prefs;
   if (isFollowedGame(e)) p.games = p.games.filter(g => gameKey(g) !== gameKey(e));
   else {
-    p.games = [...keptGames(p.games), { league: e.league, id: e.id, kind: e.kind, name: e.name, start: e.start, status: { state: 'pre' }, away: slimSide(e.away), home: slimSide(e.home), ...(e.other ? { other: e.other } : {}) }];
+    // A race weekend: kept until two days after its last session.
+    const last = e.kind === 'field' ? [...(e.sessions || [])].map(x => x.start).filter(Boolean).sort().at(-1) || e.end || e.start : e.start;
+    p.games = [
+      ...keptGames(p.games),
+      e.kind === 'field'
+        ? { league: e.league, id: e.weekend || e.id, kind: 'field', name: e.name, start: last, venue: e.venue, country: e.country, status: { state: 'pre' } }
+        : { league: e.league, id: e.id, kind: e.kind, name: e.name, start: e.start, status: { state: 'pre' }, away: slimSide(e.away), home: slimSide(e.home), ...(e.other ? { other: e.other } : {}) }
+    ];
     recordAffinity('match', [`league:${leagueKey(e.league)}`, ...[e.away, e.home].filter(Boolean).map(x => teamKey(e.league, x.en || x.name))], 2);
   }
   changed();
+  // Its notices now (a race weekend's sessions read from the season first).
+  if (e.kind === 'field') f1Races();
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(syncPush, 1500);
 }
 // The followed matches, each its newest copy (today's board, else the one read for 追蹤).
+// A followed race weekend: its sessions still to come (all of them over: the race).
 const followedGames = () => {
-  const day = new Map(dayAll(state.days.get(today())).map(e => [gameKey(e), e]));
-  return keptGames(state.prefs.games).map(g => freshGame(day.get(gameKey(g)) || gameSeen.get(gameKey(g)) || g));
+  const day = new Map(dayAll(state.days.get(today())).filter(e => e.kind === 'match').map(e => [gameKey(e), e]));
+  const now = Date.now();
+  return keptGames(state.prefs.games).flatMap(g => {
+    if (g.kind !== 'field') return [freshGame(day.get(gameKey(g)) || gameSeen.get(gameKey(g)) || g)];
+    const w = f1Races().find(x => x.league === g.league && x.id === g.id);
+    if (!w) return [];
+    const sessions = splitWeekend(w, now, locale).filter(x => x.sessionKey);
+    // The next session and the race (one row when they're the same), not the whole weekend.
+    const left = sessions.filter(x => x.status.state !== 'post');
+    const race = sessions.filter(x => x.sessionKey === 'Race');
+    return left.length ? [...new Set([left[0], ...race])] : race;
+  });
 };
 // Each followed match's own day read once (its score when it's over or on).
 const gameSeen = new Map();
@@ -186,6 +209,7 @@ const gameDaysRead = new Set();
 function loadFollowedGames() {
   const want = new Map();
   for (const g of keptGames(state.prefs.games)) {
+    if (g.kind === 'field') continue;
     if (Date.parse(g.start) > Date.now() + 3_600_000 || gameSeen.get(gameKey(g))?.status?.state === 'post') continue;
     // ESPN's day is the US one: the start's UTC date, and five hours earlier's.
     for (const h of [0, 5]) {
@@ -585,6 +609,12 @@ function syncPush() {
     if (start > now && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
     // The Worker fills in the score (the title) and who won ({result}) once ESPN has the final.
     if (LEAGUES[e.league].espn && /^\d+$/.test(e.id)) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} · {result}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
+  }
+  // A followed race weekend: each qualifying, sprint and race starting.
+  for (const e of followedGames()) {
+    if (e.kind !== 'field' || !['Qual', 'SR', 'Race'].includes(e.sessionKey) || e.status.state !== 'pre') continue;
+    const start = Date.parse(e.official || e.start);
+    if (start > now && start < now + 8 * 86_400_000) items.push({ at: start, title: `${e.name} · ${e.session}`, body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: 'live', kind: 'start' });
   }
   schedulePush(q, items);
 }
