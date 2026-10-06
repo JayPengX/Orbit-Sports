@@ -90,3 +90,46 @@ test("a game to come: Polymarket's chance now, the three ways adding to one", as
   assert.equal(Math.round(now.home * 1000), 711);
   assert.equal(Math.round(now.draw * 1000), 184);
 });
+
+test("F1: a race's chances by lap, the laps as they really ran (OpenF1), kept a fraction the size", async () => {
+  const { raceLine, raceLaps, packRace, unpackRace, raceKey } = await import('../public/lib/winprob.mjs');
+  // Bahrain GP in Malaysia, 2026-10-04: set for 07:00, held for rain; lap 1 at 08:33.
+  const start = '2026-10-04T07:00:00Z';
+  const s = iso => Date.parse(iso) / 1000;
+  const lapStarts = ['08:33:00', '08:35:42', '08:39:34', '08:41:54', '08:43:40'].map(x => `2026-10-04T${x}Z`);
+  const drivers = [
+    ['Max Verstappen', 'max', 229815],
+    ['Kimi Antonelli', 'kimi', 86981],
+    ['Lance Stroll', 'lance', 10]
+  ];
+  const prices = {
+    max: [[s('2026-10-04T06:40:00Z'), 0.55], [s('2026-10-04T08:38:00Z'), 0.34], [s('2026-10-04T08:44:00Z'), 0.8]],
+    kimi: [[s('2026-10-04T06:40:00Z'), 0.23], [s('2026-10-04T08:38:00Z'), 0.57], [s('2026-10-04T08:44:00Z'), 0.15]],
+    lance: [[s('2026-10-04T06:40:00Z'), 0.001]]
+  };
+  const getJson = async url => {
+    const u = new URL(url);
+    if (u.host.startsWith('gamma')) return [{ slug: 'f1-bahrain-grand-prix-driver-podium-2026-10-04', markets: [] }, { slug: 'f1-bahrain-grand-prix-winner-2026-10-04', markets: drivers.map(([n, t, v]) => ({ groupItemTitle: n, clobTokenIds: `["${t}","x"]`, volume: v })) }];
+    if (u.pathname.endsWith('/sessions')) return [{ session_key: 11731, date_start: '2026-10-04T07:00:00+00:00' }];
+    if (u.pathname.endsWith('/session_result')) return [{ driver_number: 3 }];
+    if (u.pathname.endsWith('/laps')) return lapStarts.map((d, i) => ({ lap_number: i + 1, date_start: d, lap_duration: 100 }));
+    return { history: prices[u.searchParams.get('market')].map(([t, p]) => ({ t, p })) };
+  };
+  const laps = await raceLaps(start, getJson);
+  assert.equal(laps.length, 6);
+  assert.equal(laps[0].t, s(lapStarts[0]));
+  assert.equal(laps.at(-1).t, s(lapStarts[4]) + 100);
+  const line = await raceLine(start, getJson, laps);
+  assert.equal(line.market, 'f1-bahrain-grand-prix-winner-2026-10-04');
+  // Stroll never had a chance: not drawn.
+  assert.deepEqual(line.drivers, ['Max Verstappen', 'Kimi Antonelli']);
+  assert.equal(line.by, 'lap');
+  assert.deepEqual(line.points.map(p => p.lap), [0, 1, 2, 3, 4, 5]);
+  assert.deepEqual(line.points[0].c, [0.55, 0.23]);
+  assert.deepEqual(line.points[2].c, [0.34, 0.57]);
+  assert.deepEqual(line.points[5].c, [0.8, 0.15]);
+  const kept = packRace(line);
+  assert.deepEqual(kept.p[2], [2, 340, 570]);
+  assert.deepEqual(unpackRace(kept), line);
+  assert.equal(raceKey(start), '2026-10-04');
+});

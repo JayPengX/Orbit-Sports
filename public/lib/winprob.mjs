@@ -52,6 +52,8 @@ const json = s => {
   }
 };
 
+const iso = ms => new Date(Math.floor(ms / 60_000) * 60_000).toISOString().replace('.000Z', 'Z');
+
 // The game's market: the league's games at its kickoff (a few at most), the
 // one most like it by the sides' names (one side's is enough: "FC Cologne"
 // is Polymarket's "1. FC Köln"), and the token whose price is each outcome's
@@ -60,7 +62,6 @@ export async function findMarket(league, { start, home, away }, getJson) {
   const series = PM_LEAGUE[league];
   const at = Date.parse(start);
   if (!series || !at) return null;
-  const iso = ms => new Date(Math.floor(ms / 60_000) * 60_000).toISOString().replace('.000Z', 'Z');
   const events = (await getJson(`${GAMMA}/events?series_id=${series}&start_time_min=${iso(at - 15 * 60_000)}&start_time_max=${iso(at + 15 * 60_000)}&limit=100`, { trim: GAMES_TRIM, kind: 'game' })) || [];
   const labels = ev => [...(ev.teams || []).flatMap(t => [t.name, t.alias]), ...(ev.markets || []).flatMap(m => [...json(m.outcomes), m.groupItemTitle])].filter(Boolean);
   const fit = ev => Math.max(0, ...labels(ev).map(l => nameScore(home, l))) + Math.max(0, ...labels(ev).map(l => nameScore(away, l)));
@@ -165,4 +166,108 @@ export async function polymarketLine(league, game, getJson) {
   if ('draw' in market) series.draw ||= [];
   const points = mergeHistories(series);
   return points.length > 3 ? { source: 'polymarket', market: market.slug, points } : null;
+}
+
+// ---- F1: a race's winner market, each driver's chance ----
+// The race's market (Polymarket's F1 events at the race's start): each
+// driver's yes token and how much it's traded.
+export async function findRaceMarket(start, getJson) {
+  const at = Date.parse(start);
+  if (!at) return null;
+  const events = (await getJson(`${GAMMA}/events?tag_slug=f1&start_time_min=${iso(at - 15 * 60_000)}&start_time_max=${iso(at + 15 * 60_000)}&limit=50`, { trim: GAMES_TRIM, kind: 'game' })) || [];
+  const event = events.find(ev => /-winner-\d{4}-\d{2}-\d{2}$/.test(ev.slug || '') && !/sprint/.test(ev.slug));
+  const drivers = (event?.markets || []).map(m => ({ name: m.groupItemTitle || '', token: json(m.clobTokenIds)[0], volume: Number(m.volume) || 0 })).filter(d => d.name && d.token);
+  return drivers.length ? { slug: event.slug, drivers } : null;
+}
+
+// Each lap's end on the clock ([{ lap, t }], t in seconds, lap 0 the lights
+// going out), from OpenF1 once the race is over (it's closed while one runs):
+// the winner's laps, as they really ran (a start held an hour and a half
+// for rain moves every lap; the race's set time says nothing of it).
+const OPENF1 = 'https://api.openf1.org/v1';
+export async function raceLaps(start, getJson) {
+  const at = Date.parse(start);
+  const sessions = (await getJson(`${OPENF1}/sessions?year=${new Date(at).getUTCFullYear()}&session_name=Race`, { kind: 'laps' })) || [];
+  const race = sessions.find(x => Math.abs(Date.parse(x.date_start) - at) < 6 * 3_600_000);
+  if (!race) return null;
+  const [won] = (await getJson(`${OPENF1}/session_result?session_key=${race.session_key}&position=1`, { kind: 'laps' })) || [];
+  if (!won?.driver_number) return null;
+  const laps = ((await getJson(`${OPENF1}/laps?session_key=${race.session_key}&driver_number=${won.driver_number}`, { kind: 'laps' })) || []).filter(l => l.date_start).sort((x, y) => x.lap_number - y.lap_number);
+  if (laps.length < 3) return null;
+  const sec = d => Date.parse(d) / 1000;
+  return [{ lap: 0, t: sec(laps[0].date_start) }, ...laps.map((l, i) => ({ lap: l.lap_number, t: laps[i + 1] ? sec(laps[i + 1].date_start) : sec(l.date_start) + (Number(l.lap_duration) || 0) }))];
+}
+
+// A driver's price at a moment: the last one by then (the first, before any).
+const priceAt = (series, t) => {
+  let p = series[0]?.p ?? 0;
+  for (const x of series) {
+    if (x.t > t) break;
+    p = x.p;
+  }
+  return p;
+};
+// The most traded drivers read (the rest never had a chance), and of them
+// those whose chance ever reached a tenth drawn, five at most.
+const READ = 8;
+const SHOWN = 5;
+// The race's line: each shown driver's chance at each lap's end (laps, from
+// raceLaps), else every two minutes from the start while the laps aren't in
+// (a race on now): { source, market, drivers: [names], by: 'lap' | 'time',
+// points: [{ lap | t, c: [chance per driver] }] }.
+export async function raceLine(start, getJson, laps = null) {
+  const market = await findRaceMarket(start, getJson);
+  if (!market) return null;
+  const from = Math.floor(Date.parse(start) / 60_000) * 60;
+  const read = [...market.drivers].sort((a, b) => b.volume - a.volume).slice(0, READ);
+  const series = await Promise.all(
+    read.map(d =>
+      getJson(`${CLOB}?market=${d.token}&startTs=${from - 1800}&endTs=${from + LONGEST}&fidelity=1`, { kind: 'history' })
+        .then(x => (x?.history || []).map(p => ({ t: p.t, p: Number(p.p) })).filter(p => Number.isFinite(p.p)))
+        .catch(() => [])
+    )
+  );
+  const until = laps?.length ? laps.at(-1).t : Math.max(0, ...series.map(s => s.at(-1)?.t || 0));
+  const peak = series.map(s => Math.max(0, ...s.filter(p => p.t >= from && p.t <= until).map(p => p.p)));
+  const shown = read
+    .map((d, i) => ({ name: d.name, i, peak: peak[i] }))
+    .filter(d => d.peak >= 0.1)
+    .sort((a, b) => b.peak - a.peak)
+    .slice(0, SHOWN);
+  if (!shown.length) return null;
+  const at = t => shown.map(d => Math.round(priceAt(series[d.i], t) * 1000) / 1000);
+  let points;
+  if (laps?.length) points = laps.map(l => ({ lap: l.lap, c: at(l.t) }));
+  else {
+    points = [];
+    for (let t = from; t <= until; t += 120) points.push({ t, c: at(t) });
+    // Settled (a driver at 99%+ to the end): only the first such point.
+    const settled = p => p.c.some(c => c >= 0.99);
+    while (points.length > 1 && settled(points.at(-1)) && settled(points.at(-2))) points.pop();
+  }
+  return points.length > 3 ? { source: 'polymarket', market: market.slug, drivers: shown.map(d => d.name), by: laps?.length ? 'lap' : 'time', points } : null;
+}
+// A race to come: the drivers' chances now, the likeliest first (five).
+export async function raceNow(start, getJson) {
+  const market = await findRaceMarket(start, getJson);
+  if (!market) return null;
+  const read = [...market.drivers].sort((a, b) => b.volume - a.volume).slice(0, READ);
+  const last = await Promise.all(read.map(d => getJson(nowUrl(d.token), { kind: 'now' }).then(x => Number((x?.history || []).at(-1)?.p)).catch(() => NaN)));
+  const drivers = read
+    .map((d, i) => ({ name: d.name, chance: last[i] }))
+    .filter(d => Number.isFinite(d.chance) && d.chance >= 0.005)
+    .sort((a, b) => b.chance - a.chance)
+    .slice(0, SHOWN);
+  return drivers.length ? { source: 'polymarket', market: market.slug, drivers } : null;
+}
+// A finished race's line as kept in Shared-Data (winprob/f1/<YYYY-MM>.json,
+// keyed by the race's UTC day): { m, d: [names], by, t0?, p: [[lap | minutes, ‰…]] }.
+export const raceKey = start => new Date(start).toISOString().slice(0, 10);
+export function packRace(line) {
+  const t0 = line.points[0].t;
+  return { m: line.market, d: line.drivers, by: line.by, ...(line.by === 'time' ? { t0 } : {}), p: line.points.map(x => [line.by === 'lap' ? x.lap : Math.round((x.t - t0) / 60), ...x.c.map(c => Math.round(c * 1000))]) };
+}
+export function unpackRace(kept) {
+  if (!Array.isArray(kept?.p) || kept.p.length < 4 || !Array.isArray(kept.d)) return null;
+  return { source: 'polymarket', market: kept.m, drivers: kept.d, by: kept.by, points: kept.p.map(([x, ...c]) => ({ ...(kept.by === 'lap' ? { lap: x } : { t: kept.t0 + x * 60 }), c: c.map(v => v / 1000) })) };
 }

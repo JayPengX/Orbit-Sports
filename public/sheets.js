@@ -2,10 +2,10 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate } from '#kit/quadra.mjs';
-import { weekOf, winLine, winNow, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
-import { lineXs, periodMarks, pointStamp } from './lib/wpline.mjs';
+import { lineXs, periodMarks, pointStamp, stampAt } from './lib/wpline.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
@@ -599,7 +599,27 @@ function winProbCard(line, e, timeline) {
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
     dot.style.top = `${(1 - up(p)) * 100}%`;
   };
-  // The point nearest the finger.
+  const plot = scrubPlot(xs, show, [
+    el('span', { class: 'wp-edge top', text: e.home.short || e.home.name }),
+    el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${grid}<path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${path}" class="wp-line"/></svg>` }),
+    el('span', { class: 'wp-edge bottom', text: e.away.short || e.away.name }),
+    rule,
+    dot
+  ]);
+  show();
+  const box = el('div', { class: 'wp' }, [
+    el('div', { class: 'wp-labels' }, [away, draw, home]),
+    at,
+    plot,
+    axisRow(marks),
+    line.source === 'polymarket' ? el('small', { class: 'wp-source', text: en ? 'From Polymarket’s market on the game' : '依 Polymarket 市場價格' }) : null
+  ]);
+  return card(T('winProb'), box);
+}
+
+// A chart's plot a finger (or a mouse) reads: show(i) for the point nearest
+// it while it's down, show() again once it lets go.
+function scrubPlot(xs, show, kids) {
   const pick = ev => {
     const r = plot.getBoundingClientRect();
     const f = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
@@ -627,23 +647,69 @@ function winProbCard(line, e, timeline) {
       onpointercancel: () => ((held = false), show()),
       onpointerleave: ev => ev.pointerType === 'mouse' && !held && show()
     },
-    [
-      el('span', { class: 'wp-edge top', text: e.home.short || e.home.name }),
-      el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${grid}<path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${path}" class="wp-line"/></svg>` }),
-      el('span', { class: 'wp-edge bottom', text: e.away.short || e.away.name }),
-      rule,
-      dot
-    ]
+    kids
   );
+  return plot;
+}
+// The marks under a chart (periods, laps, hours).
+const axisRow = marks => (marks.length ? el('div', { class: 'wp-axis', 'aria-hidden': 'true' }, marks.map(m => el('span', { class: m.x < 0.04 ? 'start' : m.x > 0.96 ? 'end' : '', style: `left:${(m.x * 100).toFixed(2)}%`, text: m.label }))) : null);
+
+// An F1 race's chance for each driver (Polymarket's winner market): over or
+// on, a line per driver who ever had a real chance, in the team's colour (a
+// teammate's dashed), by lap once the laps are in (by the clock while it
+// runs); a finger on it reads each one's chance at that lap. To come: each
+// one's chance now, the likeliest first.
+const driverShort = (name, en) => (en ? f1Driver(name).surname || name.split(' ').at(-1) : String(f1Driver(name).zh).split('.').at(-1));
+function raceChanceCard(line, ss) {
+  const en = L() === 'en';
+  const note = el('small', { class: 'wp-source', text: en ? 'From Polymarket’s market on the race' : '依 Polymarket 市場價格' });
+  if (line.drivers[0]?.chance != null)
+    return card(
+      T('winChance'),
+      el('div', { class: 'wp' }, [
+        el(
+          'div',
+          { class: 'rc-bars' },
+          line.drivers.map(d => el('div', { class: 'rc-bar' }, [el('span', { class: 'rc-name', text: driverShort(d.name, en) }), el('span', { class: 'rc-track' }, [el('i', { style: `width:${Math.max(2, d.chance * 100)}%;background:${f1Driver(d.name).color}` })]), el('strong', { class: 'num', text: `${Math.round(d.chance * 100)}%` })]))
+        ),
+        note
+      ])
+    );
+  const pts = line.points;
+  const w = 320;
+  const h = 110;
+  const byLap = line.by === 'lap';
+  const xs = byLap ? pts.map(p => p.lap / Math.max(1, pts.at(-1).lap)) : lineXs(pts);
+  const seen = new Set();
+  const paths = line.drivers
+    .map((name, k) => {
+      const { color, team } = f1Driver(name);
+      const mate = seen.has(team || name);
+      seen.add(team || name);
+      return `<path d="${pts.map((p, i) => `${i ? 'L' : 'M'}${(xs[i] * w).toFixed(1)},${(h - p.c[k] * h).toFixed(1)}`).join(' ')}" class="rc-line" style="stroke:${color}"${mate ? ' stroke-dasharray="5 3"' : ''}/>`;
+    })
+    .reverse()
+    .join('');
+  // Every ten laps (or the clock's hours), lined up under the chart.
+  const marks = byLap
+    ? pts.filter(p => p.lap && p.lap % 10 === 0).map(p => ({ x: p.lap / pts.at(-1).lap, label: en ? `L${p.lap}` : `${p.lap}圈` }))
+    : periodMarks([], 'f1', pts, en);
+  const grid = [0.25, 0.5, 0.75].map(y => `<line x1="0" x2="${w}" y1="${h * y}" y2="${h * y}" class="wp-mid"/>`).join('') + marks.map(m => `<line x1="${(m.x * w).toFixed(1)}" x2="${(m.x * w).toFixed(1)}" y1="0" y2="${h}" class="wp-grid"/>`).join('');
+  const chips = line.drivers.map(name => el('span', { class: 'rc-chip' }, [el('i', { style: `background:${f1Driver(name).color}` }), el('span', { text: driverShort(name, en) }), el('strong', { class: 'num' })]));
+  const at = el('small', { class: 'wp-at' });
+  const rule = el('span', { class: 'wp-rule', hidden: true });
+  const lapText = p => (byLap ? (p.lap ? (en ? `Lap ${p.lap}` : `第 ${p.lap} 圈`) : en ? 'The start' : '起跑') : stampAt([], 'f1', p.t, en));
+  const show = i => {
+    const p = pts[i ?? pts.length - 1];
+    chips.forEach((c, k) => (c.lastChild.textContent = `${Math.round(p.c[k] * 100)}%`));
+    at.textContent = i == null ? `${ss.status.state === 'post' ? (en ? 'Final' : '終場') : lapText(p)} · ${en ? 'Hold and slide on the chart to look back' : '按住圖表左右滑動查看'}` : lapText(p);
+    at.classList.toggle('on', i != null);
+    rule.hidden = i == null;
+    if (i != null) rule.style.left = `${xs[i] * 100}%`;
+  };
+  const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${grid}${paths}</svg>` }), rule]);
   show();
-  const box = el('div', { class: 'wp' }, [
-    el('div', { class: 'wp-labels' }, [away, draw, home]),
-    at,
-    plot,
-    marks.length ? el('div', { class: 'wp-axis', 'aria-hidden': 'true' }, marks.map(m => el('span', { class: m.x < 0.04 ? 'start' : m.x > 0.96 ? 'end' : '', style: `left:${(m.x * 100).toFixed(2)}%`, text: m.label }))) : null,
-    line.source === 'polymarket' ? el('small', { class: 'wp-source', text: en ? 'From Polymarket’s market on the game' : '依 Polymarket 市場價格' }) : null
-  ]);
-  return card(T('winProb'), box);
+  return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, plot, axisRow(marks), note]));
 }
 
 // ---- Race weekends ----------------------------------------------------------------------
@@ -888,8 +954,30 @@ function fillField(s, e) {
     let pick = e.sessionKey ? Math.max(0, sessions.findIndex(x => x.abbr === e.sessionKey)) : Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
     const box = el('div');
     let liveTimer = 0;
+    // F1's race: each driver's chance to win (to come, on, over), read again each minute while it runs.
+    const raceBox = el('div');
+    let raceAt = 0;
+    const loadRace = () => {
+      const ss = sessions[pick];
+      const key = `${e.weekend || e.id}:${ss.id}:${ss.status.state}`;
+      if (e.league !== 'f1' || ss.abbr !== 'Race') return put(raceBox);
+      const kept = raceLines.get(key);
+      if (kept && !raceBox.childElementCount) put(raceBox, raceChanceCard(kept, ss));
+      if ((kept && ss.status.state === 'post') || Date.now() - raceAt < 60_000) return;
+      raceAt = Date.now();
+      const at = pick;
+      raceWinLine(ss)
+        .then(l => {
+          if (!l || at !== pick || !box.isConnected) return;
+          raceLines.set(key, l);
+          put(raceBox, raceChanceCard(l, ss));
+        })
+        .catch(() => {});
+    };
     const paint = () => {
       const ss = sessions[pick];
+      raceAt = 0;
+      put(raceBox);
       // F1, a session that's over: the official numbers. A race or sprint:
       // each car's team, time or retirement, points and places gained from
       // the grid; a qualifying (or the sprint's): each one's best lap, the
@@ -916,8 +1004,10 @@ function fillField(s, e) {
         box,
         sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,
         el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
-        known?.length ? f1Field(known, ss.field) : numbers ? shape() : espnList()
+        known?.length ? f1Field(known, ss.field) : numbers ? shape() : espnList(),
+        raceBox
       );
+      loadRace();
       numbers
         ?.catch(() => [])
         .then(rows => {
@@ -942,6 +1032,7 @@ function fillField(s, e) {
         const tick = () => {
           if (!box.isConnected || at !== pick) return clearInterval(liveTimer);
           if (document.visibilityState !== 'visible') return;
+          loadRace();
           liveTiming(ss.abbr, ss.start)
             .then(b => {
               if (at !== pick || !box.isConnected) return;
@@ -968,6 +1059,8 @@ function fillField(s, e) {
 
 // A finished session's official numbers, once read (they don't change).
 const f1Numbers = new Map();
+// A race's chances, by weekend, session and its state.
+const raceLines = new Map();
 
 // ---- A team -------------------------------------------------------------------------------
 

@@ -13,7 +13,7 @@
 import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
-import { polymarketLine, polymarketNow, monthPath, gameKey, unpackLine, PM_LEAGUE } from './winprob.mjs';
+import { polymarketLine, polymarketNow, monthPath, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceNow, raceKey, unpackRace } from './winprob.mjs';
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox } from './mlb.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
@@ -735,6 +735,24 @@ export async function winLine(e) {
   return polymarketLine(e.league, { start: e.start, home: e.home.en || e.home.name, away: e.away.en || e.away.name }, (url, { trim = '', kind }) =>
     getJson(url, { trim, ttl: PM_TTL[kind] ?? (e.status.state === 'in' ? 60_000 : 6 * 3_600_000) })
   );
+}
+
+// An F1 race's chance for each driver (Polymarket's winner market): a race
+// over, kept in Shared-Data (winprob/f1, by lap), else read by lap from
+// OpenF1's laps; a race on, by the clock (OpenF1 is closed while it runs);
+// a race to come, each driver's chance now. Null where there's no market.
+export async function raceWinLine(ss) {
+  const state = ss.status.state;
+  if (state === 'pre') return raceNow(ss.start, (url, { trim = '', kind }) => getJson(url, { trim, ttl: PM_TTL[kind] ?? 5 * 60_000 }));
+  if (state === 'post' && kit.packJson) {
+    const month = await kit.packJson(monthPath('f1', ss.start), { ttl: 6 * 3_600_000 }).catch(() => null);
+    const kept = month?.games?.[raceKey(ss.start)];
+    if (kept?.none) return null;
+    if (kept) return unpackRace(kept);
+  }
+  const get = (url, { trim = '', kind }) => getJson(url, { trim, ttl: PM_TTL[kind] ?? (state === 'in' ? 60_000 : 6 * 3_600_000) });
+  const laps = state === 'post' ? await raceLaps(ss.start, get).catch(() => null) : null;
+  return raceLine(ss.start, get, laps);
 }
 
 // ---- Standings ------------------------------------------------------------------------
