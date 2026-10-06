@@ -186,3 +186,20 @@ test("a play ESPN filed late sits where it happened, never as a spike (Suns at P
   assert.ok(!texts.some(t => /罰球不進/.test(t)) || !texts.some(t => /罰球命中$/.test(t)));
   assert.ok(list.length <= 10, `${list.length} moments`);
 });
+
+// Lakers at Kings, 2026-10-05: the Lakers' run was over by the 2nd quarter,
+// but the Kings' 1% kept drifting to 0% until the buzzer, and the run (its
+// dot, 第1–4節 · 0.0) was put at the end of the game.
+test('basketball: a stretch ends where it got there, not where its last drift ended', () => {
+  const pts = [];
+  let [h, a] = [0, 0];
+  const add = (v, n, dh, da) => pts.push({ home: v, n, play: { home: (h += dh), away: (a += da), clock: '' } });
+  for (let i = 0; i < 10; i++) add(0.6, 1, 1, 1);
+  for (let i = 0; i < 20; i++) add(0.6 - (i + 1) * 0.029, 2, 0, 2); // the run: 0.6 → 0.02
+  for (let i = 0; i < 60; i++) add(0.02 - (i + 1) * 0.0003, i < 30 ? 3 : 4, 1, 1); // the drift: 0.02 → 0.002
+  const list = playMoments(pts, 'basketball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false });
+  const run = list.find(m => m.periods);
+  assert.ok(run, 'the run is a moment');
+  assert.ok(run.i <= 30, `the run ends in the 2nd period, not at ${run.i}`);
+  assert.equal(run.periods[1], 2);
+});

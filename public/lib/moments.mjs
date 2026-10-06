@@ -174,6 +174,7 @@ function swingMoments(points, sport, side) {
   }
   // The stretches it drifted over (a slow slide over a quarter or two): each told by the points each side scored over it.
   const stretches = swings(vals, STRETCH)
+    .map(s => tighten(vals, s))
     .filter(({ from, to }) => !plays.some(m => m.i > from && m.i <= to && Math.abs(m.delta) >= 0.4 * Math.abs(vals[to] - vals[from])))
     .map(({ from, to }) => {
       const delta = vals[to] - vals[from];
@@ -189,13 +190,30 @@ function swingMoments(points, sport, side) {
   return [...top(stretches, 2), ...top(plays, 3)].sort((x, y) => x.i - y.i);
 }
 
+// A stretch where it really moved: from the last point still at its start
+// to the first that got 95% of the way. A line's extreme can come long after
+// the game was decided (a 1% chance drifting to 0% until the buzzer), and the
+// stretch, its dot and its periods would run to the end of the game with it.
+const ARRIVED = 0.95;
+export function tighten(values, { from, to }) {
+  const move = values[to] - values[from];
+  const dir = Math.sign(move);
+  if (!dir) return { from, to };
+  let end = from;
+  while (end < to && dir * (values[end] - values[from]) < ARRIVED * Math.abs(move)) end++;
+  let start = end;
+  while (start > from && dir * (values[start] - values[from]) > (1 - ARRIVED) * Math.abs(move)) start--;
+  return { from: start, to: end };
+}
+
 export function playMoments(points, sport, side) {
   if (!points.length || !points.every(p => p.n)) return [];
   const found = swingMoments(points, sport, side);
   // The game's end, whole: every play there that moved it, tied it or put a side ahead.
   for (const m of clutchMoments(points, sport, side)) {
     // One play once (ESPN's score and the kickoff after it are the same play): its biggest swing, and whether it tied it or put a side ahead.
-    const same = found.find(f => f.i === m.i || f.src === m.src);
+    // (A stretch ending on it is not the same: it's told by the points over it, and the play stays its own.)
+    const same = found.find(f => !f.periods && (f.i === m.i || f.src === m.src));
     if (!same) found.push(m);
     else if (m.turned && !same.turned) Object.assign(same, { turned: m.turned, text: m.text, delta: Math.abs(m.delta) > Math.abs(same.delta) ? m.delta : same.delta, side: Math.abs(m.delta) > Math.abs(same.delta) ? m.side : same.side });
   }
