@@ -598,7 +598,14 @@ export function parseSummary(data, league) {
   );
   const injuries = (data?.injuries || []).map(t => ({ team: String(t.team?.id ?? ''), list: (t.injuries || []).map(i => ({ id: String(i.athlete?.id ?? ''), headshot: freshHeadshot(i.athlete?.headshot?.href) || null, name: i.athlete?.displayName || '', status: i.status || i.type?.description || '', detail: i.details?.type || '' })) }));
   // ESPN's win probability, play by play: the home side's chance (and a draw's, where there can be one).
-  const winProb = (data?.winprobability || []).filter(w => Number.isFinite(w.homeWinPercentage)).map(w => (w.tiePercentage > 0 ? { home: w.homeWinPercentage, draw: w.tiePercentage } : { home: w.homeWinPercentage }));
+  // The game's plays by the wall clock (t in seconds): what the chart's marks and a finger on it go by.
+  const wall = p => Date.parse(p?.wallclock || '') / 1000;
+  const timed = [...(data?.plays || []), ...(data?.drives?.previous || []).flatMap(d => d.plays || []), ...(data?.drives?.current?.plays || []), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
+  const timeline = timed.map(p => ({ t: wall(p), n: p.period.number, half: /^(top|bottom)$/i.test(p.period.type || '') ? p.period.type.toLowerCase() : '', type: p.type?.type || '' })).sort((a, b) => a.t - b.t);
+  const playAt = new Map(timed.map(p => [String(p.id), wall(p)]));
+  const winProb = (data?.winprobability || [])
+    .filter(w => Number.isFinite(w.homeWinPercentage))
+    .map(w => ({ home: w.homeWinPercentage, ...(w.tiePercentage > 0 ? { draw: w.tiePercentage } : {}), ...(playAt.has(String(w.playId)) ? { t: playAt.get(String(w.playId)) } : {}) }));
   // The season series (a playoff or a season's meetings), or soccer's
   // head-to-head (the last meetings, any competition): `h2h` with each
   // side's wins and the draws, by team id.
@@ -648,6 +655,7 @@ export function parseSummary(data, league) {
     leaders,
     injuries,
     winProb,
+    timeline,
     series,
     form,
     table,
