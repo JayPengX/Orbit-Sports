@@ -74,3 +74,14 @@ test("ESPN's line in play order, never by its wall clocks (a play logged late)",
   const q2 = s.timeline.find(e => e.n === 2).t;
   assert.equal(stampAt(s.timeline, 'basketball', q2 + 600, false), '第2節');
 });
+
+test('a game to come: ESPN prediction first, else the sportsbook, its margin out', () => {
+  const espn = parseSummary({ predictor: { homeTeam: { gameProjection: '53.2' }, awayTeam: { gameProjection: '46.8' } }, pickcenter: [{ homeTeamOdds: { moneyLine: -185 }, awayTeamOdds: { moneyLine: 154 } }] }, 'cfb');
+  assert.deepEqual(espn.predict, { source: 'espn', home: 0.532 });
+  // Arsenal v Leeds, 2026-10-10: DraftKings -275 / 400 draw / +700.
+  const book = parseSummary({ pickcenter: [{ provider: { name: 'DraftKings' }, homeTeamOdds: { moneyLine: -275 }, awayTeamOdds: { moneyLine: 700 }, drawOdds: { moneyLine: 400 } }] }, 'epl').predict;
+  assert.equal(book.source, 'DraftKings');
+  assert.equal(Math.round(book.home * 100), 69);
+  assert.equal(Math.round(book.draw * 100), 19);
+  assert.equal(parseSummary({}, 'nba').predict, null);
+});

@@ -75,3 +75,18 @@ test("a finished game's kept line: in its month's file, a fifth the size, the sa
   assert.equal(unpackLine({ none: 'espn' }), null);
   assert.equal(mergeHistories({ home: [] }).length, 0);
 });
+
+test("a game to come: Polymarket's chance now, the three ways adding to one", async () => {
+  const { polymarketNow } = await import('../public/lib/winprob.mjs');
+  const markets = [
+    { groupItemTitle: 'Arsenal', clobTokenIds: '["h","x"]' },
+    { groupItemTitle: 'Draw (Arsenal vs. Leeds)', clobTokenIds: '["d","x"]' },
+    { groupItemTitle: 'Leeds United', clobTokenIds: '["a","x"]' }
+  ];
+  const price = { h: 0.715, d: 0.185, a: 0.105 };
+  const getJson = async url => (url.includes('gamma') ? [{ slug: 'epl-ars-lee-2026-10-10', markets }] : { history: [{ t: 1, p: 0.5 }, { t: 2, p: price[new URL(url).searchParams.get('market')] }] });
+  const now = await polymarketNow('epl', { start: '2026-10-10T11:30Z', home: 'Arsenal', away: 'Leeds United' }, getJson);
+  assert.equal(now.source, 'polymarket');
+  assert.equal(Math.round(now.home * 1000), 711);
+  assert.equal(Math.round(now.draw * 1000), 184);
+});

@@ -142,6 +142,19 @@ export function unpackLine(kept) {
   return { source: 'polymarket', market: kept.m, points: kept.p.map(([dt, h, d]) => ({ t: kept.t0 + dt * 60, home: h / 1000, ...(d != null ? { draw: d / 1000 } : {}) })) };
 }
 
+// A game to come: each side's chance now (the last price of the day's).
+export const nowUrl = token => `${CLOB}?market=${token}&interval=1d&fidelity=30`;
+export async function polymarketNow(league, game, getJson) {
+  const market = await findMarket(league, game, getJson);
+  if (!market) return null;
+  const read = 'draw' in market ? ['home', 'draw', 'away'] : ['home'];
+  const last = await Promise.all(read.map(k => getJson(nowUrl(market[k]), { kind: 'now' }).then(x => Number((x?.history || []).at(-1)?.p))));
+  if (!last.every(Number.isFinite)) return null;
+  if (!('draw' in market)) return { source: 'polymarket', home: last[0] };
+  const sum = last[0] + last[1] + last[2] || 1;
+  return { source: 'polymarket', home: last[0] / sum, draw: last[1] / sum };
+}
+
 export async function polymarketLine(league, game, getJson) {
   const market = await findMarket(league, game, getJson);
   if (!market) return null;

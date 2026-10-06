@@ -2,7 +2,7 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate } from '#kit/quadra.mjs';
-import { weekOf, winLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { lineXs, periodMarks, pointStamp } from './lib/wpline.mjs';
@@ -60,13 +60,17 @@ export async function openMatch(e) {
   let table = null;
   // Each side's injuries from its roster (ESPN's game page leaves some out).
   let hurt = {};
-  // Polymarket's win probability where ESPN draws none (a game on: again each minute).
+  // Polymarket's win probability where ESPN draws none (a game on: again each
+  // minute); a game to come, its chance for each side now, where ESPN has no
+  // prediction of its own.
   let line = null;
   let lineAt = 0;
   const loadLine = () => {
-    if (data?.winProb.length > 3 || Date.now() - lineAt < 60_000) return;
+    const now = { ...e, status: data?.status || e.status };
+    const pre = now.status.state === 'pre';
+    if ((pre ? data?.predict?.source === 'espn' : data?.winProb.length > 3) || Date.now() - lineAt < 60_000) return;
     lineAt = Date.now();
-    winLine(e)
+    (pre ? winNow : winLine)(now)
       .then(l => l && ((line = l), paint()))
       .catch(() => {});
   };
@@ -469,7 +473,13 @@ function overview(d, e, table, nameOf, line = null) {
   return el('div', { class: 'stack' }, [
     highlights(e),
     card(T('matchup'), compare),
-    d?.winProb.length > 3 ? winProbCard({ points: d.winProb }, e, d.timeline) : line?.points.length > 3 ? winProbCard(line, e, d?.timeline) : null,
+    (d?.status || e.status).state === 'pre'
+      ? winChanceCard(d?.predict?.source === 'espn' ? d.predict : line?.home != null ? line : d?.predict, e)
+      : d?.winProb.length > 3
+        ? winProbCard({ points: d.winProb }, e, d.timeline)
+        : line?.points?.length > 3
+          ? winProbCard(line, e, d?.timeline)
+          : null,
     leadersBy.some(x => x.length)
       ? card(
           T('leaders'),
@@ -533,6 +543,25 @@ const placeCell = (p, grouped) => [T('placeN', { n: p.pos }), grouped && p.group
 const cmpValue = v => (Array.isArray(v) ? el('strong', { class: 'cmp-val' }, [el('span', { class: 'num', text: v[0] }), v[1] ? el('small', { text: v[1] }) : null]) : el('strong', { class: 'cmp-val num', text: v }));
 const cmpTeam = (s, cls, league) => el('div', { class: `cmp-team ${cls}` }, [sideLogo(s, league, 'sm'), el('span', { text: s.short || s.name })]);
 const formPills = games => el('div', { class: 'form-pills' }, games.slice(-5).map(g => el('span', { class: `pill ${g.result}`, title: `${g.opp} ${g.score}`, text: g.result })));
+
+// A game to come: each side's chance (and a draw's), one bar split by them;
+// ESPN's prediction, else Polymarket's price, else a sportsbook's odds.
+function winChanceCard(odds, e) {
+  if (odds?.home == null) return null;
+  const en = L() === 'en';
+  const home = Math.round(odds.home * 100);
+  const draw = odds.draw != null ? Math.round(odds.draw * 100) : null;
+  const away = Math.max(0, 100 - home - (draw ?? 0));
+  const source = odds.source === 'espn' ? (en ? 'ESPN’s prediction' : '依 ESPN 預測模型') : odds.source === 'polymarket' ? (en ? 'From Polymarket’s market on the game' : '依 Polymarket 市場價格') : en ? `From ${odds.source}’s odds` : `依 ${odds.source} 賠率`;
+  return card(
+    T('winChance'),
+    el('div', { class: 'wp' }, [
+      el('div', { class: 'wp-labels' }, [el('span', { class: 'away', text: `${e.away.short || e.away.name} ${away}%` }), draw != null ? el('span', { class: 'draw', text: `${en ? 'Draw' : '和局'} ${draw}%` }) : null, el('span', { class: 'home', text: `${e.home.short || e.home.name} ${home}%` })]),
+      el('div', { class: 'wc-bar', 'aria-hidden': 'true' }, [el('span', { class: 'away', style: `flex:${away}` }), draw ? el('span', { class: 'draw', style: `flex:${draw}` }) : null, el('span', { class: 'home', style: `flex:${home}` })]),
+      el('small', { class: 'wp-source', text: source })
+    ])
+  );
+}
 
 // The win probability over the game: the home side's chance up, the away
 // side's down (a draw counts half to each, so a level game sits on the

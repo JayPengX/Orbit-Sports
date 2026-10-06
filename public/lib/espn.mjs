@@ -13,7 +13,7 @@
 import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
-import { polymarketLine, monthPath, gameKey, unpackLine, PM_LEAGUE } from './winprob.mjs';
+import { polymarketLine, polymarketNow, monthPath, gameKey, unpackLine, PM_LEAGUE } from './winprob.mjs';
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox } from './mlb.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
@@ -607,6 +607,22 @@ export function parseSummary(data, league) {
   const winProb = (data?.winprobability || [])
     .filter(w => Number.isFinite(w.homeWinPercentage))
     .map(w => ({ home: w.homeWinPercentage, ...(w.tiePercentage > 0 ? { draw: w.tiePercentage } : {}), ...playAt.get(String(w.playId)) }));
+  // A game to come: each side's chance, ESPN's own prediction, else the
+  // sportsbook's moneylines (its margin taken out): { home, draw?, source }.
+  const predictor = data?.predictor;
+  const chance = v => (Number.isFinite(parseFloat(v)) ? parseFloat(v) / 100 : null);
+  const implied = ml => (!Number.isFinite(ml) || !ml ? null : ml < 0 ? -ml / (100 - ml) : 100 / (ml + 100));
+  let predict = null;
+  if (chance(predictor?.homeTeam?.gameProjection) != null && chance(predictor?.awayTeam?.gameProjection) != null) {
+    const [h, a, d] = [chance(predictor.homeTeam.gameProjection), chance(predictor.awayTeam.gameProjection), chance(predictor.homeTeam.teamChanceTie) || 0];
+    predict = { source: 'espn', home: h / (h + a + d), ...(d ? { draw: d / (h + a + d) } : {}) };
+  } else {
+    const book = (data?.pickcenter || []).find(x => implied(x.homeTeamOdds?.moneyLine) && implied(x.awayTeamOdds?.moneyLine));
+    if (book) {
+      const [h, a, d] = [implied(book.homeTeamOdds.moneyLine), implied(book.awayTeamOdds.moneyLine), implied(book.drawOdds?.moneyLine) || 0];
+      predict = { source: book.provider?.name || 'book', home: h / (h + a + d), ...(d ? { draw: d / (h + a + d) } : {}) };
+    }
+  }
   // The season series (a playoff or a season's meetings), or soccer's
   // head-to-head (the last meetings, any competition): `h2h` with each
   // side's wins and the draws, by team id.
@@ -657,6 +673,7 @@ export function parseSummary(data, league) {
     injuries,
     winProb,
     timeline,
+    predict,
     series,
     form,
     table,
@@ -701,7 +718,12 @@ async function withMlbBox(sm, start) {
 // one's from Shared-Data's month of them (one read covers the month's games),
 // else read through the proxy (a game just over, or one too old to be kept).
 // Null where there's no market.
-const PM_TTL = { game: 6 * 3_600_000 };
+const PM_TTL = { game: 6 * 3_600_000, now: 5 * 60_000 };
+// A game to come: Polymarket's chance for each side now, null where there's no market.
+export async function winNow(e) {
+  if (!PM_LEAGUE[e.league] || e.kind !== 'match' || e.status.state !== 'pre') return null;
+  return polymarketNow(e.league, { start: e.start, home: e.home.en || e.home.name, away: e.away.en || e.away.name }, (url, { trim = '', kind }) => getJson(url, { trim, ttl: PM_TTL[kind] }));
+}
 export async function winLine(e) {
   if (!PM_LEAGUE[e.league] || e.kind !== 'match' || (e.status.state !== 'in' && e.status.state !== 'post')) return null;
   if (e.status.state === 'post' && kit.packJson) {
