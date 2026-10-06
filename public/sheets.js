@@ -5,8 +5,8 @@ import { translate } from '#kit/quadra.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
-import { lineXs, periodMarks, pointStamp, stampAt, quietRuns } from './lib/wpline.mjs';
-import { playMoments, eventMoments, raceMoments, scoreAt, bandName } from './lib/moments.mjs';
+import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName } from './lib/wpline.mjs';
+import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
@@ -626,6 +626,13 @@ function winProbCard(line, e, timeline, events = []) {
   const sideName = s => s.short || s.name;
   const side = { home: { id: e.home.id, name: sideName(e.home) }, away: { id: e.away.id, name: sideName(e.away) }, en };
   const moments = (pts.every(p => p.n) ? playMoments(pts, sport, side) : eventMoments(pts, events, sport, side, pts.map(p => p.t))).filter(m => !isQuiet(m.i));
+  // When it was: the period (a stretch, its periods), the clock in the last two minutes, the score after it.
+  const momentAt = m => {
+    const [a, b] = m.periods || [];
+    const when = a && b && b > a ? `${periodName(sport, a, en)}–${en ? periodName(sport, b, en) : periodName(sport, b, en).replace(/^第/, '')}` : pointStamp(timeline, sport, pts[m.i], en);
+    const score = scoreAt(pts, m.i, events, e.home.id);
+    return [when, lateClock(sport, pts[m.i]), score ? `${score[0]}–${score[1]}` : ''].filter(Boolean).join(' · ');
+  };
   // Whose chance it lifted, and by how much.
   const gain = m => `${side[m.delta >= 0 ? 'home' : 'away'].name} +${Math.round(Math.abs(m.delta) * 100)}%`;
   const near = i => moments.find(m => Math.abs(xs[m.i] - xs[i]) < 0.025);
@@ -660,7 +667,7 @@ function winProbCard(line, e, timeline, events = []) {
     // Where the game was: the period and the score then (away–home, as the sides sit).
     const score = scoreAt(pts, i ?? pts.length - 1, events, e.home.id);
     const tally = score ? ` · ${score[0]}–${score[1]}` : '';
-    const stamp = pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`;
+    const stamp = [pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`, lateClock(sport, p)].filter(Boolean).join(' ');
     at.textContent = i == null ? `${rest}${tally} · ${en ? 'Hold to look back' : '按住圖表查看'}` : `${stamp}${tally}`;
     at.classList.toggle('on', i != null);
     tell(i == null ? latest : m, i == null && latest ? (en ? 'Just now' : '剛剛') : '');
@@ -686,7 +693,7 @@ function winProbCard(line, e, timeline, events = []) {
         ...moments.map(m =>
           el('button', { type: 'button', class: 'wp-mo', onclick: () => show(m.i) }, [
             el('span', { class: 'wp-mo-face' }, [face(m)]),
-            el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: pointStamp(timeline, sport, pts[m.i], en) }), el('span', { class: 'wp-mo-text', text: m.text })]),
+            el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text', text: m.text })]),
             el('span', { class: `wp-gain ${m.side}`, text: gain(m) })
           ])
         )

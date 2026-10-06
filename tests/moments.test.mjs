@@ -132,3 +132,21 @@ test('F1: a red flag only said ends the safety car; it ends when the track is cl
   );
   assert.deepEqual(bands.map(b => b.slice(0, 3)), [[3, 3, 'sc'], [3, 4, 'red'], [28, 29, 'vsc']]);
 });
+
+test('basketball: the stretch it drifted over and the possessions that decided it (Knicks at Spurs, Finals game 2, 105-104)', async () => {
+  const { lateClock } = await import('../public/lib/moments.mjs');
+  const s = parseSummary(fixture('nba-finals-g2.json'), 'nba');
+  const list = playMoments(s.winProb, 'basketball', { home: { id: s.home.id, name: '馬刺' }, away: { id: s.away.id, name: '尼克' }, en: false });
+  // The slow slide: one stretch over two quarters, told by the points.
+  const stretch = list.find(m => m.periods && m.periods[1] > m.periods[0]);
+  assert.match(stretch.text, /^尼克 \d+-\d+ 拉開$/);
+  // The last possessions, who did what.
+  const texts = list.map(m => m.text);
+  assert.ok(texts.includes('V. Wembanyama 跳投不進'));
+  assert.ok(texts.includes('J. Brunson 罰球不進'));
+  assert.ok(!texts.some(t => /掌握局勢|\\b2-0 攻勢/.test(t)));
+  // The clock where it tells: the final seconds.
+  const last = list.at(-1);
+  assert.equal(lateClock('basketball', s.winProb[last.i]), '2.0');
+  assert.equal(lateClock('basketball', s.winProb[10]), '');
+});

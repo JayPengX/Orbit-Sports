@@ -23,10 +23,11 @@ export function swings(values, least = SWING) {
   for (let i = 1; i < values.length; i++) {
     const v = values[i];
     if (!dir) {
-      if (v > values[hi]) hi = i;
-      if (v < values[lo]) lo = i;
+      // From the last point of a level start (what came before it moved nothing).
+      if (v >= values[hi]) hi = i;
+      if (v <= values[lo]) lo = i;
       if (values[hi] - values[lo] >= least) [dir, start, ext] = hi > lo ? [1, lo, hi] : [-1, hi, lo];
-    } else if (dir * (v - values[ext]) >= 0) ext = i;
+    } else if (dir * (v - values[ext]) > 0) ext = i;
     else if (dir * (values[ext] - v) >= least) {
       segs.push({ from: start, to: ext });
       [start, ext, dir] = [ext, i, -dir];
@@ -93,6 +94,25 @@ const NFL_ZH = [
   [/pass/i, '傳球推進'],
   [/rush/i, '跑球推進']
 ];
+// A basketball play in a few words: made or missed and what, a free throw,
+// a turnover (and who stole it), a foul, a rebound, a block.
+function basketballZh(play) {
+  const t = `${play.type} ${play.text}`;
+  const made = play.scoring || /\bmakes\b/i.test(play.text);
+  if (/turnover|bad pass|traveling|lost ball|offensive foul/i.test(t)) {
+    const thief = /\(([^)]+?) steals?\)/i.exec(play.text)?.[1];
+    return `失誤${thief ? `（${thief} 抄截）` : ''}`;
+  }
+  if (/free throw/i.test(t)) return made ? '罰球命中' : '罰球不進';
+  if (/shooting foul/i.test(t)) return '投籃犯規';
+  if (/foul/i.test(t)) return '犯規';
+  if (/offensive rebound/i.test(t)) return '進攻籃板';
+  if (/rebound/i.test(t)) return '防守籃板';
+  if (/block/i.test(t)) return '火鍋';
+  const shot = /three point|3-pt/i.test(t) ? '三分' : /dunk/i.test(t) ? '灌籃' : /layup|finger roll/i.test(t) ? '上籃' : /hook/i.test(t) ? '勾射' : /tip/i.test(t) ? '補籃' : '跳投';
+  return `${shot}${made ? '命中' : '不進'}`;
+}
+
 const ICON = { baseball: '⚾', basketball: '🏀', football: '🏈', hockey: '🏒', soccer: '⚽' };
 const firstOf = (list, ...texts) => list.find(([re]) => texts.some(t => re.test(t || '')))?.[1];
 // The doer from the play's words where ESPN names nobody ("Rice homered to right").
@@ -106,7 +126,7 @@ export function playText(sport, play, en, team) {
     const what = firstOf(MLB_ZH, play.alt, play.text) || '關鍵打擊';
     return [who, what].filter(Boolean).join(' ') + (play.scoring && play.value ? ` · ${play.value} 分打點` : '');
   }
-  if (sport === 'basketball') return [who, firstOf(NBA_ZH, play.type, play.text) || '得分'].filter(Boolean).join(' ') + (play.scoring && play.value ? ` · ${play.value} 分` : '');
+  if (sport === 'basketball') return [who, basketballZh(play)].filter(Boolean).join(' ');
   // A flag's team isn't the drive's: the call alone.
   if (sport === 'football') return /penalty/i.test(`${play.type} ${play.text}`) && !/touchdown|field goal good/i.test(play.type) ? '關鍵判罰' : [team, firstOf(NFL_ZH, play.type, play.text) || '關鍵進攻'].filter(Boolean).join(' ');
   if (sport === 'soccer') return [who, play.kind === 'red' ? '紅牌' : '進球'].filter(Boolean).join(' ');
@@ -118,10 +138,15 @@ const sideOf = (delta, side) => (delta >= 0 ? side.home : side.away);
 const teamName = (id, side) => (String(id) === String(side.home.id) ? side.home.name : String(id) === String(side.away.id) ? side.away.name : '');
 
 // Where one play decides it (baseball, football, hockey): the biggest
-// single plays. Basketball: the runs, each the steepest stretch (some five
-// minutes of plays) of a swing, told by the points each side scored.
+// single plays. Basketball: the possessions that swung it (who did what:
+// made or missed, a free throw, a turnover, a foul) and the stretches it
+// drifted over (told by the points each side scored), never a possession
+// told as a run.
 const SINGLE = 0.07;
 const RUN_PLAYS = 48;
+// Basketball: a possession that moves it this much is a moment; a drift of this much, a stretch.
+const PLAY_SWING = 0.12;
+const STRETCH = 0.2;
 export function playMoments(points, sport, side) {
   if (!points.length || !points.every(p => p.n)) return [];
   const vals = points.map(value);
@@ -137,27 +162,29 @@ export function playMoments(points, sport, side) {
     }
     return biggest(found);
   }
-  const found = swings(vals).map(({ from, to }) => {
-    const dir = Math.sign(vals[to] - vals[from]);
-    // The steepest stretch: the most it moved within RUN_PLAYS plays, then the shortest stretch with nine tenths of that.
-    let most = 0;
-    for (let i = from; i < to; i++) for (let j = i + 1; j <= Math.min(to, i + RUN_PLAYS); j++) most = Math.max(most, dir * (vals[j] - vals[i]));
-    let [a, b] = [from, to];
-    for (let i = from; i < to; i++)
-      for (let j = i + 1; j <= Math.min(to, i + RUN_PLAYS); j++)
-        if (dir * (vals[j] - vals[i]) >= 0.9 * most && j - i < b - a) {
-          [a, b] = [i, j];
-          break;
-        }
-    const delta = vals[b] - vals[a];
-    const who = sideOf(delta, side);
-    const [pa, pb] = [points[a].play, points[b].play];
-    const scored = k => (Number(pb?.[k]) || 0) - (Number(pa?.[k]) || 0);
-    const [mine, theirs] = delta >= 0 ? [scored('home'), scored('away')] : [scored('away'), scored('home')];
-    const text = mine + theirs > 0 ? (side.en ? `${who.name} ${mine}-${theirs} run` : `${who.name} ${mine}-${theirs} 攻勢`) : side.en ? `${who.name} take control` : `${who.name} 掌握局勢`;
-    return { i: b, delta, side: home(delta), icon: ICON.basketball, text, team: who.id };
-  });
-  return biggest(found.filter(m => Math.abs(m.delta) >= 0.1));
+  // The possessions that swung it (a game's last minutes), each by who did what.
+  const plays = [];
+  for (let i = 1; i < points.length; i++) {
+    const delta = vals[i] - vals[i - 1];
+    const play = points[i].play;
+    if (Math.abs(delta) >= PLAY_SWING && play && !/end (period|of|game)/i.test(`${play.type} ${play.text}`))
+      plays.push({ i, delta, side: home(delta), icon: ICON.basketball, text: playText(sport, play, side.en, teamName(play.team, side)), pic: play.pic, team: play.team || sideOf(delta, side).id, play: true });
+  }
+  // The stretches it drifted over (a slow slide over a quarter or two): each told by the points each side scored over it.
+  const stretches = swings(vals, STRETCH)
+    .filter(({ from, to }) => !plays.some(m => m.i > from && m.i <= to && Math.abs(m.delta) >= 0.4 * Math.abs(vals[to] - vals[from])))
+    .map(({ from, to }) => {
+      const delta = vals[to] - vals[from];
+      const who = sideOf(delta, side);
+      const [pa, pb] = [points[from].play, points[to].play];
+      const scored = k => (Number(pb?.[k]) || 0) - (Number(pa?.[k]) || 0);
+      const [mine, theirs] = delta >= 0 ? [scored('home'), scored('away')] : [scored('away'), scored('home')];
+      const text = side.en ? `${who.name} ${mine}-${theirs}` : `${who.name} ${mine}-${theirs} ${to - from > RUN_PLAYS ? '拉開' : '攻勢'}`;
+      return { i: to, from, delta, side: home(delta), icon: ICON.basketball, text, team: who.id, periods: [points[from].n, points[to].n] };
+    });
+  // The two biggest stretches and the six biggest possessions, in the game's order.
+  const top = (list, n) => [...list].sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta)).slice(0, n);
+  return [...top(stretches, 2), ...top(plays, 6)].sort((x, y) => x.i - y.i);
 }
 
 // A Polymarket line: each event the market moved on (its price a minute
@@ -250,4 +277,13 @@ export function scoreAt(points, i, events = [], homeId = '') {
   if (told) return [Number(told.play.away), Number(told.play.home)];
   const home = by.filter(ev => String(ev.play?.team) === String(homeId)).length;
   return [by.length - home, home];
+}
+
+// The game clock where it tells: the last two minutes of the last period (or overtime) of a game with a clock.
+const LAST = { basketball: 4, football: 4, hockey: 3 };
+export function lateClock(sport, point) {
+  const clock = point?.play?.clock;
+  if (!LAST[sport] || !clock || !(point.n >= LAST[sport])) return '';
+  const [m, sec] = clock.includes(':') ? clock.split(':').map(Number) : [0, Number(clock)];
+  return m * 60 + sec <= 120 ? clock : '';
 }

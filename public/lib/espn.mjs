@@ -614,7 +614,7 @@ export function parseSummary(data, league) {
     const known = people.get(String(a?.id ?? ''));
     return { who: known?.short || a?.shortName || a?.displayName || '', pic: a?.id ? { id: String(a.id), name: known?.name || a.displayName || '', headshot: known?.headshot || null } : null };
   };
-  const playOf = p => ({ text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), ...whoOf(p), home: p.homeScore, away: p.awayScore });
+  const playOf = p => ({ text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), ...whoOf(p), home: p.homeScore, away: p.awayScore, clock: p.clock?.displayValue || '' });
   // The plays that move a market (a game drawn from Polymarket's): the scores, a red card, a penalty missed.
   const events = timed
     .filter(p => p.scoringPlay || /red-card|penalty---(missed|saved)/.test(p.type?.type || ''))
