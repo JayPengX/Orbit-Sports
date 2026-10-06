@@ -85,3 +85,13 @@ test('a game to come: ESPN prediction first, else the sportsbook, its margin out
   assert.equal(Math.round(book.draw * 100), 19);
   assert.equal(parseSummary({}, 'nba').predict, null);
 });
+
+test('a market standing still: its stretch read as no price, never a quiet game', async () => {
+  const { quietRuns } = await import('../public/lib/wpline.mjs');
+  // Forest v Coventry, 2026-09-19: Polymarket's history at 51.5% from the 40th minute to the end.
+  const pts = [...Array.from({ length: 20 }, (_, i) => ({ t: i * 120, home: 0.6 - i * 0.004 })), ...Array.from({ length: 40 }, (_, i) => ({ t: 2400 + i * 120, home: 0.515 })), { t: 7300, home: 0.05 }];
+  assert.deepEqual(quietRuns(pts), [[20, 59]]);
+  assert.deepEqual(quietRuns(pts.slice(0, 20)), []);
+  // ESPN's line (by play) is never read so.
+  assert.deepEqual(quietRuns(pts.map(p => ({ ...p, n: 1 }))), []);
+});

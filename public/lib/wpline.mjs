@@ -103,3 +103,18 @@ export function stampAt(timeline, sport, t, en) {
 }
 
 export const pointStamp = (timeline, sport, p, en) => (p.n ? label(sport, p, en) : stampAt(timeline, sport, p.t, en));
+
+// A market that stopped trading (a thin one, or Polymarket's own history
+// standing still while the game ran on): runs of the same price for half an
+// hour or more, by the clock ([[first, last] point index…]). Drawn as a gap,
+// never as a game that stood still.
+export function quietRuns(points, least = 30 * 60) {
+  if (byPlay(points) || !byTime(points)) return [];
+  const same = (p, q) => p.home === q.home && p.draw === q.draw;
+  const runs = [];
+  for (let i = 0, j; i < points.length - 1; i = j) {
+    for (j = i + 1; j < points.length && same(points[j], points[i]); j++);
+    if (points[j - 1].t - points[i].t >= least) runs.push([i, j - 1]);
+  }
+  return runs;
+}

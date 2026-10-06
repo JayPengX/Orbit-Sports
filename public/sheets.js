@@ -5,7 +5,7 @@ import { translate } from '#kit/quadra.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
-import { lineXs, periodMarks, pointStamp, stampAt } from './lib/wpline.mjs';
+import { lineXs, periodMarks, pointStamp, stampAt, quietRuns } from './lib/wpline.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
@@ -477,7 +477,7 @@ function overview(d, e, table, nameOf, line = null) {
       ? winChanceCard(d?.predict?.source === 'espn' ? d.predict : line?.home != null ? line : d?.predict, e)
       : d?.winProb.length > 3
         ? winProbCard({ points: d.winProb }, e, d.timeline)
-        : line?.points?.length > 3
+        : line?.points?.length > 3 && !mostlyQuiet(line.points)
           ? winProbCard(line, e, d?.timeline)
           : null,
     leadersBy.some(x => x.length)
@@ -575,7 +575,13 @@ function winProbCard(line, e, timeline) {
   const h = 90;
   const xs = lineXs(pts);
   const up = p => p.home + (p.draw ?? 0) / 2;
-  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${(xs[i] * w).toFixed(1)},${(h - up(p) * h).toFixed(1)}`).join(' ');
+  const xy = i => `${(xs[i] * w).toFixed(1)},${(h - up(pts[i]) * h).toFixed(1)}`;
+  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${xy(i)}`).join(' ');
+  // Where the market stood still: a faint dashed stretch, read as no price.
+  const quiet = quietRuns(pts);
+  const isQuiet = i => quiet.some(([a, b]) => i > a && i < b);
+  const traded = pts.map((p, i) => `${i && !quiet.some(([a, b]) => i > a && i <= b) ? 'L' : 'M'}${xy(i)}`).join(' ');
+  const gaps = quiet.map(([a, b]) => `M${xy(a)} L${xy(b)}`).join(' ');
   const marks = periodMarks(timeline, sport, pts, en);
   const grid = marks.filter(m => m.x > 0.01).map(m => `<line x1="${(m.x * w).toFixed(1)}" x2="${(m.x * w).toFixed(1)}" y1="0" y2="${h}" class="wp-grid"/>`).join('');
   // Away on the left, home on the right (as everywhere in the sheet), adding up to 100.
@@ -589,10 +595,13 @@ function winProbCard(line, e, timeline) {
   const show = i => {
     const p = pts[i ?? pts.length - 1];
     const [hh, dd] = [Math.round(p.home * 100), p.draw != null ? Math.round(p.draw * 100) : 0];
-    away.textContent = `${e.away.short || e.away.name} ${Math.max(0, 100 - hh - dd)}%`;
-    if (draw) draw.textContent = `${en ? 'Draw' : '和局'} ${dd}%`;
-    home.textContent = `${e.home.short || e.home.name} ${hh}%`;
-    at.textContent = i == null ? `${rest} · ${en ? 'Hold and slide on the chart to look back' : '按住圖表左右滑動查看'}` : pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`;
+    const none = i != null && isQuiet(i);
+    const pct = v => (none ? '–' : `${v}%`);
+    away.textContent = `${e.away.short || e.away.name} ${pct(Math.max(0, 100 - hh - dd))}`;
+    if (draw) draw.textContent = `${en ? 'Draw' : '和局'} ${pct(dd)}`;
+    home.textContent = `${e.home.short || e.home.name} ${pct(hh)}`;
+    const stamp = pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`;
+    at.textContent = i == null ? `${rest} · ${en ? 'Hold and slide on the chart to look back' : '按住圖表左右滑動查看'}` : none ? `${stamp} · ${en ? 'no trading' : '無報價'}` : stamp;
     at.classList.toggle('on', i != null);
     rule.hidden = dot.hidden = i == null;
     if (i == null) return;
@@ -601,7 +610,7 @@ function winProbCard(line, e, timeline) {
   };
   const plot = scrubPlot(xs, show, [
     el('span', { class: 'wp-edge top', text: e.home.short || e.home.name }),
-    el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${grid}<path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${path}" class="wp-line"/></svg>` }),
+    el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${grid}<path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${quiet.length ? traded : path}" class="wp-line"/>${gaps ? `<path d="${gaps}" class="wp-gap"/>` : ''}</svg>` }),
     el('span', { class: 'wp-edge bottom', text: e.away.short || e.away.name }),
     rule,
     dot
@@ -616,6 +625,9 @@ function winProbCard(line, e, timeline) {
   ]);
   return card(T('winProb'), box);
 }
+
+// A market that stood still for more than half the game says nothing of it: no chart.
+const mostlyQuiet = pts => quietRuns(pts).reduce((n, [a, b]) => n + pts[b].t - pts[a].t, 0) > (pts.at(-1).t - pts[0].t) / 2;
 
 // A chart's plot a finger (or a mouse) reads: show(i) for the point nearest
 // it while it's down, show() again once it lets go.
@@ -695,7 +707,14 @@ function raceChanceCard(line, ss) {
     ? pts.filter(p => p.lap && p.lap % 10 === 0).map(p => ({ x: p.lap / pts.at(-1).lap, label: en ? `L${p.lap}` : `${p.lap}圈` }))
     : periodMarks([], 'f1', pts, en);
   const grid = [0.25, 0.5, 0.75].map(y => `<line x1="0" x2="${w}" y1="${h * y}" y2="${h * y}" class="wp-mid"/>`).join('') + marks.map(m => `<line x1="${(m.x * w).toFixed(1)}" x2="${(m.x * w).toFixed(1)}" y1="0" y2="${h}" class="wp-grid"/>`).join('');
-  const chips = line.drivers.map(name => el('span', { class: 'rc-chip' }, [el('i', { style: `background:${f1Driver(name).color}` }), el('span', { text: driverShort(name, en) }), el('strong', { class: 'num' })]));
+  // A teammate's chip a ring, as their line is dashed.
+  const teams = new Set();
+  const chips = line.drivers.map(name => {
+    const { color, team } = f1Driver(name);
+    const mate = teams.has(team || name);
+    teams.add(team || name);
+    return el('span', { class: `rc-chip${mate ? ' mate' : ''}` }, [el('i', { style: mate ? `border-color:${color}` : `background:${color}` }), el('span', { text: driverShort(name, en) }), el('strong', { class: 'num' })]);
+  });
   const at = el('small', { class: 'wp-at' });
   const rule = el('span', { class: 'wp-rule', hidden: true });
   const lapText = p => (byLap ? (p.lap ? (en ? `Lap ${p.lap}` : `第 ${p.lap} 圈`) : en ? 'The start' : '起跑') : stampAt([], 'f1', p.t, en));
