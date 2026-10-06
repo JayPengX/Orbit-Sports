@@ -1215,3 +1215,13 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .play-none { display: inline-grid; place-items: center; }
 .plays .play-none .lg-mark { --s: 30px; }
 .lp-feed .play-none .lg-mark { --s: 22px; }
+
+/* One match followed on its own: the match sheet's button, 追蹤's list. */
+.mh-follow { display: flex; justify-content: center; margin: 10px 0 2px; }
+.game-follow { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--q-sunken); color: var(--q-text); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.game-follow .gf-star { font-size: 15px; line-height: 1; color: var(--q-muted); }
+.game-follow.on { background: color-mix(in srgb, #d4a017 20%, transparent); }
+.game-follow.on .gf-star { color: #d4a017; }
+.fg-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.fg-row + .fg-row { border-top: 1px solid var(--q-border); }
+.fg-off { width: 44px; height: 44px; border: 0; background: none; color: #d4a017; font-size: 18px; cursor: pointer; }

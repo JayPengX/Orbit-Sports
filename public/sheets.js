@@ -105,6 +105,7 @@ export async function openMatch(e) {
         side(home, e.home)
       ]),
       stageTag(e, L()) || seriesText(e) || weekOf(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null, weekOf(e) ? el('small', { text: L() === 'en' ? `Matchweek ${weekOf(e)}` : `第 ${weekOf(e)} 輪` }) : null]) : null,
+      gameFollow(e, st, () => paintHeader(sm)),
       // On now or about to start: one tap to watch it, at the top.
       watchButton({ ...e, status: st }, 'wide'),
       linescore(sm, e),
@@ -274,6 +275,20 @@ const dots = (n, of, cls) => el('span', { class: `lp-dots ${cls}` }, Array.from(
 // One follow button everywhere (a game's sides, a team, a player, a
 // constructor, a league): the same small pill, filled until followed, then
 // quiet with a tick. `isOn()` says whether it's followed; `toggle()` flips it.
+// This one match followed on its own (its start and final told, first on 首頁, in 追蹤):
+// offered until it's over, and shown while it's followed.
+function gameFollow(e, st, after) {
+  if (!ctx.isFollowedGame) return null;
+  const on = ctx.isFollowedGame(e);
+  if (!on && st.state === 'post') return null;
+  const en = L() === 'en';
+  return el('div', { class: 'mh-follow' }, [
+    el('button', { class: `game-follow${on ? ' on' : ''}`, type: 'button', 'aria-pressed': String(on), onclick: () => (ctx.toggleFollowGame(e), after()) }, [
+      el('span', { class: 'gf-star', 'aria-hidden': 'true', text: on ? '★' : '☆' }),
+      el('span', { text: on ? (en ? 'Following this match' : '已追蹤這場') : en ? 'Follow this match' : '追蹤這場比賽' })
+    ])
+  ]);
+}
 export function followButton(isOn, toggle, label = T('follow')) {
   const b = el('button', { class: 'follow-btn', type: 'button' });
   const paint = () => {

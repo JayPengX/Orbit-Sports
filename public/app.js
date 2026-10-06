@@ -93,7 +93,7 @@ const TABS = ['home', 'matches', 'live', 'following'];
 
 const state = {
   tab: 'home',
-  prefs: { leagues: [], follows: [], audio: 'en' },
+  prefs: { leagues: [], follows: [], games: [], audio: 'en' },
   prefsLoaded: false,
   wallet: null,
   // The days read so far: date -> { events, at, loading }.
@@ -103,7 +103,7 @@ const state = {
 };
 
 const q = quadraSession('match', { lang: locale });
-Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, isFollowed, toggleFollow, track, isFollowedEvent });
+Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, isFollowed, toggleFollow, track, isFollowedEvent, isFollowedGame, toggleFollowGame });
 
 // ---- What the person follows (on the pass) ---------------------------------------------
 
@@ -111,9 +111,10 @@ Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, isFol
 function applyPrefs(payload) {
   try {
     const p = payload ? JSON.parse(payload) : null;
-    if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
+    if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], games: p.games || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
   } catch {}
   // Only the leagues Orbit Sports has; an NBA team with NBA.com's logo, as everywhere.
+  state.prefs.games = keptGames(state.prefs.games);
   state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
   state.prefsLoaded = true;
 }
@@ -122,9 +123,9 @@ const followedSports = () => [...new Set(state.prefs.leagues.map(k => LEAGUES[k]
 let saveTimer = 0;
 function savePrefs() {
   clearTimeout(saveTimer);
-  const { leagues, follows, audio } = state.prefs;
+  const { leagues, follows, games, audio } = state.prefs;
   saveTimer = setTimeout(() => {
-    q.write({ payload: JSON.stringify({ v: 4, leagues, follows, audio, t: Date.now() }), wallet: followsPatch() }).catch(() => {});
+    q.write({ payload: JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, t: Date.now() }), wallet: followsPatch() }).catch(() => {});
   }, 800);
 }
 // What the person follows and opens, on the pass too (`follows:match`,
@@ -155,7 +156,60 @@ function isFollowed(league, id) {
 // The teams whose games the person follows: the followed teams, and a
 // followed player's team.
 const followedTeams = () => state.prefs.follows.flatMap(f => (f.f1team === true ? [] : !f.athlete ? [f] : f.team ? [{ league: f.league, id: f.team.id, name: f.team.name }] : []));
+// Single matches followed on their own (a game between two teams the person
+// doesn't follow): kept as they were when followed, the live copy laid over
+// them (freshGame), and let go two days after the start.
+const GAME_KEEP = 2 * 86_400_000;
+const gameKey = e => `${e.league}:${e.id}`;
+const keptGames = list => (list || []).filter(g => g && LEAGUES[g.league] && g.id && Date.parse(g.start) > Date.now() - GAME_KEEP);
+const slimSide = x => (x ? { id: String(x.id ?? ''), name: x.name, short: x.short, en: x.en, abbr: x.abbr, logo: x.logo, color: x.color } : x);
+function isFollowedGame(e) {
+  return Boolean(e) && state.prefs.games.some(g => gameKey(g) === gameKey(e));
+}
+function toggleFollowGame(e) {
+  const p = state.prefs;
+  if (isFollowedGame(e)) p.games = p.games.filter(g => gameKey(g) !== gameKey(e));
+  else {
+    p.games = [...keptGames(p.games), { league: e.league, id: e.id, kind: e.kind, name: e.name, start: e.start, status: { state: 'pre' }, away: slimSide(e.away), home: slimSide(e.home), ...(e.other ? { other: e.other } : {}) }];
+    recordAffinity('match', [`league:${leagueKey(e.league)}`, ...[e.away, e.home].filter(Boolean).map(x => teamKey(e.league, x.en || x.name))], 2);
+  }
+  changed();
+}
+// The followed matches, each its newest copy (today's board, else the one read for 追蹤).
+const followedGames = () => {
+  const day = new Map(dayAll(state.days.get(today())).map(e => [gameKey(e), e]));
+  return keptGames(state.prefs.games).map(g => freshGame(day.get(gameKey(g)) || gameSeen.get(gameKey(g)) || g));
+};
+// Each followed match's own day read once (its score when it's over or on).
+const gameSeen = new Map();
+const gameDaysRead = new Set();
+function loadFollowedGames() {
+  const want = new Map();
+  for (const g of keptGames(state.prefs.games)) {
+    if (Date.parse(g.start) > Date.now() + 3_600_000 || gameSeen.get(gameKey(g))?.status?.state === 'post') continue;
+    // ESPN's day is the US one: the start's UTC date, and five hours earlier's.
+    for (const h of [0, 5]) {
+      const d = new Date(Date.parse(g.start) - h * 3_600_000).toISOString().slice(0, 10).replaceAll('-', '');
+      want.set(`${g.league}:${d}`, [g.league, d]);
+    }
+  }
+  const asks = [...want].filter(([k]) => !gameDaysRead.has(k));
+  if (!asks.length) return;
+  for (const [k] of asks) gameDaysRead.add(k);
+  Promise.all(asks.map(([k, [league, d]]) => scoreboard(league, [d]).catch(() => (gameDaysRead.delete(k), []))))
+    .then(lists => {
+      let got = false;
+      for (const e of lists.flat()) if (isFollowedGame(e)) (gameSeen.set(gameKey(e), e), (got = true));
+      if (got && state.tab === 'following') renderFollowing();
+    })
+    .catch(() => {});
+}
+// A game that's on again (live, or about to be): its day read again next time.
+setInterval(() => {
+  for (const g of followedGames()) if (g.status.state === 'in' || (g.status.state === 'pre' && Date.parse(g.start) < Date.now())) gameDaysRead.clear();
+}, 60_000);
 function isFollowedEvent(e) {
+  if (isFollowedGame(e)) return true;
   if (e.kind === 'match') return followedTeams().some(f => f.league === e.league && (f.id === e.home?.id || f.id === e.away?.id));
   // A race with a followed driver in it.
   const people = (e.sessions || []).flatMap(x => x.field || []);
@@ -293,7 +347,8 @@ function openEvent(e) {
 // teams'. Only when none of them plays (or the person follows nothing yet)
 // are the others read, the headline ones first.
 function pickLeagues() {
-  return [...new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)])].filter(k => LEAGUES[k]);
+  // A followed match's league too, while it's kept: its day is read with the person's own.
+  return [...new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league), ...keptGames(state.prefs.games).map(g => g.league)])].filter(k => LEAGUES[k]);
 }
 // Which leagues a day was read for: a day read before the follows came in
 // (the pass answers after the first read) is read again, never taken for "nothing on".
@@ -518,7 +573,7 @@ function syncPush() {
   const items = [];
   const seen = new Set();
   // The live scoreboards' copy of a game first (the schedules are minutes older).
-  const games = [...(state.days.get(today())?.events || []).filter(isFollowedEvent), ...followedTeams().flatMap(f => state.home.teams.get(`${f.league}:${f.id}`) || [])].map(freshGame);
+  const games = [...(state.days.get(today())?.events || []).filter(isFollowedEvent), ...followedGames(), ...followedTeams().flatMap(f => state.home.teams.get(`${f.league}:${f.id}`) || [])].map(freshGame);
   for (const e of games) {
     const key = `${e.league}:${e.id}`;
     if (e.kind !== 'match' || e.other || seen.has(key) || e.status?.state === 'post' || e.status?.void) continue;
@@ -527,7 +582,7 @@ function syncPush() {
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     const league = leagueName(e.league, locale);
     // Its start only when it's on TV here (where, in the notice); its final score in any case.
-    if (start > now && onTv(e)) items.push({ at: start, title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
+    if (start > now && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
     // The Worker fills in the score (the title) and who won ({result}) once ESPN has the final.
     if (LEAGUES[e.league].espn && /^\d+$/.test(e.id)) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} · {result}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
   }
@@ -560,7 +615,7 @@ function noticeChanges(events) {
     lastState.set(key, e.status.state);
     if (!was || was === e.status.state) continue;
     const league = leagueName(e.league, locale);
-    if (e.status.state === 'in' && onTv(e)) notify(q, { title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
+    if (e.status.state === 'in' && (onTv(e) || isFollowedGame(e))) notify(q, { title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
     if (e.status.state === 'post') notify(q, { title: matchLine(e, true), body: `${league} · ${resultLine(e)}`, tag: `end:${key}`, hash: 'home', kind: 'end' });
   }
 }
@@ -693,7 +748,7 @@ function renderHome() {
     return;
   }
   const now = Date.now();
-  const pctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, tables: h.tables, aff: affinity(null, now, ['match']), now };
+  const pctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: h.tables, aff: affinity(null, now, ['match']), now };
   const past = h.date < today();
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
@@ -710,7 +765,8 @@ function renderHome() {
   // Only what's on TV in Taiwan is recommended (賽事 has every game), a game
   // over too: a result is among the picks only if it was on. Only where it
   // can't be known (before the days ELTA's list reaches) is any result kept.
-  const shown = e => !practice(e) && (onTv(e) || ((e.status.state === 'post' || past) && !tvKnown(e)));
+  // A match followed on its own shows whether or not it's on TV here: the person asked for it.
+  const shown = e => !practice(e) && (isFollowedGame(e) || onTv(e) || ((e.status.state === 'post' || past) && !tvKnown(e)));
   const mine = slot.events.filter(shown);
   let [planList, more] = rank(filtered(mine));
   // Nothing of theirs on: the best of the rest.
@@ -1657,12 +1713,23 @@ function renderFollowing() {
   const p = state.prefs;
   loadFollowedTeams();
   loadTables();
+  loadFollowedGames();
   const teams = p.follows.filter(f => !f.athlete);
   const people = p.follows.filter(f => f.athlete);
+  // The matches followed one by one: on now first, then by start; one over stays until it's let go.
+  const games = followedGames().sort((a, b) => (b.status.state === 'in') - (a.status.state === 'in') || (a.status.state === 'post') - (b.status.state === 'post') || a.start.localeCompare(b.start));
+  const gamesBlock = games.length
+    ? section(
+        L({ zh: '追蹤的比賽', en: 'Matches you follow' }),
+        el('div', { class: 'q-card list followed-games' }, games.map(e => el('div', { class: 'fg-row' }, [withWatch(eventRow(e), e), el('button', { class: 'fg-off', type: 'button', 'aria-label': L({ zh: '取消追蹤這場', en: 'Unfollow this match' }), text: '★', onclick: () => toggleFollowGame(e) })]))),
+        { sub: L({ zh: '開賽和終場都會通知你', en: 'Told when it starts and ends' }) }
+      )
+    : null;
   if (!teams.length && !people.length) {
     put(
       box,
       el('div', { class: 'home-hero' }, [el('div', {}, [el('h2', { class: 'hero-title', text: L({ zh: '追蹤球隊和選手', en: 'Follow teams and players' }) }), el('p', { class: 'muted small', text: L({ zh: '他們的下一場、在哪一台轉播、戰績和排名，都在這裡。先從熱門球隊開始：', en: 'Their next game, where it is on, form and place, all here. Start with these:' }) })])]),
+      gamesBlock,
       el('div', { class: 'suggest-grid' }, SUGGEST.map(suggestCard)),
       followedLeagues().length ? leaguesBlock() : null
     );
@@ -1682,6 +1749,7 @@ function renderFollowing() {
       el('div', {}, [el('h2', { class: 'hero-title', text: t('tab_following') }), el('p', { class: 'muted small', text: [L({ zh: `${teams.length} 隊`, en: `${teams.length} teams` }), people.length ? L({ zh: `${people.length} 位選手`, en: `${people.length} players` }) : '', L({ zh: `${p.leagues.length} 個聯賽`, en: `${p.leagues.length} leagues` })].filter(Boolean).join(' · ') })]),
       el('button', { class: 'q-btn small', type: 'button', text: L({ zh: '管理', en: 'Manage' }), onclick: openFollowEditor })
     ]),
+    gamesBlock,
     section(
       L({ zh: '我的轉播', en: 'On TV for you' }),
       tv.length

@@ -74,3 +74,12 @@ test('a table before its first game gives no places (a preseason: every row 0-0)
   // A table without counts (a driver's points) is never held back.
   assert.equal(tableStarted({ rows: [{ id: 'x', stats: { PTS: '0' } }] }), true);
 });
+
+test('a match followed on its own comes first, with its reason', () => {
+  const a = match('nba', 'g1', 12, side('1', 'Hawks'), side('2', 'Celtics'));
+  const b = match('nba', 'g2', 12, side('3', 'Lakers'), side('4', 'Warriors'));
+  const ctx = { leagues: ['nba'], games: ['nba:g1'], now: NOW };
+  assert.ok(scoreMatch(a, ctx).score > scoreMatch(b, ctx).score + 1);
+  assert.ok(scoreMatch(a, ctx).reasons.includes('game'));
+  assert.ok(!scoreMatch(b, ctx).reasons.includes('game'));
+});

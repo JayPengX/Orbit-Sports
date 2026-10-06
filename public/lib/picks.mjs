@@ -49,9 +49,14 @@ export function tableIndex(groups) {
   return out;
 }
 
-export function scoreMatch(e, { leagues = [], follows = [], tables = {}, aff = {}, now = Date.now() } = {}) {
+export function scoreMatch(e, { leagues = [], follows = [], games = [], tables = {}, aff = {}, now = Date.now() } = {}) {
   const reasons = [];
   let score = 0.2;
+  // A match followed on its own: the person asked for this one.
+  if (games.includes(`${e.league}:${e.id}`)) {
+    score += 2;
+    reasons.push('game');
+  }
   const idx = leagues.indexOf(e.league);
   if (idx >= 0) {
     score += 0.6 + 0.55 * (1 - idx / Math.max(3, leagues.length));
