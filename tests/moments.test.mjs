@@ -64,18 +64,34 @@ test("F1: the safety car told with who stopped under it and who gained; a lead t
       { message: 'SAFETY CAR LIGHTS ON', category: 'Other', lap: 1 },
       { message: 'SAFETY CAR DEPLOYED', category: 'SafetyCar', lap: 9 },
       { message: 'SAFETY CAR IN THIS LAP', category: 'SafetyCar', lap: 12 },
-      { message: 'VIRTUAL SAFETY CAR DEPLOYED', category: 'SafetyCar', lap: 30 },
-      { message: 'VIRTUAL SAFETY CAR ENDING', category: 'SafetyCar', lap: 31 },
+      { message: 'VSC DEPLOYED', category: 'SafetyCar', lap: 30 },
+      { message: 'SAFETY CAR DEPLOYED', category: 'SafetyCar', lap: 32 },
+      { message: 'SAFETY CAR IN THIS LAP', category: 'SafetyCar', lap: 35 },
       { message: 'RED FLAG', flag: 'RED', lap: 40 }
     ],
     m => m.lap,
     55
   );
-  assert.deepEqual(bands, [[9, 12, 'sc'], [30, 31, 'vsc'], [40, 55, 'red']]);
+  // The virtual safety car turned into the real one.
+  assert.deepEqual(bands.map(b => b.slice(0, 3)), [[9, 12, 'sc'], [30, 32, 'vsc'], [32, 35, 'sc'], [40, 55, 'red']]);
   // Verstappen 34% before the safety car, 65% after it; Antonelli the other way.
   const points = Array.from({ length: 21 }, (_, lap) => ({ lap, c: lap < 9 ? [0.34, 0.57] : lap < 14 ? [0.65, 0.31] : [0.8, 0.15] }));
-  const list = raceMoments(points, ['維斯塔潘', '安東內利'], [{ i0: 8, i1: 12, kind: 'sc', from: 9, to: 12 }], [{ i: 3, kind: 'lead', k: 1 }, { i: 9, kind: 'pit', k: 0 }, { i: 13, kind: 'lead', k: 0 }], false);
-  assert.deepEqual(list.map(m => m.text), ['安東內利 取得領先', '安全車 第 9–12 圈 · 維斯塔潘 進站', '維斯塔潘 取得領先']);
+  const list = raceMoments(points, ['維斯塔潘', '安東內利'], [{ i0: 8, i1: 12, kind: 'sc', from: 9, to: 12, why: 'out', who: ['Bottas'] }], [{ i: 3, kind: 'lead', k: 1 }, { i: 9, kind: 'pit', k: 0 }, { i: 13, kind: 'lead', k: 0 }], false);
+  assert.deepEqual(list.map(m => m.text), ['安東內利 取得領先', '安全車 第 9–12 圈 · 起因：Bottas 退賽 · 維斯塔潘 進站', '維斯塔潘 取得領先']);
   assert.equal(list[1].k, 0);
   assert.ok(list[1].delta > 0.3);
+});
+
+test('F1: why the safety car came out: a car out just before, else one stopped, else a collision', async () => {
+  const { causeOf } = await import('../public/lib/winprob.mjs');
+  const msgs = [
+    { t: 100, message: 'TURN 9 INCIDENT INVOLVING CARS 16 (LEC) AND 27 (HUL) NOTED - CAUSING A COLLISION' },
+    { t: 290, message: 'CAR 77 (BOT) STOPPED AT TURN 14' }
+  ];
+  const names = { 16: 'Leclerc', 27: 'Hulkenberg', 77: 'Bottas' };
+  assert.deepEqual(causeOf(msgs, 300, ['Albon'], n => names[n]), { kind: 'out', who: ['Albon'] });
+  assert.deepEqual(causeOf(msgs, 300, [], n => names[n]), { kind: 'stopped', who: ['Bottas'] });
+  assert.deepEqual(causeOf(msgs.slice(0, 1), 150, [], n => names[n]), { kind: 'crash', who: ['Leclerc', 'Hulkenberg'] });
+  // A collision noted long before isn't the cause.
+  assert.equal(causeOf(msgs.slice(0, 1), 400, [], n => names[n]), null);
 });

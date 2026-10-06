@@ -203,23 +203,40 @@ export async function raceLaps(start, getJson) {
 
 // The safety car, the virtual one and red flags from race control's
 // messages ({ category, flag, message }, OpenF1's or F1's live feed's, in
-// order): [[from, to, 'sc' | 'vsc' | 'red']], from and to by `at` (a lap, or
-// a time); one still out runs to `end`.
+// order): [[from, to, 'sc' | 'vsc' | 'red', the message that sent it out]],
+// from and to by `at` (a lap, or a time); one still out runs to `end`.
 export function controlBands(messages, at, end) {
   const bands = [];
   let open = null;
   for (const m of messages) {
     const msg = String(m.message || '').toUpperCase();
     const flag = String(m.flag || '').toUpperCase();
-    const kind = /VIRTUAL SAFETY CAR DEPLOYED/.test(msg) ? 'vsc' : /SAFETY CAR DEPLOYED/.test(msg) ? 'sc' : flag === 'RED' ? 'red' : '';
-    if (kind && !open) open = { kind, from: at(m) };
-    else if (open && ((open.kind === 'vsc' && /VIRTUAL SAFETY CAR ENDING/.test(msg)) || (open.kind === 'sc' && /SAFETY CAR IN THIS LAP/.test(msg)) || (open.kind === 'red' && (flag === 'GREEN' || /RESUME|START/.test(msg))))) {
-      bands.push([open.from, Math.max(open.from, at(m)), open.kind]);
+    const kind = /(VIRTUAL SAFETY CAR|VSC) DEPLOYED/.test(msg) ? 'vsc' : /SAFETY CAR DEPLOYED/.test(msg) ? 'sc' : flag === 'RED' ? 'red' : '';
+    const ends = open && ((open.kind === 'vsc' && /(VIRTUAL SAFETY CAR|VSC) ENDING/.test(msg)) || (open.kind === 'sc' && /SAFETY CAR IN THIS LAP/.test(msg)) || (open.kind === 'red' && (flag === 'GREEN' || /RESUME|START/.test(msg))));
+    // One turned into another (a virtual safety car into the real one): the first ends there.
+    if (open && (ends || (kind && kind !== open.kind))) {
+      bands.push([open.from, Math.max(open.from, at(m)), open.kind, open.m]);
       open = null;
     }
+    if (kind && !open && !ends) open = { kind, from: at(m), m };
   }
-  if (open) bands.push([open.from, Math.max(open.from, end), open.kind]);
+  if (open) bands.push([open.from, Math.max(open.from, end), open.kind, open.m]);
   return bands;
+}
+
+// Why the safety car (or a flag) came out, from race control's messages
+// ({ t, message }) about it: a car out of the race just before (`out`, its
+// drivers' names), a car stopped, a collision noted. { kind: 'out' |
+// 'stopped' | 'crash', who: [names] } or null. nameOf: a car's number to
+// its driver's name.
+export function causeOf(messages, at, out = [], nameOf = () => '') {
+  const cars = msg => [...String(msg).matchAll(/CARS? (\d+) \(([A-Z]{3})\)|AND (\d+) \(([A-Z]{3})\)/g)].map(x => nameOf(x[1] || x[3]) || x[2] || x[4]);
+  const near = (before, after) => (at == null ? [] : messages.filter(m => m.t >= at - before && m.t <= at + after));
+  const stopped = near(240, 90).find(m => /STOPPED|CRASH|IN THE BARRIER|IN THE GRAVEL|BEACHED/i.test(m.message) && cars(m.message).length);
+  if (out.filter(Boolean).length) return { kind: 'out', who: [...new Set(out.filter(Boolean))] };
+  if (stopped) return { kind: 'stopped', who: cars(stopped.message) };
+  const crash = near(120, 30).find(m => /INCIDENT INVOLVING|COLLISION/i.test(m.message) && cars(m.message).length);
+  return crash ? { kind: 'crash', who: [...new Set(cars(crash.message))] } : null;
 }
 
 // What turned a race, from OpenF1 once it's over: the safety car, the
@@ -242,11 +259,22 @@ export async function raceEvents(start, getJson, laps, names) {
   const drivers = await read('drivers');
   const pits = await read('pit');
   const result = await read('session_result');
-  const bands = controlBands(
-    [...control].sort((a, b) => sec(a.date) - sec(b.date)),
-    m => m.lap_number || lapAt(sec(m.date)),
-    last
-  );
+  const sorted = [...control].sort((a, b) => sec(a.date) - sec(b.date));
+  // A car's driver, by name ("Valtteri Bottas": the app shows it its own way, with the face).
+  const nameOf = n => {
+    const d = drivers.find(x => x.driver_number === Number(n));
+    return d ? [d.first_name, d.last_name].filter(Boolean).join(' ') : '';
+  };
+  // Why each came out: a car out of the race in the laps before, a car stopped, a collision just before.
+  const bands = controlBands(sorted, m => m.lap_number || lapAt(sec(m.date)), last).map(([from, to, kind, m]) => {
+    const why = causeOf(
+      sorted.map(x => ({ t: sec(x.date), message: x.message })),
+      m ? sec(m.date) : null,
+      result.filter(r => (r.dnf || r.dns) && r.number_of_laps >= from - 4 && r.number_of_laps <= from).map(r => nameOf(r.driver_number)),
+      nameOf
+    );
+    return why ? [from, to, kind, why.kind, why.who] : [from, to, kind];
+  });
   // The drawn drivers' numbers, by the family name.
   const flat = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const numbers = names.map(n => drivers.find(d => d.last_name && flat(n).endsWith(flat(d.last_name)))?.driver_number);

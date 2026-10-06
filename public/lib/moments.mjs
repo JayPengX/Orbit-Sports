@@ -133,7 +133,7 @@ export function playMoments(points, sport, side) {
       // ESPN puts a score's swing on the kickoff after it: the score's.
       let play = points[i].play;
       if (/kickoff|kicks/i.test(`${play?.type} ${play?.text}`)) play = points.slice(Math.max(0, i - 3), i).reverse().find(p => p.play?.scoring)?.play || play;
-      if (Math.abs(delta) >= SINGLE && play) found.push({ i, delta, side: home(delta), icon: ICON[sport] || '•', text: playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name) });
+      if (Math.abs(delta) >= SINGLE && play) found.push({ i, delta, side: home(delta), icon: ICON[sport] || '•', text: playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name), pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id });
     }
     return biggest(found);
   }
@@ -155,7 +155,7 @@ export function playMoments(points, sport, side) {
     const scored = k => (Number(pb?.[k]) || 0) - (Number(pa?.[k]) || 0);
     const [mine, theirs] = delta >= 0 ? [scored('home'), scored('away')] : [scored('away'), scored('home')];
     const text = mine + theirs > 0 ? (side.en ? `${who.name} ${mine}-${theirs} run` : `${who.name} ${mine}-${theirs} 攻勢`) : side.en ? `${who.name} take control` : `${who.name} 掌握局勢`;
-    return { i: b, delta, side: home(delta), icon: ICON.basketball, text };
+    return { i: b, delta, side: home(delta), icon: ICON.basketball, text, team: who.id };
   });
   return biggest(found.filter(m => Math.abs(m.delta) >= 0.1));
 }
@@ -179,7 +179,7 @@ export function eventMoments(points, events, sport, side, times) {
       const mover = ev.play.team ? (String(ev.play.team) === String(side.home.id) ? 'home' : 'away') : delta >= 0 ? 'home' : 'away';
       const icon = ev.kind === 'red' ? '🟥' : ev.kind === 'miss' ? '❌' : ICON[sport] || '•';
       const text = ev.kind === 'miss' ? (side.en ? `${ev.play.who || ''} misses a penalty`.trim() : `${ev.play.who || ''} 12 碼罰球未進`.trim()) : playText(sport, { ...ev.play, kind: ev.kind }, side.en, teamName(ev.play.team, side));
-      return { i, delta, side: mover, icon, text, always: sport === 'soccer' && ev.kind !== 'miss' };
+      return { i, delta, side: mover, icon, text, always: sport === 'soccer' && ev.kind !== 'miss', pic: ev.play.pic, team: ev.play.team };
     })
     .filter(m => m.always || Math.abs(m.delta) >= 0.08);
   return biggest(found);
@@ -196,12 +196,13 @@ function biggest(list) {
 // ---- An F1 race: what turned it ----
 // bands: [{ i0, i1, kind: 'sc' | 'vsc' | 'red', from, to }] (points' indexes,
 // and laps); events: [{ i, kind: 'pit' | 'lead' | 'out', k }] (k: the
-// driver's place in names, each its short name). Each band told with the
+// driver's place in names, each its short name). Each band told with its
+// cause (b.why, b.who: family names, nameOf turns into the shown name), the
 // drawn drivers who stopped under it and who gained most; a lead taken, a
 // retirement, a stop that moved a chance 8 points: the five biggest, by lap.
 const BAND = { sc: ['安全車', 'Safety car'], vsc: ['虛擬安全車', 'Virtual safety car'], red: ['紅旗', 'Red flag'] };
 export const bandName = (kind, en) => BAND[kind]?.[en ? 1 : 0] || kind;
-export function raceMoments(points, names, bands, events, en) {
+export function raceMoments(points, names, bands, events, en, nameOf = null) {
   const last = points.length - 1;
   const c = (i, k) => points[Math.max(0, Math.min(last, i))].c[k];
   const lapsText = (a, b) => (a == null ? '' : en ? ` (lap${b > a ? 's' : ''} ${a}${b > a ? `–${b}` : ''})` : ` 第 ${a}${b > a ? `–${b}` : ''} 圈`);
@@ -210,8 +211,10 @@ export function raceMoments(points, names, bands, events, en) {
     const gains = names.map((_, k) => c(b.i1 + 2, k) - c(b.i0 - 1, k));
     const k = gains.reduce((m, g, j) => (Math.abs(g) > Math.abs(gains[m]) ? j : m), 0);
     const stopped = [...new Set(events.filter(ev => ev.kind === 'pit' && ev.i >= b.i0 && ev.i <= b.i1).map(ev => names[ev.k]))];
-    const text = `${bandName(b.kind, en)}${lapsText(b.from, b.to)}${stopped.length ? (en ? ` · ${stopped.join(', ')} pitted` : ` · ${stopped.join('、')} 進站`) : ''}`;
-    found.push({ i: b.i0, k, delta: gains[k], icon: b.kind === 'red' ? '🟥' : '🚨', text, band: true });
+    const who = (b.who || []).map(n => (nameOf ? nameOf(n) : n)).join(en ? ' and ' : '、');
+    const cause = !who ? '' : en ? ` · ${b.why === 'crash' ? `${who} collided` : b.why === 'stopped' ? `${who} stopped` : `${who} out`}` : ` · 起因：${who} ${b.why === 'crash' ? '碰撞' : b.why === 'stopped' ? '停車' : '退賽'}`;
+    const text = `${bandName(b.kind, en)}${lapsText(b.from, b.to)}${cause}${stopped.length ? (en ? ` · ${stopped.join(', ')} pitted` : ` · ${stopped.join('、')} 進站`) : ''}`;
+    found.push({ i: b.i0, k, delta: gains[k], icon: b.kind === 'red' ? '🟥' : '🚨', text, band: true, driver: b.who?.[0] || null });
   }
   for (const ev of events) {
     if (ev.kind === 'pit' && bands.some(b => ev.i >= b.i0 && ev.i <= b.i1)) continue;

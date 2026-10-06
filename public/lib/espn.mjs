@@ -604,14 +604,17 @@ export function parseSummary(data, league) {
   const drivePlays = d => (d?.plays || []).map(p => (p.team ? p : { ...p, team: d.team }));
   const timed = [...(data?.plays || []), ...(data?.drives?.previous || []).flatMap(drivePlays), ...drivePlays(data?.drives?.current), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
   // What each play was, for the chart's key moments (lib/moments.mjs): who (the batter, the shooter, the scorer), what, the score after it.
-  const names = new Map();
-  for (const t of data?.boxscore?.players || []) for (const st of t.statistics || []) for (const a of st.athletes || []) if (a.athlete?.id) names.set(String(a.athlete.id), a.athlete.shortName || a.athlete.displayName);
-  for (const r of data?.rosters || []) for (const x of r.roster || []) if (x.athlete?.id) names.set(String(x.athlete.id), x.athlete.shortName || x.athlete.displayName);
+  // Each player by id: { short, name, headshot } (the box score's, the soccer rosters').
+  const people = new Map();
+  const know = a => a?.id && people.set(String(a.id), { short: a.shortName || a.displayName, name: a.displayName || a.shortName, headshot: freshHeadshot(a.headshot?.href) || null });
+  for (const t of data?.boxscore?.players || []) for (const st of t.statistics || []) for (const a of st.athletes || []) know(a.athlete);
+  for (const r of data?.rosters || []) for (const x of r.roster || []) know(x.athlete);
   const whoOf = p => {
     const a = ((p.participants || []).find(q => q.type === 'batter') || p.participants?.[0])?.athlete;
-    return names.get(String(a?.id ?? '')) || a?.shortName || a?.displayName || '';
+    const known = people.get(String(a?.id ?? ''));
+    return { who: known?.short || a?.shortName || a?.displayName || '', pic: a?.id ? { id: String(a.id), name: known?.name || a.displayName || '', headshot: known?.headshot || null } : null };
   };
-  const playOf = p => ({ text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), who: whoOf(p), home: p.homeScore, away: p.awayScore });
+  const playOf = p => ({ text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), ...whoOf(p), home: p.homeScore, away: p.awayScore });
   // The plays that move a market (a game drawn from Polymarket's): the scores, a red card, a penalty missed.
   const events = timed
     .filter(p => p.scoringPlay || /red-card|penalty---(missed|saved)/.test(p.type?.type || ''))
