@@ -16,7 +16,7 @@ import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, shownStart, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo } from './ui.js';
+import { ctx, el, shownStart, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -935,8 +935,8 @@ function playLine(league, p, side) {
   const team = typeof side === 'string' ? side : side?.short || side?.name || '';
   const { main, sub } = playParts(feedText(LEAGUES[league]?.sport, p, L() === 'en', team), team);
   const face = p.pic ? personTap(league, p.pic, personPic(p.pic, league, 'xs round')) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
-  // A play with neither (the period's end): its words in the same column as the rest.
-  return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null])]);
+  // A play with neither (本節結束, 比賽結束): the league's mark, so every row has its picture.
+  return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(league)]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null])]);
 }
 
 // Where to watch in Taiwan: a game's own channels (a schedule's: the

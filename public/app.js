@@ -10,6 +10,8 @@
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
+import { stripDays } from './lib/strip.mjs';
+import * as kit from '#kit/quadra.mjs';
 import { freshGame, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
@@ -608,10 +610,12 @@ function filtered(events) {
   return events.filter(e => LEAGUES[e.league]?.sport === f);
 }
 
-// The date strip's days: it has no end. It opens on a week back and a
-// fortnight ahead, grows by two weeks whenever it's scrolled near either end,
-// and 📅 jumps to any day (the strip grows to reach it).
-const STRIP = { from: -7, to: 14, step: 14 };
+// The date strip: a fixed row of days, drawn once and never rebuilt while
+// it's scrolled (rebuilding it under a finger was what made it jump and
+// stop on iPhone). Home: a month back and six weeks ahead; a league (or a
+// sport on home): its season's game days, so it ends where the season does.
+// 📅 reaches any day (the strip widens to it).
+const STRIP = { from: -30, to: 45 };
 const stripRange = { from: STRIP.from, to: STRIP.to };
 const dayOffset = d => Math.round((Date.parse(`${d}T12:00:00`) - Date.parse(`${today()}T12:00:00`)) / 86_400_000);
 function reach(date, range = stripRange) {
@@ -629,58 +633,17 @@ function dayChip(d, current, onPick) {
   ]);
 }
 // `range`: the stretch of days shown (home's own by default; 賽事 keeps one
-// per league), and the person's own scroll of it (`held`, at `left`);
-// `only`: just these days (a sport's or a league's game days); `grow`: read
-// more of them before the strip grows.
-function dateStrip(current, onPick, { only = null, grow = null, range = stripRange } = {}) {
-  const stripRange = range;
-  if (current) reach(current, range);
+// per league), and the person's own scroll of it (`held`, at `left`).
+function dateStrip(current, onPick, { only = null, range = stripRange } = {}) {
+  if (current && !only) reach(current, range);
   // A day picked: the strip is centred on it again.
   const pickDay = d => ((range.held = false), onPick(d));
-  const row = el('div', { class: 'q-chips day-strip' });
+  const row = el('div', { class: 'q-chips day-strip' }, stripDays(current, { only, range, base: today() }).map(d => dayChip(d, current, pickDay)));
   // Scrolled by the person: a repaint (a day or a team read, the live
   // refresh) keeps it where they left it (centerChosen), not back on the day.
   row.keepLeft = range.held ? range.left : null;
-  const days = () => {
-    const list = [];
-    for (let i = stripRange.from; i <= stripRange.to; i++) list.push(addDays(today(), i));
-    return only ? list.filter(d => only.has(d)) : list;
-  };
-  const fill = () => put(row, days().map(d => dayChip(d, current, pickDay)));
-  fill();
-  // Near an end: two more weeks that way, the days in view staying put.
-  // Only the person's own scrolling grows it: never a centring or a
-  // repaint's scroll. (A sport's few days barely overflow, so every place
-  // is near an end: each centring grew it, refilled it and centred it again,
-  // and on iPhone Safari that never stopped.)
-  let busy = false;
   for (const ev of ['pointerdown', 'touchstart', 'wheel']) row.addEventListener(ev, () => (range.held = true), { passive: true });
-  row.addEventListener(
-    'scroll',
-    () => {
-      // (A strip being replaced reports a scroll with no size: not the person's.)
-      if (!row.isConnected || !row.clientWidth || !range.held) return;
-      range.left = row.scrollLeft;
-      if (busy) return;
-      const nearEnd = row.scrollLeft + row.clientWidth > row.scrollWidth - 120;
-      const nearStart = row.scrollLeft < 120;
-      if (!nearEnd && !nearStart) return;
-      busy = true;
-      const before = row.scrollWidth;
-      if (nearEnd) stripRange.to += STRIP.step;
-      else stripRange.from -= STRIP.step;
-      const done = () => {
-        const left = row.scrollLeft;
-        fill();
-        if (!nearEnd) row.scrollLeft = left + (row.scrollWidth - before);
-        range.left = row.scrollLeft;
-        requestAnimationFrame(() => (busy = false));
-      };
-      // One sport's days are read for the new stretch first.
-      grow ? grow().then(done, done) : done();
-    },
-    { passive: true }
-  );
+  row.addEventListener('scroll', () => row.isConnected && row.clientWidth && range.held && (range.left = row.scrollLeft), { passive: true });
   // Any day: the browser's own date picker.
   const pick = el('input', { class: 'day-pick-input', type: 'date', 'aria-label': L({ zh: '選擇日期', en: 'Pick a date' }), value: current || today() });
   pick.addEventListener('change', () => {
@@ -690,6 +653,26 @@ function dateStrip(current, onPick, { only = null, grow = null, range = stripRan
   });
   const cal = el('label', { class: 'q-chip day-pick', title: L({ zh: '選擇日期', en: 'Pick a date' }) }, [el('span', { class: 'day-pick-icon', 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2"/></svg>' }), pick]);
   return el('div', { class: 'day-strip-wrap' }, [row, cal]);
+}
+// A league's game days this season (Taipei dates): Shared-Data's nightly
+// sports/<league>/days.json (small; the season across both year packs), a
+// league without one (CPBL) from its own season. Read once a session; null
+// until read (the days read so far stand in), a failed read asked again later.
+const seasonDays = new Map();
+function leagueDays(league, then) {
+  if (!seasonDays.has(league)) {
+    seasonDays.set(league, null);
+    const own = () => seasonEvents(league).then(list => list.filter(e => !e.status?.void).map(e => localDate(Date.parse(e.start))));
+    const read = LEAGUES[league].espn && kit.packJson ? kit.packJson(`sports/${league}/days.json`, { ttl: 12 * 3_600_000 }).then(d => d?.days || []) : own();
+    read
+      .then(list => {
+        if (!list.length) return seasonDays.delete(league);
+        seasonDays.set(league, new Set(list));
+        then?.();
+      })
+      .catch(() => seasonDays.delete(league));
+  }
+  return seasonDays.get(league);
 }
 
 const ENDED_PICKS = { zh: '已結束的推薦', en: 'Picks that ended' };
@@ -862,11 +845,7 @@ function homeHead() {
               h.autoDay = false;
               renderHome();
             },
-            {
-              only: days,
-              // One sport: its days over the longer stretch, read before the strip grows.
-              grow: sport ? () => sportDays(sport).then(more => (h.sportDays.set(sport, more), (days && more.forEach(d => days.add(d))))) : null
-            }
+{ only: days }
           )
   ]);
 }
@@ -939,22 +918,11 @@ async function sportDays(sport) {
   const leagues = pickLeagues().filter(k => LEAGUES[k].sport === sport);
   const from = addDays(today(), stripRange.from);
   const to = addDays(today(), stripRange.to);
-  const usFrom = yyyymmdd(new Date(Date.parse(`${from}T00:00:00`) - 12 * 3_600_000));
-  const usTo = yyyymmdd(new Date(Date.parse(`${to}T23:59:59`)));
   let failed = 0;
   const miss = () => (failed++, []);
-  const lists = await Promise.all(
-    leagues.map(async k => {
-      const l = LEAGUES[k];
-      if (l.kind !== 'match') return seasonEvents(k).catch(miss);
-      if (l.asia) return scoreboard(k).catch(miss);
-      const cal = await seasonCalendar(k).catch(() => null);
-      if (!cal) return miss();
-      if (cal?.months) return scoreboard(k, monthsBetween(Date.parse(`${from}T00:00:00`) - 86_400_000, Date.parse(`${to}T23:59:59`))).catch(miss);
-      const us = (cal?.days || []).filter(d => d >= usFrom && d <= usTo);
-      return us.length ? scoreboard(k, us).catch(miss) : [];
-    })
-  );
+  // Each league's season from the nightly packs (one read each, not a
+  // scoreboard per day of the strip's two and a half months).
+  const lists = await Promise.all(leagues.map(k => seasonEvents(k).catch(miss)));
   const now = Date.now();
   const days = new Set();
   days.failed = failed;
@@ -1333,31 +1301,6 @@ function applyScores(sc, events) {
   sc.all = events;
   sc.days = [...byDay.keys()].sort();
 }
-// Scrolled near an end of the strip: the league's next stretch of game days
-// (sc.extra one more), read without redrawing; the days it added. One read
-// at a time (`growing`: the scores it's for).
-let growing = null;
-async function growScores() {
-  const sc = state.scores;
-  const league = sc.league;
-  if (sc.mode !== 'days' || !(LEAGUES[league].espn || LEAGUES[league].asia) || growing === sc) return [];
-  growing = sc;
-  const had = new Set(sc.days);
-  sc.extra += 1;
-  try {
-    const events = await fetchScores(sc);
-    if (state.scores !== sc || sc.league !== league) return [];
-    // Keep what's already read (a day's own read, say) and add the rest.
-    const byId = new Map((sc.all || []).map(e => [e.id, e]));
-    for (const e of events) byId.set(e.id, e);
-    applyScores(sc, [...byId.values()]);
-    return sc.days.filter(d => !had.has(d));
-  } catch {
-    return [];
-  } finally {
-    if (growing === sc) growing = null;
-  }
-}
 // A day picked on the strip or the 📅: shown at once; a day not read yet (an
 // ESPN league's, far from now) is read first.
 async function pickScoresDay(d) {
@@ -1621,9 +1564,12 @@ function renderScores() {
   else {
     // The same date strip as 首頁: the league's game days, more of them as
     // it's scrolled near either end, and 📅 for any day.
-    const only = new Set(sc.days);
-    for (const d of [sc.days[0], sc.days.at(-1)]) reach(d, sc.range);
-    strip = dateStrip(sc.date, pickScoresDay, { only, range: sc.range, grow: () => growScores().then(added => added.forEach(d => only.add(d))) });
+    // The season's game days, all of them (the nightly pack), so it scrolls
+    // freely and stops at the season's ends; the days read so far meanwhile.
+    const league = sc.league;
+    const season = leagueDays(league, () => state.tab === 'matches' && state.scores.league === league && renderScores());
+    const only = new Set([...sc.days, ...(season || [])]);
+    strip = dateStrip(sc.date, pickScoresDay, { only, range: sc.range });
     const order = { in: 0, pre: 1, post: 2 };
     const games = [...(sc.byDay.get(sc.date) || [])].sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
     // The season's stages on show (preseason, playoffs, a cup…), as a filter.

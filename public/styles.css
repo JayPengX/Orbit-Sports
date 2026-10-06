@@ -331,7 +331,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .day-strip .q-chip.more { min-width: 36px; font-weight: 800; }
 /* 首頁's endless strip and its date picker, side by side. */
 .day-strip-wrap { display: flex; align-items: center; gap: 6px; margin: 6px 0 4px; }
-.day-strip-wrap .day-strip { flex: 1 1 auto; min-width: 0; margin: 0; }
+.day-strip-wrap .day-strip { flex: 1 1 auto; min-width: 0; margin: 0; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
+.day-strip .q-chip.day { scroll-snap-align: center; flex: none; }
 .day-strip .q-chip.day.month-start { box-shadow: inset 2px 0 0 var(--q-border); }
 .day-pick { position: relative; flex: none; min-width: 44px; min-height: 48px; justify-content: center; font-size: 18px; padding: 0 10px; overflow: hidden; }
 .day-pick-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
@@ -1181,3 +1182,6 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .rc-chip i.rc-face { display: inline-grid; width: 24px; height: 24px; border-radius: 50%; background: none; box-sizing: border-box; border: 2px solid var(--team); padding: 1px; }
 .rc-chip.mate i.rc-face { width: 24px; height: 24px; border: 2px dashed var(--team); }
 .rc-chip i.rc-face .logo { width: 100%; height: 100%; vertical-align: 0; font-size: 8px; }
+.play-none { display: inline-grid; place-items: center; }
+.plays .play-none .lg-mark { --s: 30px; }
+.lp-feed .play-none .lg-mark { --s: 22px; }
