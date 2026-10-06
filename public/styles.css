@@ -735,7 +735,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .mate-grid > strong.mate-win { color: var(--q-text); }
 .mate-grid .mate-k { color: var(--q-text-2); }
 table.game-log td, table.game-log th { white-space: nowrap; }
-table.game-log .opp-cell { display: flex; align-items: center; gap: 5px; }
+table.game-log .opp-cell { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 table.game-log .result-pill { font-size: 12px; padding: 1px 8px; }
 .award-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .award-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; font-size: 14px; }

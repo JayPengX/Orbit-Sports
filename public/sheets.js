@@ -5,6 +5,7 @@ import { translate } from '#kit/quadra.mjs';
 import { splitName } from './lib/compname.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
+import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts } from './lib/moments.mjs';
@@ -313,9 +314,9 @@ export function statValue(text) {
 
 const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [el('span', { text: title }), sub ? el('small', { text: sub }) : null]), body]);
 
-// A side's row in the league's table: [place, row, group size].
+// A side's row in the league's table: [place, row, group size]; none before the table's first game.
 function placeOf(groups, id) {
-  for (const g of groups || []) {
+  for (const g of (groups || []).filter(tableStarted)) {
     const i = g.rows.findIndex(r => r.id === id);
     if (i >= 0) return { pos: i + 1, row: g.rows[i], n: g.rows.length, group: g.name, lead: g.rows[0] };
   }
@@ -1327,7 +1328,9 @@ export async function openTeam(league, id, fallback = {}) {
       return me.winner ? 'W' : them.winner ? 'L' : Number(me.score) === Number(them.score) && me.score !== '' ? 'D' : Number(me.score) > Number(them.score) ? 'W' : 'L';
     };
     const form = played.slice(-5).filter(x => x.home && x.away).map(resultOf);
-    const record = info.record || ownRecord(played, resultOf);
+    // Games played before the table's first are preseason ones, and so is ESPN's record then: said so.
+    const pre = Boolean(groups?.length) && !groups.some(tableStarted) && played.length > 0;
+    const record = [pre ? W('季前賽', 'Preseason') : '', info.record || ownRecord(played, resultOf)].filter(Boolean).join(' ');
     // The numbers that matter in the sport, in one strip.
     const sport = LEAGUES[league]?.sport;
     const want = sport === 'soccer' ? ['GP', 'W', 'D', 'L', 'GD', 'P'] : ['W', 'L', 'PCT', 'GB', 'STRK'];
@@ -1401,7 +1404,7 @@ export async function openTeam(league, id, fallback = {}) {
         el('div', { class: 'team-hero-text' }, [
           el('h3', { text: info.name }),
           info.en && info.en !== info.name ? el('small', { class: 'muted', text: info.en }) : null,
-          el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? el('span', { class: 'nowrap', text: W(`${leagueName(league, L())}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in the ${leagueName(league, L())}`) }) : standingZh(info.standing, L())].filter(Boolean), ' · ')),
+          el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? el('span', { class: 'nowrap', text: W(`${leagueName(league, L())}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in the ${leagueName(league, L())}`) }) : !groups || groups.some(tableStarted) ? standingZh(info.standing, L()) : ''].filter(Boolean), ' · ')),
           form.length ? el('div', { class: 'hero-form' }, [resultPills(form)]) : null
         ]),
         followBtn
@@ -1674,7 +1677,7 @@ export async function openPlayer(league, id, fallback = {}) {
                 ov.log.games.map(g =>
                   el('tr', {}, [
                     el('td', { class: 'left num', text: g.date ? localDate(Date.parse(g.date)).slice(5).replace('-', '/') : '' }),
-                    el('td', { class: 'left opp-cell' }, [el('span', { class: 'muted', text: g.at === '@' ? '@' : 'vs' }), logo(g.opp.logo, g.opp.name, 'xs'), el('span', { text: g.opp.abbr || g.opp.name })]),
+                    el('td', { class: 'left' }, [el('span', { class: 'opp-cell' }, [el('span', { class: 'muted', text: g.at === '@' ? '@' : 'vs' }), logo(g.opp.logo, g.opp.name, 'xs'), el('span', { text: g.opp.abbr || g.opp.name })])]),
                     el('td', { class: 'left' }, [el('span', { class: `result-pill ${g.result === 'W' ? 'w' : g.result === 'L' ? 'l' : ''}`, text: [g.result ? (en ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result) : '', g.score].filter(Boolean).join(' ') })]),
                     ...g.stats.map(v => el('td', { class: 'num', text: en ? v : LOG_WORDS[v] || v }))
                   ])

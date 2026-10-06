@@ -33,10 +33,19 @@ export function strength(tables, league, side) {
   return 1 - (row.pos - 1) / (row.n - 1);
 }
 
-// The tables a set of standings groups gives (each group ranked on its own).
+// Whether a table has a game in it. Before the season's first (a preseason,
+// the new table all zeros) its order is only the feed's: no places from it.
+const COUNTED = ['GP', 'W', 'L', 'D', 'T', 'OTL'];
+export function tableStarted(g) {
+  const rows = g?.rows || [];
+  const has = rows.some(r => COUNTED.some(k => r.stats?.[k] != null && r.stats[k] !== ''));
+  return !has || rows.some(r => COUNTED.some(k => Number(r.stats?.[k]) > 0));
+}
+
+// The tables a set of standings groups gives (each group ranked on its own; none before a game's played).
 export function tableIndex(groups) {
   const out = {};
-  for (const g of groups || []) g.rows.forEach((r, i) => r.id && (out[r.id] = { pos: i + 1, n: g.rows.length, group: g.name }));
+  for (const g of (groups || []).filter(tableStarted)) g.rows.forEach((r, i) => r.id && (out[r.id] = { pos: i + 1, n: g.rows.length, group: g.name }));
   return out;
 }
 

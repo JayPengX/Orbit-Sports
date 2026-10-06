@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreMatch, dayPlan, clash, tableIndex, bigGame } from '../public/lib/picks.mjs';
+import { scoreMatch, dayPlan, clash, tableIndex, tableStarted, bigGame } from '../public/lib/picks.mjs';
 
 const at = h => new Date(Date.UTC(2026, 9, 3, h)).toISOString();
 const side = (id, name) => ({ id, name, short: name });
@@ -63,4 +63,14 @@ test('live: a close game late on is the one to switch to, a rout drops; evenings
   const evening = scoreMatch(match('mlb', 'd', 12, side('1', 'A'), side('2', 'B')), ctx);
   const office = scoreMatch(match('mlb', 'e', 3, side('1', 'A'), side('2', 'B')), ctx);
   assert.ok(evening.score > office.score);
+});
+
+test('a table before its first game gives no places (a preseason: every row 0-0)', () => {
+  const zero = [{ name: 'East', rows: [{ id: 'atl', stats: { W: '0', L: '0', GB: '-' } }, { id: 'bos', stats: { W: '0', L: '0', GB: '-' } }] }];
+  assert.equal(tableStarted(zero[0]), false);
+  assert.deepEqual(tableIndex(zero), {});
+  const begun = [{ name: 'East', rows: [{ id: 'bos', stats: { W: '1', L: '0' } }, { id: 'atl', stats: { W: '0', L: '1' } }] }];
+  assert.equal(tableIndex(begun).atl.pos, 2);
+  // A table without counts (a driver's points) is never held back.
+  assert.equal(tableStarted({ rows: [{ id: 'x', stats: { PTS: '0' } }] }), true);
 });
