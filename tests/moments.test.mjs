@@ -113,3 +113,20 @@ test('the score at a moment: the play\'s, the last scoring play\'s, or the goals
   assert.deepEqual(scoreAt(pts, 1, epl.events, epl.home.id), String(goal.play.team) === String(epl.home.id) ? [0, 1] : [1, 0]);
   assert.equal(scoreAt(pts, 1, [], ''), null);
 });
+
+test('F1: a red flag only said ends the safety car; it ends when the track is clear (Italian GP, 2026-09-06)', async () => {
+  const { controlBands } = await import('../public/lib/winprob.mjs');
+  const bands = controlBands(
+    [
+      { category: 'SafetyCar', message: 'SAFETY CAR DEPLOYED', lap: 3 },
+      { category: 'Other', message: 'RED FLAG - RACE SUSPENDED', lap: 3 },
+      { category: 'Flag', flag: 'CLEAR', message: 'TRACK CLEAR', lap: 4 },
+      { category: 'Other', message: 'RACE WILL RESUME AT 15:39', lap: 4 },
+      { category: 'SafetyCar', message: 'VIRTUAL SAFETY CAR DEPLOYED', lap: 28 },
+      { category: 'SafetyCar', message: 'VIRTUAL SAFETY CAR ENDING', lap: 29 }
+    ],
+    m => m.lap,
+    53
+  );
+  assert.deepEqual(bands.map(b => b.slice(0, 3)), [[3, 3, 'sc'], [3, 4, 'red'], [28, 29, 'vsc']]);
+});
