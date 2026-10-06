@@ -134,6 +134,39 @@ test("F1: a race's chances by lap, the laps as they really ran (OpenF1), kept a 
   assert.equal(raceKey(start), '2026-10-04');
 });
 
+// China 2026: an older market's volume is gone (null for every driver), and
+// "the eight most traded" read the first eight listed: Gasly, Alonso… never
+// Antonelli, who won, and the race was kept with Leclerc alone.
+test('F1: where the market no longer says what was traded, every driver is read; a line without the winner is never kept', async () => {
+  const { raceLine } = await import('../public/lib/winprob.mjs');
+  const start = '2026-03-15T07:00:00Z';
+  const t0 = Date.parse(start) / 1000;
+  const names = ['Gasly', 'Alonso', 'Albon', 'Bortoleto', 'Perez', 'Leclerc', 'Ocon', 'Norris', 'Antonelli', 'Russell'];
+  const end = { Leclerc: 0.001, Antonelli: 0.999, Russell: 0.001 };
+  const mid = { Leclerc: 0.14, Antonelli: 0.5, Russell: 0.3 };
+  const laps = [0, 1, 2, 3, 4].map(lap => ({ lap, t: t0 + 300 + lap * 100 }));
+  const market = { slug: 'f1-chinese-grand-prix-winner-2026-03-15', markets: names.map(n => ({ groupItemTitle: n, clobTokenIds: `["${n}","x"]`, volume: 0 })) };
+  const history = (n, lost) => (lost.includes(n) ? [] : [{ t: t0, p: mid[n] ?? 0.01 }, { t: t0 + 650, p: end[n] ?? 0.001 }]);
+  const getJson = lost => async url => {
+    const u = new URL(url);
+    if (u.host.startsWith('gamma')) return [market];
+    return { history: history(u.searchParams.get('market'), lost) };
+  };
+  const line = await raceLine(start, getJson([]), laps);
+  assert.deepEqual(line.drivers, ['Antonelli', 'Russell', 'Leclerc']);
+  assert.equal(Math.max(...line.points.at(-1).c), 0.999);
+  // The winner's prices not there: a failure, not a line of the rest.
+  await assert.rejects(raceLine(start, getJson(['Antonelli']), laps), /winner/);
+});
+
+// British GP 2026: IndyCar's Mid-Ohio race, on Polymarket's F1 tag the same day, was nearer the start.
+test("F1: the race's market is an F1 one, never another series' on the same day", async () => {
+  const { findRaceMarket } = await import('../public/lib/winprob.mjs');
+  const market = (slug, startTime) => ({ slug, startTime, markets: [{ groupItemTitle: 'X', clobTokenIds: '["t","x"]', volume: 1 }] });
+  const got = await findRaceMarket('2026-07-05T14:00:00Z', async () => [market('indycar-honda-indy-200-at-mid-ohio-winner-2026-07-05', '2026-07-05T14:00:00Z'), market('f1-british-grand-prix-winner-2026-07-05', '2026-07-05T13:00:00Z')]);
+  assert.equal(got.slug, 'f1-british-grand-prix-winner-2026-07-05');
+});
+
 test("F1: who led at each lap, whoever it was (every car's places in one read)", async () => {
   const { raceEvents } = await import('../public/lib/winprob.mjs');
   const s = iso => Date.parse(iso) / 1000;

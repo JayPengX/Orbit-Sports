@@ -177,7 +177,8 @@ export async function findRaceMarket(start, getJson) {
   // The race's day, the closest winner market to its start (Polymarket's time can be hours off: Miami 2026, 20:00 for 17:00).
   const events = (await getJson(`${GAMMA}/events?tag_slug=f1&start_time_min=${iso(at - 6 * 3_600_000)}&start_time_max=${iso(at + 6 * 3_600_000)}&limit=50`, { trim: GAMES_TRIM, kind: 'game' })) || [];
   const off = ev => Math.abs(Date.parse(ev.startTime || '') - at) || Infinity;
-  const event = events.filter(ev => /-winner-\d{4}-\d{2}-\d{2}$/.test(ev.slug || '') && !/sprint/.test(ev.slug)).sort((a, b) => off(a) - off(b))[0];
+  // An F1 race's own (Polymarket's F1 tag holds IndyCar's too: Mid-Ohio's on Silverstone's day).
+  const event = events.filter(ev => /^f1-.*-winner-\d{4}-\d{2}-\d{2}$/.test(ev.slug || '') && !/sprint/.test(ev.slug)).sort((a, b) => off(a) - off(b))[0];
   const drivers = (event?.markets || []).map(m => ({ name: m.groupItemTitle || '', token: json(m.clobTokenIds)[0], volume: Number(m.volume) || 0 })).filter(d => d.name && d.token);
   return drivers.length ? { slug: event.slug, drivers } : null;
 }
@@ -339,7 +340,10 @@ export async function raceLine(start, getJson, laps = null) {
   const market = await findRaceMarket(start, getJson);
   if (!market) return null;
   const from = Math.floor(Date.parse(start) / 60_000) * 60;
-  const read = [...market.drivers].sort((a, b) => b.volume - a.volume).slice(0, READ);
+  // The most traded few; where the market no longer says (an older one's
+  // volume is gone: China 2026 read Gasly and Alonso, never Antonelli), all.
+  const traded = market.drivers.filter(d => d.volume > 0);
+  const read = traded.length >= READ ? [...traded].sort((a, b) => b.volume - a.volume).slice(0, READ) : market.drivers;
   const series = await Promise.all(
     read.map(d =>
       getJson(`${CLOB}?market=${d.token}&startTs=${from - 1800}&endTs=${from + LONGEST}&fidelity=1`, { kind: 'history' })
@@ -348,7 +352,10 @@ export async function raceLine(start, getJson, laps = null) {
     )
   );
   const until = laps?.length ? laps.at(-1).t : Math.max(0, ...series.map(s => s.at(-1)?.t || 0));
-  const peak = series.map(s => Math.max(0, ...s.filter(p => p.t >= from && p.t <= until).map(p => p.p)));
+  // Each driver's best chance where the chart is drawn (each lap's end, else every two minutes):
+  // a stray trade between them (a thin market's 0.5 for Lawson) puts no one on it.
+  const times = laps?.length ? laps.map(l => l.t) : Array.from({ length: Math.floor((until - from) / 120) + 1 }, (_, k) => from + k * 120);
+  const peak = series.map(s => Math.max(0, ...times.map(t => priceAt(s, t))));
   const shown = read
     .map((d, i) => ({ name: d.name, i, peak: peak[i] }))
     .filter(d => d.peak >= 0.1)
@@ -365,13 +372,18 @@ export async function raceLine(start, getJson, laps = null) {
     const settled = p => p.c.some(c => c >= 0.99);
     while (points.length > 1 && settled(points.at(-1)) && settled(points.at(-2))) points.pop();
   }
+  // A race over is won by someone: a line with no one near it at the end missed the winner (a failed read, never kept).
+  if (laps?.length && points.length && Math.max(...points.at(-1).c) < 0.5) throw new Error(`${market.slug}: the winner isn't in the line`);
   return points.length > 3 ? { source: 'polymarket', market: market.slug, drivers: shown.map(d => d.name), by: laps?.length ? 'lap' : 'time', points } : null;
 }
 // A race to come: the drivers' chances now, the likeliest first (five).
 export async function raceNow(start, getJson) {
   const market = await findRaceMarket(start, getJson);
   if (!market) return null;
-  const read = [...market.drivers].sort((a, b) => b.volume - a.volume).slice(0, READ);
+  // The most traded few; where the market no longer says (an older one's
+  // volume is gone: China 2026 read Gasly and Alonso, never Antonelli), all.
+  const traded = market.drivers.filter(d => d.volume > 0);
+  const read = traded.length >= READ ? [...traded].sort((a, b) => b.volume - a.volume).slice(0, READ) : market.drivers;
   const last = await Promise.all(read.map(d => getJson(nowUrl(d.token), { kind: 'now' }).then(x => Number((x?.history || []).at(-1)?.p)).catch(() => NaN)));
   const drivers = read
     .map((d, i) => ({ name: d.name, chance: last[i] }))
