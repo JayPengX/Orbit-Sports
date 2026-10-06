@@ -158,7 +158,7 @@ test("the game's end, whole: every play there that moved it, tied it or put a si
   // Brunson's fadeaway tying it at 104 with 39 seconds left: never left out.
   assert.ok(texts.includes('J. Brunson 跳投命中 · 追平'));
   assert.ok(texts.includes('J. Brunson 罰球命中 · 超前'));
-  assert.ok(texts.some(t => /^V\\. Wembanyama 失誤（Jalen Brunson 抄截）$/.test(t)));
+  assert.ok(texts.some(t => /^V\. Wembanyama 失誤（Jalen Brunson 抄截）$/.test(t)));
   // A team's own play by the side's name, one play once.
   assert.ok(!texts.some(t => /Knicks|Spurs/.test(t)));
   assert.equal(new Set(list.map(m => m.i)).size, list.length);
