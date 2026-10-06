@@ -138,3 +138,15 @@ export function quietRuns(points, least = 30 * 60) {
   }
   return runs;
 }
+
+// The key moment closest to a finger at point j (within `within` of the
+// chart's width), never just the first one near it: in a close game's last
+// minute the moments sit side by side.
+export function nearestMoment(moments, xs, j, within = 0.025) {
+  let best = null;
+  for (const m of moments) {
+    const d = Math.abs(xs[m.i] - xs[j]);
+    if (d < within && (!best || d < Math.abs(xs[best.i] - xs[j]))) best = m;
+  }
+  return best;
+}

@@ -1135,3 +1135,4 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .tie-game + .tie-game { border-top: 1px solid var(--q-divider, var(--q-border)); }
 .tie-game .event-row { border-top: 0; }
 .tie-gn { display: block; padding: 9px 14px 0; font-size: 12px; font-weight: 650; color: var(--q-muted); }
+.wp-mo.on { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 8px; }

@@ -108,3 +108,13 @@ test('by game time: half time taken out, nothing after the final whistle, the ha
   assert.equal(xs.at(-1), 1);
   assert.ok(xs.every((x, i) => !i || x >= xs[i - 1]));
 });
+
+test('a finger snaps to the closest key moment, not the first one near it', async () => {
+  const { nearestMoment } = await import('../public/lib/wpline.mjs');
+  const xs = [0, 0.5, 0.97, 0.98, 0.99, 1];
+  const moments = [{ i: 2 }, { i: 3 }, { i: 4 }];
+  assert.equal(nearestMoment(moments, xs, 4).i, 4);
+  assert.equal(nearestMoment(moments, xs, 3).i, 3);
+  assert.equal(nearestMoment(moments, xs, 5).i, 4);
+  assert.equal(nearestMoment(moments, xs, 1), null);
+});

@@ -6,7 +6,7 @@ import { splitName } from './lib/compname.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
-import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName } from './lib/wpline.mjs';
+import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
@@ -637,7 +637,8 @@ function winProbCard(line, e, timeline, events = []) {
   };
   // Whose chance it lifted, and by how much.
   const gain = m => `${side[m.delta >= 0 ? 'home' : 'away'].name} +${Math.round(Math.abs(m.delta) * 100)}%`;
-  const near = i => moments.find(m => Math.abs(xs[m.i] - xs[i]) < 0.025);
+  // The key moment closest to a finger (within 2.5% of the chart), if any.
+  const near = i => nearestMoment(moments, xs, i);
   // Away on the left, home on the right (as everywhere in the sheet), adding up to 100.
   const away = el('span', { class: 'away' });
   const draw = pts.some(p => p.draw != null) ? el('span', { class: 'draw' }) : null;
@@ -658,9 +659,10 @@ function winProbCard(line, e, timeline, events = []) {
     why.hidden = !m;
     if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, m.text]), el('span', { class: `wp-gain ${m.side}`, text: gain(m) }));
   };
-  const show = j => {
-    // Close to a key moment: on it.
-    const m = j != null ? near(j) : null;
+  const show = (j, picked) => {
+    // A moment picked from the list: that one; a finger close to one: on it.
+    const m = picked || (j != null ? near(j) : null);
+    rows.forEach((r, k) => r.classList.toggle('on', moments[k] === picked));
     const i = m ? m.i : j;
     const p = pts[i ?? pts.length - 1];
     const [hh, dd] = [Math.round(p.home * 100), p.draw != null ? Math.round(p.draw * 100) : 0];
@@ -693,21 +695,22 @@ function winProbCard(line, e, timeline, events = []) {
     rule,
     dot
   ]);
+  // The key moments, in the game's order: a tap puts the chart on that one (brought into view).
+  const rows = moments.map(m =>
+    // The face to the player's page, the rest to the chart.
+    el('div', { class: 'wp-mo' }, [
+      el('span', { class: 'wp-mo-face' }, [face(m)]),
+      el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [
+        el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text', text: m.text })]),
+        el('span', { class: `wp-gain ${m.side}`, text: gain(m) })
+      ])
+    ])
+  );
   show();
-  // The key moments, in the game's order: a tap puts the chart on it.
   const list = moments.length
     ? el('div', { class: 'wp-moments' }, [
         el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
-        ...moments.map(m =>
-          // The face to the player's page, the rest to the chart.
-          el('div', { class: 'wp-mo' }, [
-            el('span', { class: 'wp-mo-face' }, [face(m)]),
-            el('button', { type: 'button', class: 'wp-mo-go', onclick: () => show(m.i) }, [
-              el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text', text: m.text })]),
-              el('span', { class: `wp-gain ${m.side}`, text: gain(m) })
-            ])
-          ])
-        )
+        ...rows
       ])
     : null;
   const box = el('div', { class: 'wp' }, [
@@ -721,6 +724,11 @@ function winProbCard(line, e, timeline, events = []) {
   return card(T('winProb'), box);
 }
 
+// A chart scrolled into view when a moment under it is picked (a long list leaves it off the screen).
+function bringIn(plot) {
+  const r = plot.getBoundingClientRect();
+  if (r.top < 60 || r.bottom > innerHeight - 20) plot.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
 // A chart's plot a finger (or a mouse) reads: show(i) for the point nearest
 // it while it's down, show() again once it lets go.
 function scrubPlot(xs, show, kids) {
@@ -857,8 +865,10 @@ function raceChanceCard(line, ss, feed = null) {
     why.hidden = !m;
     if (m) put(why, el('span', { class: 'wp-why-icon' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, m.band && m.driver ? `${m.icon} ${m.text}` : m.text]), gainChip(m));
   };
-  const show = j => {
-    const near = j != null ? moments.find(m => Math.abs(xs[m.i] - xs[j]) < 0.025 && !m.band) : null;
+  const show = (j, picked) => {
+    // A moment picked from the list: that one; a finger close to a stop or a lead (the closest): on it.
+    const near = picked || (j != null ? nearestMoment(moments.filter(m => !m.band), xs, j) : null);
+    rows.forEach((r, k) => r.classList.toggle('on', moments[k] === picked));
     const i = near ? near.i : j;
     const p = pts[i ?? last];
     chips.forEach((c, k) => (c.lastChild.textContent = `${Math.round(p.c[k] * 100)}%`));
@@ -880,12 +890,10 @@ function raceChanceCard(line, ss, feed = null) {
   };
   const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${shade}${grid}${paths}</svg>` }), ...pins, rule]);
   const strip = tags.length ? el('div', { class: 'rc-band-tags', 'aria-hidden': 'true' }, tags) : null;
+  const rows = moments.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text', text: m.band && m.driver ? `${m.icon} ${m.text}` : m.text })]), gainChip(m)])]));
   show();
   const list = moments.length
-    ? el('div', { class: 'wp-moments' }, [
-        el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
-        ...moments.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => show(m.i) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text', text: m.band && m.driver ? `${m.icon} ${m.text}` : m.text })]), gainChip(m)])]))
-      ])
+    ? el('div', { class: 'wp-moments' }, [el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }), ...rows])
     : null;
   return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, strip, plot, axisRow(marks), why, list]));
 }
