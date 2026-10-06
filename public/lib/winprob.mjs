@@ -174,8 +174,10 @@ export async function polymarketLine(league, game, getJson) {
 export async function findRaceMarket(start, getJson) {
   const at = Date.parse(start);
   if (!at) return null;
-  const events = (await getJson(`${GAMMA}/events?tag_slug=f1&start_time_min=${iso(at - 15 * 60_000)}&start_time_max=${iso(at + 15 * 60_000)}&limit=50`, { trim: GAMES_TRIM, kind: 'game' })) || [];
-  const event = events.find(ev => /-winner-\d{4}-\d{2}-\d{2}$/.test(ev.slug || '') && !/sprint/.test(ev.slug));
+  // The race's day, the closest winner market to its start (Polymarket's time can be hours off: Miami 2026, 20:00 for 17:00).
+  const events = (await getJson(`${GAMMA}/events?tag_slug=f1&start_time_min=${iso(at - 6 * 3_600_000)}&start_time_max=${iso(at + 6 * 3_600_000)}&limit=50`, { trim: GAMES_TRIM, kind: 'game' })) || [];
+  const off = ev => Math.abs(Date.parse(ev.startTime || '') - at) || Infinity;
+  const event = events.filter(ev => /-winner-\d{4}-\d{2}-\d{2}$/.test(ev.slug || '') && !/sprint/.test(ev.slug)).sort((a, b) => off(a) - off(b))[0];
   const drivers = (event?.markets || []).map(m => ({ name: m.groupItemTitle || '', token: json(m.clobTokenIds)[0], volume: Number(m.volume) || 0 })).filter(d => d.name && d.token);
   return drivers.length ? { slug: event.slug, drivers } : null;
 }
