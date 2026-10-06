@@ -126,7 +126,8 @@ export function playText(sport, play, en, team) {
     const what = firstOf(MLB_ZH, play.alt, play.text) || '關鍵打擊';
     return [who, what].filter(Boolean).join(' ') + (play.scoring && play.value ? ` · ${play.value} 分打點` : '');
   }
-  if (sport === 'basketball') return [who, basketballZh(play)].filter(Boolean).join(' ');
+  // A team's own (a team rebound, a shot clock violation): the side's name, never ESPN's English.
+  if (sport === 'basketball') return [play.who || team || who, basketballZh(play)].filter(Boolean).join(' ');
   // A flag's team isn't the drive's: the call alone.
   if (sport === 'football') return /penalty/i.test(`${play.type} ${play.text}`) && !/touchdown|field goal good/i.test(play.type) ? '關鍵判罰' : [team, firstOf(NFL_ZH, play.type, play.text) || '關鍵進攻'].filter(Boolean).join(' ');
   if (sport === 'soccer') return [who, play.kind === 'red' ? '紅牌' : '進球'].filter(Boolean).join(' ');
@@ -147,8 +148,7 @@ const RUN_PLAYS = 48;
 // Basketball: a possession that moves it this much is a moment; a drift of this much, a stretch.
 const PLAY_SWING = 0.12;
 const STRETCH = 0.2;
-export function playMoments(points, sport, side) {
-  if (!points.length || !points.every(p => p.n)) return [];
+function swingMoments(points, sport, side) {
   const vals = points.map(value);
   const home = d => (d >= 0 ? 'home' : 'away');
   if (sport !== 'basketball') {
@@ -158,7 +158,7 @@ export function playMoments(points, sport, side) {
       // ESPN puts a score's swing on the kickoff after it: the score's.
       let play = points[i].play;
       if (/kickoff|kicks/i.test(`${play?.type} ${play?.text}`)) play = points.slice(Math.max(0, i - 3), i).reverse().find(p => p.play?.scoring)?.play || play;
-      if (Math.abs(delta) >= SINGLE && play) found.push({ i, delta, side: home(delta), icon: ICON[sport] || '•', text: playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name), pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id });
+      if (Math.abs(delta) >= SINGLE && play) found.push({ i, delta, side: home(delta), icon: ICON[sport] || '•', text: playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name), pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id, src: play });
     }
     return biggest(found);
   }
@@ -168,7 +168,7 @@ export function playMoments(points, sport, side) {
     const delta = vals[i] - vals[i - 1];
     const play = points[i].play;
     if (Math.abs(delta) >= PLAY_SWING && play && !/end (period|of|game)/i.test(`${play.type} ${play.text}`))
-      plays.push({ i, delta, side: home(delta), icon: ICON.basketball, text: playText(sport, play, side.en, teamName(play.team, side)), pic: play.pic, team: play.team || sideOf(delta, side).id, play: true });
+      plays.push({ i, delta, side: home(delta), icon: ICON.basketball, text: playText(sport, play, side.en, teamName(play.team, side)), pic: play.pic, team: play.team || sideOf(delta, side).id, play: true, src: play });
   }
   // The stretches it drifted over (a slow slide over a quarter or two): each told by the points each side scored over it.
   const stretches = swings(vals, STRETCH)
@@ -185,6 +185,48 @@ export function playMoments(points, sport, side) {
   // The two biggest stretches and the six biggest possessions, in the game's order.
   const top = (list, n) => [...list].sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta)).slice(0, n);
   return [...top(stretches, 2), ...top(plays, 6)].sort((x, y) => x.i - y.i);
+}
+
+export function playMoments(points, sport, side) {
+  if (!points.length || !points.every(p => p.n)) return [];
+  const found = swingMoments(points, sport, side);
+  // The game's end, whole: every play there that moved it, tied it or put a side ahead.
+  for (const m of clutchMoments(points, sport, side)) {
+    // One play once (ESPN's score and the kickoff after it are the same play): its biggest swing, and whether it tied it or put a side ahead.
+    const same = found.find(f => f.i === m.i || f.src === m.src);
+    if (!same) found.push(m);
+    else if (m.turned && !same.turned) Object.assign(same, { turned: m.turned, text: m.text, delta: Math.abs(m.delta) > Math.abs(same.delta) ? m.delta : same.delta, side: Math.abs(m.delta) > Math.abs(same.delta) ? m.side : same.side });
+  }
+  return found.sort((x, y) => x.i - y.i);
+}
+
+// The closing stretch (the last two minutes of the last period or overtime; a
+// baseball game's 9th inning on): each play that moved the chance 5 points
+// or more, and each that tied the game or changed who's ahead, however
+// little the chance moved.
+const CLUTCH = 0.05;
+const lead = p => (p && p.home != null && p.away != null ? Math.sign(Number(p.home) - Number(p.away)) : null);
+function clutchMoments(points, sport, side) {
+  const vals = points.map(value);
+  const out = [];
+  let before = null;
+  for (let i = 1; i < points.length; i++) {
+    const p = points[i];
+    let play = p.play;
+    const was = before;
+    if (lead(play) != null) before = lead(play);
+    if (!play || /end (period|of|game)|timeout/i.test(`${play.type} ${play.text}`)) continue;
+    if (!(sport === 'baseball' ? p.n >= 9 : lateClock(sport, p))) continue;
+    // ESPN puts a score's swing on the kickoff after it: the score's.
+    if (/kickoff|kicks/i.test(`${play.type} ${play.text}`)) play = points.slice(Math.max(0, i - 3), i).reverse().find(q => q.play?.scoring)?.play || play;
+    const delta = vals[i] - vals[i - 1];
+    const turned = play.scoring && was != null && lead(play) != null && lead(play) !== was;
+    if (Math.abs(delta) < CLUTCH && !turned) continue;
+    const tied = turned && lead(play) === 0;
+    const text = playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name) + (turned ? (side.en ? (tied ? ' · ties it' : ' · takes the lead') : tied ? ' · 追平' : ' · 超前') : '');
+    out.push({ i, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON[sport] || '•', text, pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id, clutch: true, src: play, turned: turned ? (tied ? 'tie' : 'lead') : '' });
+  }
+  return out;
 }
 
 // A Polymarket line: each event the market moved on (its price a minute

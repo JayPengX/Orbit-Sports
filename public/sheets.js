@@ -677,7 +677,8 @@ function winProbCard(line, e, timeline, events = []) {
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
     dot.style.top = `${(1 - up(p)) * 100}%`;
   };
-  const pins = moments.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${(1 - up(pts[m.i])) * 100}%` }));
+  // Dotted on the line: the big swings and a lead taken or tied (the closing stretch's every play is in the list).
+  const pins = moments.filter(m => Math.abs(m.delta) >= 0.1 || m.turned).map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${(1 - up(pts[m.i])) * 100}%` }));
   const plot = scrubPlot(xs, show, [
     el('span', { class: 'wp-edge top', text: sideName(e.home) }),
     el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${grid}<path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${quiet.length ? traded : path}" class="wp-line"/>${gaps ? `<path d="${gaps}" class="wp-gap"/>` : ''}</svg>` }),

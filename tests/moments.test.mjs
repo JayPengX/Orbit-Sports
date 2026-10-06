@@ -27,7 +27,7 @@ test('football: the walk-off field goal its biggest moment; a flag told as a cal
   assert.ok(s.winProb.every(p => p.n));
   const list = playMoments(s.winProb, 'football', { ...sideOf(s), en: false });
   const top = [...list].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0];
-  assert.match(top.text, /射門得分$/);
+  assert.match(top.text, /射門得分 · 超前$/);
   assert.equal(top.side, 'home');
   assert.ok(list.filter(m => /判罰/.test(m.text)).every(m => m.text === '關鍵判罰'));
 });
@@ -149,4 +149,17 @@ test('basketball: the stretch it drifted over and the possessions that decided i
   const last = list.at(-1);
   assert.equal(lateClock('basketball', s.winProb[last.i]), '2.0');
   assert.equal(lateClock('basketball', s.winProb[10]), '');
+});
+
+test("the game's end, whole: every play there that moved it, tied it or put a side ahead (Finals game 2)", () => {
+  const s = parseSummary(fixture('nba-finals-g2.json'), 'nba');
+  const list = playMoments(s.winProb, 'basketball', { home: { id: s.home.id, name: '馬刺' }, away: { id: s.away.id, name: '尼克' }, en: false });
+  const texts = list.map(m => m.text);
+  // Brunson's fadeaway tying it at 104 with 39 seconds left: never left out.
+  assert.ok(texts.includes('J. Brunson 跳投命中 · 追平'));
+  assert.ok(texts.includes('J. Brunson 罰球命中 · 超前'));
+  assert.ok(texts.some(t => /^V\\. Wembanyama 失誤（Jalen Brunson 抄截）$/.test(t)));
+  // A team's own play by the side's name, one play once.
+  assert.ok(!texts.some(t => /Knicks|Spurs/.test(t)));
+  assert.equal(new Set(list.map(m => m.i)).size, list.length);
 });
