@@ -77,8 +77,9 @@ test("F1: the safety car told with who stopped under it and who gained; a lead t
   // Verstappen 34% before the safety car, 65% after it; Antonelli the other way.
   const points = Array.from({ length: 21 }, (_, lap) => ({ lap, c: lap < 9 ? [0.34, 0.57] : lap < 14 ? [0.65, 0.31] : [0.8, 0.15] }));
   const list = raceMoments(points, ['維斯塔潘', '安東內利'], [{ i0: 8, i1: 12, kind: 'sc', from: 9, to: 12, why: 'out', who: ['Bottas'] }], [{ i: 3, kind: 'lead', k: 1 }, { i: 9, kind: 'pit', k: 0 }, { i: 13, kind: 'lead', k: 0 }], false);
-  assert.deepEqual(list.map(m => m.text), ['安東內利 取得領先', '安全車 第 9–12 圈 · 起因：Bottas 退賽 · 維斯塔潘 進站', '維斯塔潘 取得領先']);
+  assert.deepEqual(list.map(m => m.text), ['安東內利 取得領先', '安全車 · 起因：Bottas 退賽 · 維斯塔潘 進站', '維斯塔潘 取得領先']);
   assert.equal(list[1].k, 0);
+  assert.deepEqual(list[1].laps, [9, 12]);
   assert.ok(list[1].delta > 0.3);
 });
 

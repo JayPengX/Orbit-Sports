@@ -198,14 +198,13 @@ function biggest(list) {
 // and laps); events: [{ i, kind: 'pit' | 'lead' | 'out', k }] (k: the
 // driver's place in names, each its short name). Each band told with its
 // cause (b.why, b.who: family names, nameOf turns into the shown name), the
-// drawn drivers who stopped under it and who gained most; a lead taken, a
+// drawn drivers who stopped under it and who gained most (its laps, `laps`); a lead taken, a
 // retirement, a stop that moved a chance 8 points: the five biggest, by lap.
 const BAND = { sc: ['安全車', 'Safety car'], vsc: ['虛擬安全車', 'Virtual safety car'], red: ['紅旗', 'Red flag'] };
 export const bandName = (kind, en) => BAND[kind]?.[en ? 1 : 0] || kind;
 export function raceMoments(points, names, bands, events, en, nameOf = null) {
   const last = points.length - 1;
   const c = (i, k) => points[Math.max(0, Math.min(last, i))].c[k];
-  const lapsText = (a, b) => (a == null ? '' : en ? ` (lap${b > a ? 's' : ''} ${a}${b > a ? `–${b}` : ''})` : ` 第 ${a}${b > a ? `–${b}` : ''} 圈`);
   const found = [];
   for (const b of bands) {
     const gains = names.map((_, k) => c(b.i1 + 2, k) - c(b.i0 - 1, k));
@@ -213,8 +212,9 @@ export function raceMoments(points, names, bands, events, en, nameOf = null) {
     const stopped = [...new Set(events.filter(ev => ev.kind === 'pit' && ev.i >= b.i0 && ev.i <= b.i1).map(ev => names[ev.k]))];
     const who = (b.who || []).map(n => (nameOf ? nameOf(n) : n)).join(en ? ' and ' : '、');
     const cause = !who ? '' : en ? ` · ${b.why === 'crash' ? `${who} collided` : b.why === 'stopped' ? `${who} stopped` : `${who} out`}` : ` · 起因：${who} ${b.why === 'crash' ? '碰撞' : b.why === 'stopped' ? '停車' : '退賽'}`;
-    const text = `${bandName(b.kind, en)}${lapsText(b.from, b.to)}${cause}${stopped.length ? (en ? ` · ${stopped.join(', ')} pitted` : ` · ${stopped.join('、')} 進站`) : ''}`;
-    found.push({ i: b.i0, k, delta: gains[k], icon: b.kind === 'red' ? '🟥' : '🚨', text, band: true, driver: b.who?.[0] || null });
+    const text = `${bandName(b.kind, en)}${cause}${stopped.length ? (en ? ` · ${stopped.join(', ')} pitted` : ` · ${stopped.join('、')} 進站`) : ''}`;
+    // At its first lap (the shading starts at the lap before's end).
+    found.push({ i: Math.min(b.i1, b.i0 + 1), k, delta: gains[k], icon: b.kind === 'red' ? '🟥' : '🚨', text, band: true, driver: b.who?.[0] || null, laps: b.from != null ? [b.from, b.to] : null });
   }
   for (const ev of events) {
     if (ev.kind === 'pit' && bands.some(b => ev.i >= b.i0 && ev.i <= b.i1)) continue;

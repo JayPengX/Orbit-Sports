@@ -650,9 +650,8 @@ function winProbCard(line, e, timeline, events = []) {
         el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
         ...moments.map(m =>
           el('button', { type: 'button', class: 'wp-mo', onclick: () => show(m.i) }, [
-            el('small', { class: 'wp-mo-at', text: pointStamp(timeline, sport, pts[m.i], en) }),
             el('span', { class: 'wp-mo-face' }, [face(m)]),
-            el('span', { class: 'wp-mo-text', text: m.text }),
+            el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: pointStamp(timeline, sport, pts[m.i], en) }), el('span', { class: 'wp-mo-text', text: m.text })]),
             el('span', { class: `wp-gain ${m.side}`, text: gain(m) })
           ])
         )
@@ -789,7 +788,8 @@ function raceChanceCard(line, ss, feed = null) {
   const colorOf = k => f1Driver(line.drivers[k]).color;
   const gainChip = m => el('span', { class: 'wp-gain', style: `color:${colorOf(m.k)};background:color-mix(in srgb, ${colorOf(m.k)} 16%, transparent)`, text: `${names[m.k]} ${m.delta >= 0 ? '+' : '−'}${Math.round(Math.abs(m.delta) * 100)}%` });
   const shade = bands.map(b => `<rect x="${(xs[b.i0] * w).toFixed(1)}" y="0" width="${Math.max(2, (xs[b.i1] - xs[b.i0]) * w).toFixed(1)}" height="${h}" class="rc-band ${b.kind}"/>`).join('');
-  const tags = bands.map(b => el('span', { class: `rc-band-tag ${b.kind}`, style: `left:${xs[b.i0] * 100}%`, text: b.kind === 'red' ? (en ? 'RED' : '紅旗') : b.kind.toUpperCase() }));
+  // A tag close after another (a virtual safety car turned real) goes below it.
+  const tags = bands.map((b, j) => el('span', { class: `rc-band-tag ${b.kind}`, style: `left:${xs[b.i0] * 100}%;top:${j && xs[b.i0] - xs[bands[j - 1].i0] < 0.1 ? 20 : 2}px`, text: b.kind === 'red' ? (en ? 'RED' : '紅旗') : b.kind.toUpperCase() }));
   const pins = moments.filter(m => !m.band).map(m => el('span', { class: 'wp-moment', style: `left:${xs[m.i] * 100}%;top:${(1 - pts[m.i].c[m.k]) * 100}%;background:${colorOf(m.k)}` }));
   const at = el('small', { class: 'wp-at' });
   const why = el('div', { class: 'wp-why', hidden: true });
@@ -808,8 +808,9 @@ function raceChanceCard(line, ss, feed = null) {
     at.textContent = i == null ? `${ss.status.state === 'post' ? (en ? 'Final' : '終場') : lapText(p)} · ${en ? 'Hold and slide on the chart to look back' : '按住圖表左右滑動查看'}` : lapText(p);
     at.classList.toggle('on', i != null);
     // On a moment, or under the safety car: what it was.
-    const inBand = i != null && !near ? moments.find(m => m.band && bands.some(b => b.i0 === m.i && i >= b.i0 && i <= b.i1)) : null;
-    if (i == null) tell(open ? moments.find(m => m.band && m.i === open.i0) : null, open ? (en ? 'Now' : '出動中') : '');
+    const bandOf = m => bands.find(b => m.i === Math.min(b.i1, b.i0 + 1));
+    const inBand = i != null && !near ? moments.find(m => m.band && bands.some(b => b === bandOf(m) && i >= b.i0 && i <= b.i1)) : null;
+    if (i == null) tell(open ? moments.find(m => m.band && bandOf(m) === open) : null, open ? (en ? 'Now' : '出動中') : '');
     else tell(near || inBand, '');
     rule.hidden = i == null;
     if (i != null) rule.style.left = `${xs[i] * 100}%`;
@@ -819,7 +820,7 @@ function raceChanceCard(line, ss, feed = null) {
   const list = moments.length
     ? el('div', { class: 'wp-moments' }, [
         el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
-        ...moments.map(m => el('button', { type: 'button', class: 'wp-mo', onclick: () => show(m.i) }, [el('small', { class: 'wp-mo-at', text: lapText(pts[m.i]) }), el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-mo-text', text: m.band && m.driver ? `${m.icon} ${m.text}` : m.text }), gainChip(m)]))
+        ...moments.map(m => el('button', { type: 'button', class: 'wp-mo', onclick: () => show(m.i) }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text', text: m.band && m.driver ? `${m.icon} ${m.text}` : m.text })]), gainChip(m)]))
       ])
     : null;
   return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, plot, axisRow(marks), why, list, note]));
