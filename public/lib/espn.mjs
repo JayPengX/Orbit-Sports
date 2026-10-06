@@ -582,12 +582,27 @@ export function parseSummary(data, league) {
     }))
   }));
   // Scoring and key moments.
+  // What each play was, for the chart's key moments (lib/moments.mjs): who (the batter, the shooter, the scorer), what, the score after it.
+  // Each player by id: { short, name, headshot } (the box score's, the soccer rosters').
+  const people = new Map();
+  const know = a => a?.id && people.set(String(a.id), { short: a.shortName || a.displayName, name: a.displayName || a.shortName, headshot: freshHeadshot(a.headshot?.href) || null });
+  for (const t of data?.boxscore?.players || []) for (const st of t.statistics || []) for (const a of st.athletes || []) know(a.athlete);
+  for (const r of data?.rosters || []) for (const x of r.roster || []) know(x.athlete);
+  const whoOf = p => {
+    const a = ((p.participants || []).find(q => q.type === 'batter') || p.participants?.[0])?.athlete;
+    const known = people.get(String(a?.id ?? ''));
+    const b = p.participants?.[1]?.athlete;
+    const other = b ? people.get(String(b.id ?? ''))?.short || b.shortName || b.displayName || '' : '';
+    return { who: known?.short || a?.shortName || a?.displayName || '', pic: a?.id ? { id: String(a.id), name: known?.name || a.displayName || '', headshot: known?.headshot || null } : null, ...(other ? { other } : {}) };
+  };
+  // A play's what and who, for 過程 (lib/moments.mjs's feedText says it in Chinese; the player's face beside it).
+  const detailOf = p => ({ kind: p.type?.type || '', type: p.type?.text || '', alt: p.alternativeType?.text || '', value: Number(p.scoreValue) || 0, ...whoOf(p) });
   const plays = (data?.scoringPlays || data?.plays?.filter(p => p.scoringPlay) || [])
     .slice(-60)
-    .map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), periodNum: p.period?.number || 0, periodType: p.period?.type || '', clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore }));
+    .map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), periodNum: p.period?.number || 0, periodType: p.period?.type || '', clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore, ...detailOf(p) }));
   const keyEvents = (data?.keyEvents || [])
     .filter(k => k.type?.type !== 'kickoff' && k.type?.type !== 'halftime' && k.type?.type !== 'end-regular-time')
-    .map(k => ({ text: k.text || k.type?.text || '', type: k.type?.type || '', clock: k.clock?.displayValue || '', team: String(k.team?.id ?? ''), scoring: Boolean(k.scoringPlay) }));
+    .map(k => ({ text: k.text || k.type?.text || '', type: k.type?.type || '', clock: k.clock?.displayValue || '', team: String(k.team?.id ?? ''), scoring: Boolean(k.scoringPlay), ...detailOf(k), type: k.type?.type || '' }));
   const rosters = (data?.rosters || []).map(r => ({
     team: String(r.team?.id ?? ''),
     formation: r.formation || '',
@@ -603,17 +618,6 @@ export function parseSummary(data, league) {
   // A drive's plays (football) carry its team.
   const drivePlays = d => (d?.plays || []).map(p => (p.team ? p : { ...p, team: d.team }));
   const timed = [...(data?.plays || []), ...(data?.drives?.previous || []).flatMap(drivePlays), ...drivePlays(data?.drives?.current), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
-  // What each play was, for the chart's key moments (lib/moments.mjs): who (the batter, the shooter, the scorer), what, the score after it.
-  // Each player by id: { short, name, headshot } (the box score's, the soccer rosters').
-  const people = new Map();
-  const know = a => a?.id && people.set(String(a.id), { short: a.shortName || a.displayName, name: a.displayName || a.shortName, headshot: freshHeadshot(a.headshot?.href) || null });
-  for (const t of data?.boxscore?.players || []) for (const st of t.statistics || []) for (const a of st.athletes || []) know(a.athlete);
-  for (const r of data?.rosters || []) for (const x of r.roster || []) know(x.athlete);
-  const whoOf = p => {
-    const a = ((p.participants || []).find(q => q.type === 'batter') || p.participants?.[0])?.athlete;
-    const known = people.get(String(a?.id ?? ''));
-    return { who: known?.short || a?.shortName || a?.displayName || '', pic: a?.id ? { id: String(a.id), name: known?.name || a.displayName || '', headshot: known?.headshot || null } : null };
-  };
   const playOf = p => ({ text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), ...whoOf(p), home: p.homeScore, away: p.awayScore, clock: p.clock?.displayValue || '' });
   // The plays that move a market (a game drawn from Polymarket's): the scores, a red card, a penalty missed.
   const events = timed
@@ -681,7 +685,7 @@ export function parseSummary(data, league) {
     }
   }
   // Every play, the latest 80 (basketball's live feed and play-by-play).
-  const feed = (data?.plays || []).slice(-80).map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), periodNum: p.period?.number || 0, periodType: p.period?.type || '', clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore, scoring: Boolean(p.scoringPlay) }));
+  const feed = (data?.plays || []).slice(-80).map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), periodNum: p.period?.number || 0, periodType: p.period?.type || '', clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore, scoring: Boolean(p.scoringPlay), ...detailOf(p) }));
   const info = data?.gameInfo || {};
   return {
     league,

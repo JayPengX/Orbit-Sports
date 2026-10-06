@@ -379,3 +379,81 @@ export function lateClock(sport, point) {
   const [m, sec] = clock.includes(':') ? clock.split(':').map(Number) : [0, Number(clock)];
   return m * 60 + sec <= 120 ? clock : '';
 }
+
+// ---- 過程: every play, said in Chinese (English: ESPN's own words) ----
+// The key moments' words where they fit (a shot made or missed, a hit, a
+// touchdown), and what a whole game's list holds beyond them: a timeout, a
+// period's end, a substitution, a card. Never ESPN's English in Chinese:
+// a play with nothing known said by its team's name and the kind of play.
+const SOCCER_KIND = [
+  [/own-goal/, () => '烏龍球'],
+  [/penalty---scored|goal---penalty/, w => `${w} 12 碼進球`],
+  [/penalty---missed/, w => `${w} 12 碼罰球未進`],
+  [/penalty---saved/, w => `${w} 12 碼罰球被撲出`],
+  [/^goal/, w => `${w} 進球`],
+  [/yellow-red|second-yellow/, w => `${w} 兩黃變一紅`],
+  [/yellow-card/, w => `${w} 黃牌`],
+  [/red-card/, w => `${w} 紅牌`],
+  [/^kickoff$/, () => '開賽'],
+  [/^halftime$/, () => '上半場結束'],
+  [/start-2nd-half/, () => '下半場開始'],
+  [/start-extra-time|start-overtime/, () => '延長賽開始'],
+  [/end-regular-time/, () => '常規時間結束'],
+  [/start-delay/, () => '比賽暫停'],
+  [/end-delay/, () => '比賽繼續'],
+  [/var|video/, () => 'VAR 檢視'],
+  [/offside/, w => `${w} 越位`],
+  [/foul/, w => `${w} 犯規`],
+  [/corner/, () => '角球'],
+  [/shot|attempt/, w => `${w} 射門`]
+];
+const HOCKEY_ZH = [
+  [/^goal/i, '進球'],
+  [/penalty/i, '判罰'],
+  [/blocked/i, '封阻'],
+  [/missed/i, '射偏'],
+  [/shot/i, '射門'],
+  [/faceoff/i, '爭球'],
+  [/hit/i, '衝撞'],
+  [/giveaway/i, '失誤'],
+  [/takeaway/i, '抄截'],
+  [/period start/i, '本節開始'],
+  [/period end|end of period/i, '本節結束'],
+  [/stoppage/i, '比賽中斷']
+];
+function basketballFeed(play, team) {
+  const t = `${play.type} ${play.text}`;
+  if (/end (of )?game/i.test(t)) return '比賽結束';
+  if (/end (of )?(period|quarter|\d)/i.test(t)) return '本節結束';
+  if (/timeout/i.test(t)) return `${team ? `${team} ` : ''}暫停`;
+  if (/jump ?ball/i.test(t)) return '跳球';
+  if (/enters the game|substitution/i.test(t)) return play.other ? `${play.who} 替換 ${play.other}` : `${play.who} 上場`;
+  if (/ejected|ejection/i.test(t)) return `${play.who} 被驅逐出場`;
+  if (/technical/i.test(t)) return `${play.who || team} 技術犯規`;
+  if (/violation|delay|kicked ball|lane|goaltending/i.test(t)) return `${play.who || team} 違例`;
+  if (/review|replay|challenge/i.test(t)) return `${team ? `${team} ` : ''}重播檢視`;
+  if (/charge/i.test(t) && !/turnover/i.test(t)) return `${play.who || team} 進攻犯規`;
+  // Anything else that isn't a shot, a free throw, a foul, a rebound, a block or a turnover: said as a play, never as a missed jumper.
+  if (!/shot|jumper|layup|dunk|hook|tip|three|free throw|foul|rebound|block|turnover|bad pass|traveling|lost ball|steal|\bmakes\b|\bmisses\b/i.test(t)) return [play.who || team, '比賽事件'].filter(Boolean).join(' ');
+  const said = basketballZh(play);
+  const free = /free throw/i.test(t) && /(\d) of (\d)/i.exec(play.text);
+  // A free throw, short (the row stays one line): 罰進 2/2, 沒罰進 1/2.
+  const what = free ? `${play.scoring || /\bmakes\b/i.test(play.text) ? '罰進' : '沒罰進'} ${free[1]}/${free[2]}` : said;
+  // A made shot's assist: "(LeBron James assists)".
+  const helper = /\(([^)]+?) assists?\)/i.exec(play.text)?.[1];
+  return [play.who || team, what].filter(Boolean).join(' ') + (helper && !free ? `（${initial(helper)} 助攻）` : '');
+}
+export function feedText(sport, play, en, team = '') {
+  if (en) return play.text || play.type || '';
+  const who = play.who || named(play.text) || team;
+  if (sport === 'soccer') {
+    const kind = String(play.kind || play.type || '').toLowerCase();
+    if (/substitution/.test(kind)) return play.who ? (play.other ? `${play.who} 替換 ${play.other}` : `${play.who} 上場`) : `${team} 換人`;
+    const hit = SOCCER_KIND.find(([re]) => re.test(kind));
+    return hit ? hit[1](who).trim() : [team, '比賽事件'].filter(Boolean).join(' ');
+  }
+  if (sport === 'basketball') return basketballFeed(play, team);
+  if (sport === 'hockey') return [who, firstOf(HOCKEY_ZH, play.type, play.text) || '比賽事件'].filter(Boolean).join(' ');
+  // A scoring play's runs (a list of the scoring plays doesn't mark them scoring).
+  return playText(sport, { ...play, scoring: play.scoring || play.value > 0 }, false, team);
+}

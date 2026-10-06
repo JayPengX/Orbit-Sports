@@ -203,3 +203,30 @@ test('basketball: a stretch ends where it got there, not where its last drift en
   assert.ok(run.i <= 30, `the run ends in the 2nd period, not at ${run.i}`);
   assert.equal(run.periods[1], 2);
 });
+
+// 過程 showed ESPN's English for every play, and no one's face: each play now
+// said in Chinese with its player (a substitution's both), the words checked
+// on real games: an NBA game's every play (Lakers at Kings, 2026-10-05, its last 80), a Premier League game's events, MLB's runs.
+test('過程: every play in Chinese, with its player', async () => {
+  const { feedText } = await import('../public/lib/moments.mjs');
+  const said = (file, league, sport) => {
+    const s = parseSummary(fixture(file), league);
+    const list = sport === 'basketball' ? s.feed : s.keyEvents.length ? s.keyEvents : s.plays;
+    return list.map(p => ({ p, zh: feedText(sport, p, false, String(p.team) === String(s.home?.id) ? 'H' : 'A'), en: feedText(sport, p, true) }));
+  };
+  for (const [file, league, sport] of [['nba-summary-feed.json', 'nba', 'basketball'], ['epl-summary.json', 'epl', 'soccer'], ['mlb-summary.json', 'mlb', 'baseball']]) {
+    const rows = said(file, league, sport);
+    assert.ok(rows.length > 5, file);
+    // No English words left in Chinese but players' names (a capital and a full stop, "J. Hardy").
+    for (const { p, zh } of rows) assert.doesNotMatch(zh.replace(p.who || '', '').replace(p.other || '', '').replace(/（[^）]*）/, ''), /[a-z]{3,}/, `${file}: ${zh} (${p.text})`);
+    assert.ok(rows.filter(r => r.p.pic).length > rows.length / 2, `${file}: most plays have their player`);
+    assert.ok(rows.every(r => r.en === (r.p.text || r.p.type)), `${file}: English is ESPN's own`);
+  }
+  const epl = said('epl-summary.json', 'epl', 'soccer').map(r => r.zh);
+  assert.ok(epl.includes('A. Isak 進球') && epl.includes('D. Szoboszlai 黃牌') && epl.includes('T. Nyoni 替換 F. Wirtz'));
+  const mlb = said('mlb-summary.json', 'mlb', 'baseball').map(r => r.zh);
+  assert.ok(mlb.some(t => /^F\. Lindor 全壘打 · \d 分打點$/.test(t)), mlb.join(' / '));
+  const nba = said('nba-summary-feed.json', 'nba', 'basketball').map(r => r.zh);
+  assert.ok(nba.some(t => /三分命中/.test(t)) && nba.some(t => /罰進 \d\/\d/.test(t)));
+  assert.ok(!nba.some(t => /跳投/.test(t) && /(charge|review)/i.test(t)));
+});

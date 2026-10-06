@@ -7,7 +7,7 @@ import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleF
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment } from './lib/wpline.mjs';
-import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock } from './lib/moments.mjs';
+import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
@@ -225,7 +225,7 @@ function livePanel(e, sm = null) {
         el(
           'ol',
           { class: 'lp-feed' },
-          last.map(p => el('li', { class: p.scoring ? 'scoring' : '' }, [el('span', { class: 'num play-when', text: p.clock }), el('span', {}, [p.team && nameOf(p.team) ? el('b', { text: `${nameOf(p.team)} ` }) : null, document.createTextNode(p.text)]), p.scoring ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null]))
+          last.map(p => el('li', { class: p.scoring ? 'scoring' : '' }, [el('span', { class: 'num play-when', text: p.clock }), playLine(e.league, p, nameOf(p.team)), p.scoring ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null]))
         )
       );
     }
@@ -388,13 +388,14 @@ function matchSection(view, d, e, table, lw = {}) {
       'ol',
       { class: 'plays' },
       list
-        .slice()
+        // ESPN logs some twice in a row (a delay with its words and without): said once.
+        .filter((p, i) => !i || feedText(LEAGUES[e.league]?.sport, p, L() === 'en', '') !== feedText(LEAGUES[e.league]?.sport, list[i - 1], L() === 'en', '') || p.clock !== list[i - 1].clock || (p.team !== list[i - 1].team && Boolean(p.who || list[i - 1].who)))
         .reverse()
         .map(p =>
           el('li', { class: p.scoring ? 'scoring' : '' }, [
             // The period over the clock, a designed two lines in a narrow column.
             el('span', { class: 'play-when' }, [playPeriod(p, LEAGUES[e.league]?.sport, L()) ? el('small', { text: playPeriod(p, LEAGUES[e.league]?.sport, L()) }) : null, el('span', { class: 'num', text: p.clock })]),
-            el('span', { class: 'play-text' }, [p.team && nameOf(p.team) ? el('b', { text: `${nameOf(p.team)} ` }) : null, document.createTextNode(p.text)]),
+            playLine(e.league, p, nameOf(p.team)),
             p.home != null && p.away != null ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null
           ])
         )
@@ -911,6 +912,16 @@ function personName(league, p, cls = 'field-name') {
   const can = p.id && LEAGUES[league]?.espn && /^\d+$/.test(String(p.id));
   return can ? el('button', { class: `link ${cls}`, type: 'button', text: p.name, onclick: () => ctx.openPlayer(league, p.id, p) }) : el('span', { class: cls, text: p.name });
 }
+// A play in 過程 (and the live panel's latest): the player's face (a tap
+// opens them), the team, then what happened in Chinese (lib/moments.mjs's
+// feedText; English: ESPN's words).
+function playLine(league, p, team) {
+  const text = feedText(LEAGUES[league]?.sport, p, L() === 'en', team);
+  const lead = team && !text.startsWith(team) ? el('b', { text: `${team} ` }) : null;
+  const face = p.pic ? personTap(league, p.pic, personPic(p.pic, league, 'xs round')) : null;
+  return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face, el('span', {}, [lead, document.createTextNode(text)])]);
+}
+
 // Where to watch in Taiwan: a game's own channels (a schedule's: the
 // channel, its commentary, when it starts, a tap to watch it in the app),
 // else the league's service.

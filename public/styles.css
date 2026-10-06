@@ -515,6 +515,10 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .standings tr.marked > * { background: var(--q-sunken); }
 .field-title { font-size: 17px; margin-bottom: 4px; }
 .play-text b { font-weight: 750; }
+/* A line that wraps breaks between words, never inside one (命|中). */
+.plays .play-text, .lp-feed .play-text { word-break: keep-all; overflow-wrap: anywhere; }
+.play-text.has-face { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.play-text.has-face > :last-child { min-width: 0; }
 .event-status.two { display: grid; gap: 1px; line-height: 1.25; }
 .event-status.two span { font-size: 11.5px; color: var(--q-muted); font-weight: 650; }
 .event-status.two b { font-size: 13.5px; }
