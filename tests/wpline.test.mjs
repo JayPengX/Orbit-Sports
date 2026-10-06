@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseSummary } from '../public/lib/espn.mjs';
-import { lineXs, periodMarks, stampAt, periodName } from '../public/lib/wpline.mjs';
+import { lineXs, periodMarks, stampAt, pointStamp, periodName } from '../public/lib/wpline.mjs';
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 
@@ -60,4 +60,17 @@ test('no plays (CPBL): the clock, marked by the hour', () => {
 test('points across: by time when all have one, else evenly', () => {
   assert.deepEqual(lineXs([{ t: 0 }, { t: 10 }, { t: 40 }]), [0, 0.25, 1]);
   assert.deepEqual(lineXs([{}, { t: 10 }, {}]), [0, 0.5, 1]);
+});
+
+test("ESPN's line in play order, never by its wall clocks (a play logged late)", () => {
+  // Knicks at 76ers, 2026-10-05: 98 of 538 points' plays logged out of time order.
+  const s = parseSummary(fixture('nba-summary-winprob.json'), 'nba');
+  const xs = lineXs(s.winProb);
+  assert.ok(xs.every((x, i) => !i || x > xs[i - 1]));
+  assert.deepEqual(periodMarks(s.timeline, 'basketball', s.winProb, false).map(m => m.label), ['第1節', '第2節', '第3節', '第4節']);
+  assert.equal(pointStamp(s.timeline, 'basketball', s.winProb[10], false), '第1節');
+  assert.equal(pointStamp(s.timeline, 'basketball', s.winProb.at(-1), true), 'Q4');
+  // By the clock, a late-logged first quarter play never takes the game back to it.
+  const q2 = s.timeline.find(e => e.n === 2).t;
+  assert.equal(stampAt(s.timeline, 'basketball', q2 + 600, false), '第2節');
 });

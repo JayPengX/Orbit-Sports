@@ -602,10 +602,11 @@ export function parseSummary(data, league) {
   const wall = p => Date.parse(p?.wallclock || '') / 1000;
   const timed = [...(data?.plays || []), ...(data?.drives?.previous || []).flatMap(d => d.plays || []), ...(data?.drives?.current?.plays || []), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
   const timeline = timed.map(p => ({ t: wall(p), n: p.period.number, half: /^(top|bottom)$/i.test(p.period.type || '') ? p.period.type.toLowerCase() : '', type: p.type?.type || '' })).sort((a, b) => a.t - b.t);
-  const playAt = new Map(timed.map(p => [String(p.id), wall(p)]));
+  // Each of ESPN's points takes its play's period (its wall clock can be off: a play logged late).
+  const playAt = new Map(timed.map(p => [String(p.id), { n: p.period.number, ...(/^(top|bottom)$/i.test(p.period.type || '') ? { half: p.period.type.toLowerCase() } : {}) }]));
   const winProb = (data?.winprobability || [])
     .filter(w => Number.isFinite(w.homeWinPercentage))
-    .map(w => ({ home: w.homeWinPercentage, ...(w.tiePercentage > 0 ? { draw: w.tiePercentage } : {}), ...(playAt.has(String(w.playId)) ? { t: playAt.get(String(w.playId)) } : {}) }));
+    .map(w => ({ home: w.homeWinPercentage, ...(w.tiePercentage > 0 ? { draw: w.tiePercentage } : {}), ...playAt.get(String(w.playId)) }));
   // The season series (a playoff or a season's meetings), or soccer's
   // head-to-head (the last meetings, any competition): `h2h` with each
   // side's wins and the draws, by team id.

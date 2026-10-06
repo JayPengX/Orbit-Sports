@@ -1,20 +1,28 @@
 // Where a win probability line's points fall in the game: the period marks
 // under the chart (Q1 Q2…, innings, halves; a clock's hours where the game
 // has no plays to go by, as CPBL's) and the period a finger on it is at
-// (第3節, 5局下, 上半場; never the game clock), from the plays' wall clocks
-// (parseSummary's timeline: [{ t, n, half, type }], t in seconds).
+// (第3節, 5局下, 上半場; never the game clock).
+//
+// ESPN's line is its plays in order, each point with its play's period
+// ({ n, half }): spaced evenly, never by the plays' wall clocks, which ESPN
+// sometimes logs late (a first quarter play stamped twenty minutes on).
+// Polymarket's is by its prices' times (t, in seconds), read against the
+// plays' (parseSummary's timeline: [{ t, n, half, type }]).
 //
 //   lineXs(points)                           → each point's place across, 0…1
 //   periodMarks(timeline, sport, points, en)  → [{ x, label }]
-//   stampAt(timeline, sport, t, en)           → what the game was at then
+//   pointStamp(timeline, sport, point, en)    → the period the point is in
 
 const REGULAR = { basketball: 4, football: 4, hockey: 3, soccer: 2, baseball: 9 };
 
-// By time where every point has one (a stretch with no plays, as a break, takes its time), else evenly.
+const byPlay = points => points.length > 0 && points.every(p => p.n);
+const byTime = points => points.length > 1 && points.every((p, i) => Number.isFinite(p.t) && (!i || p.t >= points[i - 1].t)) && points.at(-1).t > points[0].t;
+
 export function lineXs(points) {
-  const t0 = points[0]?.t;
-  const span = points.at(-1)?.t - t0;
-  if (points.every(p => Number.isFinite(p.t)) && span > 0) return points.map(p => (p.t - t0) / span);
+  if (!byPlay(points) && byTime(points)) {
+    const [t0, span] = [points[0].t, points.at(-1).t - points[0].t];
+    return points.map(p => (p.t - t0) / span);
+  }
   return points.map((_, i) => i / Math.max(1, points.length - 1));
 }
 
@@ -26,57 +34,72 @@ export function periodName(sport, n, en) {
   return en ? `${sport === 'hockey' ? 'P' : 'Q'}${n}` : `第${n}節`;
 }
 
-// Each period's first moment.
-function starts(timeline) {
-  const at = new Map();
-  for (const e of timeline) if (!at.has(e.n)) at.set(e.n, e.t);
-  return at;
-}
-
 const pad = n => String(n).padStart(2, '0');
 const hhmm = t => {
   const d = new Date(t * 1000);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-export function periodMarks(timeline, sport, points, en) {
-  if (!points.every(p => Number.isFinite(p.t))) return [];
-  const [t0, t1] = [points[0].t, points.at(-1).t];
-  if (!(t1 > t0)) return [];
-  const x = t => (t - t0) / (t1 - t0);
-  let marks;
-  if (timeline?.length)
-    marks = [...starts(timeline)].map(([n, t]) => ({
-      x: Math.max(0, x(t)),
-      label: periodName(sport, n, en)
-    }));
-  else {
-    // No plays: the clock's hours.
-    marks = [];
-    for (let h = Math.ceil(t0 / 3600) * 3600; h <= t1; h += 3600) marks.push({ x: x(h), label: hhmm(h) });
-  }
-  // Inside the line, never two on top of each other.
+// Never two marks on top of each other.
+function spaced(marks) {
   const kept = [];
-  for (const m of marks.filter(m => m.x <= 1)) if (!kept.length || m.x - kept.at(-1).x >= 0.08) kept.push(m);
+  for (const m of marks.filter(m => m.x >= 0 && m.x <= 1)) if (!kept.length || m.x - kept.at(-1).x >= 0.08) kept.push(m);
   return kept;
 }
 
+// A period's first moment: its first play once no play is from a later one (one logged late doesn't count).
+function starts(timeline) {
+  const at = new Map();
+  let top = 0;
+  for (const e of timeline)
+    if (e.n > top) {
+      top = e.n;
+      at.set(e.n, e.t);
+    }
+  return at;
+}
+
+export function periodMarks(timeline, sport, points, en) {
+  const xs = lineXs(points);
+  if (byPlay(points)) {
+    const marks = [];
+    let top = 0;
+    points.forEach((p, i) => {
+      if (p.n > top) marks.push({ x: xs[i], label: periodName(sport, (top = p.n), en) });
+    });
+    return spaced(marks);
+  }
+  if (!byTime(points)) return [];
+  const [t0, t1] = [points[0].t, points.at(-1).t];
+  const x = t => (t - t0) / (t1 - t0);
+  if (timeline?.length) return spaced([...starts(timeline)].map(([n, t]) => ({ x: Math.max(0, x(t)), label: periodName(sport, n, en) })));
+  // No plays: the clock's hours.
+  const marks = [];
+  for (let h = Math.ceil(t0 / 3600) * 3600; h <= t1; h += 3600) marks.push({ x: x(h), label: hhmm(h) });
+  return spaced(marks);
+}
+
+function label(sport, { n, half, type }, en) {
+  if (sport === 'soccer') {
+    if (type === 'halftime') return en ? 'Half time' : '中場休息';
+    if (type === 'end-regular-time' || type === 'end-extra-time') return en ? 'Full time' : '全場結束';
+    return en ? ['', '1st half', '2nd half', 'Extra time', 'Extra time', 'Penalties'][n] || 'Extra time' : ['', '上半場', '下半場', '延長賽', '延長賽', 'PK 大戰'][n] || '延長賽';
+  }
+  if (sport === 'baseball' && half) return en ? `${half === 'top' ? 'Top' : 'Bot'} ${n}` : `${n}局${half === 'top' ? '上' : '下'}`;
+  return periodName(sport, n, en);
+}
+
+// Where the game had got to at t: the furthest period (half inning) of any play by then.
+const rank = e => e.n * 2 + (e.half === 'bottom' ? 1 : 0);
 export function stampAt(timeline, sport, t, en) {
   if (!Number.isFinite(t)) return '';
   if (!timeline?.length) return hhmm(t);
-  let i = -1;
-  while (i + 1 < timeline.length && timeline[i + 1].t <= t) i++;
-  if (i < 0) return en ? 'Before the start' : '開賽前';
-  const e = timeline[i];
-  if (sport === 'soccer') {
-    if (e.type === 'halftime') return en ? 'Half time' : '中場休息';
-    if (e.type === 'end-regular-time' || e.type === 'end-extra-time') return en ? 'Full time' : '全場結束';
-    return en ? ['', '1st half', '2nd half', 'Extra time', 'Extra time', 'Penalties'][e.n] || 'Extra time' : ['', '上半場', '下半場', '延長賽', '延長賽', 'PK 大戰'][e.n] || '延長賽';
+  let at = null;
+  for (const e of timeline) {
+    if (e.t > t) break;
+    if (!at || rank(e) >= rank(at)) at = e;
   }
-  if (sport === 'baseball') {
-    if (!e.half) return periodName(sport, e.n, en);
-    const top = e.half === 'top';
-    return en ? `${top ? 'Top' : 'Bot'} ${e.n}` : `${e.n}局${top ? '上' : '下'}`;
-  }
-  return periodName(sport, e.n, en);
+  return at ? label(sport, at, en) : en ? 'Before the start' : '開賽前';
 }
+
+export const pointStamp = (timeline, sport, p, en) => (p.n ? label(sport, p, en) : stampAt(timeline, sport, p.t, en));

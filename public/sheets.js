@@ -5,7 +5,7 @@ import { translate } from '#kit/quadra.mjs';
 import { weekOf, winLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, titlesAt } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { playPeriod } from './lib/live.mjs';
-import { lineXs, periodMarks, stampAt } from './lib/wpline.mjs';
+import { lineXs, periodMarks, pointStamp } from './lib/wpline.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture } from '#kit/logos.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
@@ -556,14 +556,14 @@ function winProbCard(line, e, timeline) {
   const at = el('small', { class: 'wp-at' });
   const rule = el('span', { class: 'wp-rule', hidden: true });
   const dot = el('span', { class: 'wp-dot', hidden: true });
-  const rest = e.status.state === 'post' ? (en ? 'Final' : '終場') : stampAt(timeline, sport, pts.at(-1).t, en) || (en ? 'Now' : '目前');
+  const rest = e.status.state === 'post' ? (en ? 'Final' : '終場') : pointStamp(timeline, sport, pts.at(-1), en) || (en ? 'Now' : '目前');
   const show = i => {
     const p = pts[i ?? pts.length - 1];
     const [hh, dd] = [Math.round(p.home * 100), p.draw != null ? Math.round(p.draw * 100) : 0];
     away.textContent = `${e.away.short || e.away.name} ${Math.max(0, 100 - hh - dd)}%`;
     if (draw) draw.textContent = `${en ? 'Draw' : '和局'} ${dd}%`;
     home.textContent = `${e.home.short || e.home.name} ${hh}%`;
-    at.textContent = i == null ? `${rest} · ${en ? 'Hold and slide on the chart to look back' : '按住圖表左右滑動查看'}` : stampAt(timeline, sport, p.t, en) || `${i + 1} / ${pts.length}`;
+    at.textContent = i == null ? `${rest} · ${en ? 'Hold and slide on the chart to look back' : '按住圖表左右滑動查看'}` : pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`;
     at.classList.toggle('on', i != null);
     rule.hidden = dot.hidden = i == null;
     if (i == null) return;
