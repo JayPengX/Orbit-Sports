@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaPrograms, zhSame, zhLike, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, inReplay, episodeLabel, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -256,4 +256,50 @@ test("UEFA nights: each program goes to the game whose two sides fit it best, EL
   // Without the other games to weigh against, a shared part alone still isn't enough.
   assert.deepEqual(eltaPrograms(list, games[1], pair(games[1])).map(p => p.ch), [545]);
   assert.ok(zhLike('波圖', '波爾圖') === 1 && zhLike('斯洛維尼亞', '斯洛伐克') === 0.5);
+});
+
+test("a finished game's video on ELTA.tv: its season by league (CPBL's by the home club), its episode by day and both sides", () => {
+  assert.equal(eltaVodOf({ league: 'mlb' }), 2150);
+  assert.equal(eltaVodOf({ league: 'cpbl' }, ['味全龍', '味全']), 2160);
+  assert.equal(eltaVodOf({ league: 'cpbl' }, ['樂天桃猿']), null);
+  assert.equal(eltaVodOf({ league: 'uecl' }), null);
+  assert.equal(eltaVodUrl(2150, '73061'), 'https://eltaott.tv/sports/play/1/2150/73061');
+  assert.equal(eltaVodApp(2150, '73061'), 'eltatv://vod/sports/2150/73061');
+  const episodes = [
+    { id: '5', title: '10/6 美聯分區賽G2 白襪 VS 守護者' },
+    { id: '4', title: '10/6 美聯分區賽G2 洋基 VS 光芒' },
+    { id: '3', title: '10/5 國聯分區G2 教士VS釀酒人' },
+    { id: '2', title: '10/5 美聯分區賽G1 洋基 VS 光芒' },
+    { id: '1', title: '10/5 美聯分區賽G1 洋基 VS 光芒(數據視角)' }
+  ];
+  const game = (start, home, away) => ({ league: 'mlb', start, home: { name: home }, away: { name: away } });
+  const pair = g => [[g.home.name], [g.away.name]];
+  // Game 1 and Game 2 of one series: each its own day's (Taiwan's: 10/5 morning is 10/4 in New York).
+  const g1 = game('2026-10-04T23:08:00Z', '光芒', '洋基');
+  const g2 = game('2026-10-05T23:08:00Z', '光芒', '洋基');
+  assert.equal(eltaEpisode(episodes, g1, pair(g1))?.id, '2');
+  assert.equal(eltaEpisode(episodes, g2, pair(g2))?.id, '4');
+  assert.equal(eltaEpisode(episodes, game('2026-10-05T01:00:00Z', '釀酒人', '教士'), [['密爾瓦基釀酒人', '釀酒人'], ['聖地牙哥教士', '教士']])?.id, '3');
+  // Not up yet: none.
+  assert.equal(eltaEpisode(episodes, game('2026-10-07T23:08:00Z', '光芒', '洋基'), [['光芒'], ['洋基']]), null);
+  // No day in the title: only when one fits.
+  const uel = [{ id: '9', title: 'UEFA歐霸 塞爾特人 VS 佛倫茲瓦羅斯 第1比賽日(原音)' }];
+  assert.equal(eltaEpisode(uel, { league: 'uel', start: '2026-09-24T19:00:00Z' }, [['塞爾提克'], ['費倫茨瓦羅斯']])?.id, '9');
+  assert.equal(inReplay({ start: '2026-10-05T23:08:00Z' }, Date.parse('2026-10-07T20:00:00Z')), true);
+  assert.equal(inReplay({ start: '2026-10-05T23:08:00Z' }, Date.parse('2026-10-08T00:00:00Z')), false);
+});
+
+test("an episode with no day: the one whose two sides fit, not one sharing a side", () => {
+  const list = ['UEFA歐國聯 英格蘭 VS 捷克 第4輪(原音)', 'UEFA歐國聯 克羅埃西亞 VS 西班牙 第4輪', 'UEFA歐國聯 克羅埃西亞 VS 英格蘭 第3輪(原音)', 'UEFA歐國聯 克羅埃西亞 VS 英格蘭 第3輪', 'UEFA歐國聯 捷克 VS 克羅埃西亞 第1輪'].map((title, i) => ({ id: String(i), title }));
+  const e = { league: 'nationsleague', start: '2026-10-03T16:00:00Z' };
+  assert.equal(eltaEpisode(list, e, [['克羅埃西亞'], ['英格蘭']])?.id, '2');
+  // The same two met in two rounds, no day said: not guessed.
+  const twice = [...list, { id: '9', title: 'UEFA歐國聯 英格蘭 VS 克羅埃西亞 第6輪' }];
+  assert.equal(eltaEpisode(twice, e, [['克羅埃西亞'], ['英格蘭']]), null);
+});
+
+test("an episode's row says it from its first side on", () => {
+  assert.equal(episodeLabel('UEFA歐國聯 克羅埃西亞 VS 英格蘭 第3輪(原音)'), '克羅埃西亞 VS 英格蘭 第3輪(原音)');
+  assert.equal(episodeLabel('10/5 國聯分區G2 教士VS釀酒人'), '教士VS釀酒人');
+  assert.equal(episodeLabel('8/28 歐冠抽籤'), '8/28 歐冠抽籤');
 });

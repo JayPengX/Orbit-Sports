@@ -282,3 +282,67 @@ export function broadcastsFor(e, programs, { sides = [], others = [], prefer = '
   // ELTA's list covers the day and hasn't the game: not on ELTA.
   return listed ? [] : base;
 }
+
+// ---- ELTA's replays: a finished game, again -----------------------------------------
+//
+// For 48 hours from its start a program can be watched again on its channel
+// (回看: the channel's page, its program in the guide; ELTA's cl_replay_hr).
+// Then the whole game is a video in its league's season on ELTA.tv
+// (/sports/play/1/<n>, in the app eltatv://vod/sports/<n>/<episode>, ELTA's own
+// appRedirect mapping), when ELTA puts it up: the next day for some leagues
+// (the NBA, 歐國聯), weeks later for others (英超, 歐冠). The seasons' numbers
+// as of October 2026 (2026 and 2026-27): keep them current.
+export const ELTA_REPLAY_HOURS = 48;
+export const ELTA_VOD = { mlb: 2150, nba: 2385, f1: 2079, epl: 2243, seriea: 2305, bundesliga: 2300, ligue1: 2296, scotland: 2299, ucl: 2304, uel: 2303, nationsleague: 2151 };
+// CPBL's by the home club (ELTA has four clubs' home games).
+const ELTA_VOD_CPBL = [['統一', 2159], ['味全', 2160], ['富邦', 2161], ['台鋼', 2162]];
+export const eltaVodUrl = (vod, episode = '') => `https://eltaott.tv/sports/play/1/${vod}${episode ? `/${episode}` : ''}`;
+export const eltaVodApp = (vod, episode = '') => `eltatv://vod/sports/${vod}/${episode}`;
+// The season a game's video goes in, or null. `home`: the home side's names (CPBL's).
+export function eltaVodOf(e, home = []) {
+  if (e?.league === 'cpbl') return ELTA_VOD_CPBL.find(([club]) => home.some(n => String(n).includes(club)))?.[1] ?? null;
+  return ELTA_VOD[e?.league] ?? null;
+}
+// Whether a game's channel can still play it again (回看).
+export const inReplay = (e, now = Date.now()) => now - Date.parse(e.start) < ELTA_REPLAY_HOURS * 3_600_000;
+// An episode's title: its day ('M/D', when it says) and two sides
+// ("10/5 國聯分區G2 教士VS釀酒人", "UEFA歐霸 塞爾特人 VS 佛倫茲瓦羅斯 第1比賽日(原音)").
+function episodeParts(title) {
+  const day = /^\s*(\d{1,2})\/(\d{1,2})(?=\s|$)/.exec(title);
+  const vs = /(?:^|\s)([^\s]+?)\s*VS\s*([^\s(（【]+)/i.exec(title);
+  return { day: day ? [Number(day[1]), Number(day[2])] : null, teams: vs ? [vs[1], vs[2]] : [] };
+}
+// A game's episode in its season's list ({ id, title }, newest first), or
+// null: its two sides fitting best, on its day (Taiwan's, a day either side:
+// ELTA dates the broadcast), not a 數據視角 or 精華 cut. One with no day
+// counts only when it's the only one that fits.
+export function eltaEpisode(episodes, e, sides) {
+  if (!episodes?.length || !e) return null;
+  const tw = new Date(Date.parse(e.start) + 8 * 3_600_000);
+  // Days off the game's (0 its own, 1 either side; else too far).
+  const off = ([m, d]) => [0, -1, 1].map(shift => new Date(tw.getTime() + shift * 86_400_000)).findIndex(x => x.getUTCMonth() + 1 === m && x.getUTCDate() === d);
+  const fits = episodes
+    .filter(x => !/數據視角|精華|集錦|Highlights/i.test(x.title))
+    .map(x => ({ x, ...episodeParts(x.title) }))
+    .map(x => ({ ...x, off: x.day ? Math.min(off(x.day), 1) : 2 }))
+    .filter(x => x.teams.length === 2 && (!x.day || off(x.day) >= 0))
+    .map(x => ({ ...x, fit: pairFit(x.teams, sides) }))
+    .filter(x => x.fit >= FIT)
+    .sort((a, b) => a.off - b.off || b.fit - a.fit);
+  if (!fits.length) return null;
+  // As close and as good a fit for two other sides (a title with no day, the
+  // same pair met twice): not said which. The same game again (原音 and not) is fine.
+  const [best] = fits;
+  const pair = x => [...x.teams].sort().join('|');
+  const bare = x => x.x.title.replace(/\(.*?\)|（.*?）/g, '').replace(/\s+/g, '');
+  if (fits.some(x => x.off === best.off && x.fit === best.fit && pair(x) !== pair(best))) return null;
+  if (!best.day && fits.some(x => x !== best && !x.day && pair(x) === pair(best) && /第\s*\d+\s*[輪場]|G\d/.test(x.x.title) && bare(x) !== bare(best))) return null;
+  return best.x;
+}
+// An episode's title for a row, from its first side on (the league and the
+// day are the row's already): "克羅埃西亞 VS 英格蘭 第3輪(原音)".
+export function episodeLabel(title) {
+  const { teams } = episodeParts(title);
+  const at = teams.length ? title.indexOf(teams[0]) : -1;
+  return (at > 0 ? title.slice(at) : title).trim();
+}

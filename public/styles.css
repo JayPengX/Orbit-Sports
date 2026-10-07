@@ -398,6 +398,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .tw-watch { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--q-sunken); color: inherit; text-decoration: none; }
 .tw-watch-name { display: grid; gap: 1px; min-width: 0; flex: 1; }
 .tw-watch-name small { font-size: 12px; color: var(--q-muted); }
+.tw-watch-name small.one-line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .tw-watch-go { flex: none; font-weight: 700; color: var(--accent); font-size: 14px; }
 .stack.tight { gap: 10px; }
 .tv-guide { padding: 0; }

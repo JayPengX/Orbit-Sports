@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson } from '#kit/quadra.mjs';
-import { ELTA_LIST, parseElta, eltaDays, nbaEltaGames, broadcastsFor } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, nbaEltaGames, broadcastsFor, inReplay, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, episodeLabel } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -99,3 +99,30 @@ export const tvUntil = () => eltaDays(eltaSchedule() || [])?.to || null;
 export const tvKnown = e =>
   e.league === 'mls' ||
   e.league === 'f1' || (e.league === 'nba' && Boolean(nbaSchedule()?.length)) || Boolean(tvUntil() && new Date(Date.parse(e.start) + 8 * 3_600_000).toISOString().slice(0, 10) <= tvUntil());
+
+// A finished game again on ELTA.tv: { video, episode } (the game's video in
+// its league's season), else for 48 hours from its start { channels } (回看
+// on the channels it was on), then the season's page while it isn't up, or
+// null: not on ELTA (its list says so), or a league ELTA keeps no season of.
+export async function replayOf(e, now = Date.now()) {
+  if (!e || e.status?.state !== 'post' || e.status?.void) return null;
+  const channels = channelsOf(e).filter(b => b.svc === 'elta' && b.ch && !b.mod);
+  const replay = channels.length && inReplay(e, now);
+  // A time ELTA's list covers (programs from before it: the list keeps only
+  // part of its first day) and no program of it: ELTA didn't show it.
+  const programs = eltaSchedule() || [];
+  const start = Date.parse(e.start);
+  if (!channels.length && programs.some(p => p.start <= start - 3 * 3_600_000) && programs.some(p => p.start >= start)) return null;
+  const sides = zhSides(e);
+  const vod = eltaVodOf(e, sides[0]);
+  if (!vod) return replay ? { channels } : null;
+  const episodes = await proxyJson(eltaVodUrl(vod), { ttl: 30 * 60_000 })
+    .then(d => d?.episodes || [])
+    .catch(() => []);
+  const episode = eltaEpisode(episodes, e, sides);
+  // Its video already up (the NBA's, 歐國聯's, the next day) plays the game
+  // at once; else its channels' 回看 while they have it.
+  if (!episode && replay) return { channels };
+  const video = { svc: 'elta', zh: '愛爾達 ELTA.tv', en: 'ELTA.tv', short: { zh: '愛爾達', en: 'ELTA' }, url: eltaVodUrl(vod, episode?.id), app: eltaVodApp(vod, episode?.id) };
+  return { video, episode: episode && { ...episode, label: episodeLabel(episode.title) } };
+}

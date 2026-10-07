@@ -15,7 +15,7 @@ import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLine
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag, F1_TEAMS } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
-import { tvOf } from './lib/tv.mjs';
+import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
@@ -714,7 +714,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
           )
         )
       : null,
-    exactTv ? twCard(e.league, e) : null,
+    exactTv ? twCard(e.league, e) : replayCard(e),
     card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([, k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
   ]);
 }
@@ -1186,7 +1186,28 @@ function playLine(league, p, side) {
 // Where to watch in Taiwan: a game's own channels (a schedule's: the
 // channel, its commentary, when it starts, a tap to watch it in the app),
 // else the league's service.
+// A finished game on ELTA: where to watch it again (回看 on its channel for
+// 48 hours, then its video, ELTA.tv's season page while it isn't up).
+function replayCard(e) {
+  if (e?.status?.state !== 'post' || e.status.void || broadcastsOf(e.league)[0]?.svc !== 'elta') return null;
+  const en = L() === 'en';
+  const box = el('div', {}, [spinner()]);
+  const row = (b, name, sub, go) => watchLink(b, { class: 'tw-watch' }, [el('span', { class: 'tw-watch-name' }, [el('strong', { text: name }), el('small', { class: 'one-line', text: sub })]), el('span', { class: 'tw-watch-go', text: `${go} ›` })]);
+  replayOf(e)
+    .then(r => {
+      // Not on ELTA: no card.
+      if (!r) return out.remove();
+      if (r.channels)
+        return put(box, el('div', { class: 'tw-exact' }, r.channels.map(b => row(b, tvName(b), en ? 'Replay on the channel for 48 hours: tap the game in its guide' : '頻道回看 48 小時內・節目表點這場', en ? 'Replay' : '回看'))));
+      put(box, el('div', { class: 'tw-exact' }, [row(r.video, `${leagueName(e.league, L())} ${en ? 'full game' : '全場重播'}`, r.episode ? r.episode.label : en ? 'Not up yet (days to weeks), or not shown' : '這場還沒上架（數天到數週）或沒有轉播', en ? 'Watch' : '觀看')]));
+    })
+    .catch(() => put(box, el('p', { class: 'muted small', text: T('failed') })));
+  const out = card(en ? 'Watch again' : '重播', box, { sub: en ? 'ELTA.tv' : '愛爾達' });
+  return out;
+}
 function twCard(league, e = null) {
+  const again = replayCard(e);
+  if (again) return again;
   const list = e ? tvOf(e) : broadcastsOf(league);
   const exact = list.filter(b => b.exact);
   const rest = list.filter(b => !exact.includes(b));
