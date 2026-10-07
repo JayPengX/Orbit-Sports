@@ -363,7 +363,7 @@ export function statValue(text) {
   return Number.isFinite(n) ? n : null;
 }
 
-const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [el('span', { text: title }), sub ? el('small', { text: sub }) : null]), body]);
+const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [typeof title === 'string' ? el('span', { text: title }) : el('span', {}, [title]), sub ? el('small', { text: sub }) : null]), body]);
 
 // ---- News ---------------------------------------------------------------------------------
 //
@@ -1287,6 +1287,11 @@ export function openFieldEvent(e) {
 // the rest of the app's).
 const plainName = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 // A driver of the session's cars by their name (full, else the family name).
+// A season's numbers' title in Chinese, a league ESPN names in English too ("2025-26 Cypriot First Division 數據").
+const seasonTitle = title => {
+  const t = statsTitle(title, L()) || T('season');
+  return L() !== 'en' && /[A-Za-z]{3}/.test(t) ? zhLater(t, 'en') : t;
+};
 // The season's drivers (the standings' rows: id, name), once a session: a driver not in a weekend's field yet.
 let seasonDriverList = null;
 const seasonDrivers = () =>
@@ -1968,11 +1973,16 @@ export async function openPlayer(league, id, fallback = {}) {
     // A tap opens it in its own league, only when that's one of ours (a
     // national side's player's club in Cyprus: its name, no page).
     const teamChip = team && teamShown ? el('span', { class: 'hero-team' }, [a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null, el('span', { text: teamShown })]) : null;
+    // A club from a league we don't cover says which league it is (few know Omonia Aradippou).
     if (teamChip)
       homeLeague(league, team.id)
-        .then(home => {
-          if (!home || !hasTeamPage(home) || !teamChip.isConnected) return;
-          const tap = el('button', { class: 'hero-team', type: 'button', onclick: () => ctx.openTeam(home, team.id, { id: team.id, name: teamShown, logo: a.teamLogo }) }, [...teamChip.childNodes]);
+        .then(({ key, name }) => {
+          if (!teamChip.isConnected) return;
+          if (!key || !hasTeamPage(key)) {
+            if (name) teamChip.querySelector('span').append(el('small', { class: 'hero-team-league' }, [zhLater(name, 'en')]));
+            return;
+          }
+          const tap = el('button', { class: 'hero-team', type: 'button', onclick: () => ctx.openTeam(key, team.id, { id: team.id, name: teamShown, logo: a.teamLogo }) }, [...teamChip.childNodes]);
           teamChip.replaceWith(tap);
         })
         .catch(() => {});
@@ -2018,7 +2028,7 @@ export async function openPlayer(league, id, fallback = {}) {
         : null,
       nextRace ? nextRaceCard(nextRace, en) : null,
       mateCard,
-      !racing && a.stats.list.length ? card(statsTitle(a.stats.title, L()) || T('season'), el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(statName(x.label, L()), x.value, x.rank)))) : null
+      !racing && a.stats.list.length ? card(seasonTitle(a.stats.title), el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(statName(x.label, L()), x.value, x.rank)))) : null
     ]);
     const numbers = keep([
       og.gp ? card(W('正賽', 'Grand Prix'), f1Tiles(og.gp, en)) : summaryTiles.length ? card(W('本季表現', 'This season'), el('div', { class: 'stat-grid' }, summaryTiles)) : null,
@@ -2052,7 +2062,6 @@ export async function openPlayer(league, id, fallback = {}) {
     const bio = keep([
       facts.length ? card(T('profile'), el('ul', { class: 'info-list' }, facts.map(([k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [v])])))) : null,
       awardsCard,
-      a.teamId && !individual(league) ? el('button', { class: 'q-btn block with-mark', type: 'button', onclick: () => openTeam(league, a.teamId, { name: a.team, logo: a.teamLogo }) }, [a.teamLogo ? logo(a.teamLogo, a.team, 'sm') : null, el('span', { text: `${a.team} ›` })]) : null,
       driver?.team ? el('button', { class: 'q-btn block with-mark', type: 'button', onclick: () => openConstructor({ id: '', name: driver.team, en: driver.team }) }, [constructorBadge(driver.team, 'sm'), el('span', { text: `${en ? driver.team : f1Constructor(driver.team).zh} ›` })]) : null
     ]);
     const views = [['overview', W('概況', 'Overview'), overview], ['numbers', W('數據', 'Stats'), numbers], ['games', racing ? W('各站成績', 'Races') : W('近期比賽', 'Games'), games], ['bio', W('資料', 'Bio'), bio]].filter(v => v[2].length);
