@@ -238,3 +238,17 @@ test("過程's row: the play on one line, the team and who helped small beneath 
   assert.deepEqual(playParts('76人 失誤', '76人'), { main: '76人 失誤', sub: '' });
   assert.deepEqual(playParts('D. Jones 罰進 2/2', '76人'), { main: 'D. Jones 罰進 2/2', sub: '76人' });
 });
+
+// Lakers at Warriors, 2026-10-06: the Warriors at 83% midway through the
+// first quarter, drifting to 98% by half time; the run's dot was at half time.
+test('basketball: a run that did its work early ends there, not where the drift after it peaked', () => {
+  const pts = [];
+  let [h, a] = [0, 0];
+  const add = (v, n, dh, da) => pts.push({ home: v, n, play: { home: (h += dh), away: (a += da), clock: '' } });
+  for (let i = 0; i < 5; i++) add(0.5, 1, 1, 1);
+  for (let i = 0; i < 15; i++) add(0.5 + (i + 1) * 0.026, 1, 2, 0); // the run: 0.5 → 0.89
+  for (let i = 0; i < 80; i++) add(0.89 + (i + 1) * 0.0011 + (i % 4 === 0 ? -0.01 : 0), i < 40 ? 1 : 2, 1, 1); // the drift: → 0.98
+  const run = playMoments(pts, 'basketball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false }).find(m => m.periods);
+  assert.ok(run && run.i <= 22, `the run ends with the run, not at ${run?.i}`);
+  assert.equal(run.text, 'H 30-0 攻勢');
+});

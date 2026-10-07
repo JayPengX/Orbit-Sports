@@ -177,19 +177,27 @@ function swingMoments(points, sport, side) {
   return [...top(stretches, 2), ...top(plays, 3)].sort((x, y) => x.i - y.i);
 }
 
-// A stretch where it really moved: from the last point still at its start
-// to the first that got 95% of the way. A line's extreme can come long after
-// the game was decided (a 1% chance drifting to 0% until the buzzer), and the
-// stretch, its dot and its periods would run to the end of the game with it.
-const ARRIVED = 0.95;
+// A stretch where it really moved: from the last point still near its start
+// to the first that got most of the way (80%), and on while each play still
+// moves it the same way at the run's pace (a run counted whole). A line's extreme can come long
+// after the game was decided: the Warriors at 83% midway through the first
+// quarter drifted to 98% by half time, and a dot at 98% puts the run at the
+// end of the half, long after it had done its work. (A 1% chance drifting to
+// 0% until the buzzer, the same.)
+const ARRIVED = 0.8;
+const STARTED = 0.05;
 export function tighten(values, { from, to }) {
   const move = values[to] - values[from];
   const dir = Math.sign(move);
   if (!dir) return { from, to };
   let end = from;
   while (end < to && dir * (values[end] - values[from]) < ARRIVED * Math.abs(move)) end++;
+  // A run still going (each play still moving it the same way, at a quarter
+  // of its pace so far or more) is counted to its end; a slow drift isn't.
+  const pace = () => Math.abs(values[end] - values[from]) / Math.max(1, end - from);
+  while (end < to && dir * (values[end + 1] - values[end]) >= 0.25 * pace()) end++;
   let start = end;
-  while (start > from && dir * (values[start] - values[from]) > (1 - ARRIVED) * Math.abs(move)) start--;
+  while (start > from && dir * (values[start] - values[from]) > STARTED * Math.abs(move)) start--;
   return { from: start, to: end };
 }
 
