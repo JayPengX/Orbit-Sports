@@ -933,6 +933,17 @@ export async function homeLeague(league, id) {
   const home = data?.team?.defaultLeague;
   return { key: home?.slug ? BY_PATH[`${sport}/${home.slug}`] || null : null, name: home?.name || '' };
 }
+// A footballer's own league: ESPN's search places a player by the last
+// competition they played in (a Nations League in an international break,
+// Haaland "of" it), so one found in a cup is placed in their club's league
+// when that's one of ours; a player whose club isn't ours stays where found.
+export async function playerHome(league, id) {
+  if (!LEAGUES[league]?.cup || !LEAGUES[league].espn?.startsWith('soccer/')) return league;
+  const a = await athlete(league, id);
+  if (!a.teamId) return league;
+  const { key } = await homeLeague(league, a.teamId);
+  return key && key !== league ? key : league;
+}
 export function parseSchedule(data, league) {
   const sport = (LEAGUES[league]?.espn || '').split('/')[0];
   return (data?.events || []).map(e => {
@@ -1068,6 +1079,17 @@ export function usDate(text) {
 // The last games (newest first): the date, the other side, the result and
 // the player's numbers. ESPN repeats a soccer player's labels (one set per
 // competition): only the first set.
+// Our league for ESPN's full name of a competition ("English Premier League",
+// "UEFA Nations League"): ours with its country or body's word in front (the
+// saved copies of a player's page carry no links to read the slug from).
+// Another country's "Premier League" keeps its own word, so it's no match.
+const FRONT = /^(english|scottish|spanish|italian|german|french|uefa|fifa)\s+/;
+const plainName = x => String(x || '').toLowerCase().replace(FRONT, '').trim();
+export function leagueByName(name) {
+  const n = String(name || '').toLowerCase().trim();
+  if (!n) return '';
+  return Object.keys(LEAGUES).find(k => LEAGUES[k].espn?.startsWith('soccer/') && [n, plainName(n)].includes(plainName(LEAGUES[k].en))) || '';
+}
 export function parseGameLog(log) {
   const block = log?.statistics?.[0];
   if (!block?.labels?.length || !block.events?.length) return null;
@@ -1079,7 +1101,17 @@ export function parseGameLog(log) {
     .map(x => {
       const g = log.events?.[x.eventId];
       if (!g) return null;
-      return { id: String(x.eventId), date: g.gameDate || '', at: g.atVs || 'vs', opp: { id: String(g.opponent?.id ?? ''), name: g.opponent?.displayName || '', abbr: g.opponent?.abbreviation || '', logo: logoOf(g.opponent) }, result: g.gameResult || '', score: g.score || '', stats: (x.stats || []).slice(0, n) };
+      // Its competition (a Nations League game among a club's), ours by the
+      // slug in ESPN's app link, else only its name; and the score from the
+      // player's side (1-2 lost, not ESPN's winner-first 2-1).
+      const slug = /[?&]leagueAbbrev=([^&]+)/.exec((g.links || []).map(l => l.href).join(' '))?.[1] || '';
+      const sport = /[?&]sportName=([^&]+)/.exec((g.links || []).map(l => l.href).join(' '))?.[1] || '';
+      const own = (sport && slug ? BY_PATH[`${sport}/${decodeURIComponent(slug)}`] : '') || leagueByName(g.leagueName) || '';
+      const mine = String(g.team?.id ?? '');
+      const home = mine && String(g.homeTeamId) === mine;
+      const [us, them] = home ? [g.homeTeamScore, g.awayTeamScore] : [g.awayTeamScore, g.homeTeamScore];
+      const score = us != null && them != null && us !== '' && them !== '' ? `${us}-${them}` : g.score || '';
+      return { id: String(x.eventId), date: g.gameDate || '', at: g.atVs || 'vs', league: own, leagueName: g.leagueShortName || g.leagueName || '', team: { id: mine, abbr: g.team?.abbreviation || '', logo: logoOf(g.team) }, home: mine ? home : null, opp: { id: String(g.opponent?.id ?? ''), name: g.opponent?.displayName || '', abbr: g.opponent?.abbreviation || '', logo: logoOf(g.opponent) }, result: g.gameResult || '', score, stats: (x.stats || []).slice(0, n) };
     })
     .filter(Boolean)
     .slice(0, 5);
@@ -1087,7 +1119,8 @@ export function parseGameLog(log) {
 }
 export async function athleteOverview(league, id) {
   const ov = parseOverview(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }));
-  if (ov.log) ov.log.games = ov.log.games.map(g => ({ ...g, opp: nbaLogo(league, g.opp) }));
+  // A game's league: the one it names, else (one league to a sport: the NBA's, MLB's) the player's own.
+  if (ov.log) ov.log.games = ov.log.games.map(g => ({ ...g, league: g.league || (LEAGUES[league].espn.startsWith('soccer/') ? '' : league), opp: nbaLogo(league, g.opp) }));
   return ov;
 }
 

@@ -12,7 +12,7 @@
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason } from './lib/espn.mjs';
+import { freshGame, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason, playerHome } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch } from './lib/search.mjs';
@@ -1672,6 +1672,14 @@ async function runSearch(query, again = false) {
   // A search that couldn't be read says so (never "nothing matches"), and is asked again once a little later.
   const found = await searchEspn(q).catch(() => ({ teams: [], players: [], failed: true }));
   if (seq !== searchSeq || state.scores.q !== query) return;
+  // A footballer found in a cup (Haaland in the Nations League over a break)
+  // is shown in their club's league, before the list is drawn (never moving
+  // after it); one not read within 3 s stays where ESPN put them.
+  if (found.players?.length) {
+    const homes = await Promise.race([Promise.all(found.players.slice(0, 10).map(x => playerHome(x.league, x.id).catch(() => x.league))), new Promise(r => setTimeout(() => r(null), 3_000))]);
+    if (seq !== searchSeq || state.scores.q !== query) return;
+    if (homes) found.players = found.players.map((x, i) => (homes[i] ? { ...x, league: homes[i] } : x));
+  }
   paint(found, false);
   if (found.failed && !again) setTimeout(() => seq === searchSeq && state.scores.q === query && runSearch(query, true), 16_000);
 }

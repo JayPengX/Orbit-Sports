@@ -745,7 +745,11 @@ table.game-log td, table.game-log th { white-space: nowrap; }
 /* Plain inline with a logo of fixed size: Safari sized an inline-flex cell before the logo loaded, and the result ran over it. */
 table.game-log .opp-cell { display: inline-block; white-space: nowrap; }
 table.game-log .opp-cell > * { vertical-align: middle; }
-table.game-log .opp-cell .logo-wrap, table.game-log .opp-cell .logo { display: inline-block; width: 18px; height: 18px; margin: 0 4px 0 5px; vertical-align: middle; object-fit: contain; }
+table.game-log .opp-cell .logo-wrap, table.game-log .opp-cell .logo { display: inline-block; width: 18px; height: 18px; margin: 0 7px 0 6px; vertical-align: middle; object-fit: contain; }
+table.game-log .log-comp { display: block; margin-top: 1px; color: var(--q-muted); font-size: 11.5px; line-height: 1.2; white-space: nowrap; }
+table.game-log tr.log-tap { cursor: pointer; }
+table.game-log tr.log-tap:active td { background: var(--q-fill, var(--q-sunken)); }
+table.game-log .log-chev { color: var(--q-muted); font-size: 17px; padding-left: 2px; padding-right: 0; }
 table.game-log .result-pill { font-size: 12px; padding: 1px 8px; }
 .award-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .award-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; font-size: 14px; }

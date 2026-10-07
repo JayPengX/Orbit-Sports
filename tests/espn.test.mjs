@@ -168,7 +168,7 @@ test('a player overview: the latest note, awards, the last games (no news)', asy
   assert.deepEqual(ov.awards, [{ name: 'MVP', count: '3x', seasons: ['2025', '2024', '2022'] }]);
   assert.deepEqual(ov.log.labels, ['AB', 'H', 'HR']);
   assert.equal(ov.log.games.length, 1);
-  assert.deepEqual(ov.log.games[0], { id: '1', date: '2026-09-11T23:05:00Z', at: '@', opp: { id: '21', name: 'New York Mets', abbr: 'NYM', logo: 'x.png' }, result: 'W', score: '6-4', stats: ['4', '1', '1'] });
+  assert.deepEqual(ov.log.games[0], { id: '1', date: '2026-09-11T23:05:00Z', at: '@', league: '', leagueName: '', team: { id: '', abbr: '', logo: null }, home: null, opp: { id: '21', name: 'New York Mets', abbr: 'NYM', logo: 'x.png' }, result: 'W', score: '6-4', stats: ['4', '1', '1'] });
   assert.equal(ov.news, undefined);
   assert.equal(parseOverview({}).log, null);
 });
@@ -238,4 +238,22 @@ test("過程's whole game: every play kept (not the last 80), American football'
   assert.equal(parseSummary(nba, 'nba').feed.length, (nba.plays || []).length);
   const nfl = parseSummary({ ...load('nfl-summary-moments.json'), drives: { previous: [{ team: { id: '11' }, displayResult: 'Field Goal', description: '8 plays, 70 yards, 4:18', isScore: true, start: { period: { number: 1 }, clock: { displayValue: '10:39' } }, plays: [{ homeScore: 3, awayScore: 0 }] }] } }, 'nfl');
   assert.deepEqual(nfl.drives, [{ team: '11', result: 'Field Goal', desc: '8 plays, 70 yards, 4:18', scoring: true, periodNum: 1, period: '1', clock: '10:39', home: 3, away: 0 }]);
+});
+
+test("a player's last games: each one's competition, the score from their side", async () => {
+  const { parseGameLog, leagueByName } = await import('../public/lib/espn.mjs');
+  assert.equal(leagueByName('English Premier League'), 'epl');
+  assert.equal(leagueByName('UEFA Nations League'), 'nationsleague');
+  assert.equal(leagueByName('English FA Cup'), 'facup');
+  // Another country's Premier League isn't England's.
+  assert.equal(leagueByName('Russian Premier League'), '');
+  // As the mirror keeps it: no links (the slug), only the competition's name.
+  const log = parseGameLog({
+    statistics: [{ labels: ['APP', 'G'], events: [{ eventId: '401861073', stats: ['Started', '0'] }, { eventId: '401800001', stats: ['Started', '2'] }] }],
+    events: {
+      401861073: { gameDate: '2026-10-04T18:45:00.000+00:00', atVs: '@', score: '2-1', homeTeamId: '482', awayTeamId: '464', homeTeamScore: '2', awayTeamScore: '1', gameResult: 'L', leagueName: 'UEFA Nations League', team: { id: '464', abbreviation: 'NOR' }, opponent: { id: '482', displayName: 'Portugal', abbreviation: 'POR' } },
+      401800001: { gameDate: '2026-09-20T14:00:00.000+00:00', atVs: 'vs', score: '3-0', homeTeamId: '382', awayTeamId: '359', homeTeamScore: '3', awayTeamScore: '0', gameResult: 'W', links: [{ href: 'sportscenter://x-callback-url/showGame?sportName=soccer&leagueAbbrev=eng.1&gameId=401800001' }], team: { id: '382', abbreviation: 'MNC' }, opponent: { id: '359', displayName: 'Arsenal', abbreviation: 'ARS' } }
+    }
+  });
+  assert.deepEqual(log.games.map(g => [g.league, g.score, g.home]), [['nationsleague', '1-2', false], ['epl', '3-0', true]]);
 });

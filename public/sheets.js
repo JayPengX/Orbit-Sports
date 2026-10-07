@@ -380,7 +380,7 @@ export function statValue(text) {
   return Number.isFinite(n) ? n : null;
 }
 
-const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [typeof title === 'string' ? el('span', { text: title }) : el('span', {}, [title]), sub ? el('small', { text: sub }) : null]), body]);
+const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [typeof title === 'string' ? el('span', { text: title }) : el('span', {}, [title]), sub ? el('small', {}, [sub]) : null]), body]);
 
 // ---- News ---------------------------------------------------------------------------------
 //
@@ -2051,28 +2051,47 @@ export async function openPlayer(league, id, fallback = {}) {
           ])
         )
       : null;
-    // Their last games (team sports): the date, the other side, the result, their numbers.
-    const logCard = ov?.log
+    // Their last games (team sports): the date, the other side, the result,
+    // their numbers. Each game says its competition (a Nations League game
+    // among a club's; one competition for all: once, at the top), and one of
+    // ours opens its match.
+    const log = ov?.log;
+    const compOf = g => (g.league ? leagueName(g.league, L()) : zhLater(g.leagueName, 'en'));
+    const oneComp = log && new Set(log.games.map(g => g.league || g.leagueName)).size === 1 ? log.games[0] : null;
+    const matchOf = g => {
+      const us = { id: g.team.id, name: g.team.abbr, short: g.team.abbr, abbr: g.team.abbr, logo: g.team.logo };
+      const them = { id: g.opp.id, name: g.opp.name, short: g.opp.abbr || g.opp.name, abbr: g.opp.abbr, logo: g.opp.logo };
+      const [ours, theirs] = g.score.split('-');
+      const home = g.home ?? g.at !== '@';
+      return { id: g.id, league: g.league, kind: 'match', start: g.date, status: { state: 'post', detail: '', short: '', completed: true, name: 'STATUS_FULL_TIME', clock: '', period: 0 }, home: { ...(home ? us : them), score: home ? ours : theirs }, away: { ...(home ? them : us), score: home ? theirs : ours } };
+    };
+    const opensMatch = g => Boolean(g.league && LEAGUES[g.league]?.espn && g.team.id && g.opp.id && /^\d+$/.test(g.id));
+    const logCard = log
       ? card(
           // Last season's (ESPN's until a player's first game of the new one: April's in October), said to be.
-          Date.now() - (Date.parse(ov.log.games[0]?.date || '') || Date.now()) > 45 * 86_400_000 ? W(`上季最後 ${ov.log.games.length} 場`, `Last season's last ${ov.log.games.length}`) : W(`近 ${ov.log.games.length} 場`, `Last ${ov.log.games.length} games`),
+          Date.now() - (Date.parse(log.games[0]?.date || '') || Date.now()) > 45 * 86_400_000 ? W(`上季最後 ${log.games.length} 場`, `Last season's last ${log.games.length}`) : W(`近 ${log.games.length} 場`, `Last ${log.games.length} games`),
           el('div', { class: 'table-wrap' }, [
             el('table', { class: 'data game-log' }, [
-              el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: W('日期', 'Date') }), el('th', { class: 'left', text: W('對手', 'Opp') }), el('th', { class: 'left', text: W('結果', 'Result') }), ...ov.log.labels.map(k => el('th', { class: 'num', title: k, text: sport === 'basketball' && k === 'PTS' && !en ? '得分' : statName(k, L()) }))])]),
+              el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: W('日期', 'Date') }), el('th', { class: 'left', text: W('對手', 'Opp') }), el('th', { class: 'left', text: W('結果', 'Result') }), ...log.labels.map(k => el('th', { class: 'num', title: k, text: sport === 'basketball' && k === 'PTS' && !en ? '得分' : statName(k, L()) }))])]),
               el(
                 'tbody',
                 {},
-                ov.log.games.map(g =>
-                  el('tr', {}, [
+                log.games.map(g =>
+                  el('tr', opensMatch(g) ? { class: 'log-tap', onclick: () => ctx.openEvent(matchOf(g)) } : {}, [
                     el('td', { class: 'left num', text: g.date ? localDate(Date.parse(g.date)).slice(5).replace('-', '/') : '' }),
-                    el('td', { class: 'left' }, [el('span', { class: 'opp-cell' }, [el('span', { class: 'muted', text: g.at === '@' ? '@' : 'vs' }), logo(g.opp.logo, g.opp.name, 'xs'), el('span', { text: g.opp.abbr || g.opp.name })])]),
-                    el('td', { class: 'left' }, [el('span', { class: `result-pill ${g.result === 'W' ? 'w' : g.result === 'L' ? 'l' : ''}`, text: [g.result ? (en ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result) : '', g.score].filter(Boolean).join(' ') })]),
-                    ...g.stats.map(v => el('td', { class: 'num', text: en ? v : LOG_WORDS[v] || v }))
+                    el('td', { class: 'left' }, [
+                      el('span', { class: 'opp-cell' }, [el('span', { class: 'muted opp-at', text: g.at === '@' ? '@' : 'vs' }), logo(g.opp.logo, g.opp.name, 'xs'), el('span', { class: 'opp-name', text: g.opp.abbr || g.opp.name })]),
+                      !oneComp && (g.league || g.leagueName) ? el('small', { class: 'log-comp' }, [compOf(g)]) : null
+                    ]),
+                    el('td', { class: 'left' }, [el('span', { class: `result-pill ${g.result === 'W' ? 'w' : g.result === 'L' ? 'l' : g.result === 'D' || g.result === 'T' ? 'd' : ''}`, text: [g.result ? (en ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result) : '', g.score].filter(Boolean).join(' ') })]),
+                    ...g.stats.map(v => el('td', { class: 'num', text: en ? v : LOG_WORDS[v] || v })),
+                    opensMatch(g) ? el('td', { class: 'log-chev', 'aria-hidden': 'true', text: '›' }) : log.games.some(opensMatch) ? el('td') : null
                   ])
                 )
               )
             ])
-          ])
+          ]),
+          { sub: oneComp && (oneComp.league || oneComp.leagueName) ? compOf(oneComp) : '' }
         )
       : null;
     // The latest word on them (an injury, a lineup), in their language.
