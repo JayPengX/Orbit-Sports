@@ -1617,7 +1617,12 @@ function byPosition(list, sport) {
 // A table column's short name in the reader's language.
 const COL_ZH = { POD: '頒獎台', GP: '場', W: '勝', D: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', GAP: '落後' };
 const colLabel = c => (L() === 'en' ? (c === 'GAP' ? T('col_GAP') : c) : COL_ZH[c] || c);
-const tile = (label, value, sub = '') => el('div', { class: 'stat-tile' }, [el('small', { text: label }), el('strong', { class: 'num', text: value }), sub ? el('small', { class: 'muted', text: sub }) : null]);
+// ESPN's rank under a number ("Tied-42nd", "3rd"), in Chinese: 並列第 42、第 3.
+const rankText = (sub, en = L() === 'en') => {
+  const m = /^(Tied-)?(\d+)(st|nd|rd|th)$/i.exec(String(sub || '').trim());
+  return !m || en ? sub : `${m[1] ? '並列' : ''}第 ${m[2]}`;
+};
+const tile = (label, value, sub = '') => el('div', { class: 'stat-tile' }, [el('small', { text: label }), el('strong', { class: 'num', text: value }), sub ? el('small', { class: 'muted', text: rankText(sub) }) : null]);
 
 // Form in pills (W, D, L), oldest first.
 const resultPills = list => el('div', { class: 'form-pills' }, list.map(r => el('span', { class: `pill ${r}`, text: L() === 'en' ? r : { W: '勝', D: '和', L: '敗' }[r] || r })));
