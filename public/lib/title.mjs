@@ -19,8 +19,9 @@ const num = v => {
 };
 const has = v => v != null && v !== '';
 // A season's games for each side, where it isn't each other side twice
-// (CPBL's table is a half-season's: 60).
-export const SEASON_GAMES = { mlb: 162, nba: 82, wnba: 44, nbl: 29, mls: 34, nfl: 17, nhl: 82, cpbl: 60 };
+// (CPBL's table is a half-season's: 60; a European cup's league phase is 8
+// games each, not a round robin of its 36).
+export const SEASON_GAMES = { mlb: 162, nba: 82, wnba: 44, nbl: 29, mls: 34, nfl: 17, nhl: 82, cpbl: 60, ucl: 8, uel: 8, uecl: 6 };
 
 const COUNTS = e => !['pre', 'post', 'final', 'playin', 'allstar', 'off'].includes(e.stage?.key || '');
 const playedOf = (r, sport) => (sport === 'soccer' ? num(r.stats.GP) : num(r.stats.W) + num(r.stats.L) + num(r.stats.T));

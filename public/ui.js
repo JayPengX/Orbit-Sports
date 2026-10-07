@@ -472,6 +472,15 @@ export function twChips(league, n = 3, e = null) {
   if (!list.length) return null;
   return el('div', { class: 'tw-chips' }, list.slice(0, n).map(b => el('span', { class: `tw-chip${b.exact ? ' exact' : ''}`, text: tvName(b) })));
 }
+// A finished game's chips, as a game to come has its channels': where it
+// can be watched again (愛爾達1台・回看 for 48 hours, then 愛爾達・重播), or null.
+export function replayChips(e, n = 2) {
+  const r = replayHint(e);
+  if (!r) return null;
+  const en = ctx.locale === 'en';
+  const list = r.video ? [en ? 'ELTA · replay' : '愛爾達・重播'] : r.channels.slice(0, n).map(b => `${b.short[en ? 'en' : 'zh']}${en ? ' · replay' : '・回看'}`);
+  return el('div', { class: 'tw-chips' }, list.map(text => el('span', { class: 'tw-chip exact', text })));
+}
 // A row's 📺 line: the channels a game is on, when a schedule says (not a guess from the league).
 // Each with its commentary (英文原音, 中文, 雙語), the person's kind marked:
 // the best for them first (their commentary, then a MAX channel without ads).

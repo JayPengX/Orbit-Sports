@@ -5,6 +5,7 @@
 import { proxyJson } from '#kit/quadra.mjs';
 import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, inReplay, replayState, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
+import { watchOf as packOf } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
 
@@ -126,7 +127,8 @@ function keepReplay(e) {
 export function replayHint(e, now = Date.now()) {
   if (e?.status?.state !== 'post' || e.status.void) return null;
   replaySet ??= new Set(keptReplays());
-  return replayState(e, channelsOf(e), replaySet.has(replayKey(e)), now);
+  // Its video found: on this device, or in Shared-Data's pack of recent games.
+  return replayState(e, channelsOf(e), replaySet.has(replayKey(e)) || Boolean(packOf(e)?.elta), now);
 }
 
 // A finished game again on ELTA.tv: { video, episode, alsoChannels? } (the game's video in

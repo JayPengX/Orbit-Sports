@@ -2,10 +2,10 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate, workerLines, proxyJson } from '#kit/quadra.mjs';
-import { searchUrl, videoUrl, knownHighlights, findHighlights } from './lib/highlights.mjs';
+import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam, homeLeague, roundLabel } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam, homeLeague, roundLabel, roundKind } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
@@ -643,30 +643,24 @@ const ytLogo = () => {
   mark.innerHTML = '<svg viewBox="0 0 28 20"><path fill="#f00" d="M27.4 3.1A3.5 3.5 0 0 0 25 .6C22.8 0 14 0 14 0S5.2 0 3 .6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9A3.5 3.5 0 0 0 3 19.4C5.2 20 14 20 14 20s8.8 0 11-.6a3.5 3.5 0 0 0 2.4-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9Z"/><path fill="#fff" d="m11.2 14.3 7.3-4.3-7.3-4.3v8.6Z"/></svg>';
   return mark;
 };
-// An ended game's highlights: the official video itself (lib/highlights.mjs),
-// opened in YouTube (its app on a phone); YouTube's search for them until
-// it's found. The row is drawn at once, in its place, and only its link and
-// its line under (the channel and length) change when the video is found.
+// An ended game's highlights, opened in YouTube (its app on a phone): the
+// video itself when it's known as the sheet opens (found on this device, or
+// in Shared-Data's pack of recent games), named for what it is (官方精華 · MLB
+// · 20:12, 愛爾達精華, 全場精華 for the NBA's one channel), else YouTube's
+// search, said so. Drawn once, never changed under the reader: a video found
+// while it's open is kept for the next time it's opened.
+const HL_NAME = { official: ['官方精華', 'Official highlights'], elta: ['愛爾達精華', 'ELTA highlights'], full: ['全場精華', 'Full-game highlights'], search: ['搜尋精華影片', 'Search for highlights'] };
 function highlights(e) {
   if (e?.status?.state !== 'post' || e.status.void) return null;
   const en = L() === 'en';
-  const line = v => (v ? [v.channel, v.length].filter(Boolean).join(' · ') : en ? 'Search on YouTube' : '在 YouTube 搜尋');
-  const known = knownHighlights(e);
-  const sub = el('small', { class: 'one-line', text: line(known) });
-  const link = el('a', { class: 'yt-link', href: known ? videoUrl(known.id) : searchUrl(e), target: '_blank', rel: 'noopener' }, [
+  const v = knownHighlights(e);
+  const kind = highlightsKind(v);
+  if (!v) findHighlights(e, (url, o) => proxyJson(url, o)).catch(() => {});
+  return el('a', { class: `yt-link${v ? '' : ' search'}`, href: v ? videoUrl(v.id) : searchUrl(e), target: '_blank', rel: 'noopener' }, [
     ytLogo(),
-    el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Highlights' : '精華影片' }), sub]),
+    el('span', { class: 'yt-text' }, [el('strong', { text: HL_NAME[kind][en ? 1 : 0] }), el('small', { class: 'one-line', text: v ? [v.channel, v.length].filter(Boolean).join(' · ') : 'YouTube' })]),
     el('span', { class: 'yt-go', text: '›' })
   ]);
-  if (!known)
-    findHighlights(e, (url, o) => proxyJson(url, o))
-      .then(v => {
-        if (!v) return;
-        link.href = videoUrl(v.id);
-        sub.textContent = line(v);
-      })
-      .catch(() => {});
-  return link;
 }
 
 // The overview: the teams side by side, what the match is (where, when, TV),
@@ -2411,12 +2405,21 @@ function raceBlock(race, g, league, many) {
   const b = x => `<b>${String(x).replace(/[<>&]/g, '')}</b>`;
   const lines = [];
   const t = race.title;
-  const top = many ? W(`${g.name}第一`, `top of ${g.en || g.name}`) : '';
+  // A cup's league phase has no champion: its first place is said as that.
+  const phase = Boolean(LEAGUES[league]?.cup) && !many;
+  const top = many ? W(`${g.name}第一`, `top of ${g.en || g.name}`) : phase ? W('聯賽階段第一', 'top of the league phase') : '';
+  many = many || phase;
   const unit = race.unit === 'pts' ? W(' 分', ' pts') : W(' 場', '');
-  const when = t.soonest == null ? '' : sport === 'soccer' ? W(`最快第 ${t.round} 輪`, `round ${t.round} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快${t.at}`, `${t.at} at the earliest`) : W(`最快再 ${t.soonest} 站`, `${t.soonest} race weekends from now at the earliest`)) : W(`最快 ${t.soonest} 場後`, `${t.soonest} game(s) away at the earliest`);
+  // Football's rounds as the league counts them: a matchweek league's and a
+  // cup's league phase are each side's games (第 N 輪, 第 N 比賽日); MLS's
+  // matchdays are its calendar's (a side sits some out): said in games.
+  const perRound = sport === 'soccer' && (roundKind(league) === 'matchweek' || Boolean(LEAGUES[league]?.cup));
+  const roundAt = (n, bold = x => x) => (L() === 'en' ? `${roundLabel(league, n, n, 'en').replace(/\d+/, bold)}` : roundLabel(league, n).replace(/\d+/, bold));
+  const leftWord = n => (sport === 'racing' ? W(`還剩 ${n} 站`, `${n} to go`) : perRound ? W(`還剩 ${n} ${roundKind(league) === 'matchday' ? '個比賽日' : '輪'}`, `${n} ${roundKind(league) === 'matchday' ? 'matchday' : 'matchweek'}${n === 1 ? '' : 's'} to go`) : W(`還剩 ${n} 場`, `${n} game${n === 1 ? '' : 's'} to go`));
+  const when = t.soonest == null ? '' : perRound ? W(`最快${roundAt(t.round)}`, `${roundAt(t.round)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快${t.at}`, `${t.at} at the earliest`) : W(`最快再 ${t.soonest} 站`, `${t.soonest} race weekends from now at the earliest`)) : W(`最快 ${t.soonest} 場後`, `${t.soonest} game(s) away at the earliest`);
   if (t.done) {
     const early = t.left > 0;
-    lines.push(line('trophy', many ? W(`${b(nm(t.leader))} 拿下${top}`, `${b(nm(t.leader))} have clinched ${top}`) : W(`${b(nm(t.leader))} ${early ? '提前封王' : '奪冠'}`, `${b(nm(t.leader))} ${early ? 'have clinched the title' : 'are champions'}`), early ? W(`還剩 ${t.left} ${sport === 'racing' ? '站' : sport === 'soccer' ? '輪' : '場'}`, `${t.left} to go`) : '', 'won'));
+    lines.push(line('trophy', many ? W(`${b(nm(t.leader))} 拿下${top}`, `${b(nm(t.leader))} have clinched ${top}`) : W(`${b(nm(t.leader))} ${early ? '提前封王' : '奪冠'}`, `${b(nm(t.leader))} ${early ? 'have clinched the title' : 'are champions'}`), early ? leftWord(t.left) : '', 'won'));
   } else if (t.soonest != null && t.soonest <= 5) {
     // Wins: baseball's magic number (the leader's wins and the rivals' losses together).
     // Points: a title closes from both sides (the leader scoring, the rival
@@ -2424,7 +2427,7 @@ function raceBlock(race, g, league, many) {
     if (race.unit === 'wins') lines.push(line('clock', W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`), when));
     else {
       const what = many ? W(`確定${top}`, `clinch ${top}`) : W('封王', 'clinch the title');
-      const at = sport === 'soccer' ? W(`最快第 ${b(t.round)} 輪`, `in round ${b(t.round)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : W(`最快 ${b(t.soonest)} 場後`, `${b(t.soonest)} game(s) away at the earliest`);
+      const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : W(`最快 ${b(t.soonest)} 場後`, `${b(t.soonest)} game(s) away at the earliest`);
       lines.push(line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} can ${what}, ${at}`), W(`領先 ${t.gap} 分・還有 ${t.avail} 分可拿`, `${t.gap} pts ahead, ${t.avail} still to win`)));
     }
   } else if (t.soonest != null) {

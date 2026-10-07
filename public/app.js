@@ -15,7 +15,8 @@ import * as kit from '#kit/quadra.mjs';
 import { freshGame, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
-import { findLeagues, parseSearch, placeInCups } from './lib/search.mjs';
+import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
+import { setWatchPack, prefetchHighlights } from './lib/highlights.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
 import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
@@ -26,12 +27,17 @@ import { liveTiming } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
-import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList } from './lib/tv.mjs';
-import { ctx, el, shownStart, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic } from './ui.js';
+import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList, replayHint } from './lib/tv.mjs';
+import { ctx, el, shownStart, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // New kit names through the module (a phone can still run an older kit).
 import * as kitLogos from '#kit/logos.mjs';
+
+// Shared-Data's pack of recent games (set as the app starts, below), and the
+// background look-ups of what it hasn't got, after it's in.
+let watchPack = null;
+const prefetchVideos = events => void (watchPack || Promise.resolve()).then(() => prefetchHighlights(events, proxyJson));
 
 // ---- What's on: leagues with games from two weeks back to two months on ---------------
 //
@@ -789,7 +795,7 @@ function pickCard(item, n) {
       liveLine(e),
       e.league === 'f1' && e.status.state === 'in' ? f1Brief(e) : e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : podium(e),
       reasons.length ? el('div', { class: 'why-row' }, reasons.map(r => el('span', { class: 'why', text: r }))) : null,
-      e.status.state === 'post' ? null : twChips(e.league, 2, e)
+      e.status.state === 'post' ? replayChips(e) : twChips(e.league, 2, e)
     ])
   ]);
 }
@@ -962,6 +968,7 @@ function renderHome() {
   const liveMine = liveItems.length > 0;
   if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e))), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
   const allLive = isToday ? onNow(dayAll(slot)).filter(onTv).length : 0;
+  if (slot?.at) prefetchVideos(dayAll(slot));
   const liveShown = liveItems.slice(0, liveMine ? 5 : 3);
   const liveKeys = new Set(liveShown.map(x => `${x.event.league}:${x.event.id}`));
   planList = planList.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
@@ -1619,6 +1626,8 @@ function scoresShell() {
   const input = el('input', { class: 'fx-search-input', type: 'search', inputmode: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder') });
   const clear = el('button', { class: 'fx-search-clear', type: 'button', 'aria-label': t('close'), text: '×', hidden: true });
   let timer = 0;
+  // The European cups' clubs, ready before a search needs them.
+  europeanClubs().catch(() => {});
   const go = () => {
     state.scores.q = input.value.trim();
     clear.hidden = !input.value;
@@ -1673,16 +1682,18 @@ async function runSearch(query, again = false) {
   const found = await searchEspn(q).catch(() => ({ teams: [], players: [], failed: true }));
   if (seq !== searchSeq || state.scores.q !== query) return;
   const within = (p, fallback) => Promise.race([p, new Promise(r => setTimeout(() => r(fallback), 3_000))]);
-  // A club or a footballer of a league Orbit Sports doesn't have (Benfica,
-  // Galatasaray, their players) is shown in the European cup the club plays
-  // in this season; one not placed within 3 s is left out.
+  // A club or a footballer of a league Orbit Sports doesn't have (Real
+  // Madrid, Benfica, their players) is shown in the European cup the club
+  // plays in this season. The cups' clubs are one list, read when 賽事 opens:
+  // a club is placed at once. A player takes a read of their own: the first
+  // few within 3 s, on their own (a search for "madrid" finds eight
+  // footballers of other leagues; waiting on them all lost Real Madrid too).
   if ([...(found.teams || []), ...(found.players || [])].some(x => !x.league)) {
-    const placed = await within(
-      europeanClubs().then(cups => placeInCups(found, cups, clubOfPlayer)),
-      null
-    ).catch(() => null);
+    const cups = (await within(europeanClubs(), null).catch(() => null)) || new Map();
+    const players = found.players.some(x => !x.league) ? await within(placePlayers(found.players, cups, clubOfPlayer), null).catch(() => null) : found.players;
     if (seq !== searchSeq || state.scores.q !== query) return;
-    Object.assign(found, placed || { teams: found.teams.filter(x => x.league), players: found.players.filter(x => x.league) });
+    found.teams = placeTeams(found.teams, cups);
+    found.players = players || found.players.filter(x => x.league);
   }
   // A footballer found in a cup (Haaland in the Nations League over a break)
   // is shown in their club's league, before the list is drawn (never moving
@@ -1840,6 +1851,7 @@ function renderScores() {
     strip = dateStrip(sc.date, pickScoresDay, { only, range: sc.range });
     const order = { in: 0, pre: 1, post: 2 };
     const games = [...(sc.byDay.get(sc.date) || [])].sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
+    prefetchVideos(games);
     // A filter by stage only when this day has games of more than one (a cup
     // night among regular-season games): the season's preseason and regular
     // season are never on the same day, so a filter by those picks nothing.
@@ -1916,6 +1928,15 @@ function myTvGames() {
     .filter(e => !e.status?.void && e.status?.state !== 'post' && Date.parse(e.start) > now - 4 * 3_600_000 && Date.parse(e.start) < now + TV_DAYS * 86_400_000)
     .filter(e => onTv(e) && !seen.has(`${e.league}:${e.id}`) && seen.add(`${e.league}:${e.id}`))
     .sort((a, b) => (b.status.state === 'in') - (a.status.state === 'in') || a.start.localeCompare(b.start));
+}
+// A finished game's result with where it can be watched again under it, as
+// a game to come has its time and channel (愛爾達1台・回看, 愛爾達・重播).
+function withAgain(pill, e) {
+  const r = replayHint(e);
+  if (!r) return pill;
+  const en = locale === 'en';
+  const text = r.video ? (en ? 'ELTA · replay' : '愛爾達・重播') : `${r.channels[0].short[en ? 'en' : 'zh']}${en ? ' · replay' : '・回看'}`;
+  return el('span', { class: 'tf-when' }, [pill, el('span', { class: 'tf-tv', text })]);
 }
 // Where a game is on: its channel and commentary, else whether it's known to be on nowhere.
 function whereTv(e) {
@@ -2025,7 +2046,7 @@ function teamCard(f) {
         ? el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(g.start) }), whereTv(g)])
         : g.status.state === 'in'
           ? el('span', { class: 'num tf-score live', text: `${t('live')} ${us(g)?.score ?? ''}–${opp?.score ?? ''}` })
-          : el('span', { class: `num result-pill ${result(g).toLowerCase()}`, text: `${word(result(g))} ${us(g)?.score ?? ''}–${opp?.score ?? ''}` });
+          : withAgain(el('span', { class: `num result-pill ${result(g).toLowerCase()}`, text: `${word(result(g))} ${us(g)?.score ?? ''}–${opp?.score ?? ''}` }), g);
     return el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(g) }, [
       el('small', { class: 'muted tf-k', text: label }),
       opp ? logo(opp.logo, opp.name, 'xs') : el('span'),
@@ -2413,7 +2434,20 @@ window.__fxStarted = true;
 const gated = installGate('match', locale);
 watchUpdates({ current: document.querySelector('meta[name="build-version"]')?.content, key: 'quadraFixtures', cachePrefix: 'quadra-fixtures-' });
 const actions = topActions(q, { refresh: reloadNow });
+// Shared-Data's pack of recent games (built every few hours): each one's
+// official highlights and whether ELTA has its whole game, so a sheet has
+// its video at once and a card its replay. Kept on the device: an open
+// after the first has it before the loading screen lifts.
+watchPack = (kit.packJson?.('sports/watch.json', { ttl: 30 * 60_000 }) || Promise.reject(new Error('old kit')))
+  .then(p => {
+    setWatchPack(p);
+    if (state.tab === 'home') renderHome();
+  })
+  .catch(() => {});
+// Recent games over that the pack hasn't got yet: their videos looked up
+// in the background, one at a time, after it's in.
 renderTabs();
+
 q.on('wallet', w => {
   state.wallet = w;
   if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();

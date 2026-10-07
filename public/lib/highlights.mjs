@@ -8,10 +8,16 @@
 // video's list of countries: the proxy can't, YouTube asks a Worker to sign
 // in): the leagues' and the clubs' play everywhere; the NBA's own play in 24
 // countries, not Taiwan (緯來 has the rights there, in Chinese), so an NBA
-// game's are the English full-game channels' that play everywhere; the US
-// rights holders' (CBS Sports Golazo and its Europe channel, NBC Sports,
-// beIN SPORTS USA, ESPN FC's) play only there and aren't taken.
-import { LEAGUES } from './leagues.mjs';
+// game's are one channel's, GAMETIME HIGHLIGHTS' (English, every game, the
+// same cut each time: 10/5's five and 10/6's four, where FreeDawkins had
+// mostly the Lakers' and Ximo Pierto skipped some); the US rights holders'
+// (CBS Sports Golazo and its Europe channel, NBC Sports, beIN SPORTS USA,
+// ESPN FC's) play only there and aren't taken. CPBL's: ELTA's (its games'
+// 全場精華), then the league's own.
+//
+// Only broadcast.mjs imported (itself import-free): Shared-Data loads the
+// two alone (its pack of each recent game's video, sports/watch.json).
+import { eltaVodOf } from './broadcast.mjs';
 
 export const YT = 'https://www.youtube.com';
 export const LEAGUE_CHANNELS = {
@@ -28,14 +34,14 @@ export const LEAGUE_CHANNELS = {
   nationsleague: ['UCyGa1YEx9ST66rYrJTGIKOw'],
   mls: ['UCSZbXT5TLLW_i-5W8FZpFsg'],
   f1: ['UCB_qr75-ydFVKSF9Dmo6izg'],
-  // CPBL's own, then 緯來's (its rights holder): both in Chinese, the only ones there are.
-  cpbl: ['UCDt9GAqyRzc2e5BNxPrwZrw', 'UC3P83RUWwKbZ4bkhNti4ZuQ']
+  // ELTA's (愛爾達體育家族: 【全場精華】10/3 中信兄弟 vs. 富邦悍將), then CPBL's own (10/03 中信 VS 富邦 全場精華).
+  cpbl: ['UCCQvP4hsRW9emj0meGk15jg', 'UCDt9GAqyRzc2e5BNxPrwZrw']
 };
 // English rights holders' channels whose game videos play in Taiwan:
 // Sportsnet (MLB), Premier Sports (Scottish football).
 const BROADCASTERS = new Set(['UCVhibwHk4WKw4leUt6JfRLg', 'UCTj2CVogkBMbPejYWPh9GmA']);
-// An NBA game in English, playable in Taiwan: FreeDawkins, Ximo Pierto, GAMETIME HIGHLIGHTS.
-const NBA_ENGLISH = ['UCEjOSbbaOfgnfRODEEMYlCw', 'UCS7kvhJx431xCKuSgkBaUWw', 'UC0LrZO9wORIqn_aRJtKdgfA'];
+// An NBA game's: GAMETIME HIGHLIGHTS' full-game cut (English, plays in Taiwan).
+const NBA_ENGLISH = ['UC0LrZO9wORIqn_aRJtKdgfA'];
 // Channels whose game highlights don't play in Taiwan: the NBA's own, CBS
 // Sports Golazo's two, NBC Sports, beIN SPORTS USA.
 const NOT_IN_TW = new Set(['UCWJ2lWNubArHWmf3FIHbfcQ', 'UCET00YnetHT7tOpu12v8jxg', 'UCf8YPuOWXlpTS7RibaJlP4g', 'UCqZQlzSHbVJrwrn5XvzrzcA', 'UC0YatYmg5JRYzXJPxIdRd8g']);
@@ -57,7 +63,10 @@ export function grandPrix(name) {
 }
 
 const nm = x => x?.en || x?.name || '';
-const football = e => LEAGUES[e?.league]?.sport === 'soccer';
+// A CPBL club in Chinese (its full name: 中信兄弟), whatever the reader's language.
+const zhOf = x => [x?.zh, x?.name, x?.short].find(n => /[\u3400-\u9fff]/.test(n || '')) || nm(x);
+const SOCCER = new Set(['epl', 'seriea', 'bundesliga', 'ligue1', 'scotland', 'facup', 'ucl', 'uel', 'uecl', 'nationsleague', 'mls', 'worldcup']);
+const football = e => SOCCER.has(e?.league);
 // A playoff game's number and its round's short name, from ESPN's note
 // ("NLDS - Game 3", "East Semifinals - Game 5"): { round, game } or null.
 export function gameNumber(e) {
@@ -75,7 +84,7 @@ export function highlightsQuery(e) {
   if (e.kind === 'match') {
     if (e.league === 'cpbl') {
       const tw = new Date(Date.parse(e.start) + 8 * 3_600_000);
-      return `${e.away?.name || nm(e.away)} VS ${e.home?.name || nm(e.home)} 精華 ${tw.getUTCMonth() + 1}/${String(tw.getUTCDate()).padStart(2, '0')} ${tw.getUTCFullYear()}`;
+      return `${tw.getUTCMonth() + 1}/${tw.getUTCDate()} ${zhOf(e.away)} VS ${zhOf(e.home)} 全場精華 中華職棒`;
     }
     const pair = football(e) ? `${nm(e.home)} vs ${nm(e.away)}` : `${nm(e.away)} vs ${nm(e.home)}`;
     const g = gameNumber(e);
@@ -83,10 +92,20 @@ export function highlightsQuery(e) {
     const day = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: football(e) ? 'Europe/London' : 'America/New_York' });
     return `${pair} highlights ${day}`;
   }
-  const lg = LEAGUES[e.league]?.en || '';
-  return e.league === 'f1' ? `F1 ${year} ${grandPrix(e.enName || e.name)} ${SESSION_EN[e.sessionKey] || ''} Highlights` : `${e.enName || e.name} ${SESSION_EN[e.sessionKey] || ''} ${lg} highlights ${year}`;
+  return e.league === 'f1' ? `F1 ${year} ${grandPrix(e.enName || e.name)} ${SESSION_EN[e.sessionKey] || ''} Highlights` : `${e.enName || e.name} ${SESSION_EN[e.sessionKey] || ''} highlights ${year}`;
 }
-export const searchUrl = e => `${YT}/results?search_query=${encodeURIComponent(highlightsQuery(e).replace(/\s+/g, ' ').trim())}`;
+// The searches to try, in order: a CPBL game ELTA showed (its four clubs'
+// home games) ELTA's way first ("【全場精華】10/4 統一獅 vs. 富邦悍將": only
+// those words find its video), then the league's.
+export function highlightsQueries(e) {
+  const q = highlightsQuery(e);
+  if (e?.league !== 'cpbl' || e.kind !== 'match' || !eltaVodOf(e, [e.home?.name, e.home?.short, e.home?.zh].filter(Boolean))) return [q];
+  const tw = new Date(Date.parse(e.start) + 8 * 3_600_000);
+  return [`全場精華 ${tw.getUTCMonth() + 1}/${tw.getUTCDate()} ${zhOf(e.away)} vs. ${zhOf(e.home)} 愛爾達`, q];
+}
+const urlOf = q => `${YT}/results?search_query=${encodeURIComponent(q.replace(/\s+/g, ' ').trim())}`;
+export const searchUrl = e => urlOf(highlightsQuery(e));
+export const searchUrls = e => highlightsQueries(e).map(urlOf);
 export const videoUrl = id => `${YT}/watch?v=${id}`;
 
 // ---- Which video is the game's --------------------------------------------------------
@@ -106,6 +125,8 @@ export function sideWords(side, other = null) {
     // A Chinese name whole (中信兄弟, 兄弟): two characters at least.
     if (/[\u3400-\u9fff]/.test(n)) {
       if (n.length >= 2) words.add(n);
+      // CPBL's clubs by their owner too, as titles write them (中信 for 中信兄弟, 統一 for 統一7-ELEVEn獅).
+      if (n.length >= 3) words.add(n.slice(0, 2));
       continue;
     }
     words.add(n);
@@ -119,6 +140,11 @@ export function sideWords(side, other = null) {
   return [...words];
 }
 const named = (title, side, other) => sideWords(side, other).some(w => title.includes(w));
+// A Taiwan title's day ("10/03 中信 VS 富邦", "【全場精華】10/3 中信兄弟 vs."), [month, day] or null.
+const twDay = title => {
+  const m = /(?<![\d/])(\d{1,2})\/(\d{1,2})(?![\d/])/.exec(title);
+  return m ? [Number(m[1]), Number(m[2])] : null;
+};
 // The scores a title gives ("TORINO-ROMA 0-2", "(2-1)"), never a season (2026/27).
 const scoresIn = title => [...title.matchAll(/(?<![\d/.:])(\d{1,2})\s*[-–:x]\s*(\d{1,2})(?![\d/.:])/g)].map(m => [Number(m[1]), Number(m[2])]);
 // A video's age ("10h ago", "3 days ago", "Streamed 2 weeks ago") as a span in ms, or null.
@@ -133,16 +159,14 @@ export function ageSpan(text) {
 // Words of a video that isn't the game's highlights.
 const NOT_HIGHLIGHTS = /every play|reaction|preview|press conference|post-?match|interview|\bwomen'?s?\b|\bwfc\b|u-?\d{2}\b|sixes|simulation|recreation|efootball|\bfc ?2\d\b|\bpes\b|fantasy|top \d+|predict|best of|all goals from|\bmatchday \d+ \|/i;
 // How official a channel is for a game: 0 the league's, 1 a side's, 2 an
-// English rights holder's, 3 an NBA game's English full-game channel (4 an
-// NBA side's own that isn't the full game's);
+// English rights holder's, 3 an NBA game's full-game channel;
 // null for anyone else.
 function tier(v, e) {
   if (NOT_IN_TW.has(v.channelId)) return null;
   if ((LEAGUE_CHANNELS[e.league] || []).includes(v.channelId)) return 0;
-  // A side's own (a club's, a federation's: Germany's is German Football):
-  // one side's story, so an NBA team's counts first only when
-  // it's the whole game's (its full-game cut), after the neutral ones otherwise.
-  if (e.kind === 'match' && v.verified && [e.home, e.away].some(s => sideWords(s).some(w => !/[\u3400-\u9fff]/.test(w) && w.length >= 4 && fold(v.channel).includes(w.length >= 7 ? w.slice(0, 6) : w)))) return e.league === 'nba' && !/full game/i.test(v.title) ? 4 : 1;
+  // A side's own (a club's, a federation's: Germany's is German Football).
+  // (The NBA's: one channel's, for one cut every game; CPBL's: its two above.)
+  if (e.league !== 'nba' && e.league !== 'cpbl' && e.kind === 'match' && v.verified && [e.home, e.away].some(s => sideWords(s).some(w => !/[\u3400-\u9fff]/.test(w) && w.length >= 4 && fold(v.channel).includes(w.length >= 7 ? w.slice(0, 6) : w)))) return 1;
   if (BROADCASTERS.has(v.channelId)) return 2;
   if (e.league === 'nba' && NBA_ENGLISH.includes(v.channelId)) return 3;
   return null;
@@ -185,6 +209,12 @@ export function pickHighlights(videos, e, now = Date.now()) {
         return true;
       }
       if (!named(title, e.home, e.away) || !named(title, e.away, e.home)) return false;
+      // A CPBL title's day is the game's (Taiwan's): the same two clubs play three days running.
+      if (e.league === 'cpbl') {
+        const d = twDay(v.title);
+        const tw = new Date(start + 8 * 3_600_000);
+        if (d && (d[0] !== tw.getUTCMonth() + 1 || d[1] !== tw.getUTCDate())) return false;
+      }
       // The game's number: a title naming another game is another game's.
       const n = [...title.matchAll(/\b(?:game|g)\s*(\d+)\b/g)].map(m => Number(m[1]));
       if (g && n.length && !n.includes(g.game)) return false;
@@ -196,15 +226,24 @@ export function pickHighlights(videos, e, now = Date.now()) {
     })
     // In English first (but for CPBL's): not Chinese, not French.
     .map(x => ({ ...x, zh: e.league !== 'cpbl' && (/[\u3400-\u9fff]/.test(x.v.title) || !/highlight/.test(x.title)) ? 1 : 0 }))
-    .sort((a, b) => a.tier - b.tier || a.zh - b.zh || (a.tier === 3 ? NBA_ENGLISH.indexOf(a.v.channelId) - NBA_ENGLISH.indexOf(b.v.channelId) : 0) || a.i - b.i);
-  return fits[0]?.v || null;
+    .sort((a, b) => a.tier - b.tier || (a.tier === 0 ? (LEAGUE_CHANNELS[e.league] || []).indexOf(a.v.channelId) - (LEAGUE_CHANNELS[e.league] || []).indexOf(b.v.channelId) : 0) || a.zh - b.zh || (a.tier === 3 ? NBA_ENGLISH.indexOf(a.v.channelId) - NBA_ENGLISH.indexOf(b.v.channelId) : 0) || a.i - b.i);
+  return fits[0] ? { ...fits[0].v, official: fits[0].tier <= 1 } : null;
 }
 
 // ---- Finding it ------------------------------------------------------------------------
 
-// Found ones kept on the device (a video found stays the game's): { key: { id, channel, length } }.
-const KEPT = 'fx.highlights.v1';
-const keyOf = e => `${e.league}:${e.id}:${e.sessionKey || ''}`;
+// A game's key, as the pack and the device keep it.
+export const watchKey = e => `${e.league}:${e.id}:${e.sessionKey || ''}`;
+// Shared-Data's pack (sports/watch.json, built every few hours): each recent
+// game's highlights and whether ELTA has its whole game ({ games: { key:
+// { hl?: { id, channel, length, official }, elta?: 1 } } }), set by the app.
+let pack = null;
+export const setWatchPack = p => {
+  if (p?.games) pack = p;
+};
+export const watchOf = e => (e ? pack?.games?.[watchKey(e)] || null : null);
+// Found ones kept on the device too (a game opened before the pack had it).
+const KEPT = 'fx.highlights.v2';
 function kept() {
   try {
     return JSON.parse(localStorage.getItem(KEPT) || '{}') || {};
@@ -212,26 +251,48 @@ function kept() {
     return {};
   }
 }
-export const knownHighlights = e => (e ? kept()[keyOf(e)] || null : null);
+export const knownHighlights = e => (e ? kept()[watchKey(e)] || watchOf(e)?.hl || null : null);
 function keep(e, v) {
   try {
     const all = kept();
-    all[keyOf(e)] = { id: v.id, channel: v.channel, length: v.length, at: Date.now() };
+    all[watchKey(e)] = { ...v, at: Date.now() };
     // The newest 300.
     const list = Object.entries(all).sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).slice(0, 300);
     localStorage.setItem(KEPT, JSON.stringify(Object.fromEntries(list)));
   } catch {}
 }
-// The game's video ({ id, channel, length }), or null while there's none
-// (a search read again after 20 minutes, a day for a game a week old). A
-// failed read throws: never "none".
+const short = v => ({ id: v.id, channel: v.channel, channelId: v.channelId, length: v.length, official: Boolean(v.official) });
+// What a video is, for its row's name: ELTA's (CPBL), the league's or a
+// side's own, or a full-game channel's (the NBA's).
+export const ELTA_CHANNEL = 'UCCQvP4hsRW9emj0meGk15jg';
+export const highlightsKind = v => (!v ? 'search' : v.channelId === ELTA_CHANNEL ? 'elta' : v.official ? 'official' : 'full');
+// The game's video ({ id, channel, length, official }), or null while there's
+// none. A failed read throws: never "none". `read`: the proxy's (proxyJson).
 export async function findHighlights(e, read, now = Date.now()) {
   if (e?.status?.state !== 'post' || e.status.void) return null;
   const known = knownHighlights(e);
   if (known) return known;
   const old = now - Date.parse(e.start) > 7 * 86_400_000;
-  const data = await read(searchUrl(e), { ttl: old ? 86_400_000 : 20 * 60_000 });
-  const v = pickHighlights(data?.videos, e, now);
-  if (v) keep(e, v);
-  return v ? { id: v.id, channel: v.channel, length: v.length } : null;
+  let v = null;
+  for (const url of searchUrls(e)) {
+    const data = await read(url, { ttl: old ? 86_400_000 : 20 * 60_000 });
+    if ((v = pickHighlights(data?.videos, e, now))) break;
+  }
+  if (v) keep(e, short(v));
+  return v ? short(v) : null;
+}
+// Recent games over that the pack doesn't have yet (it's built every few
+// hours): looked up one at a time in the background, so a sheet opened
+// later has its video at once. Each game asked once a session.
+const asked = new Set();
+let queue = Promise.resolve();
+export function prefetchHighlights(events, read, now = Date.now()) {
+  for (const e of events || []) {
+    if (e?.status?.state !== 'post' || e.status.void || now - Date.parse(e.start) > 36 * 3_600_000) continue;
+    const key = watchKey(e);
+    if (asked.has(key) || knownHighlights(e)) continue;
+    asked.add(key);
+    queue = queue.then(() => findHighlights(e, read, now).catch(() => null));
+  }
+  return queue;
 }

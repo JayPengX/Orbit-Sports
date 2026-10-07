@@ -28,16 +28,29 @@ test("the game's own number: another game of the series is another game's", () =
   assert.equal(pickHighlights(list.slice(0, 2), e, NOW), null, 'Game 1, or a fan channel: none');
 });
 
-test("an NBA game: never the NBA's own (not in Taiwan), the English full-game channels, a team's own only when it's the full game", () => {
+test("an NBA game: one channel's cut every game (GAMETIME HIGHLIGHTS), never the NBA's own (not in Taiwan) or a team's", () => {
   const e = game('nba', side('Los Angeles Lakers', 98), side('Golden State Warriors', 124), { start: '2026-10-07T02:00Z' });
   const nba = v('nba', 'LAKERS at WARRIORS | NBA PRESEASON FULL GAME HIGHLIGHTS | October 6, 2026', 'NBA', 'UCWJ2lWNubArHWmf3FIHbfcQ', '10h ago');
-  const team = v('team', 'Warriors Preseason Highlights vs. Lakers 10/6/26', 'Golden State Warriors', 'UCgsw', '11h ago');
-  const gametime = v('gt', 'Los Angeles Lakers vs Golden State Warriors Full Game Highlights - October 6, 2026 | NBA Preseason', 'GAMETIME HIGHLIGHTS', 'UC0LrZO9wORIqn_aRJtKdgfA', '11h ago');
+  const team = v('team', 'Golden State Warriors vs. Los Angeles Lakers Full Game Highlights', 'Golden State Warriors', 'UCgsw', '11h ago');
   const dawkins = v('fd', 'Los Angeles Lakers vs Golden State Warriors Full Game Highlights | Oct 6, 2026 | FreeDawkins', 'FreeDawkins', 'UCEjOSbbaOfgnfRODEEMYlCw', '11h ago');
-  assert.equal(pickHighlights([nba, team, gametime, dawkins], e, NOW).id, 'fd');
-  assert.equal(pickHighlights([nba, team], e, NOW).id, 'team', "a team's own when there's nothing else");
-  const full = v('full', 'Golden State Warriors vs. Los Angeles Lakers Full Game Highlights 📺', 'Golden State Warriors', 'UCgsw', '11h ago');
-  assert.equal(pickHighlights([nba, gametime, full], e, NOW).id, 'full');
+  const gametime = v('gt', 'Los Angeles Lakers vs Golden State Warriors Full Game Highlights - October 6, 2026 | NBA Preseason', 'GAMETIME HIGHLIGHTS', 'UC0LrZO9wORIqn_aRJtKdgfA', '11h ago');
+  assert.equal(pickHighlights([nba, team, dawkins, gametime], e, NOW).id, 'gt');
+  assert.equal(pickHighlights([nba, team, dawkins], e, NOW), null);
+});
+
+test("CPBL: ELTA's 全場精華 first, then the league's own; clubs by their owner's name; the game's own day", () => {
+  const cpbl = (away, home, extra) => ({ id: 'c', league: 'cpbl', kind: 'match', start: '2026-10-03T09:05:00Z', status: { state: 'post' }, away: { name: away, en: 'x', score: '3' }, home: { name: home, en: 'y', score: '5' }, ...extra });
+  const e = cpbl('中信兄弟', '富邦悍將');
+  assert.equal(highlightsQuery(e), '10/3 中信兄弟 VS 富邦悍將 全場精華 中華職棒');
+  const own = v('own', '10/03 中信 VS 富邦 全場精華', 'CPBL 中華職棒', 'UCDt9GAqyRzc2e5BNxPrwZrw', '4d ago');
+  const elta = v('elta', '【全場精華】10/3 中信兄弟 vs. 富邦悍將 ｜ 中華職棒37年例行賽｜鎖定ELTA.tv愛爾達', '愛爾達體育家族 ELTA Sports', 'UCCQvP4hsRW9emj0meGk15jg', '4d ago');
+  const videoland = v('vl', '【2026中華職棒例行賽】10/03 #中信兄弟 VS #富邦悍將 全場賽事精華', '緯來體育台', 'UC3P83RUWwKbZ4bkhNti4ZuQ', '4d ago');
+  const NOW2 = Date.parse('2026-10-07T15:00:00Z');
+  assert.equal(pickHighlights([videoland, own, elta], e, NOW2).id, 'elta');
+  assert.equal(pickHighlights([videoland, own], e, NOW2).id, 'own');
+  assert.equal(pickHighlights([videoland], e, NOW2), null, "緯來's: not taken");
+  assert.equal(pickHighlights([v('d2', '10/04 中信 VS 富邦 全場精華', 'CPBL 中華職棒', 'UCDt9GAqyRzc2e5BNxPrwZrw', '3d ago')], e, NOW2), null, 'the next day: another game');
+  assert.equal(pickHighlights([own], e, NOW2).official, true);
 });
 
 test("football: the league's own, a side's own (its federation's too), by both sides and the score; never a US-only broadcaster's", () => {

@@ -453,14 +453,21 @@ export function weekOf(e, onLoad) {
   if (onLoad) weekMemo.get(e.league).then?.(() => onLoad());
   return null;
 }
-// A round said in the reader's words: a cup's matchday, a league's matchweek
-// (MLS's matchday, as it says it), or a span of them ("第 6–7 輪").
+// How a league counts its rounds: 'matchday' (第 N 比賽日: a cup's league
+// phase; MLS's calendar, where a side can sit one out), 'matchweek' (第 N 輪:
+// a league where every side plays every round), or null.
+export function roundKind(league) {
+  const l = LEAGUES[league];
+  if (!l || l.sport !== 'soccer') return null;
+  return l.cup || CALENDAR_ROUNDS.has(league) ? 'matchday' : 'matchweek';
+}
+// A round said in the reader's words, or a span of them ("第 6–7 輪").
 export function roundLabel(league, from, to = from, lang = 'zh') {
   if (!from) return '';
   const n = to && to !== from ? `${from}–${to}` : `${from}`;
-  const cup = Boolean(LEAGUES[league]?.cup);
-  if (lang === 'en') return `${cup || CALENDAR_ROUNDS.has(league) ? 'Matchday' : 'Matchweek'} ${n}`;
-  return cup ? `第 ${n} 比賽日` : `第 ${n} 輪`;
+  const day = roundKind(league) === 'matchday';
+  if (lang === 'en') return `${day ? 'Matchday' : 'Matchweek'} ${n}`;
+  return day ? `第 ${n} 比賽日` : `第 ${n} 輪`;
 }
 
 // ---- The season's calendar: which days a league plays -------------------------------

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { calendarRounds, phaseRounds, roundLabel, cpblTable, seasonFrom } from '../public/lib/espn.mjs';
-import { parseSearch, placeInCups } from '../public/lib/search.mjs';
+import { parseSearch, placeInCups, placeTeams, placePlayers } from '../public/lib/search.mjs';
 
 const m = (id, start, h, a, extra = {}) => ({ id, kind: 'match', start, status: {}, home: { id: h }, away: { id: a }, ...extra });
 
@@ -24,13 +24,13 @@ test("a cup's league phase: one matchday a side's game; the day's as most of its
   assert.equal(w.get('ko'), undefined);
 });
 
-test("a round in the reader's words: a league's matchweek, a cup's matchday, MLS's matchday", () => {
+test("a round in the reader's words: a league's matchweek (第 N 輪), a cup's and MLS's matchday (第 N 比賽日)", () => {
   assert.equal(roundLabel('epl', 6, 7), '第 6–7 輪');
   assert.equal(roundLabel('epl', 6, 6, 'en'), 'Matchweek 6');
   assert.equal(roundLabel('ucl', 2), '第 2 比賽日');
   assert.equal(roundLabel('nationsleague', 3, 3, 'en'), 'Matchday 3');
   assert.equal(roundLabel('mls', 31, 31, 'en'), 'Matchday 31');
-  assert.equal(roundLabel('mls', 31), '第 31 輪');
+  assert.equal(roundLabel('mls', 31), '第 31 比賽日');
 });
 
 test("CPBL's tables: the league's own, the games since it was built put in the half on now, re-ranked", () => {
@@ -78,4 +78,14 @@ test("a season counted from when ESPN says it began: MLS's from January (back fr
   assert.equal(seasonFrom([page('2026-01-01T10:00Z', '2026-12-31T04:59Z')], Date.parse('2026-10-11T00:00Z'), july), Date.parse('2026-01-01T10:00Z'));
   assert.equal(seasonFrom([page('2026-06-01T04:00Z', '2027-06-01T03:59Z'), page('2027-06-01T04:00Z', '2028-06-01T03:59Z')], Date.parse('2027-01-11T00:00Z'), july), Date.parse('2026-06-01T04:00Z'));
   assert.equal(seasonFrom([{ events: [{ date: '2026-08-15T14:00Z' }] }], Date.parse('2026-10-11T00:00Z'), july), july);
+});
+
+test('search "madrid": Real Madrid placed at once, whatever its many footballers of other leagues take', async () => {
+  const found = parseSearch({ results: [{ type: 'team', contents: [{ uid: 's:600~t:86', displayName: 'Real Madrid', sport: 'soccer', defaultLeagueSlug: 'esp.1' }, { uid: 's:600~t:21128', displayName: 'Real Madrid', sport: 'soccer', defaultLeagueSlug: 'esp.w.1' }] }] });
+  assert.deepEqual(placeTeams(found.teams, new Map([['86', 'ucl']])).map(x => [x.id, x.league]), [['86', 'ucl']]);
+  // Only the first few unplaced players are looked up.
+  let asked = 0;
+  const players = Array.from({ length: 9 }, (_, i) => ({ league: null, slug: 'col.copa', id: String(i), name: `P${i}` }));
+  await placePlayers(players, new Map(), async () => (asked++, null));
+  assert.equal(asked, 6);
 });

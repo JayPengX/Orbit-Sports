@@ -50,20 +50,24 @@ export function parseSearch(data) {
   return out;
 }
 
-// The unplaced ones placed in the European cup their club plays in this
-// season (`cups`: a club's id → 'ucl' | 'uel' | 'uecl'; `clubOf`: a player's
-// club id, from their league's slug and id), the rest left out.
-export async function placeInCups(found, cups, clubOf) {
-  const players = await Promise.all(
-    found.players.map(async x => {
+// The unplaced clubs placed in the European cup they play in this season
+// (`cups`: a club's id → 'ucl' | 'uel' | 'uecl'), the rest left out.
+export const placeTeams = (teams, cups) => teams.map(x => (x.league ? x : cups.get(String(x.id)) ? { ...x, league: cups.get(String(x.id)) } : null)).filter(Boolean);
+// The unplaced footballers placed in their club's European cup (`clubOf`:
+// a player's club id, from their league's slug and id), the first few only
+// (each is a read), the rest left out.
+export async function placePlayers(players, cups, clubOf, most = 6) {
+  let asked = 0;
+  const out = await Promise.all(
+    players.map(async x => {
       if (x.league) return x;
+      if (asked++ >= most) return null;
       const club = await clubOf(x.slug, x.id).catch(() => null);
       return club && cups.get(String(club)) ? { ...x, league: cups.get(String(club)) } : null;
     })
   );
-  return {
-    ...found,
-    teams: found.teams.map(x => (x.league ? x : cups.get(String(x.id)) ? { ...x, league: cups.get(String(x.id)) } : null)).filter(Boolean),
-    players: players.filter(Boolean)
-  };
+  return out.filter(Boolean);
+}
+export async function placeInCups(found, cups, clubOf) {
+  return { ...found, teams: placeTeams(found.teams, cups), players: await placePlayers(found.players, cups, clubOf) };
 }
