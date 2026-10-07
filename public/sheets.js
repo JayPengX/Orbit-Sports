@@ -1996,7 +1996,7 @@ export async function openConstructor(row) {
         tile(W('排名', 'Place'), at >= 0 ? `P${at + 1}` : '–', gap > 0 ? W(`落後 ${gap} 分`, `${gap} behind`) : at === 0 ? W('領先', 'Leading') : ''),
         tile(W('積分', 'Points'), String(pts || '–')),
         tile(W('分站冠軍', 'Wins'), String(wins)),
-        tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles} 次`, `${doubles} double`) : '')
+        tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
       ]),
       freshNews(teamStories, league),
       drivers.length
