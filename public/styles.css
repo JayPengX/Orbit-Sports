@@ -833,8 +833,7 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .replay-link + .yt-link { margin-top: 10px; }
 .stack > .replay-link + .yt-link { margin-top: 0; }
 .replay-link .yt-text small.one-line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.replay-icon { flex: none; width: 40px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; }
-.replay-icon .watch-play { margin-left: 2px; }
+.replay-icon { flex: none; width: 40px; height: 40px; border-radius: 10px; display: block; }
 .replay-go { flex: none; padding: 7px 12px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 800; white-space: nowrap; }
 .replay-link.wait { opacity: 0.6; }
 .replay-link.wait .replay-go { visibility: hidden; }

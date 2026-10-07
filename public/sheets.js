@@ -1200,14 +1200,14 @@ function replayLink(e) {
   if (!ELTA_VOD[e.league] && e.league !== 'cpbl' && !tvOf(e).some(b => b.exact)) return null;
   const en = L() === 'en';
   const text = el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: en ? 'Finding it on ELTA.tv…' : '在愛爾達找這場…' })]);
-  const body = [el('span', { class: 'replay-icon', 'aria-hidden': 'true' }, [el('span', { class: 'watch-play' })]), text, el('span', { class: 'replay-go', text: en ? 'Watch' : '觀看' })];
+  const body = [el('img', { class: 'replay-icon', src: './icons/elta.png', alt: '', 'aria-hidden': 'true', width: 40, height: 40 }), text, el('span', { class: 'replay-go', text: en ? 'Watch' : '觀看' })];
   const out = el('div', { class: 'replay-link wait' }, body);
   replayOf(e)
     .then(r => {
       if (!r) return out.remove();
       const b = r.channels ? r.channels[0] : r.video;
       const sub = r.channels
-        ? en ? `${tvName(b)}: tap this game in its guide (ELTA VIP)` : `${tvName(b)}・開頻道後在節目表點這場（VIP）`
+        ? en ? `${tvName(b)}: tap this game in its guide` : `${tvName(b)}・開頻道後在節目表點這場`
         : r.episode
           ? `${en ? 'ELTA.tv' : '愛爾達'}・${r.episode.label}`
           : en ? 'ELTA.tv: not up yet (days to weeks), or not shown' : '愛爾達・這場還沒上架（數天到數週）或沒有轉播';
