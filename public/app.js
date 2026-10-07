@@ -114,6 +114,26 @@ Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, isFol
 // (a newcomer), undefined when nothing was read (offline, the Worker down, a
 // sign-in handed over): then what's on screen stays and prefsLoaded doesn't
 // turn on, so nobody is welcomed as new because a read failed.
+// A copy is kept on the device too (with its time), and the pass's
+// follows:match has the leagues: when the pass's own copy comes back with
+// none, or older than the device's (a save that never reached it), the
+// device's (else follows:match's leagues) stands and is saved again. Someone
+// who has picked their sports isn't welcomed as new because a save was lost.
+const LOCAL_PREFS = 'fx.prefs';
+// (Its account's only: another pass signed in here starts from its own.)
+const localPrefs = () => {
+  try {
+    const kept = JSON.parse(localStorage.getItem(LOCAL_PREFS) || 'null');
+    return kept && q.pass && kept.a === q.pass ? JSON.parse(kept.p) : null;
+  } catch {
+    return null;
+  }
+};
+const keepLocalPrefs = payload => {
+  try {
+    if (q.pass) localStorage.setItem(LOCAL_PREFS, JSON.stringify({ a: q.pass, p: payload }));
+  } catch {}
+};
 function applyPrefs(payload) {
   if (payload === undefined) return;
   let p = null;
@@ -122,11 +142,24 @@ function applyPrefs(payload) {
   } catch {
     return;
   }
+  const local = localPrefs();
+  const passed = setting(state.wallet, 'follows:match', null)?.leagues?.filter(k => LEAGUES[k]) || [];
+  let restored = false;
+  if (local?.leagues?.some(k => LEAGUES[k]) && (!p || (local.t || 0) > (p.t || 0))) {
+    p = local;
+    restored = true;
+  } else if (!p?.leagues?.some(k => LEAGUES[k]) && passed.length) {
+    p = { ...(p || {}), leagues: passed };
+    restored = true;
+  } else if (payload) keepLocalPrefs(payload);
   if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], games: p.games || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
   // Only the leagues Orbit Sports has; an NBA team with NBA.com's logo, as everywhere.
   state.prefs.games = keptGames(state.prefs.games);
   state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
   state.prefsLoaded = true;
+  // Leagues in: not a newcomer, whatever was shown before they came.
+  if (state.prefs.leagues.length) state.home.picking = false;
+  if (restored) savePrefs();
 }
 // The follows from the pass when they couldn't be read at the start: the
 // start's reply when it has them, else a read of its own. Changes made in
@@ -176,9 +209,16 @@ function savePrefs() {
   clearTimeout(saveTimer);
   const { leagues, follows, games, audio } = state.prefs;
   saveTimer = setTimeout(() => {
-    q.write({ payload: JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, t: Date.now() }), wallet: followsPatch() }).catch(() => {});
+    const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, t: Date.now() });
+    keepLocalPrefs(payload);
+    // Not saved (another app live on the pass, offline): again when this one is live.
+    savePending = true;
+    q.write({ payload, wallet: followsPatch() })
+      .then(() => (savePending = false))
+      .catch(() => {});
   }, 800);
 }
+let savePending = false;
 // What the person follows and opens, on the pass too (`follows:match`,
 // `aff:match`): Quadra Play recommends from it, and apps on a phone's home
 // screen don't share storage. Leagues in order; teams as [league, name].
@@ -2343,7 +2383,7 @@ q.on('wallet', w => {
   state.wallet = w;
   if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
 });
-q.on('active', live => live && (readPrefs({ offline: true }), loadDay(today())));
+q.on('active', live => live && (readPrefs({ offline: true }), savePending && state.prefsLoaded && savePrefs(), loadDay(today())));
 
 function firstTab() {
   const hash = location.hash.slice(1);
