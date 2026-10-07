@@ -1467,10 +1467,14 @@ function fillField(s, e) {
       // titles' time isn't said: the broadcast card says when the channel's on air).
       el('p', { class: 'muted sess-where', text: e.venue || '' }),
       el('p', { class: 'muted sess-when', text: whenText(shownStart(e)) }), weekendFollow(e), watchButton(e, 'wide')]));
-  const again = replayLink(e);
-  if (again) s.body.append(again);
-  const yt = highlights(e);
-  if (yt) s.body.append(yt);
+  // A race weekend's replay and highlights go with the session picked below
+  // (they're that session's); anything else's here.
+  if (e.kind !== 'field') {
+    const again = replayLink(e);
+    if (again) s.body.append(again);
+    const yt = highlights(e);
+    if (yt) s.body.append(yt);
+  }
   if (e.kind === 'field') {
     // The weekend's (or week's) sessions, then the chosen one's order.
     const sessions = [...e.sessions].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
@@ -1537,6 +1541,11 @@ function fillField(s, e) {
         box,
         sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,
         el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
+        // The picked session's whole replay and highlights, once it's over.
+        ...(() => {
+          const one = { ...e, id: `${weekend}~${ss.abbr}`, weekend, sessionKey: ss.abbr, session: sessionName(ss, L()), start: ss.start, official: ss.start, status: ss.status };
+          return ss.status.state === 'post' ? [replayLink(one), highlights(one)].filter(Boolean) : [];
+        })(),
         known?.length ? f1Field(known, ss.field) : numbers ? shape() : espnList(),
         raceBox
       );
