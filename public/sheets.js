@@ -5,7 +5,7 @@ import { translate, workerLines } from '#kit/quadra.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName } from './lib/compname.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam } from './lib/espn.mjs';
-import { stageTag } from './lib/stage.mjs';
+import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors } from './lib/wpline.mjs';
@@ -149,7 +149,8 @@ export async function openMatch(e) {
   s.dialog.addEventListener('close', stop);
   const paint = () => {
     const tabs = [['overview', T('overview')]];
-    if (teamStatRows(data?.teamStats, LEAGUES[e.league]?.sport, L()).length) tabs.push(['stats', T('stats')]);
+    // The game's own numbers, once it's begun (before it, ESPN's are a stray season total or two: 助攻 4–3).
+    if ((data?.status || e.status).state !== 'pre' && teamStatRows(data?.teamStats, LEAGUES[e.league]?.sport, L()).length) tabs.push(['stats', T('stats')]);
     if (data?.players.some(p => p.tables.some(tb => tb.rows.length))) tabs.push(['players', T('players')]);
     if (data?.plays.length || data?.keyEvents.length) tabs.push(['plays', T('plays')]);
     if (data?.rosters.some(r => r.players.length)) tabs.push(['lineups', T('lineups')]);
@@ -165,6 +166,12 @@ export async function openMatch(e) {
     standings(e.league)
       .then(groups => {
         table = groups;
+        // A cup with groups: the game's group in the header (C 級第 2 組).
+        const g = (groups || []).length > 1 ? groups.find(x => x.rows.some(r => r.id === String(e.home.id)) && x.rows.some(r => r.id === String(e.away.id))) : null;
+        if (g && !e.group) {
+          e = { ...e, group: g.name };
+          paintHeader(data);
+        }
         paint();
       })
       .catch(() => {});
@@ -1648,7 +1655,7 @@ export async function openTeam(league, id, fallback = {}) {
         el('div', { class: 'team-hero-text' }, [
           el('h3', { text: info.name }),
           info.en && info.en !== info.name ? el('small', { class: 'muted', text: info.en }) : null,
-          el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? el('span', { class: 'nowrap', text: W(`${leagueName(league, L())}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in the ${leagueName(league, L())}`) }) : !groups || groups.some(tableStarted) ? standingZh(info.standing, L()) : ''].filter(Boolean), ' · ')),
+          el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? el('span', { class: 'nowrap', text: W(`${leagueName(league, L())}${groups.length > 1 && place.group ? ` ${groupName(place.group, 'zh')} · ` : ''}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in ${groups.length > 1 && place.group ? groupName(place.group, 'en') : `the ${leagueName(league, L())}`}`) }) : !groups || groups.some(tableStarted) ? standingZh(info.standing, L()) : ''].filter(Boolean), ' · ')),
           form.length ? el('div', { class: 'hero-form' }, [resultPills(form)]) : null
         ]),
         followBtn

@@ -91,6 +91,9 @@ export function groupZh(name, lang = 'zh') {
   if (div) return `${{ al: '美聯', nl: '國聯' }[div[1].toLowerCase()]}${{ east: '東區', west: '西區', central: '中區' }[div[2].toLowerCase()]}`;
   const grp = /^Group ([A-Z])$/i.exec(n);
   if (grp) return `${grp[1].toUpperCase()} 組`;
+  // The Nations League's tiers: Group C2 → C 級第 2 組.
+  const tier = /^Group ([A-D])(\d)$/i.exec(n);
+  if (tier) return `${tier[1].toUpperCase()} 級第 ${tier[2]} 組`;
   return statsTitle(n.replace(/^\d{4}(-\d{2})?\s+/, ''), lang);
 }
 // A leader's line ("Matches: 5, Goals: 5", "25 PTS, 8 REB") in Chinese words.

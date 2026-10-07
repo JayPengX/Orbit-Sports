@@ -13,7 +13,10 @@ test('every league has a sport, a source and a kind', () => {
   }
   assert.ok(TOP_LEAGUES.length >= 5);
   assert.equal(hasStandings('epl'), true);
-  assert.equal(hasStandings('ucl'), false);
+  // A cup with a table ESPN keeps (a league phase, groups) has one; a knockout cup doesn't.
+  assert.equal(hasStandings('ucl'), true);
+  assert.equal(hasStandings('nationsleague'), true);
+  assert.equal(hasStandings('facup'), false);
   assert.equal(hasStandings('cpbl'), false);
 });
 
@@ -43,4 +46,12 @@ test('for you puts live and followed games first, skips postponed ones', () => {
   assert.ok(!ids.includes('d'));
   assert.ok(ids.indexOf('b') < ids.indexOf('a'));
   assert.ok(ids.indexOf('c') < ids.indexOf('a'));
+});
+
+test("a cup's group in the reader's words", async () => {
+  const { groupName, stageTag } = await import('../public/lib/stage.mjs');
+  assert.equal(groupName('Group C2'), 'C 級第 2 組');
+  assert.equal(groupName('Group C2', 'en'), 'League C · Group 2');
+  assert.equal(groupName('Group A'), 'A 組');
+  assert.equal(stageTag({ group: 'Group C2', season: { type: 2 } }), 'C 級第 2 組');
 });

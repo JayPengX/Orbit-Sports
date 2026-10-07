@@ -1416,6 +1416,32 @@ function applyScores(sc, events) {
   sc.byDay = byDay;
   sc.all = events;
   sc.days = [...byDay.keys()].sort();
+  tagGroups(sc.league, events, () => state.tab === 'matches' && state.scores === sc && renderScores());
+}
+// A cup with groups (the Nations League's tiers, the World Cup's): each
+// game's group from its table (read once a session), so a game says which
+// it is (C 級第 2 組). A league phase of one table says nothing.
+const groupsRead = new Map();
+function tagGroups(league, events, redraw) {
+  if (!LEAGUES[league]?.cup || !hasStandings(league)) return;
+  if (!groupsRead.has(league))
+    groupsRead.set(
+      league,
+      standings(league)
+        .then(gs => new Map((gs || []).length > 1 ? gs.flatMap(g => g.rows.map(r => [String(r.id), g.name])) : []))
+        .catch(() => (groupsRead.delete(league), new Map()))
+    );
+  groupsRead.get(league).then(of => {
+    let changed = false;
+    for (const e of events) {
+      const g = of.get(String(e.home?.id));
+      if (g && g === of.get(String(e.away?.id)) && e.group !== g) {
+        e.group = g;
+        changed = true;
+      }
+    }
+    if (changed) redraw();
+  });
 }
 // A day picked on the strip or the 📅: shown at once; a day not read yet (an
 // ESPN league's, far from now) is read first.
