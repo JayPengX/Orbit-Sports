@@ -1234,3 +1234,12 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .wp-mo-text .nb, .wp-why-text .nb { white-space: nowrap; }
 /* A player's name may take two lines rather than be cut ("Enrique Hernandez…"). */
 .player-hero .team-head-text h3 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+
+/* 過程, the whole game: a header at each period, the chart's key moments marked, a run on a line of its own. */
+.plays li.period-head { display: block; padding: 7px 14px; font-size: 12.5px; font-weight: 750; color: var(--q-text-2); background: var(--q-sunken); }
+.plays li.key { box-shadow: inset 3px 0 var(--accent); }
+.plays li.key .play-main { font-weight: 700; }
+.plays li.run-mark { background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 750; }
+.plays li .wp-gain { font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.plays.clockless li { grid-template-columns: minmax(0, 1fr) auto; }
+.plays .play-words > .wp-gain { display: inline-block; width: max-content; margin-top: 4px; }

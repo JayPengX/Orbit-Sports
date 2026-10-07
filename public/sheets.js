@@ -523,24 +523,72 @@ function matchSection(view, d, e, table, lw = {}) {
     );
   }
   if (view === 'plays' && d) {
-    // Basketball: every play (scores stand out); soccer its key moments; baseball the scoring plays.
-    const list = LEAGUES[e.league]?.sport === 'basketball' && d.feed.length ? d.feed : d.keyEvents.length ? d.keyEvents : d.plays;
-    return el(
-      'ol',
-      { class: 'plays' },
-      list
-        // ESPN logs some twice in a row (a delay with its words and without): said once.
-        .filter((p, i) => !i || feedText(LEAGUES[e.league]?.sport, p, L() === 'en', '') !== feedText(LEAGUES[e.league]?.sport, list[i - 1], L() === 'en', '') || p.clock !== list[i - 1].clock || (p.team !== list[i - 1].team && Boolean(p.who || list[i - 1].who)))
-        .reverse()
-        .map(p =>
-          el('li', { class: p.scoring ? 'scoring' : '' }, [
-            // The period over the clock, a designed two lines in a narrow column.
-            el('span', { class: 'play-when' }, [playPeriod(p, LEAGUES[e.league]?.sport, L()) ? el('small', { text: playPeriod(p, LEAGUES[e.league]?.sport, L()) }) : null, el('span', { class: 'num', text: p.clock })]),
-            playLine(e.league, p, d.byId[p.team] || (p.team === e.home.id ? e.home : p.team === e.away.id ? e.away : nameOf(p.team))),
-            p.home != null && p.away != null ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null
+    // The whole game: basketball every play, baseball every at-bat, American
+    // football every drive, soccer its events (goals, cards, changes). A
+    // finished game reads in order like a story; one on, the latest first.
+    // A header at each period; the scores stand out, and the chart's key
+    // moments (a run where it ended, a lead taken, a big play) are marked.
+    const sport = LEAGUES[e.league]?.sport;
+    const en = L() === 'en';
+    const side = id => d.byId[id] || (id === e.home.id ? e.home : id === e.away.id ? e.away : nameOf(id));
+    const sideShort = id => side(id)?.short || side(id)?.name || '';
+    const live = (d.status || e.status).state === 'in';
+    if (sport === 'football' && d.drives.length) {
+      const rows = [];
+      let at = 0;
+      for (const x of live ? [...d.drives].reverse() : d.drives) {
+        if (x.periodNum !== at) rows.push(el('li', { class: 'period-head', text: playPeriod(x, sport, L()) || (en ? `Q${x.periodNum}` : `第${x.periodNum}節`) }));
+        at = x.periodNum;
+        rows.push(
+          el('li', { class: x.scoring ? 'scoring' : '' }, [
+            el('span', { class: 'play-when' }, [el('span', { class: 'num', text: x.clock })]),
+            el('span', { class: 'play-text has-face' }, [side(x.team)?.logo ? logo(side(x.team).logo, sideShort(x.team), 'xs play-team') : el('span', { class: 'play-none' }, [leagueMark(e.league)]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: `${sideShort(x.team)} ${en ? x.result : DRIVE_ZH[x.result] || x.result}` }), x.desc ? el('small', { class: 'play-sub', text: en ? x.desc : driveZh(x.desc) }) : null])]),
+            x.home != null && x.away != null ? el('strong', { class: 'num', text: `${x.away}-${x.home}` }) : null
           ])
-        )
-    );
+        );
+      }
+      return el('ol', { class: 'plays' }, rows);
+    }
+    const list = sport === 'basketball' && d.feed.length ? d.feed : sport === 'baseball' && d.feed.some(p => p.kind === 'play-result') ? d.feed.filter(p => p.kind === 'play-result' || (p.scoring && p.kind !== 'play-result')) : d.keyEvents.length ? d.keyEvents : d.plays;
+    // The chart's key moments, by play: a run told where it ended, a play by itself.
+    const marks = new Map();
+    const tint = sideColors(e.home, e.away, getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff');
+    const pts = d.winProb || [];
+    if (pts.length && pts.every(p => p.n)) {
+      const sides = { home: { id: e.home.id, name: sideShort(e.home.id) }, away: { id: e.away.id, name: sideShort(e.away.id) }, en };
+      for (const m of playMoments(pts, sport, sides)) {
+        const id = (m.periods || m.rally ? pts[m.i]?.play?.id : m.src?.id) || pts[m.i]?.play?.id;
+        if (id) marks.set(id, m);
+      }
+    }
+    const said = p => feedText(sport, p, en, '');
+    // Baseball has no clock (the inning's in the headers): no column for one.
+    const clockless = list.every(p => !p.clock);
+    const shown = list
+      // ESPN logs some twice in a row (a delay with its words and without): said once.
+      .filter((p, i) => !i || said(p) !== said(list[i - 1]) || p.clock !== list[i - 1].clock || (p.team !== list[i - 1].team && Boolean(p.who || list[i - 1].who)));
+    const rows = [];
+    let at = '';
+    for (const p of live ? [...shown].reverse() : shown) {
+      const period = playPeriod(p, sport, L());
+      if (period && period !== at && sport !== 'soccer') rows.push(el('li', { class: 'period-head', text: period }));
+      at = period || at;
+      const m = p.id ? marks.get(p.id) : null;
+      const chip = m ? el('span', { class: `wp-gain ${m.side}`, style: tint[m.side] ? `--side:${tint[m.side]}` : null, text: `${m.side === 'home' ? sideShort(e.home.id) : sideShort(e.away.id)} +${Math.round(Math.abs(m.delta) * 100)}%` }) : null;
+      // A run: a line of its own after the play that ended it (its words, its swing).
+      const run = m && (m.periods || m.rally) ? el('li', { class: 'run-mark' }, [clockless ? null : el('span', { class: 'play-when' }), el('span', { class: 'play-text' }, [el('span', { class: 'play-main', text: m.text })]), chip]) : null;
+      // A key play: its swing under its words (the score stays on the right).
+      const line = playLine(e.league, p, side(p.team));
+      if (m && !run) line.querySelector('.play-words')?.append(chip);
+      const row = el('li', { class: [p.scoring ? 'scoring' : '', m && !run ? 'key' : ''].filter(Boolean).join(' ') }, [
+        // The period over the clock, a designed two lines in a narrow column.
+        clockless ? null : el('span', { class: 'play-when' }, [sport === 'soccer' && period ? el('small', { text: period }) : null, el('span', { class: 'num', text: p.clock })]),
+        line,
+        p.home != null && p.away != null ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null
+      ]);
+      rows.push(...(live ? [run, row] : [row, run]).filter(Boolean));
+    }
+    return el('ol', { class: `plays${clockless ? ' clockless' : ''}` }, rows);
   }
   if (view === 'lineups' && d) {
     return el(
@@ -880,6 +928,9 @@ function winProbCard(line, e, timeline, events = []) {
 // 2 分打點 · 超前" wraps at a ·, never inside 打點).
 // (A long part, an English play's sentence, still wraps inside.)
 const momentWords = text => joinNodes(String(text || '').split(' · ').map(x => el('span', { class: x.length <= 18 ? 'nb' : '', text: x })), ' · ');
+// An American football drive's end and its length, in Chinese.
+const DRIVE_ZH = { Touchdown: '達陣', 'Field Goal': '射門得分', 'Missed FG': '射門未進', Punt: '棄踢', Fumble: '掉球', Interception: '被攔截', Downs: '進攻失敗', 'End of Half': '半場結束', 'End of Game': '比賽結束', Safety: '安全分', 'Blocked FG': '射門被擋', 'Blocked Punt': '棄踢被擋' };
+const driveZh = text => String(text || '').replace(/(\d+) plays?/, '$1 次進攻').replace(/(-?\d+) yards?/, '$1 碼').replace(/, /g, '・');
 // A chart scrolled into view when a moment under it is picked (a long list leaves it off the screen).
 function bringIn(plot) {
   const r = plot.getBoundingClientRect();

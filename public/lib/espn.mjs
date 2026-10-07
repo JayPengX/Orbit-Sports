@@ -587,7 +587,9 @@ export function parseSummary(data, league) {
   for (const t of data?.boxscore?.players || []) for (const st of t.statistics || []) for (const a of st.athletes || []) know(a.athlete);
   for (const r of data?.rosters || []) for (const x of r.roster || []) know(x.athlete);
   const whoOf = p => {
-    const a = ((p.participants || []).find(q => q.type === 'batter') || p.participants?.[0])?.athlete;
+    // The batter; with none (a steal, a wild pitch) the runner, never the pitcher ESPN lists first.
+    const ps = p.participants || [];
+    const a = (ps.find(q => q.type === 'batter') || ps.find(q => /^on(first|second|third)$/i.test(q.type || '')) || ps.find(q => q.type !== 'pitcher') || ps[0])?.athlete;
     const known = people.get(String(a?.id ?? ''));
     const b = p.participants?.[1]?.athlete;
     const other = b ? people.get(String(b.id ?? ''))?.short || b.shortName || b.displayName || '' : '';
@@ -616,7 +618,7 @@ export function parseSummary(data, league) {
   // A drive's plays (football) carry its team.
   const drivePlays = d => (d?.plays || []).map(p => (p.team ? p : { ...p, team: d.team }));
   const timed = [...(data?.plays || []), ...(data?.drives?.previous || []).flatMap(drivePlays), ...drivePlays(data?.drives?.current), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
-  const playOf = p => ({ text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), ...whoOf(p), home: p.homeScore, away: p.awayScore, clock: p.clock?.displayValue || '' });
+  const playOf = p => ({ id: String(p.id ?? ''), text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), ...whoOf(p), home: p.homeScore, away: p.awayScore, clock: p.clock?.displayValue || '' });
   // The plays that move a market (a game drawn from Polymarket's): the scores, a red card, a penalty missed.
   const events = timed
     .filter(p => p.scoringPlay || /red-card|penalty---(missed|saved)/.test(p.type?.type || ''))
@@ -682,8 +684,12 @@ export function parseSummary(data, league) {
       if (rows.length) players.push({ team: r.team, tables: [{ name: en ? 'Players' : '球員', labels: cols.map(c => (en ? c[2] : c[1])), rows, totals: [] }] });
     }
   }
-  // Every play, the latest 80 (basketball's live feed and play-by-play).
-  const feed = (data?.plays || []).slice(-80).map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), periodNum: p.period?.number || 0, periodType: p.period?.type || '', clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore, scoring: Boolean(p.scoringPlay), ...detailOf(p) }));
+  // Every play of the game (過程 shows it whole; the live strip its last few).
+  const feed = (data?.plays || []).map(p => ({ id: String(p.id ?? ''), text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), periodNum: p.period?.number || 0, periodType: p.period?.type || '', clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore, scoring: Boolean(p.scoringPlay), ...detailOf(p) }));
+  // American football's drives, the whole game a line each: who, how it ended, its plays, yards and time.
+  const drives = ((data?.drives?.previous || []).concat(data?.drives?.current ? [data.drives.current] : []))
+    .filter(x => x && (x.displayResult || x.result))
+    .map(x => ({ team: String(x.team?.id ?? ''), result: x.displayResult || x.result || '', desc: x.description || '', scoring: Boolean(x.isScore), periodNum: x.start?.period?.number || 0, period: x.start?.period?.number ? `${x.start.period.number}` : '', clock: x.start?.clock?.displayValue || '', home: x.plays?.at(-1)?.homeScore ?? null, away: x.plays?.at(-1)?.awayScore ?? null }));
   const info = data?.gameInfo || {};
   return {
     league,
@@ -696,6 +702,7 @@ export function parseSummary(data, league) {
     players,
     plays,
     feed,
+    drives,
     keyEvents,
     rosters,
     leaders,

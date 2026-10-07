@@ -230,3 +230,12 @@ test("a player's latest injury report: status, what, when back, ESPN's word", ()
   assert.deepEqual(a.injury, { status: 'Day-To-Day', date: '2026-10-07T04:47:00.000+00:00', what: 'Rest', back: '2026-10-10T00:00:00.000+00:00', comment: 'Curry will be limited to roughly 20 minutes.' });
   assert.equal(parseAthlete({ athlete: { id: 1 } }).injury, null);
 });
+
+test("過程's whole game: every play kept (not the last 80), American football's drives", async () => {
+  const { readFileSync } = await import('node:fs');
+  const load = f => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8'));
+  const nba = load('nba-summary-feed.json');
+  assert.equal(parseSummary(nba, 'nba').feed.length, (nba.plays || []).length);
+  const nfl = parseSummary({ ...load('nfl-summary-moments.json'), drives: { previous: [{ team: { id: '11' }, displayResult: 'Field Goal', description: '8 plays, 70 yards, 4:18', isScore: true, start: { period: { number: 1 }, clock: { displayValue: '10:39' } }, plays: [{ homeScore: 3, awayScore: 0 }] }] } }, 'nfl');
+  assert.deepEqual(nfl.drives, [{ team: '11', result: 'Field Goal', desc: '8 plays, 70 yards, 4:18', scoring: true, periodNum: 1, period: '1', clock: '10:39', home: 3, away: 0 }]);
+});
