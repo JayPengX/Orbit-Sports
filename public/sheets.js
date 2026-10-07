@@ -145,6 +145,22 @@ export async function openMatch(e) {
     document.removeEventListener('visibilitychange', refresh);
   };
   s.dialog.addEventListener('close', stop);
+  // 最新動態: a preview before, a recap after (Gemini, asked once the game's
+  // page and the table are read: one ask, not one per piece that comes); on
+  // now, its facts as they stand.
+  let latest = null;
+  let latestFrom = '';
+  const matchLatest = () => {
+    const facts = matchFacts(e, data, table);
+    const st = (data?.status || e.status).state;
+    const ready = (wait.summary || !LEAGUES[e.league].espn) && (table || !hasStandings(e.league)) && st !== 'in';
+    const key = `${st}|${ready}|${ready ? JSON.stringify(facts) : ''}`;
+    if (st === 'in' || key !== latestFrom) {
+      latestFrom = key;
+      latest = latestSlot(e.league, 'match', e.id, facts, { team: e.home.id, team2: e.away.id, name: `${(data?.away || e.away).en || e.away.name} vs ${(data?.home || e.home).en || e.home.name}` }, null, ready);
+    }
+    return latest;
+  };
   const paint = () => {
     const tabs = [['overview', T('overview')]];
     if (teamStatRows(data?.teamStats, LEAGUES[e.league]?.sport, L()).length) tabs.push(['stats', T('stats')]);
@@ -156,7 +172,7 @@ export async function openMatch(e) {
     if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     else if (view === 'table') view = 'overview';
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
-    put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table, { line, wait }));
+    put(content, view === 'overview' ? matchLatest() : null, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table, { line, wait }));
   };
   // The league's table: both sides' places, and the Table section.
   if (hasStandings(e.league))
@@ -385,24 +401,76 @@ function freshNews(stories, league = '') {
   );
 }
 
-// 最新動態 by Gemini (Shared-Proxy latest.js): the Worker reads ESPN's recent
-// stories about them, Gemini picks the one that matters and writes it in
-// Chinese. { headline, points, at } a card; { none } nothing worth a card;
-// anything else (the day's budget spent, a failure, English): the app's own
-// rule-based card instead.
-function askLatest(league, kind, id, { team = '', name = '', zh = '' } = {}) {
+// 最新動態 for every player, driver, team and match (Shared-Proxy latest.js):
+// the sheet's own facts (Chinese lines: form, standing, next game, a match's
+// records and result) and ESPN's stories go to the Worker, and Gemini writes
+// the card: a story that matters, else their situation now, or a match's
+// preview or recap. The facts card shows at once; Gemini's takes its place
+// when it comes. Asked once for the same facts (the Worker keeps each card by
+// what it's written from; here, once a session).
+const latestAsked = new Map();
+function askLatest(league, kind, id, { team = '', team2 = '', name = '', zh = '', facts = [] } = {}) {
   if (L() === 'en' || !id) return Promise.resolve(null);
-  const q = new URLSearchParams({ league, kind, id: String(id), ...(team ? { team: String(team) } : {}), ...(name ? { name } : {}), ...(zh ? { zh } : {}) });
-  return workerJson('/latest', q.toString(), { timeout: 6000 });
+  const body = JSON.stringify({ league, kind, id: String(id), team: String(team || ''), team2: String(team2 || ''), name, zh, facts: facts.filter(Boolean).slice(0, 30) });
+  if (!latestAsked.has(body)) latestAsked.set(body, workerJson('/latest', `k=${kind}`, { body, timeout: 15000 }).then(r => (r?.headline ? r : (latestAsked.delete(body), null))));
+  return latestAsked.get(body);
 }
-const aiCard = ai =>
-  card(
-    '最新動態',
-    el('div', { class: 'player-note' }, [el('strong', { class: 'note-head', text: ai.headline }), ai.points?.length ? el('ul', { class: 'note-points' }, ai.points.map(p => el('li', { text: p }))) : null]),
-    { sub: dayLabel(localDate(ai.at)) }
-  );
-// Gemini's card, none, or the rule-based one (`rule`, a node or null).
-const latestCard = (ai, rule) => (ai?.headline ? aiCard(ai) : ai?.none ? null : rule);
+const latestNote = (headline, points, sub) =>
+  card('最新動態', el('div', { class: 'player-note' }, [el('strong', { class: 'note-head', text: headline }), points?.length ? el('ul', { class: 'note-points' }, points.map(p => el('li', { text: p }))) : null]), { sub });
+const aiCard = ai => latestNote(ai.headline, ai.points, ai.from === 'story' ? dayLabel(localDate(ai.at)) : '');
+// The facts as they are: the first the headline, the next three the points.
+const factsCard = facts => (facts.length ? latestNote(facts[0], facts.slice(1, 4), '') : null);
+// The card a sheet shows: `now` (the rule-based story or note card, else the
+// facts), replaced by Gemini's when it comes.
+// (A box of its own: a sheet painted again keeps whichever card is in it.)
+// `ask` false: the facts card only (a game on: its facts change each minute).
+function latestSlot(league, kind, id, facts, opts = {}, now = null, ask = true) {
+  if (!facts.length && !now) return null;
+  const box = el('div', { class: 'latest-slot' }, [now || factsCard(facts)]);
+  if (ask)
+    askLatest(league, kind, id, { ...opts, facts }).then(ai => {
+      if (ai) put(box, aiCard(ai));
+    });
+  return box;
+}
+// A match's facts: the sides, when and where, the result, each side's record,
+// place, form and who's out; after it, who led and the goals.
+function matchFacts(e, sm, table) {
+  const home = sm?.home || e.home;
+  const away = sm?.away || e.away;
+  const nm = x => x?.name || x?.short || '';
+  const st = sm?.status || e.status;
+  const lines = [`${nm(away)} 對 ${nm(home)}（${leagueName(e.league, L())}${stageTag(e, L()) ? `・${stageTag(e, L())}` : ''}），${localDate(Date.parse(e.start))} ${clock(e.start)}${sm?.venue ? `，${sm.venue}` : ''}`];
+  if (st.state === 'post') lines.push(`終場：${nm(away)} ${away.score} - ${home.score} ${nm(home)}`);
+  if (st.state === 'in') lines.push(`進行中（${statusText({ ...e, status: st })}）：${nm(away)} ${away.score ?? 0} - ${home.score ?? 0} ${nm(home)}`);
+  for (const x of [away, home]) {
+    const place = placeOf(table, String(x.id));
+    const form = sm?.form?.find(f => f.team === String(x.id))?.games || [];
+    const bits = [x.record ? `戰績 ${x.record}` : '', place ? `${leagueName(e.league, L())}第 ${place.pos} 名` : '', form.length ? `近 ${form.length} 場 ${form.map(g => ({ W: '勝', L: '敗', D: '和', T: '和' })[g.result] || g.result).join('')}` : ''].filter(Boolean);
+    if (bits.length) lines.push(`${nm(x)}：${bits.join('，')}`);
+    const out = sm?.injuries?.find(t => t.team === String(x.id))?.list || [];
+    if (out.length && st.state === 'pre') lines.push(`${nm(x)} 傷兵：${out.slice(0, 5).map(i => `${i.name}${i.status ? `（${i.status}）` : ''}`).join('、')}`);
+  }
+  if (st.state === 'pre' && sm?.predict) lines.push(`勝率預測：${nm(home)} ${Math.round(sm.predict.home * 100)}%${sm.predict.draw ? `，和局 ${Math.round(sm.predict.draw * 100)}%` : ''}`);
+  if (st.state === 'post') {
+    const goals = (sm?.keyEvents || []).filter(k => k.scoring).slice(0, 8);
+    if (goals.length) lines.push(`進球：${goals.map(k => `${k.clock} ${k.text}`).join('；')}`.slice(0, 220));
+    for (const x of [away, home]) {
+      const lead = (sm?.leaders || []).filter(l => l.team === String(x.id)).slice(0, 3);
+      if (lead.length) lines.push(`${nm(x)} 領先者：${lead.map(l => `${l.stat} ${l.full || l.name} ${l.value}`).join('、')}`);
+    }
+  }
+  return lines.filter(Boolean);
+}
+// A game as one side saw it ("10/04 主場對 湖人 勝 112-104"), or one to come.
+const gameFact = (x, id, nameOf = side => side?.short || side?.name || '') => {
+  const home = x.home?.id === String(id);
+  const [me, them] = home ? [x.home, x.away] : [x.away, x.home];
+  const date = localDate(Date.parse(x.start)).slice(5).replace('-', '/');
+  if (x.status?.state !== 'post') return `${date} ${home ? '主場' : '客場'}對 ${nameOf(them)}`;
+  const res = me.winner ? '勝' : them.winner ? '敗' : Number(me.score) === Number(them.score) ? '和' : Number(me.score) > Number(them.score) ? '勝' : '敗';
+  return `${date} ${home ? '主場' : '客場'}對 ${nameOf(them)} ${res} ${me.score}-${them.score}`;
+};
 
 // A side's row in the league's table: [place, row, group size]; none before the table's first game.
 function placeOf(groups, id) {
@@ -1401,8 +1469,8 @@ export async function openTeam(league, id, fallback = {}) {
   const en = L() === 'en';
   const W = (zh, eng) => (en ? eng : zh);
   try {
-    const [info, sched, groups, teamNews = [], aiTeam = null] = espn
-      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null, news(league, { team: id }).catch(() => []), team(league, id).then(i => askLatest(league, 'team', id, { name: i.en || i.name, zh: i.name })).catch(() => null)])
+    const [info, sched, groups, teamNews = []] = espn
+      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null, news(league, { team: id }).catch(() => [])])
       : await ownTeam(league, id, fallback);
     // 最新動態: a recent story about the club itself (storyAboutTeam), not its games.
     const stories = newsAbout([teamNews], { team: id }).filter(st => storyAboutTeam(st, { en: info.en || info.name, enShort: info.enShort, sport: LEAGUES[league]?.sport }));
@@ -1502,7 +1570,18 @@ export async function openTeam(league, id, fallback = {}) {
         followBtn
       ]),
       strip,
-      latestCard(aiTeam, freshNews(stories, league)),
+      latestSlot(
+        league,
+        'team',
+        id,
+        [
+          `${info.name}：${record}${place ? `，${leagueName(league, L())}第 ${place.pos} 名` : ''}`,
+          past.length ? `近 ${Math.min(5, past.length)} 場：${past.slice(0, 5).map(x => gameFact(x, id)).join('；')}` : '',
+          next ? `下一場：${localDate(Date.parse(next.start))} ${gameFact(next, id).slice(6)}` : ''
+        ].filter(Boolean),
+        { name: info.en || info.name, zh: info.name },
+        freshNews(stories, league)
+      ),
       nextCard,
       tabsBox,
       body
@@ -1683,7 +1762,7 @@ export async function openPlayer(league, id, fallback = {}) {
     const sport = LEAGUES[league]?.sport;
     // This season, from the league's own tables and results (ESPN's player
     // card has little for drivers): the championship and each race.
-    const [a, ov, table, races, official, leagueNews, clubNews, ai] = await Promise.all([
+    const [a, ov, table, races, official, leagueNews, clubNews] = await Promise.all([
       athlete(league, id),
       athleteOverview(league, id).catch(() => null),
       sport === 'racing' && LEAGUES[league].standings ? standings(league).catch(() => null) : null,
@@ -1692,8 +1771,7 @@ export async function openPlayer(league, id, fallback = {}) {
       league === 'f1' ? athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })).catch(() => null) : null,
       // Their news: the league's stories and their team's, those naming them.
       news(league).catch(() => []),
-      individual(league) ? [] : athlete(league, id).then(x => (x.teamId ? news(league, { team: x.teamId }) : [])).catch(() => []),
-      athlete(league, id).then(x => askLatest(league, 'player', id, { team: x.teamId, name: x.name, zh: league === 'f1' ? f1Driver(x.name).zh : '' })).catch(() => null)
+      individual(league) ? [] : athlete(league, id).then(x => (x.teamId ? news(league, { team: x.teamId }) : [])).catch(() => [])
     ]);
     // Only stories about them (their name in the headline), for 最新動態.
     const stories = newsAbout([leagueNews, clubNews], { athletes: [id] }).filter(st => storyAbout(st, a.name));
@@ -1814,10 +1892,20 @@ export async function openPlayer(league, id, fallback = {}) {
     // game log), 資料 (profile, honours); only those with something in them.
     const keep = list => list.filter(Boolean);
     const racing = sport === 'racing';
+    // What this sheet knows, for 最新動態 (stable lines: dates, never "in 3 days").
+    const playerFacts = [
+      `${en ? a.name : name}：${[driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team, a.position].filter(Boolean).join('・')}`,
+      champ ? `${year} 車手積分榜第 ${champ.pos}（共 ${champ.of} 位），${champ.points} 分${champ.pos > 1 && champ.gap ? `，落後領先者 ${champ.gap} 分` : ''}` : '',
+      raceRows.length ? `近 ${Math.min(5, raceRows.length)} 站：${raceRows.slice(0, 5).map(r => `${r.name} P${r.pos}`).join('、')}` : '',
+      mate ? `隊友 ${mateName}：第 ${mate.pos}，${mate.points} 分；正賽名次較前 ${ahead} 次、較後 ${behind} 次` : '',
+      nextRace ? `下一站：${nextRace.name}（${localDate(Date.parse(nextRace.start))}）` : '',
+      a.stats.list.length ? `${statsTitle(a.stats.title, L()) || '本季'}：${a.stats.list.slice(0, 6).map(x => `${statName(x.label, L())} ${x.value}`).join('、')}` : '',
+      ...(ov?.log?.games || []).slice(0, 5).map(g => `${g.date ? localDate(Date.parse(g.date)) : ''} ${g.at === '@' ? '客場' : '主場'}對 ${g.opp.abbr || g.opp.name} ${{ W: '勝', L: '敗', D: '和', T: '和' }[g.result] || ''} ${g.score}：${ov.log.labels.slice(0, 6).map((k, i) => `${k} ${g.stats[i]}`).join(' ')}`),
+      ov?.note ? `ESPN 筆記（${String(ov.note.date || '').slice(0, 10)}）：${ov.note.headline} ${String(ov.note.story || '').slice(0, 300)}` : ''
+    ].filter(Boolean);
     const overview = keep([
-      // One 最新動態: ESPN's note on them, or a newer story about them.
-      // One 最新動態: Gemini's pick of their stories, or ESPN's own note when that's newer (the rule-based card without Gemini).
-      ai?.headline && !(noteCard && Date.parse(ov.note.date || 0) > ai.at) ? aiCard(ai) : ai?.none ? noteCard : noteCard && !(stories[0] && Date.parse(ov.note.date || 0) < stories[0].at) ? noteCard : freshNews(stories, league) || noteCard,
+      // 最新動態, always: Gemini's from their stories and this sheet's facts; meanwhile ESPN's note or story, else the facts.
+      latestSlot(league, 'player', id, playerFacts, { team: a.teamId, name: a.name, zh: league === 'f1' ? f1Driver(a.name).zh : '' }, noteCard && !(stories[0] && Date.parse(ov.note.date || 0) < stories[0].at) ? noteCard : freshNews(stories, league) || noteCard),
       og.season
         ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...og.season.map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
         : null,
@@ -1930,7 +2018,7 @@ export async function openConstructor(row) {
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   try {
-    const [table, races, official, f1News, aiTeam] = await Promise.all([standings(league).catch(() => null), seasonEvents(league).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null), news(league).catch(() => []), askLatest(league, 'team', c.name.replace(/[^A-Za-z0-9]+/g, '-'), { name: c.name, zh: c.zh }).catch(() => null)]);
+    const [table, races, official, f1News] = await Promise.all([standings(league).catch(() => null), seasonEvents(league).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null), news(league).catch(() => [])]);
     const og = official?.grids || {};
     const jw = (official?.weekends || []).map(w => ({ ...w, e: eventOfRace(races, w.date) }));
     const groups = table || [];
@@ -1993,7 +2081,18 @@ export async function openConstructor(row) {
         tile(W('分站冠軍', 'Wins'), String(wins)),
         tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
       ]),
-      latestCard(aiTeam, freshNews(teamStories, league)),
+      latestSlot(
+        league,
+        'team',
+        c.name.replace(/[^A-Za-z0-9]+/g, '-'),
+        [
+          `${c.zh}：車隊積分榜第 ${at + 1}，${pts} 分${gap > 0 ? `，落後領先者 ${gap} 分` : ''}；分站冠軍 ${wins}、頒獎台 ${podiums}`,
+          ...drivers.map(d => `${f1Driver(d.en || d.name).zh}：車手積分榜第 ${d.pos}，${d.stats?.PTS ?? 0} 分`),
+          next ? `下一站：${next.name}（${localDate(Date.parse(next.start))}）` : ''
+        ].filter(Boolean),
+        { name: c.name, zh: c.zh },
+        freshNews(teamStories, league)
+      ),
       drivers.length
         ? card(
             W('車手', 'Drivers'),
