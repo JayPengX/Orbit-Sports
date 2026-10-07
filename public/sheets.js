@@ -1207,7 +1207,7 @@ function replayLink(e) {
       if (!r) return out.remove();
       const b = r.channels ? r.channels[0] : r.video;
       const sub = r.channels
-        ? en ? `${tvName(b)}: tap this game in its guide` : `${tvName(b)}・開頻道後在節目表點這場`
+        ? en ? `${b.short.en}: tap the game in its guide` : `${b.short.zh}・在節目表點這場`
         : r.episode
           ? `${en ? 'ELTA.tv' : '愛爾達'}・${r.episode.label}`
           : en ? 'ELTA.tv: not up yet (days to weeks), or not shown' : '愛爾達・這場還沒上架（數天到數週）或沒有轉播';
