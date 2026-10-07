@@ -147,7 +147,25 @@ export async function openMatch(e) {
     document.removeEventListener('visibilitychange', refresh);
   };
   s.dialog.addEventListener('close', stop);
+  // The sections and what's in them drawn once, with the game's own page in
+  // (or after 3 s without it): not a tab or two first (排名, its table read
+  // sooner), the others popping in and everything moving down.
+  let ready = !LEAGUES[e.league].espn;
+  let shown = false;
+  const settle = () => {
+    if (ready) return;
+    ready = true;
+    paintHeader(data);
+    paint();
+  };
+  setTimeout(settle, 3_000);
   const paint = () => {
+    if (!ready) return;
+    if (!shown) {
+      shown = true;
+      sections.classList.add('fade-in');
+      content.classList.add('fade-in');
+    }
     const tabs = [['overview', T('overview')]];
     // The game's own numbers, once it's begun (before it, ESPN's are a stray season total or two: 助攻 4–3).
     if ((data?.status || e.status).state !== 'pre' && teamStatRows(data?.teamStats, LEAGUES[e.league]?.sport, L()).length) tabs.push(['stats', T('stats')]);
@@ -195,13 +213,12 @@ export async function openMatch(e) {
     });
   try {
     data = await summary(e.league, e.id);
-    wait.summary = true;
+  } catch {}
+  wait.summary = true;
+  if (ready) {
     paintHeader(data);
     paint();
-  } catch {
-    wait.summary = true;
-    paint();
-  }
+  } else settle();
   loadLine();
 }
 
