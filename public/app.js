@@ -33,6 +33,7 @@ import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer,
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // New kit names through the module (a phone can still run an older kit).
 import * as kitLogos from '#kit/logos.mjs';
+import * as kitNames from '#kit/names.mjs';
 
 // Shared-Data's pack of recent games (set as the app starts, below), and the
 // background look-ups of what it hasn't got, after it's in.
@@ -1677,9 +1678,18 @@ async function runSearch(query, again = false) {
   if ([...query].length < 2) return paint({ teams: [], players: [] }, false);
   paint(null, true);
   let q = query;
+  // In Chinese: the teams whose Chinese name has the words (皇家 → Real
+  // Madrid, Real Sociedad, Real Betis…), each searched by its English name,
+  // and the words translated for anything else (a player's name). A machine
+  // translation alone turned 皇家 into "Royal".
+  const byName = /[\u3400-\u9fff]/.test(query) ? kitNames.teamsByZh?.(query, 5) || [] : [];
   if (/[\u3400-\u9fff]/.test(query)) q = await translate(query, 'en', 'zh-TW').catch(() => query);
   // A search that couldn't be read says so (never "nothing matches"), and is asked again once a little later.
-  const found = await searchEspn(q).catch(() => ({ teams: [], players: [], failed: true }));
+  const lists = await Promise.all([...byName.map(x => searchEspn(x.name).catch(() => null)), searchEspn(q).catch(() => null)]);
+  const read = lists.filter(Boolean);
+  const seen = new Set();
+  const once = list => list.filter(x => !seen.has(`${x.league}:${x.slug || ''}:${x.id}`) && seen.add(`${x.league}:${x.slug || ''}:${x.id}`));
+  const found = read.length ? { teams: once(read.flatMap(f => f.teams)), players: once(read.flatMap(f => f.players)) } : { teams: [], players: [], failed: true };
   if (seq !== searchSeq || state.scores.q !== query) return;
   const within = (p, fallback) => Promise.race([p, new Promise(r => setTimeout(() => r(fallback), 3_000))]);
   // A club or a footballer of a league Orbit Sports doesn't have (Real
