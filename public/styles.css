@@ -1244,8 +1244,4 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .news-head { font-size: 15px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .news-sum { font-size: 13.5px; line-height: 1.45; color: var(--q-text-2, var(--q-muted)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .news-meta { font-size: 12px; }
-.news-row.lead { grid-template-columns: minmax(0, 1fr); padding-top: 4px; }
-.news-row.lead .news-pic { width: 100%; border-radius: 12px; }
-.news-row.lead .news-head { font-size: 17px; }
-.news-row.lead .news-sum { -webkit-line-clamp: 4; }
 @media (hover: hover) { .news-row:hover .news-head { color: var(--q-accent); } }

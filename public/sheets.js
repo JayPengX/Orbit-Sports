@@ -12,6 +12,7 @@ import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, f
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
+import { namedZh } from './lib/f1names.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
 import { tvOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource } from './lib/broadcast.mjs';
@@ -24,13 +25,15 @@ const T = (k, v) => ctx.t(k, v);
 // ESPN's English words ("Right Fielder", "Hasselt, Belgium"), in Chinese once
 // translated (a text node that changes when the translation comes; kept 30
 // days per line). Empty stays empty.
-export function zhLater(text) {
+// `from`: the text's language when it's known (ESPN's stories: 'en', which
+// Google translates better than its guess, in traditional characters).
+export function zhLater(text, from = 'auto') {
   if (!text) return '';
   if (L() === 'en' || !/[A-Za-z]/.test(text)) return text;
   const fixed = fixedWord(text, L());
   if (fixed) return fixed;
   const node = document.createTextNode(text);
-  translate(text).then(zh => zh && (node.textContent = zh)).catch(() => {});
+  translate(text, 'zh-TW', from).then(zh => zh && (node.textContent = zh)).catch(() => {});
   return node;
 }
 const injuryText = s => (L() === 'en' ? s : injuryZh(s) || zhLater(s));
@@ -368,21 +371,10 @@ function newsWhen(at) {
   if (m < 7 * 1440) return en ? `${Math.round(m / 1440)} d ago` : `${Math.round(m / 1440)} 天前`;
   return localDate(at).slice(5).replace('-', '/');
 }
-// F1 drivers by the app's own Chinese names, put in before translating
-// ("George Russell" and "Russell" both 羅素, not the translator's 拉塞爾).
-function namedZh(text, st) {
-  let out = String(text || '');
-  for (const full of st.people || []) {
-    const d = f1Driver(full);
-    if (!d.surname || d.zh === full) continue;
-    out = out.replace(new RegExp(`${full.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}('s)?`, 'g'), (m, own) => `${d.zh}${own ? '的' : ''}`).replace(new RegExp(`\\b${d.surname}('s)?\\b`, 'gi'), (m, own) => `${d.zh}${own ? '的' : ''}`);
-  }
-  return out;
-}
-function newsRow(st, { lead = false, league = '' } = {}) {
+function newsRow(st, { league = '' } = {}) {
   const en = L() === 'en';
-  const zh = text => zhLater(league === 'f1' ? namedZh(text, st) : text);
-  return el('a', { class: `news-row${lead ? ' lead' : ''}`, href: st.url, target: '_blank', rel: 'noopener noreferrer' }, [
+  const zh = text => zhLater(league === 'f1' ? namedZh(text) : text, 'en');
+  return el('a', { class: 'news-row', href: st.url, target: '_blank', rel: 'noopener noreferrer' }, [
     st.image ? el('img', { class: 'news-pic', src: st.image, alt: '', loading: 'lazy', decoding: 'async', onerror: e => e.target.remove() }) : null,
     el('span', { class: 'news-text' }, [
       el('strong', { class: 'news-head' }, [en ? st.headline : zh(st.headline)]),
@@ -397,8 +389,29 @@ function newsCard(stories, league = '', title = L() === 'en' ? 'News' : '新聞'
   const more = stories.length > shown ? el('button', { class: 'link note-more', type: 'button', text: L() === 'en' ? 'More' : '更多', onclick: () => (list.append(...stories.slice(shown, 30).map(st => newsRow(st, { league }))), more.remove()) }) : null;
   return card(title, el('div', {}, [list, more]), { sub: 'ESPN' });
 }
-// The newest story, when it's from the last three days.
-const freshNews = (stories, league = '') => (stories[0] && Date.now() - stories[0].at < FRESH_NEWS_MS ? card(L() === 'en' ? 'Latest news' : '最新消息', newsRow(stories[0], { lead: true, league }), { sub: 'ESPN' }) : null);
+// The newest story, when it's from the last three days: drawn as a player's
+// 最新動態 is (its headline, then its summary a point a sentence), to read at
+// a glance; the story itself a tap away.
+function freshNews(stories, league = '') {
+  const st = stories[0];
+  if (!st || Date.now() - st.at >= FRESH_NEWS_MS) return null;
+  const en = L() === 'en';
+  const zh = text => (en ? text : zhLater(league === 'f1' ? namedZh(text) : text, 'en'));
+  const points = String(st.summary || '')
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+(?=[A-Z"'(“])/)
+    .map(x => x.trim())
+    .filter(x => x.length > 2);
+  return card(
+    en ? 'Latest' : '最新動態',
+    el('div', { class: 'player-note' }, [
+      el('strong', { class: 'note-head' }, [zh(st.headline)]),
+      points.length ? el('ul', { class: 'note-points' }, points.slice(0, 3).map(x => el('li', {}, [zh(x)]))) : null,
+      el('a', { class: 'link note-more', href: st.url, target: '_blank', rel: 'noopener noreferrer', text: `${en ? 'Read on ESPN' : '在 ESPN 閱讀全文'} · ${newsWhen(st.at)}` })
+    ]),
+    { sub: dayLabel(localDate(st.at)) }
+  );
+}
 
 // A side's row in the league's table: [place, row, group size]; none before the table's first game.
 function placeOf(groups, id) {
@@ -1809,8 +1822,8 @@ export async function openPlayer(league, id, fallback = {}) {
     const keep = list => list.filter(Boolean);
     const racing = sport === 'racing';
     const overview = keep([
-      freshNews(stories, league),
-      noteCard,
+      // One 最新動態: ESPN's note on them, or a newer story about them.
+      noteCard && !(stories[0] && Date.parse(ov.note.date || 0) < stories[0].at) ? noteCard : freshNews(stories, league) || noteCard,
       og.season
         ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...og.season.map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
         : null,
@@ -1985,6 +1998,7 @@ export async function openConstructor(row) {
         tile(W('分站冠軍', 'Wins'), String(wins)),
         tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles} 次`, `${doubles} double`) : '')
       ]),
+      freshNews(teamStories, league),
       drivers.length
         ? card(
             W('車手', 'Drivers'),
