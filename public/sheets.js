@@ -16,7 +16,7 @@ import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag, F1_TEAM
 import { namedZh } from './lib/f1names.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
-import { broadcastsOf, twSource } from './lib/broadcast.mjs';
+import { broadcastsOf, twSource, ELTA_VOD } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { ctx, el, shownStart, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
@@ -681,6 +681,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     .filter(([, , v]) => v && (!Array.isArray(v) || v.length));
   const leadersBy = sides.map(s => (d?.leaders || []).filter(l => l.team === s.id).slice(0, 4));
   return el('div', { class: 'stack' }, [
+    replayLink(e),
     highlights(e),
     card(T('matchup'), compare),
     winCard(d, e, line, wait),
@@ -714,7 +715,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
           )
         )
       : null,
-    exactTv ? twCard(e.league, e) : replayCard(e),
+    exactTv ? twCard(e.league, e) : null,
     card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([, k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
   ]);
 }
@@ -1188,26 +1189,36 @@ function playLine(league, p, side) {
 // else the league's service.
 // A finished game on ELTA: where to watch it again (回看 on its channel for
 // 48 hours, then its video, ELTA.tv's season page while it isn't up).
-function replayCard(e) {
+// A finished game on ELTA, at the top beside its highlights and drawn like
+// them: its whole game to watch again (its video; within 48 hours with no
+// video yet, its channel, the game tapped in the guide; the season's page
+// while it isn't up). Gone when ELTA didn't show it.
+function replayLink(e) {
   if (e?.status?.state !== 'post' || e.status.void || broadcastsOf(e.league)[0]?.svc !== 'elta') return null;
+  // Only where there'll likely be one (a season of videos, or its channel in
+  // ELTA's list): a row that comes and goes would move the sheet.
+  if (!ELTA_VOD[e.league] && e.league !== 'cpbl' && !tvOf(e).some(b => b.exact)) return null;
   const en = L() === 'en';
-  const box = el('div', {}, [spinner()]);
-  const row = (b, name, sub, go) => watchLink(b, { class: 'tw-watch' }, [el('span', { class: 'tw-watch-name' }, [el('strong', { text: name }), el('small', { class: 'one-line', text: sub })]), el('span', { class: 'tw-watch-go', text: `${go} ›` })]);
+  const text = el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: en ? 'Finding it on ELTA.tv…' : '在愛爾達找這場…' })]);
+  const body = [el('span', { class: 'replay-icon', 'aria-hidden': 'true' }, [el('span', { class: 'watch-play' })]), text, el('span', { class: 'replay-go', text: en ? 'Watch' : '觀看' })];
+  const out = el('div', { class: 'replay-link wait' }, body);
   replayOf(e)
     .then(r => {
-      // Not on ELTA: no card.
       if (!r) return out.remove();
-      if (r.channels)
-        return put(box, el('div', { class: 'tw-exact' }, r.channels.map(b => row(b, tvName(b), en ? "Opens the channel: tap this game in its guide (回看, ELTA VIP)" : '開頻道後在節目表點這場回看（VIP）', en ? 'Channel' : '開頻道'))));
-      put(box, el('div', { class: 'tw-exact' }, [row(r.video, `${leagueName(e.league, L())} ${en ? 'full game' : '全場重播'}`, r.episode ? r.episode.label : en ? 'Not up yet (days to weeks), or not shown' : '這場還沒上架（數天到數週）或沒有轉播', en ? 'Watch' : '觀看')]));
+      const b = r.channels ? r.channels[0] : r.video;
+      const sub = r.channels
+        ? en ? `${tvName(b)}: tap this game in its guide (ELTA VIP)` : `${tvName(b)}・開頻道後在節目表點這場（VIP）`
+        : r.episode
+          ? `${en ? 'ELTA.tv' : '愛爾達'}・${r.episode.label}`
+          : en ? 'ELTA.tv: not up yet (days to weeks), or not shown' : '愛爾達・這場還沒上架（數天到數週）或沒有轉播';
+      put(text, el('strong', { text: r.channels ? (en ? 'Replay on the channel' : '頻道回看') : en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: sub }));
+      body[2].textContent = r.channels ? (en ? 'Channel' : '開頻道') : en ? 'Watch' : '觀看';
+      out.replaceWith(watchLink(b, { class: 'replay-link' }, body));
     })
-    .catch(() => put(box, el('p', { class: 'muted small', text: T('failed') })));
-  const out = card(en ? 'Watch again' : '重播', box, { sub: en ? 'ELTA.tv' : '愛爾達' });
+    .catch(() => out.remove());
   return out;
 }
 function twCard(league, e = null) {
-  const again = replayCard(e);
-  if (again) return again;
   const list = e ? tvOf(e) : broadcastsOf(league);
   const exact = list.filter(b => b.exact);
   const rest = list.filter(b => !exact.includes(b));
@@ -1442,6 +1453,8 @@ function fillField(s, e) {
       // titles' time isn't said: the broadcast card says when the channel's on air).
       el('p', { class: 'muted sess-where', text: e.venue || '' }),
       el('p', { class: 'muted sess-when', text: whenText(shownStart(e)) }), weekendFollow(e), watchButton(e, 'wide')]));
+  const again = replayLink(e);
+  if (again) s.body.append(again);
   const yt = highlights(e);
   if (yt) s.body.append(yt);
   if (e.kind === 'field') {

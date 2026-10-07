@@ -826,6 +826,18 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .yt-text { display: grid; gap: 1px; flex: 1; min-width: 0; }
 .yt-text small { color: var(--q-muted); font-size: 12px; }
 .yt-go { color: var(--q-muted); font-size: 20px; }
+/* A finished game's whole game again on ELTA: beside its highlights, in the
+   app's colour, its play button filled like a live game's. */
+.replay-link { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 14%, var(--q-surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; text-decoration: none; margin: 12px 0; }
+.stack > .replay-link { margin: 0; }
+.replay-link + .yt-link { margin-top: 10px; }
+.stack > .replay-link + .yt-link { margin-top: 0; }
+.replay-link .yt-text small.one-line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.replay-icon { flex: none; width: 40px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; }
+.replay-icon .watch-play { margin-left: 2px; }
+.replay-go { flex: none; padding: 7px 12px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 800; white-space: nowrap; }
+.replay-link.wait { opacity: 0.6; }
+.replay-link.wait .replay-go { visibility: hidden; }
 .driver-badge.xs { font-size: 0; }
 /* An F1 team: its white logo on its colour. */
 .team-disc { display: inline-grid; place-items: center; background: var(--team); color: #fff; font-size: 9px; font-weight: 800; border-radius: 50%; overflow: hidden; flex: none; }
