@@ -1210,41 +1210,49 @@ function playLine(league, p, side) {
 // A finished game on ELTA, at the top beside its highlights and drawn like
 // them: its whole game to watch again (its video; within 48 hours with no
 // video yet, its channel, the game tapped in the guide; the season's page
-// while it isn't up). Gone when ELTA didn't show it.
+// while it isn't up), and a channel's 回看 when the video lacks the
+// commentary the person likes. Gone when ELTA didn't show it. Drawn once:
+// what was found is kept (a sheet drawn again shows it at once), and while
+// it's looked for the row is already in its place and look, the same logo
+// staying when it's filled in (no blink, no row popping in).
+const replayKnown = new Map();
+// ELTA's mark, read once when the app opens (never drawn blank, then filled in).
+if (typeof Image !== 'undefined') new Image().src = './icons/elta.png';
+const eltaLogo = () => el('img', { class: 'replay-icon', src: './icons/elta.png', alt: '', 'aria-hidden': 'true', width: 40, height: 40, decoding: 'sync' });
+function replayRows(e, r, logo = eltaLogo()) {
+  const en = L() === 'en';
+  const row = (b, title, sub, go, cls, icon) => watchLink(b, { class: `replay-link${cls}` }, [icon, el('span', { class: 'yt-text' }, [el('strong', { text: title }), el('small', { class: 'one-line', text: sub })]), el('span', { class: 'replay-go', text: go })]);
+  if (r.channels) {
+    const b = r.channels[0];
+    return [row(b, en ? 'Replay on the channel' : '頻道回看', en ? `${b.short.en}: tap the game in its guide` : `${b.short.zh}・在節目表點這場`, en ? 'Channel' : '開頻道', '', logo)];
+  }
+  const sub = r.episode ? `${r.episode.label}${r.alsoChannels ? (en ? ' (Chinese)' : '（中文）') : ''}` : en ? 'Not up yet, or not shown' : '還沒上架或沒有轉播';
+  const alt = r.alsoChannels?.[0];
+  return [
+    row(r.video, en ? 'Full game replay' : '全場重播', sub, en ? 'Watch' : '觀看', '', logo),
+    alt ? row(alt, alt.audio === 'en' ? (en ? 'Channel replay, original audio' : '頻道回看（原音）') : en ? 'Channel replay, bilingual' : '頻道回看（雙語）', en ? `${alt.short.en}: tap the game in its guide` : `${alt.short.zh}・在節目表點這場`, en ? 'Channel' : '開頻道', ' alt', eltaLogo()) : null
+  ].filter(Boolean);
+}
 function replayLink(e) {
   if (e?.status?.state !== 'post' || e.status.void || broadcastsOf(e.league)[0]?.svc !== 'elta') return null;
   // Only where there'll likely be one (a season of videos, or its channel in
   // ELTA's list): a row that comes and goes would move the sheet.
   if (!ELTA_VOD[e.league] && e.league !== 'cpbl' && !tvOf(e).some(b => b.exact)) return null;
+  const key = `${e.league}:${e.id}:${e.sessionKey || ''}`;
+  if (replayKnown.has(key)) {
+    const r = replayKnown.get(key);
+    return r ? el('div', { class: 'replay-group' }, replayRows(e, r)) : null;
+  }
   const en = L() === 'en';
-  const text = el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: en ? 'Finding it on ELTA.tv…' : '在愛爾達找這場…' })]);
-  const body = [el('img', { class: 'replay-icon', src: './icons/elta.png', alt: '', 'aria-hidden': 'true', width: 40, height: 40 }), text, el('span', { class: 'replay-go', text: en ? 'Watch' : '觀看' })];
-  const out = el('div', { class: 'replay-link wait' }, body);
+  const logo = eltaLogo();
+  const out = el('div', { class: 'replay-group' }, [
+    el('div', { class: 'replay-link wait' }, [logo, el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: en ? 'Finding it on ELTA.tv…' : '在愛爾達找這場…' })]), el('span', { class: 'replay-go', text: en ? 'Watch' : '觀看' })])
+  ]);
   replayOf(e)
     .then(r => {
+      replayKnown.set(key, r);
       if (!r) return out.remove();
-      const b = r.channels ? r.channels[0] : r.video;
-      const sub = r.channels
-        ? en ? `${b.short.en}: tap the game in its guide` : `${b.short.zh}・在節目表點這場`
-        : r.episode
-          ? `${r.episode.label}${r.alsoChannels ? (en ? ' (Chinese)' : '（中文）') : ''}`
-          : en ? 'Not up yet, or not shown' : '還沒上架或沒有轉播';
-      put(text, el('strong', { text: r.channels ? (en ? 'Replay on the channel' : '頻道回看') : en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: sub }));
-      body[2].textContent = r.channels ? (en ? 'Channel' : '開頻道') : en ? 'Watch' : '觀看';
-      // The video only in Chinese, the English on a channel's 回看 for 48 hours: that too.
-      const alt = r.alsoChannels?.[0];
-      out.replaceWith(
-        ...[
-          watchLink(b, { class: 'replay-link' }, body),
-          alt
-            ? watchLink(alt, { class: 'replay-link alt' }, [
-                el('img', { class: 'replay-icon', src: './icons/elta.png', alt: '', 'aria-hidden': 'true', width: 40, height: 40 }),
-                el('span', { class: 'yt-text' }, [el('strong', { text: alt.audio === 'en' ? (en ? 'Channel replay, original audio' : '頻道回看（原音）') : en ? 'Channel replay, bilingual' : '頻道回看（雙語）' }), el('small', { class: 'one-line', text: en ? `${alt.short.en}: tap the game in its guide` : `${alt.short.zh}・在節目表點這場` })]),
-                el('span', { class: 'replay-go', text: en ? 'Channel' : '開頻道' })
-              ])
-            : null
-        ].filter(Boolean)
-      );
+      put(out, ...replayRows(e, r, logo));
     })
     .catch(() => out.remove());
   return out;
@@ -1497,8 +1505,8 @@ function fillField(s, e) {
     const sessions = [...e.sessions].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
     // A session on: its live board first, the weekend's schedule after it.
     const liveNow = sessions.some(x => x.status.state === 'in');
+    // The weekend's schedule under the session's results (not a long list on top of them).
     const schedule = sessions.length > 1 ? card(T('schedule'), weekendTimeline(sessions)) : null;
-    if (schedule && !liveNow) s.body.append(schedule);
     let pick = e.sessionKey ? Math.max(0, sessions.findIndex(x => x.abbr === e.sessionKey)) : Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
     const box = el('div');
     let liveTimer = 0;
@@ -1611,7 +1619,7 @@ function fillField(s, e) {
     };
     paint();
     s.body.append(box);
-    if (schedule && liveNow) s.body.append(schedule);
+    if (schedule) s.body.append(schedule);
   }
   s.body.append(twCard(e.league, e));
 }
