@@ -1764,7 +1764,8 @@ export async function openPlayer(league, id, fallback = {}) {
         )
       : null;
     // The latest word on them (an injury, a lineup), in their language.
-    const noteCard = ov?.note
+    // ESPN's note only while it's recent (two weeks): an August note in October isn't 最新.
+    const noteCard = ov?.note && Date.now() - Date.parse(ov.note.date || 0) < 14 * 86_400_000
       ? card(W('最新動態', 'Latest'), noteBody(ov.note), { sub: ov.note.date ? dayLabel(localDate(Date.parse(ov.note.date))) : '' })
       : null;
     const awardsCard = ov?.awards?.length
