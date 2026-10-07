@@ -393,7 +393,8 @@ function freshNews(stories, league = '') {
 // on a quiet day, never the page's numbers read back. No match cards.
 //
 // Fast: each answer (a card or none) is kept on the phone half an hour, so
-// opening a sheet again asks nothing. Older than that, the kept one shows at
+// opening a sheet again asks nothing (an update to the app forgets them all:
+// the new version's answers at once). Older than that, the kept one shows at
 // once and a new one is fetched for the next opening (never swapped in
 // under a finger); none kept: the card's shape while it's written, the
 // first time. English (no Gemini), or Gemini down: ESPN's own word (`now`).
@@ -406,10 +407,12 @@ const latestMemo = () => {
     return {};
   }
 };
+// This deploy's stamp: answers kept by an older one aren't used.
+const BUILD = () => document.querySelector('meta[name="build-version"]')?.content || '';
 function rememberLatest(k, sent, answer) {
   try {
     const m = latestMemo();
-    m[k] = { at: Date.now(), sent, answer };
+    m[k] = { at: Date.now(), sent, answer, build: BUILD() };
     const keep = Object.keys(m).sort((x, y) => m[y].at - m[x].at).slice(0, 300);
     localStorage.setItem(LATEST_KEY, JSON.stringify(Object.fromEntries(keep.map(x => [x, m[x]]))));
   } catch {
@@ -432,7 +435,7 @@ function latestSlot(league, kind, id, { name = '', zh = '', team = '', facts = [
   const k = `${league}|${kind}|${id}`;
   const sent = JSON.stringify([facts, report]);
   const memo = latestMemo()[k];
-  const known = memo?.sent === sent ? memo : null;
+  const known = memo?.sent === sent && memo.build === BUILD() ? memo : null;
   if (known && Date.now() - known.at < LATEST_FRESH_MS) return aiCard(known.answer);
   const body = JSON.stringify({ league, kind, id: String(id), team: String(team || ''), name, zh, facts, report });
   const asked = askLatest(body).then(a => (a && rememberLatest(k, sent, a), a));
