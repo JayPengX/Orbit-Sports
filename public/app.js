@@ -637,7 +637,9 @@ async function loadFollowedTeams() {
     (hasTeams(f.league) ? teamSchedule(f.league, f.id) : seasonEvents(f.league).then(list => list.filter(e => e.home?.id === String(f.id) || e.away?.id === String(f.id)).sort((a, b) => a.start.localeCompare(b.start))))
       .then(list => {
         teamsAt.set(key, Date.now());
-        state.home.teams.set(key, list);
+        // Followed from one of our cups (Benfica in 歐霸): its games in our
+        // competitions only, not its league's that ELTA doesn't show.
+        state.home.teams.set(key, LEAGUES[f.league].cup ? list.filter(e => !e.other) : list);
         if (state.tab === 'home') renderHome();
         if (state.tab === 'following') renderFollowing();
         clearTimeout(pushTimer);

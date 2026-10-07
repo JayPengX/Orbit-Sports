@@ -1554,7 +1554,10 @@ const raceLines = new Map();
 // game as a card, then tabs: 賽程 (to come), 戰績 (results), 陣容 (the
 // roster, ESPN's leagues) and 排名 (its part of the table). CPBL (not on
 // ESPN) gets the same page from its own schedule: the record and the table
-// counted from the results.
+// counted from the results. A club from a league we don't cover, met in one
+// of our cups (Benfica in 歐霸): only its games in our competitions (ELTA's),
+// its league named, no roster (its home games, opponents and players are
+// ones ELTA doesn't show, ESPN half-covers and nobody here has heard of).
 export async function openTeam(league, id, fallback = {}) {
   if (!id || !hasTeamPage(league)) return;
   const s = sheet(leagueName(league, L()), { league });
@@ -1565,9 +1568,11 @@ export async function openTeam(league, id, fallback = {}) {
   const en = L() === 'en';
   const W = (zh, eng) => (en ? eng : zh);
   try {
-    const [info, sched, groups, teamNews = []] = espn
-      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null, news(league, { team: id }).catch(() => [])])
+    const [info, all, groups, teamNews = [], home] = espn
+      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null, news(league, { team: id }).catch(() => []), homeLeague(league, id).catch(() => null)])
       : await ownTeam(league, id, fallback);
+    const outside = Boolean(home && !home.key && home.name);
+    const sched = outside ? all.filter(x => !x.other) : all;
     // 最新動態: a recent story about the club itself (storyAboutTeam), not its games.
     const stories = newsAbout([teamNews], { team: id }).filter(st => storyAboutTeam(st, { en: info.en || info.name, enShort: info.enShort, sport: LEAGUES[league]?.sport }));
     const now = Date.now();
@@ -1586,7 +1591,7 @@ export async function openTeam(league, id, fallback = {}) {
     const form = played.slice(-5).filter(x => x.home && x.away).map(resultOf);
     // Games played before the table's first are preseason ones, and so is ESPN's record then: said so.
     const pre = Boolean(groups?.length) && !groups.some(tableStarted) && played.length > 0;
-    const record = [pre ? W('季前賽', 'Preseason') : '', info.record || ownRecord(played, resultOf)].filter(Boolean).join(' ');
+    const record = [pre ? W('季前賽', 'Preseason') : '', (outside ? '' : info.record) || ownRecord(played, resultOf)].filter(Boolean).join(' ');
     // The numbers that matter in the sport, in one strip.
     const sport = LEAGUES[league]?.sport;
     const want = sport === 'soccer' ? ['GP', 'W', 'D', 'L', 'GD', 'P'] : ['W', 'L', 'PCT', 'GB', 'STRK'];
@@ -1602,7 +1607,7 @@ export async function openTeam(league, id, fallback = {}) {
     const tabsBox = el('div');
     const body = el('div', { class: 'team-tab' });
     const views = [['schedule', W('賽程', 'Schedule')], ['results', W('戰績', 'Results')]];
-    if (espn) views.push(['roster', W('陣容', 'Roster')]);
+    if (espn && !outside) views.push(['roster', W('陣容', 'Roster')]);
     if (place) views.push(['table', W('排名', 'Table')]);
     let view = upcoming.length > 1 ? 'schedule' : 'results';
     let rosterList = null;
@@ -1660,6 +1665,7 @@ export async function openTeam(league, id, fallback = {}) {
         el('div', { class: 'team-hero-text' }, [
           el('h3', { text: info.name }),
           info.en && info.en !== info.name ? el('small', { class: 'muted', text: info.en }) : null,
+          outside ? el('small', { class: 'muted team-home' }, [zhLater(home.name, 'en')]) : null,
           el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? el('span', { class: 'nowrap', text: W(`${leagueName(league, L())}${groups.length > 1 && place.group ? ` ${groupName(place.group, 'zh')} · ` : ''}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in ${groups.length > 1 && place.group ? groupName(place.group, 'en') : `the ${leagueName(league, L())}`}`) }) : !groups || groups.some(tableStarted) ? standingZh(info.standing, L()) : ''].filter(Boolean), ' · ')),
           form.length ? el('div', { class: 'hero-form' }, [resultPills(form)]) : null
         ]),
