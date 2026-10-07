@@ -62,10 +62,11 @@ const nbaId = side => (NBA_ID[side?.en || side?.name] ? 1610612700 + NBA_ID[side
 // given to a game with no other of its league starting near it).
 let known = () => [];
 export const knownEvents = fn => (known = fn);
-// A game's sides in Chinese, every way they're written (ELTA writes "海盜", "統一").
+// A game's sides in Chinese, every way they're written (ELTA writes "海盜",
+// "統一"): [home's names, away's names].
 function zhSides(e) {
   const l = LEAGUES[e.league];
-  return [e.home, e.away].flatMap(s => {
+  return [e.home, e.away].map(s => {
     const zh = teamNameZh(l?.play || e.league, s?.en || s?.name, l?.sport);
     return [s?.name, s?.short, zh?.full, zh?.short].filter(Boolean);
   });
@@ -78,7 +79,7 @@ export const audioPref = fn => (prefer = fn);
 export const tvOf = e => {
   if (!e) return [];
   const nba = e.league === 'nba' ? { games: nbaSchedule(), ids: { home: nbaId(e.home), away: nbaId(e.away) } } : null;
-  return broadcastsFor(e, eltaSchedule(), { sides: zhSides(e), others: known(), prefer: prefer(), nba });
+  return broadcastsFor(e, eltaSchedule(), { sides: zhSides(e), others: known(), prefer: prefer(), nba, sidesOf: zhSides });
 };
 // Only those of this very game (a schedule's, or Apple TV's every MLS game): for a row's 📺 line.
 export const channelsOf = e => tvOf(e).filter(b => b.exact);

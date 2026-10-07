@@ -151,11 +151,46 @@ export function zhSame(a, b) {
   for (let i = 0; i < x.length - 1; i++) if (y.includes(x.slice(i, i + 2))) return true;
   return false;
 }
+// How alike two ways of writing a side are, 0 to 1: the characters they
+// share in order, against the shorter one. ELTA's names are often not ours:
+// 波赫 for 波士尼亞與赫塞哥維納 and 波圖 for 波爾圖 (1), 帕弗斯 for 帕福斯
+// (0.67), 托連塞 for 托倫斯 (0.33); and two sides can share a part:
+// 斯洛維尼亞 and 斯洛伐克, 蘇格蘭 and 英格蘭, 皇家貝提斯 and 皇家馬德里.
+export function zhLike(a, b) {
+  const [x, y] = [String(a || ''), String(b || '')];
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  const row = new Array(y.length + 1).fill(0);
+  for (const c of x) {
+    let diag = 0;
+    for (let j = 1; j <= y.length; j++) {
+      const up = row[j];
+      row[j] = c === y[j - 1] ? diag + 1 : Math.max(up, row[j - 1]);
+      diag = up;
+    }
+  }
+  return row[y.length] / Math.min(x.length, y.length);
+}
+// How well a program's two sides fit a game's, 0 to 2: each of ELTA's names
+// against one side (either way round), each side by its best name. A side
+// written the same and the other ELTA's own way (托連塞 VS 桑德蘭) fits; one
+// shared part (塞爾塔維戈 VS 尤文圖斯 against 本菲卡 vs 塞爾提克) doesn't.
+// `sides`: [home's names, away's names], or one list of both.
+function pairFit(teams, sides) {
+  const [a, b] = typeof sides?.[0] === 'string' || !sides?.length ? [sides || [], sides || []] : sides;
+  const like = (t, names) => Math.max(0, ...names.map(n => zhLike(t, n)));
+  const [x, y] = teams;
+  return Math.max(like(x, a) + like(y, b), like(x, b) + like(y, a));
+}
+const FIT = 1;
 // The programs that carry a game: its league's, starting from an hour before
-// it to 20 minutes after, with either side's name (a program without the
-// sides, "【onELTA 熱身賽】", counts when it's the only game near that time).
-// `sides`: the game's two sides in Chinese (full and short names).
-export function eltaPrograms(programs, e, sides, others = []) {
+// it to 20 minutes after, whose sides fit the game's best of the games then
+// (a program without the sides, "【onELTA 熱身賽】", counts when it's the
+// only game near that time).
+// `sides`: the game's two sides in Chinese, [home's names, away's names]
+// (full and short); `sidesOf`: the same for another game, to give a program
+// to the game it fits best.
+export function eltaPrograms(programs, e, sides, others = [], sidesOf = null) {
   if (!programs?.length || !e) return [];
   const t = Date.parse(e.start);
   const within = (before, after) => p => p.league === e.league && p.start >= t - before * 60_000 && p.start <= t + after * 60_000;
@@ -169,7 +204,14 @@ export function eltaPrograms(programs, e, sides, others = []) {
     if (!word) return cand;
     return programs.filter(within(180, 180)).filter(p => p.title.includes(word) && !(word === '排位賽' && p.title.includes('衝刺')));
   }
-  const named = cand.filter(p => p.teams.length && p.teams.some(x => sides.some(s => zhSame(x, s))));
+  const near = others.filter(o => o !== e && o.id !== e.id && o.league === e.league && o.kind === 'match' && Math.abs(Date.parse(o.start) - t) < 3 * 3_600_000);
+  const named = cand.flatMap(p => {
+    if (p.teams.length < 2) return [];
+    const fit = pairFit(p.teams, sides);
+    if (fit < FIT) return [];
+    const best = sidesOf ? Math.max(0, ...near.map(o => pairFit(p.teams, sidesOf(o)))) : 0;
+    return best > fit ? [] : best === fit ? [{ ...p, tentative: true }] : [p];
+  });
   if (named.length) return named;
   // No names: only if no other game of the league starts near it.
   const blank = cand.filter(p => !p.teams.length);
@@ -212,7 +254,7 @@ export function nbaEltaGame(games, e, ids) {
 // MLS. Each one exact to the game has `exact` (a row's 📺 line shows only those).
 // `programs`: parseElta's; `sides`, `others` as for eltaPrograms; `nba`:
 // nbaEltaGames' and the game's NBA.com team ids ({ games, ids }).
-export function broadcastsFor(e, programs, { sides = [], others = [], prefer = 'en', nba = null } = {}) {
+export function broadcastsFor(e, programs, { sides = [], others = [], prefer = 'en', nba = null, sidesOf = null } = {}) {
   const base = broadcastsOf(e.league);
   if (base[0]?.svc !== 'elta') return base;
   const days = programs?.length ? eltaDays(programs) : null;
@@ -220,7 +262,7 @@ export function broadcastsFor(e, programs, { sides = [], others = [], prefer = '
   const listed = days && day >= days.from && day <= days.to;
   const seen = new Set();
   const channels = listed
-    ? eltaPrograms(programs, e, sides, others)
+    ? eltaPrograms(programs, e, sides, others, sidesOf)
         .map(p => ({ ...eltaChannel(p.ch), at: p.start, title: p.title, audio: p.audio, adFree: p.adFree, exact: true, ...(p.tentative ? { note: { zh: '同時段擇一，待公布', en: 'one of the games then, TBA' } } : {}) }))
         // MOD's own channels aren't streamed: not listed.
         .filter(c => !c.mod && !seen.has(c.ch) && seen.add(c.ch))

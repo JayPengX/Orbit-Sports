@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaPrograms, zhSame, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaPrograms, zhSame, zhLike, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -243,3 +243,17 @@ test("where a game's channels came from: NBA.com only for an NBA.com game, never
   assert.equal(twSource([{ ...broadcastsOf('nba')[0], exact: true, ch: 1 }], true), "ELTA's schedule");
 });
 const CHECKED_OF = () => /\d{4}-\d{2}/.exec(twSource([], false))[0];
+
+test("UEFA nights: each program goes to the game whose two sides fit it best, ELTA's own names too", () => {
+  const at = Date.parse('2026-10-07T18:45:00Z');
+  const prog = (ch, a, b) => ({ league: 'nationsleague', start: at, end: at + 7_200_000, ch, title: `UEFA ${a} VS ${b}`, teams: [a, b] });
+  const game = (id, home, away) => ({ id, league: 'nationsleague', kind: 'match', start: new Date(at).toISOString(), home: { name: home }, away: { name: away } });
+  const list = [prog(544, '斯洛維尼亞', '北馬其頓'), prog(545, '斯洛伐克', '哈薩克'), prog(546, '蘇格蘭', '瑞士'), prog(547, '捷克', '英格蘭'), prog(548, '波赫', '瑞典'), prog(549, '本菲卡', '塞爾特人'), prog(540, '塞爾塔維戈', '尤文圖斯')];
+  const games = [game('1', '斯洛維尼亞', '北馬其頓'), game('2', '斯洛伐克', '哈薩克'), game('3', '蘇格蘭', '瑞士'), game('4', '英格蘭', '捷克'), game('5', '波士尼亞與赫塞哥維納', '瑞典'), game('6', '本菲卡', '塞爾提克'), game('7', '塞爾塔', '尤文圖斯')];
+  const pair = g => [[g.home.name], [g.away.name]];
+  const chs = g => eltaPrograms(list, g, pair(g), games, pair).map(p => `${p.ch}${p.tentative ? '?' : ''}`);
+  assert.deepEqual(games.map(chs), [['544'], ['545'], ['546'], ['547'], ['548'], ['549'], ['540']]);
+  // Without the other games to weigh against, a shared part alone still isn't enough.
+  assert.deepEqual(eltaPrograms(list, games[1], pair(games[1])).map(p => p.ch), [545]);
+  assert.ok(zhLike('波圖', '波爾圖') === 1 && zhLike('斯洛維尼亞', '斯洛伐克') === 0.5);
+});
