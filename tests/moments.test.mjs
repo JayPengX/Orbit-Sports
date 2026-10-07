@@ -293,3 +293,17 @@ test('baseball, football: no set number of moments; a seesaw keeps every lead ch
   for (let k = 0; k < 10; k++) blow.push({ home: k % 2 ? 0.95 : 0.89, n: 2 + k, play: { text: 'x', home: 5, away: 0 } });
   assert.equal(playMoments(blow, 'baseball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false }).length, 1);
 });
+
+// Nuggets at Jazz, 2026-10-06: a three at +15% and a missed one at +19%
+// in the 3rd quarter (ESPN's line jumping and back) were key moments.
+test('basketball: a single possession in mid-game is never a moment, only the runs', () => {
+  const pts = [];
+  let [h, a] = [0, 0];
+  const add = (v, n, dh, da, clock = '6:00') => pts.push({ home: v, n, play: { home: (h += dh), away: (a += da), clock, text: 'x', type: 'Jump Shot' } });
+  for (let i = 0; i < 20; i++) add(0.5, 1, 1, 1, `${11 - (i % 10)}:00`);
+  add(0.65, 2, 3, 0, '9:55'); // a three: +15%
+  add(0.5, 2, 0, 0, '9:40'); // and back
+  for (let i = 0; i < 15; i++) add(0.5 - (i + 1) * 0.025, 3, 0, 2, `${10 - (i % 10)}:30`); // the run: 0.5 → 0.125
+  const list = playMoments(pts, 'basketball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false });
+  assert.ok(list.length >= 1 && list.every(m => m.periods), list.map(m => m.text).join(' / '));
+});

@@ -129,10 +129,11 @@ const sideOf = (delta, side) => (delta >= 0 ? side.home : side.away);
 const teamName = (id, side) => (String(id) === String(side.home.id) ? side.home.name : String(id) === String(side.away.id) ? side.away.name : '');
 
 // Where one play decides it (baseball, football, hockey): the biggest
-// single plays. Basketball: the possessions that swung it (who did what:
-// made or missed, a free throw, a turnover, a foul) and the stretches it
-// drifted over (told by the points each side scored), never a possession
-// told as a run.
+// single plays. Basketball, a high-scoring game where one three is just a
+// possession (and ESPN's line jumps on one, then jumps back): before the
+// last two minutes only the runs (told by the points each side scored);
+// a possession is a moment only at the end (clutchMoments), where one
+// can decide it.
 const SINGLE = 0.07;
 // Baseball, football, hockey: a swing of BIG, and a SHARE of the game's
 // biggest, is a moment (a lead taken or a tie from SINGLE); MOST at most.
@@ -141,9 +142,9 @@ const BIG = { football: 0.08 };
 const SHARE = 0.35;
 const MOST = 10;
 const RUN_PLAYS = 48;
-// Basketball: a possession that moves it this much is a moment; a drift of this much, a stretch.
-const PLAY_SWING = 0.12;
+// Basketball: a drift of this much is a stretch (a run), RUNS at most.
 const STRETCH = 0.2;
+const RUNS = 4;
 function swingMoments(points, sport, side) {
   const vals = points.map(value);
   const home = d => (d >= 0 ? 'home' : 'away');
@@ -170,18 +171,9 @@ function swingMoments(points, sport, side) {
     const rallies = halfInnings(points, vals, side);
     return [...rallies, ...found.filter(f => !rallies.some(r => f.i >= r.from && f.i <= r.i))];
   }
-  // The possessions that swung it before the closing stretch (its own list has those), each by who did what.
-  const plays = [];
-  for (const g of stops(points)) {
-    const delta = vals[g.to] - vals[g.from - 1];
-    const play = points[g.key].play;
-    if (Math.abs(delta) >= PLAY_SWING && play && !lateClock(sport, points[g.to]))
-      plays.push({ i: g.key, delta, side: home(delta), icon: ICON.basketball, text: playText(sport, play, side.en, teamName(play.team, side)), pic: play.pic, team: play.team || sideOf(delta, side).id, play: true, src: play });
-  }
   // The stretches it drifted over (a slow slide over a quarter or two): each told by the points each side scored over it.
   const stretches = swings(vals, STRETCH)
     .map(s => tighten(vals, s))
-    .filter(({ from, to }) => !plays.some(m => m.i > from && m.i <= to && Math.abs(m.delta) >= 0.4 * Math.abs(vals[to] - vals[from])))
     .map(({ from, to }) => {
       const delta = vals[to] - vals[from];
       const who = sideOf(delta, side);
@@ -191,9 +183,11 @@ function swingMoments(points, sport, side) {
       const text = side.en ? `${who.name} ${mine}-${theirs}` : `${who.name} ${mine}-${theirs} ${to - from > RUN_PLAYS ? '拉開' : '攻勢'}`;
       return { i: to, from, delta, side: home(delta), icon: ICON.basketball, text, team: who.id, periods: [points[from].n, points[to].n] };
     });
-  // The two biggest stretches and the three biggest possessions, in the game's order.
-  const top = (list, n) => [...list].sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta)).slice(0, n);
-  return [...top(stretches, 2), ...top(plays, 3)].sort((x, y) => x.i - y.i);
+  // The biggest few (RUNS), in the game's order.
+  return [...stretches]
+    .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta))
+    .slice(0, RUNS)
+    .sort((x, y) => x.i - y.i);
 }
 
 // Baseball: each half-inning that moved it a lot (RALLY) with no one play
