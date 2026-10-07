@@ -1243,3 +1243,9 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .plays li .wp-gain { font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 .plays.clockless li { grid-template-columns: minmax(0, 1fr) auto; }
 .plays .play-words > .wp-gain { display: inline-block; width: max-content; margin-top: 4px; }
+/* 過程's bar: kept at the top of the sheet while the plays scroll under it. */
+.plays-nav { position: sticky; top: 0; z-index: 2; display: grid; gap: 8px; padding: 8px 0 10px; background: var(--q-sheet, var(--q-page)); }
+.plays-jump { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.plays-jump::-webkit-scrollbar { display: none; }
+.plays-jump .q-chip { flex: none; }
+.plays li.period-head { scroll-margin-top: 128px; }

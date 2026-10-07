@@ -547,7 +547,7 @@ function matchSection(view, d, e, table, lw = {}) {
           ])
         );
       }
-      return el('ol', { class: 'plays' }, rows);
+      return playsNav(el('ol', { class: 'plays' }, rows));
     }
     const list = sport === 'basketball' && d.feed.length ? d.feed : sport === 'baseball' && d.feed.some(p => p.kind === 'play-result') ? d.feed.filter(p => p.kind === 'play-result' || (p.scoring && p.kind !== 'play-result')) : d.keyEvents.length ? d.keyEvents : d.plays;
     // The chart's key moments, by play: a run told where it ended, a play by itself.
@@ -588,7 +588,7 @@ function matchSection(view, d, e, table, lw = {}) {
       ]);
       rows.push(...(live ? [run, row] : [row, run]).filter(Boolean));
     }
-    return el('ol', { class: `plays${clockless ? ' clockless' : ''}` }, rows);
+    return playsNav(el('ol', { class: `plays${clockless ? ' clockless' : ''}` }, rows));
   }
   if (view === 'lineups' && d) {
     return el(
@@ -928,6 +928,43 @@ function winProbCard(line, e, timeline, events = []) {
 // 2 分打點 · 超前" wraps at a ·, never inside 打點).
 // (A long part, an English play's sentence, still wraps inside.)
 const momentWords = text => joinNodes(String(text || '').split(' · ').map(x => el('span', { class: x.length <= 18 ? 'nb' : '', text: x })), ' · ');
+// 過程's way around a long game (an NBA game's 400-odd plays): a bar kept
+// at the top while it scrolls, a filter (全部 / 得分 / 關鍵: every play,
+// the scores, the chart's key moments) and a chip a period that jumps to
+// it. Only when the list is long; the filter kept across a live game's
+// refreshes (and other games: a way of reading).
+const PLAYS_LONG = 40;
+let playsShow = 'all';
+function playsNav(ol) {
+  const items = [...ol.children];
+  const heads = items.filter(li => li.classList.contains('period-head'));
+  const rows = items.filter(li => !li.classList.contains('period-head'));
+  if (rows.length < PLAYS_LONG) return ol;
+  const en = L() === 'en';
+  const kinds = [['all', en ? 'All' : '全部'], ['score', en ? 'Scores' : '得分'], ['key', en ? 'Key' : '關鍵']].filter(
+    ([k]) => k === 'all' || rows.some(li => (k === 'score' ? li.classList.contains('scoring') : li.classList.contains('key') || li.classList.contains('run-mark')))
+  );
+  if (!kinds.some(([k]) => k === playsShow)) playsShow = 'all';
+  const apply = () => {
+    for (const li of rows) li.hidden = playsShow === 'score' ? !li.classList.contains('scoring') && !li.classList.contains('run-mark') : playsShow === 'key' ? !li.classList.contains('key') && !li.classList.contains('run-mark') : false;
+    // A period with nothing shown under it: its header goes too.
+    for (const h of heads) {
+      let next = h.nextElementSibling;
+      let any = false;
+      while (next && !next.classList.contains('period-head')) {
+        any ||= !next.hidden;
+        next = next.nextElementSibling;
+      }
+      h.hidden = !any;
+    }
+    put(filter, segmented(kinds, playsShow, k => ((playsShow = k), apply()), 'plays-filter'));
+  };
+  const filter = el('div');
+  const jumps = heads.length > 1 ? el('div', { class: 'plays-jump' }, heads.map(h => el('button', { type: 'button', class: 'q-chip', text: h.textContent, onclick: () => (h.hidden ? null : h.scrollIntoView({ block: 'start', behavior: 'smooth' })) }))) : null;
+  apply();
+  return el('div', { class: 'plays-wrap' }, [el('div', { class: 'plays-nav' }, [kinds.length > 1 ? filter : null, jumps]), ol]);
+}
+
 // An American football drive's end and its length, in Chinese.
 const DRIVE_ZH = { Touchdown: '達陣', 'Field Goal': '射門得分', 'Missed FG': '射門未進', Punt: '棄踢', Fumble: '掉球', Interception: '被攔截', Downs: '進攻失敗', 'End of Half': '半場結束', 'End of Game': '比賽結束', Safety: '安全分', 'Blocked FG': '射門被擋', 'Blocked Punt': '棄踢被擋' };
 const driveZh = text => String(text || '').replace(/(\d+) plays?/, '$1 次進攻').replace(/(-?\d+) yards?/, '$1 碼').replace(/, /g, '・');
