@@ -1549,7 +1549,9 @@ async function pickScoresDay(d) {
     const us = [-1, 0, 1].map(k => yyyymmdd(new Date(at + k * 86_400_000)));
     const events = await scoreboard(sc.league, us).catch(() => []);
     if (state.scores !== sc) return;
-    const byId = new Map((sc.all || []).map(e => [e.id, e]));
+    // A weekend read again replaces its sessions (kept apart by their own ids, they were doubled).
+    const fresh = new Set(events.map(e => String(e.id)));
+    const byId = new Map((sc.all || []).filter(e => !fresh.has(String(e.weekend))).map(e => [e.id, e]));
     for (const e of events) byId.set(e.id, e);
     applyScores(sc, [...byId.values()]);
     // Another day picked meanwhile: that one's on screen.
@@ -1688,7 +1690,11 @@ function weekendCard(sessions) {
   const done = list.every(x => x.status.state === 'post');
   const winner = done ? (race.sessions?.find(x => x.abbr === race.sessionKey) || race.sessions?.at(-1))?.field?.[0] : null;
   const live = list.some(x => x.status.state === 'in');
-  return el('button', { class: `q-card wk-card${live ? ' live' : ''}${done ? ' done' : ''}`, type: 'button', onclick: () => openEvent(race) }, [
+  // One card, one tap: the session on, else the next to come, else (over) the
+  // race; its sheet has the others a tap away. (Each line used to be its own
+  // tap, so where the finger fell picked 一練, the sprint or qualifying.)
+  const open = list.find(x => x.status.state === 'in') || list.find(x => x.status.state === 'pre') || race;
+  return el('button', { class: `q-card wk-card${live ? ' live' : ''}${done ? ' done' : ''}`, type: 'button', onclick: () => openEvent(open) }, [
     el('div', { class: 'wk-card-head' }, [raceFlag(e, 'big'), el('div', { class: 'wk-card-text' }, [el('strong', { class: 'wk-card-name', text: e.name }), el('small', { class: 'muted', text: [e.venue, days].filter(Boolean).join(' · ') })])]),
     winner
       ? el('div', { class: 'wk-winner' }, [personPic(winner, e.league, 'sm round'), el('span', {}, [el('small', { class: 'muted', text: L({ zh: '冠軍', en: 'Winner' }) }), el('strong', { text: winner.short || winner.name })])])
@@ -1697,7 +1703,7 @@ function weekendCard(sessions) {
           { class: 'wk-sessions' },
           list.map(x => {
             const kind = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' }[x.sessionKey] || 'other';
-            return el('div', { class: `wk-row ${kind}${x.status.state === 'in' ? ' live' : ''}${x.status.state === 'post' ? ' done' : ''}`, onclick: ev => (ev.stopPropagation(), openEvent(x)) }, [
+            return el('div', { class: `wk-row ${kind}${x.status.state === 'in' ? ' live' : ''}${x.status.state === 'post' ? ' done' : ''}` }, [
               el('span', { class: 'wk-time num' }, [el('small', { text: dayLabel(localDate(Date.parse(x.start))) }), document.createTextNode(clock(shownStart(x)))]),
               el('span', { class: 'wk-name' }, [sessionTag(x)]),
               el('span', { class: `wk-state ${x.status.state}`, text: x.status.state === 'post' ? t('final') : x.status.state === 'in' ? t('live') : '' })
