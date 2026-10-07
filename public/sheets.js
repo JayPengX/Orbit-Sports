@@ -2393,8 +2393,32 @@ const GLYPH = {
   lock: '<rect x="6.5" y="11" width="11" height="8.5" rx="2"/><path d="M9 11V8.5a3 3 0 0 1 6 0V11"/>'
 };
 const glyph = (k, cls = '') => el('span', { class: `race-g ${cls}`.trim(), html: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GLYPH[k]}</svg>` });
-const ZONE_ZH = [[/qualif\w* for (the )?(qfs?|quarter-?finals?)/i, '晉級八強'], [/relegation or play-?offs?/i, '降級或附加賽'], [/champions league/i, '歐冠'], [/europa league/i, '歐霸'], [/conference league/i, '歐協聯'], [/relegation play/i, '降級附加賽'], [/relegation/i, '降級'], [/promotion play/i, '升級附加賽'], [/promotion/i, '升級'], [/play-?off/i, '季後賽'], [/play-?in/i, '附加賽']];
-const zoneName = n => (L() === 'en' ? n : ZONE_ZH.find(([re]) => re.test(n))?.[1] || n);
+// ESPN's zone notes in Chinese, each its own name (every note the leagues
+// use, checked 2026-10: two zones never read the same in a legend).
+const ZONE_ZH = [
+  [/qualif\w* for (the )?(qfs?|quarter-?finals?)/i, '晉級八強'],
+  [/qualif\w* for (the )?round of 16/i, '晉級16強'],
+  [/knockout phase play-?offs?.*\bunseeded/i, '淘汰附加賽（非種子）'],
+  [/knockout phase play-?offs?.*\bseeded/i, '淘汰附加賽（種子）'],
+  [/knockout phase play-?offs?/i, '淘汰附加賽'],
+  [/wild ?card/i, '季後賽外卡'],
+  [/play-?offs?.*round one|round one/i, '季後賽首輪'],
+  [/relegation or play-?offs?/i, '降級或附加賽'],
+  [/champions league qualif/i, '歐冠資格賽'],
+  [/europa league qualif/i, '歐霸資格賽'],
+  [/conference league qualif/i, '歐協聯資格賽'],
+  [/champions league/i, '歐冠'],
+  [/europa league/i, '歐霸'],
+  [/conference league/i, '歐協聯'],
+  [/relegation play/i, '降級附加賽'],
+  [/relegat/i, '降級'],
+  [/promotion play/i, '升級附加賽'],
+  [/promotion/i, '升級'],
+  [/eliminated/i, '淘汰'],
+  [/play-?offs?/i, '季後賽'],
+  [/play-?in/i, '附加賽']
+];
+export const zoneName = n => (L() === 'en' ? n : ZONE_ZH.find(([re]) => re.test(n))?.[1] || n);
 const PLACE = { 1: ['冠軍', 'the title'], 2: ['亞軍', '2nd place'], 3: ['季軍', '3rd place'] };
 function raceBlock(race, g, league, many) {
   if (!race) return null;

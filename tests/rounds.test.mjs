@@ -106,3 +106,19 @@ test("Nations League tables: rows in ESPN's rank (France first), each tier's own
   assert.deepEqual(c.rows.map(r => r.note), ['Promotion', 'Promotion playoffs', '', 'Relegation or playoffs']);
   assert.equal(c.rows[2].color, '');
 });
+
+test("a table's zones each read their own name (MLS's round one and wild card, a cup's seeded and unseeded playoffs)", async () => {
+  const { zoneName } = await import('../public/sheets.js');
+  const leagues = [
+    ['Champions League', 'Champions League qualifying', 'Europa League', 'Conference League qualifying', 'Relegation playoff', 'Relegation'],
+    ['Qualifies for MLS Cup Playoffs - Round One Best-of-3 series', 'Qualifies for MLS Cup Playoffs - Wild Card Matches'],
+    ['Qualifies for round of 16', 'Knockout phase playoffs - seeded', 'Knockout phase playoffs - unseeded', 'Eliminated'],
+    ['Qualifies for QFs', 'Promotion', 'Promotion playoffs', 'Relegation playoffs', 'Relegation or playoffs']
+  ];
+  for (const notes of leagues) {
+    const names = notes.map(zoneName);
+    assert.equal(new Set(names).size, names.length, names.join(' '));
+    assert.ok(names.every(n => /[㐀-鿿]/.test(n)), names.join(' '));
+  }
+  assert.equal(zoneName('Qualifies for MLS Cup Playoffs - Wild Card Matches'), '季後賽外卡');
+});
