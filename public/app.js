@@ -886,7 +886,7 @@ function renderHome() {
   }
   const now = Date.now();
   const pctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: h.tables, aff: affinity(null, now, ['match']), now };
-  const past = h.date < today();
+  let past = h.date < today();
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
   const rank = (list, also = 999, ctx = pctx, before = past) => {
@@ -905,11 +905,18 @@ function renderHome() {
   // A match followed on its own shows whether or not it's on TV here: the person asked for it.
   const shown = e => !practice(e) && (isFollowedGame(e) || onTv(e) || ((e.status.state === 'post' || past) && !tvKnown(e)));
   const mine = slot.events.filter(shown);
+  // Today with every one of its games over: shown as any day gone by (its
+  // picks as they stood, the results in them, 今天 · 已結束的推薦 and how
+  // many, 更多推薦), not as a day still going with an ended corner.
+  const todayOver = h.date === today() && mine.length > 0 && mine.every(e => e.status.state === 'post' || e.status.void) && !slot.stale && !slot.loading;
+  if (todayOver) past = true;
   let [planList, more] = rank(filtered(mine));
   // Nothing of theirs on: the best of the rest.
-  // Opened on a day with nothing of theirs: the next day they have games
-  // (only on a fresh read: a saved or half-read day can't say there's none).
-  if (!planList.length && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length && !slot.stale && !slot.loading && !mine.some(e => e.status.state === 'in' || e.status.state === 'post')) {
+  // Opened on a day with nothing of theirs, or with all of it over: the
+  // next day they have games (only on a fresh read: a saved or half-read
+  // day can't say there's none). 今天 on the strip still shows today's.
+  const nothingToday = !planList.length && !mine.some(e => e.status.state === 'in' || e.status.state === 'post');
+  if ((nothingToday || todayOver) && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length && !slot.stale && !slot.loading) {
     h.autoDay = false;
     h.jumping = true;
     nextPickDay().then(d => {
@@ -936,7 +943,8 @@ function renderHome() {
       fallback = true;
     }
   }
-  const isToday = h.date === today();
+  // (Today over is shown as a past day: no live strip, no ended corner.)
+  const isToday = h.date === today() && !todayOver;
   // Today's picks that have ended (the picks only look ahead): the day
   // ranked as it stood before, as on a past day, and what of it was on
   // show (the plan and the first of the rest) that's over now.
