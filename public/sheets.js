@@ -1905,15 +1905,22 @@ export async function openPlayer(league, id, fallback = {}) {
     const keep = list => list.filter(Boolean);
     const racing = sport === 'racing';
     // What this sheet knows, for 最新動態 (stable lines: dates, never "in 3 days").
+    // Last season's numbers (ESPN's until a player's first game of the new one: Curry's April games in October) are said to be.
+    const lastPlayed = Date.parse(ov?.log?.games?.[0]?.date || '') || 0;
+    const lastSeason = Boolean(lastPlayed) && Date.now() - lastPlayed > 45 * 86_400_000;
+    const injury = a.injury;
     const playerFacts = [
+      injury && Date.now() - Date.parse(injury.date || 0) < 30 * 86_400_000
+        ? `傷病（ESPN ${String(injury.date).slice(0, 10)}）：${[injury.status, injury.what].filter(Boolean).join('，')}${injury.back ? `，預計 ${localDate(Date.parse(injury.back))} 回歸` : ''}。${injury.comment}`.slice(0, 220)
+        : '',
       `${en ? a.name : name}：${[driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team, a.position].filter(Boolean).join('・')}`,
       champ ? `${year} 車手積分榜第 ${champ.pos}（共 ${champ.of} 位），${champ.points} 分${champ.pos > 1 && champ.gap ? `，落後領先者 ${champ.gap} 分` : ''}` : '',
       raceRows.length ? `近 ${Math.min(5, raceRows.length)} 站：${raceRows.slice(0, 5).map(r => `${r.name} P${r.pos}`).join('、')}` : '',
       mate ? `隊友 ${mateName}：第 ${mate.pos}，${mate.points} 分；正賽名次較前 ${ahead} 次、較後 ${behind} 次` : '',
       nextRace ? `下一站：${nextRace.name}（${localDate(Date.parse(nextRace.start))}）` : '',
-      a.stats.list.length ? `${statsTitle(a.stats.title, L()) || '本季'}：${a.stats.list.slice(0, 6).map(x => `${statName(x.label, L())} ${x.value}`).join('、')}` : '',
-      ...(ov?.log?.games || []).slice(0, 5).map(g => `${g.date ? localDate(Date.parse(g.date)) : ''} ${g.at === '@' ? '客場' : '主場'}對 ${g.opp.abbr || g.opp.name} ${{ W: '勝', L: '敗', D: '和', T: '和' }[g.result] || ''} ${g.score}：${ov.log.labels.slice(0, 6).map((k, i) => `${k} ${g.stats[i]}`).join(' ')}`),
-      ov?.note ? `ESPN 筆記（${String(ov.note.date || '').slice(0, 10)}）：${ov.note.headline} ${String(ov.note.story || '').slice(0, 300)}` : ''
+      a.stats.list.length ? `${lastSeason ? `上季（不是本季）${a.stats.title}` : statsTitle(a.stats.title, L()) || '本季'}：${a.stats.list.slice(0, 6).map(x => `${statName(x.label, L())} ${x.value}`).join('、')}` : '',
+      ...(lastSeason ? [] : ov?.log?.games || []).slice(0, 5).map(g => `${g.date ? localDate(Date.parse(g.date)) : ''} ${g.at === '@' ? '客場' : '主場'}對 ${g.opp.abbr || g.opp.name} ${{ W: '勝', L: '敗', D: '和', T: '和' }[g.result] || ''} ${g.score}：${ov.log.labels.slice(0, 6).map((k, i) => `${k} ${g.stats[i]}`).join(' ')}`),
+      ov?.note && Date.now() - Date.parse(ov.note.date || 0) < 14 * 86_400_000 ? `ESPN 筆記（${String(ov.note.date || '').slice(0, 10)}）：${ov.note.headline} ${String(ov.note.story || '').slice(0, 300)}` : ''
     ].filter(Boolean);
     const overview = keep([
       // 最新動態, always: Gemini's from their stories and this sheet's facts; meanwhile ESPN's note or story, else the facts.

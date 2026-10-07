@@ -224,3 +224,9 @@ test("a game's injuries take in each team's roster: everyone out, never only the
   assert.ok(phi.list.some(x => x.name === 'LeBron James'));
   assert.deepEqual(game[0].list.length, 1);
 });
+
+test("a player's latest injury report: status, what, when back, ESPN's word", () => {
+  const a = parseAthlete({ athlete: { id: 3975, displayName: 'Stephen Curry', injuries: [{ status: 'Day-To-Day', date: '2026-10-07T04:47:00.000+00:00', longComment: 'Curry will be limited to roughly 20 minutes.', details: { type: 'Rest', location: 'Other', returnDate: '2026-10-10T00:00:00.000+00:00' } }] } });
+  assert.deepEqual(a.injury, { status: 'Day-To-Day', date: '2026-10-07T04:47:00.000+00:00', what: 'Rest', back: '2026-10-10T00:00:00.000+00:00', comment: 'Curry will be limited to roughly 20 minutes.' });
+  assert.equal(parseAthlete({ athlete: { id: 1 } }).injury, null);
+});

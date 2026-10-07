@@ -999,6 +999,8 @@ export function parseAthlete(data) {
     weight: a.displayWeight || '',
     status: a.status?.name || '',
     injuries: (a.injuries || []).map(i => i.status || i.type?.description).filter(Boolean),
+    // The latest injury report: its status, what and where, when they're due back, ESPN's word on it.
+    injury: a.injuries?.[0] ? { status: a.injuries[0].status || a.injuries[0].type?.description || '', date: a.injuries[0].date || '', what: [a.injuries[0].details?.type, a.injuries[0].details?.location].filter(x => x && x !== 'Other').join(' '), back: a.injuries[0].details?.returnDate || '', comment: a.injuries[0].longComment || a.injuries[0].shortComment || '' } : null,
     stats: { title: a.statsSummary?.displayName || '', list: (a.statsSummary?.statistics || []).map(s => ({ label: s.shortDisplayName || s.abbreviation, name: s.displayName, value: s.displayValue, rank: s.rankDisplayValue || '' })) },
     // A driver's country.
     country: a.flag?.alt || a.citizenship || a.citizenshipCountry?.abbreviation || '',
