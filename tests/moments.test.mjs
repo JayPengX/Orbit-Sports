@@ -252,3 +252,25 @@ test('basketball: a run that did its work early ends there, not where the drift 
   assert.ok(run && run.i <= 22, `the run ends with the run, not at ${run?.i}`);
   assert.equal(run.text, 'H 30-0 攻勢');
 });
+
+// Brewers at Padres, 2026-10-06: three 9th-inning plays at +9% were kept
+// (every late play was) over the Padres' 3rd-inning rally (+19% from five
+// small plays, none over 9%), which wasn't a moment at all.
+test("baseball: an inning's rally of small plays is one moment; late plays compete with earlier ones", () => {
+  const pts = [];
+  const add = (v, n, half, play = {}) => pts.push({ home: v, n, half, play: { text: 'x', type: 'Play Result', ...play } });
+  add(0.5, 1, 'top', { home: 0, away: 0 });
+  add(0.6, 3, 'top', { home: 0, away: 0 });
+  // The rally: 0.6 → 0.8 over five plays, two runs (the home side from 0-0 to 2-0: a lead).
+  [0.64, 0.66, 0.69, 0.71, 0.8].forEach((v, k) => add(v, 3, 'bottom', { home: k >= 2 ? (k === 4 ? 2 : 1) : 0, away: 0, scoring: k === 2 || k === 4, value: 1 }));
+  add(0.8, 4, 'top', { home: 2, away: 0 });
+  // The 9th: walks at 8-9% each, then the game's last play.
+  [0.71, 0.63, 0.55].forEach(v => add(v, 9, 'top', { home: 2, away: 0 }));
+  add(1, 9, 'top', { home: 2, away: 0 });
+  const list = playMoments(pts, 'baseball', { home: { id: 'h', name: '教士' }, away: { id: 'a', name: '釀酒人' }, en: false });
+  const rally = list.find(m => m.rally);
+  assert.equal(rally?.text, '教士 3局下攻下 2 分 · 超前');
+  assert.ok(list.length <= 6);
+  // Its five plays aren't moments of their own.
+  assert.equal(list.filter(m => pts[m.i].n === 3 && pts[m.i].half === 'bottom').length, 1);
+});

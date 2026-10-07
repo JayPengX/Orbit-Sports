@@ -133,6 +133,8 @@ const teamName = (id, side) => (String(id) === String(side.home.id) ? side.home.
 // drifted over (told by the points each side scored), never a possession
 // told as a run.
 const SINGLE = 0.07;
+// Baseball, football, hockey: this many moments at most, the biggest.
+const MOST = 6;
 const RUN_PLAYS = 48;
 // Basketball: a possession that moves it this much is a moment; a drift of this much, a stretch.
 const PLAY_SWING = 0.12;
@@ -147,9 +149,15 @@ function swingMoments(points, sport, side) {
       // ESPN puts a score's swing on the kickoff after it: the score's.
       let play = points[i].play;
       if (/kickoff|kicks/i.test(`${play?.type} ${play?.text}`)) play = points.slice(Math.max(0, i - 3), i).reverse().find(p => p.play?.scoring)?.play || play;
+      // Not a play (a player reported eligible, a timeout, a quarter's end): the line just moved under it.
+      if (/reported in as eligible|timeout|two-minute warning|end (of )?(quarter|half|game|period)/i.test(`${play?.type} ${play?.text}`)) continue;
       if (Math.abs(delta) >= SINGLE && play) found.push({ i, delta, side: home(delta), icon: ICON[sport] || '•', text: playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name), pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id, src: play });
     }
-    return biggest(found);
+    if (sport !== 'baseball') return found;
+    // An inning's rally of small plays (a single, a bunt, a groundout, a
+    // single: no one play big enough) is one moment; its plays aren't.
+    const rallies = halfInnings(points, vals, side);
+    return [...rallies, ...found.filter(f => !rallies.some(r => f.i >= r.from && f.i <= r.i))];
   }
   // The possessions that swung it before the closing stretch (its own list has those), each by who did what.
   const plays = [];
@@ -175,6 +183,39 @@ function swingMoments(points, sport, side) {
   // The two biggest stretches and the three biggest possessions, in the game's order.
   const top = (list, n) => [...list].sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta)).slice(0, n);
   return [...top(stretches, 2), ...top(plays, 3)].sort((x, y) => x.i - y.i);
+}
+
+// Baseball: each half-inning that moved it a lot (RALLY) with no one play
+// doing most of it (two thirds), told by the runs scored in it: 教士 3局下
+// 攻下 2 分 (its dot on the last run).
+const RALLY = 0.12;
+function halfInnings(points, vals, side) {
+  const out = [];
+  let a = 1;
+  for (let i = 1; i <= points.length; i++) {
+    const p = points[i];
+    if (i < points.length && p.n === points[a].n && p.half === points[a].half) continue;
+    const b = i - 1;
+    const delta = vals[b] - vals[a - 1];
+    let most = 0;
+    for (let k = a; k <= b; k++) most = Math.max(most, Math.abs(vals[k] - vals[k - 1]));
+    const score = k => points.slice(0, k + 1).reverse().find(q => q.play?.home != null && q.play?.away != null)?.play;
+    const [s0, s1] = [score(a - 1), score(b)];
+    const who = delta >= 0 ? 'home' : 'away';
+    const runs = (Number(s1?.[who]) || 0) - (Number(s0?.[who]) || 0);
+    const last = [...Array(b - a + 1).keys()].map(k => a + k).reverse().find(k => points[k].play?.scoring);
+    if (Math.abs(delta) >= RALLY && most < (2 / 3) * Math.abs(delta) && runs > 0 && last != null) {
+      const team = sideOf(delta, side);
+      const when = side.en ? `${points[a].half === 'top' ? 'Top' : 'Bottom'} ${points[a].n}` : `${points[a].n}局${points[a].half === 'top' ? '上' : '下'}`;
+      // A tie or a lead taken by it, said (as the late plays' are).
+      const [l0, l1] = [lead(s0), lead(s1)];
+      const turned = l0 != null && l1 != null && l1 !== l0 ? (l1 === 0 ? 'tie' : 'lead') : '';
+      const said = turned ? (side.en ? (turned === 'tie' ? ' · ties it' : ' · takes the lead') : turned === 'tie' ? ' · 追平' : ' · 超前') : '';
+      out.push({ i: last, from: a, delta, side: who, icon: ICON.baseball, text: (side.en ? `${team.name} score ${runs} · ${when}` : `${team.name} ${when}攻下 ${runs} 分`) + said, team: team.id, src: points[last].play, rally: true, turned });
+    }
+    a = i;
+  }
+  return out;
 }
 
 // A stretch where it really moved: from the last point still near its start
@@ -212,7 +253,16 @@ export function playMoments(points, sport, side) {
     if (!same) found.push(m);
     else if (m.turned && !same.turned) Object.assign(same, { turned: m.turned, text: m.text, delta: Math.abs(m.delta) > Math.abs(same.delta) ? m.delta : same.delta, side: Math.abs(m.delta) > Math.abs(same.delta) ? m.side : same.side });
   }
-  return found.sort((x, y) => x.i - y.i);
+  if (sport === 'basketball') return found.sort((x, y) => x.i - y.i);
+  // The rest: the late plays compete with the earlier ones (a walk in the
+  // 9th at +9% isn't kept over a +19% rally in the 3rd); a lead taken or a
+  // tie counts a little extra. The biggest few, in the game's order.
+  const weight = m => Math.abs(m.delta) + (m.turned ? 0.08 : 0);
+  return found
+    .filter(m => Math.abs(m.delta) >= SINGLE || m.turned)
+    .sort((x, y) => weight(y) - weight(x))
+    .slice(0, MOST)
+    .sort((x, y) => x.i - y.i);
 }
 
 // One stop in play: the plays on the same clock (a foul and its free
