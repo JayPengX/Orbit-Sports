@@ -1434,9 +1434,11 @@ function f1Field(rows, field) {
         tags: [
           r.gap ? el('small', { class: 'num', text: r.gap }) : null,
           r.outIn ? el('small', { class: 'q-out', title: en ? `Out in ${r.outIn}` : `${r.outIn} 淘汰`, text: r.outIn }) : null,
-          gained ? el('small', { class: `num ${gained > 0 ? 'up' : 'down'}`, text: `${gained > 0 ? '▲' : '▼'}${Math.abs(gained)}` }) : null,
+          // Each its own chip under the time (it read as one string of numbers):
+          // places from the grid, the fastest lap, the points as points.
+          gained ? el('small', { class: `num gain ${gained > 0 ? 'up' : 'down'}`, title: en ? `From P${r.grid}` : `起跑第 ${r.grid}`, text: `${gained > 0 ? '▲' : '▼'}${Math.abs(gained)}` }) : null,
           r.fastest ? el('small', { class: 'fl', title: en ? 'Fastest lap' : '最快圈', text: en ? 'FL' : '最快圈' }) : null,
-          r.points ? el('strong', { class: 'num pts', text: `+${r.points}` }) : null
+          r.points ? el('small', { class: 'num pts', text: en ? `${r.points} pts` : `${r.points} 分` }) : null
         ]
       });
     })

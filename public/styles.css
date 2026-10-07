@@ -878,8 +878,10 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .f1-tags { display: inline-flex; gap: 6px; align-items: center; }
 .f1-tags .up { color: var(--q-good); }
 .f1-tags .down { color: var(--q-bad); }
-.f1-tags .fl { color: #a855f7; }
-.f1-tags .pts { font-size: 12px; }
+.f1-tags .gain { font-size: 11.5px; font-weight: 700; }
+.f1-tags .fl, .f1-tags .pts { font-size: 11px; font-weight: 700; line-height: 1.5; padding: 0 7px; border-radius: 999px; white-space: nowrap; }
+.f1-tags .fl { color: #a855f7; background: color-mix(in srgb, #a855f7 15%, transparent); }
+.f1-tags .pts { color: var(--q-text); background: var(--q-sunken, rgba(127, 127, 127, 0.16)); }
 .f1-tags .q-out { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--q-sunken); color: var(--q-text-2); }
 /* ---- 追蹤: your teams' last and next games, your players, your leagues ---- */
 .follow-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 4px 2px 8px; }
