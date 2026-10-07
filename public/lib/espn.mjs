@@ -1100,3 +1100,48 @@ export function normalizeTeamName(name) {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
+
+// ---- News (ESPN's) ----------------------------------------------------------------------
+//
+// A league's latest stories, or a team's (`team`: ESPN's feed for that team,
+// which also carries league-wide ones). Each story with who it's about, so a
+// team's, a player's or a driver's are the ones that name them (newsAbout).
+export function parseNews(data) {
+  return (data?.articles || [])
+    .filter(a => a?.headline && a.links?.web?.href)
+    .map(a => {
+      const cats = a.categories || [];
+      return {
+        id: String(a.id ?? a.links.web.href),
+        headline: a.headline,
+        summary: a.description || '',
+        at: Date.parse(a.published || a.lastModified || '') || 0,
+        image: a.images?.[0]?.url || '',
+        url: a.links.web.href,
+        video: a.type === 'Media',
+        premium: Boolean(a.premium),
+        athletes: cats.filter(c => c.type === 'athlete').map(c => String(c.athleteId ?? c.athlete?.id ?? '')).filter(Boolean),
+        people: cats.filter(c => c.type === 'athlete' && c.description).map(c => c.description),
+        teams: cats.filter(c => c.type === 'team').map(c => ({ id: String(c.teamId ?? c.team?.id ?? ''), name: c.description || '' }))
+      };
+    })
+    .sort((x, y) => y.at - x.at);
+}
+export async function news(league, { team = '' } = {}) {
+  const l = LEAGUES[league];
+  if (!l?.espn) return [];
+  const url = `${SITE}/${l.espn}/news?limit=50${team ? `&team=${encodeURIComponent(team)}` : ''}`;
+  return parseNews(await getJson(url, { ttl: 10 * 60_000, trim: 'espn-news' }));
+}
+// The stories about someone: naming the athlete (any of `athletes`), the
+// team by id, or by name (`named`: F1's constructors, which ESPN tags only
+// by name). Each story once, latest first.
+export function newsAbout(lists, { athletes = [], team = '', named = null } = {}) {
+  const ids = new Set(athletes.map(String));
+  const seen = new Set();
+  return lists
+    .flat()
+    .filter(s => s.athletes.some(a => ids.has(a)) || (team && s.teams.some(t => t.id === String(team))) || (named && s.teams.some(t => named(t.name))))
+    .filter(s => !seen.has(s.id) && seen.add(s.id))
+    .sort((x, y) => y.at - x.at);
+}

@@ -3,7 +3,7 @@
 // standings tables they share with the Standings tab.
 import { translate } from '#kit/quadra.mjs';
 import { splitName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
@@ -352,6 +352,53 @@ export function statValue(text) {
 }
 
 const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [el('span', { text: title }), sub ? el('small', { text: sub }) : null]), body]);
+
+// ---- News ---------------------------------------------------------------------------------
+//
+// ESPN's stories about a team, a player or a driver (espn.mjs newsAbout): each
+// one's picture, headline and summary (in Chinese, translated as it shows), how
+// long ago, opening the story on ESPN. A story of the last three days also
+// leads the sheet, so news like a grid penalty is seen without looking for it.
+const FRESH_NEWS_MS = 3 * 86_400_000;
+function newsWhen(at) {
+  const en = L() === 'en';
+  const m = Math.max(1, Math.round((Date.now() - at) / 60_000));
+  if (m < 60) return en ? `${m} min ago` : `${m} 分鐘前`;
+  if (m < 1440) return en ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 60)} 小時前`;
+  if (m < 7 * 1440) return en ? `${Math.round(m / 1440)} d ago` : `${Math.round(m / 1440)} 天前`;
+  return localDate(at).slice(5).replace('-', '/');
+}
+// F1 drivers by the app's own Chinese names, put in before translating
+// ("George Russell" and "Russell" both 羅素, not the translator's 拉塞爾).
+function namedZh(text, st) {
+  let out = String(text || '');
+  for (const full of st.people || []) {
+    const d = f1Driver(full);
+    if (!d.surname || d.zh === full) continue;
+    out = out.replace(new RegExp(`${full.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}('s)?`, 'g'), (m, own) => `${d.zh}${own ? '的' : ''}`).replace(new RegExp(`\\b${d.surname}('s)?\\b`, 'gi'), (m, own) => `${d.zh}${own ? '的' : ''}`);
+  }
+  return out;
+}
+function newsRow(st, { lead = false, league = '' } = {}) {
+  const en = L() === 'en';
+  const zh = text => zhLater(league === 'f1' ? namedZh(text, st) : text);
+  return el('a', { class: `news-row${lead ? ' lead' : ''}`, href: st.url, target: '_blank', rel: 'noopener noreferrer' }, [
+    st.image ? el('img', { class: 'news-pic', src: st.image, alt: '', loading: 'lazy', decoding: 'async', onerror: e => e.target.remove() }) : null,
+    el('span', { class: 'news-text' }, [
+      el('strong', { class: 'news-head' }, [en ? st.headline : zh(st.headline)]),
+      st.summary ? el('span', { class: 'news-sum' }, [en ? st.summary : zh(st.summary)]) : null,
+      el('small', { class: 'muted news-meta', text: [newsWhen(st.at), st.video ? (en ? 'Video' : '影片') : '', 'ESPN'].filter(Boolean).join(' · ') })
+    ])
+  ]);
+}
+function newsCard(stories, league = '', title = L() === 'en' ? 'News' : '新聞') {
+  const shown = 8;
+  const list = el('div', { class: 'news-list' }, stories.slice(0, shown).map(st => newsRow(st, { league })));
+  const more = stories.length > shown ? el('button', { class: 'link note-more', type: 'button', text: L() === 'en' ? 'More' : '更多', onclick: () => (list.append(...stories.slice(shown, 30).map(st => newsRow(st, { league }))), more.remove()) }) : null;
+  return card(title, el('div', {}, [list, more]), { sub: 'ESPN' });
+}
+// The newest story, when it's from the last three days.
+const freshNews = (stories, league = '') => (stories[0] && Date.now() - stories[0].at < FRESH_NEWS_MS ? card(L() === 'en' ? 'Latest news' : '最新消息', newsRow(stories[0], { lead: true, league }), { sub: 'ESPN' }) : null);
 
 // A side's row in the league's table: [place, row, group size]; none before the table's first game.
 function placeOf(groups, id) {
@@ -1350,9 +1397,10 @@ export async function openTeam(league, id, fallback = {}) {
   const en = L() === 'en';
   const W = (zh, eng) => (en ? eng : zh);
   try {
-    const [info, sched, groups] = espn
-      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null])
+    const [info, sched, groups, teamNews = []] = espn
+      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null, news(league, { team: id }).catch(() => [])])
       : await ownTeam(league, id, fallback);
+    const stories = newsAbout([teamNews], { team: id });
     const now = Date.now();
     const played = sched.filter(x => x.status.state === 'post' && !x.status.void);
     const past = played.slice(-10).reverse();
@@ -1387,6 +1435,7 @@ export async function openTeam(league, id, fallback = {}) {
     const views = [['schedule', W('賽程', 'Schedule')], ['results', W('戰績', 'Results')]];
     if (espn) views.push(['roster', W('陣容', 'Roster')]);
     if (place) views.push(['table', W('排名', 'Table')]);
+    if (stories.length) views.push(['news', W('新聞', 'News')]);
     let view = upcoming.length > 1 ? 'schedule' : 'results';
     let rosterList = null;
     const paint = () => {
@@ -1431,6 +1480,7 @@ export async function openTeam(league, id, fallback = {}) {
           )
         );
       }
+      if (view === 'news') put(body, newsCard(stories, league));
       if (view === 'table') {
         const g = (groups || []).find(x => x.rows.some(r => r.id === String(id)));
         put(body, g ? standingsTables([g], league, { mark: [String(id)], compact: true }) : empty(T('noStandings')));
@@ -1449,6 +1499,7 @@ export async function openTeam(league, id, fallback = {}) {
         followBtn
       ]),
       strip,
+      freshNews(stories, league),
       nextCard,
       tabsBox,
       body
@@ -1629,14 +1680,18 @@ export async function openPlayer(league, id, fallback = {}) {
     const sport = LEAGUES[league]?.sport;
     // This season, from the league's own tables and results (ESPN's player
     // card has little for drivers): the championship and each race.
-    const [a, ov, table, races, official] = await Promise.all([
+    const [a, ov, table, races, official, leagueNews, clubNews] = await Promise.all([
       athlete(league, id),
       athleteOverview(league, id).catch(() => null),
       sport === 'racing' && LEAGUES[league].standings ? standings(league).catch(() => null) : null,
       sport === 'racing' ? seasonEvents(league).catch(() => []) : null,
       // F1: formula1.com's figures and each weekend's grid, finish and sprint.
-      league === 'f1' ? athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })).catch(() => null) : null
+      league === 'f1' ? athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })).catch(() => null) : null,
+      // Their news: the league's stories and their team's, those naming them.
+      news(league).catch(() => []),
+      individual(league) ? [] : athlete(league, id).then(x => (x.teamId ? news(league, { team: x.teamId }) : [])).catch(() => [])
     ]);
+    const stories = newsAbout([leagueNews, clubNews], { athletes: [id] });
     const en = L() === 'en';
     const W = (zh, eng) => (en ? eng : zh);
     const driver = league === 'f1' ? f1Driver(a.name) : null;
@@ -1754,6 +1809,7 @@ export async function openPlayer(league, id, fallback = {}) {
     const keep = list => list.filter(Boolean);
     const racing = sport === 'racing';
     const overview = keep([
+      freshNews(stories, league),
       noteCard,
       og.season
         ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...og.season.map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
@@ -1803,7 +1859,7 @@ export async function openPlayer(league, id, fallback = {}) {
       a.teamId && !individual(league) ? el('button', { class: 'q-btn block with-mark', type: 'button', onclick: () => openTeam(league, a.teamId, { name: a.team, logo: a.teamLogo }) }, [a.teamLogo ? logo(a.teamLogo, a.team, 'sm') : null, el('span', { text: `${a.team} ›` })]) : null,
       driver?.team ? el('button', { class: 'q-btn block with-mark', type: 'button', onclick: () => openConstructor({ id: '', name: driver.team, en: driver.team }) }, [constructorBadge(driver.team, 'sm'), el('span', { text: `${en ? driver.team : f1Constructor(driver.team).zh} ›` })]) : null
     ]);
-    const views = [['overview', W('概況', 'Overview'), overview], ['numbers', W('數據', 'Stats'), numbers], ['games', racing ? W('各站成績', 'Races') : W('近期比賽', 'Games'), games], ['bio', W('資料', 'Bio'), bio]].filter(v => v[2].length);
+    const views = [['overview', W('概況', 'Overview'), overview], ['numbers', W('數據', 'Stats'), numbers], ['games', racing ? W('各站成績', 'Races') : W('近期比賽', 'Games'), games], ['news', W('新聞', 'News'), stories.length ? [newsCard(stories, league)] : []], ['bio', W('資料', 'Bio'), bio]].filter(v => v[2].length);
     let view = views[0]?.[0];
     const tabsBox = el('div');
     const tabBody = el('div', { class: 'team-tab' });
@@ -1867,7 +1923,7 @@ export async function openConstructor(row) {
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   try {
-    const [table, races, official] = await Promise.all([standings(league).catch(() => null), seasonEvents(league).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null)]);
+    const [table, races, official, f1News] = await Promise.all([standings(league).catch(() => null), seasonEvents(league).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null), news(league).catch(() => [])]);
     const og = official?.grids || {};
     const jw = (official?.weekends || []).map(w => ({ ...w, e: eventOfRace(races, w.date) }));
     const groups = table || [];
@@ -1877,6 +1933,8 @@ export async function openConstructor(row) {
     const lead = teams[0];
     const drivers = (groups.find(g => g.rows.some(r => r.athlete))?.rows || []).map((r, i) => ({ ...r, pos: i + 1 })).filter(r => f1Driver(r.en || r.name).team === c.name);
     const ids = new Set(drivers.map(d => d.id));
+    // Its news: stories naming the team, or either of its drivers.
+    const teamStories = newsAbout([f1News], { athletes: [...ids], named: n => f1Constructor(n).name === c.name });
     // The team's cars this season (most races first), named as the app names them.
     const carRank = d => {
       const i = drivers.findIndex(x => f1Driver(x.en || x.name).surname === d.familyName);
@@ -1950,6 +2008,7 @@ export async function openConstructor(row) {
             )
           )
         : null,
+      teamStories.length ? newsCard(teamStories, league) : null,
       og.gp ? card(W('正賽', 'Grand Prix'), f1Tiles(og.gp, en)) : null,
       og.sprint ? card(W('衝刺賽', 'Sprint'), f1Tiles(og.sprint, en)) : null,
       next ? el('h3', { class: 'section-h', text: W('下一站', 'Next') }) : null,
