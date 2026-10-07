@@ -130,3 +130,14 @@ test("a table dims a side only when it can't reach a good zone (MLS's 10th can s
   assert.equal(goodZoneReach([{ note: 'Champions League' }, { note: '' }, { note: 'Relegation' }]), 1);
   assert.equal(goodZoneReach([{ note: '' }, { note: '' }]), 1);
 });
+
+test("greyed out: only no chance left at all, only while the season's on (ESPN's e for MLB and the NBA; a points table against its last good zone)", async () => {
+  const { outOfIt } = await import('../public/sheets.js');
+  const mlb = (gp, marks) => ({ rows: marks.map((c, i) => ({ id: String(i), clincher: c, stats: { W: String(gp - 70), L: '70' } })) });
+  assert.deepEqual([...outOfIt(mlb(150, ['x', 'y', 'e', '']), null, 'mlb')], ['2'], 'mid-season: the eliminated');
+  assert.deepEqual([...outOfIt(mlb(162, ['x', 'y', 'e', 'e']), null, 'mlb')], [], 'season over: the playoffs tab says the rest');
+  const g = { rows: [{ id: 'a', note: 'Champions League', stats: { GP: '30' } }, { id: 'b', note: 'Europa League', stats: { GP: '30' } }, { id: 'c', note: '', stats: { GP: '30' } }, { id: 'd', note: 'Relegation', stats: { GP: '30' } }] };
+  const race = { title: { done: false }, rows: [{ id: 'a', best: 1, settled: false }, { id: 'b', best: 1, settled: false }, { id: 'c', best: 2, settled: false }, { id: 'd', best: 3, settled: false }] };
+  assert.deepEqual([...outOfIt(g, race, 'epl')], ['d'], 'd can no longer reach 2nd (Europe); c still can');
+  assert.deepEqual([...outOfIt({ rows: g.rows.map(r => ({ ...r, note: '' })) }, race, 'epl')], [], 'no zones: nobody');
+});

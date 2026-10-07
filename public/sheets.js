@@ -19,6 +19,7 @@ import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualif
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
+import { SEASON_GAMES } from './lib/title.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { ctx, el, shownStart, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
 
@@ -2500,14 +2501,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
       const race = races[groups.indexOf(g)];
       // A lock on a settled place (not when the whole table is: the season's over).
       const settled = new Set(race && race.rows.some(x => !x.settled) ? race.rows.filter(x => x.settled).map(x => x.id) : []);
-      // Dimmed: a side with no chance left at all, its best possible place
-      // (every point it can still win, a tie counted as a chance) below the
-      // lowest good zone (playoffs, Europe, promotion: MLS's 9th, the wild
-      // card). A championship (F1's) by the title; a table without zones
-      // (the season still deciding who's in) never.
-      const reach = goodZoneReach(g.rows);
-      const zones = g.rows.some(r => r.note && !/relegat|eliminat/i.test(r.note));
-      const out = new Set(race && (zones || sport === 'racing') ? race.rows.filter(x => x.best > reach && (zones || !race.title.done)).map(x => x.id) : []);
+      const out = outOfIt(g, race, league);
       return el('div', { class: 'q-card pad fx-card' }, [
         g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
         raceBlock(race, g, league, many),
@@ -2536,6 +2530,27 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
       ]);
     })
   );
+}
+// The sides greyed out in a table: those with no chance left at all, and
+// only while its season is still being played (once it's over, the playoffs
+// tab says who's in). MLB's and the NBA's by ESPN's own mark (e:
+// eliminated, its math with the divisions in); a points table's by every
+// point a side can still win (a tie counted as a chance) against the
+// lowest good zone (Europe, playoffs, promotion: MLS's 9th, the wild
+// card); a championship's (F1's) against the title.
+export function outOfIt(g, race, league) {
+  const rows = g?.rows || [];
+  const sport = LEAGUES[league]?.sport;
+  const total = SEASON_GAMES[league];
+  const played = r => (sport === 'soccer' ? Number(r.stats.GP) : Number(r.stats.W) + Number(r.stats.L) + (Number(r.stats.T) || 0));
+  const over = race ? race.rows.every(x => x.settled) && race.title.done : total ? rows.every(r => played(r) >= total) : false;
+  if (rows.some(r => r.clincher)) return new Set(total && rows.every(r => played(r) >= total) ? [] : rows.filter(r => r.clincher === 'e').map(r => r.id));
+  if (!race || over || (total && rows.every(r => played(r) >= total))) return new Set();
+  const zones = rows.some(r => r.note && !/relegat|eliminat/i.test(r.note));
+  if (sport === 'racing') return new Set(race.title.done ? [] : race.rows.filter(x => x.best > 1).map(x => x.id));
+  if (!zones) return new Set();
+  const reach = goodZoneReach(rows);
+  return new Set(race.rows.filter(x => x.best > reach).map(x => x.id));
 }
 // The lowest place a table's good zones reach (its last row with a zone
 // that isn't relegation or elimination), 1 when it has none.
