@@ -209,18 +209,25 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
   const ordered = lo.every((v, i) => i === 0 || v <= lo[i - 1]);
   const over = rows.every(r => more(r) === 0);
   if (!ordered || over) for (const x of out) x.settled = false;
-  // The next places still open, each once the one above it is settled (the
-  // fight for 2nd once the title's won): who can still finish there.
+  // A championship's close fights, once its champion is decided (F1's
+  // constructors fight on for every place: each is the team's prize money):
+  // runs of places still open where each side can still catch the one
+  // above, and the run is within one weekend's points (a race's and a
+  // sprint's most) top to bottom; the closest two. A team sport's places
+  // inside a zone change nothing (its zones say what's at stake): none.
   const places = [];
-  if (ordered && !over)
-    for (let pos = 2; pos <= Math.min(rows.length, 3); pos++) {
-      if (!out.some(x => x.settled && x.best === pos - 1)) break;
-      const can = out.filter(x => !x.settled && x.best <= pos && x.worst >= pos);
-      if (can.length > 1) {
-        places.push({ pos, rows: can.map(x => x.row) });
-        break;
-      }
+  if (sport === 'racing' && ordered && !over && out[0].settled && out[0].best === 1) {
+    const m = RACE_MAX[team ? 'team' : 'driver'];
+    const weekend = m.race + (left.sprints ? m.sprint : 0);
+    for (let i = 1; i < rows.length; ) {
+      let j = i;
+      while (j + 1 < rows.length && hi[j + 1] >= lo[j] && !out[j + 1].settled && lo[i] - lo[j + 1] <= weekend) j++;
+      if (j > i && !out[i].settled) places.push({ pos: i + 1, to: j + 1, rows: out.slice(i, j + 1).map(x => x.row), spread: lo[i] - lo[j] });
+      i = j + 1;
     }
+    places.sort((a, b) => a.spread - b.spread || a.pos - b.pos).splice(2);
+    places.sort((a, b) => a.pos - b.pos);
+  }
   // ESPN's zones (its notes on the rows: Champions League, relegation…): the
   // places they cover, and who's sure of being in.
   const zones = [];

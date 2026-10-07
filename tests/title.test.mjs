@@ -71,9 +71,9 @@ test('every place: settled ones, the places still open, the zones', () => {
   const r = standingsRace({ rows }, 'soccer');
   assert.equal(r.title.done, false, 'B can reach 15');
   assert.deepEqual(r.rows.map(x => [x.best, x.worst]), [[1, 2], [1, 2], [3, 3], [4, 4]]);
-  assert.deepEqual(r.places, [], 'the title not settled: no fight for 2nd yet');
+  assert.deepEqual(r.places, [], 'the title not settled: none');
   const won = standingsRace({ rows: [row('A', { GP: '5', P: '15' }), row('B', { GP: '5', P: '9' }), row('C', { GP: '5', P: '8' }), row('D', { GP: '5', P: '1' })] }, 'soccer');
-  assert.deepEqual([won.title.done, won.places.map(p => [p.pos, p.rows.map(r => r.id)])], [true, [[2, ['B', 'C']]]]);
+  assert.deepEqual([won.title.done, won.places], [true, []], "a team sport's places inside a zone: no fights (its zones say what's at stake)");
   assert.deepEqual(r.zones.map(z => [z.note, z.sure]), [['Champions League', ['A', 'B']], ['Relegation', ['D']]]);
 });
 
@@ -100,4 +100,15 @@ test('a football matchweek: one more than either side’s league games before it
   const t = [{ rows: [row('T', { W: '0', L: '0' }), row('U', { W: '0', L: '0' })] }];
   const pre = { ...game('p', 'post', 'T', 'U', 100, 90, '1-0', '0-1'), stage: { key: 'pre' } };
   assert.equal(liveTable(t, [pre], 'basketball').fresh, 0);
+});
+
+test("F1's close fights once the champion's decided: runs of places still open within a weekend's points, the closest two", () => {
+  const t = (id, pts) => row(id, { PTS: String(pts) });
+  // 2 races, no sprints left: a team's weekend is 43. Champion decided (600 vs 400 + 86).
+  const g = { rows: [t('mc', 600), t('fe', 400), t('rb', 390), t('me', 300), t('am', 120), t('al', 110), t('wi', 100), t('ha', 20)] };
+  const r = standingsRace(g, 'racing', { left: { races: 2, sprints: 0 }, team: true });
+  assert.equal(r.title.done, true);
+  assert.deepEqual(r.places.map(p => [p.pos, p.to, p.spread]), [[2, 3, 10], [5, 7, 20]]);
+  const open = standingsRace({ rows: [t('mc', 420), t('fe', 400), t('rb', 390)] }, 'racing', { left: { races: 2, sprints: 0 }, team: true });
+  assert.deepEqual(open.places, [], 'the champion not decided: the title race alone');
 });

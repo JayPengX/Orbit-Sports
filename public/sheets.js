@@ -2420,7 +2420,6 @@ const ZONE_ZH = [
   [/play-?in/i, '附加賽']
 ];
 export const zoneName = n => (L() === 'en' ? n : ZONE_ZH.find(([re]) => re.test(n))?.[1] || n);
-const PLACE = { 1: ['冠軍', 'the title'], 2: ['亞軍', '2nd place'], 3: ['季軍', '3rd place'] };
 function raceBlock(race, g, league, many) {
   if (!race) return null;
   const W = (zh, eng) => (L() === 'en' ? eng : zh);
@@ -2464,12 +2463,12 @@ function raceBlock(race, g, league, many) {
   }
   // The next places still open: F1's always (a championship's 2nd and 3rd
   // matter), a league's once its title is settled.
+  // The close fights still on (F1's, once the champion's decided).
+  const team = !g.rows.some(r => r.athlete);
   for (const p of race.places) {
-    if (p.pos === 1 || (sport !== 'racing' && !t.done)) continue;
-    const names = p.rows.slice(0, 3).map(nm).join('、') + (p.rows.length > 3 ? W(` 等 ${p.rows.length} ${race.unit === 'wins' ? '隊' : '位'}`, ` +${p.rows.length - 3}`) : '');
-    const pts = r => Number(r.stats[sport === 'racing' ? 'PTS' : sport === 'soccer' ? 'P' : 'W']);
-    const spread = p.rows.length > 1 ? pts(p.rows[0]) - pts(p.rows[Math.min(p.rows.length, 3) - 1]) : 0;
-    lines.push(line('medal', W(`${b(PLACE[p.pos][0] + '之爭')} ${names}`, `${b(`Fight for ${PLACE[p.pos][1]}`)} ${names}`), spread > 0 ? W(`前後相差 ${spread}${unit}`, `${spread}${unit} apart`) : ''));
+    const names = p.rows.slice(0, 3).map(nm).join('、') + (p.rows.length > 3 ? W(` 等 ${p.rows.length} ${team ? '隊' : '位'}`, ` +${p.rows.length - 3}`) : '');
+    const span = p.to > p.pos ? `${p.pos}–${p.to}` : `${p.pos}`;
+    lines.push(line('medal', W(`${b(`第 ${span} 名之爭`)} ${names}`, `${b(`Fight for P${span}`)} ${names}`), p.spread > 0 ? W(`前後相差 ${p.spread}${unit}`, `${p.spread}${unit} apart`) : W('同分', 'level on points')));
   }
   // What the zones have settled.
   for (const z of race.zones) {
