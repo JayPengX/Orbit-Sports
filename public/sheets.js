@@ -1216,9 +1216,14 @@ function playLine(league, p, side) {
 // it's looked for the row is already in its place and look, the same logo
 // staying when it's filled in (no blink, no row popping in).
 const replayKnown = new Map();
-// ELTA's mark, read once when the app opens (never drawn blank, then filled in).
-if (typeof Image !== 'undefined') new Image().src = './icons/elta.png';
-const eltaLogo = () => el('img', { class: 'replay-icon', src: './icons/elta.png', alt: '', 'aria-hidden': 'true', width: 40, height: 40, decoding: 'sync' });
+// ELTA's mark (its app's icon) drawn in place, like YouTube's beside it: no
+// picture to load, so it never blinks when a row is drawn.
+const ELTA_MARK = '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" fill="#ff6d00"/><path d="M106.9 391A196.6 196.6 0 1 1 406.6 391" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round"/><path d="M190 147Q172 137 172 158V330Q172 351 190 341L358 254Q376 244 358 234Z" fill="#fff"/><g fill="#fff"><path d="M139 385H197Q201 385 201 389V397Q201 401 197 401H157V412H192V428H157V439H197Q201 439 201 443V451Q201 455 197 455H139Q135 455 135 451V389Q135 385 139 385Z"/><path d="M213 385H227Q231 385 231 389V439H266Q270 439 270 443V451Q270 455 266 455H213Q209 455 209 451V389Q209 385 213 385Z"/><path d="M278 385H340Q344 385 344 389V397Q344 401 340 401H320V451Q320 455 316 455H306Q302 455 302 451V401H278Q274 401 274 397V389Q274 385 278 385Z"/><path d="M371 385H387Q391 385 393 389L420 451Q422 455 417 455H404Q400 455 398 451L379 404L360 451Q358 455 354 455H341Q336 455 338 451L365 389Q367 385 371 385Z"/></g></svg>';
+const eltaLogo = () => {
+  const mark = el('span', { class: 'replay-icon' });
+  mark.innerHTML = ELTA_MARK;
+  return mark;
+};
 function replayRows(e, r, logo = eltaLogo()) {
   const en = L() === 'en';
   const row = (b, title, sub, go, cls, icon) => watchLink(b, { class: `replay-link${cls}` }, [icon, el('span', { class: 'yt-text' }, [el('strong', { text: title }), el('small', { class: 'one-line', text: sub })]), el('span', { class: 'replay-go', text: go })]);
