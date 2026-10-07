@@ -110,20 +110,69 @@ Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, isFol
 // ---- What the person follows (on the pass) ---------------------------------------------
 
 // `leagues`: the person's leagues, in their order (the first counts most).
+// `payload`: the saved string, null when the pass read says nothing is saved
+// (a newcomer), undefined when nothing was read (offline, the Worker down, a
+// sign-in handed over): then what's on screen stays and prefsLoaded doesn't
+// turn on, so nobody is welcomed as new because a read failed.
 function applyPrefs(payload) {
+  if (payload === undefined) return;
+  let p = null;
   try {
-    const p = payload ? JSON.parse(payload) : null;
-    if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], games: p.games || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
-  } catch {}
+    p = payload ? JSON.parse(payload) : null;
+  } catch {
+    return;
+  }
+  if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], games: p.games || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
   // Only the leagues Orbit Sports has; an NBA team with NBA.com's logo, as everywhere.
   state.prefs.games = keptGames(state.prefs.games);
   state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
   state.prefsLoaded = true;
 }
+// The follows from the pass when they couldn't be read at the start: the
+// start's reply when it has them, else a read of its own. Changes made in
+// the meantime are laid over what the pass has (not written over it).
+let prefsReading = null;
+function readPrefs(first) {
+  if (state.prefsLoaded) return Promise.resolve();
+  if (typeof first?.payload === 'string') return Promise.resolve(gotPrefs(first.payload));
+  if (!first?.offline && !q.pass) return Promise.resolve();
+  return (prefsReading ||= q
+    .read({ data: true })
+    .then(r => gotPrefs(typeof r?.payload === 'string' ? r.payload : undefined))
+    .catch(() => {})
+    .finally(() => (prefsReading = null)));
+}
+function gotPrefs(payload) {
+  if (state.prefsLoaded) return;
+  const local = state.prefs;
+  applyPrefs(payload);
+  if (!state.prefsLoaded) return;
+  if (prefsEdited) {
+    const p = state.prefs;
+    const key = f => `${f.league}:${f.id}`;
+    p.leagues = [...new Set([...p.leagues, ...local.leagues])];
+    p.follows = [...p.follows, ...local.follows.filter(f => !p.follows.some(g => key(g) === key(f)))];
+    p.games = keptGames([...p.games, ...local.games.filter(g => !p.games.some(h => key(h) === key(g)))]);
+    prefsEdited = false;
+    savePrefs();
+  }
+  state.home.picking = false;
+  if (!booted) return;
+  state.days.clear();
+  showTab(state.tab);
+}
+let booted = false;
+let prefsEdited = false;
 // The sports of the person's leagues, in the leagues' order.
 const followedSports = () => [...new Set(state.prefs.leagues.map(k => LEAGUES[k].sport))];
 let saveTimer = 0;
 function savePrefs() {
+  // Not read yet: kept here, and laid over the pass's copy once it's read.
+  if (!state.prefsLoaded) {
+    prefsEdited = true;
+    readPrefs({ offline: true });
+    return;
+  }
   clearTimeout(saveTimer);
   const { leagues, follows, games, audio } = state.prefs;
   saveTimer = setTimeout(() => {
@@ -144,6 +193,7 @@ const followsValue = () => ({
 const followsPatch = () => ({ settings: { ...settingPatch('follows:match', followsValue()).settings, ...affinityPatch('match').settings } });
 // Once a session (and whenever the follows differ from the pass's copy).
 function syncFollows() {
+  if (!state.prefsLoaded) return;
   const had = setting(state.wallet, 'follows:match', null);
   if (JSON.stringify(had) === JSON.stringify(followsValue()) && sessionStorage.getItem('fx.followsSynced')) return;
   q.write({ wallet: followsPatch() })
@@ -891,9 +941,9 @@ function renderHome() {
   put(
     box,
     homeHead(),
-    !hasFollows || h.picking ? sportPicker() : null,
+    h.picking ? sportPicker() : null,
     liveBlock,
-    (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: slot.partial ? t('someUnread') : hasFollows ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : noTvText(h.date) }), !finding && !planList.length ? fullSchedule() : null]) : null,
+    (fallback || finding) && !endedPlan.length && !endedMore.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: slot.partial ? t('someUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : noTvText(h.date) }), !finding && !planList.length ? fullSchedule() : null]) : null,
     finding ? spinner() : null,
     planList.length
       ? section(fallback ? t('othersPicks') : isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${past ? L(ENDED_PICKS) : t('picksOn')}`, el('div', { class: 'pick-list' }, planList.map((x, i) => pickCard(x, i))), { sub: fallback ? '' : t('recsN', { n: planList.length + more.length }) })
@@ -932,7 +982,7 @@ function homeHead() {
   const days = sport ? h.sportDays.get(sport) : null;
   return el('div', {}, [
     el('div', { class: 'home-hero' }, [
-      el('div', {}, [el('p', { class: 'hero-kicker', text: dayLabel(h.date, { long: true }) }), el('h2', { class: 'hero-title', text: hasFollows ? t(h.date === today() ? 'heroTitle' : 'heroTitleDay') : t('heroTitleNew') })]),
+      el('div', {}, [el('p', { class: 'hero-kicker', text: dayLabel(h.date, { long: true }) }), el('h2', { class: 'hero-title', text: hasFollows || !state.prefsLoaded ? t(h.date === today() ? 'heroTitle' : 'heroTitleDay') : t('heroTitleNew') })]),
       el('button', { class: 'q-btn small', type: 'button', text: hasFollows ? t('editFollows') : t('pickSports'), onclick: openFollowEditor })
     ]),
     hasFollows ? sportChips() : null,
@@ -2291,7 +2341,7 @@ q.on('wallet', w => {
   state.wallet = w;
   if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
 });
-q.on('active', live => live && loadDay(today()));
+q.on('active', live => live && (readPrefs({ offline: true }), loadDay(today())));
 
 function firstTab() {
   const hash = location.hash.slice(1);
@@ -2331,7 +2381,8 @@ async function boot() {
   const first = await q.start();
   state.wallet = first.wallet || q.wallet;
   const before = JSON.stringify(state.prefs);
-  if (first?.payload != null || quick == null) applyPrefs(first?.payload);
+  if (typeof first?.payload === 'string') applyPrefs(first.payload);
+  else if (quick == null) await readPrefs(first);
   if (firstTab() !== 'home') $('loading').hidden = true;
   if (quick == null) {
     restoreDay();
@@ -2341,6 +2392,7 @@ async function boot() {
     state.days.clear();
     showTab(state.tab);
   }
+  booted = true;
   setTimeout(syncFollows, 3000);
   window.__bootStep?.(t('loadingGames'), 0.84);
   // Which leagues have games now (after the day's own reading, not before it).
