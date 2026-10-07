@@ -15,11 +15,12 @@ test('swings: moves of 12 points or more, each told once', () => {
 test("baseball: the plays that turned it (Yankees at Rays, 2026-10-05: Rice's home run)", () => {
   const s = parseSummary(fixture('mlb-summary-moments.json'), 'mlb');
   const zh = playMoments(s.winProb, 'baseball', { ...sideOf(s), en: false });
-  assert.ok(zh.length >= 3 && zh.length <= 5);
-  assert.ok(zh.some(m => m.text === 'B. Rice 全壘打 · 1 分打點' && m.side === 'away'));
+  // No set number: what cleared the game's bar (the tying home run, the 4-run 5th).
+  assert.ok(zh.length >= 2 && zh.length <= 10);
+  assert.ok(zh.some(m => m.text === 'B. Rice 全壘打 · 1 分打點 · 追平' && m.side === 'away'));
   assert.ok(zh.every((m, i) => !i || m.i > zh[i - 1].i));
   const en = playMoments(s.winProb, 'baseball', { ...sideOf(s), en: true });
-  assert.ok(en.some(m => m.text === 'Rice homered to right (372 feet).'));
+  assert.ok(en.some(m => m.text === 'Rice homered to right (372 feet). · ties it'));
 });
 
 test('football: the walk-off field goal its biggest moment; a flag told as a call', () => {
@@ -273,4 +274,22 @@ test("baseball: an inning's rally of small plays is one moment; late plays compe
   assert.ok(list.length <= 6);
   // Its five plays aren't moments of their own.
   assert.equal(list.filter(m => pts[m.i].n === 3 && pts[m.i].half === 'bottom').length, 1);
+});
+
+test('baseball, football: no set number of moments; a seesaw keeps every lead change, a blowout only its big swings', () => {
+  const pts = [];
+  const add = (v, n, play = {}) => pts.push({ home: v, n, half: 'bottom', play: { text: 'x', type: 'Play Result', ...play } });
+  add(0.42, 1, { home: 0, away: 0 });
+  // Eight lead changes, each a run worth 8-9%: all kept, more than the old six.
+  let [h, a] = [0, 0];
+  for (let k = 0; k < 8; k++) {
+    k % 2 ? (a += 2) : (h += 2);
+    add(k % 2 ? 0.42 : 0.51, k + 1, { home: h, away: a, scoring: true, value: 2 });
+  }
+  const seesaw = playMoments(pts, 'baseball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false });
+  assert.equal(seesaw.filter(m => m.turned).length, 8);
+  // A blowout's wobbles (4-6% each next to a 40% swing) are no moments.
+  const blow = [{ home: 0.5, n: 1, play: { text: 'x', home: 0, away: 0 } }, { home: 0.9, n: 1, play: { text: 'x', home: 5, away: 0, scoring: true } }];
+  for (let k = 0; k < 10; k++) blow.push({ home: k % 2 ? 0.95 : 0.89, n: 2 + k, play: { text: 'x', home: 5, away: 0 } });
+  assert.equal(playMoments(blow, 'baseball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false }).length, 1);
 });

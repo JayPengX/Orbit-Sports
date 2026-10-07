@@ -106,7 +106,8 @@ const ICON = { baseball: '⚾', basketball: '🏀', football: '🏈', hockey: '�
 const firstOf = (list, ...texts) => list.find(([re]) => texts.some(t => re.test(t || '')))?.[1];
 // The doer from the play's words where ESPN names nobody ("Rice homered to right").
 const named = text => /^(?:\([^)]*\)\s*)?([A-Z][\w.'’-]*(?:\s+[A-Z][\w.'’-]*){0,2})/.exec(text || '')?.[1] || '';
-const sentence = text => String(text || '').replace(/^\([^)]*\)\s*/, '').split(/(?<=\.)\s/)[0].slice(0, 90);
+// The first sentence, never cut at an initial ("E. Hernández homered").
+const sentence = text => String(text || '').replace(/^\([^)]*\)\s*/, '').split(/(?<=(?<!\b[A-Z])\.)\s/)[0].slice(0, 90);
 
 export function playText(sport, play, en, team) {
   const who = play.who || named(play.text);
@@ -133,8 +134,12 @@ const teamName = (id, side) => (String(id) === String(side.home.id) ? side.home.
 // drifted over (told by the points each side scored), never a possession
 // told as a run.
 const SINGLE = 0.07;
-// Baseball, football, hockey: this many moments at most, the biggest.
-const MOST = 6;
+// Baseball, football, hockey: a swing of BIG, and a SHARE of the game's
+// biggest, is a moment (a lead taken or a tie from SINGLE); MOST at most.
+// (Football's chance moves in smaller steps over more plays: its bar is lower.)
+const BIG = { football: 0.08 };
+const SHARE = 0.35;
+const MOST = 10;
 const RUN_PLAYS = 48;
 // Basketball: a possession that moves it this much is a moment; a drift of this much, a stretch.
 const PLAY_SWING = 0.12;
@@ -151,7 +156,13 @@ function swingMoments(points, sport, side) {
       if (/kickoff|kicks/i.test(`${play?.type} ${play?.text}`)) play = points.slice(Math.max(0, i - 3), i).reverse().find(p => p.play?.scoring)?.play || play;
       // Not a play (a player reported eligible, a timeout, a quarter's end): the line just moved under it.
       if (/reported in as eligible|timeout|two-minute warning|end (of )?(quarter|half|game|period)/i.test(`${play?.type} ${play?.text}`)) continue;
-      if (Math.abs(delta) >= SINGLE && play) found.push({ i, delta, side: home(delta), icon: ICON[sport] || '•', text: playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name), pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id, src: play });
+      if (!(Math.abs(delta) >= SINGLE && play)) continue;
+      // A score that tied it or put a side ahead (anywhere in the game, not only at its end), said.
+      const was = lead(points.slice(0, i).reverse().find(q => lead(q.play) != null)?.play);
+      const now = lead(play);
+      const turned = play.scoring && was != null && now != null && now !== was ? (now === 0 ? 'tie' : 'lead') : '';
+      const said = turned ? (side.en ? (turned === 'tie' ? ' · ties it' : ' · takes the lead') : turned === 'tie' ? ' · 追平' : ' · 超前') : '';
+      found.push({ i, delta, side: home(delta), icon: ICON[sport] || '•', text: playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name) + said, pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id, src: play, turned });
     }
     if (sport !== 'baseball') return found;
     // An inning's rally of small plays (a single, a bunt, a groundout, a
@@ -254,12 +265,17 @@ export function playMoments(points, sport, side) {
     else if (m.turned && !same.turned) Object.assign(same, { turned: m.turned, text: m.text, delta: Math.abs(m.delta) > Math.abs(same.delta) ? m.delta : same.delta, side: Math.abs(m.delta) > Math.abs(same.delta) ? m.side : same.side });
   }
   if (sport === 'basketball') return found.sort((x, y) => x.i - y.i);
-  // The rest: the late plays compete with the earlier ones (a walk in the
-  // 9th at +9% isn't kept over a +19% rally in the 3rd); a lead taken or a
-  // tie counts a little extra. The biggest few, in the game's order.
+  // The rest: no set number, a bar by the game. Every score that tied it or
+  // put a side ahead; and every other swing of 10% or more that's at least a
+  // third of the game's biggest (a blowout's small wobbles out, a seesaw's
+  // every turn in). Late plays meet the same bar as early ones (a walk in
+  // the 9th at +9% isn't kept over a +19% rally in the 3rd). MOST only so
+  // the list can't become a wall: the biggest kept, in the game's order.
+  const top = Math.max(0, ...found.map(m => Math.abs(m.delta)));
+  const bar = Math.max(BIG[sport] ?? 0.1, top * SHARE);
   const weight = m => Math.abs(m.delta) + (m.turned ? 0.08 : 0);
   return found
-    .filter(m => Math.abs(m.delta) >= SINGLE || m.turned)
+    .filter(m => (m.turned && Math.abs(m.delta) >= SINGLE) || Math.abs(m.delta) >= bar)
     .sort((x, y) => weight(y) - weight(x))
     .slice(0, MOST)
     .sort((x, y) => x.i - y.i);
