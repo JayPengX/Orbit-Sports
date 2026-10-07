@@ -42,7 +42,6 @@ export function localDate(ms) {
 }
 export const today = () => localDate(Date.now());
 export const addDays = (date, n) => localDate(new Date(`${date}T12:00:00`).getTime() + n * 86_400_000);
-export const onDay = (e, date) => localDate(Date.parse(e.start)) === date;
 const locales = () => (ctx.locale === 'en' ? 'en-US' : 'zh-TW');
 export const clock = iso => new Date(iso).toLocaleTimeString(locales(), { hour: '2-digit', minute: '2-digit', hour12: false });
 export function dayLabel(date, { long = false } = {}) {

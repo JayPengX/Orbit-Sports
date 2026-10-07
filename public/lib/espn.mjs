@@ -37,11 +37,6 @@ export const getJson = (url, { ttl = 60_000, trim = '' } = {}) => proxyJson(url,
 export const LIVE_TTL = 10_000;
 
 export const yyyymmdd = date => date.toISOString().slice(0, 10).replaceAll('-', '');
-// ESPN files a game under the US date; a Taiwan day spans two of them.
-export function espnDatesFor(taipeiDate) {
-  const d = new Date(`${taipeiDate}T00:00:00+08:00`);
-  return [...new Set([yyyymmdd(new Date(d.getTime() - 12 * 3_600_000)), yyyymmdd(new Date(d.getTime() + 11 * 3_600_000))])];
-}
 export const taipeiDate = t => new Date(new Date(t).getTime() + 8 * 3_600_000).toISOString().slice(0, 10);
 
 // ---- Parsing: statuses and sides --------------------------------------------------
@@ -934,22 +929,6 @@ export function parseSchedule(data, league) {
 }
 // A team's season: its results and the games to come. A soccer club's across
 // all its competitions: ESPN gives the results, and the fixtures on their own.
-// A team's playoff games this season (ESPN's schedule in the playoffs has
-// only those), or null when the league isn't in its playoffs.
-export async function playoffRun(league, id) {
-  if (clubPath(league) === 'soccer/all') return null;
-  const data = await getJson(`${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}/schedule`, { ttl: 10 * 60_000 });
-  return data?.requestedSeason?.type === 3 ? parseSchedule(data, league).map(freshGame) : null;
-}
-// Out of the playoffs: its last playoff game lost and none to come.
-export function knockedOut(games, id) {
-  if (!games?.length) return false;
-  if (games.some(g => g.status?.state !== 'post')) return false;
-  const last = [...games].sort((a, b) => a.start.localeCompare(b.start)).at(-1);
-  const us = [last.home, last.away].find(x => String(x?.id) === String(id));
-  const them = [last.home, last.away].find(x => x && x !== us);
-  return Boolean(us && them?.winner && !us.winner);
-}
 export async function teamSchedule(league, id) {
   const base = `${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}/schedule`;
   if (clubPath(league) !== 'soccer/all') {

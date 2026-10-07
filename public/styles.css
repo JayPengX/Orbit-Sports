@@ -247,9 +247,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .wp-chart { display: block; width: 100%; height: 90px; }
 /* Which side the line leans to: the home side at the top, the away side at the bottom. */
 .wp-plot { position: relative; margin-top: 6px; }
-.wp-edge { position: absolute; left: 0; font-size: 10.5px; font-weight: 700; color: var(--q-muted); background: color-mix(in srgb, var(--q-surface, #fff) 80%, transparent); padding: 0 4px; border-radius: 4px; pointer-events: none; }
-.wp-edge.top { top: 0; }
-.wp-edge.bottom { bottom: 0; }
 .wp-area { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: none; }
 .wp-line { fill: none; stroke: var(--accent); stroke-width: 2.2; vector-effect: non-scaling-stroke; }
 .wp-mid { stroke: var(--q-border); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
@@ -347,10 +344,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .day-head { font-size: 13.5px; font-weight: 750; color: var(--q-text-2); margin: 12px 2px 8px; }
 
 /* ---- Following ---- */
-.prio-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.prio { font-size: 12.5px; font-weight: 750; padding: 4px 10px; border-radius: 999px; background: var(--q-surface); border: 1px solid transparent; }
-.prio:first-child { background: var(--accent-wash); color: var(--accent); border-color: transparent; }
-.follow-sport { margin-top: 18px; }
 .league-card-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--q-divider, var(--q-border)); }
 .league-card-head strong { flex: 1 1 auto; font-size: 15px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -385,7 +378,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .info-list li { display: grid; grid-template-columns: 22px 5.5em minmax(0, 1fr); align-items: start; column-gap: 10px; padding: 10px 0; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 14px; line-height: 1.45; }
 .info-list li:first-child { border-top: 0; }
 .info-list li:not(:has(.info-icon)) { grid-template-columns: minmax(5.5em, auto) minmax(0, 1fr); }
-.info-icon { width: 22px; text-align: center; line-height: 1.45; }
 .info-k { color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .info-v { text-align: left; overflow-wrap: break-word; word-break: normal; font-weight: 600; min-width: 0; }
 .info-list.sessions .info-v { text-align: right; }
@@ -451,7 +443,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .wp { display: grid; gap: 6px; }
 .wp-labels { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 750; color: var(--q-text-2); }
 .wp-labels .draw { color: var(--q-muted); font-weight: 650; }
-.wp-source { color: var(--q-muted); font-size: 11px; }
 .wp-labels span { font-variant-numeric: tabular-nums; }
 /* An F1 race: a line per driver, the drivers' chips (each one's chance at the finger) above. */
 .rc-chips { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; font-weight: 700; color: var(--q-text-2); }
@@ -680,13 +671,10 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .event-meta .league-tag { white-space: normal; align-items: flex-start; }
 .event-meta .league-tag > span:last-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; line-height: 1.25; word-break: keep-all; overflow-wrap: anywhere; }
 .live-line span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; line-height: 1.3; }
-.live-line .live-two { display: flex; flex-direction: column; min-width: 0; -webkit-line-clamp: unset; }
-.live-line .live-two > span { -webkit-line-clamp: 2; }
 .live-line.base { margin-top: 6px; gap: 9px; }
 .live-line.base .live-text { display: grid; gap: 1px; min-width: 0; }
 .live-line.base .live-text > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
 .event-title strong, .event-title small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; line-height: 1.3; }
-.logo.player-flag { border-radius: 50%; }
 /* 首頁's games on now */
 .live-strip .event-row { border-left: 0; }
 .live-strip-more { display: block; width: 100%; padding: 11px 14px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: var(--live); font-weight: 750; font-size: 13.5px; text-align: center; }
@@ -786,13 +774,11 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 :root[data-theme='dark'] .sess-tag.qual { color: #60a5fa; }
 :root[data-theme='dark'] .sess-tag.sprint { color: #c084fc; }
 :root[data-theme='dark'] .sess-tag.sq { color: #2dd4bf; }
-.event-row.sess-race { box-shadow: inset 3px 0 0 var(--accent); }
 
 /* A channel's commentary on the 📺 line: the person's kind (原音, or 中文) stands out. */
 .tv-ch { white-space: nowrap; }
 .au-tag { display: inline-block; margin-left: 4px; font-size: 10.5px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: var(--q-sunken); color: var(--q-text-2); vertical-align: 1px; }
 .au-tag.mine { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
-.tv-audio-h { margin: 18px 0 0; font-size: 14px; }
 
 /* A toast with a way forward (the web page when the ELTA.tv app didn't open). */
 .toast.with-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: auto; }
@@ -826,7 +812,6 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .yt-text { display: grid; gap: 1px; flex: 1; min-width: 0; }
 .yt-text small { color: var(--q-muted); font-size: 12px; }
 .yt-go { color: var(--q-muted); font-size: 20px; }
-.about-text { margin: 0; font-size: 14px; line-height: 1.6; color: var(--q-text-2); }
 .driver-badge.xs { font-size: 0; }
 /* An F1 team: its white logo on its colour. */
 .team-disc { display: inline-grid; place-items: center; background: var(--team); color: #fff; font-size: 9px; font-weight: 800; border-radius: 50%; overflow: hidden; flex: none; }
@@ -908,10 +893,6 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .pf-stat { display: grid; justify-items: center; gap: 1px; padding: 6px 4px; border-radius: 10px; background: var(--q-sunken); min-width: 0; }
 .pf-stat b { font-size: 15px; }
 .pf-stat small { font-size: 10.5px; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.people-strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: none; }
-.person-card { flex: none; width: 104px; display: grid; justify-items: center; gap: 4px; padding: 12px 8px; border-radius: var(--q-radius); background: var(--q-surface); border: 1px solid transparent; text-align: center; }
-.person-card strong { font-size: 13px; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.person-card small { font-size: 11px; }
 .f1-weekends th.num, .f1-weekends td.num { text-align: center; }
 .f1-weekends tr > :last-child { text-align: right; }
 
@@ -1235,4 +1216,3 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .fg-off { width: 44px; height: 44px; border: 0; background: none; color: #d4a017; font-size: 18px; cursor: pointer; }
 
 /* News (sheets.js newsCard): a story a row, its picture, headline, summary and age. */
-@media (hover: hover) { .news-row:hover .news-head { color: var(--q-accent); } }

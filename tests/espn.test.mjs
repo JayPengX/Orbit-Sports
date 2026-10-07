@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar, espnDatesFor } from '../public/lib/espn.mjs';
+import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar } from '../public/lib/espn.mjs';
 import { LEAGUES, SPORTS } from '../public/lib/leagues.mjs';
 
 const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url)));
@@ -101,10 +101,6 @@ test('a season calendar: game days or days off', () => {
   const black = parseCalendar({ leagues: [{ calendarIsWhitelist: false, calendarStartDate: '2026-09-28T07:00Z', calendarEndDate: '2026-10-02T06:59Z', calendar: ['2026-09-29T07:00Z'] }] });
   assert.deepEqual(black.days, ['20260928', '20260930', '20261001']);
   assert.equal(parseCalendar({ leagues: [{}] }), null);
-});
-
-test('Taiwan days', () => {
-  assert.deepEqual(espnDatesFor('2026-09-28'), ['20260927', '20260928']);
 });
 
 test('a race weekend is over once its last session has had its time, and counts on its next session', async () => {
