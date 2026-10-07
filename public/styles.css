@@ -1235,13 +1235,4 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .fg-off { width: 44px; height: 44px; border: 0; background: none; color: #d4a017; font-size: 18px; cursor: pointer; }
 
 /* News (sheets.js newsCard): a story a row, its picture, headline, summary and age. */
-.news-list { display: grid; }
-.news-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px 0; border-top: 1px solid var(--q-divider, var(--q-border)); color: inherit; text-decoration: none; }
-.news-row:first-child { border-top: 0; padding-top: 4px; }
-.news-row:not(:has(.news-pic)) { grid-template-columns: minmax(0, 1fr); }
-.news-pic { width: 92px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: var(--q-surface-2); }
-.news-text { display: grid; gap: 4px; min-width: 0; }
-.news-head { font-size: 15px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.news-sum { font-size: 13.5px; line-height: 1.45; color: var(--q-text-2, var(--q-muted)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.news-meta { font-size: 12px; }
 @media (hover: hover) { .news-row:hover .news-head { color: var(--q-accent); } }

@@ -21,7 +21,7 @@ import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { liveTable, standingsRace, SEASON_GAMES } from './lib/title.mjs';
-import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame } from './lib/picks.mjs';
+import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted } from './lib/picks.mjs';
 import { liveTiming } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
@@ -2095,6 +2095,8 @@ function racesLeft(league) {
   }
   return f1Left || null;
 }
+// Last seasons' final tables ('<league>:<year>'), read once.
+const lastTables = new Map();
 function tableOf(league) {
   const groups = tables.get(league);
   if (groups === undefined) {
@@ -2106,6 +2108,28 @@ function tableOf(league) {
   }
   if (!groups) return spinner();
   if (!groups.length) return empty(t('noStandings'));
+  // Before this season's first counted game (a preseason's table is all
+  // zeros, its order meaningless): last season's final table, said so, as
+  // the playoffs tab shows last season's bracket.
+  if (!groups.some(tableStarted) && groups.year) {
+    const key = `${league}:${groups.year - 1}`;
+    if (!lastTables.has(key)) {
+      lastTables.set(key, null);
+      standings(league, { season: groups.year - 1 })
+        .then(g => lastTables.set(key, g))
+        .catch(() => lastTables.set(key, []))
+        .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+    }
+    const last = lastTables.get(key);
+    if (!last) return spinner();
+    if (last.length && last.some(tableStarted)) {
+      const en = locale === 'en';
+      return el('div', {}, [
+        el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Last season' : '上季' }), document.createTextNode(en ? ': the final table. This season’s starts with its first game.' : '　最終排名。本季開賽後換成本季的。')]),
+        standingsTables(last, league, { many: LEAGUES[league].sport !== 'racing' && last.length > 1 })
+      ]);
+    }
+  }
   // The games the official table hasn't counted yet, in; then each table's race.
   const sport = LEAGUES[league].sport;
   const now = liveTable(groups, recentOf(league), sport, { teamOf: side => f1Driver(side.en || side.name).team });

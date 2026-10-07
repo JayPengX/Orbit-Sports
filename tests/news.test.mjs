@@ -41,3 +41,15 @@ test("F1's drivers and teams by the app's names, whoever a story is tagged with"
   // An ordinary word that happens to be a name in lower case stays.
   assert.equal(namedZh('a stroll in the park'), 'a stroll in the park');
 });
+
+test("最新動態 only from a story about them: their name in the headline, not a schedule, odds or preview that tags them", async () => {
+  const { storyAbout } = await import('../public/lib/espn.mjs');
+  assert.equal(storyAbout({ headline: '2026 Singapore Grand Prix: Race start times, how to watch, full schedule, predictions' }, 'Max Verstappen'), false);
+  assert.equal(storyAbout({ headline: 'Malaysia-Bahrain GP result: Max Verstappen wins after chaos' }, 'Max Verstappen'), true);
+  assert.equal(storyAbout({ headline: "Russell's F1 engine nightmare to continue with grid penalty" }, 'George Russell'), true);
+  assert.equal(storyAbout({ headline: 'Updates on the biggest remaining NBA free agents' }, 'Russell Westbrook'), false);
+  assert.equal(storyAbout({ headline: 'Westbrook announces NBA retirement after 18 seasons' }, 'Russell Westbrook'), true);
+  assert.equal(storyAbout({ headline: 'Westbrook: Russ will be remembered', video: true }, 'Russell Westbrook'), false, 'a video: its summary is its headline');
+  assert.equal(storyAbout({ headline: 'Jaren Jackson Jr. out with ankle injury' }, 'Jaren Jackson Jr.'), true);
+  assert.equal(storyAbout({ headline: 'NBA fantasy: Westbrook a sleeper pick' }, 'Russell Westbrook'), false);
+});

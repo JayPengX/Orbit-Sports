@@ -832,12 +832,13 @@ export function parseStandings(data, league = null) {
   return groups;
 }
 // A league's tables this season. The array carries the season's year.
-export async function standings(league) {
+// `season`: a past season's (its year as ESPN numbers it), kept a day.
+export async function standings(league, { season = null } = {}) {
   const l = LEAGUES[league];
   // The regular season's table: ESPN's default counts pre-season games in
   // (the NBA's in October: Toronto 0-1 before a real game).
-  const regular = ['baseball', 'basketball', 'football', 'hockey'].includes(l.sport) ? '?seasontype=2' : '';
-  const data = await getJson(`${STANDINGS}/${l.espn}/standings${regular}`, { ttl: 10 * 60_000 });
+  const query = [['baseball', 'basketball', 'football', 'hockey'].includes(l.sport) ? 'seasontype=2' : '', season ? `season=${season}` : ''].filter(Boolean).join('&');
+  const data = await getJson(`${STANDINGS}/${l.espn}/standings${query ? `?${query}` : ''}`, { ttl: season ? 86_400_000 : 10 * 60_000 });
   const groups = withGaps(parseStandings(data, league), l.sport);
   groups.year = data?.season?.year ?? data?.children?.[0]?.standings?.season?.year ?? null;
   return groups;
@@ -1136,6 +1137,23 @@ export async function news(league, { team = '' } = {}) {
 // The stories about someone: naming the athlete (any of `athletes`), the
 // team by id, or by name (`named`: F1's constructors, which ESPN tags only
 // by name). Each story once, latest first.
+// Whether a story is about this person, not one that only tags them: their
+// name in its headline, and not a schedule, odds, predictions, fantasy or
+// preview piece (ESPN tags every driver in "Singapore GP: start times…").
+const NOT_ABOUT = /\b(how to watch|start times?|schedule|tv|odds|best bets?|picks?|predictions?|props?|fantasy|power rankings?|mock draft|ranking|takeaways|live updates|what to know|preview|grades?)\b/i;
+const foldName = x =>
+  String(x || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+export function storyAbout(st, name) {
+  const head = foldName(st?.headline);
+  if (!head || st.video || NOT_ABOUT.test(head)) return false;
+  const words = foldName(name).replace(/\b(jr|sr|ii|iii)\b\.?/g, '').split(/[^a-z0-9'-]+/).filter(Boolean);
+  if (!words.length) return false;
+  const last = words.at(-1);
+  return head.includes(words.join(' ')) || (last.length >= 3 && new RegExp(`(^|[^a-z])${last.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z]|$)`).test(head));
+}
 export function newsAbout(lists, { athletes = [], team = '', named = null } = {}) {
   const ids = new Set(athletes.map(String));
   const seen = new Set();

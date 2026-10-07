@@ -48,7 +48,8 @@ export const clock = iso => new Date(iso).toLocaleTimeString(locales(), { hour: 
 export function dayLabel(date, { long = false } = {}) {
   const { t } = ctx;
   const d = new Date(`${date}T12:00:00`);
-  const wd = d.toLocaleDateString(locales(), { weekday: ctx.locale === 'en' ? 'short' : 'narrow' });
+  // 週一, not 一 alone (beside a date it read as a dash: "10/5 —").
+  const wd = d.toLocaleDateString(locales(), { weekday: 'short' });
   const plain = `${d.getMonth() + 1}/${d.getDate()}`;
   const near = date === today() ? t('today') : date === addDays(today(), 1) ? t('tomorrow') : date === addDays(today(), -1) ? t('yesterday') : '';
   if (long) return near ? `${near} · ${plain}（${wd}）` : `${plain}（${wd}）`;
