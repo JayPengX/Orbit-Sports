@@ -1198,7 +1198,7 @@ function replayCard(e) {
       // Not on ELTA: no card.
       if (!r) return out.remove();
       if (r.channels)
-        return put(box, el('div', { class: 'tw-exact' }, r.channels.map(b => row(b, tvName(b), en ? 'Replay on the channel for 48 hours: tap the game in its guide' : '頻道回看 48 小時內・節目表點這場', en ? 'Replay' : '回看'))));
+        return put(box, el('div', { class: 'tw-exact' }, r.channels.map(b => row(b, tvName(b), en ? "Opens the channel: tap this game in its guide (回看, ELTA VIP)" : '開頻道後在節目表點這場回看（VIP）', en ? 'Channel' : '開頻道'))));
       put(box, el('div', { class: 'tw-exact' }, [row(r.video, `${leagueName(e.league, L())} ${en ? 'full game' : '全場重播'}`, r.episode ? r.episode.label : en ? 'Not up yet (days to weeks), or not shown' : '這場還沒上架（數天到數週）或沒有轉播', en ? 'Watch' : '觀看')]));
     })
     .catch(() => put(box, el('p', { class: 'muted small', text: T('failed') })));

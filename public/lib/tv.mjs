@@ -101,9 +101,10 @@ export const tvKnown = e =>
   e.league === 'f1' || (e.league === 'nba' && Boolean(nbaSchedule()?.length)) || Boolean(tvUntil() && new Date(Date.parse(e.start) + 8 * 3_600_000).toISOString().slice(0, 10) <= tvUntil());
 
 // A finished game again on ELTA.tv: { video, episode } (the game's video in
-// its league's season), else for 48 hours from its start { channels } (回看
-// on the channels it was on), then the season's page while it isn't up, or
-// null: not on ELTA (its list says so), or a league ELTA keeps no season of.
+// its league's season), else for 48 hours from its start { channels } (the
+// channels it was on, for their 回看: no link starts a past program, ELTA
+// plays it from the channel's guide), then the season's page while it isn't
+// up, or null: not on ELTA (its list says so), or a league ELTA keeps no season of.
 export async function replayOf(e, now = Date.now()) {
   if (!e || e.status?.state !== 'post' || e.status?.void) return null;
   const channels = channelsOf(e).filter(b => b.svc === 'elta' && b.ch && !b.mod);

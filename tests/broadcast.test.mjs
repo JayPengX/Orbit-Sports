@@ -293,13 +293,29 @@ test("an episode with no day: the one whose two sides fit, not one sharing a sid
   const list = ['UEFA歐國聯 英格蘭 VS 捷克 第4輪(原音)', 'UEFA歐國聯 克羅埃西亞 VS 西班牙 第4輪', 'UEFA歐國聯 克羅埃西亞 VS 英格蘭 第3輪(原音)', 'UEFA歐國聯 克羅埃西亞 VS 英格蘭 第3輪', 'UEFA歐國聯 捷克 VS 克羅埃西亞 第1輪'].map((title, i) => ({ id: String(i), title }));
   const e = { league: 'nationsleague', start: '2026-10-03T16:00:00Z' };
   assert.equal(eltaEpisode(list, e, [['克羅埃西亞'], ['英格蘭']])?.id, '2');
-  // The same two met in two rounds, no day said: not guessed.
+  // The return game (England at home: ELTA writes the home side first) is the other one.
   const twice = [...list, { id: '9', title: 'UEFA歐國聯 英格蘭 VS 克羅埃西亞 第6輪' }];
-  assert.equal(eltaEpisode(twice, e, [['克羅埃西亞'], ['英格蘭']]), null);
+  assert.equal(eltaEpisode(twice, e, [['克羅埃西亞'], ['英格蘭']])?.id, '2');
+  assert.equal(eltaEpisode(twice, e, [['英格蘭'], ['克羅埃西亞']])?.id, '9');
+  // The first leg up, the return game not yet: not given the first leg's.
+  assert.equal(eltaEpisode(list, e, [['英格蘭'], ['克羅埃西亞']]), null);
+  // The same home side twice with no day said: not guessed.
+  assert.equal(eltaEpisode([...list, { id: '8', title: 'UEFA歐國聯 克羅埃西亞 VS 英格蘭 第6輪' }], e, [['克羅埃西亞'], ['英格蘭']]), null);
 });
 
 test("an episode's row says it from its first side on", () => {
   assert.equal(episodeLabel('UEFA歐國聯 克羅埃西亞 VS 英格蘭 第3輪(原音)'), '克羅埃西亞 VS 英格蘭 第3輪(原音)');
   assert.equal(episodeLabel('10/5 國聯分區G2 教士VS釀酒人'), '教士VS釀酒人');
   assert.equal(episodeLabel('8/28 歐冠抽籤'), '8/28 歐冠抽籤');
+});
+
+test("a playoff game not up yet gets no episode: not a September game sharing one side, a day stuck to its first side read as a day", () => {
+  const list = ['10/5 國聯分區G2 勇士 VS 道奇', '10/4 國聯分區G1 勇士VS道奇', '10/2 國聯外卡G3 費城人VS勇士', '9/27勇士VS馬林魚(原音)', '9/25 教士 VS 道奇 (原音)'].map((title, i) => ({ id: String(i), title }));
+  const sides = [['洛杉磯道奇', '道奇'], ['亞特蘭大勇士', '勇士']];
+  const game = start => ({ league: 'mlb', start });
+  assert.equal(eltaEpisode(list, game('2026-10-03T23:00:00Z'), sides)?.id, '1');
+  assert.equal(eltaEpisode(list, game('2026-10-05T00:00:00Z'), sides)?.id, '0');
+  // Game 3, not up: nothing (it gave 9/27 勇士 VS 馬林魚).
+  assert.equal(eltaEpisode(list, game('2026-10-07T00:00:00Z'), sides), null);
+  assert.equal(episodeLabel('9/27勇士VS馬林魚(原音)'), '勇士VS馬林魚(原音)');
 });

@@ -176,11 +176,19 @@ export function zhLike(a, b) {
 // written the same and the other ELTA's own way (托連塞 VS 桑德蘭) fits; one
 // shared part (塞爾塔維戈 VS 尤文圖斯 against 本菲卡 vs 塞爾提克) doesn't.
 // `sides`: [home's names, away's names], or one list of both.
-function pairFit(teams, sides) {
+// `both`: each side has to fit half at least (an episode, which has no
+// time to narrow it down: 勇士 VS 馬林魚 isn't 勇士 vs 道奇).
+// `order`: 'home' (ELTA's first side is the home one: football) or 'away'
+// (baseball, basketball); either way round when not said.
+function pairFit(teams, sides, { both = false, order = '' } = {}) {
   const [a, b] = typeof sides?.[0] === 'string' || !sides?.length ? [sides || [], sides || []] : sides;
   const like = (t, names) => Math.max(0, ...names.map(n => zhLike(t, n)));
   const [x, y] = teams;
-  return Math.max(like(x, a) + like(y, b), like(x, b) + like(y, a));
+  // Two characters in common at least (one, 人 or 城, is any two clubs').
+  const sure = (t, names) => Math.max(0, ...names.map(n => (Math.min(String(t).length, String(n).length) < 2 || zhLike(t, n) * Math.min(String(t).length, String(n).length) >= 2 ? zhLike(t, n) : 0)));
+  const fit = (p, q) => (both && Math.min(p, q) < 0.5 ? 0 : p + q);
+  if (both) return order === 'home' ? fit(sure(x, a), sure(y, b)) : order === 'away' ? fit(sure(x, b), sure(y, a)) : Math.max(fit(sure(x, a), sure(y, b)), fit(sure(x, b), sure(y, a)));
+  return Math.max(fit(like(x, a), like(y, b)), fit(like(x, b), like(y, a)));
 }
 const FIT = 1;
 // The programs that carry a game: its league's, starting from an hour before
@@ -293,6 +301,11 @@ export function broadcastsFor(e, programs, { sides = [], others = [], prefer = '
 // (the NBA, 歐國聯), weeks later for others (英超, 歐冠). The seasons' numbers
 // as of October 2026 (2026 and 2026-27): keep them current.
 export const ELTA_REPLAY_HOURS = 48;
+// How ELTA writes a game: football's home side first ("曼聯 VS 曼城" at Old
+// Trafford), and a night's game under its evening; MLB's and the NBA's the
+// visitors first ("紅襪 VS 遊騎兵" in Texas), under the day it's played in Taiwan.
+const FOOTBALL = new Set(['epl', 'seriea', 'bundesliga', 'ligue1', 'scotland', 'ucl', 'uel', 'uecl', 'facup', 'nationsleague']);
+const AWAY_FIRST = new Set(['mlb', 'nba']);
 export const ELTA_VOD = { mlb: 2150, nba: 2385, f1: 2079, epl: 2243, seriea: 2305, bundesliga: 2300, ligue1: 2296, scotland: 2299, ucl: 2304, uel: 2303, nationsleague: 2151 };
 // CPBL's by the home club (ELTA has four clubs' home games).
 const ELTA_VOD_CPBL = [['統一', 2159], ['味全', 2160], ['富邦', 2161], ['台鋼', 2162]];
@@ -307,9 +320,11 @@ export function eltaVodOf(e, home = []) {
 export const inReplay = (e, now = Date.now()) => now - Date.parse(e.start) < ELTA_REPLAY_HOURS * 3_600_000;
 // An episode's title: its day ('M/D', when it says) and two sides
 // ("10/5 國聯分區G2 教士VS釀酒人", "UEFA歐霸 塞爾特人 VS 佛倫茲瓦羅斯 第1比賽日(原音)").
+// The day can run into the first side ("9/27勇士VS馬林魚(原音)").
 function episodeParts(title) {
-  const day = /^\s*(\d{1,2})\/(\d{1,2})(?=\s|$)/.exec(title);
-  const vs = /(?:^|\s)([^\s]+?)\s*VS\s*([^\s(（【]+)/i.exec(title);
+  const day = /^\s*(\d{1,2})\/(\d{1,2})(?!\d)/.exec(title);
+  const rest = day ? title.slice(day[0].length) : title;
+  const vs = /(?:^|\s)([^\s]+?)\s*VS\s*([^\s(（【]+)/i.exec(rest);
   return { day: day ? [Number(day[1]), Number(day[2])] : null, teams: vs ? [vs[1], vs[2]] : [] };
 }
 // A game's episode in its season's list ({ id, title }, newest first), or
@@ -319,15 +334,23 @@ function episodeParts(title) {
 export function eltaEpisode(episodes, e, sides) {
   if (!episodes?.length || !e) return null;
   const tw = new Date(Date.parse(e.start) + 8 * 3_600_000);
-  // Days off the game's (0 its own, 1 either side; else too far).
-  const off = ([m, d]) => [0, -1, 1].map(shift => new Date(tw.getTime() + shift * 86_400_000)).findIndex(x => x.getUTCMonth() + 1 === m && x.getUTCDate() === d);
+  const dateless = episodes.filter(x => !episodeParts(x.title).day).length * 2 >= episodes.length;
+  // Its day (Taiwan's), or the day before for a start after midnight: ELTA
+  // lists a night's games under the evening they belong to (拿坡里 VS 波隆納
+  // at 02:45 on 9/14 is 9/13's). Never the next day: a series plays daily.
+  const football = FOOTBALL.has(e.league);
+  const shifts = football && tw.getUTCHours() < 6 ? [0, -1] : [0];
+  const off = ([m, d]) => shifts.map(shift => new Date(tw.getTime() + shift * 86_400_000)).findIndex(x => x.getUTCMonth() + 1 === m && x.getUTCDate() === d);
   const fits = episodes
     .filter(x => !/數據視角|精華|集錦|Highlights/i.test(x.title))
     .map(x => ({ x, ...episodeParts(x.title) }))
     .map(x => ({ ...x, off: x.day ? Math.min(off(x.day), 1) : 2 }))
     .filter(x => x.teams.length === 2 && (!x.day || off(x.day) >= 0))
-    .map(x => ({ ...x, fit: pairFit(x.teams, sides) }))
+    .map(x => ({ ...x, fit: pairFit(x.teams, sides, { both: true, order: football ? 'home' : AWAY_FIRST.has(e.league) ? 'away' : '' }) }))
     .filter(x => x.fit >= FIT)
+    // A title with no day only in a season ELTA mostly writes so (UEFA's);
+    // in a dated one (MLB's) it's a stray, never a game's.
+    .filter(x => x.day || dateless)
     .sort((a, b) => a.off - b.off || b.fit - a.fit);
   if (!fits.length) return null;
   // As close and as good a fit for two other sides (a title with no day, the
