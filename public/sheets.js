@@ -2468,7 +2468,9 @@ function raceBlock(race, g, league, many) {
   for (const p of race.places) {
     const names = p.rows.slice(0, 3).map(nm).join('、') + (p.rows.length > 3 ? W(` 等 ${p.rows.length} ${team ? '隊' : '位'}`, ` +${p.rows.length - 3}`) : '');
     const span = p.to > p.pos ? `${p.pos}–${p.to}` : `${p.pos}`;
-    lines.push(line('medal', W(`${b(`第 ${span} 名之爭`)} ${names}`, `${b(`Fight for P${span}`)} ${names}`), p.spread > 0 ? W(`前後相差 ${p.spread}${unit}`, `${p.spread}${unit} apart`) : W('同分', 'level on points')));
+    const fight = line('medal', W(`${b(`第 ${span} 名之爭`)} ${names}`, `${b(`Fight for P${span}`)} ${names}`), p.spread > 0 ? W(`前後相差 ${p.spread}${unit}`, `${p.spread}${unit} apart`) : W('同分', 'level on points'));
+    fight.classList.add('fight');
+    lines.push(fight);
   }
   // What the zones have settled.
   for (const z of race.zones) {
@@ -2481,7 +2483,29 @@ function raceBlock(race, g, league, many) {
     row.classList.add('zone');
     lines.push(row);
   }
-  return lines.length ? el('div', { class: 'title-race' }, lines) : null;
+  // The zones' fights in the run-in: the way into anything (the last good
+  // zone's edge) and out of the bottom first, then any other edge whose
+  // sides are others. One row each: how many and how close; their names under it.
+  const good = race.zones.filter(z => !z.bottom && !/relegat|eliminat/i.test(z.note));
+  const order = z => (z.bottom ? 0 : z === good.at(-1) ? 0 : 1);
+  const shown = new Set();
+  for (const z of race.zones.filter(x => x.fight).sort((a, b) => order(a) - order(b) || a.fight.spread - b.fight.spread)) {
+    if (z.fight.rows.some(r => shown.has(r.id))) continue;
+    z.fight.rows.forEach(r => shown.add(r.id));
+    const zn = zoneName(z.note);
+    const n = z.fight.rows.length;
+    const head = z.bottom ? W(`避開${zn}`, `Avoiding ${zn}`) : W(`${zn}之爭`, `Race for ${zn}`);
+    const how = W(` ${n} 隊・${z.fight.spread > 0 ? `相差 ${z.fight.spread} 分` : '同分'}`, ` ${n} teams, ${z.fight.spread > 0 ? `${z.fight.spread} pts apart` : 'level'}`);
+    const row = line('medal', `${b(head)}${how}`, z.fight.rows.map(nm).join('、'));
+    if (z.color) row.style.setProperty('--zone', z.color);
+    row.classList.add('zone', 'fight');
+    lines.push(row);
+  }
+  // Two lines at most: the title's first, then a fight (F1's constructors',
+  // a zone's), then what's been locked in.
+  const rank = l => (l.classList.contains('fight') ? 1 : l.classList.contains('zone') ? 2 : 0);
+  const kept = lines.map((l, k) => [l, k]).sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1]).slice(0, 2).map(([l]) => l);
+  return kept.length ? el('div', { class: 'title-race' }, kept) : null;
 }
 export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false } = {}) {
   const sport = LEAGUES[league]?.sport;

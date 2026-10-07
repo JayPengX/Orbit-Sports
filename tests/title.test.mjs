@@ -112,3 +112,23 @@ test("F1's close fights once the champion's decided: runs of places still open w
   const open = standingsRace({ rows: [t('mc', 420), t('fe', 400), t('rb', 390)] }, 'racing', { left: { races: 2, sprints: 0 }, team: true });
   assert.deepEqual(open.places, [], 'the champion not decided: the title race alone');
 });
+
+test("a zone's fight in the run-in: at its edge, the sides that can finish either side of it, within two games' points", () => {
+  // 6 sides, 10 games each, 2 to go (6 points left).
+  const t = (id, pts, note) => ({ ...row(id, { GP: '8', P: String(pts) }), note });
+  const g = { rows: [t('A', 24, 'Champions League'), t('B', 18, 'Champions League'), t('C', 16, ''), t('D', 15, ''), t('E', 5, 'Relegation'), t('F', 4, 'Relegation')] };
+  const r = standingsRace(g, 'soccer', { total: 10 });
+  const cl = r.zones.find(z => z.note === 'Champions League');
+  assert.deepEqual(cl.fight.rows.map(x => x.id), ['B', 'C', 'D']);
+  assert.equal(cl.fight.spread, 3);
+  assert.equal(r.zones.find(z => z.note === 'Relegation').fight, undefined, 'E and F are 10 points from safety: no fight');
+  const early = standingsRace({ rows: g.rows.map(x => ({ ...x, stats: { GP: '8', P: x.stats.P } })) }, 'soccer', { total: 30 });
+  assert.ok(early.zones.every(z => !z.fight), 'not the run-in yet');
+});
+
+test("F1's close fights are the constructors' only", () => {
+  const t = (id, pts) => ({ ...row(id, { PTS: String(pts) }), athlete: true });
+  const r = standingsRace({ rows: [t('a', 400), t('b', 200), t('c', 195)] }, 'racing', { left: { races: 2, sprints: 0 }, team: false });
+  assert.equal(r.title.done, true);
+  assert.deepEqual(r.places, []);
+});

@@ -1300,3 +1300,6 @@ span.hero-team { cursor: default; }
 .zone-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--q-muted); }
 .zone-key { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .zone-key i { width: 3px; height: 12px; border-radius: 2px; flex: none; }
+/* A zone's fight: its names on one line under it, cut short if they don't fit. */
+.race-line.fight .race-t small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.race-line.fight .race-t { min-width: 0; }

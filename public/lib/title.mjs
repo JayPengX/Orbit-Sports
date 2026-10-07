@@ -209,14 +209,15 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
   const ordered = lo.every((v, i) => i === 0 || v <= lo[i - 1]);
   const over = rows.every(r => more(r) === 0);
   if (!ordered || over) for (const x of out) x.settled = false;
-  // A championship's close fights, once its champion is decided (F1's
-  // constructors fight on for every place: each is the team's prize money):
+  // A constructors' championship's close fights, once its champion is
+  // decided (every place is the team's prize money; a driver's 7th or 8th
+  // is nothing in itself):
   // runs of places still open where each side can still catch the one
   // above, and the run is within one weekend's points (a race's and a
   // sprint's most) top to bottom; the closest two. A team sport's places
   // inside a zone change nothing (its zones say what's at stake): none.
   const places = [];
-  if (sport === 'racing' && ordered && !over && out[0].settled && out[0].best === 1) {
+  if (sport === 'racing' && team && ordered && !over && out[0].settled && out[0].best === 1) {
     const m = RACE_MAX[team ? 'team' : 'driver'];
     const weekend = m.race + (left.sprints ? m.sprint : 0);
     for (let i = 1; i < rows.length; ) {
@@ -241,6 +242,22 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
   for (const z of zones) {
     z.bottom = z.to === rows.length;
     z.sure = out.filter(x => (z.bottom ? x.best >= z.from : x.worst <= z.to && x.best >= z.from)).map(x => x.id);
+  }
+  // A zone's fight in the run-in (8 games or fewer left): at its edge (a good
+  // zone's last place; the last place above a bottom one), the sides that
+  // can still finish either side of it and are within a game's points of
+  // it. Football's tables (their zones are ESPN's notes).
+  if (sport === 'soccer' && ordered && !over && Math.max(...rows.map(more)) / 3 <= 8) {
+    const reach = 3;
+    for (const z of zones) {
+      const edge = z.bottom ? z.from - 1 : z.to;
+      if (edge < 1 || edge >= rows.length) continue;
+      const fight = out.filter((x, k) => x.best <= edge && x.worst > edge && lo[k] >= lo[edge] - reach && lo[k] <= lo[edge - 1] + reach);
+      if (fight.length > 1) {
+        const pts = fight.map(x => lo[out.indexOf(x)]);
+        z.fight = { rows: fight.map(x => x.row), spread: Math.max(...pts) - Math.min(...pts) };
+      }
+    }
   }
   return { unit, rows: out, title, places, zones };
 }
