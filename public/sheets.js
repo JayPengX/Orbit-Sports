@@ -153,11 +153,12 @@ export async function openMatch(e) {
   const matchLatest = () => {
     const facts = matchFacts(e, data, table);
     const st = (data?.status || e.status).state;
-    const ready = (wait.summary || !LEAGUES[e.league].espn) && (table || !hasStandings(e.league)) && st !== 'in';
+    const ready = (wait.summary || !LEAGUES[e.league].espn) && (table || !hasStandings(e.league));
     const key = `${st}|${ready}|${ready ? JSON.stringify(facts) : ''}`;
     if (st === 'in' || key !== latestFrom) {
       latestFrom = key;
-      latest = latestSlot(e.league, 'match', e.id, facts, { team: e.home.id, team2: e.away.id, name: `${(data?.away || e.away).en || e.away.name} vs ${(data?.home || e.home).en || e.home.name}` }, null, ready);
+      // A game on: its facts as they stand. Before the page is read: the card's shape, then Gemini's.
+      latest = latestSlot(e.league, 'match', e.id, facts, { team: e.home.id, team2: e.away.id, name: `${(data?.away || e.away).en || e.away.name} vs ${(data?.home || e.home).en || e.home.name}` }, null, st !== 'in', st !== 'in' && !ready && L() !== 'en');
     }
     return latest;
   };
@@ -420,17 +421,27 @@ const latestNote = (headline, points, sub) =>
 const aiCard = ai => latestNote(ai.headline, ai.points, ai.from === 'story' ? dayLabel(localDate(ai.at)) : '');
 // The facts as they are: the first the headline, the next three the points.
 const factsCard = facts => (facts.length ? latestNote(facts[0], facts.slice(1, 4), '') : null);
-// The card a sheet shows: `now` (the rule-based story or note card, else the
-// facts), replaced by Gemini's when it comes.
-// (A box of its own: a sheet painted again keeps whichever card is in it.)
-// `ask` false: the facts card only (a game on: its facts change each minute).
-function latestSlot(league, kind, id, facts, opts = {}, now = null, ask = true) {
+// The card a sheet shows: Gemini's, waiting in its shape while it's written
+// (a few seconds, like the live numbers), then drawn in once. Without it (in
+// English, a game on, Gemini failed or capped): `now` (ESPN's story or note
+// card), else the facts as they are. `ask` false: no Gemini. `wait`: only the
+// shape for now (a match whose page isn't read yet: the ask comes then).
+const latestDone = new Map();
+const latestShape = () => card('最新動態', el('div', { class: 'player-note waiting' }, [skeleton([55, 95, 80])]));
+const fadeIn = node => (node && node.classList.add('fade-in'), node);
+function latestSlot(league, kind, id, facts, opts = {}, now = null, ask = true, wait = false) {
   if (!facts.length && !now) return null;
-  const box = el('div', { class: 'latest-slot' }, [now || factsCard(facts)]);
-  if (ask)
-    askLatest(league, kind, id, { ...opts, facts }).then(ai => {
-      if (ai) put(box, aiCard(ai));
-    });
+  const plain = () => now || factsCard(facts);
+  if (wait) return el('div', { class: 'latest-slot' }, [latestShape()]);
+  if (!ask || L() === 'en') return el('div', { class: 'latest-slot' }, [plain()]);
+  const body = JSON.stringify({ league, kind, id: String(id), facts });
+  // Already written this session: at once.
+  if (latestDone.has(body)) return el('div', { class: 'latest-slot' }, [latestDone.get(body) ? aiCard(latestDone.get(body)) : plain()]);
+  const box = el('div', { class: 'latest-slot' }, [latestShape()]);
+  askLatest(league, kind, id, { ...opts, facts }).then(ai => {
+    latestDone.set(body, ai);
+    put(box, fadeIn(ai ? aiCard(ai) : plain()));
+  });
   return box;
 }
 // A match's facts: the sides, when and where, the result, each side's record,
