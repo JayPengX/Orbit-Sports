@@ -61,19 +61,6 @@ const MLB_ZH = [
   [/pop|foul out/i, '內野飛球出局'],
   [/fly|flied/i, '高飛出局']
 ];
-const NBA_ZH = [
-  [/three point|3-pt|three pointer/i, '三分球'],
-  [/free throw/i, '罰球'],
-  [/dunk/i, '灌籃'],
-  [/layup|finger roll/i, '上籃'],
-  [/hook/i, '勾射'],
-  [/tip/i, '補籃'],
-  [/turnover|traveling|bad pass/i, '失誤'],
-  [/steal/i, '抄截'],
-  [/block/i, '火鍋'],
-  [/foul/i, '犯規'],
-  [/shot|jumper/i, '跳投']
-];
 const NFL_ZH = [
   [/interception.*touchdown|pick six/i, '攔截回攻達陣'],
   [/fumble.*touchdown/i, '掉球回攻達陣'],

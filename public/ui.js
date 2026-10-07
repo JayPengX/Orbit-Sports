@@ -279,7 +279,6 @@ export const seriesText = e => {
   return seriesLineZh(s, name) || s;
 };
 export function eventRow(e, { league = true, day = true } = {}) {
-  const { t } = ctx;
   const mine = ctx.isFollowedEvent?.(e);
   const tag = stageTag(e, ctx.locale);
   if (e.kind === 'match') {

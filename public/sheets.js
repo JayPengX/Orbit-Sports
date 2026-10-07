@@ -145,24 +145,6 @@ export async function openMatch(e) {
     document.removeEventListener('visibilitychange', refresh);
   };
   s.dialog.addEventListener('close', stop);
-  // 最新動態: the stakes before, what it meant after (Gemini, asked once the
-  // game's page and the table are read: one ask, not one per piece that
-  // comes); none while it's on (the score is right there).
-  let latest = null;
-  let latestFrom = '';
-  const matchLatest = () => {
-    const facts = matchFacts(e, data, table);
-    const st = (data?.status || e.status).state;
-    const ready = (wait.summary || !LEAGUES[e.league].espn) && (table || !hasStandings(e.league));
-    const key = `${st}|${ready}|${ready ? JSON.stringify(facts) : ''}`;
-    if (st === 'in' || key !== latestFrom) {
-      latestFrom = key;
-      // Before the page is read: the card's shape, then Gemini's.
-      const [away, home] = [(data?.away || e.away).en || e.away.name, (data?.home || e.home).en || e.home.name];
-      latest = latestSlot(e.league, 'match', e.id, facts, { team: e.home.id, team2: e.away.id, name: `${away} vs ${home}`, away, home, state: st }, null, st !== 'in', st !== 'in' && !ready && L() !== 'en');
-    }
-    return latest;
-  };
   const paint = () => {
     const tabs = [['overview', T('overview')]];
     if (teamStatRows(data?.teamStats, LEAGUES[e.league]?.sport, L()).length) tabs.push(['stats', T('stats')]);
@@ -174,7 +156,7 @@ export async function openMatch(e) {
     if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     else if (view === 'table') view = 'overview';
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
-    put(content, view === 'overview' ? matchLatest() : null, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table, { line, wait }));
+    put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table, { line, wait }));
   };
   // The league's table: both sides' places, and the Table section.
   if (hasStandings(e.league))
@@ -403,85 +385,62 @@ function freshNews(stories, league = '') {
   );
 }
 
-// 最新動態 for every player, driver, team and match (Shared-Proxy latest.js):
-// the sheet's own facts (Chinese lines: form, standing, next game, a match's
-// records and result: what the page already shows, so never read back) go
-// to the Worker, which reads ESPN's and Google News's stories about them, and
-// Gemini writes the card: the storyline and why it matters, or a match's
-// stakes before and meaning after; with no news, one insight the page
-// doesn't spell out. Its shape shows while it's written. Asked once for the same facts (the Worker keeps each card by
-// what it's written from; here, once a session).
+// 最新動態 (Shared-Proxy latest.js): a player's, a driver's or a team's real
+// news, and only that. The sheet sends who they are and what people wrote
+// on them lately (ESPN's injury report, RotoWire's note); the Worker reads
+// ESPN's and Google News's stories, and Gemini writes a card only when
+// there's real news (an injury, a case, a transfer...), else none: no card
+// on a quiet day, never the page's numbers read back. No match cards.
+//
+// Fast: each answer (a card or none) is kept on the phone half an hour, so
+// opening a sheet again asks nothing. Older than that, the kept one shows at
+// once and a new one is fetched for the next opening (never swapped in
+// under a finger); none kept: the card's shape while it's written, the
+// first time. English (no Gemini), or Gemini down: ESPN's own word (`now`).
+const LATEST_KEY = 'fx.latest.v1';
+const LATEST_FRESH_MS = 30 * 60_000;
+const latestMemo = () => {
+  try {
+    return JSON.parse(localStorage.getItem(LATEST_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+};
+function rememberLatest(k, sent, answer) {
+  try {
+    const m = latestMemo();
+    m[k] = { at: Date.now(), sent, answer };
+    const keep = Object.keys(m).sort((x, y) => m[y].at - m[x].at).slice(0, 300);
+    localStorage.setItem(LATEST_KEY, JSON.stringify(Object.fromEntries(keep.map(x => [x, m[x]]))));
+  } catch {
+    // Storage full or off: asked again next time.
+  }
+}
+// One ask per body a session (a card or none; a failure asked again).
 const latestAsked = new Map();
-function askLatest(league, kind, id, { team = '', team2 = '', name = '', zh = '', home = '', away = '', state = '', facts = [] } = {}) {
-  if (L() === 'en' || !id) return Promise.resolve(null);
-  const body = JSON.stringify({ league, kind, id: String(id), team: String(team || ''), team2: String(team2 || ''), name, zh, home, away, state, facts: facts.filter(Boolean).slice(0, 30) });
-  if (!latestAsked.has(body)) latestAsked.set(body, workerJson('/latest', `k=${kind}`, { body, timeout: 15000 }).then(r => (r?.headline ? r : (latestAsked.delete(body), null))));
+function askLatest(body) {
+  if (!latestAsked.has(body)) latestAsked.set(body, workerJson('/latest', 'k=1', { body, timeout: 15000 }).then(r => (r?.headline || r?.none ? r : (latestAsked.delete(body), null))));
   return latestAsked.get(body);
 }
 const latestNote = (headline, points, sub) =>
   card('最新動態', el('div', { class: 'player-note' }, [el('strong', { class: 'note-head', text: headline }), points?.length ? el('ul', { class: 'note-points' }, points.map(p => el('li', { text: p }))) : null]), { sub });
-const aiCard = ai => latestNote(ai.headline, ai.points, ai.from === 'story' ? dayLabel(localDate(ai.at)) : '');
-// The card a sheet shows: Gemini's, waiting in its shape while it's written
-// (a few seconds, like the live numbers), then drawn in once. Without it (in
-// English, a game on, Gemini failed or capped): `now` (ESPN's story or note
-// card), else none (the facts are on the page already). `ask` false: no Gemini. `wait`: only the
-// shape for now (a match whose page isn't read yet: the ask comes then).
-const latestDone = new Map();
+const aiCard = ai => (ai?.headline ? latestNote(ai.headline, ai.points, ai.at ? dayLabel(localDate(ai.at)) : '') : null);
 const latestShape = () => card('最新動態', el('div', { class: 'player-note waiting' }, [skeleton([55, 95, 80])]));
 const fadeIn = node => (node && node.classList.add('fade-in'), node);
-function latestSlot(league, kind, id, facts, opts = {}, now = null, ask = true, wait = false) {
-  if (!facts.length && !now) return null;
-  const plain = () => now;
-  if (wait) return el('div', { class: 'latest-slot' }, [latestShape()]);
-  if (!ask || L() === 'en') return now ? el('div', { class: 'latest-slot' }, [now]) : null;
-  const body = JSON.stringify({ league, kind, id: String(id), facts });
-  // Already written this session: at once.
-  if (latestDone.has(body)) return el('div', { class: 'latest-slot' }, [latestDone.get(body) ? aiCard(latestDone.get(body)) : plain()]);
+function latestSlot(league, kind, id, { name = '', zh = '', team = '', facts = [], report = [] } = {}, now = null) {
+  if (L() === 'en' || !id) return now;
+  const k = `${league}|${kind}|${id}`;
+  const sent = JSON.stringify([facts, report]);
+  const memo = latestMemo()[k];
+  const known = memo?.sent === sent ? memo : null;
+  if (known && Date.now() - known.at < LATEST_FRESH_MS) return aiCard(known.answer);
+  const body = JSON.stringify({ league, kind, id: String(id), team: String(team || ''), name, zh, facts, report });
+  const asked = askLatest(body).then(a => (a && rememberLatest(k, sent, a), a));
+  if (known) return aiCard(known.answer);
   const box = el('div', { class: 'latest-slot' }, [latestShape()]);
-  askLatest(league, kind, id, { ...opts, facts }).then(ai => {
-    latestDone.set(body, ai);
-    put(box, fadeIn(ai ? aiCard(ai) : plain()));
-  });
+  asked.then(a => put(box, fadeIn(a ? aiCard(a) : now)));
   return box;
 }
-// A match's facts: the sides, when and where, the result, each side's record,
-// place, form and who's out; after it, who led and the goals.
-function matchFacts(e, sm, table) {
-  const home = sm?.home || e.home;
-  const away = sm?.away || e.away;
-  const nm = x => x?.name || x?.short || '';
-  const st = sm?.status || e.status;
-  const lines = [`${nm(away)} 對 ${nm(home)}（${leagueName(e.league, L())}${stageTag(e, L()) ? `・${stageTag(e, L())}` : ''}），${localDate(Date.parse(e.start))} ${clock(e.start)}${sm?.venue ? `，${sm.venue}` : ''}`];
-  if (st.state === 'post') lines.push(`終場：${nm(away)} ${away.score} - ${home.score} ${nm(home)}`);
-  if (st.state === 'in') lines.push(`進行中（${statusText({ ...e, status: st })}）：${nm(away)} ${away.score ?? 0} - ${home.score ?? 0} ${nm(home)}`);
-  for (const x of [away, home]) {
-    const place = placeOf(table, String(x.id));
-    const form = sm?.form?.find(f => f.team === String(x.id))?.games || [];
-    const bits = [x.record ? `戰績 ${x.record}` : '', place ? `${leagueName(e.league, L())}第 ${place.pos} 名` : '', form.length ? `近 ${form.length} 場 ${form.map(g => ({ W: '勝', L: '敗', D: '和', T: '和' })[g.result] || g.result).join('')}` : ''].filter(Boolean);
-    if (bits.length) lines.push(`${nm(x)}：${bits.join('，')}`);
-    const out = sm?.injuries?.find(t => t.team === String(x.id))?.list || [];
-    if (out.length && st.state === 'pre') lines.push(`${nm(x)} 傷兵：${out.slice(0, 5).map(i => `${i.name}${i.status ? `（${i.status}）` : ''}`).join('、')}`);
-  }
-  if (st.state === 'pre' && sm?.predict) lines.push(`勝率預測：${nm(home)} ${Math.round(sm.predict.home * 100)}%${sm.predict.draw ? `，和局 ${Math.round(sm.predict.draw * 100)}%` : ''}`);
-  if (st.state === 'post') {
-    const goals = (sm?.keyEvents || []).filter(k => k.scoring).slice(0, 8);
-    if (goals.length) lines.push(`進球：${goals.map(k => `${k.clock} ${k.text}`).join('；')}`.slice(0, 220));
-    for (const x of [away, home]) {
-      const lead = (sm?.leaders || []).filter(l => l.team === String(x.id)).slice(0, 3);
-      if (lead.length) lines.push(`${nm(x)} 領先者：${lead.map(l => `${l.stat} ${l.full || l.name} ${l.value}`).join('、')}`);
-    }
-  }
-  return lines.filter(Boolean);
-}
-// A game as one side saw it ("10/04 主場對 湖人 勝 112-104"), or one to come.
-const gameFact = (x, id, nameOf = side => side?.short || side?.name || '') => {
-  const home = x.home?.id === String(id);
-  const [me, them] = home ? [x.home, x.away] : [x.away, x.home];
-  const date = localDate(Date.parse(x.start)).slice(5).replace('-', '/');
-  if (x.status?.state !== 'post') return `${date} ${home ? '主場' : '客場'}對 ${nameOf(them)}`;
-  const res = me.winner ? '勝' : them.winner ? '敗' : Number(me.score) === Number(them.score) ? '和' : Number(me.score) > Number(them.score) ? '勝' : '敗';
-  return `${date} ${home ? '主場' : '客場'}對 ${nameOf(them)} ${res} ${me.score}-${them.score}`;
-};
 
 // A side's row in the league's table: [place, row, group size]; none before the table's first game.
 function placeOf(groups, id) {
@@ -1148,7 +1107,7 @@ function twCard(league, e = null) {
 // A race weekend's sessions as a timeline, by day: each session's time,
 // its badge (正賽 marked out), and whether it's over, on or to come.
 const SESSION_KIND = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' };
-function weekendTimeline(sessions, league) {
+function weekendTimeline(sessions) {
   const byDay = new Map();
   for (const x of sessions) {
     const d = localDate(Date.parse(x.start));
@@ -1344,7 +1303,7 @@ function fillField(s, e) {
     const sessions = [...e.sessions].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
     // A session on: its live board first, the weekend's schedule after it.
     const liveNow = sessions.some(x => x.status.state === 'in');
-    const schedule = sessions.length > 1 ? card(T('schedule'), weekendTimeline(sessions, e.league)) : null;
+    const schedule = sessions.length > 1 ? card(T('schedule'), weekendTimeline(sessions)) : null;
     if (schedule && !liveNow) s.body.append(schedule);
     let pick = e.sessionKey ? Math.max(0, sessions.findIndex(x => x.abbr === e.sessionKey)) : Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
     const box = el('div');
@@ -1582,18 +1541,7 @@ export async function openTeam(league, id, fallback = {}) {
         followBtn
       ]),
       strip,
-      latestSlot(
-        league,
-        'team',
-        id,
-        [
-          `${info.name}：${record}${place ? `，${leagueName(league, L())}第 ${place.pos} 名` : ''}`,
-          past.length ? `近 ${Math.min(5, past.length)} 場：${past.slice(0, 5).map(x => gameFact(x, id)).join('；')}` : '',
-          next ? `下一場：${localDate(Date.parse(next.start))} ${gameFact(next, id).slice(6)}` : ''
-        ].filter(Boolean),
-        { name: info.en || info.name, zh: info.name },
-        freshNews(stories, league)
-      ),
+      latestSlot(league, 'team', id, { name: info.en || info.name, zh: info.name, facts: [`${info.name}（${info.en || info.name}），${leagueName(league, L())}`] }, freshNews(stories, league)),
       nextCard,
       tabsBox,
       body
@@ -1892,7 +1840,6 @@ export async function openPlayer(league, id, fallback = {}) {
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : a.teamColor;
     const lastFive = weekends.length ? weekends.slice(0, 5).reverse().map(w => ({ name: w.e?.name || w.name, e: w.e, ...finishOf(w.me?.result, en) })) : raceRows.slice(0, 5).reverse().map(r => ({ ...r, text: `P${r.pos}` }));
-    const shot = a.headshot || fallback.logo;
     // Their headshot (ESPN's; none, every footballer: TheSportsDB's cut-out, personPic finds it).
     const pic = el('span', { class: 'pic-slot' }, [personPic({ id, name: a.name, headshot: a.headshot, logo: fallback.logo, flag: a.flag }, league, 'xxl round')]);
     // The key numbers in a strip under the hero (the season's first few).
@@ -1904,27 +1851,22 @@ export async function openPlayer(league, id, fallback = {}) {
     // game log), 資料 (profile, honours); only those with something in them.
     const keep = list => list.filter(Boolean);
     const racing = sport === 'racing';
-    // What this sheet knows, for 最新動態 (stable lines: dates, never "in 3 days").
-    // Last season's numbers (ESPN's until a player's first game of the new one: Curry's April games in October) are said to be.
-    const lastPlayed = Date.parse(ov?.log?.games?.[0]?.date || '') || 0;
-    const lastSeason = Boolean(lastPlayed) && Date.now() - lastPlayed > 45 * 86_400_000;
+    // For 最新動態: who they are, and what people wrote on them lately (ESPN's
+    // injury report within a month, RotoWire's note within two weeks).
     const injury = a.injury;
-    const playerFacts = [
-      injury && Date.now() - Date.parse(injury.date || 0) < 30 * 86_400_000
-        ? `傷病（ESPN ${String(injury.date).slice(0, 10)}）：${[injury.status, injury.what].filter(Boolean).join('，')}${injury.back ? `，預計 ${localDate(Date.parse(injury.back))} 回歸` : ''}。${injury.comment}`.slice(0, 220)
-        : '',
-      `${en ? a.name : name}：${[driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team, a.position].filter(Boolean).join('・')}`,
-      champ ? `${year} 車手積分榜第 ${champ.pos}（共 ${champ.of} 位），${champ.points} 分${champ.pos > 1 && champ.gap ? `，落後領先者 ${champ.gap} 分` : ''}` : '',
-      raceRows.length ? `近 ${Math.min(5, raceRows.length)} 站：${raceRows.slice(0, 5).map(r => `${r.name} P${r.pos}`).join('、')}` : '',
-      mate ? `隊友 ${mateName}：第 ${mate.pos}，${mate.points} 分；正賽名次較前 ${ahead} 次、較後 ${behind} 次` : '',
-      nextRace ? `下一站：${nextRace.name}（${localDate(Date.parse(nextRace.start))}）` : '',
-      a.stats.list.length ? `${lastSeason ? `上季（不是本季）${a.stats.title}` : statsTitle(a.stats.title, L()) || '本季'}：${a.stats.list.slice(0, 6).map(x => `${statName(x.label, L())} ${x.value}`).join('、')}` : '',
-      ...(lastSeason ? [] : ov?.log?.games || []).slice(0, 5).map(g => `${g.date ? localDate(Date.parse(g.date)) : ''} ${g.at === '@' ? '客場' : '主場'}對 ${g.opp.abbr || g.opp.name} ${{ W: '勝', L: '敗', D: '和', T: '和' }[g.result] || ''} ${g.score}：${ov.log.labels.slice(0, 6).map((k, i) => `${k} ${g.stats[i]}`).join(' ')}`),
-      ov?.note && Date.now() - Date.parse(ov.note.date || 0) < 14 * 86_400_000 ? `ESPN 筆記（${String(ov.note.date || '').slice(0, 10)}）：${ov.note.headline} ${String(ov.note.story || '').slice(0, 300)}` : ''
-    ].filter(Boolean);
+    const latestFor = {
+      team: a.teamId,
+      name: a.name,
+      zh: league === 'f1' ? f1Driver(a.name).zh : '',
+      facts: [`${name}（${a.name}）：${[leagueName(league, L()), driver?.team ? f1Constructor(driver.team).zh : a.team, a.position].filter(Boolean).join('・')}`],
+      report: [
+        injury && Date.now() - Date.parse(injury.date || 0) < 30 * 86_400_000 ? `傷病（ESPN ${String(injury.date).slice(0, 10)}）：${[injury.status, injury.what].filter(Boolean).join('，')}${injury.back ? `，預計 ${localDate(Date.parse(injury.back))} 回歸` : ''}。${injury.comment}` : '',
+        ov?.note && Date.now() - Date.parse(ov.note.date || 0) < 14 * 86_400_000 ? `RotoWire（${String(ov.note.date || '').slice(0, 10)}）：${ov.note.headline} ${String(ov.note.story || '').slice(0, 300)}` : ''
+      ].filter(Boolean)
+    };
     const overview = keep([
-      // 最新動態, always: Gemini's from their stories and this sheet's facts; meanwhile ESPN's note or story, else the facts.
-      latestSlot(league, 'player', id, playerFacts, { team: a.teamId, name: a.name, zh: league === 'f1' ? f1Driver(a.name).zh : '' }, noteCard && !(stories[0] && Date.parse(ov.note.date || 0) < stories[0].at) ? noteCard : freshNews(stories, league) || noteCard),
+      // 最新動態: their real news, if any (Gemini); in English or without it, ESPN's note or story.
+      latestSlot(league, 'player', id, latestFor, noteCard && !(stories[0] && Date.parse(ov.note.date || 0) < stories[0].at) ? noteCard : freshNews(stories, league) || noteCard),
       og.season
         ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...og.season.map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
         : null,
@@ -2100,18 +2042,7 @@ export async function openConstructor(row) {
         tile(W('分站冠軍', 'Wins'), String(wins)),
         tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
       ]),
-      latestSlot(
-        league,
-        'team',
-        c.name.replace(/[^A-Za-z0-9]+/g, '-'),
-        [
-          `${c.zh}：車隊積分榜第 ${at + 1}，${pts} 分${gap > 0 ? `，落後領先者 ${gap} 分` : ''}；分站冠軍 ${wins}、頒獎台 ${podiums}`,
-          ...drivers.map(d => `${f1Driver(d.en || d.name).zh}：車手積分榜第 ${d.pos}，${d.stats?.PTS ?? 0} 分`),
-          next ? `下一站：${next.name}（${localDate(Date.parse(next.start))}）` : ''
-        ].filter(Boolean),
-        { name: c.name, zh: c.zh },
-        freshNews(teamStories, league)
-      ),
+      latestSlot(league, 'team', c.name.replace(/[^A-Za-z0-9]+/g, '-'), { name: c.name, zh: c.zh, facts: [`${c.zh}（${c.name}），F1 車隊；車手：${drivers.map(d => f1Driver(d.en || d.name).zh).join('、')}`] }, freshNews(teamStories, league)),
       drivers.length
         ? card(
             W('車手', 'Drivers'),
