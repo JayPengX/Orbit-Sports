@@ -2,6 +2,7 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate, workerLines } from '#kit/quadra.mjs';
+import { teamNameZh } from '#kit/names.mjs';
 import { splitName } from './lib/compname.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
@@ -809,7 +810,7 @@ function winProbCard(line, e, timeline, events = []) {
   const face = m => (m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : el('span', { text: m.icon }));
   const tell = (m, label) => {
     why.hidden = !m;
-    if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, m.text]), gainChip(m));
+    if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, ...momentWords(m.text)]), gainChip(m));
   };
   const show = (j, picked) => {
     // A moment picked from the list: that one; a finger close to one: on it.
@@ -852,7 +853,7 @@ function winProbCard(line, e, timeline, events = []) {
     el('div', { class: 'wp-mo' }, [
       el('span', { class: 'wp-mo-face' }, [face(m)]),
       el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [
-        el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text', text: m.text })]),
+        el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text' }, momentWords(m.text))]),
         gainChip(m)
       ])
     ])
@@ -875,6 +876,10 @@ function winProbCard(line, e, timeline, events = []) {
   return card(T('winProb'), box);
 }
 
+// A moment's words, broken only between its parts ("E. Hernandez 全壘打 ·
+// 2 分打點 · 超前" wraps at a ·, never inside 打點).
+// (A long part, an English play's sentence, still wraps inside.)
+const momentWords = text => joinNodes(String(text || '').split(' · ').map(x => el('span', { class: x.length <= 18 ? 'nb' : '', text: x })), ' · ');
 // A chart scrolled into view when a moment under it is picked (a long list leaves it off the screen).
 function bringIn(plot) {
   const r = plot.getBoundingClientRect();
@@ -1014,7 +1019,7 @@ function raceChanceCard(line, ss, feed = null) {
   const open = ss.status.state === 'in' ? bands.find(b => b.i1 >= last) : null;
   const tell = (m, label) => {
     why.hidden = !m;
-    if (m) put(why, el('span', { class: 'wp-why-icon' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, m.band && m.driver ? `${m.icon} ${m.text}` : m.text]), gainChip(m));
+    if (m) put(why, el('span', { class: 'wp-why-icon' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, ...momentWords(m.band && m.driver ? `${m.icon} ${m.text}` : m.text)]), gainChip(m));
   };
   const show = (j, picked) => {
     // A moment picked from the list: that one; a finger close to a stop or a lead (the closest): on it.
@@ -1041,7 +1046,7 @@ function raceChanceCard(line, ss, feed = null) {
   };
   const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${shade}${grid}${paths}</svg>` }), ...pins, rule]);
   const strip = tags.length ? el('div', { class: 'rc-band-tags', 'aria-hidden': 'true' }, tags) : null;
-  const rows = moments.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text', text: m.band && m.driver ? `${m.icon} ${m.text}` : m.text })]), gainChip(m)])]));
+  const rows = moments.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text' }, momentWords(m.band && m.driver ? `${m.icon} ${m.text}` : m.text))]), gainChip(m)])]));
   show();
   const list = moments.length
     ? el('div', { class: 'wp-moments' }, [el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }), ...rows])
@@ -1847,7 +1852,9 @@ export async function openPlayer(league, id, fallback = {}) {
     // A player in any league; a team sport's with their team, whose games are theirs.
         const team = !individual(league) && a.teamId ? { id: String(a.teamId), name: a.team || '' } : null;
     const followBtn = followButton(() => ctx.isFollowed(league, id), () => ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true, ...(team ? { team } : {}) }));
-    const sub = [zhLater(a.position), (driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team) || countryName(a.country, L())].filter(Boolean);
+    // Their team in the viewer's language (道奇, not "Los Angeles Dodgers" cut to "Los Angel…").
+    const teamShown = driver?.team && !en ? f1Constructor(driver.team).zh : a.team && !en ? teamNameZh(LEAGUES[league]?.play || league, a.team, sport)?.short || a.team : a.team || driver?.team;
+    const sub = [a.jersey ? `#${a.jersey}` : '', zhLater(a.position), teamShown || countryName(a.country, L())].filter(Boolean);
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : a.teamColor;
     const lastFive = weekends.length ? weekends.slice(0, 5).reverse().map(w => ({ name: w.e?.name || w.name, e: w.e, ...finishOf(w.me?.result, en) })) : raceRows.slice(0, 5).reverse().map(r => ({ ...r, text: `P${r.pos}` }));
@@ -1939,7 +1946,8 @@ export async function openPlayer(league, id, fallback = {}) {
       el('div', { class: `team-head player-hero${heroColor ? ' tinted' : ''}`, style: heroColor ? `--hero:${heroColor}` : null }, [
         pic,
         el('div', { class: 'team-head-text' }, [
-          el('h3', { text: `${name}${a.jersey ? ` #${a.jersey}` : ''}` }),
+          // The name whole (two lines if it needs them); the number with the position under it.
+          el('h3', { text: name }),
           name !== a.name ? el('small', { class: 'muted', text: a.name }) : null,
           el('p', { class: 'muted' }, joinNodes(sub, ' · ')),
           a.injuries.length ? el('p', { class: 'injury-tag' }, joinNodes(['🩹', ...a.injuries.map(injuryText)], ' ')) : null,
