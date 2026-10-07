@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -309,7 +309,7 @@ test("an episode with no day: the one whose two sides fit, not one sharing a sid
 test("an episode's row says it from its first side on", () => {
   assert.equal(episodeLabel('UEFA歐國聯 克羅埃西亞 VS 英格蘭 第3輪(原音)'), '克羅埃西亞 VS 英格蘭 第3輪(原音)');
   assert.equal(episodeLabel('10/5 國聯分區G2 教士VS釀酒人'), '教士VS釀酒人');
-  assert.equal(episodeLabel('8/28 歐冠抽籤'), '8/28 歐冠抽籤');
+  assert.equal(episodeLabel('8/28 歐冠抽籤'), '歐冠抽籤');
 });
 
 test("a playoff game not up yet gets no episode: not a September game sharing one side, a day stuck to its first side read as a day", () => {
@@ -358,4 +358,19 @@ test("a game ELTA put up twice: the 原音 cut for English, the Chinese one for 
   assert.equal(eltaEpisode(list, e, sides)?.id, '1');
   assert.equal(eltaEpisode(list, e, sides, { prefer: 'zh' })?.id, '2');
   assert.equal(episodeEnglish('9/21 勇士 VS 太空人'), false);
+});
+
+test("a race weekend's session video: by its name and day, the 原音 cut for English, never the Kids' or the parade", () => {
+  const list = ['10/4 F1 巴林站(馬來西亞雪邦賽道) 正賽(中文解說無廣告)', '10/4 F1 巴林站(馬來西亞雪邦賽道) 正賽(英文解說原音無廣告)', '10/4 F1 巴林站(馬來西亞雪邦賽道) 車手遊行 (現場賽道原音)', '10/3 巴林站(馬來西亞雪邦賽道) 排位賽(中文解說無廣告)', '10/3 F1 巴林站(馬來西亞雪邦賽道) 排位賽(英文解說原音)', '10/3 F1 巴林站(馬來西亞雪邦賽道) 第3節自由練習 (英文解說原音)', '9/13 F1 Kids 西班牙站 正賽 (英文解說原音)', '9/13 西班牙站 正賽', '9/26 F1 亞塞拜然站 正賽 (英文解說原音無廣告)'].map((title, i) => ({ id: String(i), title }));
+  const race = { league: 'f1', kind: 'field', sessionKey: 'Race', start: '2026-10-04T07:00:00Z' };
+  assert.equal(eltaSessionEpisode(list, race)?.id, '1');
+  assert.equal(eltaSessionEpisode(list, race, { prefer: 'zh' })?.id, '0');
+  assert.equal(eltaSessionEpisode(list, { ...race, sessionKey: 'Qual', start: '2026-10-03T08:00:00Z' })?.id, '4');
+  assert.equal(eltaSessionEpisode(list, { ...race, sessionKey: 'FP3', start: '2026-10-03T04:30:00Z' })?.id, '5');
+  assert.equal(eltaSessionEpisode(list, { ...race, start: '2026-09-13T13:00:00Z' })?.id, '7');
+  // Not up yet (Singapore): none, not another weekend's race.
+  assert.equal(eltaSessionEpisode(list, { ...race, start: '2026-10-11T12:00:00Z' }), null);
+  assert.equal(episodeLabel('10/4 F1 巴林站(馬來西亞雪邦賽道) 正賽(英文解說原音無廣告)'), '巴林站 正賽（原音）');
+  assert.equal(episodeLabel('10/3 巴林站(馬來西亞雪邦賽道) 排位賽(中文解說無廣告)'), '巴林站 排位賽（中文）');
+  assert.equal(episodeEnglish('正賽(中文解說無廣告)'), false);
 });

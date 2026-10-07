@@ -1211,7 +1211,7 @@ function replayLink(e) {
         ? en ? `${b.short.en}: tap the game in its guide` : `${b.short.zh}・在節目表點這場`
         : r.episode
           ? `${r.episode.label}${r.alsoChannels ? (en ? ' (Chinese)' : '（中文）') : ''}`
-          : en ? 'ELTA.tv: not up yet (days to weeks), or not shown' : '愛爾達・這場還沒上架（數天到數週）或沒有轉播';
+          : en ? 'Not up yet, or not shown' : '還沒上架或沒有轉播';
       put(text, el('strong', { text: r.channels ? (en ? 'Replay on the channel' : '頻道回看') : en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: sub }));
       body[2].textContent = r.channels ? (en ? 'Channel' : '開頻道') : en ? 'Watch' : '觀看';
       // The video only in Chinese, the English on a channel's 回看 for 48 hours: that too.

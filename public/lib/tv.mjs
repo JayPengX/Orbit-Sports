@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson } from '#kit/quadra.mjs';
-import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, inReplay, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, inReplay, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -106,6 +106,13 @@ export const tvKnown = e =>
 // plays it from the channel's guide), then the season's page while it isn't
 // up, or null: not on ELTA (its list says so), or a league ELTA keeps no season of.
 export async function replayOf(e, now = Date.now()) {
+  // A race weekend opened whole: its race, else the last session it's had.
+  if (e?.kind === 'field' && !e.sessionKey && e.sessions?.length) {
+    const done = e.sessions.filter(x => x.start && (x.status?.state === 'post' || Date.parse(x.start) + 4 * 3_600_000 < now));
+    const x = done.find(y => y.abbr === 'Race') || done.at(-1);
+    if (!x) return null;
+    e = { ...e, sessionKey: x.abbr, start: x.start, official: x.start, status: { ...x.status, state: 'post' } };
+  }
   if (!e || e.status?.state !== 'post' || e.status?.void) return null;
   const channels = channelsOf(e).filter(b => b.svc === 'elta' && b.ch && !b.mod);
   const replay = channels.length && inReplay(e, now);
@@ -119,7 +126,7 @@ export async function replayOf(e, now = Date.now()) {
   const episodes = await proxyJson(eltaVodUrl(vod), { ttl: 30 * 60_000 })
     .then(d => d?.episodes || [])
     .catch(() => []);
-  const episode = eltaEpisode(episodes, e, sides, { prefer: prefer() });
+  const episode = e.kind === 'match' ? eltaEpisode(episodes, e, sides, { prefer: prefer() }) : eltaSessionEpisode(episodes, e, { prefer: prefer() });
   // Its video already up (the NBA's, 歐國聯's, the next day) plays the game
   // at once; else its channels' 回看 while they have it.
   if (!episode && replay) return { channels };

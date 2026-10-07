@@ -199,6 +199,8 @@ function pairFit(teams, sides, { both = false, order = '' } = {}) {
   return Math.max(fit(like(x, a), like(y, b)), fit(like(x, b), like(y, a)));
 }
 const FIT = 1;
+// How ELTA names a race weekend's sessions in its titles (F1's codes).
+const SESSION_WORD = { FP1: '第1節', FP2: '第2節', FP3: '第3節', Qual: '排位賽', Race: '正賽', SR: '衝刺賽', SS: '衝刺排位', SQ: '衝刺排位' };
 // The programs that carry a game: its league's, starting from an hour before
 // it to 20 minutes after, whose sides fit the game's best of the games then
 // (a program without the sides, "【onELTA 熱身賽】", counts when it's the
@@ -216,7 +218,7 @@ export function eltaPrograms(programs, e, sides, others = [], sidesOf = null) {
     // 排位賽, 正賽, 衝刺賽), within 3 hours either side: ELTA's time can be
     // the official one's give or take an hour (Singapore 2026's first
     // practice: 17:15 against 16:30), and the names tell the sessions apart.
-    const word = { FP1: '第1節', FP2: '第2節', FP3: '第3節', Qual: '排位賽', Race: '正賽', SR: '衝刺賽', SS: '衝刺排位', SQ: '衝刺排位' }[e.sessionKey] || '';
+    const word = SESSION_WORD[e.sessionKey] || '';
     if (!word) return cand;
     return programs.filter(within(180, 180)).filter(p => p.title.includes(word) && !(word === '排位賽' && p.title.includes('衝刺')));
   }
@@ -382,14 +384,39 @@ export function eltaEpisode(episodes, e, sides, { prefer = 'en' } = {}) {
   if (!best.day && fits.some(x => x !== best && !x.day && pair(x) === pair(best) && /第\s*\d+\s*[輪場]|G\d/.test(x.x.title) && bare(x) !== bare(best))) return null;
   return best.x;
 }
+// A race weekend session's video ("10/4 F1 巴林站 正賽(英文解說原音無廣告)"):
+// the session's name, on its day (Taiwan's, a day either side: a weekend's
+// sessions are named apart, its weekends weeks apart), not the children's
+// version or the drivers' parade; the commentary the person likes first.
+export function eltaSessionEpisode(episodes, e, { prefer = 'en' } = {}) {
+  const word = SESSION_WORD[e?.sessionKey];
+  if (!episodes?.length || !word) return null;
+  const at = Date.parse(e.official || e.start) + 8 * 3_600_000;
+  const off = ([m, d]) => [0, -1, 1].map(shift => new Date(at + shift * 86_400_000)).findIndex(x => x.getUTCMonth() + 1 === m && x.getUTCDate() === d);
+  const fits = episodes
+    .filter(x => x.title.includes(word) && !(word === '排位賽' && x.title.includes('衝刺')) && !/Kids|車手遊行|D-LIVE|精華/i.test(x.title))
+    .map(x => ({ x, day: episodeParts(x.title).day }))
+    .filter(x => x.day && off(x.day) >= 0)
+    .map(x => ({ ...x, off: Math.min(off(x.day), 1) }))
+    .sort((a, b) => a.off - b.off || (prefer === 'zh' ? -1 : 1) * (episodeEnglish(b.x.title) - episodeEnglish(a.x.title)));
+  return fits[0]?.x || null;
+}
 // Whether an episode has the original commentary: a whole game's video has
 // one sound, ELTA's Chinese unless it says 原音 (a 體育台's second English
 // track isn't in it: for that, its 48 hours of 回看).
-export const episodeEnglish = title => /原音|英文|English/i.test(title || '');
+export const episodeEnglish = title => /原音|英文|English/i.test(String(title || '').replace(/中文解說/g, ''));
 // An episode's title for a row, from its first side on (the league and the
 // day are the row's already): "克羅埃西亞 VS 英格蘭 第3輪(原音)".
 export function episodeLabel(title) {
-  const { teams } = episodeParts(title);
+  const { day, teams } = episodeParts(title);
   const at = teams.length ? title.indexOf(teams[0]) : -1;
-  return (at > 0 ? title.slice(at) : title).trim();
+  if (at > 0) return title.slice(at).trim();
+  // No sides (a race weekend's session): without its day, the league's name
+  // and the circuit, its commentary in a word: 巴林站 正賽（原音）.
+  return (day ? title.replace(/^\s*\d{1,2}\/\d{1,2}/, '') : title)
+    .replace(/^\s*F1\s+/, '')
+    .replace(/[(（][^)）]*賽道[)）]/g, '')
+    .replace(/\s*[(（]([^)）]*)[)）]\s*$/, (m, x) => (/原音|英文/.test(x.replace(/中文解說/g, '')) ? '（原音）' : /中文/.test(x) ? '（中文）' : ''))
+    .replace(/\s+/g, ' ')
+    .trim();
 }
