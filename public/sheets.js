@@ -4,7 +4,7 @@
 import { translate, workerLines } from '#kit/quadra.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam, homeLeague } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
@@ -1965,10 +1965,17 @@ export async function openPlayer(league, id, fallback = {}) {
     // Their team in the viewer's language (道奇, not "Los Angeles Dodgers" cut to "Los Angel…").
     const teamShown = driver?.team && !en ? f1Constructor(driver.team).zh : a.team && !en ? teamNameZh(LEAGUES[league]?.play || league, a.team, sport)?.short || a.team : a.team || driver?.team;
     // Their team at a glance: its logo and name, a tap to its page (a driver's, an individual's: as before).
-    const teamChip =
-      team && teamShown
-        ? el('button', { class: 'hero-team', type: 'button', disabled: hasTeamPage(league) ? null : true, onclick: () => ctx.openTeam(league, team.id, { id: team.id, name: teamShown, logo: a.teamLogo }) }, [a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null, el('span', { text: teamShown })])
-        : null;
+    // A tap opens it in its own league, only when that's one of ours (a
+    // national side's player's club in Cyprus: its name, no page).
+    const teamChip = team && teamShown ? el('span', { class: 'hero-team' }, [a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null, el('span', { text: teamShown })]) : null;
+    if (teamChip)
+      homeLeague(league, team.id)
+        .then(home => {
+          if (!home || !hasTeamPage(home) || !teamChip.isConnected) return;
+          const tap = el('button', { class: 'hero-team', type: 'button', onclick: () => ctx.openTeam(home, team.id, { id: team.id, name: teamShown, logo: a.teamLogo }) }, [...teamChip.childNodes]);
+          teamChip.replaceWith(tap);
+        })
+        .catch(() => {});
     const sub = [a.jersey ? `#${a.jersey}` : '', zhLater(a.position), teamChip ? '' : teamShown || countryName(a.country, L())].filter(Boolean);
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : a.teamColor;

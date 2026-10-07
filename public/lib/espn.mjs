@@ -921,6 +921,17 @@ export async function team(league, id) {
 }
 // Orbit Sports' league for an ESPN path ("soccer/eng.1" → epl).
 const BY_PATH = Object.fromEntries(Object.entries(LEAGUES).filter(([, l]) => l.espn).map(([k, l]) => [l.espn, k]));
+// A club's home league, when it's one of ours (a Nations League player at
+// Arsenal: epl), else null (Omonia Aradippou: the Cypriot league, not ours).
+// A league's own clubs are its own; a cup's (or a national side's player's
+// club) asked of ESPN (the team's defaultLeague).
+export async function homeLeague(league, id) {
+  if (!LEAGUES[league]?.cup) return league;
+  const sport = (LEAGUES[league].espn || '').split('/')[0];
+  const data = await getJson(`${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}`, { ttl: 24 * 3_600_000 }).catch(() => null);
+  const slug = data?.team?.defaultLeague?.slug;
+  return slug ? BY_PATH[`${sport}/${slug}`] || null : null;
+}
 export function parseSchedule(data, league) {
   const sport = (LEAGUES[league]?.espn || '').split('/')[0];
   return (data?.events || []).map(e => {
