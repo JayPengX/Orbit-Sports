@@ -849,6 +849,9 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .replay-link.alt { padding: 9px 14px; background: var(--q-surface); }
 .replay-link.alt .replay-icon { width: 32px; height: 32px; border-radius: 8px; margin: 0 4px; }
 .replay-link.alt .replay-go { background: none; color: var(--accent); padding: 7px 0; }
+/* A replay not up on ELTA.tv yet: said, nothing to tap. */
+.replay-link.none { background: var(--q-surface); border-color: var(--q-border); }
+.replay-link.none strong { color: var(--q-muted); }
 
 .driver-badge.xs { font-size: 0; }
 /* An F1 team: its white logo on its colour. */

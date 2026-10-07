@@ -12,10 +12,10 @@
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason, playerHome } from './lib/espn.mjs';
+import { freshGame, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
-import { findLeagues, parseSearch } from './lib/search.mjs';
+import { findLeagues, parseSearch, placeInCups } from './lib/search.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
 import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
@@ -1672,11 +1672,23 @@ async function runSearch(query, again = false) {
   // A search that couldn't be read says so (never "nothing matches"), and is asked again once a little later.
   const found = await searchEspn(q).catch(() => ({ teams: [], players: [], failed: true }));
   if (seq !== searchSeq || state.scores.q !== query) return;
+  const within = (p, fallback) => Promise.race([p, new Promise(r => setTimeout(() => r(fallback), 3_000))]);
+  // A club or a footballer of a league Orbit Sports doesn't have (Benfica,
+  // Galatasaray, their players) is shown in the European cup the club plays
+  // in this season; one not placed within 3 s is left out.
+  if ([...(found.teams || []), ...(found.players || [])].some(x => !x.league)) {
+    const placed = await within(
+      europeanClubs().then(cups => placeInCups(found, cups, clubOfPlayer)),
+      null
+    ).catch(() => null);
+    if (seq !== searchSeq || state.scores.q !== query) return;
+    Object.assign(found, placed || { teams: found.teams.filter(x => x.league), players: found.players.filter(x => x.league) });
+  }
   // A footballer found in a cup (Haaland in the Nations League over a break)
   // is shown in their club's league, before the list is drawn (never moving
   // after it); one not read within 3 s stays where ESPN put them.
   if (found.players?.length) {
-    const homes = await Promise.race([Promise.all(found.players.slice(0, 10).map(x => playerHome(x.league, x.id).catch(() => x.league))), new Promise(r => setTimeout(() => r(null), 3_000))]);
+    const homes = await within(Promise.all(found.players.slice(0, 10).map(x => playerHome(x.league, x.id).catch(() => x.league))), null);
     if (seq !== searchSeq || state.scores.q !== query) return;
     if (homes) found.players = found.players.map((x, i) => (homes[i] ? { ...x, league: homes[i] } : x));
   }
@@ -1837,9 +1849,10 @@ function renderScores() {
       stages = segmented([['all', t('f_all')], ...keys.map(k => [k, stageOf(games.find(e => stageOf(e).key === k))[locale === 'en' ? 'en' : 'zh']])], sc.stage, v => ((sc.stage = v), renderScores()), 'scroll stage-filter');
     }
     const shown = sc.stage === 'all' ? games : games.filter(e => stageOf(e).key === sc.stage);
-    // A football league's day: its matchweek (第 6 輪, or 第 6–7 輪 across a postponed game).
+    // A football league's day: its matchweek (第 6 輪, or 第 6–7 輪 across a
+    // postponed game), a cup's league-phase matchday (第 2 比賽日).
     const weeks = [...new Set(shown.map(e => weekOf(e, () => state.tab === 'matches' && renderScores())).filter(Boolean))].sort((a, b) => a - b);
-    const wk = weeks.length ? L({ zh: `第 ${weeks[0]}${weeks.length > 1 ? `–${weeks.at(-1)}` : ''} 輪`, en: `Matchweek ${weeks[0]}${weeks.length > 1 ? `–${weeks.at(-1)}` : ''}` }) : '';
+    const wk = weeks.length ? roundLabel(sc.league, weeks[0], weeks.at(-1), locale) : '';
     list = el('div', {}, [el('p', { class: 'day-head', text: [dayLabel(sc.date, { long: true }), wk, t('gamesN', { n: shown.length })].filter(Boolean).join(' · ') }), shown.length ? el('div', { class: 'q-card list' }, shown.map(e => eventRow(e, { league: false, day: false }))) : empty(t('noGames'))]);
   }
   // The league: its logo and name, where its season is, what's on now,

@@ -1,10 +1,11 @@
 // Orbit Sports' sheets: a match (header, then its data by section), a
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
-import { translate, workerLines } from '#kit/quadra.mjs';
+import { translate, workerLines, proxyJson } from '#kit/quadra.mjs';
+import { searchUrl, videoUrl, knownHighlights, findHighlights } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam, homeLeague } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam, homeLeague, roundLabel } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
@@ -16,7 +17,7 @@ import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag, F1_TEAM
 import { namedZh } from './lib/f1names.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
-import { broadcastsOf, twSource, ELTA_VOD } from './lib/broadcast.mjs';
+import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { ctx, el, shownStart, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
@@ -109,7 +110,7 @@ export async function openMatch(e) {
         ]),
         side(home, e.home)
       ]),
-      stageTag(e, L()) || seriesText(e) || weekOf(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null, weekOf(e) ? el('small', { text: L() === 'en' ? `Matchweek ${weekOf(e)}` : `第 ${weekOf(e)} 輪` }) : null]) : null,
+      stageTag(e, L()) || seriesText(e) || weekOf(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null, weekOf(e) ? el('small', { text: roundLabel(e.league, weekOf(e), weekOf(e), L()) }) : null]) : null,
       gameFollow(e, st, () => paintHeader(sm)),
       // On now or about to start: one tap to watch it, at the top.
       watchButton({ ...e, status: st }, 'wide'),
@@ -185,7 +186,7 @@ export async function openMatch(e) {
       .then(groups => {
         table = groups;
         // A cup with groups: the game's group in the header (C 級第 2 組).
-        const g = (groups || []).length > 1 ? groups.find(x => x.rows.some(r => r.id === String(e.home.id)) && x.rows.some(r => r.id === String(e.away.id))) : null;
+        const g = LEAGUES[e.league].cup && (groups || []).length > 1 ? groups.find(x => x.rows.some(r => r.id === String(e.home.id)) && x.rows.some(r => r.id === String(e.away.id))) : null;
         if (g && !e.group) {
           e = { ...e, group: g.name };
           paintHeader(data);
@@ -636,55 +637,36 @@ function matchSection(view, d, e, table, lw = {}) {
   return overview(d, e, table, nameOf, lw);
 }
 
-// An ended game's highlights: YouTube's search for them (the league's own
-// channel's video comes first), opened in YouTube (its app on a phone).
-export function highlightsUrl(e) {
-  if (e?.status?.state !== 'post' || e.status.void) return null;
-  const d = new Date(e.start);
-  const day = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
-  const nm = x => x?.en || x?.name || '';
-  const lg = LEAGUES[e.league]?.en || '';
-  // A race weekend's session the way F1 names its videos ("FP1 Highlights |
-  // 2026 Bahrain Grand Prix"): the year, the Grand Prix without its sponsor,
-  // the session.
-  const q =
-    e.kind === 'match'
-      ? `${nm(e.away)} vs ${nm(e.home)} ${lg} highlights ${day}`
-      : e.league === 'f1'
-        ? `F1 ${d.getFullYear()} ${grandPrix(e.enName || e.name)} ${SESSION_EN[e.sessionKey] || ''} Highlights`
-        : `${e.enName || e.name} ${SESSION_EN[e.sessionKey] || ''} ${lg} highlights ${d.getFullYear()}`;
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(q.replace(/\s+/g, ' ').trim())}`;
-}
-const SESSION_EN = { FP1: 'FP1', FP2: 'FP2', FP3: 'FP3', Race: 'Race', Qual: 'Qualifying', SR: 'Sprint', SS: 'Sprint Qualifying', SQ: 'Sprint Qualifying' };
-// "Gulf Air Bahrain Grand Prix in Malaysia" → "Bahrain Grand Prix": the place
-// before "Grand Prix" (two words for those that have two), no sponsor.
-const TWO_WORD_GP = ['United States', 'Mexico City', 'Abu Dhabi', 'Las Vegas', 'Saudi Arabian', 'Emilia Romagna', 'São Paulo', 'Sao Paulo', 'Great Britain'];
-// A name in its country's language: Gran Premio de la Ciudad de México,
-// Grande Prêmio de São Paulo, Gran Premio d'Italia, Grand Prix de Monaco.
-const LOCAL_GP = [[/Ciudad de M[ée]xico/i, 'Mexico City'], [/S[ãa]o Paulo/i, 'São Paulo'], [/Italia/i, 'Italian'], [/Espa[ñn]a/i, 'Spanish'], [/Emilia.Romagna/i, 'Emilia Romagna'], [/Monaco/i, 'Monaco']];
-export function grandPrix(name) {
-  const local = /Gran(?:de)?\s+Pr[eêé]mio|Grand Prix de/i.test(name || '') && LOCAL_GP.find(([re]) => re.test(name));
-  if (local) return `${local[1]} Grand Prix`;
-  const m = /([\p{L}'.-]+(?:\s+[\p{L}'.-]+)?)\s+Grand Prix/u.exec(String(name || ''));
-  if (!m) return String(name || '').trim();
-  const two = TWO_WORD_GP.find(x => m[1].endsWith(x));
-  return `${two || m[1].split(/\s+/).at(-1)} Grand Prix`;
-}
 // YouTube's own play button, drawn in place (nothing to load).
 const ytLogo = () => {
   const mark = el('span', { class: 'yt-icon', 'aria-hidden': 'true' });
   mark.innerHTML = '<svg viewBox="0 0 28 20"><path fill="#f00" d="M27.4 3.1A3.5 3.5 0 0 0 25 .6C22.8 0 14 0 14 0S5.2 0 3 .6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9A3.5 3.5 0 0 0 3 19.4C5.2 20 14 20 14 20s8.8 0 11-.6a3.5 3.5 0 0 0 2.4-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9Z"/><path fill="#fff" d="m11.2 14.3 7.3-4.3-7.3-4.3v8.6Z"/></svg>';
   return mark;
 };
+// An ended game's highlights: the official video itself (lib/highlights.mjs),
+// opened in YouTube (its app on a phone); YouTube's search for them until
+// it's found. The row is drawn at once, in its place, and only its link and
+// its line under (the channel and length) change when the video is found.
 function highlights(e) {
-  const url = highlightsUrl(e);
-  return url
-    ? el('a', { class: 'yt-link', href: url, target: '_blank', rel: 'noopener' }, [
-        ytLogo(),
-        el('span', { class: 'yt-text' }, [el('strong', { text: L() === 'en' ? 'Highlights' : '精華影片' }), el('small', { text: L() === 'en' ? 'On YouTube' : '在 YouTube 觀看' })]),
-        el('span', { class: 'yt-go', text: '›' })
-      ])
-    : null;
+  if (e?.status?.state !== 'post' || e.status.void) return null;
+  const en = L() === 'en';
+  const line = v => (v ? [v.channel, v.length].filter(Boolean).join(' · ') : en ? 'Search on YouTube' : '在 YouTube 搜尋');
+  const known = knownHighlights(e);
+  const sub = el('small', { class: 'one-line', text: line(known) });
+  const link = el('a', { class: 'yt-link', href: known ? videoUrl(known.id) : searchUrl(e), target: '_blank', rel: 'noopener' }, [
+    ytLogo(),
+    el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Highlights' : '精華影片' }), sub]),
+    el('span', { class: 'yt-go', text: '›' })
+  ]);
+  if (!known)
+    findHighlights(e, (url, o) => proxyJson(url, o))
+      .then(v => {
+        if (!v) return;
+        link.href = videoUrl(v.id);
+        sub.textContent = line(v);
+      })
+      .catch(() => {});
+  return link;
 }
 
 // The overview: the teams side by side, what the match is (where, when, TV),
@@ -1249,18 +1231,27 @@ const replayKnown = new Map();
 // row's the same image already drawn, so it never blinks.
 const eltaLogo = () => el('span', { class: 'replay-icon', 'aria-hidden': 'true' });
 if (typeof document !== 'undefined' && document.body) document.body.append(el('span', { class: 'replay-icon replay-icon-keep', 'aria-hidden': 'true' }));
+// Where a program is in its channel's guide: the channel, its day and the
+// time it started ("愛爾達1台・10/6（二）19:30"), so it's found at once.
+function guideText(b, en = L() === 'en') {
+  if (en) return b.at ? `${b.short.en} · ${guideWhen(b.at, true)}` : `${b.short.en}: tap the game in its guide`;
+  return b.at ? `${b.short.zh}・${guideWhen(b.at)}` : `${b.short.zh}・在節目表點這場`;
+}
 function replayRows(e, r, logo = eltaLogo()) {
   const en = L() === 'en';
   const row = (b, title, sub, go, cls, icon) => watchLink(b, { class: `replay-link${cls}` }, [icon, el('span', { class: 'yt-text' }, [el('strong', { text: title }), el('small', { class: 'one-line', text: sub })]), el('span', { class: 'replay-go', text: go })]);
   if (r.channels) {
     const b = r.channels[0];
-    return [row(b, en ? 'Replay on the channel' : '頻道回看', en ? `${b.short.en}: tap the game in its guide` : `${b.short.zh}・在節目表點這場`, en ? 'Channel' : '開頻道', '', logo)];
+    return [row(b, en ? 'Replay on the channel' : '頻道回看', guideText(b, en), en ? 'Channel' : '開頻道', '', logo)];
   }
-  const sub = r.episode ? `${r.episode.label}${r.alsoChannels ? (en ? ' (Chinese)' : '（中文）') : ''}` : en ? 'Not up yet, or not shown' : '還沒上架或沒有轉播';
+  // Its video not found (not up yet, or not shown): said so, with nothing to tap.
+  if (!r.episode)
+    return [el('div', { class: 'replay-link none' }, [logo, el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: en ? 'Not on ELTA.tv yet' : '愛爾達還沒上架這場' })])])];
+  const sub = `${r.episode.label}${r.alsoChannels ? (en ? ' (Chinese)' : '（中文）') : ''}`;
   const alt = r.alsoChannels?.[0];
   return [
     row(r.video, en ? 'Full game replay' : '全場重播', sub, en ? 'Watch' : '觀看', '', logo),
-    alt ? row(alt, alt.audio === 'en' ? (en ? 'Channel replay, original audio' : '頻道回看（原音）') : en ? 'Channel replay, bilingual' : '頻道回看（雙語）', en ? `${alt.short.en}: tap the game in its guide` : `${alt.short.zh}・在節目表點這場`, en ? 'Channel' : '開頻道', ' alt', eltaLogo()) : null
+    alt ? row(alt, alt.audio === 'en' ? (en ? 'Channel replay, original audio' : '頻道回看（原音）') : en ? 'Channel replay, bilingual' : '頻道回看（雙語）', guideText(alt, en), en ? 'Channel' : '開頻道', ' alt', eltaLogo()) : null
   ].filter(Boolean);
 }
 function replayLink(e) {
@@ -1276,7 +1267,7 @@ function replayLink(e) {
   const en = L() === 'en';
   const logo = eltaLogo();
   const out = el('div', { class: 'replay-group' }, [
-    el('div', { class: 'replay-link wait' }, [logo, el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: en ? 'Finding it on ELTA.tv…' : '在愛爾達找這場…' })]), el('span', { class: 'replay-go', text: en ? 'Watch' : '觀看' })])
+    el('div', { class: 'replay-link wait' }, [logo, el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: en ? 'Finding it on ELTA.tv…' : '在愛爾達找這場…' })]), el('span', { class: 'replay-go', style: 'visibility:hidden', 'aria-hidden': 'true', text: en ? 'Watch' : '觀看' })])
   ]);
   replayOf(e)
     .then(r => {
@@ -1834,7 +1825,9 @@ async function ownTeam(league, id, fallback) {
       r.stats.GB = gb === 0 ? '-' : String(gb);
     }
   }
-  const groups = rows.length ? [{ name: leagueName(league, L()), rows }] : null;
+  // The league's own table where there's one (CPBL's), the count otherwise.
+  const own = hasStandings(league) ? await standings(league).catch(() => null) : null;
+  const groups = own?.length ? own : rows.length ? [{ name: leagueName(league, L()), rows }] : null;
   return [{ id: String(id), name: me.name || fallback.name, en: me.en || fallback.en, logo: me.logo || fallback.logo, record: '' }, mine, groups];
 }
 // A squad in groups: ESPN's own (MLB's pitchers, catchers…) named in the

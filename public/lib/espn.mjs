@@ -357,12 +357,84 @@ export function weeksFrom(events, from) {
   }
   return out;
 }
+// A league whose sides don't all play each round (MLS: 35 matchdays, 34
+// games each, a bye or two each) numbers its rounds by its calendar, as it
+// publishes them: each window of days in a row with games (a weekend, a
+// midweek; US Eastern days) one matchday, a window of a few put-back games
+// none of its own (those games have none). Checked against MLS's own
+// 2026 numbers: Matchday 1 (2/21), 6 (4/4), 11 (5/2), 16 (7/16), 31
+// (10/18), 32 (10/25), 35 (11/7).
+const CALENDAR_ROUNDS = new Set(['mls']);
+export function calendarRounds(events, from) {
+  const list = [...events].filter(x => x.kind === 'match' && !x.status?.void && !x.round && x.stage?.key !== 'pre' && Date.parse(x.start) >= from);
+  const sides = new Set(list.flatMap(x => [x.home?.id, x.away?.id]));
+  const day = x => new Date(Date.parse(x.start) - 5 * 3_600_000).toISOString().slice(0, 10);
+  const byDay = new Map();
+  for (const x of list) byDay.set(day(x), [...(byDay.get(day(x)) || []), x]);
+  const out = new Map();
+  let n = 0;
+  let window = [];
+  const close = () => {
+    // A round: an eighth of the sides playing at least (MLS's 7/16 had 10 of 30).
+    if (window.length && window.length * 2 >= Math.max(4, sides.size / 4)) {
+      n++;
+      for (const x of window) out.set(x.id, n);
+    }
+    window = [];
+  };
+  let prev = null;
+  for (const d of [...byDay.keys()].sort()) {
+    if (prev && Date.parse(d) - Date.parse(prev) > 86_400_000) close();
+    window.push(...byDay.get(d));
+    prev = d;
+  }
+  close();
+  return out;
+}
+// A cup's league phase (the Champions League's, the Nations League's): each
+// side plays once a matchday, so a game's is one more than either side's
+// games before it; a matchday's day is said as most of that day's games
+// have it (a side resting in a group of three would read a matchday early).
+// Its knockout games have none (their round's name says it).
+export function phaseRounds(events, from) {
+  const counts = weeksFrom([...events].filter(x => !x.round && x.stage?.key !== 'pre'), from);
+  const day = x => String(x.start).slice(0, 10);
+  const votes = new Map();
+  for (const x of events) {
+    const n = counts.get(x.id);
+    if (!n) continue;
+    const v = votes.get(day(x)) || new Map();
+    v.set(n, (v.get(n) || 0) + 1);
+    votes.set(day(x), v);
+  }
+  const out = new Map();
+  for (const x of events) {
+    const v = counts.has(x.id) && votes.get(day(x));
+    if (v) out.set(x.id, [...v].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0]);
+  }
+  return out;
+}
 const weekMemo = new Map();
-// The matchweek of a football league's match, once its season's been read
-// (null until then; `onLoad` runs when it has).
+// When the season a moment is in began: ESPN's own dates for it (MLS's
+// season is the calendar year, Europe's from June or July); else, from a
+// league's games in July and August, July (MLS's came back from a World
+// Cup break then: its season is the year's), the year's start otherwise.
+export function seasonFrom(pages, at, july) {
+  for (const p of pages || []) {
+    const s = p?.leagues?.[0]?.season;
+    const [from, to] = [Date.parse(s?.startDate), Date.parse(s?.endDate)];
+    if (from <= at && at < to) return from;
+  }
+  const events = (pages || []).filter(Boolean).flatMap(p => p.events || []);
+  return events.some(x => Date.parse(x.date) >= july && Date.parse(x.date) < july + 60 * 86_400_000) ? july : Date.UTC(new Date(at).getUTCFullYear(), 0, 1);
+}
+// The round of a football match, once its season's been read (null until
+// then; `onLoad` runs when it has): a league's matchweek (第 N 輪), a cup's
+// league-phase matchday (第 N 比賽日). A cup without a table (the FA Cup)
+// has its rounds by name.
 export function weekOf(e, onLoad) {
   const l = LEAGUES[e?.league];
-  if (!l?.espn || l.sport !== 'soccer' || l.cup || e.kind !== 'match') return null;
+  if (!l?.espn || l.sport !== 'soccer' || (l.cup && !l.standings) || e.kind !== 'match' || e.round) return null;
   const memo = weekMemo.get(e.league);
   if (memo instanceof Map) return memo.get(e.id) ?? null;
   if (!memo) {
@@ -371,16 +443,24 @@ export function weekOf(e, onLoad) {
     const july = Date.UTC(y, 6, 1);
     const load = Promise.all([y, y + 1].map(yr => yearPage(e.league, yr).catch(() => null)))
       .then(pages => {
+        const from = seasonFrom(pages, d.getTime(), july);
         const events = pages.filter(Boolean).flatMap(p => parseScoreboard(p, e.league));
-        // A league that starts in the year's spring (MLS) counts from its first game.
-        const from = events.some(x => Date.parse(x.start) >= july && Date.parse(x.start) < july + 60 * 86_400_000) ? july : Date.UTC(d.getUTCFullYear(), 0, 1);
-        weekMemo.set(e.league, weeksFrom(events, from));
+        weekMemo.set(e.league, l.cup ? phaseRounds(events, from) : CALENDAR_ROUNDS.has(e.league) ? calendarRounds(events, from) : weeksFrom(events, from));
       })
       .catch(() => weekMemo.set(e.league, new Map()));
     weekMemo.set(e.league, load);
   }
   if (onLoad) weekMemo.get(e.league).then?.(() => onLoad());
   return null;
+}
+// A round said in the reader's words: a cup's matchday, a league's matchweek
+// (MLS's matchday, as it says it), or a span of them ("第 6–7 輪").
+export function roundLabel(league, from, to = from, lang = 'zh') {
+  if (!from) return '';
+  const n = to && to !== from ? `${from}–${to}` : `${from}`;
+  const cup = Boolean(LEAGUES[league]?.cup);
+  if (lang === 'en') return `${cup || CALENDAR_ROUNDS.has(league) ? 'Matchday' : 'Matchweek'} ${n}`;
+  return cup ? `第 ${n} 比賽日` : `第 ${n} 輪`;
 }
 
 // ---- The season's calendar: which days a league plays -------------------------------
@@ -837,12 +917,75 @@ export function parseStandings(data, league = null) {
 // `season`: a past season's (its year as ESPN numbers it), kept a day.
 export async function standings(league, { season = null } = {}) {
   const l = LEAGUES[league];
+  if (l.asia) return asiaStandings(league, season);
   // The regular season's table: ESPN's default counts pre-season games in
   // (the NBA's in October: Toronto 0-1 before a real game).
   const query = [['baseball', 'basketball', 'football', 'hockey'].includes(l.sport) ? 'seasontype=2' : '', season ? `season=${season}` : ''].filter(Boolean).join('&');
   const data = await getJson(`${STANDINGS}/${l.espn}/standings${query ? `?${query}` : ''}`, { ttl: season ? 86_400_000 : 10 * 60_000 });
   const groups = withGaps(parseStandings(data, league), l.sport);
   groups.year = data?.season?.year ?? data?.children?.[0]?.standings?.season?.year ?? null;
+  return groups;
+}
+// CPBL's tables: the league's own (Shared-Data's nightly copy: the half on
+// now, the other half, the year), with the games finished since it was
+// built put in (a night's games before midnight). Only this season's.
+export async function asiaStandings(league, season = null) {
+  if (league !== 'cpbl') return [];
+  const [pack, events] = await Promise.all([kit.packJson('sports/cpbl/standings.json', { ttl: 30 * 60_000 }), asiaEvents(league).catch(() => [])]);
+  if (season && pack?.year && season !== pack.year) return [];
+  return cpblTable(pack, events, detectLocale());
+}
+const pct = (w, l) => (w + l ? (w / (w + l)).toFixed(3).replace(/^0/, '') : '.000');
+const HALF = { first: ['上半季', 'First half'], second: ['下半季', 'Second half'], year: ['全年', 'Full season'] };
+export function cpblTable(pack, events = [], lang = 'zh') {
+  const tables = pack?.tables?.length ? pack.tables : [];
+  if (!tables.length) return [];
+  const play = LEAGUES.cpbl?.play || 'cpbl';
+  const built = Date.parse(pack.built) || 0;
+  // The games since it was built, in the half on now and the year: none
+  // once each side's 60 of the half are in.
+  const now = tables.find(t => t.key === pack.half) || tables[0];
+  const halfOver = now.rows.every(r => r.gp >= 60);
+  const later = halfOver ? [] : events.filter(e => e.status?.state === 'post' && !e.status.void && Date.parse(e.start) + 3 * 3_600_000 > built);
+  const groups = tables.map(t => {
+    const rows = t.rows.map(r => ({ ...r }));
+    if (t === now || t.key === 'year') {
+      const byId = new Map(rows.map(r => [r.en, r]));
+      for (const e of later) {
+        const [h, a] = [Number(e.home?.score), Number(e.away?.score)];
+        const [hr, ar] = [byId.get(e.home?.id), byId.get(e.away?.id)];
+        if (!hr || !ar || !Number.isFinite(h) || !Number.isFinite(a)) continue;
+        for (const [r, mine, theirs] of [[hr, h, a], [ar, a, h]]) {
+          r.gp++;
+          if (mine === theirs) r.t++;
+          else r[mine > theirs ? 'w' : 'l']++;
+          r.streak = '';
+          r.last10 = '';
+        }
+      }
+      if (later.length) rows.sort((x, y) => y.w / (y.w + y.l || 1) - x.w / (x.w + x.l || 1) || y.w - x.w);
+    }
+    const top = rows[0];
+    const [zhName, enName] = HALF[t.key] || [t.title, t.title];
+    return {
+      name: lang === 'en' ? `${enName} ${pack.year || ''}`.trim() : `${pack.year ? `${pack.year} ` : ''}${zhName}`,
+      rows: rows.map(r => {
+        const gb = (top.w - r.w + r.l - top.l) / 2;
+        const zh = teamNameZh(play, r.en, 'baseball');
+        return {
+          id: r.en,
+          name: lang === 'en' ? r.en : zh?.full || r.zh,
+          short: lang === 'en' ? r.en : zh?.short || r.zh,
+          en: r.en,
+          logo: teamBadge(play, r.en),
+          note: '',
+          color: '',
+          stats: { GP: String(r.gp), W: String(r.w), L: String(r.l), ...(r.t ? { T: String(r.t) } : {}), PCT: pct(r.w, r.l), GB: gb === 0 ? '-' : String(gb), STRK: r.streak || '', L10: r.last10 || '' }
+        };
+      })
+    };
+  });
+  groups.year = pack.year || null;
   return groups;
 }
 // Which columns a table shows, by sport (only those present).
@@ -942,7 +1085,30 @@ export async function playerHome(league, id) {
   const a = await athlete(league, id);
   if (!a.teamId) return league;
   const { key } = await homeLeague(league, a.teamId);
-  return key && key !== league ? key : league;
+  if (key && key !== league) return key;
+  // A club of another league (Pavlidis at Benfica, found in the Nations
+  // League): its European cup, when it has one this season.
+  if (!key) {
+    const cup = (await europeanClubs().catch(() => new Map())).get(String(a.teamId));
+    if (cup && cup !== league) return cup;
+  }
+  return league;
+}
+// The clubs in each European cup this season: a club's id → 'ucl' | 'uel'
+// | 'uecl' (the highest it plays in). Kept a day: a cup's clubs are set
+// before its league phase.
+const EURO_CUPS = ['uecl', 'uel', 'ucl'];
+export async function europeanClubs() {
+  const lists = await Promise.all(EURO_CUPS.map(k => getJson(`${SITE}/${LEAGUES[k].espn}/teams`, { ttl: 24 * 3_600_000 }).then(d => [k, d], () => [k, null])));
+  if (lists.every(([, d]) => !d)) throw new Error('European cups unread');
+  const out = new Map();
+  for (const [k, d] of lists) for (const t of d?.sports?.[0]?.leagues?.[0]?.teams || []) if (t.team?.id) out.set(String(t.team.id), k);
+  return out;
+}
+// A footballer's club id, from any soccer league's path (their own league's slug).
+export async function clubOfPlayer(slug, id) {
+  const data = await getJson(`${COMMON}/soccer/${slug}/athletes/${encodeURIComponent(id)}`, { ttl: 60 * 60_000 });
+  return parseAthlete(data).teamId || null;
 }
 export function parseSchedule(data, league) {
   const sport = (LEAGUES[league]?.espn || '').split('/')[0];

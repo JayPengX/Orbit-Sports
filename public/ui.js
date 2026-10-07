@@ -10,7 +10,7 @@ import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES } from './lib/espn.mjs';
-import { tvOf, channelsOf, watchOf } from './lib/tv.mjs';
+import { tvOf, channelsOf, watchOf, replayHint } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
 
 export const ctx = { t: k => k, locale: 'zh', state: null, openEvent: () => {}, openTeam: () => {}, openPlayer: () => {} };
@@ -478,10 +478,20 @@ export function twChips(league, n = 3, e = null) {
 export const audioName = b => (b.audio ? AUDIO_NAMES[b.audio]?.[ctx.locale === 'en' ? 'en' : 'zh'] || '' : '');
 const audioTag = b => (b.audio ? el('span', { class: `au-tag${hasAudio(b, ctx.state?.prefs?.audio || 'en') ? ' mine' : ''}`, text: audioName(b) }) : null);
 export function tvLine(e) {
-  if (e.status?.state === 'post' || e.status?.void) return null;
+  if (e.status?.void) return null;
+  const name = b => b.short[ctx.locale === 'en' ? 'en' : 'zh'];
+  // Over: still its ELTA label while it can be watched again (its channel's
+  // 回看 for 48 hours, then its video once found).
+  if (e.status?.state === 'post') {
+    const r = replayHint(e);
+    if (!r) return null;
+    const again = el('span', { class: 'tv-again', text: ctx.locale === 'en' ? (r.replay ? ' · replay' : 'ELTA · replay') : r.replay ? '・回看' : '愛爾達・重播' });
+    if (r.video) return el('small', { class: 'tv-line' }, [again]);
+    const ch = r.channels.slice(0, 2).flatMap((b, i) => [i ? document.createTextNode('、') : null, el('span', { class: 'tv-ch', text: name(b) })]);
+    return el('small', { class: 'tv-line' }, [...ch, again]);
+  }
   const list = channelsOf(e);
   if (!list.length) return null;
-  const name = b => b.short[ctx.locale === 'en' ? 'en' : 'zh'];
   const parts = list.slice(0, 2).flatMap((b, i) => [i ? document.createTextNode('、') : null, el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), audioTag(b)])]);
   return el('small', { class: 'tv-line' }, [...parts, list.length > 2 ? document.createTextNode(` +${list.length - 2}`) : null]);
 }

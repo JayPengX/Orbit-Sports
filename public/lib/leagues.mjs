@@ -30,8 +30,9 @@ export const leagueName = (key, lang = 'zh') => LEAGUES[key]?.[lang === 'en' ? '
 export const leaguesOf = sport => Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport);
 export const TOP_LEAGUES = Object.keys(LEAGUES).filter(k => LEAGUES[k].top);
 // Kinds of data each source has.
-// Tables: every match league (not cups), and the drivers' and constructors' championship of F1.
-export const hasStandings = key => (Boolean(LEAGUES[key]?.espn) && ((LEAGUES[key].kind === 'match' && !LEAGUES[key].cup) || Boolean(LEAGUES[key].standings)));
+// Tables: every match league (not cups), and the drivers' and constructors'
+// championship of F1; CPBL's from the league's own (Shared-Data's nightly copy).
+export const hasStandings = key => (Boolean(LEAGUES[key]?.espn) && ((LEAGUES[key].kind === 'match' && !LEAGUES[key].cup) || Boolean(LEAGUES[key].standings))) || key === 'cpbl';
 export const hasTeams = key => Boolean(LEAGUES[key]?.espn) && LEAGUES[key].kind === 'match';
 // A team page: ESPN's leagues, and CPBL's built from its own schedule.
 export const hasTeamPage = key => LEAGUES[key]?.kind === 'match';

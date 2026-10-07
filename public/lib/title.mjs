@@ -18,8 +18,9 @@ const num = v => {
   return Number.isFinite(n) ? n : 0;
 };
 const has = v => v != null && v !== '';
-// A season's games for each side, where it isn't each other side twice.
-export const SEASON_GAMES = { mlb: 162, nba: 82, wnba: 44, nbl: 29, mls: 34, nfl: 17, nhl: 82 };
+// A season's games for each side, where it isn't each other side twice
+// (CPBL's table is a half-season's: 60).
+export const SEASON_GAMES = { mlb: 162, nba: 82, wnba: 44, nbl: 29, mls: 34, nfl: 17, nhl: 82, cpbl: 60 };
 
 const COUNTS = e => !['pre', 'post', 'final', 'playin', 'allstar', 'off'].includes(e.stage?.key || '');
 const playedOf = (r, sport) => (sport === 'soccer' ? num(r.stats.GP) : num(r.stats.W) + num(r.stats.L) + num(r.stats.T));

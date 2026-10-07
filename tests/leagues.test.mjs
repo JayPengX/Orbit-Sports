@@ -17,7 +17,8 @@ test('every league has a sport, a source and a kind', () => {
   assert.equal(hasStandings('ucl'), true);
   assert.equal(hasStandings('nationsleague'), true);
   assert.equal(hasStandings('facup'), false);
-  assert.equal(hasStandings('cpbl'), false);
+  // CPBL's from the league's own table (Shared-Data's nightly copy): its own 排名 tab.
+  assert.equal(hasStandings('cpbl'), true);
 });
 
 test('both languages have the same strings', () => {

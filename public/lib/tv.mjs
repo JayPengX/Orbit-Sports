@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson } from '#kit/quadra.mjs';
-import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, inReplay, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, inReplay, replayState, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -100,6 +100,35 @@ export const tvKnown = e =>
   e.league === 'mls' ||
   e.league === 'f1' || (e.league === 'nba' && Boolean(nbaSchedule()?.length)) || eltaListed(eltaSchedule() || [], e);
 
+// Games whose whole video was found on ELTA.tv, kept on the device (the
+// newest 500): a row says so without reading ELTA's lists for it.
+const REPLAYS = 'fx.replays.v1';
+const replayKey = e => `${e.league}:${e.id}:${e.sessionKey || ''}`;
+function keptReplays() {
+  try {
+    return JSON.parse(localStorage.getItem(REPLAYS) || '[]') || [];
+  } catch {
+    return [];
+  }
+}
+let replaySet = null;
+function keepReplay(e) {
+  const key = replayKey(e);
+  replaySet ??= new Set(keptReplays());
+  if (replaySet.has(key)) return;
+  replaySet.add(key);
+  try {
+    localStorage.setItem(REPLAYS, JSON.stringify([...replaySet].slice(-500)));
+  } catch {}
+}
+// A finished game that can be watched again on ELTA (replayState), as far
+// as is known without reading anything.
+export function replayHint(e, now = Date.now()) {
+  if (e?.status?.state !== 'post' || e.status.void) return null;
+  replaySet ??= new Set(keptReplays());
+  return replayState(e, channelsOf(e), replaySet.has(replayKey(e)), now);
+}
+
 // A finished game again on ELTA.tv: { video, episode, alsoChannels? } (the game's video in
 // its league's season), else for 48 hours from its start { channels } (the
 // channels it was on, for their 回看: no link starts a past program, ELTA
@@ -136,5 +165,6 @@ export async function replayOf(e, now = Date.now()) {
   // track): that too.
   const english = episode && episodeEnglish(episode.title);
   const also = replay && episode && prefer() !== 'zh' && !english ? channels.filter(b => hasAudio(b, 'en')) : [];
+  if (episode) keepReplay(e);
   return { video, episode: episode && { ...episode, label: episodeLabel(episode.title), english }, ...(also.length ? { alsoChannels: also } : {}) };
 }

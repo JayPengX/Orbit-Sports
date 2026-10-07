@@ -338,6 +338,27 @@ export function eltaVodOf(e, home = []) {
 }
 // Whether a game's channel can still play it again (回看).
 export const inReplay = (e, now = Date.now()) => now - Date.parse(e.start) < ELTA_REPLAY_HOURS * 3_600_000;
+// A finished game that can be watched again, as far as is known without
+// reading anything: { channels, replay: true } within its ELTA channels'
+// 48 hours of 回看, { video: true } once its video's been found (`found`),
+// else null (not on ELTA, or not known to be up).
+export function replayState(e, channels, found = false, now = Date.now()) {
+  if (e?.status?.state !== 'post' || e.status.void) return null;
+  const elta = (channels || []).filter(b => b.svc === 'elta' && b.ch && !b.mod);
+  if (elta.length && inReplay(e, now)) return { channels: elta, replay: true };
+  return found ? { video: true } : null;
+}
+// When a program started, as ELTA's guide lists it (Taiwan's day and time),
+// short enough to stay whole on a phone's row: '10/6（二）19:30', 'Tue 10/6 19:30'.
+export function guideWhen(at, en = false) {
+  if (!at) return '';
+  const d = new Date(Number(at));
+  const tz = { timeZone: 'Asia/Taipei' };
+  const md = d.toLocaleDateString('en-US', { ...tz, month: 'numeric', day: 'numeric' });
+  const wd = d.toLocaleDateString(en ? 'en-US' : 'zh-TW', { ...tz, weekday: en ? 'short' : 'narrow' });
+  const time = d.toLocaleTimeString('en-GB', { ...tz, hour: '2-digit', minute: '2-digit', hour12: false });
+  return en ? `${wd} ${md} ${time}` : `${md}（${wd}）${time}`;
+}
 // An episode's title: its day ('M/D', when it says) and two sides
 // ("10/5 國聯分區G2 教士VS釀酒人", "UEFA歐霸 塞爾特人 VS 佛倫茲瓦羅斯 第1比賽日(原音)").
 // The day can run into the first side ("9/27勇士VS馬林魚(原音)").

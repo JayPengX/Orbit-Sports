@@ -374,3 +374,18 @@ test("a race weekend's session video: by its name and day, the 原音 cut for En
   assert.equal(episodeLabel('10/3 巴林站(馬來西亞雪邦賽道) 排位賽(中文解說無廣告)'), '巴林站 排位賽（中文）');
   assert.equal(episodeEnglish('正賽(中文解說無廣告)'), false);
 });
+
+test("a finished game's row keeps its ELTA label while it can be watched again: its channel's 48 hours, then its video once found", async () => {
+  const { replayState, guideWhen } = await import('../public/lib/broadcast.mjs');
+  const e = { start: '2026-10-06T11:35:00Z', status: { state: 'post' } };
+  const ch = [{ svc: 'elta', ch: 101, exact: true }, { svc: 'elta', ch: 544, mod: true }];
+  const at = h => Date.parse(e.start) + h * 3_600_000;
+  assert.deepEqual(replayState(e, ch, false, at(20)), { channels: [ch[0]], replay: true });
+  assert.equal(replayState(e, ch, false, at(49)), null, 'past 48 hours, no video known');
+  assert.deepEqual(replayState(e, ch, true, at(49)), { video: true });
+  assert.equal(replayState({ ...e, status: { state: 'in' } }, ch, true, at(1)), null);
+  assert.equal(replayState({ ...e, status: { state: 'post', void: true } }, ch, true, at(1)), null);
+  // Where it is in the guide: Taiwan's day and time.
+  assert.equal(guideWhen(Date.parse('2026-10-06T11:35:00Z')), '10/6（二）19:35');
+  assert.equal(guideWhen(Date.parse('2026-10-06T11:35:00Z'), true), 'Tue 10/6 19:35');
+});
