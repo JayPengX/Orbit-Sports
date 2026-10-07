@@ -2492,7 +2492,8 @@ function raceBlock(race, g, league, many) {
   for (const z of race.zones.filter(x => x.fight).sort((a, b) => order(a) - order(b) || a.fight.spread - b.fight.spread)) {
     if (z.fight.rows.some(r => shown.has(r.id))) continue;
     z.fight.rows.forEach(r => shown.add(r.id));
-    const zn = zoneName(z.note);
+    // (The name without its bracket, 淘汰附加賽 not 淘汰附加賽（非種子）: one line.)
+    const zn = zoneName(z.note).replace(/（.*）|\s*\(.*\)/, '');
     const n = z.fight.rows.length;
     const head = z.bottom ? W(`避開${zn}`, `Avoiding ${zn}`) : W(`${zn}之爭`, `Race for ${zn}`);
     const how = W(` ${n} 隊・${z.fight.spread > 0 ? `相差 ${z.fight.spread} 分` : '同分'}`, ` ${n} teams, ${z.fight.spread > 0 ? `${z.fight.spread} pts apart` : 'level'}`);

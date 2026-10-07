@@ -113,7 +113,7 @@ test("F1's close fights once the champion's decided: runs of places still open w
   assert.deepEqual(open.places, [], 'the champion not decided: the title race alone');
 });
 
-test("a zone's fight in the run-in: at its edge, the sides that can finish either side of it, within two games' points", () => {
+test("a zone's fight: at its edge, the sides that can finish either side of it, within two games' points", () => {
   // 6 sides, 10 games each, 2 to go (6 points left).
   const t = (id, pts, note) => ({ ...row(id, { GP: '8', P: String(pts) }), note });
   const g = { rows: [t('A', 24, 'Champions League'), t('B', 18, 'Champions League'), t('C', 16, ''), t('D', 15, ''), t('E', 5, 'Relegation'), t('F', 4, 'Relegation')] };
@@ -123,7 +123,7 @@ test("a zone's fight in the run-in: at its edge, the sides that can finish eithe
   assert.equal(cl.fight.spread, 3);
   assert.equal(r.zones.find(z => z.note === 'Relegation').fight, undefined, 'E and F are 10 points from safety: no fight');
   const early = standingsRace({ rows: g.rows.map(x => ({ ...x, stats: { GP: '8', P: x.stats.P } })) }, 'soccer', { total: 30 });
-  assert.ok(early.zones.every(z => !z.fight), 'not the run-in yet');
+  assert.deepEqual(early.zones.find(z => z.note === 'Champions League').fight.rows.map(x => x.id), ['B', 'C', 'D'], 'by the numbers, not the point of the season: the same three');
 });
 
 test("F1's close fights are the constructors' only", () => {
@@ -131,4 +131,13 @@ test("F1's close fights are the constructors' only", () => {
   const r = standingsRace({ rows: [t('a', 400), t('b', 200), t('c', 195)] }, 'racing', { left: { races: 2, sprints: 0 }, team: false });
   assert.equal(r.title.done, true);
   assert.deepEqual(r.places, []);
+});
+
+test("a zone's fight is two to six sides: none where half the table's bunched", () => {
+  const t = (id, gp, pts, note) => ({ ...row(id, { GP: String(gp), P: String(pts) }), note });
+  // The Champions League after four matchdays: everyone around 24th within a few points.
+  const ucl = { rows: Array.from({ length: 36 }, (_, i) => t(`T${i}`, 4, 12 - Math.floor(i / 3), i < 8 ? 'R16' : i < 24 ? 'Playoffs' : 'Out')) };
+  assert.ok(standingsRace(ucl, 'soccer', { total: 8 }).zones.every(z => !z.fight));
+  const apart = { rows: [t('A', 4, 12, 'R16'), t('B', 4, 9, 'R16'), t('C', 4, 8, ''), t('D', 4, 1, 'Out'), t('E', 4, 0, 'Out')] };
+  assert.deepEqual(standingsRace(apart, 'soccer', { total: 8 }).zones[0].fight.rows.map(x => x.id), ['A', 'B', 'C']);
 });

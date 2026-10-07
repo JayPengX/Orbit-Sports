@@ -243,18 +243,20 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
     z.bottom = z.to === rows.length;
     z.sure = out.filter(x => (z.bottom ? x.best >= z.from : x.worst <= z.to && x.best >= z.from)).map(x => x.id);
   }
-  // A zone's fight in the run-in (8 games or fewer left): at its edge (a good
+  // A zone's fight, by the numbers alone (no point of the season set): at its edge (a good
   // zone's last place; the last place above a bottom one), the sides that
   // can still finish either side of it and are within a game's points of
   // it. Football's tables (their zones are ESPN's notes).
-  if (sport === 'soccer' && ordered && !over && Math.max(...rows.map(more)) / 3 <= 8) {
+  if (sport === 'soccer' && ordered && !over) {
     const reach = 3;
     for (const z of zones) {
       const edge = z.bottom ? z.from - 1 : z.to;
       if (edge < 1 || edge >= rows.length) continue;
       const fight = out.filter((x, k) => x.best <= edge && x.worst > edge && lo[k] >= lo[edge] - reach && lo[k] <= lo[edge - 1] + reach);
-      if (fight.length > 1) {
-        const pts = fight.map(x => lo[out.indexOf(x)]);
+      // Two to six sides: more is half the table bunched (a Champions
+      // League table after four matchdays), not a fight.
+      const pts = fight.map(x => lo[out.indexOf(x)]);
+      if (fight.length > 1 && fight.length <= 6) {
         z.fight = { rows: fight.map(x => x.row), spread: Math.max(...pts) - Math.min(...pts) };
       }
     }

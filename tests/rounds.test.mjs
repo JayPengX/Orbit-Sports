@@ -141,3 +141,12 @@ test("greyed out: only no chance left at all, only while the season's on (ESPN's
   assert.deepEqual([...outOfIt(g, race, 'epl')], ['d'], 'd can no longer reach 2nd (Europe); c still can');
   assert.deepEqual([...outOfIt({ rows: g.rows.map(r => ({ ...r, note: '' })) }, race, 'epl')], [], 'no zones: nobody');
 });
+
+test("a zone's colour by what it is: Europe's three cups each their own, ESPN's broken ones mended", async () => {
+  const { zoneColor } = await import('../public/lib/espn.mjs');
+  const cups = ['Champions League', 'Europa League', 'Conference League qualifying'].map(n => zoneColor(n, '#B2BFD0'));
+  assert.equal(new Set(cups).size, 3);
+  assert.ok(cups.every(c => /^#[0-9A-F]{6}$/i.test(c)));
+  assert.equal(zoneColor('Playoffs', '##AABBCC'), '#AABBCC');
+  assert.equal(zoneColor('Relegation', ''), '#FF7F84');
+});

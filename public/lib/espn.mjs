@@ -902,7 +902,7 @@ export function parseStandings(data, league = null) {
         }
         // ESPN's clinch mark (MLB's, the NBA's: x, y, z clinched; e eliminated, its own math, divisions in).
         const clincher = String((en.stats || []).find(x => x.name === 'clincher')?.displayValue || '').trim();
-        const row = { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note?.color || (en.team?.color && !en.team?.logos ? `#${en.team.color}` : ''), stats, ...(clincher ? { clincher } : {}) };
+        const row = { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note ? zoneColor(en.note.description, en.note.color) : en.team?.color && !en.team?.logos ? `#${en.team.color}` : '', stats, ...(clincher ? { clincher } : {}) };
         // F1's constructors in Chinese (麥拉倫, 法拉利), the English kept for matching.
         if (league === 'f1' && detectLocale() !== 'en') {
           const zh = f1Constructor(row.name).zh;
@@ -926,6 +926,31 @@ export function parseStandings(data, league = null) {
   };
   walk(data);
   return tierZones(groups);
+}
+// A zone's bar colour, by what it is: ESPN's own run together (Europa
+// League and the Conference League both #B2BFD0) and are sometimes broken
+// ("##B5E7CE"). Each of Europe's three cups its own colour (green, blue,
+// purple; a qualifying round of one a paler shade), a way out red.
+const ZONE_COLORS = [
+  [/round of 16|\bqfs?\b|quarter-?final/i, '#81D6AC'],
+  [/play-?offs?.*\bunseeded/i, '#6CA6F0'],
+  [/play-?offs?.*\bseeded/i, '#B5E7CE'],
+  [/champions league qualif/i, '#B5E7CE'],
+  [/champions league/i, '#81D6AC'],
+  [/europa league qualif/i, '#A9C8F5'],
+  [/europa league/i, '#6CA6F0'],
+  [/conference league qualif/i, '#C9B5F2'],
+  [/conference league/i, '#A88BEB'],
+  [/relegation or|relegation play/i, '#FEB4B5'],
+  [/relegat|eliminat/i, '#FF7F84'],
+  [/promotion play/i, '#B5E7CE'],
+  [/promotion/i, '#81D6AC']
+];
+export function zoneColor(note, color) {
+  const own = ZONE_COLORS.find(([re]) => re.test(note || ''))?.[1];
+  if (own) return own;
+  const c = String(color || '').replace(/^#+/, '');
+  return /^[0-9a-f]{3,8}$/i.test(c) ? `#${c}` : '';
 }
 // A competition's zones said once for all its tiers (the Nations League's:
 // only group A1's rows carry them, each place's for every tier at once, "A:
@@ -955,7 +980,7 @@ export function tierZones(groups) {
       rows: g.rows.map((r, i) => {
         const z = byPlace[i];
         const note = z ? partFor(z.note, tier(g)) : '';
-        return { ...r, note, color: note ? z.color : '' };
+        return { ...r, note, color: note ? zoneColor(note, z.color) : '' };
       })
     })),
     { year: groups.year }
