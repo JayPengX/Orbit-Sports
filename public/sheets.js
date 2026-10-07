@@ -1588,7 +1588,7 @@ export async function openTeam(league, id, fallback = {}) {
     const stats = place ? want.filter(k => place.row.stats[k] != null && place.row.stats[k] !== '').slice(0, 5) : [];
     const strip = place
       ? el('div', { class: 'team-strip' }, [
-          el('div', { class: 'ts-cell lead' }, [el('strong', { class: 'num', text: String(place.pos) }), el('small', { text: place.group && !/20\d\d/.test(place.group) ? place.group : W('排名', 'Place') })]),
+          el('div', { class: 'ts-cell lead' }, [el('strong', { class: 'num', text: String(place.pos) }), el('small', { text: (groups || []).length > 1 && place.group && !/20\d\d/.test(place.group) ? groupName(place.group, L()) : W('排名', 'Place') })]),
           ...stats.map(k => el('div', { class: 'ts-cell' }, [el('strong', { class: 'num', text: place.row.stats[k] }), el('small', { text: colLabel(k) })]))
         ])
       : null;
