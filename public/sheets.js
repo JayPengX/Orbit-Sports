@@ -644,10 +644,32 @@ export function highlightsUrl(e) {
   const day = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
   const nm = x => x?.en || x?.name || '';
   const lg = LEAGUES[e.league]?.en || '';
-  const q = e.kind === 'match' ? `${nm(e.away)} vs ${nm(e.home)} ${lg} highlights ${day}` : `${e.enName || e.name} ${e.sessionKey ? SESSION_EN[e.sessionKey] || '' : ''} ${lg} highlights ${d.getFullYear()}`;
+  // A race weekend's session the way F1 names its videos ("FP1 Highlights |
+  // 2026 Bahrain Grand Prix"): the year, the Grand Prix without its sponsor,
+  // the session.
+  const q =
+    e.kind === 'match'
+      ? `${nm(e.away)} vs ${nm(e.home)} ${lg} highlights ${day}`
+      : e.league === 'f1'
+        ? `F1 ${d.getFullYear()} ${grandPrix(e.enName || e.name)} ${SESSION_EN[e.sessionKey] || ''} Highlights`
+        : `${e.enName || e.name} ${SESSION_EN[e.sessionKey] || ''} ${lg} highlights ${d.getFullYear()}`;
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(q.replace(/\s+/g, ' ').trim())}`;
 }
-const SESSION_EN = { Race: 'race', Qual: 'qualifying', SR: 'sprint', SS: 'sprint qualifying', SQ: 'sprint qualifying' };
+const SESSION_EN = { FP1: 'FP1', FP2: 'FP2', FP3: 'FP3', Race: 'Race', Qual: 'Qualifying', SR: 'Sprint', SS: 'Sprint Qualifying', SQ: 'Sprint Qualifying' };
+// "Gulf Air Bahrain Grand Prix in Malaysia" → "Bahrain Grand Prix": the place
+// before "Grand Prix" (two words for those that have two), no sponsor.
+const TWO_WORD_GP = ['United States', 'Mexico City', 'Abu Dhabi', 'Las Vegas', 'Saudi Arabian', 'Emilia Romagna', 'São Paulo', 'Sao Paulo', 'Great Britain'];
+// A name in its country's language: Gran Premio de la Ciudad de México,
+// Grande Prêmio de São Paulo, Gran Premio d'Italia, Grand Prix de Monaco.
+const LOCAL_GP = [[/Ciudad de M[ée]xico/i, 'Mexico City'], [/S[ãa]o Paulo/i, 'São Paulo'], [/Italia/i, 'Italian'], [/Espa[ñn]a/i, 'Spanish'], [/Emilia.Romagna/i, 'Emilia Romagna'], [/Monaco/i, 'Monaco']];
+export function grandPrix(name) {
+  const local = /Gran(?:de)?\s+Pr[eêé]mio|Grand Prix de/i.test(name || '') && LOCAL_GP.find(([re]) => re.test(name));
+  if (local) return `${local[1]} Grand Prix`;
+  const m = /([\p{L}'.-]+(?:\s+[\p{L}'.-]+)?)\s+Grand Prix/u.exec(String(name || ''));
+  if (!m) return String(name || '').trim();
+  const two = TWO_WORD_GP.find(x => m[1].endsWith(x));
+  return `${two || m[1].split(/\s+/).at(-1)} Grand Prix`;
+}
 // YouTube's own play button, drawn in place (nothing to load).
 const ytLogo = () => {
   const mark = el('span', { class: 'yt-icon', 'aria-hidden': 'true' });
