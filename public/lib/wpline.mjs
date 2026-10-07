@@ -46,19 +46,60 @@ export function holdToEnd(points, timeline = []) {
   return end != null && end > points.at(-1).t + 60 ? [...points, { ...points.at(-1), t: end, held: true }] : points;
 }
 
-// Each side's colour on the chart: its own, else its second when the two
-// are too alike to tell apart (two reds) or it would vanish (near black or
-// white). Colours as '#rrggbb'; null where a side has none.
+// Each side's colour on the chart, readable on the card it's drawn on
+// (`bg`, the card's colour) and told apart from the other side's. Each side
+// tries its colours readable as they are (its own, then its second), then
+// one made readable: too close to the card (the Padres' brown, the Brewers'
+// navy on a dark card), lightened (on a dark card) or darkened (on a light
+// one) in its own hue until it stands out. The first pair, in that order, far enough apart wins (two
+// yellows aren't; brown and navy, made readable, are). Colours as
+// '#rrggbb'; null where a side has none.
 const rgb = c => (/^#?[0-9a-f]{6}$/i.test(c || '') ? [0, 2, 4].map(i => parseInt(c.replace('#', '').slice(i, i + 2), 16)) : null);
-const lum = ([r, g, b]) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+const hex = c => `#${c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
+// WCAG's relative luminance and contrast.
+const lin = v => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const lum = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+export const contrast = (a, b) => {
+  const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+  return (x + 0.05) / (y + 0.05);
+};
 const apart = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-const usable = c => rgb(c) && lum(rgb(c)) > 0.07 && lum(rgb(c)) < 0.93;
-export function sideColors(home, away) {
-  const pick = s => [s?.color, s?.alt].find(usable) || null;
-  const h = pick(home);
-  let a = pick(away);
-  if (h && a && apart(rgb(h), rgb(a)) < 90) a = [away?.alt, away?.color].find(c => usable(c) && apart(rgb(c), rgb(h)) >= 90) || null;
-  return { home: h, away: a };
+// A line and its shading need 3:1 against the card (WCAG's for graphics).
+const READABLE = 3;
+// HSL, to lighten or darken a colour and keep its hue (mixing in white greys it).
+function toHsl([r, g, b]) {
+  [r, g, b] = [r / 255, g / 255, b / 255];
+  const [max, min] = [Math.max(r, g, b), Math.min(r, g, b)];
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h / 6, l > 0.5 ? d / (2 - max - min) : d / (max + min), l];
+}
+function fromHsl([h, s, l]) {
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const f = t => ((t = (t + 1) % 1), t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p);
+  return [f(h + 1 / 3), f(h), f(h - 1 / 3)].map(v => v * 255);
+}
+export function readableOn(c, bg = '#ffffff') {
+  const [col, back] = [rgb(c), rgb(bg) || [255, 255, 255]];
+  if (!col) return null;
+  const [h, sat, l] = toHsl(col);
+  const step = lum(back) < 0.18 ? 0.025 : -0.025;
+  for (let x = l; x >= 0 && x <= 1; x += step) {
+    const c2 = fromHsl([h, sat, x]);
+    if (contrast(c2, back) >= READABLE) return hex(c2);
+  }
+  return null;
+}
+export function sideColors(home, away, bg = '#ffffff') {
+  // A colour readable as it is first (Newcastle's light blue before its black lightened), then made readable.
+  const ok = c => rgb(c) && contrast(rgb(c), rgb(bg) || [255, 255, 255]) >= READABLE;
+  const tries = s => [...new Set([...[s?.color, s?.alt].filter(ok), ...[s?.color, s?.alt].map(c => readableOn(c, bg))].filter(Boolean).map(c => c.toLowerCase()))];
+  const [hs, as] = [tries(home), tries(away)];
+  for (const h of hs) for (const a of as) if (apart(rgb(h), rgb(a)) >= 90) return { home: h, away: a };
+  return { home: hs[0] || null, away: hs.length ? null : as[0] || null };
 }
 
 export function lineXs(points, timeline = []) {

@@ -805,7 +805,8 @@ function winProbCard(line, e, timeline, events = []) {
   // Each side in its own colour: the home side's chance above the middle in
   // its colour, the away side's below in theirs (the app's colour, and a grey,
   // where a team has none).
-  const tint = sideColors(e.home, e.away);
+  // On the card as it's drawn now (light or dark).
+  const tint = sideColors(e.home, e.away, getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff');
   const homeC = tint.home || 'var(--accent)';
   const awayC = tint.away || 'var(--q-text-2)';
   const sideC = s => (s === 'home' ? homeC : awayC);

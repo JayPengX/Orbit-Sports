@@ -148,8 +148,15 @@ export function logo(url, name, cls = '') {
     const flag = countryFlag(name);
     return flag ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: flag }) : el('span', { class: `logo logo-fallback ${cls}`, 'aria-hidden': 'true', text: (name || '?').trim().slice(0, 1) });
   };
-  return logoPicture(smallPhoto(freshHeadshot(url)), null, `logo ${cls}`, fallback);
+  return logoPicture(smallPhoto(freshHeadshot(url)), darkLogo(url), `logo ${cls}`, fallback);
 }
+// A team logo's version for a dark screen (ESPN's 500-dark, NBA.com's D): the
+// Padres' brown or the Yankees' navy mark doesn't vanish on a dark card.
+export const darkLogo = url =>
+  typeof url !== 'string' ? null
+  : /^https:\/\/a\.espncdn\.com\/i\/teamlogos\/(?!countries\/)[a-z0-9-]+\/500\//.test(url) ? url.replace('/500/', '/500-dark/')
+  : /^https:\/\/cdn\.nba\.com\/logos\/nba\/.+\/primary\/L\/logo\.svg$/.test(url) ? url.replace('/primary/L/', '/primary/D/')
+  : null;
 // A race weekend's country flag, the emoji if the picture fails.
 export const raceFlag = (e, cls = '') => (e?.country ? logoPicture(flagUrl(e.country), null, `race-flag ${cls}`.trim(), () => el('span', { class: `race-flag emoji ${cls}`.trim(), 'aria-hidden': 'true', text: flagEmoji(e.country) })) : null);
 // A person (a player, a driver): their studio headshot (the feed's, ESPN's by

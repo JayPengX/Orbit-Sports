@@ -142,11 +142,16 @@ test("a market that stopped trading early (Coventry 0–3 Arsenal, its last pric
   assert.equal(holdToEnd(plays, timeline), plays);
 });
 
-test("each side in its colour; the away side's second colour when the two are alike, none when it would vanish", () => {
-  assert.deepEqual(sideColors({ color: '#ef0107' }, { color: '#6cabdd' }), { home: '#ef0107', away: '#6cabdd' });
-  // Arsenal against Liverpool: two reds, so Liverpool's second.
-  assert.deepEqual(sideColors({ color: '#ef0107', alt: '#ffffff' }, { color: '#d00027', alt: '#00b2a9' }), { home: '#ef0107', away: '#00b2a9' });
-  // Black (Newcastle's) is its second colour; with none usable, null (the app's colour stands in).
-  assert.equal(sideColors({ color: '#000000', alt: '#41b6e6' }, {}).home, '#41b6e6');
-  assert.equal(sideColors({ color: '#000000' }, {}).home, null);
+test("each side in its colour, readable on the card and told apart from the other's", () => {
+  assert.deepEqual(sideColors({ color: '#ef0107' }, { color: '#1c64b4' }), { home: '#ef0107', away: '#1c64b4' });
+  // Arsenal against Liverpool: two reds, so Liverpool's second (darkened a little to read on white).
+  assert.deepEqual(sideColors({ color: '#ef0107', alt: '#ffffff' }, { color: '#d00027', alt: '#00b2a9' }), { home: '#ef0107', away: '#00a59d' });
+  // Newcastle's black on a dark card: its light blue, as it is.
+  assert.equal(sideColors({ color: '#000000', alt: '#41b6e6' }, {}, '#1c1c1e').home, '#41b6e6');
+  // Padres against Brewers on a dark card: brown and navy vanish, two golds can't be told apart, so gold and a lightened navy.
+  const [sd, mil] = [{ color: '#2f241d', alt: '#ffc425' }, { color: '#13294b', alt: '#ffc72c' }];
+  assert.deepEqual(sideColors(sd, mil, '#1c1c1e'), { home: '#ffc425', away: '#2f66bb' });
+  // On a light card the Padres' brown reads as it is.
+  assert.equal(sideColors(sd, mil, '#ffffff').home, '#2f241d');
+  assert.deepEqual(sideColors({}, {}), { home: null, away: null });
 });
