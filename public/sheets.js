@@ -1,7 +1,7 @@
 // Orbit Sports' sheets: a match (header, then its data by section), a
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
-import { translate } from '#kit/quadra.mjs';
+import { translate, workerJson } from '#kit/quadra.mjs';
 import { splitName } from './lib/compname.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
@@ -384,6 +384,25 @@ function freshNews(stories, league = '') {
     { sub: dayLabel(localDate(st.at)) }
   );
 }
+
+// 最新動態 by Gemini (Shared-Proxy latest.js): the Worker reads ESPN's recent
+// stories about them, Gemini picks the one that matters and writes it in
+// Chinese. { headline, points, at } a card; { none } nothing worth a card;
+// anything else (the day's budget spent, a failure, English): the app's own
+// rule-based card instead.
+function askLatest(league, kind, id, { team = '', name = '', zh = '' } = {}) {
+  if (L() === 'en' || !id) return Promise.resolve(null);
+  const q = new URLSearchParams({ league, kind, id: String(id), ...(team ? { team: String(team) } : {}), ...(name ? { name } : {}), ...(zh ? { zh } : {}) });
+  return workerJson('/latest', q.toString(), { timeout: 6000 });
+}
+const aiCard = ai =>
+  card(
+    '最新動態',
+    el('div', { class: 'player-note' }, [el('strong', { class: 'note-head', text: ai.headline }), ai.points?.length ? el('ul', { class: 'note-points' }, ai.points.map(p => el('li', { text: p }))) : null]),
+    { sub: dayLabel(localDate(ai.at)) }
+  );
+// Gemini's card, none, or the rule-based one (`rule`, a node or null).
+const latestCard = (ai, rule) => (ai?.headline ? aiCard(ai) : ai?.none ? null : rule);
 
 // A side's row in the league's table: [place, row, group size]; none before the table's first game.
 function placeOf(groups, id) {
@@ -1382,8 +1401,8 @@ export async function openTeam(league, id, fallback = {}) {
   const en = L() === 'en';
   const W = (zh, eng) => (en ? eng : zh);
   try {
-    const [info, sched, groups, teamNews = []] = espn
-      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null, news(league, { team: id }).catch(() => [])])
+    const [info, sched, groups, teamNews = [], aiTeam = null] = espn
+      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null, news(league, { team: id }).catch(() => []), team(league, id).then(i => askLatest(league, 'team', id, { name: i.en || i.name, zh: i.name })).catch(() => null)])
       : await ownTeam(league, id, fallback);
     // 最新動態: a recent story about the club itself (storyAboutTeam), not its games.
     const stories = newsAbout([teamNews], { team: id }).filter(st => storyAboutTeam(st, { en: info.en || info.name, enShort: info.enShort, sport: LEAGUES[league]?.sport }));
@@ -1483,7 +1502,7 @@ export async function openTeam(league, id, fallback = {}) {
         followBtn
       ]),
       strip,
-      freshNews(stories, league),
+      latestCard(aiTeam, freshNews(stories, league)),
       nextCard,
       tabsBox,
       body
@@ -1664,7 +1683,7 @@ export async function openPlayer(league, id, fallback = {}) {
     const sport = LEAGUES[league]?.sport;
     // This season, from the league's own tables and results (ESPN's player
     // card has little for drivers): the championship and each race.
-    const [a, ov, table, races, official, leagueNews, clubNews] = await Promise.all([
+    const [a, ov, table, races, official, leagueNews, clubNews, ai] = await Promise.all([
       athlete(league, id),
       athleteOverview(league, id).catch(() => null),
       sport === 'racing' && LEAGUES[league].standings ? standings(league).catch(() => null) : null,
@@ -1673,7 +1692,8 @@ export async function openPlayer(league, id, fallback = {}) {
       league === 'f1' ? athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })).catch(() => null) : null,
       // Their news: the league's stories and their team's, those naming them.
       news(league).catch(() => []),
-      individual(league) ? [] : athlete(league, id).then(x => (x.teamId ? news(league, { team: x.teamId }) : [])).catch(() => [])
+      individual(league) ? [] : athlete(league, id).then(x => (x.teamId ? news(league, { team: x.teamId }) : [])).catch(() => []),
+      athlete(league, id).then(x => askLatest(league, 'player', id, { team: x.teamId, name: x.name, zh: league === 'f1' ? f1Driver(x.name).zh : '' })).catch(() => null)
     ]);
     // Only stories about them (their name in the headline), for 最新動態.
     const stories = newsAbout([leagueNews, clubNews], { athletes: [id] }).filter(st => storyAbout(st, a.name));
@@ -1796,7 +1816,8 @@ export async function openPlayer(league, id, fallback = {}) {
     const racing = sport === 'racing';
     const overview = keep([
       // One 最新動態: ESPN's note on them, or a newer story about them.
-      noteCard && !(stories[0] && Date.parse(ov.note.date || 0) < stories[0].at) ? noteCard : freshNews(stories, league) || noteCard,
+      // One 最新動態: Gemini's pick of their stories, or ESPN's own note when that's newer (the rule-based card without Gemini).
+      ai?.headline && !(noteCard && Date.parse(ov.note.date || 0) > ai.at) ? aiCard(ai) : ai?.none ? noteCard : noteCard && !(stories[0] && Date.parse(ov.note.date || 0) < stories[0].at) ? noteCard : freshNews(stories, league) || noteCard,
       og.season
         ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...og.season.map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
         : null,
@@ -1909,7 +1930,7 @@ export async function openConstructor(row) {
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   try {
-    const [table, races, official, f1News] = await Promise.all([standings(league).catch(() => null), seasonEvents(league).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null), news(league).catch(() => [])]);
+    const [table, races, official, f1News, aiTeam] = await Promise.all([standings(league).catch(() => null), seasonEvents(league).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null), news(league).catch(() => []), askLatest(league, 'team', c.name.replace(/[^A-Za-z0-9]+/g, '-'), { name: c.name, zh: c.zh }).catch(() => null)]);
     const og = official?.grids || {};
     const jw = (official?.weekends || []).map(w => ({ ...w, e: eventOfRace(races, w.date) }));
     const groups = table || [];
@@ -1972,7 +1993,7 @@ export async function openConstructor(row) {
         tile(W('分站冠軍', 'Wins'), String(wins)),
         tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
       ]),
-      freshNews(teamStories, league),
+      latestCard(aiTeam, freshNews(teamStories, league)),
       drivers.length
         ? card(
             W('車手', 'Drivers'),
