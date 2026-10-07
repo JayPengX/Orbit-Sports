@@ -670,10 +670,11 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     // The ground, and its city on a line of its own (each said apart: a ground's name never broken by its city's).
     ['📍', T('venue'), d?.venue || e.venue || d?.city ? [d?.venue || e.venue ? zhLater(d?.venue || e.venue) : null, d?.city ? el('small', { class: 'muted venue-city' }, [zhLater(d.city)]) : null].filter(Boolean) : ''],
     exactTv ? null : ['📺', T('tv'), tvOf(e).map(tvName).join('、') || T('noTw')],
-    stageTag(e, L()) ? ['🏅', T('stage'), [stageTag(e, L()), seriesText(e)].filter(Boolean).join(' · ')] : null,
+    // Each part whole on a line ("2-1 領先" never split; a name never broken).
+    stageTag(e, L()) ? ['🏅', T('stage'), joinNodes([stageTag(e, L()), seriesText(e)].filter(Boolean).map(x => el('span', { class: 'nb', text: x })), ' · ')] : null,
     ['🌤', T('weather'), weatherText(d?.weather)],
     ['👥', T('attendance'), d?.attendance ? Number(d.attendance).toLocaleString(L() === 'en' ? 'en-US' : 'zh-TW') : ''],
-    ['🧑‍⚖️', T('officials'), (d?.officials || []).slice(0, 3).join('、')],
+    ['🧑‍⚖️', T('officials'), joinNodes((d?.officials || []).slice(0, 3).map(x => el('span', { class: 'nb', text: x })), '、')],
     // ESPN's note ("ALWC - Game 1") only where the stage tag doesn't already say it.
     ['🏆', T('competition'), joinNodes([leagueName(e.league, L()), stageTag(e, L()) && L() !== 'en' ? '' : zhLater(e.note)], ' · ')]
   ]
@@ -1221,7 +1222,7 @@ function replayLink(e) {
           alt
             ? watchLink(alt, { class: 'replay-link alt' }, [
                 el('img', { class: 'replay-icon', src: './icons/elta.png', alt: '', 'aria-hidden': 'true', width: 40, height: 40 }),
-                el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Channel replay, English' : '頻道回看（英文）' }), el('small', { class: 'one-line', text: en ? `${alt.short.en}: tap the game in its guide` : `${alt.short.zh}・在節目表點這場` })]),
+                el('span', { class: 'yt-text' }, [el('strong', { text: alt.audio === 'en' ? (en ? 'Channel replay, original audio' : '頻道回看（原音）') : en ? 'Channel replay, bilingual' : '頻道回看（雙語）' }), el('small', { class: 'one-line', text: en ? `${alt.short.en}: tap the game in its guide` : `${alt.short.zh}・在節目表點這場` })]),
                 el('span', { class: 'replay-go', text: en ? 'Channel' : '開頻道' })
               ])
             : null
