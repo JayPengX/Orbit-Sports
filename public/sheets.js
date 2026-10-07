@@ -3,7 +3,7 @@
 // standings tables they share with the Standings tab.
 import { translate } from '#kit/quadra.mjs';
 import { splitName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
@@ -11,7 +11,7 @@ import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, neares
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
-import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
+import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag, F1_TEAMS } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
 import { tvOf } from './lib/tv.mjs';
@@ -1382,9 +1382,11 @@ export async function openTeam(league, id, fallback = {}) {
   const en = L() === 'en';
   const W = (zh, eng) => (en ? eng : zh);
   try {
-    const [info, sched, groups] = espn
-      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null])
+    const [info, sched, groups, teamNews = []] = espn
+      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null, news(league, { team: id }).catch(() => [])])
       : await ownTeam(league, id, fallback);
+    // 最新動態: a recent story about the club itself (storyAboutTeam), not its games.
+    const stories = newsAbout([teamNews], { team: id }).filter(st => storyAboutTeam(st, { en: info.en || info.name, enShort: info.enShort, sport: LEAGUES[league]?.sport }));
     const now = Date.now();
     const played = sched.filter(x => x.status.state === 'post' && !x.status.void);
     const past = played.slice(-10).reverse();
@@ -1481,6 +1483,7 @@ export async function openTeam(league, id, fallback = {}) {
         followBtn
       ]),
       strip,
+      freshNews(stories, league),
       nextCard,
       tabsBox,
       body
@@ -1906,7 +1909,7 @@ export async function openConstructor(row) {
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   try {
-    const [table, races, official] = await Promise.all([standings(league).catch(() => null), seasonEvents(league).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null)]);
+    const [table, races, official, f1News] = await Promise.all([standings(league).catch(() => null), seasonEvents(league).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null), news(league).catch(() => [])]);
     const og = official?.grids || {};
     const jw = (official?.weekends || []).map(w => ({ ...w, e: eventOfRace(races, w.date) }));
     const groups = table || [];
@@ -1916,7 +1919,9 @@ export async function openConstructor(row) {
     const lead = teams[0];
     const drivers = (groups.find(g => g.rows.some(r => r.athlete))?.rows || []).map((r, i) => ({ ...r, pos: i + 1 })).filter(r => f1Driver(r.en || r.name).team === c.name);
     const ids = new Set(drivers.map(d => d.id));
-    // Its news: stories naming the team, or either of its drivers.
+    // 最新動態: a recent story about the team itself (its name in the headline), not a race weekend's piece.
+    const f1Team = Object.values(F1_TEAMS).find(t => t.name === c.name);
+    const teamStories = newsAbout([f1News], { named: n => f1Constructor(n).name === c.name }).filter(st => storyAboutTeam(st, { en: c.name, aka: f1Team?.aka || [] }));
     // The team's cars this season (most races first), named as the app names them.
     const carRank = d => {
       const i = drivers.findIndex(x => f1Driver(x.en || x.name).surname === d.familyName);
@@ -1967,6 +1972,7 @@ export async function openConstructor(row) {
         tile(W('分站冠軍', 'Wins'), String(wins)),
         tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
       ]),
+      freshNews(teamStories, league),
       drivers.length
         ? card(
             W('車手', 'Drivers'),

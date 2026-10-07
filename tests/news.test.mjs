@@ -53,3 +53,15 @@ test("最新動態 only from a story about them: their name in the headline, not
   assert.equal(storyAbout({ headline: 'Jaren Jackson Jr. out with ankle injury' }, 'Jaren Jackson Jr.'), true);
   assert.equal(storyAbout({ headline: 'NBA fantasy: Westbrook a sleeper pick' }, 'Russell Westbrook'), false);
 });
+
+test("a team's 最新動態: a story about the club, not its games", async () => {
+  const { storyAboutTeam } = await import('../public/lib/espn.mjs');
+  const city = { en: 'Manchester City', enShort: 'Man City', sport: 'soccer' };
+  assert.equal(storyAboutTeam({ headline: "Man City's 115 charges: verdict expected this month" }, city), true);
+  assert.equal(storyAboutTeam({ headline: 'Arsenal vs. Man City: how to watch, odds' }, city), false);
+  assert.equal(storyAboutTeam({ headline: 'Manchester City player ratings vs Brentford' }, city), false);
+  assert.equal(storyAboutTeam({ headline: 'Haaland scores twice as Man City beat Brentford' }, city), false);
+  assert.equal(storyAboutTeam({ headline: 'Premier League title race: who can stop Arsenal?' }, city), false);
+  assert.equal(storyAboutTeam({ headline: 'Lakers sign veteran guard to one-year deal' }, { en: 'Los Angeles Lakers', sport: 'basketball' }), true);
+  assert.equal(storyAboutTeam({ headline: 'City set to appeal' }, city), false, "'City' alone is too many clubs");
+});

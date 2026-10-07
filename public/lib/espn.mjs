@@ -899,6 +899,8 @@ export function parseTeam(data) {
     id: String(t.id ?? ''),
     name: t.displayName || '',
     short: t.shortDisplayName || t.abbreviation || '',
+    // ESPN's English short name ("Man City"), kept once the Chinese one is in (a story's headline names it).
+    enShort: t.shortDisplayName || '',
     abbr: t.abbreviation || '',
     logo: logoOf(t),
     color: t.color ? `#${t.color}` : null,
@@ -1153,6 +1155,19 @@ export function storyAbout(st, name) {
   if (!words.length) return false;
   const last = words.at(-1);
   return head.includes(words.join(' ')) || (last.length >= 3 && new RegExp(`(^|[^a-z])${last.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z]|$)`).test(head));
+}
+// Whether a story is about this team: its name in the headline (Manchester
+// City, Man City; an American team's nickname alone, Lakers), and not a
+// game's piece (a preview, a report, ratings: the match card has those), nor
+// a schedule, odds, predictions or fantasy one. A takeover, a manager sacked,
+// a case like City's 115 charges: yes.
+const GAME_PIECE = /( vs\.? | v\.? |player ratings|ratings|recap|highlights|lineups?|team news|what we learned|talking points|result|score|beat|beats|draw with|loss to|win over|victory over)/i;
+const US_SPORTS = new Set(['basketball', 'baseball', 'football', 'hockey']);
+export function storyAboutTeam(st, { en = '', enShort = '', sport = '', aka = [] } = {}) {
+  const head = foldName(st?.headline);
+  if (!head || st.video || NOT_ABOUT.test(head) || GAME_PIECE.test(` ${head} `)) return false;
+  const names = [en, enShort, ...aka, US_SPORTS.has(sport) ? String(en).split(' ').at(-1) : ''].map(foldName).filter(n => n.length >= 3);
+  return names.some(n => new RegExp(`(^|[^a-z])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z]|$)`).test(head));
 }
 export function newsAbout(lists, { athletes = [], team = '', named = null } = {}) {
   const ids = new Set(athletes.map(String));
