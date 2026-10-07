@@ -1688,10 +1688,13 @@ function renderScores() {
     strip = dateStrip(sc.date, pickScoresDay, { only, range: sc.range });
     const order = { in: 0, pre: 1, post: 2 };
     const games = [...(sc.byDay.get(sc.date) || [])].sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
-    // The season's stages on show (preseason, playoffs, a cup…), as a filter.
-    const keys = [...new Set((sc.all || []).map(e => stageOf(e).key).filter(Boolean))];
+    // A filter by stage only when this day has games of more than one (a cup
+    // night among regular-season games): the season's preseason and regular
+    // season are never on the same day, so a filter by those picks nothing.
+    const keys = [...new Set(games.map(e => stageOf(e).key).filter(Boolean))];
+    if (!keys.includes(sc.stage)) sc.stage = 'all';
     if (keys.length > 1) {
-      stages = segmented([['all', t('f_all')], ...keys.map(k => [k, stageOf((sc.all || []).find(e => stageOf(e).key === k))[locale === 'en' ? 'en' : 'zh']])], sc.stage, v => ((sc.stage = v), renderScores()), 'scroll stage-filter');
+      stages = segmented([['all', t('f_all')], ...keys.map(k => [k, stageOf(games.find(e => stageOf(e).key === k))[locale === 'en' ? 'en' : 'zh']])], sc.stage, v => ((sc.stage = v), renderScores()), 'scroll stage-filter');
     }
     const shown = sc.stage === 'all' ? games : games.filter(e => stageOf(e).key === sc.stage);
     // A football league's day: its matchweek (第 6 輪, or 第 6–7 輪 across a postponed game).
