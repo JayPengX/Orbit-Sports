@@ -2497,7 +2497,9 @@ function raceBlock(race, g, league, many) {
     const n = z.fight.rows.length;
     const head = z.bottom ? W(`避開${zn}`, `Avoiding ${zn}`) : W(`${zn}之爭`, `Race for ${zn}`);
     const how = W(` ${n} 隊・${z.fight.spread > 0 ? `相差 ${z.fight.spread} 分` : '同分'}`, ` ${n} teams, ${z.fight.spread > 0 ? `${z.fight.spread} pts apart` : 'level'}`);
-    const row = line('medal', `${b(head)}${how}`, z.fight.rows.map(nm).join('、'));
+    const row = line('medal', `${b(head)}${how}`, '');
+    const small = row.querySelector('.race-t small') || row.querySelector('.race-t').appendChild(el('small'));
+    small.replaceChildren(...z.fight.rows.flatMap((r, k) => [k ? document.createTextNode('、') : null, el('span', { class: 'nm-one', text: nm(r) })].filter(Boolean)));
     if (z.color) row.style.setProperty('--zone', z.color);
     row.classList.add('zone', 'fight');
     lines.push(row);
