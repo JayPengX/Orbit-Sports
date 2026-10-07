@@ -908,9 +908,14 @@ export function parseStandings(data, league = null) {
         }
         return league ? localSide(league, row) : row;
       });
-      // ESPN's list can be out of order (MLB's first seed last): by its playoff seed when every team has one.
-      const seeds = node.standings.entries.map(en => Number((en.stats || []).find(x => x.name === 'playoffSeed')?.value));
-      const ordered = seeds.every(n => n > 0) ? rows.map((r, i) => [r, seeds[i]]).sort((x, y) => x[1] - y[1]).map(([r]) => r) : rows;
+      // ESPN's list can be out of order (MLB's first seed last, a Nations
+      // League group's leader last): by its playoff seed when every team has
+      // one, else by the rank it gives each.
+      const stat = name => node.standings.entries.map(en => Number((en.stats || []).find(x => x.name === name)?.value));
+      const seeds = stat('playoffSeed');
+      const ranks = stat('rank');
+      const by = seeds.every(n => n > 0) ? seeds : ranks.every(n => n > 0) ? ranks : null;
+      const ordered = by ? rows.map((r, i) => [r, by[i], i]).sort((x, y) => x[1] - y[1] || x[2] - y[2]).map(([r]) => r) : rows;
       // A championship's rounds (F1's: a column a weekend, its points, blank until counted).
       const rounds = (node.standings.entries[0]?.stats || []).filter(x => /^[A-Z]{3}$/.test(x.abbreviation || '') && /grand prix/i.test(x.displayName || '')).map(x => ({ key: x.abbreviation, name: x.displayName }));
       groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), en: node.name || node.displayName || '', rows: ordered, ...(rounds.length ? { rounds } : {}) });
@@ -918,7 +923,41 @@ export function parseStandings(data, league = null) {
     for (const child of node?.children || []) walk(child);
   };
   walk(data);
-  return groups;
+  return tierZones(groups);
+}
+// A competition's zones said once for all its tiers (the Nations League's:
+// only group A1's rows carry them, each place's for every tier at once, "A:
+// Qualifies for QFs; B-D: Promotion"): each group's place gets the part for
+// its own tier (Group B3's first: Promotion), the colour with it; a place
+// with no part for its tier, none.
+export function tierZones(groups) {
+  const tier = g => /^Group ([A-D])\d/i.exec(g.en || '')?.[1]?.toUpperCase() || '';
+  if (!groups.length || !groups.every(tier)) return groups;
+  const byPlace = [];
+  for (const g of groups) g.rows.forEach((r, i) => r.note && !byPlace[i] && (byPlace[i] = { note: r.note, color: r.color }));
+  if (!byPlace.some(x => x && /\b[A-D](\s*[-,]\s*[A-D])*\s*:/.test(x.note))) return groups;
+  const partFor = (note, t) => {
+    for (const part of note.split(';')) {
+      const m = /^\s*([A-D](?:\s*[-,]\s*[A-D])*)\s*:\s*(.+?)\s*$/i.exec(part);
+      if (!m) continue;
+      const letters = m[1].toUpperCase();
+      const range = /([A-D])\s*-\s*([A-D])/.exec(letters);
+      const has = range ? t >= range[1] && t <= range[2] : letters.split(/\s*,\s*/).includes(t);
+      if (has) return m[2];
+    }
+    return '';
+  };
+  return Object.assign(
+    groups.map(g => ({
+      ...g,
+      rows: g.rows.map((r, i) => {
+        const z = byPlace[i];
+        const note = z ? partFor(z.note, tier(g)) : '';
+        return { ...r, note, color: note ? z.color : '' };
+      })
+    })),
+    { year: groups.year }
+  );
 }
 // A league's tables this season. The array carries the season's year.
 // `season`: a past season's (its year as ESPN numbers it), kept a day.

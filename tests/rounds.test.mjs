@@ -89,3 +89,20 @@ test('search "madrid": Real Madrid placed at once, whatever its many footballers
   await placePlayers(players, new Map(), async () => (asked++, null));
   assert.equal(asked, 6);
 });
+
+test("Nations League tables: rows in ESPN's rank (France first), each tier's own zones from group A1's notes", async () => {
+  const { parseStandings } = await import('../public/lib/espn.mjs');
+  const entry = (id, name, rank, pts, note) => ({ team: { id, displayName: name }, note, stats: [{ name: 'rank', abbreviation: 'R', value: rank, displayValue: String(rank) }, { name: 'points', abbreviation: 'P', value: pts, displayValue: String(pts) }] });
+  const N = { 1: { color: '#81D6AC', description: 'A: Qualifies for QFs; B-D: Promotion' }, 2: { color: '#B5E7CE', description: 'A: Qualifies for QFs; B-D: Promotion playoffs' }, 3: { color: '#FEB4B5', description: 'A, B: Relegation playoffs' }, 4: { color: '#FF7F84', description: 'A, B: Relegation; C: Relegation or playoffs' } };
+  const data = {
+    children: [
+      { name: 'Group A1', standings: { entries: [entry('1', 'Italy', 2, 7, N[2]), entry('2', 'Belgium', 3, 6, N[3]), entry('3', 'Türkiye', 4, 0, N[4]), entry('4', 'France', 1, 10, N[1])] } },
+      { name: 'Group C2', standings: { entries: [entry('5', 'X', 3, 3), entry('6', 'Y', 1, 9), entry('7', 'Z', 2, 6), entry('8', 'W', 4, 0)] } }
+    ]
+  };
+  const [a, c] = parseStandings(data);
+  assert.deepEqual(a.rows.map(r => r.name), ['France', 'Italy', 'Belgium', 'Türkiye']);
+  assert.deepEqual(a.rows.map(r => r.note), ['Qualifies for QFs', 'Qualifies for QFs', 'Relegation playoffs', 'Relegation']);
+  assert.deepEqual(c.rows.map(r => r.note), ['Promotion', 'Promotion playoffs', '', 'Relegation or playoffs']);
+  assert.equal(c.rows[2].color, '');
+});

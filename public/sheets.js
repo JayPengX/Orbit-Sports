@@ -2393,7 +2393,7 @@ const GLYPH = {
   lock: '<rect x="6.5" y="11" width="11" height="8.5" rx="2"/><path d="M9 11V8.5a3 3 0 0 1 6 0V11"/>'
 };
 const glyph = (k, cls = '') => el('span', { class: `race-g ${cls}`.trim(), html: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GLYPH[k]}</svg>` });
-const ZONE_ZH = [[/champions league/i, '歐冠'], [/europa league/i, '歐霸'], [/conference league/i, '歐協聯'], [/relegation play/i, '降級附加賽'], [/relegation/i, '降級'], [/promotion play/i, '升級附加賽'], [/promotion/i, '升級'], [/play-?off/i, '季後賽'], [/play-?in/i, '附加賽']];
+const ZONE_ZH = [[/qualif\w* for (the )?(qfs?|quarter-?finals?)/i, '晉級八強'], [/relegation or play-?offs?/i, '降級或附加賽'], [/champions league/i, '歐冠'], [/europa league/i, '歐霸'], [/conference league/i, '歐協聯'], [/relegation play/i, '降級附加賽'], [/relegation/i, '降級'], [/promotion play/i, '升級附加賽'], [/promotion/i, '升級'], [/play-?off/i, '季後賽'], [/play-?in/i, '附加賽']];
 const zoneName = n => (L() === 'en' ? n : ZONE_ZH.find(([re]) => re.test(n))?.[1] || n);
 const PLACE = { 1: ['冠軍', 'the title'], 2: ['亞軍', '2nd place'], 3: ['季軍', '3rd place'] };
 function raceBlock(race, g, league, many) {
@@ -2406,9 +2406,11 @@ function raceBlock(race, g, league, many) {
   const lines = [];
   const t = race.title;
   // A cup's league phase has no champion: its first place is said as that.
+  // A table under its own heading (a group, a half, the league phase) is
+  // said plainly: 第一 (the heading says of what), the line kept to one row.
   const phase = Boolean(LEAGUES[league]?.cup) && !many;
-  const top = many ? W(`${g.name}第一`, `top of ${g.en || g.name}`) : phase ? W('聯賽階段第一', 'top of the league phase') : '';
   many = many || phase;
+  const top = many ? W('第一', 'first place') : '';
   const unit = race.unit === 'pts' ? W(' 分', ' pts') : W(' 場', '');
   // Football's rounds as the league counts them: a matchweek league's and a
   // cup's league phase are each side's games (第 N 輪, 第 N 比賽日); MLS's
@@ -2428,7 +2430,7 @@ function raceBlock(race, g, league, many) {
     else {
       const what = many ? W(`確定${top}`, `clinch ${top}`) : W('封王', 'clinch the title');
       const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : W(`最快 ${b(t.soonest)} 場後`, `${b(t.soonest)} game(s) away at the earliest`);
-      lines.push(line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} can ${what}, ${at}`), W(`領先 ${t.gap} 分・還有 ${t.avail} 分可拿`, `${t.gap} pts ahead, ${t.avail} still to win`)));
+      lines.push(line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} can ${what}, ${at}`), t.gap > 0 ? W(`領先 ${t.gap} 分・還有 ${t.avail} 分可拿`, `${t.gap} pts ahead, ${t.avail} still to win`) : W(`與第二名同分・還有 ${t.avail} 分可拿`, `level on points, ${t.avail} still to win`)));
     }
   } else if (t.soonest != null) {
     const second = g.rows[1];
@@ -2498,10 +2500,19 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
               })
             )
           ])
-        ])
+        ]),
+        zoneLegend(g.rows)
       ]);
     })
   );
+}
+// What a table's coloured bars mean (晉級八強, 降級附加賽…), each once, in
+// the order they come down the table.
+function zoneLegend(rows) {
+  const seen = new Map();
+  for (const r of rows) if (r.note && r.color && !seen.has(r.note)) seen.set(r.note, r.color);
+  if (!seen.size) return null;
+  return el('div', { class: 'zone-legend' }, [...seen].map(([note, color]) => el('span', { class: 'zone-key' }, [el('i', { style: `background:${color}`, 'aria-hidden': 'true' }), document.createTextNode(zoneName(note))])));
 }
 
 // ---- A playoff series or a knockout tie: every game of it ---------------------------------
