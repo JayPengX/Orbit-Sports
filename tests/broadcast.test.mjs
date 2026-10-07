@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, inReplay, episodeLabel, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -349,4 +349,13 @@ test("ELTA's league names as it writes them now: UEFA's spelled out, 蘇超 with
   // A conference game that night gets its channels (it got none).
   const brighton = { id: '401915853', league: 'uecl', kind: 'match', start: '2026-10-15T19:00Z', home: { name: '布萊頓' }, away: { name: '考納斯薩爾基里斯' } };
   assert.deepEqual(broadcastsFor(brighton, now, { sides: [['布萊頓'], ['考納斯薩爾基里斯']] }).map(b => b.ch).sort(), [542]);
+});
+
+test("a game ELTA put up twice: the 原音 cut for English, the Chinese one for Chinese", () => {
+  const list = [{ id: '1', title: '9/21 勇士 VS 太空人(原音)' }, { id: '2', title: '9/21 勇士 VS 太空人' }];
+  const e = { league: 'mlb', start: '2026-09-21T00:10:00Z' };
+  const sides = [['休士頓太空人', '太空人'], ['亞特蘭大勇士', '勇士']];
+  assert.equal(eltaEpisode(list, e, sides)?.id, '1');
+  assert.equal(eltaEpisode(list, e, sides, { prefer: 'zh' })?.id, '2');
+  assert.equal(episodeEnglish('9/21 勇士 VS 太空人'), false);
 });

@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson } from '#kit/quadra.mjs';
-import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, inReplay, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, episodeLabel } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, inReplay, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -100,7 +100,7 @@ export const tvKnown = e =>
   e.league === 'mls' ||
   e.league === 'f1' || (e.league === 'nba' && Boolean(nbaSchedule()?.length)) || eltaListed(eltaSchedule() || [], e);
 
-// A finished game again on ELTA.tv: { video, episode } (the game's video in
+// A finished game again on ELTA.tv: { video, episode, alsoChannels? } (the game's video in
 // its league's season), else for 48 hours from its start { channels } (the
 // channels it was on, for their 回看: no link starts a past program, ELTA
 // plays it from the channel's guide), then the season's page while it isn't
@@ -119,10 +119,15 @@ export async function replayOf(e, now = Date.now()) {
   const episodes = await proxyJson(eltaVodUrl(vod), { ttl: 30 * 60_000 })
     .then(d => d?.episodes || [])
     .catch(() => []);
-  const episode = eltaEpisode(episodes, e, sides);
+  const episode = eltaEpisode(episodes, e, sides, { prefer: prefer() });
   // Its video already up (the NBA's, 歐國聯's, the next day) plays the game
   // at once; else its channels' 回看 while they have it.
   if (!episode && replay) return { channels };
   const video = { svc: 'elta', zh: '愛爾達 ELTA.tv', en: 'ELTA.tv', short: { zh: '愛爾達', en: 'ELTA' }, url: eltaVodUrl(vod, episode?.id), app: eltaVodApp(vod, episode?.id) };
-  return { video, episode: episode && { ...episode, label: episodeLabel(episode.title) } };
+  // A video without the commentary the person likes (Chinese only, the 原音
+  // not up) while a channel's 回看 has it (a 體育台's English on the second
+  // track): that too.
+  const english = episode && episodeEnglish(episode.title);
+  const also = replay && episode && prefer() !== 'zh' && !english ? channels.filter(b => hasAudio(b, 'en')) : [];
+  return { video, episode: episode && { ...episode, label: episodeLabel(episode.title), english }, ...(also.length ? { alsoChannels: also } : {}) };
 }

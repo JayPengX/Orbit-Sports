@@ -1209,11 +1209,24 @@ function replayLink(e) {
       const sub = r.channels
         ? en ? `${b.short.en}: tap the game in its guide` : `${b.short.zh}・在節目表點這場`
         : r.episode
-          ? `${en ? 'ELTA.tv' : '愛爾達'}・${r.episode.label}`
+          ? `${r.episode.label}${r.alsoChannels ? (en ? ' (Chinese)' : '（中文）') : ''}`
           : en ? 'ELTA.tv: not up yet (days to weeks), or not shown' : '愛爾達・這場還沒上架（數天到數週）或沒有轉播';
       put(text, el('strong', { text: r.channels ? (en ? 'Replay on the channel' : '頻道回看') : en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: sub }));
       body[2].textContent = r.channels ? (en ? 'Channel' : '開頻道') : en ? 'Watch' : '觀看';
-      out.replaceWith(watchLink(b, { class: 'replay-link' }, body));
+      // The video only in Chinese, the English on a channel's 回看 for 48 hours: that too.
+      const alt = r.alsoChannels?.[0];
+      out.replaceWith(
+        ...[
+          watchLink(b, { class: 'replay-link' }, body),
+          alt
+            ? watchLink(alt, { class: 'replay-link alt' }, [
+                el('img', { class: 'replay-icon', src: './icons/elta.png', alt: '', 'aria-hidden': 'true', width: 40, height: 40 }),
+                el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Channel replay, English' : '頻道回看（英文）' }), el('small', { class: 'one-line', text: en ? `${alt.short.en}: tap the game in its guide` : `${alt.short.zh}・在節目表點這場` })]),
+                el('span', { class: 'replay-go', text: en ? 'Channel' : '開頻道' })
+              ])
+            : null
+        ].filter(Boolean)
+      );
     })
     .catch(() => out.remove());
   return out;

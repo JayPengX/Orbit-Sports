@@ -349,7 +349,9 @@ function episodeParts(title) {
 // null: its two sides fitting best, on its day (Taiwan's, a day either side:
 // ELTA dates the broadcast), not a 數據視角 or 精華 cut. One with no day
 // counts only when it's the only one that fits.
-export function eltaEpisode(episodes, e, sides) {
+// `prefer`: the commentary the person likes ('en': the 原音 cut of a game
+// ELTA put up twice, its own Chinese one otherwise).
+export function eltaEpisode(episodes, e, sides, { prefer = 'en' } = {}) {
   if (!episodes?.length || !e) return null;
   const tw = new Date(Date.parse(e.start) + 8 * 3_600_000);
   const dateless = episodes.filter(x => !episodeParts(x.title).day).length * 2 >= episodes.length;
@@ -369,7 +371,7 @@ export function eltaEpisode(episodes, e, sides) {
     // A title with no day only in a season ELTA mostly writes so (UEFA's);
     // in a dated one (MLB's) it's a stray, never a game's.
     .filter(x => x.day || dateless)
-    .sort((a, b) => a.off - b.off || b.fit - a.fit);
+    .sort((a, b) => a.off - b.off || b.fit - a.fit || (prefer === 'zh' ? -1 : 1) * (episodeEnglish(b.x.title) - episodeEnglish(a.x.title)));
   if (!fits.length) return null;
   // As close and as good a fit for two other sides (a title with no day, the
   // same pair met twice): not said which. The same game again (原音 and not) is fine.
@@ -380,6 +382,10 @@ export function eltaEpisode(episodes, e, sides) {
   if (!best.day && fits.some(x => x !== best && !x.day && pair(x) === pair(best) && /第\s*\d+\s*[輪場]|G\d/.test(x.x.title) && bare(x) !== bare(best))) return null;
   return best.x;
 }
+// Whether an episode has the original commentary: a whole game's video has
+// one sound, ELTA's Chinese unless it says 原音 (a 體育台's second English
+// track isn't in it: for that, its 48 hours of 回看).
+export const episodeEnglish = title => /原音|英文|English/i.test(title || '');
 // An episode's title for a row, from its first side on (the league and the
 // day are the row's already): "克羅埃西亞 VS 英格蘭 第3輪(原音)".
 export function episodeLabel(title) {

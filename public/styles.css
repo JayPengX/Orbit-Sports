@@ -836,6 +836,12 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .replay-icon { flex: none; width: 40px; height: 40px; border-radius: 10px; display: block; }
 .replay-go { flex: none; padding: 7px 12px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 800; white-space: nowrap; }
 .replay-link.wait { opacity: 0.6; }
+/* The channel's 回看 beside a video in Chinese only: the same row, quieter. */
+.replay-link.alt { padding: 9px 14px; background: var(--q-surface); }
+.replay-link.alt .replay-icon { width: 32px; height: 32px; border-radius: 8px; margin: 0 4px; }
+.replay-link.alt .replay-go { background: none; color: var(--accent); padding: 7px 0; }
+.replay-link + .replay-link { margin-top: -4px; }
+.stack > .replay-link + .replay-link { margin-top: 0; }
 .replay-link.wait .replay-go { visibility: hidden; }
 .driver-badge.xs { font-size: 0; }
 /* An F1 team: its white logo on its colour. */
