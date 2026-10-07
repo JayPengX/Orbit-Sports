@@ -1216,3 +1216,6 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .fg-off { width: 44px; height: 44px; border: 0; background: none; color: #d4a017; font-size: 18px; cursor: pointer; }
 
 /* News (sheets.js newsCard): a story a row, its picture, headline, summary and age. */
+
+/* 最新動態's place while nothing is known (most sheets, a quiet day): no room taken. */
+.latest-slot:empty { display: none; }

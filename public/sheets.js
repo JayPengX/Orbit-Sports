@@ -1,7 +1,7 @@
 // Orbit Sports' sheets: a match (header, then its data by section), a
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
-import { translate, workerJson } from '#kit/quadra.mjs';
+import { translate, workerLines } from '#kit/quadra.mjs';
 import { splitName } from './lib/compname.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
@@ -396,8 +396,9 @@ function freshNews(stories, league = '') {
 // opening a sheet again asks nothing (an update to the app forgets them all:
 // the new version's answers at once). Older than that, the kept one shows at
 // once and a new one is fetched for the next opening (never swapped in
-// under a finger); none kept: the card's shape while it's written, the
-// first time. English (no Gemini), or Gemini down: ESPN's own word (`now`).
+// under a finger); none kept: nothing until the Worker says it's writing a
+// card (then its shape), so a sheet with no news never shows a loader.
+// English (no Gemini), or Gemini down: ESPN's own word (`now`).
 const LATEST_KEY = 'fx.latest.v1';
 const LATEST_FRESH_MS = 30 * 60_000;
 const latestMemo = () => {
@@ -420,9 +421,10 @@ function rememberLatest(k, sent, answer) {
   }
 }
 // One ask per body a session (a card or none; a failure asked again).
+// `writing`: told when the Worker starts writing a card (Gemini asked).
 const latestAsked = new Map();
-function askLatest(body) {
-  if (!latestAsked.has(body)) latestAsked.set(body, workerJson('/latest', 'k=1', { body, timeout: 15000 }).then(r => (r?.headline || r?.none ? r : (latestAsked.delete(body), null))));
+function askLatest(body, writing = () => {}) {
+  if (!latestAsked.has(body)) latestAsked.set(body, workerLines('/latest', 'stream=1', { body, timeout: 20000, onLine: x => x?.writing && writing() }).then(r => (r?.headline || r?.none ? r : (latestAsked.delete(body), null))));
   return latestAsked.get(body);
 }
 const latestNote = (headline, points, sub) =>
@@ -438,9 +440,10 @@ function latestSlot(league, kind, id, { name = '', zh = '', team = '', facts = [
   const known = memo?.sent === sent && memo.build === BUILD() ? memo : null;
   if (known && Date.now() - known.at < LATEST_FRESH_MS) return aiCard(known.answer);
   const body = JSON.stringify({ league, kind, id: String(id), team: String(team || ''), name, zh, facts, report });
-  const asked = askLatest(body).then(a => (a && rememberLatest(k, sent, a), a));
+  // Nothing shown until there's something: the shape only once a card is being written.
+  const box = el('div', { class: 'latest-slot' });
+  const asked = askLatest(body, () => !known && !box.firstChild && put(box, latestShape())).then(a => (a && rememberLatest(k, sent, a), a));
   if (known) return aiCard(known.answer);
-  const box = el('div', { class: 'latest-slot' }, [latestShape()]);
   asked.then(a => put(box, fadeIn(a ? aiCard(a) : now)));
   return box;
 }
