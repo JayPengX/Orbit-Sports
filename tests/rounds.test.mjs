@@ -122,3 +122,11 @@ test("a table's zones each read their own name (MLS's round one and wild card, a
   }
   assert.equal(zoneName('Qualifies for MLS Cup Playoffs - Wild Card Matches'), '季後賽外卡');
 });
+
+test("a table dims a side only when it can't reach a good zone (MLS's 10th can still make the wild card)", async () => {
+  const { goodZoneReach } = await import('../public/sheets.js');
+  const rows = n => Array.from({ length: 15 }, (_, i) => ({ note: i < 7 ? 'Qualifies for MLS Cup Playoffs - Round One Best-of-3 series' : i < n ? 'Qualifies for MLS Cup Playoffs - Wild Card Matches' : '' }));
+  assert.equal(goodZoneReach(rows(9)), 9);
+  assert.equal(goodZoneReach([{ note: 'Champions League' }, { note: '' }, { note: 'Relegation' }]), 1);
+  assert.equal(goodZoneReach([{ note: '' }, { note: '' }]), 1);
+});

@@ -2500,7 +2500,11 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
       const race = races[groups.indexOf(g)];
       // A lock on a settled place (not when the whole table is: the season's over).
       const settled = new Set(race && race.rows.some(x => !x.settled) ? race.rows.filter(x => x.settled).map(x => x.id) : []);
-      const out = new Set(race ? race.rows.filter(x => x.best > 1 && !race.title.done).map(x => x.id) : []);
+      // Dimmed: a side that can't reach anything left to play for: the
+      // lowest place with a good zone (playoffs, Europe, promotion: MLS's
+      // 9th, the wild card), else the top (a table without zones).
+      const reach = goodZoneReach(g.rows);
+      const out = new Set(race ? race.rows.filter(x => x.best > reach && (reach > 1 || !race.title.done)).map(x => x.id) : []);
       return el('div', { class: 'q-card pad fx-card' }, [
         g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
         raceBlock(race, g, league, many),
@@ -2529,6 +2533,15 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
       ]);
     })
   );
+}
+// The lowest place a table's good zones reach (its last row with a zone
+// that isn't relegation or elimination), 1 when it has none.
+export function goodZoneReach(rows) {
+  let reach = 1;
+  rows.forEach((r, i) => {
+    if (r.note && !/relegat|eliminat/i.test(r.note)) reach = i + 1;
+  });
+  return reach;
 }
 // What a table's coloured bars mean (晉級八強, 降級附加賽…), each once, in
 // the order they come down the table.
