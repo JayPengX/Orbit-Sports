@@ -54,12 +54,20 @@ export function twSource(exact, en) {
 // covers a game's day, a game on ELTA shows the channel it's on, and a game it
 // doesn't carry isn't said to be on ELTA.
 export const ELTA_LIST = 'https://piceltaott-elta.cdn.hinet.net/production/json/program_list/sports_live_program_list.json';
-// ELTA's league names (its English one, else its Chinese one: 蘇超 has no
-// English name) → Orbit Sports' leagues.
+// ELTA's league names → Orbit Sports' leagues, by its English name or its
+// Chinese one, either way it writes them: it renames them now and then (UCL
+// became "UEFA Champions League", UECL "UEFA Conference League"; 蘇超 had no
+// English name, then "Scottish Premiership"), so a leading UEFA and the case
+// don't count, the old names stay, and the Chinese one stands in.
 const ELTA_LEAGUE = {
-  MLB: 'mlb', CPBL: 'cpbl', NBA: 'nba', 'Premier League': 'epl', 'Serie A': 'seriea', Bundesliga: 'bundesliga', 'Ligue 1': 'ligue1',
-  UCL: 'ucl', UEL: 'uel', UECL: 'uecl', 蘇超: 'scotland', 'FA Cup': 'facup', 英足總盃: 'facup', 'UEFA Nations League': 'nationsleague', F1: 'f1'
+  mlb: 'mlb', cpbl: 'cpbl', nba: 'nba', 'premier league': 'epl', 'serie a': 'seriea', bundesliga: 'bundesliga', 'ligue 1': 'ligue1',
+  ucl: 'ucl', 'champions league': 'ucl', uel: 'uel', 'europa league': 'uel', uecl: 'uecl', 'conference league': 'uecl', 'europa conference league': 'uecl',
+  'scottish premiership': 'scotland', 'fa cup': 'facup', 'nations league': 'nationsleague', f1: 'f1', 'formula 1': 'f1',
+  中華職棒: 'cpbl', 英超: 'epl', 義甲: 'seriea', 德甲: 'bundesliga', 法甲: 'ligue1', 歐冠: 'ucl', 歐霸: 'uel', 歐會: 'uecl', 歐協聯: 'uecl',
+  蘇超: 'scotland', 英足總盃: 'facup', 足總盃: 'facup', 歐國聯: 'nationsleague'
 };
+const leagueKeyOf = name => String(name || '').trim().replace(/^uefa\s*/i, '').trim().toLowerCase();
+export const eltaLeague = (...names) => names.map(n => ELTA_LEAGUE[leagueKeyOf(n)]).find(Boolean) || null;
 // Its channels: the four 體育台 (with ads), the ten MAX (no ads) and MOD's
 // own 980s (its add-on sports channels: not streamed, so never shown).
 export function eltaChannel(n) {
@@ -119,10 +127,10 @@ export function channelRank(c, prefer = 'en') {
 export function parseElta(data) {
   const raw = Array.isArray(data?.programs)
     ? data.programs
-    : Object.entries(data?.calendar || {}).flatMap(([d, list]) => (Array.isArray(list) ? list : []).map(p => ({ d, s: p.start_time, e: p.end_time, ch: p.channel_number, g: p.game_type_en || p.game_type, t: p.program_desc })));
+    : Object.entries(data?.calendar || {}).flatMap(([d, list]) => (Array.isArray(list) ? list : []).map(p => ({ d, s: p.start_time, e: p.end_time, ch: p.channel_number, g: p.game_type_en || p.game_type, z: p.game_type, t: p.program_desc })));
   const out = [];
   for (const p of raw) {
-    const league = ELTA_LEAGUE[p.g];
+    const league = eltaLeague(p.g, p.z);
     // Live only: not a delayed showing (D-LIVE) or the children's version (Kids).
     if (!league || !p.s || !/\bLIVE\b/i.test(p.t || '') || /D-LIVE/i.test(p.t || '') || /^\s*Kids\b/i.test(p.t || '')) continue;
     // "海盜 VS 老虎 李灝宇先發… 例行賽 9/27(原音) LIVE": the two sides before the details.
@@ -262,12 +270,22 @@ export function nbaEltaGame(games, e, ids) {
 // MLS. Each one exact to the game has `exact` (a row's 📺 line shows only those).
 // `programs`: parseElta's; `sides`, `others` as for eltaPrograms; `nba`:
 // nbaEltaGames' and the game's NBA.com team ids ({ games, ids }).
+// Whether ELTA's list can say if a game is on: its day within the list, and
+// the list has the game's league that far. ELTA puts a league's games in as
+// it gets to them, UEFA's nights later than the leagues' weekends (歐冠 on
+// 10/21 not in yet while 英超 on 10/18 is): before that a game of it isn't
+// "not on ELTA", its channel just isn't known.
+export function eltaListed(programs, e) {
+  const days = programs?.length ? eltaDays(programs) : null;
+  if (!days || !e) return false;
+  const start = Date.parse(e.start);
+  const day = new Date(start + 8 * 3_600_000).toISOString().slice(0, 10);
+  return day >= days.from && day <= days.to && programs.some(p => p.league === e.league && p.start >= start - 30 * 60_000);
+}
 export function broadcastsFor(e, programs, { sides = [], others = [], prefer = 'en', nba = null, sidesOf = null } = {}) {
   const base = broadcastsOf(e.league);
   if (base[0]?.svc !== 'elta') return base;
-  const days = programs?.length ? eltaDays(programs) : null;
-  const day = new Date(Date.parse(e.start) + 8 * 3_600_000).toISOString().slice(0, 10);
-  const listed = days && day >= days.from && day <= days.to;
+  const listed = eltaListed(programs, e);
   const seen = new Set();
   const channels = listed
     ? eltaPrograms(programs, e, sides, others, sidesOf)

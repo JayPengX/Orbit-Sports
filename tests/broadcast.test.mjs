@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, inReplay, episodeLabel, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, inReplay, episodeLabel, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -227,9 +227,12 @@ test("within ELTA's list, NBA.com's word counts only when ELTA has an NBA game t
   const bos = nba('8', '2026-11-20T00:10Z', 'Boston Celtics', 'Miami Heat');
   const ids = { games, ids: { away: 1610612738, home: 1610612748 } };
   const day = ms => ({ league: 'mlb', start: ms, end: ms + 3_600_000, ch: 101, title: 'x', teams: [], day: '2026-11-20' });
-  // ELTA's list covers the day and has no NBA game then: not on.
-  const covered = [day(Date.parse('2026-11-19T02:00Z')), day(Date.parse('2026-11-21T02:00Z'))];
+  // ELTA's list covers the day, has the NBA's games that far and none then: not on.
+  const later = { ...day(Date.parse('2026-11-21T00:30Z')), league: 'nba', title: '湖人 VS 勇士', teams: ['湖人', '勇士'] };
+  const covered = [day(Date.parse('2026-11-19T02:00Z')), day(Date.parse('2026-11-21T02:00Z')), later];
   assert.deepEqual(on(bos, covered, { nba: ids }), []);
+  // No NBA game in the list that far yet (ELTA hasn't put them in): NBA.com's word stands.
+  assert.equal(on(bos, covered.slice(0, 2), { nba: ids })[0]?.svc, 'elta');
   // It has an NBA game then, written so the names didn't match: NBA.com's word settles it.
   const withNba = [...covered, { ...day(Date.parse('2026-11-20T00:10Z')), league: 'nba', title: '綠衫軍 VS 熱火' }];
   assert.equal(on(bos, withNba, { nba: ids })[0]?.svc, 'elta');
@@ -318,4 +321,32 @@ test("a playoff game not up yet gets no episode: not a September game sharing on
   // Game 3, not up: nothing (it gave 9/27 勇士 VS 馬林魚).
   assert.equal(eltaEpisode(list, game('2026-10-07T00:00:00Z'), sides), null);
   assert.equal(episodeLabel('9/27勇士VS馬林魚(原音)'), '勇士VS馬林魚(原音)');
+});
+
+test("a UEFA night ELTA hasn't put in yet: its games aren't \"not on ELTA\", their channel isn't known", () => {
+  const at = Date.parse('2026-10-21T19:00:00Z');
+  const epl = { league: 'epl', start: at - 3 * 86_400_000, end: at, ch: 544, title: '曼聯 VS 曼城', teams: ['曼聯', '曼城'], day: '2026-10-18' };
+  const tail = { league: 'mlb', start: at + 86_400_000, end: at + 90_000_000, ch: 101, title: 'x', teams: [], day: '2026-10-23' };
+  const ucl = { id: '1', league: 'ucl', kind: 'match', start: new Date(at).toISOString(), home: { name: '拜仁慕尼黑' }, away: { name: '兵工廠' } };
+  const list = [epl, tail];
+  assert.equal(eltaListed(list, ucl), false);
+  assert.deepEqual(broadcastsFor(ucl, list, { sides: [['拜仁慕尼黑'], ['兵工廠']] }).map(b => [b.svc, Boolean(b.exact)]), [['elta', false]]);
+  // Once ELTA has the night (another game of it listed), a game it hasn't is not on.
+  const other = { league: 'ucl', start: at, end: at + 7_200_000, ch: 545, title: 'UEFA 皇家馬德里 VS RB萊比錫', teams: ['皇家馬德里', 'RB萊比錫'], day: '2026-10-22' };
+  assert.equal(eltaListed([...list, other], ucl), true);
+  assert.deepEqual(broadcastsFor(ucl, [...list, other], { sides: [['拜仁慕尼黑'], ['兵工廠']] }), []);
+});
+
+test("ELTA's league names as it writes them now: UEFA's spelled out, 蘇超 with an English name; the old ones still", () => {
+  const now = elta('2026-10-07');
+  const by = l => now.filter(p => p.league === l).length;
+  assert.ok(by('ucl') >= 18 && by('uel') >= 9 && by('uecl') >= 3 && by('scotland') >= 2);
+  assert.equal(now.filter(p => /歐青|U17/.test(p.title)).length, 0);
+  assert.equal(eltaLeague('UEFA Conference League', 'UEFA歐會'), 'uecl');
+  assert.equal(eltaLeague('UECL'), 'uecl');
+  assert.equal(eltaLeague('Something new', 'UEFA歐冠'), 'ucl');
+  assert.equal(eltaLeague('UEFA Youth League', '歐青'), null);
+  // A conference game that night gets its channels (it got none).
+  const brighton = { id: '401915853', league: 'uecl', kind: 'match', start: '2026-10-15T19:00Z', home: { name: '布萊頓' }, away: { name: '考納斯薩爾基里斯' } };
+  assert.deepEqual(broadcastsFor(brighton, now, { sides: [['布萊頓'], ['考納斯薩爾基里斯']] }).map(b => b.ch).sort(), [542]);
 });

@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson } from '#kit/quadra.mjs';
-import { ELTA_LIST, parseElta, eltaDays, nbaEltaGames, broadcastsFor, inReplay, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, episodeLabel } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, inReplay, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, episodeLabel } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -98,7 +98,7 @@ export const tvUntil = () => eltaDays(eltaSchedule() || [])?.to || null;
 // rest within ELTA's list.
 export const tvKnown = e =>
   e.league === 'mls' ||
-  e.league === 'f1' || (e.league === 'nba' && Boolean(nbaSchedule()?.length)) || Boolean(tvUntil() && new Date(Date.parse(e.start) + 8 * 3_600_000).toISOString().slice(0, 10) <= tvUntil());
+  e.league === 'f1' || (e.league === 'nba' && Boolean(nbaSchedule()?.length)) || eltaListed(eltaSchedule() || [], e);
 
 // A finished game again on ELTA.tv: { video, episode } (the game's video in
 // its league's season), else for 48 hours from its start { channels } (the
@@ -110,10 +110,9 @@ export async function replayOf(e, now = Date.now()) {
   const channels = channelsOf(e).filter(b => b.svc === 'elta' && b.ch && !b.mod);
   const replay = channels.length && inReplay(e, now);
   // A time ELTA's list covers (programs from before it: the list keeps only
-  // part of its first day) and no program of it: ELTA didn't show it.
+  // part of its first day; its league's after it) and no program of it: ELTA didn't show it.
   const programs = eltaSchedule() || [];
-  const start = Date.parse(e.start);
-  if (!channels.length && programs.some(p => p.start <= start - 3 * 3_600_000) && programs.some(p => p.start >= start)) return null;
+  if (!channels.length && programs.some(p => p.start <= Date.parse(e.start) - 3 * 3_600_000) && eltaListed(programs, e)) return null;
   const sides = zhSides(e);
   const vod = eltaVodOf(e, sides[0]);
   if (!vod) return replay ? { channels } : null;
