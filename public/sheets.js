@@ -2500,11 +2500,14 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
       const race = races[groups.indexOf(g)];
       // A lock on a settled place (not when the whole table is: the season's over).
       const settled = new Set(race && race.rows.some(x => !x.settled) ? race.rows.filter(x => x.settled).map(x => x.id) : []);
-      // Dimmed: a side that can't reach anything left to play for: the
-      // lowest place with a good zone (playoffs, Europe, promotion: MLS's
-      // 9th, the wild card), else the top (a table without zones).
+      // Dimmed: a side with no chance left at all, its best possible place
+      // (every point it can still win, a tie counted as a chance) below the
+      // lowest good zone (playoffs, Europe, promotion: MLS's 9th, the wild
+      // card). A championship (F1's) by the title; a table without zones
+      // (the season still deciding who's in) never.
       const reach = goodZoneReach(g.rows);
-      const out = new Set(race ? race.rows.filter(x => x.best > reach && (reach > 1 || !race.title.done)).map(x => x.id) : []);
+      const zones = g.rows.some(r => r.note && !/relegat|eliminat/i.test(r.note));
+      const out = new Set(race && (zones || sport === 'racing') ? race.rows.filter(x => x.best > reach && (zones || !race.title.done)).map(x => x.id) : []);
       return el('div', { class: 'q-card pad fx-card' }, [
         g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
         raceBlock(race, g, league, many),
