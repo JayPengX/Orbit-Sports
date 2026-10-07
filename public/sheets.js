@@ -648,11 +648,17 @@ export function highlightsUrl(e) {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(q.replace(/\s+/g, ' ').trim())}`;
 }
 const SESSION_EN = { Race: 'race', Qual: 'qualifying', SR: 'sprint', SS: 'sprint qualifying', SQ: 'sprint qualifying' };
+// YouTube's own play button, drawn in place (nothing to load).
+const ytLogo = () => {
+  const mark = el('span', { class: 'yt-icon', 'aria-hidden': 'true' });
+  mark.innerHTML = '<svg viewBox="0 0 28 20"><path fill="#f00" d="M27.4 3.1A3.5 3.5 0 0 0 25 .6C22.8 0 14 0 14 0S5.2 0 3 .6A3.5 3.5 0 0 0 .6 3.1C0 5.3 0 10 0 10s0 4.7.6 6.9A3.5 3.5 0 0 0 3 19.4C5.2 20 14 20 14 20s8.8 0 11-.6a3.5 3.5 0 0 0 2.4-2.5C28 14.7 28 10 28 10s0-4.7-.6-6.9Z"/><path fill="#fff" d="m11.2 14.3 7.3-4.3-7.3-4.3v8.6Z"/></svg>';
+  return mark;
+};
 function highlights(e) {
   const url = highlightsUrl(e);
   return url
     ? el('a', { class: 'yt-link', href: url, target: '_blank', rel: 'noopener' }, [
-        el('span', { class: 'yt-icon', 'aria-hidden': 'true', text: '▶' }),
+        ytLogo(),
         el('span', { class: 'yt-text' }, [el('strong', { text: L() === 'en' ? 'Highlights' : '精華影片' }), el('small', { text: L() === 'en' ? 'On YouTube' : '在 YouTube 觀看' })]),
         el('span', { class: 'yt-go', text: '›' })
       ])
@@ -1216,14 +1222,11 @@ function playLine(league, p, side) {
 // it's looked for the row is already in its place and look, the same logo
 // staying when it's filled in (no blink, no row popping in).
 const replayKnown = new Map();
-// ELTA's mark (its app's icon) drawn in place, like YouTube's beside it: no
-// picture to load, so it never blinks when a row is drawn.
-const ELTA_MARK = '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" fill="#ff6d00"/><path d="M106.9 391A196.6 196.6 0 1 1 406.6 391" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round"/><path d="M190 147Q172 137 172 158V330Q172 351 190 341L358 254Q376 244 358 234Z" fill="#fff"/><g fill="#fff"><path d="M139 385H197Q201 385 201 389V397Q201 401 197 401H157V412H192V428H157V439H197Q201 439 201 443V451Q201 455 197 455H139Q135 455 135 451V389Q135 385 139 385Z"/><path d="M213 385H227Q231 385 231 389V439H266Q270 439 270 443V451Q270 455 266 455H213Q209 455 209 451V389Q209 385 213 385Z"/><path d="M278 385H340Q344 385 344 389V397Q344 401 340 401H320V451Q320 455 316 455H306Q302 455 302 451V401H278Q274 401 274 397V389Q274 385 278 385Z"/><path d="M371 385H387Q391 385 393 389L420 451Q422 455 417 455H404Q400 455 398 451L379 404L360 451Q358 455 354 455H341Q336 455 338 451L365 389Q367 385 371 385Z"/></g></svg>';
-const eltaLogo = () => {
-  const mark = el('span', { class: 'replay-icon' });
-  mark.innerHTML = ELTA_MARK;
-  return mark;
-};
+// ELTA's mark (its app's icon, as it is) from the stylesheet, not a picture
+// element: decoded once when the app opens (one kept off screen) and every
+// row's the same image already drawn, so it never blinks.
+const eltaLogo = () => el('span', { class: 'replay-icon', 'aria-hidden': 'true' });
+if (typeof document !== 'undefined' && document.body) document.body.append(el('span', { class: 'replay-icon replay-icon-keep', 'aria-hidden': 'true' }));
 function replayRows(e, r, logo = eltaLogo()) {
   const en = L() === 'en';
   const row = (b, title, sub, go, cls, icon) => watchLink(b, { class: `replay-link${cls}` }, [icon, el('span', { class: 'yt-text' }, [el('strong', { text: title }), el('small', { class: 'one-line', text: sub })]), el('span', { class: 'replay-go', text: go })]);
