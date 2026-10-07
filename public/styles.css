@@ -741,7 +741,10 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .mate-grid > strong.mate-win { color: var(--q-text); }
 .mate-grid .mate-k { color: var(--q-text-2); }
 table.game-log td, table.game-log th { white-space: nowrap; }
-table.game-log .opp-cell { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+/* Plain inline with a logo of fixed size: Safari sized an inline-flex cell before the logo loaded, and the result ran over it. */
+table.game-log .opp-cell { display: inline-block; white-space: nowrap; }
+table.game-log .opp-cell > * { vertical-align: middle; }
+table.game-log .opp-cell .logo-wrap, table.game-log .opp-cell .logo { display: inline-block; width: 18px; height: 18px; margin: 0 4px 0 5px; vertical-align: middle; object-fit: contain; }
 table.game-log .result-pill { font-size: 12px; padding: 1px 8px; }
 .award-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .award-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; font-size: 14px; }
@@ -1249,3 +1252,11 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .plays-jump::-webkit-scrollbar { display: none; }
 .plays-jump .q-chip { flex: none; }
 .plays li.period-head { scroll-margin-top: 128px; }
+/* A player's team in their head: its logo and name, a tap to its page. */
+.hero-team { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin: 4px 0 2px; padding: 3px 10px 3px 4px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--hero, var(--q-text)) 16%, var(--q-sunken)); color: var(--q-text); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.hero-team:disabled { cursor: default; }
+.hero-team .logo, .hero-team .logo-wrap { width: 20px; height: 20px; flex: none; object-fit: contain; }
+.hero-team span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.series-text .nb { white-space: nowrap; }
+.venue-city { display: block; margin-top: 2px; font-size: 13px; }
+.rc-bars button.rc-bar { width: 100%; border: 0; background: none; color: inherit; font: inherit; padding: 0; text-align: left; cursor: pointer; }

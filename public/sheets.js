@@ -40,10 +40,11 @@ export function zhLater(text, from = 'auto') {
 const injuryText = s => (L() === 'en' ? s : injuryZh(s) || zhLater(s));
 const weatherText = w => weatherZh(w, L());
 // The last meetings: each side's wins and the draws ("近 5 次交手：利物浦 4 勝、伯恩茅斯 1 勝").
+// Each part kept whole on a line ("和局 1" never split from its number).
 function h2hText({ n, wins, draws }, e) {
   const side = x => (L() === 'en' ? `${x.short || x.name} ${wins[x.id] || 0} won` : `${x.short || x.name} ${wins[x.id] || 0} 勝`);
   const parts = [side(e.away), side(e.home), draws ? (L() === 'en' ? `${draws} drawn` : `和局 ${draws}`) : null].filter(Boolean);
-  return `${L() === 'en' ? `Last ${n} meetings: ` : `近 ${n} 次交手：`}${parts.join(L() === 'en' ? ', ' : '、')}`;
+  return [L() === 'en' ? `Last ${n} meetings: ` : `近 ${n} 次交手：`, ...joinNodes(parts.map(x => el('span', { class: 'nb', text: x })), L() === 'en' ? ', ' : '、')];
 }
 // A series' line in the reader's words (the sides by their names here).
 export function seriesZh(text, e) {
@@ -659,7 +660,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   const exactTv = e.status.state !== 'post' && tvOf(e).some(b => b.exact);
   const info = [
     ['🕒', T('kickoff'), `${dayLabel(localDate(when.getTime()), { long: true })} ${clock(e.start)}`],
-    ['📍', T('venue'), zhLater([d?.venue || e.venue, d?.city].filter(Boolean).join(' · '))],
+    // The ground, and its city on a line of its own (each said apart: a ground's name never broken by its city's).
+    ['📍', T('venue'), d?.venue || e.venue || d?.city ? [d?.venue || e.venue ? zhLater(d?.venue || e.venue) : null, d?.city ? el('small', { class: 'muted venue-city' }, [zhLater(d.city)]) : null].filter(Boolean) : ''],
     exactTv ? null : ['📺', T('tv'), tvOf(e).map(tvName).join('、') || T('noTw')],
     stageTag(e, L()) ? ['🏅', T('stage'), [stageTag(e, L()), seriesText(e)].filter(Boolean).join(' · ')] : null,
     ['🌤', T('weather'), weatherText(d?.weather)],
@@ -690,7 +692,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
           )
         )
       : null,
-    d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', el('p', { class: 'series-text', text: h2hText(d.series[0].h2h, e) })) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) })) : null,
+    d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', el('p', { class: 'series-text' }, h2hText(d.series[0].h2h, e))) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) })) : null,
     d?.injuries.some(i => i.list.length)
       ? card(
           T('injuries'),
@@ -1025,7 +1027,13 @@ function raceChanceCard(line, ss, feed = null) {
         el(
           'div',
           { class: 'rc-bars' },
-          line.drivers.map(d => el('div', { class: 'rc-bar' }, [el('span', { class: 'rc-name' }, [personPic({ name: d.name }, 'f1', 'xs round'), el('span', { text: driverShort(d.name, en) })]), el('span', { class: 'rc-track' }, [el('i', { style: `width:${Math.max(2, d.chance * 100)}%;background:${f1Driver(d.name).color}` })]), el('strong', { class: 'num', text: `${Math.round(d.chance * 100)}%` })]))
+          // Each a tap to the driver's page (the weekend's field, or before it's out, the season's drivers).
+          line.drivers.map(d =>
+            el('button', { class: 'rc-bar', type: 'button', onclick: async () => {
+              const who = fieldDriver(ss.field, d.name) || fieldDriver(await seasonDrivers(), d.name);
+              if (who?.id) ctx.openPlayer('f1', who.id, who);
+            } }, [el('span', { class: 'rc-name' }, [personPic(fieldDriver(ss.field, d.name) || { name: d.name }, 'f1', 'xs round'), el('span', { text: driverShort(d.name, en) })]), el('span', { class: 'rc-track' }, [el('i', { style: `width:${Math.max(2, d.chance * 100)}%;background:${f1Driver(d.name).color}` })]), el('strong', { class: 'num', text: `${Math.round(d.chance * 100)}%` })])
+          )
         )
       ])
     );
@@ -1272,6 +1280,12 @@ export function openFieldEvent(e) {
 // the rest of the app's).
 const plainName = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 // A driver of the session's cars by their name (full, else the family name).
+// The season's drivers (the standings' rows: id, name), once a session: a driver not in a weekend's field yet.
+let seasonDriverList = null;
+const seasonDrivers = () =>
+  (seasonDriverList ||= standings('f1')
+    .then(groups => (groups || []).flatMap(g => g.rows || []).filter(r => r.athlete && r.id).map(r => ({ id: r.id, name: r.en || r.name, headshot: r.logo || null })))
+    .catch(() => ((seasonDriverList = null), [])));
 const fieldDriver = (field = [], full, family = String(full || '').split(' ').slice(1).join(' ') || full) => field.find(x => plainName(x.name) === plainName(full)) || field.find(x => plainName(x.name).endsWith(plainName(family))) || null;
 function f1Row({ pos, posText = '', posOut = false, full, family, team, field, main = '', tags = [], cls = '' }) {
   const en = L() === 'en';
@@ -1908,7 +1922,8 @@ export async function openPlayer(league, id, fallback = {}) {
     // Their last games (team sports): the date, the other side, the result, their numbers.
     const logCard = ov?.log
       ? card(
-          W(`近 ${ov.log.games.length} 場`, `Last ${ov.log.games.length} games`),
+          // Last season's (ESPN's until a player's first game of the new one: April's in October), said to be.
+          Date.now() - (Date.parse(ov.log.games[0]?.date || '') || Date.now()) > 45 * 86_400_000 ? W(`上季最後 ${ov.log.games.length} 場`, `Last season's last ${ov.log.games.length}`) : W(`近 ${ov.log.games.length} 場`, `Last ${ov.log.games.length} games`),
           el('div', { class: 'table-wrap' }, [
             el('table', { class: 'data game-log' }, [
               el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: W('日期', 'Date') }), el('th', { class: 'left', text: W('對手', 'Opp') }), el('th', { class: 'left', text: W('結果', 'Result') }), ...ov.log.labels.map(k => el('th', { class: 'num', title: k, text: sport === 'basketball' && k === 'PTS' && !en ? '得分' : statName(k, L()) }))])]),
@@ -1938,11 +1953,16 @@ export async function openPlayer(league, id, fallback = {}) {
       : null;
     const nextRace = (races || []).find(e => e.status.state !== 'post' && Date.parse(e.end || e.start) > Date.now() - 86_400_000);
     // A player in any league; a team sport's with their team, whose games are theirs.
-        const team = !individual(league) && a.teamId ? { id: String(a.teamId), name: a.team || '' } : null;
+    const team = !individual(league) && a.teamId ? { id: String(a.teamId), name: a.team || '' } : null;
     const followBtn = followButton(() => ctx.isFollowed(league, id), () => ctx.toggleFollow(league, { id, name: a.name || fallback.name, logo: a.headshot || fallback.logo, athlete: true, ...(team ? { team } : {}) }));
     // Their team in the viewer's language (道奇, not "Los Angeles Dodgers" cut to "Los Angel…").
     const teamShown = driver?.team && !en ? f1Constructor(driver.team).zh : a.team && !en ? teamNameZh(LEAGUES[league]?.play || league, a.team, sport)?.short || a.team : a.team || driver?.team;
-    const sub = [a.jersey ? `#${a.jersey}` : '', zhLater(a.position), teamShown || countryName(a.country, L())].filter(Boolean);
+    // Their team at a glance: its logo and name, a tap to its page (a driver's, an individual's: as before).
+    const teamChip =
+      team && teamShown
+        ? el('button', { class: 'hero-team', type: 'button', disabled: hasTeamPage(league) ? null : true, onclick: () => ctx.openTeam(league, team.id, { id: team.id, name: teamShown, logo: a.teamLogo }) }, [a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null, el('span', { text: teamShown })])
+        : null;
+    const sub = [a.jersey ? `#${a.jersey}` : '', zhLater(a.position), teamChip ? '' : teamShown || countryName(a.country, L())].filter(Boolean);
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : a.teamColor;
     const lastFive = weekends.length ? weekends.slice(0, 5).reverse().map(w => ({ name: w.e?.name || w.name, e: w.e, ...finishOf(w.me?.result, en) })) : raceRows.slice(0, 5).reverse().map(r => ({ ...r, text: `P${r.pos}` }));
@@ -2037,6 +2057,7 @@ export async function openPlayer(league, id, fallback = {}) {
           // The name whole (two lines if it needs them); the number with the position under it.
           el('h3', { text: name }),
           name !== a.name ? el('small', { class: 'muted', text: a.name }) : null,
+          teamChip,
           el('p', { class: 'muted' }, joinNodes(sub, ' · ')),
           a.injuries.length ? el('p', { class: 'injury-tag' }, joinNodes(['🩹', ...a.injuries.map(injuryText)], ' ')) : null,
         ]),
