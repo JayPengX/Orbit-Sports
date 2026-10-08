@@ -280,6 +280,27 @@ test('settleSeries: the nightly copy of the days to come, built on with the game
   assert.equal(out.find(e => e.id === '4').stage.round.en, 'ALDS - Game 4');
 });
 
+test("copyBehind: after midnight the game that moved a series on is yesterday's, not read; the nightly copy still read live", async () => {
+  const { copyBehind } = await import('../public/lib/espn.mjs');
+  const built = Date.parse('2026-10-07T21:23Z'); // the copy: during Game 3
+  const now = Date.parse('2026-10-08T16:17Z'); // 00:17 in Taiwan, Game 3 long over
+  const g = (note, wins) => ({ kind: 'match', round: { key: 'QTR' }, note, status: { state: 'pre' }, home: { id: '4' }, away: { id: '5' }, series: { games: 5, wins } });
+  const copy = [g('ALDS - Game 4 If Necessary', { 4: 2, 5: 0 })];
+  // Nothing over seen this session (today's days hold no finished playoff game).
+  assert.equal(copyBehind({ copy, built, done: 0, now }), true);
+  // Seen, but only from before the copy: Game 3 still missing from it.
+  assert.equal(copyBehind({ copy, built, done: Date.parse('2026-10-06T20:00Z'), now }), true);
+  // A copy with nothing waiting, or no copy at all: as read.
+  assert.equal(copyBehind({ copy: [g('ALDS - Game 4', { 4: 2, 5: 1 })], built, done: 0, now }), false);
+  assert.equal(copyBehind({ copy, built: 0, done: 0, now }), false);
+  // Read live: kept until a game is over since, or (Game 3 still to come then) half an hour.
+  const kept = { done: 0, at: now, waiting: true, gap: false };
+  assert.equal(copyBehind({ copy, kept, built, done: 0, now: now + 3_600_000 }), false);
+  assert.equal(copyBehind({ copy, kept, built, done: now + 600_000, now: now + 3_600_000 }), true);
+  assert.equal(copyBehind({ copy, kept: { ...kept, gap: true }, built, done: 0, now: now + 10 * 60_000 }), false);
+  assert.equal(copyBehind({ copy, kept: { ...kept, gap: true }, built, done: 0, now: now + 31 * 60_000 }), true);
+});
+
 test("a game ESPN has dated but not timed: Taiwan's next morning, its time 待定", async () => {
   const { startOf } = await import('../public/lib/espn.mjs');
   assert.deepEqual(startOf('2026-10-11T04:00Z', { timeValid: false }), { start: '2026-10-12T00:00:00.000Z', timeTbd: true });

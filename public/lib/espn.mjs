@@ -363,10 +363,7 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
       const url = urlOf(d);
       const kept = liveDays.get(url);
       if (kept && Date.now() >= kept.first) return void liveDays.delete(url);
-      // A result the day's copy (nightly or our live one) doesn't have: a game over after it was made.
-      const since = kept ? kept.done : built ? built - GAME_MS : 0;
-      const behind = since && done > since && (kept ? kept.waiting : parsed[i].some(waiting));
-      if (!behind) {
+      if (!copyBehind({ copy: parsed[i], kept, built, done })) {
         if (kept) parsed[i] = parseScoreboard(kept.page, league);
         return;
       }
@@ -374,7 +371,7 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
       if (!page) return;
       parsed[i] = parseScoreboard(page, league);
       const starts = parsed[i].map(e => Date.parse(e.start)).filter(Number.isFinite);
-      liveDays.set(url, { page, done, waiting: parsed[i].some(waiting), first: starts.length ? Math.min(...starts) : Infinity });
+      liveDays.set(url, { page, done, at: Date.now(), waiting: parsed[i].some(waiting), gap: parsed[i].some(gapped), first: starts.length ? Math.min(...starts) : Infinity });
     })
   );
   const seen = new Set();
@@ -384,10 +381,28 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
 // A playoff game to come between sides not known yet ("TBD", "CLE/CHW").
 const placeholder = x => /^tbd$/i.test(String(x?.abbr || x?.short || '').trim()) || String(x?.abbr || '').includes('/') || Number(x?.id) <= 0;
 const waiting = e => e.round && e.status?.state === 'pre' && (e.timeTbd || placeholder(e.home) || placeholder(e.away) || /if necessary/i.test(e.note || ''));
-// The days read live (above): url -> { page, done: the last playoff game over then, waiting, first: its first start }.
+// A waiting game whose series, as the copy has it, still had an earlier game
+// to play ("Game 4 If Necessary" at 2-0: Game 3 not over when it was made).
+const gapped = e => waiting(e) && (Number(/\bgame (\d+)/i.exec(e.note || '')?.[1]) || 0) - 1 > playedOf(e.series);
+// The days read live (above): url -> { page, done: the last playoff game over then, at, waiting, gap, first: its first start }.
 const liveDays = new Map();
 // A game's start this long before the copy was built could have ended after it.
 const GAME_MS = 5 * 3_600_000;
+// A day read live again after this while its earlier game was still to be played.
+const GAP_MS = 30 * 60_000;
+// Whether a day's copy may be behind (read it live): a playoff game over
+// after it was made, as far as this session has seen (`done`: the league's
+// latest over). The game that decided it is often on a day not read at all
+// (after midnight, last night's Game 3 is yesterday's), so with nothing seen
+// a waiting game is read live once too, and so is one whose series still had
+// an earlier game to play when the copy was made (then again every half hour
+// while that game is still to come in the live copy).
+export function copyBehind({ copy, kept, built, done, now = Date.now() }) {
+  // Our live copy: a game over since (one that started before it, when none had been seen then), or its gap's half hour up.
+  if (kept) return (kept.waiting && done > (kept.done || kept.at - GAME_MS)) || (kept.gap && now - kept.at >= GAP_MS);
+  if (!built || !copy.some(waiting)) return false;
+  return !done || done > built - GAME_MS || copy.some(gapped);
+}
 
 // An MLB game on now without ESPN's count (its feed can go innings with the
 // score alone): the count, runners, batter, pitcher and last play from MLB's own.
