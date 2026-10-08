@@ -2087,14 +2087,15 @@ const raceWhere = name => {
 // three-letter code when three share the width); one car (a driver's own
 // page): the grid, the race and the sprint. A grid, not a table: up to three
 // cars fit a phone without scrolling.
-function f1Weekends(weekends, en, cars) {
+// `grid: false`: no grid column (ESPN's finishes, which don't say where they started).
+function f1Weekends(weekends, en, cars, { grid = true } = {}) {
   const W = (zh, eng) => (en ? eng : zh);
   const one = cars[0]?.key === 'me';
   const carOf = (w, c) => (c.key === 'me' ? w.me : w.rows.find(r => r.driverId === c.key));
   const sprints = weekends.some(w => cars.some(c => carOf(w, c)?.sprint));
   const sprintOf = r => (r?.sprint ? finishOf(r.sprint, en) : null);
   const heads = one
-    ? [W('發車', 'Grid'), W('正賽', 'Race'), sprints ? W('衝刺', 'Sprint') : null].filter(Boolean).map(t => el('span', { class: 'rw-h', text: t }))
+    ? [grid ? W('發車', 'Grid') : null, W('正賽', 'Race'), sprints ? W('衝刺', 'Sprint') : null].filter(Boolean).map(t => el('span', { class: 'rw-h', text: t }))
     : cars.map(c => el('span', { class: 'rw-h rw-car', title: c.full || null }, [c.full ? personPic({ name: c.full }, 'f1', 'xs round') : null, el('span', { text: cars.length > 2 ? c.code || c.head : c.head })]));
   const cols = one ? heads.length : cars.length;
   const list = el('div', { class: 'race-weeks', style: `--cols:${cols}` }, [
@@ -2104,7 +2105,7 @@ function f1Weekends(weekends, en, cars) {
       const [name, where] = raceWhere(w.e?.name || w.name);
       const cells = one
         ? (r => [
-            el('span', { class: 'rw-cell num muted', text: r?.grid ? String(r.grid) : r ? W('維修區', 'Pit') : '–' }),
+            grid ? el('span', { class: 'rw-cell num muted', text: r?.grid ? String(r.grid) : r ? W('維修區', 'Pit') : '–' }) : null,
             el('span', { class: 'rw-cell' }, [finishPill(finishOf(r?.result, en))]),
             sprints ? el('span', { class: 'rw-cell' }, [r?.sprint ? finishPill(sprintOf(r)) : el('span', { class: 'muted', text: '' })]) : null
           ])(w.me).filter(Boolean)
@@ -2207,7 +2208,9 @@ export async function openPlayer(league, id, fallback = {}) {
       .flatMap(e => {
         const race = (e.sessions || []).find(x => x.abbr === 'Race' && x.status.state === 'post');
         const at = race ? race.field.findIndex(c => c.id === String(id)) : -1;
-        return at >= 0 ? [{ name: e.name, start: race.start, pos: at + 1, e }] : [];
+        const sprint = (e.sessions || []).find(x => x.abbr === 'SR' && x.status.state === 'post');
+        const sp = sprint ? sprint.field.findIndex(c => c.id === String(id)) + 1 : 0;
+        return at >= 0 ? [{ name: e.name, start: race.start, pos: at + 1, sprint: sp, e }] : [];
       })
       .sort((x, y) => y.start.localeCompare(x.start));
     // The season in four numbers: wins, podiums, the best and the average finish.
@@ -2398,10 +2401,13 @@ export async function openPlayer(league, id, fallback = {}) {
     const games = keep([
       logCard,
       weekends.length ? f1Weekends(weekends, en, [{ key: 'me', head: '' }]) : null,
+      // (Jolpica's results not in: ESPN's finishes, drawn the same way.)
       !weekends.length && raceRows.length
-        ? card(
-            W('本季各站正賽', 'This season, race by race'),
-            el('ul', { class: 'info-list results' }, raceRows.map(r => el('li', {}, [el('span', { class: 'info-k', text: r.name }), el('span', { class: `info-v num pos-pill${r.pos <= 3 ? ' podium' : ''}`, text: `P${r.pos}` })])))
+        ? f1Weekends(
+            raceRows.map((r, i) => ({ e: r.e, round: r.e?.round || raceRows.length - i, me: { result: { position: String(r.pos), positionText: String(r.pos), points: RACE_PTS[r.pos - 1] || 0 }, sprint: r.sprint ? { position: String(r.sprint), positionText: String(r.sprint), points: SPRINT_PTS[r.sprint - 1] || 0 } : null } })),
+            en,
+            [{ key: 'me', head: '' }],
+            { grid: false }
           )
         : null
     ]);
