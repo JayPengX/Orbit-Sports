@@ -497,11 +497,25 @@ function findPerson(people, name) {
   const last = want.split(' ').at(-1);
   return people.find(p => notePlain(p.name) === want) || people.find(p => p.name && notePlain(p.name).split(' ').at(-1) === last && notePlain(p.name)[0] === want[0]) || null;
 }
-const noteWords = text =>
+// Lines break between clauses (after ，、；; the card's text keeps CJK runs whole,
+// breaking inside one only when it's longer than the line).
+const noteWords = text => {
+  const out = [];
+  let clause = [];
+  const close = () => clause.length && (out.push(el('span', { class: 'note-clause' }, clause), el('wbr')), (clause = []));
   String(text || '')
     .split(/\{\{([^{}]+)\}\}/)
-    .map((part, i, all) => (i % 2 ? el('span', { class: `note-who${all[i - 1] ? '' : ' lead'}`, 'data-who': part.trim(), text: part.trim() }) : part ? document.createTextNode(spaced(part)) : null))
-    .filter(Boolean);
+    .forEach((part, i, all) => {
+      // (A line may break on either side of a name.)
+      if (i % 2) return clause.push(el('wbr'), el('span', { class: `note-who${all[i - 1] ? '' : ' lead'}`, 'data-who': part.trim(), text: part.trim() }), el('wbr'));
+      for (const bit of spaced(part).split(/(?<=[，、；：。！？])/)) {
+        if (bit) clause.push(document.createTextNode(bit));
+        if (/[，、；：。！？]$/.test(bit)) close();
+      }
+    });
+  close();
+  return out;
+};
 // The names made people: a chip each (face, name; a tap opens them), the subject in their own name.
 function namePeople(node, league, people) {
   // (A roster comes in groups by position: their players.)
@@ -521,6 +535,16 @@ function namePeople(node, league, people) {
 // What the news is, as a tag: Gemini's topic.
 const NOTE_TOPIC = { injury: ['傷勢', 'bad'], return: ['回歸', 'good'], suspension: ['禁賽', 'bad'], grid: ['發車', 'bad'], legal: ['司法', 'bad'], transfer: ['轉會', 'info'], contract: ['合約', 'info'], rumour: ['傳聞', 'muted'], coach: ['教練', 'info'], role: ['陣容', 'info'], milestone: ['里程碑', 'good'], criticism: ['批評', 'bad'], quote: ['發言', 'muted'] };
 const topicTag = topic => (NOTE_TOPIC[topic] ? el('span', { class: `note-topic ${NOTE_TOPIC[topic][1]}`, text: NOTE_TOPIC[topic][0] }) : null);
+// Another story's line: its tag starting its first clause and its source
+// ending its last, so neither is left on a line of its own.
+function alsoLine(m) {
+  const clauses = noteWords(m.line);
+  const tag = topicTag(m.topic);
+  const spans = clauses.filter(c => c.tagName === 'SPAN');
+  if (tag && spans[0]) spans[0].prepend(tag);
+  if (m.url && spans.at(-1)) spans.at(-1).append(el('a', { class: 'note-also-src', href: m.url, target: '_blank', rel: 'noopener', text: `${m.source || '原文'} ›` }));
+  return clauses;
+}
 // The biggest story first (Gemini's weight: big, normal, minor; a minor one
 // is its headline only), then up to two more in a line each (其他消息), each
 // its own link.
@@ -536,11 +560,7 @@ const latestNote = (headline, points, sub, { topic = '', url = '', source = '', 
         ? el('div', { class: 'note-also' }, [
             el('p', { class: 'mini-h', text: '其他消息' }),
             ...more.map(m =>
-              el('div', { class: 'note-also-row' }, [
-                topicTag(m.topic),
-                el('span', { class: 'note-also-line' }, noteWords(m.line)),
-                m.url ? el('a', { class: 'note-also-src', href: m.url, target: '_blank', rel: 'noopener', 'aria-label': `閱讀原文${m.source ? ` · ${m.source}` : ''}`, text: '›' }) : null
-              ])
+              el('div', { class: 'note-also-row' }, alsoLine(m))
             )
           ])
         : null
