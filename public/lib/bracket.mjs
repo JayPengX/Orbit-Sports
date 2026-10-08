@@ -13,7 +13,7 @@ import { roundName } from './stage.mjs';
 // The leagues whose rounds are known ahead: each round's key, names and number of ties.
 const SHAPES = {
   mlb: [['RD16', '外卡賽', 'Wild Card', 4], ['QTR', '分區系列賽', 'Division Series', 4], ['SEMI', '聯盟冠軍賽', 'LCS', 2], ['FINAL', '世界大賽', 'World Series', 1]],
-  nba: [['PLAYIN', '附加賽', 'Play-In', 6], ['RD16', '首輪', 'First Round', 8], ['QTR', '分區準決賽', 'Conf. Semifinals', 4], ['SEMI', '分區冠軍賽', 'Conf. Finals', 2], ['FINAL', '總冠軍賽', 'NBA Finals', 1]]
+  nba: [['PLAYIN', '附加賽', 'Play-In', 4], ['PLAYIN2', '第八種子戰', '8th Seed Game', 2], ['RD16', '首輪', 'First Round', 8], ['QTR', '分區準決賽', 'Conf. Semifinals', 4], ['SEMI', '分區冠軍賽', 'Conf. Finals', 2], ['FINAL', '總冠軍賽', 'NBA Finals', 1]]
 };
 // A round by how many ties it has (the rounds after the last one drawn).
 const BY_COUNT = { 1: ['決賽', 'Final'], 2: ['準決賽', 'Semifinals'], 4: ['八強', 'Quarterfinals'], 8: ['16 強', 'Round of 16'] };
@@ -66,6 +66,8 @@ function pendingTies(rounds, slots) {
   const sideIds = t => t.sides.map(s => String(s.id));
   for (let i = 1; i < rounds.length; i++) {
     const r = rounds[i];
+    // The 8th seed game takes 7 v 8's loser: ESPN's own games only.
+    if (r.key === 'PLAYIN2') continue;
     // Only ties of two known sides feed the next (not one still being decided).
     const prev = rounds[i - 1].ties.filter(t => !t.pending);
     if (!prev.length || r.ties.length >= r.n) continue;
@@ -108,13 +110,14 @@ function pendingTies(rounds, slots) {
       // No game of the round yet: two feeders left in a half meet.
       if (!ties.length && ratio === 2 && left.length === 2) ties.push({ pair: [take(left[0]), take(left[0])], next: null });
       // The side through (or the bye) on top, the one still being decided under it.
-      for (const t of ties) if (t.pair.some(Boolean)) made.push(t.pair[0]?.side || !t.pair[1]?.side ? t : { ...t, pair: [t.pair[1], t.pair[0]] });
+      for (const t of ties) if (t.pair.some(Boolean)) made.push({ ...t, half: h, pair: t.pair[0]?.side || !t.pair[1]?.side ? t.pair : [t.pair[1], t.pair[0]] });
     }
-    for (const { pair, next } of made.slice(0, r.n - r.ties.length))
+    for (const { pair, next, half: h } of made.slice(0, r.n - r.ties.length))
       r.ties.push({
         id: `${r.key}|pending|${r.ties.length}`,
         round: r.key,
         title: '',
+        half: h,
         pending: true,
         kind: 'pending',
         sides: pair.map(x => x?.side || null),

@@ -115,7 +115,7 @@ export async function openMatch(e) {
         ]),
         side(home, e.home)
       ]),
-      stageTag(e, L()) || seriesText(e) || weekOf(e) ? el('div', { class: 'mh-stage' }, [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null, weekOf(e) ? el('small', { text: roundLabel(e.league, weekOf(e), weekOf(e), L()) }) : null]) : null,
+      stageTag(e, L()) || seriesText(e) || weekOf(e) ? stageLine(e) : null,
       gameFollow(e, st, () => paintHeader(sm)),
       // On now or about to start: one tap to watch it, at the top.
       watchButton({ ...e, status: st }, 'wide'),
@@ -2693,6 +2693,23 @@ function zoneLegend(rows) {
 
 // The tie (bracket.mjs): its two sides with the wins (or aggregate), who
 // went through or what's next, then each game, G1 first, each opening its match.
+// A match's stage and series ("國聯分區系列賽 G4 · 道奇 系列賽 3-1 獲勝"): a
+// playoff series or a two-legged tie opens the whole of it, as 季後賽 does.
+function stageLine(e) {
+  const parts = [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null, weekOf(e) ? el('small', { text: roundLabel(e.league, weekOf(e), weekOf(e), L()) }) : null];
+  if (!e.round || !(e.series || e.round.leg) || !ctx.seriesOf) return el('div', { class: 'mh-stage' }, parts);
+  const btn = el('button', { class: 'mh-stage link', type: 'button', 'aria-label': L() === 'en' ? 'See the whole series' : '看整個系列賽' }, [...parts, el('span', { class: 'mh-chev', 'aria-hidden': 'true', text: '›' })]);
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const got = await ctx.seriesOf(e).catch(() => null);
+    btn.disabled = false;
+    if (got) openTie(got.tie, e.league, got.title);
+    // Not in the bracket read (a season long gone): just the line, no more.
+    else btn.replaceWith(el('div', { class: 'mh-stage' }, parts));
+  });
+  return btn;
+}
+
 export function openTie(t, league, roundTitle = '') {
   const en = L() === 'en';
   const s = sheet(leagueName(league, L()), { league });

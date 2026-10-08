@@ -1438,6 +1438,22 @@ function staleBracket(league) {
   // Open: read now (renderScores asks for it).
   if (state.tab === 'matches' && state.scores.league === league && state.scores.view === 'bracket') renderScores();
 }
+// A game's whole series (or two-legged tie), for its match page: from the
+// league's bracket, the one 季後賽 shows (read now when not held fresh).
+async function seriesOf(e) {
+  const league = e?.league;
+  if (!e?.round || !hasBracket(league)) return null;
+  const had = brackets.get(league);
+  let model = had?.model && !had.failed && Date.now() - had.at < 10 * 60_000 ? had.model : null;
+  if (!model) {
+    model = playoffModel({ league, ...(await playoffData(league)) });
+    brackets.set(league, { ...(brackets.get(league) || {}), model, at: Date.now(), loading: false, failed: false });
+  }
+  for (const r of model.rounds)
+    for (const t of r.ties) if (t && !t.gap && !t.projected && !t.pending && t.games.some(g => g.id === e.id)) return { tie: { ...t, games: t.games.map(freshGame) }, title: locale === 'en' ? r.title.en : r.title.zh };
+  return null;
+}
+ctx.seriesOf = seriesOf;
 // The playoffs as a map you swipe across: a column a round (its name, and
 // done / on now / its dates under it), the later rounds between the ties
 // that feed them. Each tie: each side's seed, logo and name with its wins (or
@@ -1489,6 +1505,8 @@ function playoffView(model, league) {
   };
   const tie = (t, r) => {
     const blank = { projected: true, seeds: [], labels: [] };
+    // An empty row (the play-in's): a card's height, unseen, so the columns line up.
+    if (t?.gap) return el('div', { class: `br-tie gap${t.through ? ' through' : ''}`, 'aria-hidden': 'true' }, [sideRow(null, blank, 0), sideRow(null, blank, 1), el('small', { class: 'br-note', text: '·' })]);
     const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), el('small', { class: `br-note${t?.live ? ' live' : ''}`, text: note(t, r) })];
     return t && !t.projected && !t.pending
       ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openTie({ ...t, games: t.games.map(freshGame) }, league, en ? r.title.en : r.title.zh) }, body)

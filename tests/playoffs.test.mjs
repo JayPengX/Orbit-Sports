@@ -16,9 +16,12 @@ test('MLB predicted from the table: 3 v 6 and 4 v 5 a league, 1 and 2 waiting', 
 test('NBA and MLS: each conference by seed', () => {
   const g = [{ en: 'Eastern Conference', rows: rows('E', 15) }, { en: 'Western Conference', rows: rows('W', 15) }];
   const nba = playoffModel({ league: 'nba', mode: 'projected', groups: g });
-  assert.deepEqual(nba.rounds.map(r => r.key), ['PLAYIN', 'RD16', 'QTR', 'SEMI', 'FINAL']);
-  assert.deepEqual(nba.rounds[0].ties.map(seeds), ['E7 v E8', 'E9 v E10', '(7/8 敗者) v (9/10 勝者)', 'W7 v W8', 'W9 v W10', '(7/8 敗者) v (9/10 勝者)']);
-  assert.deepEqual(nba.rounds[1].ties.slice(0, 4).map(seeds), ['E1 v E8', 'E4 v E5', 'E3 v E6', 'E2 v E7']);
+  assert.deepEqual(nba.rounds.map(r => r.key), ['PLAYIN', 'PLAYIN2', 'RD16', 'QTR', 'SEMI', 'FINAL']);
+  // Each on the row of the series it feeds: 9 v 10 and the 8th seed game by the 1 v 8, 7 v 8 by the 2 v 7.
+  const row = t => (t.gap ? (t.through ? '—' : '') : seeds(t));
+  assert.deepEqual(nba.rounds[0].ties.map(row), ['E9 v E10', '', '', 'E7 v E8', 'W9 v W10', '', '', 'W7 v W8']);
+  assert.deepEqual(nba.rounds[1].ties.map(row), ['(7/8 敗者) v (9/10 勝者)', '', '', '—', '(7/8 敗者) v (9/10 勝者)', '', '', '—']);
+  assert.deepEqual(nba.rounds[2].ties.slice(0, 4).map(seeds), ['E1 v E8', 'E4 v E5', 'E3 v E6', 'E2 v E7']);
   const mls = playoffModel({ league: 'mls', mode: 'projected', groups: g });
   assert.deepEqual(mls.rounds[0].ties.map(seeds), ['E8 v E9', 'W8 v W9']);
   assert.equal(seeds(mls.rounds[1].ties[0]), 'E1 v (8/9 勝者)');
@@ -50,11 +53,16 @@ test('NBA: the play-in its own column before the first round, each game a tie of
     game('2', '2026-04-15T23:00Z', 'NBA Play-In - East - 7th Place vs 8th Place', 'PHI', 'ORL', true),
     game('3', '2026-04-17T23:00Z', 'NBA Play-In - East - 8th Seed Game', 'ORL', 'CHA', true)
   ] }, 'nba');
-  assert.deepEqual(events.map(e => e.round?.key), ['PLAYIN', 'PLAYIN', 'PLAYIN']);
+  assert.deepEqual(events.map(e => e.round?.key), ['PLAYIN', 'PLAYIN', 'PLAYIN2']);
   const m = playoffModel({ league: 'nba', events });
-  assert.equal(m.rounds[0].title.zh, '附加賽');
-  const ties = m.rounds[0].ties.filter(Boolean);
-  assert.equal(ties.length, 3);
-  assert.deepEqual(ties.map(t => t.winner).sort(), ['CHA', 'ORL', 'PHI']);
+  assert.deepEqual(m.rounds.slice(0, 2).map(r => r.title.zh), ['附加賽', '第八種子戰']);
+  const real = r => r.ties.filter(t => t && !t.gap);
+  assert.deepEqual(real(m.rounds[0]).map(t => t.winner).sort(), ['CHA', 'PHI']);
+  assert.deepEqual(real(m.rounds[1]).map(t => t.winner), ['ORL']);
+  // 9 v 10 on the 8th seed game's row; 7 v 8 on another, its line passing the second column.
+  const at = (r, w) => m.rounds[r].ties.findIndex(t => t?.winner === w);
+  assert.equal(at(0, 'CHA'), at(1, 'ORL'));
+  assert.notEqual(at(0, 'PHI'), at(1, 'ORL'));
+  assert.equal(m.rounds[1].ties[at(0, 'PHI')].through, true);
   assert.equal(m.rounds[0].state, 'on');
 });

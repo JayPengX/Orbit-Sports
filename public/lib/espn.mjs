@@ -197,7 +197,7 @@ export function parseSeries(s) {
 
 // A playoff or knockout game's round, for the bracket: `key` the round
 // (ESPN's RD16 / QTR / SEMI / FINAL for the US leagues' playoffs, PLAYIN
-// for the NBA's play-in (its own season type, 5), the
+// and PLAYIN2 for the NBA's play-in (its own season type, 5), the
 // season's stage for a cup: round-of-16, quarterfinals…), its name, the leg
 // and the sides the tie's over for (a cup's second leg says who went
 // through). Null for any other game (a cup's league phase or groups too).
@@ -205,7 +205,8 @@ export function knockoutRound(e, comp, league) {
   const slug = String(e?.season?.slug || '');
   const note = comp?.notes?.[0]?.headline || '';
   const cup = Boolean(LEAGUES[league]?.cup);
-  if (/play-?in/i.test(`${slug} ${note}`)) return cup ? null : { key: 'PLAYIN', title: note || 'Play-In', leg: 0, through: [] };
+  // The play-in's two steps: 7 v 8 and 9 v 10, then the 8th seed game.
+  if (/play-?in/i.test(`${slug} ${note}`)) return cup ? null : { key: /8th seed/i.test(note) ? 'PLAYIN2' : 'PLAYIN', title: note || 'Play-In', leg: 0, through: [] };
   const post = e?.season?.type === 3 || /post-?season/i.test(slug);
   if (!post && !(cup && slug && !/league-phase|group|regular|qualif|preliminary/i.test(slug))) return null;
   const key = cup ? slug : comp?.type?.abbreviation || slug;

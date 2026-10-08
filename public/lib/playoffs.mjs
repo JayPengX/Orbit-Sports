@@ -20,11 +20,12 @@ export const FORMATS = {
     project: g => leagues2(g).reduce((o, rows) => ({ RD16: [...(o.RD16 || []), pair(rows, 3, 6), pair(rows, 4, 5)], QTR: [...(o.QTR || []), waits(rows, 1, '4/5'), waits(rows, 2, '3/6')] }), {})
   },
   nba: {
-    rounds: [R('PLAYIN', '附加賽', 'Play-In', 6), R('RD16', '首輪', 'First Round', 8), R('QTR', '分區準決賽', 'Conf. Semifinals', 4), R('SEMI', '分區冠軍賽', 'Conf. Finals', 2), R('FINAL', '總冠軍賽', 'NBA Finals', 1)],
+    rounds: [R('PLAYIN', '附加賽', 'Play-In', 4), R('PLAYIN2', '第八種子戰', '8th Seed Game', 2), R('RD16', '首輪', 'First Round', 8), R('QTR', '分區準決賽', 'Conf. Semifinals', 4), R('SEMI', '分區冠軍賽', 'Conf. Finals', 2), R('FINAL', '總冠軍賽', 'NBA Finals', 1)],
     // Each conference: the play-in (7 v 8, 9 v 10, then 7/8's loser v 9/10's
     // winner), then 1 v 8, 4 v 5, 3 v 6, 2 v 7 (7 and 8 through the play-in).
     project: g => ({
-      PLAYIN: leagues2(g).flatMap(rows => [pair(rows, 7, 8), pair(rows, 9, 10), { projected: true, sides: [null, null], seeds: [0, 0], labels: ['7/8 敗者', '9/10 勝者'] }]),
+      PLAYIN: leagues2(g).flatMap(rows => [pair(rows, 7, 8), pair(rows, 9, 10)]),
+      PLAYIN2: leagues2(g).map(() => ({ projected: true, sides: [null, null], seeds: [0, 0], labels: ['7/8 敗者', '9/10 勝者'] })),
       RD16: leagues2(g).flatMap(rows => [pair(rows, 1, 8, ['', '附加賽']), pair(rows, 4, 5), pair(rows, 3, 6), pair(rows, 2, 7, ['', '附加賽'])])
     })
   },
@@ -99,7 +100,49 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
     const done = real.length === r.ties.length && real.length > 0 && real.every(t => t.winner);
     r.state = live ? 'live' : done ? 'done' : real.length || (r.dates && r.dates.from <= now) ? 'on' : 'later';
   }
+  alignPlayIn(rounds);
   return { mode, season, rounds };
+}
+
+// The NBA's play-in drawn as its own two steps beside the first round, each
+// game on the row of the series it feeds: 7 v 8 by the 2 v 7, the 8th seed
+// game by the 1 v 8, 9 v 10 beside the 8th seed game it feeds. The other rows
+// are left empty (`gap`; `through`: 7 v 8's line passing the 8th seed game's
+// column), so the columns line up.
+const GAP = { gap: true };
+function alignPlayIn(rounds) {
+  const [a, b, first] = ['PLAYIN', 'PLAYIN2', 'RD16'].map(k => rounds.find(r => r.key === k));
+  if (!a || !b || !first || first.ties.length % 2) return;
+  const n = first.ties.length;
+  const per = n / 2;
+  const ids = t => (t?.sides || []).filter(Boolean).map(s => String(s.id));
+  const rowOf = t => (t?.winner ? first.ties.findIndex(x => ids(x).includes(t.winner)) : -1);
+  // A conference's rows: where the first round has its half, else in the order met (the table's, predicted).
+  const met = [...new Set([...first.ties, ...a.ties, ...b.ties].map(t => t?.half).filter(Boolean))];
+  const blockOf = (t, i, each) => {
+    if (!t?.half) return Math.floor(i / each);
+    const j = first.ties.findIndex(x => x?.half === t.half);
+    return j >= 0 ? Math.floor(j / per) : met.indexOf(t.half) % 2;
+  };
+  const nine = t => /9th/i.test(t?.games?.[0]?.note || '') || t?.seeds?.[0] === 9;
+  const A = Array(n).fill(GAP);
+  const B = Array(n).fill(GAP);
+  for (const c of [0, 1]) {
+    const pa = a.ties.filter((t, i) => blockOf(t, i, a.ties.length / 2) === c);
+    const eighth = b.ties.find((t, i) => blockOf(t, i, b.ties.length / 2) === c) ?? null;
+    const seven = pa.find(t => t && !nine(t)) ?? null;
+    const ten = pa.find(t => t && nine(t)) ?? null;
+    const lo = c * per;
+    const hi = lo + per - 1;
+    const r8 = rowOf(eighth) >= lo && rowOf(eighth) <= hi ? rowOf(eighth) : lo;
+    const r7 = rowOf(seven) >= lo && rowOf(seven) <= hi && rowOf(seven) !== r8 ? rowOf(seven) : r8 === hi ? lo : hi;
+    A[r7] = seven;
+    A[r8] = ten;
+    B[r8] = eighth;
+    B[r7] = { gap: true, through: true };
+  }
+  a.ties = A;
+  b.ties = B;
 }
 // The round to open on: the one on now, else the next unfinished, else the last.
 export const openRound = model => model.rounds.findIndex(r => r.state === 'live') + 1 || model.rounds.findIndex(r => r.state !== 'done') + 1 || model.rounds.length;
