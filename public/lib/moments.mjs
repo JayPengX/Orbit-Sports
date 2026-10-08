@@ -506,6 +506,8 @@ function basketballFeed(play, team) {
   return [play.who || team, what].filter(Boolean).join(' ') + (helper && !free ? `（${initial(helper)} 助攻）` : '');
 }
 export function feedText(sport, play, en, team = '') {
+  // A league's own words (CPBL's, Chinese already).
+  if (play.zh) return play.zh;
   if (en) return play.text || play.type || '';
   const who = play.who || named(play.text) || team;
   if (sport === 'soccer') {

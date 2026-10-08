@@ -10,6 +10,7 @@
 //   side    { id, name, short, abbr, logo, color, score, winner, record,
 //             lines (each period's score) }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
+import { cpblBoxUrl, cpblSummary } from './cpblbox.mjs';
 import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
@@ -814,6 +815,13 @@ export function parseSummary(data, league) {
     officials: (info.officials || []).map(o => o.displayName || o.fullName).filter(Boolean),
     weather: info.weather ? `${info.weather.temperature ?? ''}° ${info.weather.displayValue || ''}`.trim() : ''
   };
+}
+// A CPBL game's box score (the league's own, lib/cpblbox.mjs), as a summary; null without one.
+export async function cpblGame(e) {
+  const url = cpblBoxUrl(e);
+  if (!url) return null;
+  const box = await getJson(url, { ttl: e.status?.state === 'post' ? 10 * 60_000 : LIVE_TTL });
+  return cpblSummary(box, e, detectLocale() === 'en');
 }
 export async function summary(league, id) {
   const l = LEAGUES[league];

@@ -5,7 +5,7 @@ import { translate, workerLines, proxyJson } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam, homeLeague, roundLabel, roundKind } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam, homeLeague, roundLabel, roundKind } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
@@ -135,6 +135,7 @@ export async function openMatch(e) {
       const fresh = (await scoreboard(e.league, LEAGUES[e.league].espn ? gameDays() : undefined).catch(() => [])).find(x => x.id === e.id);
       if (fresh) e = { ...e, ...fresh };
       if (LEAGUES[e.league].espn) data = await summary(e.league, e.id).catch(() => data);
+      else if (e.league === 'cpbl') data = (await cpblGame(e).catch(() => null)) || data;
       paintHeader(data);
       paint();
       loadLine();
@@ -205,6 +206,16 @@ export async function openMatch(e) {
   if (!LEAGUES[e.league].espn) {
     paint();
     loadLine();
+    // CPBL's box score, the league's own: the line score, 數據, 球員 and 過程.
+    if (e.league === 'cpbl' && e.status.state !== 'pre')
+      cpblGame(e)
+        .then(sm => {
+          if (!sm) return;
+          data = sm;
+          paintHeader(data);
+          paint();
+        })
+        .catch(() => {});
     return;
   }
   // A game to come or on: who's out, from each team's roster too (soccer's rosters say nothing of it).
@@ -958,7 +969,7 @@ const NOTE_ZH = {
   sacHit: '犧牲觸擊', sacFly: '高飛犧牲打', sacFlies: '高飛犧牲打', gidp: '雙殺打', teamLOB: '球隊殘壘', teamRISP: '得點圈打擊',
   runnersLeftScoringPosition2Outs: '兩出局得點圈殘壘', stolenBases: '盜壘', caughtStealing: '盜壘失敗', pickoffs: '牽制出局', hitByPitch: '觸身球',
   wildPitches: '暴投', balks: '投手犯規', intentionalWalks: '故意四壞', firstPitchStrikesBattersFaced: '首球好球／面對打者', strikeRatio: '好球（看-揮-界外-擊出）',
-  groundballFlyballRatio: '滾地-飛球', gameScores: '比賽分數', errors: '失誤', doublePlays: '雙殺', triplePlays: '三殺', passedBalls: '捕逸', outfieldAssists: '外野助殺'
+  groundballFlyballRatio: '滾地-飛球', gameScores: '比賽分數', topSpeed: '最快球速', errors: '失誤', doublePlays: '雙殺', triplePlays: '三殺', passedBalls: '捕逸', outfieldAssists: '外野助殺'
 };
 function gameNotes(t, team) {
   if (!t) return null;
