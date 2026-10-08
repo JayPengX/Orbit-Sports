@@ -22,7 +22,7 @@ import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { liveTable, standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
-import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted, clash } from './lib/picks.mjs';
+import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted } from './lib/picks.mjs';
 import { liveTiming } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
@@ -1019,7 +1019,7 @@ function renderHome() {
       ? section(fallback ? t('othersPicks') : isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${past ? L(ENDED_PICKS) : t('picksOn')}`, el('div', { class: 'pick-list' }, planList.map((x, i) => pickCard(x, i))), { sub: fallback ? '' : t('recsN', { n: planList.length }) })
       : finding || fallback || liveBlock ? null : section(t('todayPicks'), el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: h.filter === 'all' ? noTvText(h.date) : t('noPicksMine') }), fullSchedule()])),
     shownMore.length
-      ? section(t('moreRecs'), el('div', { class: 'q-card list' }, shownMore.map(x => clashRow(x.event, planList))), {
+      ? section(t('moreRecs'), el('div', { class: 'q-card list' }, shownMore.map(x => eventRow(x.event))), {
           action: null
         })
       : null,
@@ -1032,16 +1032,6 @@ function renderHome() {
   centerChosen(box);
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
-}
-// A game among the rest that a pick takes the time of: its row, and which
-// pick (the plan is a day that can be watched, one game at a time).
-function clashRow(e, plan) {
-  const row = eventRow(e);
-  const c = e.status.state === 'pre' && !e.timeTbd ? plan.find(p => p.event.status.state !== 'post' && clash(p.event, e))?.event : null;
-  if (!c) return row;
-  const what = c.kind === 'match' ? `${leagueName(c.league, locale)} ${c.away.short || c.away.name}／${c.home.short || c.home.name}` : `${leagueName(c.league, locale)} ${c.session || c.name}`;
-  (row.querySelector('.event-sides') || row.querySelector('.event-title'))?.append(el('small', { class: 'clash-note', text: L({ zh: `與推薦的 ${what} 同時段`, en: `Same time as ${what}, picked` }) }));
-  return row;
 }
 // Nothing on TV here that day: why (past ELTA's list, only the NBA's and
 // MLS's games are known), and the way to every game (賽事).

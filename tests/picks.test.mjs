@@ -91,3 +91,12 @@ test("a followed race weekend counts for each of its sessions", () => {
   assert.ok(scoreMatch(race, ctx).reasons.includes('game'));
   assert.ok(!scoreMatch(other, ctx).reasons.includes('game'));
 });
+
+test('an F1 session takes its own length: qualifying (an hour) runs into no 22:00 kick-off', async () => {
+  const { clash } = await import('../public/lib/picks.mjs');
+  const quali = { league: 'f1', kind: 'field', sessionKey: 'Qual', start: '2026-10-10T13:00:00Z' };
+  const epl = { league: 'epl', kind: 'match', start: '2026-10-10T14:00:00Z' };
+  assert.equal(clash(quali, epl), false);
+  // The race (two hours) still does.
+  assert.equal(clash({ ...quali, sessionKey: 'Race' }, epl), true);
+});

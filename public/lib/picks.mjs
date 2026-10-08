@@ -128,7 +128,9 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
 // gap) and a rout.
 const GAME = { soccer: { late: 2, tight: 1, rout: 3 }, baseball: { late: 7, tight: 2, rout: 6 }, basketball: { late: 4, tight: 6, rout: 20 } };
 
-const minutes = e => DURATION[LEAGUES[e.league]?.sport] || 150;
+// A race weekend's session by its own length (qualifying an hour, not a race's two).
+export const SESSION_MINUTES = { FP1: 60, FP2: 60, FP3: 60, Qual: 60, SS: 45, SQ: 45, SR: 35, Race: 120 };
+const minutes = e => SESSION_MINUTES[e.sessionKey] || DURATION[LEAGUES[e.league]?.sport] || 150;
 const window = e => {
   const start = Date.parse(e.start);
   return [start, start + minutes(e) * 60_000];
