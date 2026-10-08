@@ -42,12 +42,17 @@ export function zhLater(text, from = 'auto') {
 }
 const injuryText = s => (L() === 'en' ? s : injuryZh(s) || zhLater(s));
 const weatherText = w => weatherZh(w, L());
-// The last meetings: each side's wins and the draws ("近 5 次交手：利物浦 4 勝、伯恩茅斯 1 勝").
-// Each part kept whole on a line ("和局 1" never split from its number).
-function h2hText({ n, wins, draws }, e) {
-  const side = x => (L() === 'en' ? `${x.short || x.name} ${wins[x.id] || 0} won` : `${x.short || x.name} ${wins[x.id] || 0} 勝`);
-  const parts = [side(e.away), side(e.home), draws ? (L() === 'en' ? `${draws} drawn` : `和局 ${draws}`) : null].filter(Boolean);
-  return [L() === 'en' ? `Last ${n} meetings: ` : `近 ${n} 次交手：`, ...joinNodes(parts.map(x => el('span', { class: 'nb', text: x })), L() === 'en' ? ', ' : '、')];
+// The last meetings at a glance: each side's logo, name and wins, the draws
+// between, and one bar split by them (a sentence wrapped its parts apart).
+function h2hView({ n, wins, draws }, e) {
+  const en = L() === 'en';
+  const side = (x, cls) => el('div', { class: `h2h-side ${cls}` }, [el('div', { class: 'h2h-who' }, [logo(x.logo, x.name, 'sm'), el('span', { class: 'h2h-name', text: x.short || x.name })]), el('div', { class: 'h2h-score' }, [el('strong', { class: 'num h2h-n', text: String(wins[x.id] || 0) }), el('small', { text: en ? 'won' : '勝' })])]);
+  const share = k => `flex-grow:${k}`;
+  const [a, h] = [wins[e.away.id] || 0, wins[e.home.id] || 0];
+  return el('div', { class: 'h2h' }, [
+    el('div', { class: 'h2h-row' }, [side(e.away, 'away'), el('div', { class: 'h2h-draw' }, [el('strong', { class: 'num h2h-n', text: String(draws || 0) }), el('small', { text: en ? 'drawn' : '和局' })]), side(e.home, 'home')]),
+    n ? el('div', { class: 'h2h-bar', 'aria-hidden': 'true' }, [a ? el('i', { class: 'away', style: share(a) }) : null, draws ? el('i', { class: 'draw', style: share(draws) }) : null, h ? el('i', { class: 'home', style: share(h) }) : null]) : null
+  ]);
 }
 // A series' line in the reader's words (the sides by their names here).
 export function seriesZh(text, e) {
@@ -482,24 +487,90 @@ function askLatest(body, writing = () => {}) {
   if (!latestAsked.has(body)) latestAsked.set(body, workerLines('/latest', 'stream=1', { body, timeout: 20000, onLine: x => x?.writing && writing() }).then(r => (r?.headline || r?.none ? r : (latestAsked.delete(body), null))));
   return latestAsked.get(body);
 }
-const latestNote = (headline, points, sub) =>
-  card('最新動態', el('div', { class: 'player-note' }, [el('strong', { class: 'note-head', text: headline }), points?.length ? el('ul', { class: 'note-points' }, points.map(p => el('li', { text: p }))) : null]), { sub });
-const aiCard = ai => (ai?.headline ? latestNote(ai.headline, ai.points, ai.at ? dayLabel(localDate(ai.at)) : '') : null);
+// 最新動態's words: a space between Chinese and Latin ("Van de Ven 傷勢無礙"),
+// and each person Gemini names ({{Micky van de Ven}}) as that person: a chip
+// with their face that opens them, once they're found among `people`.
+const spaced = t => String(t).replace(/([\u3400-\u9fff])([A-Za-z0-9])/g, '$1 $2').replace(/([A-Za-z0-9.,!?%])([\u3400-\u9fff])/g, '$1 $2');
+const notePlain = n => String(n || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z ]/g, '').trim();
+function findPerson(people, name) {
+  const want = notePlain(name);
+  const last = want.split(' ').at(-1);
+  return people.find(p => notePlain(p.name) === want) || people.find(p => p.name && notePlain(p.name).split(' ').at(-1) === last && notePlain(p.name)[0] === want[0]) || null;
+}
+const noteWords = text =>
+  String(text || '')
+    .split(/\{\{([^{}]+)\}\}/)
+    .map((part, i, all) => (i % 2 ? el('span', { class: `note-who${all[i - 1] ? '' : ' lead'}`, 'data-who': part.trim(), text: part.trim() }) : part ? document.createTextNode(spaced(part)) : null))
+    .filter(Boolean);
+// The names made people: a chip each (face, name; a tap opens them), the subject in their own name.
+function namePeople(node, league, people) {
+  // (A roster comes in groups by position: their players.)
+  const all = people.flatMap(p => (Array.isArray(p?.players) ? p.players : [p]));
+  for (const span of node.querySelectorAll('.note-who[data-who]')) {
+    const p = findPerson(all, span.dataset.who);
+    if (!p) continue;
+    const shown = p.zh || span.dataset.who;
+    const lead = span.classList.contains('lead') ? ' lead' : '';
+    span.replaceWith(
+      p.id && !p.self
+        ? el('button', { class: `note-who chip${lead}`, type: 'button', onclick: () => ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, league, 'xs round'), el('span', { text: shown })])
+        : el('span', { class: `note-who self${lead}`, text: shown })
+    );
+  }
+}
+// What the news is, as a tag: Gemini's topic.
+const NOTE_TOPIC = { injury: ['傷勢', 'bad'], return: ['回歸', 'good'], suspension: ['禁賽', 'bad'], legal: ['司法', 'bad'], transfer: ['轉會', 'info'], contract: ['合約', 'info'], rumour: ['傳聞', 'muted'], role: ['陣容', 'info'], milestone: ['里程碑', 'good'], criticism: ['批評', 'bad'], quote: ['發言', 'muted'] };
+const latestNote = (headline, points, sub, { topic = '', url = '', source = '' } = {}) =>
+  card(
+    '最新動態',
+    el('div', { class: 'player-note' }, [
+      NOTE_TOPIC[topic] ? el('span', { class: `note-topic ${NOTE_TOPIC[topic][1]}`, text: NOTE_TOPIC[topic][0] }) : null,
+      el('strong', { class: 'note-head' }, noteWords(headline)),
+      points?.length ? el('ul', { class: 'note-points' }, points.map(p => el('li', {}, noteWords(p)))) : null,
+      url ? el('a', { class: 'note-src', href: url, target: '_blank', rel: 'noopener', text: `閱讀原文${source ? ` · ${source}` : ''} ›` }) : null
+    ]),
+    { sub }
+  );
+const aiCard = (ai, league = '', people = null) => {
+  if (!ai?.headline) return null;
+  const node = latestNote(ai.headline, ai.points, ai.at ? dayLabel(localDate(ai.at)) : '', ai);
+  if (people && node.querySelector('.note-who[data-who]')) Promise.resolve(people()).then(list => list?.length && namePeople(node, league, list)).catch(() => {});
+  return node;
+};
+// A card's shape that came to nothing (Gemini found no news): folded away, not snapped off.
+function foldAway(box, then) {
+  const h = box.offsetHeight;
+  if (!h || matchMedia('(prefers-reduced-motion: reduce)').matches) return put(box, then);
+  Object.assign(box.style, { height: `${h}px`, overflow: 'hidden', transition: 'height .3s ease, opacity .2s ease' });
+  void box.offsetHeight;
+  Object.assign(box.style, { height: '0px', opacity: '0' });
+  setTimeout(() => {
+    box.removeAttribute('style');
+    put(box, then ? fadeIn(then) : null);
+  }, 320);
+}
 const latestShape = () => card('最新動態', el('div', { class: 'player-note waiting' }, [skeleton([55, 95, 80])]));
 const fadeIn = node => (node && node.classList.add('fade-in'), node);
-function latestSlot(league, kind, id, { name = '', zh = '', team = '', facts = [], report = [] } = {}, now = null) {
+// `people`: () => [{ id, name, headshot, zh?, self? }] (or a promise of them), the names its card can make chips of.
+function latestSlot(league, kind, id, { name = '', zh = '', team = '', facts = [], report = [], people = null } = {}, now = null) {
   if (L() === 'en' || !id) return now;
   const k = `${league}|${kind}|${id}`;
   const sent = JSON.stringify([facts, report]);
   const memo = latestMemo()[k];
   const known = memo?.sent === sent && memo.build === BUILD() ? memo : null;
-  if (known && Date.now() - known.at < LATEST_FRESH_MS) return aiCard(known.answer);
+  if (known && Date.now() - known.at < LATEST_FRESH_MS) return aiCard(known.answer, league, people);
   const body = JSON.stringify({ league, kind, id: String(id), team: String(team || ''), name, zh, facts, report });
   // Nothing shown until there's something: the shape only once a card is being written.
   const box = el('div', { class: 'latest-slot' });
   const asked = askLatest(body, () => !known && !box.firstChild && put(box, latestShape())).then(a => (a && rememberLatest(k, sent, a), a));
-  if (known) return aiCard(known.answer);
-  asked.then(a => put(box, fadeIn(a ? aiCard(a) : now)));
+  if (known) return aiCard(known.answer, league, people);
+  asked.then(a => {
+    const card = a ? aiCard(a, league, people) : null;
+    if (card) return put(box, fadeIn(card));
+    // Nothing to say: the shape (if it showed) folds away, ESPN's own word in its place.
+    if (box.firstChild) foldAway(box, now);
+    else put(box, now ? fadeIn(now) : null);
+  });
   return box;
 }
 
@@ -744,7 +815,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
           )
         )
       : null,
-    d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', el('p', { class: 'series-text' }, h2hText(d.series[0].h2h, e))) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) })) : null,
+    d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) })) : null,
     d?.injuries.some(i => i.list.length)
       ? card(
           T('injuries'),
@@ -1874,7 +1945,7 @@ export async function openTeam(league, id, fallback = {}) {
         followBtn
       ]),
       strip,
-      latestSlot(league, 'team', id, { name: info.en || info.name, zh: info.name, facts: [`${info.name}（${info.en || info.name}），${leagueName(league, L())}`] }, freshNews(stories, league)),
+      latestSlot(league, 'team', id, { name: info.en || info.name, zh: info.name, facts: [`${info.name}（${info.en || info.name}），${leagueName(league, L())}`], people: () => roster(league, id, info.home).catch(() => []) }, freshNews(stories, league)),
       nextCard,
       tabsBox,
       body
@@ -2237,6 +2308,8 @@ export async function openPlayer(league, id, fallback = {}) {
       team: a.teamId,
       name: a.name,
       zh: league === 'f1' ? f1Driver(a.name).zh : '',
+      // Who its card can name: them, and their teammates.
+      people: () => (a.teamId && league !== 'f1' ? roster(league, a.teamId).catch(() => []) : Promise.resolve([])).then(list => [{ id, name: a.name, headshot: a.headshot, zh: league === 'f1' ? f1Driver(a.name).zh : '', self: true }, ...list]),
       facts: [`${name}（${a.name}）：${[leagueName(league, L()), driver?.team ? f1Constructor(driver.team).zh : a.team, a.position].filter(Boolean).join('・')}`],
       report: [
         injury && Date.now() - Date.parse(injury.date || 0) < 30 * 86_400_000 ? `傷病（ESPN ${String(injury.date).slice(0, 10)}）：${[injury.status, injury.what].filter(Boolean).join('，')}${injury.back ? `，預計 ${localDate(Date.parse(injury.back))} 回歸` : ''}。${injury.comment}` : '',

@@ -1365,3 +1365,36 @@ button.lp-person.tap:active { opacity: 0.6; }
 :root[data-theme='dark'] .logo.plate { background: #f2f2f4; border-radius: 50%; padding: 9%; box-sizing: border-box; }
 /* The follow row under the score: the match and, in a guest club's game, the league side, side by side. */
 .mh-follow { flex-wrap: wrap; gap: 8px; }
+
+/* 最新動態: the topic, the people named (a chip each that opens them), the source. */
+.player-note .note-topic { justify-self: start; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.5; background: var(--q-sunken); color: var(--q-text-2); }
+.player-note .note-topic.bad { background: color-mix(in srgb, var(--q-bad, #ef4444) 16%, transparent); color: var(--q-bad, #ef4444); }
+.player-note .note-topic.good { background: color-mix(in srgb, var(--q-good, #22c55e) 16%, transparent); color: var(--q-good, #22c55e); }
+.player-note .note-topic.info { background: color-mix(in srgb, var(--q-accent, #ea580c) 14%, transparent); color: var(--q-accent, #ea580c); }
+.player-note .note-who { font-weight: 700; margin: 0 .2em; }
+.player-note .note-who.chip { display: inline-flex; align-items: center; gap: 5px; vertical-align: -0.35em; margin: 0 .25em; padding: 2px 9px 2px 2px; border: 0; border-radius: 999px; background: var(--q-sunken); color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+.player-note .note-who.chip .logo { width: 22px; height: 22px; }
+.player-note .note-who.lead { margin-left: 0; }
+.player-note .note-src { justify-self: start; margin-top: 2px; font-size: 13px; font-weight: 650; color: var(--q-accent, #ea580c); text-decoration: none; }
+
+/* 近期交手: two sides and the draws, a bar split by them. */
+.h2h { display: grid; gap: 10px; }
+.h2h-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; }
+.h2h-side { display: grid; gap: 4px; min-width: 0; }
+.h2h-side.home { justify-items: end; text-align: right; }
+.h2h-who { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.h2h-side.home .h2h-who { flex-direction: row-reverse; }
+.h2h-score { display: flex; align-items: baseline; gap: 4px; }
+.h2h-name { order: 3; text-align: right; }
+.h2h-side.home .h2h-n { order: 1; }
+.h2h-side.home small { order: 2; }
+.h2h-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; font-size: 14px; }
+.h2h-n { font-size: 20px; font-weight: 800; line-height: 1; }
+.h2h small { color: var(--q-muted); font-size: 12px; }
+.h2h-draw { display: flex; align-items: baseline; gap: 4px; padding: 0 4px; align-self: end; color: var(--q-text-2); }
+.h2h-draw .h2h-n { font-size: 16px; }
+.h2h-bar { display: flex; gap: 3px; height: 6px; }
+.h2h-bar i { display: block; flex-basis: 0; min-width: 6px; border-radius: 3px; }
+.h2h-bar i.away { background: var(--away); }
+.h2h-bar i.draw { background: var(--q-border); }
+.h2h-bar i.home { background: var(--accent); }
