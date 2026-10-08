@@ -57,6 +57,9 @@ export function seriesZh(text, e) {
 // Strings and nodes joined by a separator, as nodes.
 const joinNodes = (items, sep) => items.filter(Boolean).flatMap((x, i) => (i ? [sep, x] : [x])).map(x => (typeof x === 'string' ? document.createTextNode(x) : x));
 
+// A preseason guest's league, said under its name where a record would be.
+const GUEST_FROM = { 'London Lions': ['英國職籃', 'British basketball'] };
+
 // ---- A match ----------------------------------------------------------------------------
 
 export async function openMatch(e) {
@@ -98,8 +101,8 @@ export async function openMatch(e) {
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
         el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
-        x.record || raw.record ? el('small', { text: x.record || raw.record }) : null,
-        hasTeamPage(e.league) && !x.guest && !raw.guest ? followChip(e.league, x, () => paintHeader(sm)) : null
+        x.record || raw.record ? el('small', { text: x.record || raw.record }) : x.guest || raw.guest ? el('small', { text: GUEST_FROM[raw.en || raw.name]?.[L() === 'en' ? 1 : 0] || (L() === 'en' ? 'Guest club' : '表演賽客隊') }) : null,
+        hasTeamPage(e.league) && !x.guest && !raw.guest ? followChip(e.league, x, () => paintHeader(sm)) : e.home.guest || e.away.guest ? el('span', { class: 'mh-chip-space', 'aria-hidden': 'true' }) : null
       ]);
     put(
       header,
@@ -261,7 +264,7 @@ function livePanel(e, sm = null) {
       const t = top(id);
       const name = sm.byId[id]?.short || sm.byId[id]?.name || '';
       const f = fouls ? (id === e.away.id ? fouls.away : fouls.home) : '';
-      return el('div', { class: 'lp-person' }, [t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, el('p', {}, [el('small', { text: `${name} · ${en ? 'top scorer' : '得分王'}` }), el('strong', { text: t?.name || '–' }), t?.line ? el('small', { class: 'num lp-line', text: t.line }) : null, f !== '' ? el('small', { class: 'num', text: `${en ? 'Team fouls' : '全隊犯規'} ${f}` }) : null])]);
+      return lpPerson(e.league, t && { id: t.id, name: t.name }, [t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, el('p', {}, [el('small', { text: `${name} · ${en ? 'top scorer' : '得分王'}` }), el('strong', { text: t?.name || '–' }), t?.line ? el('small', { class: 'num lp-line', text: t.line }) : null, f !== '' ? el('small', { class: 'num', text: `${en ? 'Team fouls' : '全隊犯規'} ${f}` }) : null])]);
     };
     rows.push(el('div', { class: 'lp-who lp-bb' }, [person(e.away.id), person(e.home.id)]));
     const last = sm.feed.slice(-4).reverse();
@@ -294,8 +297,8 @@ function livePanel(e, sm = null) {
           el('span', {}, [el('small', { text: 'O' }), dots(lv.outs, 3, 'out')])
         ]),
         el('div', { class: 'lp-who' }, [
-          lv.batter ? el('div', { class: 'lp-person' }, [lv.batterWho ? personPic({ ...lv.batterWho, en: lv.batterWho.name }, e.league, 'md round') : null, el('p', {}, [el('small', { text: T('batter') }), el('strong', { text: lv.batter })])]) : null,
-          lv.pitcher ? el('div', { class: 'lp-person' }, [lv.pitcherWho ? personPic({ ...lv.pitcherWho, en: lv.pitcherWho.name }, e.league, 'md round') : null, el('p', {}, [el('small', { text: T('pitcher') }), el('strong', { text: lv.pitcher })])]) : null
+          lv.batter ? lpPerson(e.league, lv.batterWho, [lv.batterWho ? personPic({ ...lv.batterWho, en: lv.batterWho.name }, e.league, 'md round') : null, el('p', {}, [el('small', { text: T('batter') }), el('strong', { text: lv.batter })])]) : null,
+          lv.pitcher ? lpPerson(e.league, lv.pitcherWho, [lv.pitcherWho ? personPic({ ...lv.pitcherWho, en: lv.pitcherWho.name }, e.league, 'md round') : null, el('p', {}, [el('small', { text: T('pitcher') }), el('strong', { text: lv.pitcher })])]) : null
         ])
       ])
     );
@@ -709,7 +712,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   return el('div', { class: 'stack' }, [
     replayLink(e),
     highlights(e),
-    card(T('matchup'), compare),
+    // (A guest club from outside the league has no record or place to set beside the other's.)
+    e.home.guest || e.away.guest ? null : card(T('matchup'), compare),
     winCard(d, e, line, wait),
     leadersBy.some(x => x.length)
       ? card(
@@ -1262,6 +1266,11 @@ function raceChanceCard(line, ss, feed = null) {
 
 // A driver in a race: their page, where ESPN has one; else just the name.
 // A face that opens its person's page (a moment's player, a race's driver), else just the face.
+// The live panel's batter, pitcher or top scorer: the whole of it a tap to their page.
+function lpPerson(league, p, children) {
+  const can = p?.id && LEAGUES[league]?.espn && /^\d+$/.test(String(p.id));
+  return can ? el('button', { class: 'lp-person tap', type: 'button', 'aria-label': p.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(league, String(p.id), { name: p.name, logo: p.headshot })) }, children) : el('div', { class: 'lp-person' }, children);
+}
 function personTap(league, p, pic) {
   const can = p?.id && LEAGUES[league]?.espn && /^\d+$/.test(String(p.id));
   return can ? el('button', { class: 'wp-who', type: 'button', 'aria-label': p.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(league, p.id, p)) }, [pic]) : pic;

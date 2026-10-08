@@ -1253,6 +1253,8 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .follow-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font: inherit; font-size: 13.5px; font-weight: 750; white-space: nowrap; cursor: pointer; }
 .follow-btn.on { background: var(--accent-wash); color: var(--accent); }
 .mh-side .follow-btn { margin-top: 4px; }
+/* A guest's side: the follow button's room kept, so the two sides stand level. */
+.mh-chip-space { display: block; height: 32px; margin-top: 4px; }
 /* 勝率走勢: each side's logo in a column beside the chart (home at the top,
    away at the bottom, as the halves are coloured), the marks under it lined up. */
 .wp-frame { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; margin-top: 6px; }
@@ -1327,3 +1329,7 @@ span.hero-team { cursor: default; }
 .race-line.fight .race-t small { display: block; }
 .race-line.fight .race-t small .nm-one { white-space: nowrap; }
 .race-line.fight .race-t { min-width: 0; }
+
+/* The live panel's person as a tap: drawn as it was, a press dimming it. */
+button.lp-person.tap { all: unset; display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.lp-person.tap:active { opacity: 0.6; }
