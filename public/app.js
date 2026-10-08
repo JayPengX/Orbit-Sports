@@ -1468,8 +1468,8 @@ function playoffView(model, league) {
     if (maybe)
       return el('div', { class: 'br-side maybe' }, [
         el('span', { class: 'br-seed num' }),
-        // Each side's logo beside its own name: "🅼 MIL / 🆂 SD".
-        el('span', { class: 'br-maybe' }, maybe.flatMap((x, j) => [j ? el('span', { class: 'br-or', text: '/' }) : null, el('span', { class: 'br-opt' }, [sideLogo(x, league, 'xs'), el('span', { class: 'br-name', text: x.abbr || x.short || x.name })])]))
+        // Each side's logo beside its own name: "🅼 釀酒人 / 🆂 教士".
+        el('span', { class: 'br-maybe' }, maybe.flatMap((x, j) => [j ? el('span', { class: 'br-or', text: '/' }) : null, el('span', { class: 'br-opt' }, [sideLogo(x, league, 'xs'), el('span', { class: 'br-name', text: x.short || x.name })])]))
       ]);
     return el('div', { class: `br-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}${s ? '' : ' tbd'}` }, [
       el('span', { class: 'br-seed num', text: seed ? String(seed) : '' }),
