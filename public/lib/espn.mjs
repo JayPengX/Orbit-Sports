@@ -33,7 +33,7 @@ export const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
 // The kit's proxyJson: requests made together go as one batch, answers are
 // remembered in memory and on the device (a list younger than `ttl` is
 // never asked for again, even after the app was closed).
-export const getJson = (url, { ttl = 60_000, trim = '' } = {}) => proxyJson(url, { ttl, trim });
+export const getJson = (url, { ttl = 60_000, trim = '', mirror = true } = {}) => proxyJson(url, { ttl, trim, mirror });
 // How long a live answer (scores, a game's summary) is kept before asking again.
 export const LIVE_TTL = 10_000;
 
@@ -333,20 +333,34 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   if (!pages.some(Boolean)) throw new Error(`${league}: unread`);
   const parsed = pages.map(p => (p ? parseScoreboard(p, league) : []));
   settleSeries(parsed.flat());
-  // A playoff day still waiting on results as the nightly copy had it (the
-  // next round's "TBD", a game "If Necessary"), a playoff game over since:
-  // read again live, once. ESPN names the sides, drops or confirms a game and
-  // sets its time (ALDS G4 moved 05:00 to 08:00 once the Rays were through,
-  // off ELTA's listing by the copy's time) as soon as a game ends; the copy
-  // only the next night.
+  // A playoff day still waiting on results (the next round's "TBD", a game
+  // "If Necessary") as the nightly copy has it, with a playoff game over
+  // since that copy was built: that day read live, once, and the live copy
+  // kept (no more reads) until another playoff game is over. ESPN names the
+  // sides, drops or confirms a game and sets its time (ALDS G4 moved 05:00 to
+  // 08:00 once the Rays were through) as soon as a game ends; the copy only
+  // the next night. Every other read stays the nightly copy's; once a game of
+  // that day starts (the copy's own end), the day is read as any other.
+  const built = kit.mirrorBuilt ? await kit.mirrorBuilt().catch(() => 0) : 0;
+  const done = playoffDone.get(league) || 0;
   await Promise.all(
     list.map(async (d, i) => {
+      if (!/^\d{8}$/.test(d)) return;
       const url = urlOf(d);
-      if (!kit.unmirror || !/^\d{8}$/.test(d) || refreshed.has(url) || !parsed[i].some(waiting) || !(Date.now() - playoffDone.get(league) < 36 * 3_600_000)) return;
-      refreshed.add(url);
-      kit.unmirror(url);
-      const page = await getJson(url, { ttl: 0 }).catch(() => null);
-      if (page) parsed[i] = parseScoreboard(page, league);
+      const kept = liveDays.get(url);
+      if (kept && Date.now() >= kept.first) return void liveDays.delete(url);
+      // A result the day's copy (nightly or our live one) doesn't have: a game over after it was made.
+      const since = kept ? kept.done : built ? built - GAME_MS : 0;
+      const behind = since && done > since && (kept ? kept.waiting : parsed[i].some(waiting));
+      if (!behind) {
+        if (kept) parsed[i] = parseScoreboard(kept.page, league);
+        return;
+      }
+      const page = await getJson(url, { ttl: 0, mirror: false }).catch(() => null);
+      if (!page) return;
+      parsed[i] = parseScoreboard(page, league);
+      const starts = parsed[i].map(e => Date.parse(e.start)).filter(Number.isFinite);
+      liveDays.set(url, { page, done, waiting: parsed[i].some(waiting), first: starts.length ? Math.min(...starts) : Infinity });
     })
   );
   const seen = new Set();
@@ -356,7 +370,10 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
 // A playoff game to come between sides not known yet ("TBD", "CLE/CHW").
 const placeholder = x => /^tbd$/i.test(String(x?.abbr || x?.short || '').trim()) || String(x?.abbr || '').includes('/') || Number(x?.id) <= 0;
 const waiting = e => e.round && e.status?.state === 'pre' && (placeholder(e.home) || placeholder(e.away) || /if necessary/i.test(e.note || ''));
-const refreshed = new Set();
+// The days read live (above): url -> { page, done: the last playoff game over then, waiting, first: its first start }.
+const liveDays = new Map();
+// A game's start this long before the copy was built could have ended after it.
+const GAME_MS = 5 * 3_600_000;
 
 // An MLB game on now without ESPN's count (its feed can go innings with the
 // score alone): the count, runners, batter, pitcher and last play from MLB's own.
