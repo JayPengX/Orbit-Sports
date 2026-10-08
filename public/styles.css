@@ -1135,11 +1135,13 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .br-side.out { opacity: .42; }
 .br-side.tbd .br-name { color: var(--q-muted); font-weight: 600; }
 .br-tbd-logo { border: 1.5px dashed var(--q-border); border-radius: 50%; background: transparent; }
-/* A place still being played for: the two sides that could take it, overlapped. */
+/* A place still being played for: the two sides that could take it, each logo by its name. */
 .br-tie.pending { border-style: dashed; border-color: var(--q-border); box-shadow: none; }
-.br-maybe { display: inline-flex; }
-.br-maybe .logo { width: 18px; height: 18px; }
-.br-maybe .logo + .logo { margin-left: -6px; }
+.br-maybe { grid-column: 2 / 5; display: flex; align-items: center; gap: 5px; min-width: 0; }
+.br-opt { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.br-maybe .br-name { overflow: visible; }
+.br-maybe .logo { width: 20px; height: 20px; flex: none; }
+.br-or { color: var(--q-muted); font-weight: 600; }
 .br-side.maybe .br-name { color: var(--q-muted); font-weight: 600; }
 .br-note { padding-top: 6px; border-top: 1px solid var(--q-border); font-size: 11.5px; font-weight: 650; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .br-note.live { color: var(--live); }
