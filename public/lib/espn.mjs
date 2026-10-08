@@ -1496,77 +1496,32 @@ export function normalizeTeamName(name) {
     .trim();
 }
 
-// ---- News (ESPN's) ----------------------------------------------------------------------
+// ---- Injury report (ESPN's) ----------------------------------------------------------------
 //
-// A league's latest stories, or a team's (`team`: ESPN's feed for that team,
-// which also carries league-wide ones). Each story with who it's about, so a
-// team's, a player's or a driver's are the ones that name them (newsAbout).
-export function parseNews(data) {
-  return (data?.articles || [])
-    .filter(a => a?.headline && a.links?.web?.href)
-    .map(a => {
-      const cats = a.categories || [];
-      return {
-        id: String(a.id ?? a.links.web.href),
-        headline: a.headline,
-        summary: a.description || '',
-        at: Date.parse(a.published || a.lastModified || '') || 0,
-        image: a.images?.[0]?.url || '',
-        url: a.links.web.href,
-        video: a.type === 'Media',
-        premium: Boolean(a.premium),
-        athletes: cats.filter(c => c.type === 'athlete').map(c => String(c.athleteId ?? c.athlete?.id ?? '')).filter(Boolean),
-        people: cats.filter(c => c.type === 'athlete' && c.description).map(c => c.description),
-        teams: cats.filter(c => c.type === 'team').map(c => ({ id: String(c.teamId ?? c.team?.id ?? ''), name: c.description || '' }))
-      };
-    })
-    .sort((x, y) => y.at - x.at);
+// A league's whole injury report in one read ({ teamId: [player] }): NBA,
+// WNBA, NFL, NHL and MLB have one; the rest answer none. Live (ten minutes):
+// statuses change on game day.
+export function parseLeagueInjuries(data) {
+  const out = {};
+  for (const t of data?.injuries || []) {
+    const list = (t.injuries || [])
+      .filter(i => i.athlete?.displayName)
+      .map(i => ({
+        id: String(i.athlete.links?.find(l => l.rel?.includes('playercard'))?.href?.match(/\/id\/(\d+)/)?.[1] ?? ''),
+        name: i.athlete.displayName,
+        headshot: freshHeadshot(i.athlete.headshot?.href) || null,
+        status: i.status || i.type?.description || '',
+        what: [i.details?.type, i.details?.detail].filter(x => x && x !== 'Other' && x !== 'Not Specified').join(' '),
+        back: i.details?.returnDate || '',
+        date: i.date || '',
+        comment: i.shortComment || i.longComment || ''
+      }));
+    if (list.length) out[String(t.id)] = list;
+  }
+  return out;
 }
-export async function news(league, { team = '' } = {}) {
+export async function leagueInjuries(league) {
   const l = LEAGUES[league];
-  if (!l?.espn) return [];
-  const url = `${SITE}/${l.espn}/news?limit=50${team ? `&team=${encodeURIComponent(team)}` : ''}`;
-  return parseNews(await getJson(url, { ttl: 10 * 60_000, trim: 'espn-news' }));
-}
-// The stories about someone: naming the athlete (any of `athletes`), the
-// team by id, or by name (`named`: F1's constructors, which ESPN tags only
-// by name). Each story once, latest first.
-// Whether a story is about this person, not one that only tags them: their
-// name in its headline, and not a schedule, odds, predictions, fantasy or
-// preview piece (ESPN tags every driver in "Singapore GP: start times…").
-const NOT_ABOUT = /\b(how to watch|start times?|schedule|tv|odds|best bets?|picks?|predictions?|props?|fantasy|power rankings?|mock draft|ranking|takeaways|live updates|what to know|preview|grades?)\b/i;
-const foldName = x =>
-  String(x || '')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-export function storyAbout(st, name) {
-  const head = foldName(st?.headline);
-  if (!head || st.video || NOT_ABOUT.test(head)) return false;
-  const words = foldName(name).replace(/\b(jr|sr|ii|iii)\b\.?/g, '').split(/[^a-z0-9'-]+/).filter(Boolean);
-  if (!words.length) return false;
-  const last = words.at(-1);
-  return head.includes(words.join(' ')) || (last.length >= 3 && new RegExp(`(^|[^a-z])${last.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z]|$)`).test(head));
-}
-// Whether a story is about this team: its name in the headline (Manchester
-// City, Man City; an American team's nickname alone, Lakers), and not a
-// game's piece (a preview, a report, ratings: the match card has those), nor
-// a schedule, odds, predictions or fantasy one. A takeover, a manager sacked,
-// a case like City's 115 charges: yes.
-const GAME_PIECE = /( vs\.? | v\.? |player ratings|ratings|recap|highlights|lineups?|team news|what we learned|talking points|result|score|beat|beats|draw with|loss to|win over|victory over)/i;
-const US_SPORTS = new Set(['basketball', 'baseball', 'football', 'hockey']);
-export function storyAboutTeam(st, { en = '', enShort = '', sport = '', aka = [] } = {}) {
-  const head = foldName(st?.headline);
-  if (!head || st.video || NOT_ABOUT.test(head) || GAME_PIECE.test(` ${head} `)) return false;
-  const names = [en, enShort, ...aka, US_SPORTS.has(sport) ? String(en).split(' ').at(-1) : ''].map(foldName).filter(n => n.length >= 3);
-  return names.some(n => new RegExp(`(^|[^a-z])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z]|$)`).test(head));
-}
-export function newsAbout(lists, { athletes = [], team = '', named = null } = {}) {
-  const ids = new Set(athletes.map(String));
-  const seen = new Set();
-  return lists
-    .flat()
-    .filter(s => s.athletes.some(a => ids.has(a)) || (team && s.teams.some(t => t.id === String(team))) || (named && s.teams.some(t => named(t.name))))
-    .filter(s => !seen.has(s.id) && seen.add(s.id))
-    .sort((x, y) => y.at - x.at);
+  if (!l?.espn || l.espn.startsWith('soccer/')) return {};
+  return parseLeagueInjuries(await getJson(`${SITE}/${l.espn}/injuries`, { ttl: 10 * 60_000 }));
 }

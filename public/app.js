@@ -2615,6 +2615,11 @@ setInterval(pollF1Live, 10_000);
 document.addEventListener('visibilitychange', pollF1Live);
 
 window.__fxStarted = true;
+// 最新動態 is gone (2026-10-09): its cards kept on the phone go too.
+try {
+  localStorage.removeItem('fx.latest.v1');
+  localStorage.removeItem('fx.latest.prompt');
+} catch {}
 const gated = installGate('match', locale);
 watchUpdates({ current: document.querySelector('meta[name="build-version"]')?.content, key: 'quadraFixtures', cachePrefix: 'quadra-fixtures-' });
 const actions = topActions(q, { refresh: reloadNow });

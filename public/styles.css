@@ -481,9 +481,10 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .rc-chip strong { font-variant-numeric: tabular-nums; color: var(--q-text); }
 .rc-chart { height: 110px; }
 .rc-line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
-.rc-bars { display: grid; gap: 7px; margin: 4px 0 6px; }
-.rc-bar { display: grid; grid-template-columns: 7.4em 1fr 3em; align-items: center; gap: 8px; font-size: 13px; }
-.rc-name { font-weight: 700; color: var(--q-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc-bars { display: grid; grid-template-columns: max-content minmax(40px, 1fr) max-content; gap: 7px 8px; margin: 4px 0 6px; }
+/* Every row one subgrid: the names' column as wide as the longest name (never cut), the bars taking what's left. */
+.rc-bar { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; font-size: 13px; }
+.rc-name { font-weight: 700; color: var(--q-text-2); white-space: nowrap; }
 .rc-track { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--q-border) 60%, transparent); overflow: hidden; }
 .rc-track i { display: block; height: 100%; border-radius: 4px; }
 .rc-bar strong { text-align: right; }
@@ -755,15 +756,6 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .fact-flag { font-size: 16px; line-height: 1; }
 .q-btn.with-mark { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .injury-tag { margin-top: 6px; font-size: 12.5px; font-weight: 650; color: var(--loss); }
-.player-note { display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
-.player-note .note-head { font-size: 15px; line-height: 1.45; }
-/* The headline (short) breaks at its punctuation and spaces; the sentences as
-   Chinese does, anywhere but before a 。，, with no short last line. */
-.player-note .note-head { word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
-.player-note .note-points li, .player-note .note-also-row { line-break: strict; text-wrap: pretty; }
-.note-points { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; color: var(--q-text-2); }
-.note-points li::marker { color: var(--q-accent, #ea580c); }
-.note-more { justify-self: start; font-size: 13px; font-weight: 650; }
 .mate-grid { display: grid; grid-template-columns: minmax(0, 1fr) 84px 84px; align-items: center; gap: 8px 10px; font-size: 14px; }
 /* Each side's face over their name; the teammate's opens their sheet. */
 .mate-who { display: grid; justify-items: center; gap: 5px; min-width: 0; font: inherit; color: inherit; background: none; border: 0; padding: 0; }
@@ -1260,7 +1252,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .wc-labels span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .wc-labels .logo.xs { width: 20px; height: 20px; flex: none; vertical-align: 0; }
 .rc-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.rc-name > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rc-name > span { white-space: nowrap; }
 .rc-name .logo { width: 24px; height: 24px; flex: none; vertical-align: 0; font-size: 9.5px; }
 .race-part { margin: 4px 0 12px; }
 /* The one follow button (sheets.js followButton): a small pill, the app's
@@ -1298,10 +1290,6 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .fg-row + .fg-row { border-top: 1px solid var(--q-border); }
 .fg-off { width: 44px; height: 44px; border: 0; background: none; color: #d4a017; font-size: 18px; cursor: pointer; }
 
-/* News (sheets.js newsCard): a story a row, its picture, headline, summary and age. */
-
-/* 最新動態's place while nothing is known (most sheets, a quiet day): no room taken. */
-.latest-slot:empty { display: none; }
 
 /* A moment's words wrap only between its parts (no "2 分打 / 點"). */
 /* A player's name may take two lines rather than be cut ("Enrique Hernandez…"). */
@@ -1357,25 +1345,6 @@ button.lp-person.tap:active { opacity: 0.6; }
 /* The follow row under the score: the match and, in a guest club's game, the league side, side by side. */
 .mh-follow { flex-wrap: wrap; gap: 8px; }
 
-/* 最新動態: the topic, the people named (a chip each that opens them), the source. */
-.player-note .note-topic { justify-self: start; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.5; background: var(--q-sunken); color: var(--q-text-2); }
-.player-note .note-topic.bad { background: color-mix(in srgb, var(--q-bad, #ef4444) 16%, transparent); color: var(--q-bad, #ef4444); }
-.player-note .note-topic.good { background: color-mix(in srgb, var(--q-good, #22c55e) 16%, transparent); color: var(--q-good, #22c55e); }
-.player-note .note-topic.info { background: color-mix(in srgb, var(--q-accent, #ea580c) 14%, transparent); color: var(--q-accent, #ea580c); }
-.player-note .note-who { font-weight: 700; margin: 0 .2em; }
-.player-note .note-who.chip { display: inline-flex; align-items: center; gap: 5px; vertical-align: -0.35em; margin: 0 .25em; padding: 2px 9px 2px 2px; border: 0; border-radius: 999px; background: var(--q-sunken); color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
-.player-note .note-who.chip .logo { width: 22px; height: 22px; }
-.player-note .note-who.lead { margin-left: 0; }
-.player-note .note-src { justify-self: start; margin-top: 2px; font-size: 13px; font-weight: 650; color: var(--q-accent, #ea580c); text-decoration: none; }
-.player-note.big { border-left: 3px solid var(--q-accent, #ea580c); padding-left: 10px; }
-.player-note.minor .note-head { font-size: 14px; font-weight: 650; }
-.player-note .note-also { display: grid; gap: 8px; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--q-divider, var(--q-border)); }
-.player-note .note-also .mini-h { margin: 0; }
-.player-note .note-also-row { font-size: 13.5px; line-height: 1.75; color: var(--q-text-2); text-wrap: pretty; }
-.player-note .note-also-row .note-topic { display: inline-block; margin-right: 6px; padding: 0 7px; font-size: 11px; line-height: 1.7; vertical-align: 1px; }
-.player-note .note-also-row .note-who.chip { gap: 4px; margin: 0 .2em; padding: 1px 8px 1px 1px; vertical-align: -0.3em; font-size: 13px; }
-.player-note .note-also-row .note-who.chip .logo { width: 18px; height: 18px; }
-.player-note .note-also-src { margin-left: 4px; font-size: 12px; font-weight: 700; color: var(--q-accent, #ea580c); text-decoration: none; white-space: nowrap; }
 
 /* 近期交手: two sides and the draws, a bar split by them. */
 .h2h { display: grid; gap: 10px; }
@@ -1434,3 +1403,20 @@ button.lp-person.tap:active { opacity: 0.6; }
 .team-head.wide-sub > .follow-btn { grid-column: 3; grid-row: 1; }
 .team-head.wide-sub .team-head-text > small, .team-head.wide-sub .team-head-text > p { grid-column: 2 / -1; margin-top: 0; }
 .team-head.wide-sub .team-head-text > p { align-self: start; }
+
+/* 傷兵報告: each player hurt, their status a coloured chip, what and when back under the name. */
+.inj-report { display: grid; gap: 10px; }
+.inj-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; }
+.inj-row .roster-name { min-width: 0; }
+.inj-row .roster-name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inj-meta { display: grid; justify-items: end; gap: 2px; text-align: right; }
+.inj-row:has(> .inj-meta:first-child) { grid-template-columns: 1fr; }
+.inj-row:has(> .inj-meta:first-child) .inj-meta { justify-items: start; text-align: left; }
+.inj-status { justify-self: inherit; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.6; white-space: nowrap; }
+.inj-status.bad { background: color-mix(in srgb, var(--q-bad, #ef4444) 16%, transparent); color: var(--q-bad, #ef4444); }
+.inj-status.warn { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #d97706; }
+.inj-status.good { background: color-mix(in srgb, var(--q-good, #22c55e) 16%, transparent); color: var(--q-good, #22c55e); }
+.inj-comment { grid-column: 1 / -1; margin: 2px 0 0; font-size: 14px; line-height: 1.55; color: var(--q-text-2); text-wrap: pretty; }
+/* 賽事幹事: a driver named in the message, a chip with their face that opens them. */
+.lb-msg .rc-who { display: inline-flex; align-items: center; gap: 4px; margin: 0 .2em; padding: 1px 8px 1px 1px; border: 0; border-radius: 999px; background: var(--q-sunken); color: inherit; font: inherit; font-weight: 700; vertical-align: -0.3em; cursor: pointer; }
+.lb-msg .rc-who .logo { width: 18px; height: 18px; }
