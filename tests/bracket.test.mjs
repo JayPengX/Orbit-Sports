@@ -46,3 +46,50 @@ test('A cup: two legs on aggregate, who went through, the rounds after the last 
   assert.equal(cd.winner, null);
   assert.deepEqual(cd.score, { C: 3, D: 1 });
 });
+
+test('MLB: a series won goes on to the next round at once, against both sides still playing for the other place', () => {
+  const ds = (h, a, game, wins, completed = false, state = 'post') => ({ id: `${h}${a}${game}`, league: 'mlb', kind: 'match', start: `2026-10-0${game + 2}T22:00Z`, status: { state }, note: `NLDS - Game ${game}`, home: { ...side(h, 0), abbr: h }, away: { ...side(a, 0), abbr: a }, round: { key: 'QTR', title: 'Playoff Series', leg: 0, through: [] }, series: { completed, wins } });
+  const tbd = (abbr, id) => ({ id: String(id), name: abbr, short: abbr, abbr });
+  const cs = (id, start, note, home, away) => ({ id, league: 'mlb', kind: 'match', start, status: { state: 'pre' }, note, home, away, round: { key: 'SEMI', title: note.replace(/ - .*/, ''), leg: 0, through: [] } });
+  const events = [
+    ds('LAD', 'ATL', 1, { LAD: 1, ATL: 0 }),
+    ds('ATL', 'LAD', 4, { LAD: 3, ATL: 1 }, true),
+    ds('MIL', 'SD', 1, { MIL: 1, SD: 0 }),
+    ds('SD', 'MIL', 4, { MIL: 2, SD: 1 }, false, 'in'),
+    { ...ds('TB', 'NYY', 3, { TB: 3, NYY: 0 }, true), note: 'ALDS - Game 3' },
+    { ...ds('CLE', 'CHW', 3, { CHW: 2, CLE: 1 }), note: 'ALDS - Game 3' },
+    // ESPN's: the NLCS between two TBDs; the ALCS, TB against "CLE/CHW" (its id changing game to game).
+    cs('n1', '2026-10-11T04:00Z', 'NLCS - Game 1', tbd('TBD', -1), tbd('TBD', -2)),
+    cs('n2', '2026-10-12T04:00Z', 'NLCS - Game 2', tbd('TBD', -1), tbd('TBD', -2)),
+    cs('a1', '2026-10-12T04:00Z', 'ALCS - Game 1', { ...side('TB', 0), abbr: 'TB' }, tbd('CLE/CHW', -2)),
+    cs('a3', '2026-10-15T04:00Z', 'ALCS - Game 3', tbd('CLE/CHW', -1), { ...side('TB', 0), abbr: 'TB' })
+  ];
+  const semi = buildBracket(events, 'mlb')[2];
+  const show = t => t.sides.map((s, i) => s?.id || t.options[i].map(x => x.id).join('/'));
+  assert.equal(semi.ties.length, 2);
+  assert.ok(semi.ties.every(t => t.pending && !t.winner));
+  const nl = semi.ties.find(t => t.next.id === 'n1');
+  const al = semi.ties.find(t => t.next.id === 'a1');
+  assert.deepEqual(show(nl), ['LAD', 'MIL/SD']);
+  assert.deepEqual(show(al), ['TB', 'CLE/CHW']);
+});
+
+test('A round with no games yet: the two winners of a half meet; one undecided feeder is not a tie yet', () => {
+  const g = (id, h, a, note, wins, completed) => ({ id, league: 'mlb', kind: 'match', start: '2026-10-05T22:00Z', status: { state: 'post' }, note, home: { ...side(h, 0), abbr: h }, away: { ...side(a, 0), abbr: a }, round: { key: 'QTR', title: 'Playoff Series', leg: 0, through: [] }, series: { completed, wins } });
+  const both = buildBracket([g('1', 'LAD', 'ATL', 'NLDS - Game 4', { LAD: 3, ATL: 1 }, true), g('2', 'MIL', 'SD', 'NLDS - Game 4', { MIL: 3, SD: 1 }, true), g('3', 'TB', 'NYY', 'ALDS - Game 3', { TB: 3 }, true), g('4', 'CLE', 'CHW', 'ALDS - Game 3', { CHW: 2, CLE: 1 }, false)], 'mlb')[2];
+  assert.deepEqual(both.ties.filter(Boolean).map(t => t.sides.map((s, i) => s?.id || t.options[i].map(x => x.id).join('/'))), [['LAD', 'MIL'], ['TB', 'CLE/CHW']]);
+  const one = buildBracket([g('1', 'LAD', 'ATL', 'NLDS - Game 4', { LAD: 3, ATL: 1 }, true)], 'mlb')[2];
+  assert.ok(one.ties.every(t => t === null));
+});
+
+test('A tie’s games from a nightly copy ("TBD v TBD") and the live list ("TB v CLE/CHW"): one place, from its first game', () => {
+  const ds = (h, a, wins, completed) => ({ id: h + a, league: 'mlb', kind: 'match', start: '2026-10-07T22:00Z', status: { state: 'post' }, note: 'ALDS - Game 3', home: { ...side(h, 0), abbr: h }, away: { ...side(a, 0), abbr: a }, round: { key: 'QTR', title: 'Playoff Series', leg: 0, through: [] }, series: { completed, wins } });
+  const ph = (abbr, id) => ({ id: String(id), name: abbr, short: abbr, abbr });
+  const cs = (id, start, home, away) => ({ id, league: 'mlb', kind: 'match', start, status: { state: 'pre' }, note: `ALCS - Game ${id}`, home, away, round: { key: 'SEMI', title: 'ALCS', leg: 0, through: [] } });
+  const tb = { ...side('TB', 0), abbr: 'TB' };
+  const semi = buildBracket([ds('NYY', 'TB', { TB: 3, NYY: 0 }, true), ds('CHW', 'CLE', { CHW: 2, CLE: 1 }, false), cs('1', '2026-10-12T04:00Z', ph('TBD', -1), ph('TBD', -2)), cs('3', '2026-10-15T04:00Z', ph('CLE/CHW', -1), tb), cs('4', '2026-10-16T04:00Z', ph('CLE/CHW', -1), tb)], 'mlb')[2];
+  const real = semi.ties.filter(Boolean);
+  assert.equal(real.length, 1);
+  assert.deepEqual(real[0].sides.map((s, i) => s?.id || real[0].options[i].map(x => x.id).join('/')), ['TB', 'CHW/CLE']);
+  assert.equal(real[0].next.id, '1');
+});

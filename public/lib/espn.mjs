@@ -20,7 +20,7 @@ import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
 import * as kit from '#kit/quadra.mjs';
 const { proxyJson } = kit;
-import { stageFrom } from './stage.mjs';
+import { stageFrom, roundName } from './stage.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { groupZh } from './statnames.mjs';
 
@@ -279,6 +279,40 @@ export function freshGame(e) {
   return { ...e, status: f.status, series: f.series || e.series, live: f.live ?? e.live, home: side(e.home, f.home), away: side(e.away, f.away) };
 }
 
+// Each playoff series as the newest game over in it has it. The days to come
+// are the nightly copies (Shared-Data's mirror, built before tonight's games):
+// built on top of with what's been played since, a series won drops its
+// "If Necessary" games, and a game that's now sure to be played loses its
+// （如需）. settleSeries(list) -> the list so.
+const seriesNow = new Map();
+const seriesKey = e => `${e.league}|${e.round?.key}|${[e.home?.id, e.away?.id].map(String).sort().join('|')}`;
+const playedOf = s => Object.values(s?.wins || {}).reduce((n, w) => n + (Number(w) || 0), 0);
+export function settleSeries(list) {
+  for (const e of list) {
+    if (e?.kind !== 'match' || !e.series || !e.round || e.status?.state !== 'post') continue;
+    const k = seriesKey(e);
+    if (playedOf(e.series) >= playedOf(seriesNow.get(k))) seriesNow.set(k, e.series);
+  }
+  const out = [];
+  for (const e of list) {
+    const s = e?.kind === 'match' && e.round && e.status?.state === 'pre' ? seriesNow.get(seriesKey(e)) : null;
+    // Nothing newer than what the game itself says.
+    if (!s || playedOf(s) <= playedOf(e.series)) {
+      out.push(e);
+      continue;
+    }
+    if (s.completed) continue;
+    const game = Number(/\bgame (\d+)/i.exec(e.note)?.[1]) || 0;
+    const need = Math.ceil((s.games || 0) / 2);
+    const lead = Math.max(0, ...Object.values(s.wins).map(Number));
+    // Sure to be played: neither side can have won it before, whatever happens until then.
+    const sure = /if necessary/i.test(e.note) && game && need && lead + (game - 1 - playedOf(s)) < need;
+    const note = sure ? e.note.replace(/\s*-?\s*if necessary/i, '') : e.note;
+    out.push({ ...e, series: s, note, ...(sure && e.stage?.round ? { stage: { ...e.stage, round: { zh: roundName(note, 'zh'), en: note } } } : {}) });
+  }
+  return out;
+}
+
 // `keep`: how long a past day is kept on the phone (6 hours unless said).
 export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   const l = LEAGUES[league];
@@ -295,7 +329,7 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
     .filter(Boolean)
     .flatMap(p => parseScoreboard(p, league))
     .filter(e => !seen.has(e.id) && seen.add(e.id));
-  return noteLatest(league === 'mlb' ? await withMlbLive(events) : events);
+  return noteLatest(settleSeries(league === 'mlb' ? await withMlbLive(events) : events));
 }
 
 // An MLB game on now without ESPN's count (its feed can go innings with the

@@ -12,7 +12,7 @@
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, settleSeries, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -582,6 +582,9 @@ async function loadDay(date) {
     // others), and the day is read again shortly.
     const kept = events.failed ? [...events, ...slot.events.filter(e => !events.some(x => x.league === e.league))] : events;
     if (isToday) noticeChanges(kept);
+    if (isToday) notePlayoffGames(kept);
+    // The other days held (the nightly copies of the days to come): today's results on top.
+    if (isToday) for (const [d, other] of state.days) if (d !== date && other.events?.length) other.events = settleSeries(other.events);
     Object.assign(slot, { events: kept, at: Date.now(), stale: false, leagues: key, partial: events.failed || 0 });
     if (isToday && !events.failed) saveDay(date, slot);
     retry = events.failed > 0;
@@ -1402,14 +1405,38 @@ async function playoffData(league) {
 function loadBracket(league) {
   const had = brackets.get(league);
   if (!hasBracket(league) || (had && (had.loading || Date.now() - had.at < (had.failed ? 61_000 : 10 * 60_000)))) return;
-  brackets.set(league, { ...(had || {}), loading: true });
+  brackets.set(league, { ...(had || {}), loading: true, again: false });
   playoffData(league)
-    .then(d => brackets.set(league, { model: playoffModel({ league, ...d }), at: Date.now() }))
+    // A game started or ended while it was read: read again at once (at 0).
+    .then(d => brackets.set(league, { model: playoffModel({ league, ...d }), at: brackets.get(league)?.again ? 0 : Date.now() }))
     .catch(() => {
       brackets.set(league, { model: had?.model || null, at: Date.now(), failed: true });
       setTimeout(() => state.tab === 'matches' && state.scores.league === league && state.scores.view === 'bracket' && renderScores(), 61_500);
     })
     .finally(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+}
+// A playoff game starting or ending (seen in today's read or the open
+// league's) changes its bracket (the series, who's through, on now): read
+// again then, not left as it was for up to 10 minutes after a clincher.
+const poState = new Map();
+function notePlayoffGames(events) {
+  const changed = new Set();
+  for (const e of events) {
+    if (!e.round || !hasBracket(e.league)) continue;
+    const key = `${e.league}:${e.id}`;
+    const was = poState.get(key);
+    poState.set(key, e.status.state);
+    if (was && was !== e.status.state) changed.add(e.league);
+  }
+  for (const league of changed) staleBracket(league);
+}
+function staleBracket(league) {
+  const had = brackets.get(league);
+  if (!had) return;
+  if (had.loading) had.again = true;
+  else had.at = 0;
+  // Open: read now (renderScores asks for it).
+  if (state.tab === 'matches' && state.scores.league === league && state.scores.view === 'bracket') renderScores();
 }
 // The playoffs as a map you swipe across: a column a round (its name, and
 // done / on now / its dates under it), the later rounds between the ties
@@ -1436,6 +1463,15 @@ function playoffView(model, league) {
     const seed = t.projected ? t.seeds?.[i] : s?.seed;
     const label = t.projected ? t.labels?.[i] : '';
     const score = !t.projected && s ? t.score?.[id] : undefined;
+    // A place still being played for: both sides that could take it.
+    const maybe = !s && t.options?.[i];
+    if (maybe)
+      return el('div', { class: 'br-side maybe' }, [
+        el('span', { class: 'br-seed num' }),
+        el('span', { class: 'br-maybe' }, maybe.map(x => sideLogo(x, league, 'xs'))),
+        el('span', { class: 'br-name', text: maybe.map(x => x.abbr || x.short || x.name).join('/') }),
+        el('strong', { class: 'num br-score' })
+      ]);
     return el('div', { class: `br-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}${s ? '' : ' tbd'}` }, [
       el('span', { class: 'br-seed num', text: seed ? String(seed) : '' }),
       s ? sideLogo(s, league, 'xs') : el('span', { class: 'logo xs br-tbd-logo', 'aria-hidden': 'true' }),
@@ -1450,14 +1486,14 @@ function playoffView(model, league) {
     if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}`;
     if (t.live) return en ? 'On now' : '進行中';
     if (t.next) return `${t.kind === 'series' ? `G${t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${clock(t.next.start)}`;
-    return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : '';
+    return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : t.pending ? (en ? 'To be decided' : '待定') : '';
   };
   const tie = (t, r) => {
     const blank = { projected: true, seeds: [], labels: [] };
     const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), el('small', { class: `br-note${t?.live ? ' live' : ''}`, text: note(t, r) })];
-    return t && !t.projected
+    return t && !t.projected && !t.pending
       ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openTie({ ...t, games: t.games.map(freshGame) }, league, en ? r.title.en : r.title.zh) }, body)
-      : el('div', { class: `br-tie ${t ? 'projected' : 'tbd'}` }, body);
+      : el('div', { class: `br-tie ${t?.pending ? 'pending' : t ? 'projected' : 'tbd'}` }, body);
   };
   const entry = brackets.get(league);
   const fade = entry && !entry.shown;
@@ -1523,6 +1559,7 @@ function applyScores(sc, events) {
   }
   sc.byDay = byDay;
   sc.all = events;
+  notePlayoffGames(events);
   sc.days = [...byDay.keys()].sort();
   tagGroups(sc.league, events, () => state.tab === 'matches' && state.scores === sc && renderScores());
 }
@@ -2362,6 +2399,8 @@ function tabAgain(tab) {
 async function reloadNow() {
   actions.refresh.disabled = true;
   try {
+    // The open league's playoffs too (read again, not kept their 10 minutes).
+    if (state.tab === 'matches') staleBracket(state.scores.league);
     await Promise.allSettled([loadDay(state.tab === 'home' ? state.home.date : today()), state.tab === 'matches' ? loadScores() : null]);
   } finally {
     actions.refresh.disabled = false;

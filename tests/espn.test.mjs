@@ -260,3 +260,22 @@ test("a player's last games: each one's competition, the score from their side",
   });
   assert.deepEqual(log.games.map(g => [g.league, g.score, g.home]), [['nationsleague', '1-2', false], ['epl', '3-0', true]]);
 });
+
+test('settleSeries: the nightly copy of the days to come, built on with the games played since', async () => {
+  const { settleSeries } = await import('../public/lib/espn.mjs');
+  const g = (id, home, away, note, state, wins, completed = false) => ({ id, league: 'mlb', kind: 'match', start: '2026-10-08T00:00Z', note, status: { state }, home: { id: home }, away: { id: away }, round: { key: 'QTR' }, stage: { round: { zh: note, en: note } }, series: { completed, games: 5, wins } });
+  const out = settleSeries([
+    // Played tonight (the live read): one series won, one now 2-1.
+    g('1', 'NYY', 'TB', 'ALDS - Game 3', 'post', { TB: 3, NYY: 0 }, true),
+    g('2', 'CHW', 'CLE', 'ALDS - Game 3', 'post', { CHW: 2, CLE: 1 }),
+    // The nightly copy, from before them.
+    g('3', 'NYY', 'TB', 'ALDS - Game 4 If Necessary', 'pre', { TB: 2, NYY: 0 }),
+    g('4', 'CHW', 'CLE', 'ALDS - Game 4 If Necessary', 'pre', { CHW: 2, CLE: 0 }),
+    g('5', 'CLE', 'CHW', 'ALDS - Game 5 If Necessary', 'pre', { CHW: 2, CLE: 0 })
+  ]);
+  assert.deepEqual(out.filter(e => e.status.state === 'pre').map(e => [e.id, e.note, e.series.wins]), [
+    ['4', 'ALDS - Game 4', { CHW: 2, CLE: 1 }],
+    ['5', 'ALDS - Game 5 If Necessary', { CHW: 2, CLE: 1 }]
+  ]);
+  assert.equal(out.find(e => e.id === '4').stage.round.en, 'ALDS - Game 4');
+});
