@@ -25,13 +25,15 @@ right:
   a filter by stage when the season has more than one (preseason, playoffs,
   the NBA Cup…). F1 shows its whole season, a card per
   weekend with its country's flag: live, coming up and results.
-- **直播 Live**: everything in progress now (followed first), each with a
-  觀看 button that opens the game's channel in the ELTA.tv app (or Apple TV's
-  MLS), what starts in the next hours, and ELTA's guide for the next 12
-  hours. The tab shows the live count.
-- **追蹤 Following**: your sports in priority order; for each followed league
-  its live and next games, latest results, your teams and the top of the
-  table; the players you follow (individual sports).
+- **轉播 On TV**: when and where. Everything in progress now (followed
+  first), each with a 觀看 button that opens the game's channel in the
+  ELTA.tv app (or Apple TV's MLS); 你的轉播, your teams', players' and
+  matches' games on TV in the next 7 days, by day; the next 24 hours' other
+  games; what just ended; and ELTA's full guide, a tap away. The tab shows
+  the live count.
+- **追蹤 Following**: how your teams and players are doing: the matches you
+  follow one by one, each team's place, form, next game (and where it's on)
+  and last result, each player's season and next game.
 - **Tables** (in 賽事, a league's table view) for every league that has one,
   with the gap to the top (points behind the leader, or games behind), full
   team names where they fit and the short ones on a phone.
@@ -100,7 +102,7 @@ A static site (GitHub Pages) with no build step.
 ```
 public/
   index.html, styles.css, sw.js, manifest.webmanifest
-  app.js            tabs: Home, Matches, Live, Following; follows
+  app.js            tabs: Home, Matches, On TV, Following; follows
   sheets.js         match, event, team and player sheets; standings tables
   ui.js             shared DOM helpers, rows, days and times
   lib/leagues.mjs   every league: sport, source, Play key, kind

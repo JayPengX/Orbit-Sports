@@ -1411,3 +1411,9 @@ button.lp-person.tap:active { opacity: 0.6; }
 .h2h-bar i.away { background: var(--away); }
 .h2h-bar i.draw { background: var(--q-border); }
 .h2h-bar i.home { background: var(--accent); }
+
+/* 轉播's foot: ELTA's whole guide, one tap. */
+.guide-open { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 18px; padding: 14px 16px; border: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.guide-open > span { display: grid; gap: 2px; flex: 1; }
+.guide-open strong { font-size: 15px; }
+.guide-open .guide-go { font-size: 20px; color: var(--q-accent, #ea580c); }

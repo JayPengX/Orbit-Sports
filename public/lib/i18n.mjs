@@ -4,7 +4,7 @@ export const STRINGS = {
   zh: {
     tab_home: "首頁",
     tab_matches: "賽事",
-    tab_live: "直播",
+    tab_live: "轉播",
     tab_following: "追蹤",
     tab_standings: "排名",
     f_all: "全部",
@@ -155,7 +155,7 @@ export const STRINGS = {
   en: {
     tab_home: "Home",
     tab_matches: "Matches",
-    tab_live: "Live",
+    tab_live: "On TV",
     tab_following: "Following",
     tab_standings: "Tables",
     f_all: "All",

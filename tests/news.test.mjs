@@ -32,14 +32,19 @@ test("a driver's, a team's and a constructor's stories, each once", () => {
   assert.deepEqual(newsAbout([list], {}), [], 'about no one: nothing');
 });
 
-test("F1's drivers and teams by the app's names, whoever a story is tagged with", async () => {
+test("F1 stories: teams by the app's names, drivers kept in English through the translator", async () => {
   const { namedZh } = await import('../public/lib/f1names.mjs');
-  assert.equal(namedZh('George Russell: Bahrain Grand Prix was another failure'), '羅素: Bahrain Grand Prix was another failure');
-  assert.equal(namedZh("Max Verstappen won from pole; Russell's Mercedes retired"), '維斯塔潘 won from pole; 羅素的 賓士 retired');
-  assert.equal(namedZh('Carlos Sainz Jr. and Nico Hülkenberg for Red Bull Racing'), '塞恩斯 and 霍肯伯格 for 紅牛');
-  assert.equal(namedZh('Kimi Antonelli, Andrea Kimi Antonelli'), '安東內利, 安東內利');
+  const one = namedZh("Max Verstappen won from pole; Russell's Mercedes retired");
+  assert.equal(one.text, "⟦1⟧ won from pole; ⟦0⟧'s 賓士 retired");
+  // What the translator gives back: the names in English again, a space beside Chinese, none after punctuation.
+  assert.equal(one.back('⟦1⟧ 贏得桿位； ⟦0⟧的賓士退賽了'), 'Max Verstappen 贏得桿位；Russell 的賓士退賽了');
+  assert.equal(one.back('賓士更換動力單位後，⟦0⟧將從後排發車。'), '賓士更換動力單位後，Russell 將從後排發車。');
+  const two = namedZh('Carlos Sainz Jr. and Nico Hülkenberg for Red Bull Racing');
+  assert.equal(two.back(two.text), 'Carlos Sainz Jr. and Nico Hulkenberg for 紅牛');
+  const three = namedZh('Kimi Antonelli, Andrea Kimi Antonelli');
+  assert.equal(three.back(three.text), 'Kimi Antonelli, Andrea Kimi Antonelli');
   // An ordinary word that happens to be a name in lower case stays.
-  assert.equal(namedZh('a stroll in the park'), 'a stroll in the park');
+  assert.equal(namedZh('a stroll in the park').text, 'a stroll in the park');
 });
 
 test("最新動態 only from a story about them: their name in the headline, not a schedule, odds or preview that tags them", async () => {

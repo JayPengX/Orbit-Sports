@@ -31,14 +31,20 @@ const T = (k, v) => ctx.t(k, v);
 // days per line). Empty stays empty.
 // `from`: the text's language when it's known (ESPN's stories: 'en', which
 // Google translates better than its guess, in traditional characters).
-export function zhLater(text, from = 'auto') {
+export function zhLater(text, from = 'auto', after = x => x) {
   if (!text) return '';
-  if (L() === 'en' || !/[A-Za-z]/.test(text)) return text;
+  if (L() === 'en' || !/[A-Za-z]/.test(text)) return after(text);
   const fixed = fixedWord(text, L());
   if (fixed) return fixed;
-  const node = document.createTextNode(text);
-  translate(text, 'zh-TW', from).then(zh => zh && (node.textContent = zh)).catch(() => {});
+  const node = document.createTextNode(after(text));
+  translate(text, 'zh-TW', from).then(zh => zh && (node.textContent = after(zh))).catch(() => {});
   return node;
+}
+// An F1 story's line: its teams by the app's names (賓士), its drivers kept
+// in English through the translator (held as ⟦0⟧…, put back after).
+function f1Later(text) {
+  const { text: held, back } = namedZh(text);
+  return zhLater(held, 'en', back);
 }
 const injuryText = s => (L() === 'en' ? s : injuryZh(s) || zhLater(s));
 const weatherText = w => weatherZh(w, L());
@@ -429,7 +435,7 @@ function freshNews(stories, league = '') {
   const st = stories[0];
   if (!st || Date.now() - st.at >= FRESH_NEWS_MS) return null;
   const en = L() === 'en';
-  const zh = text => (en ? text : zhLater(league === 'f1' ? namedZh(text) : text, 'en'));
+  const zh = text => (en ? text : league === 'f1' ? f1Later(text) : zhLater(text, 'en'));
   const points = String(st.summary || '')
     .replace(/\s+/g, ' ')
     .split(/(?<=[.!?])\s+(?=[A-Z"'(“])/)
@@ -604,9 +610,10 @@ function latestSlot(league, kind, id, { name = '', zh = '', team = '', facts = [
   asked.then(a => {
     const card = a ? aiCard(a, league, people) : null;
     if (card) return put(box, fadeIn(card));
-    // Nothing to say: the shape (if it showed) folds away, ESPN's own word in its place.
-    if (box.firstChild) foldAway(box, now);
-    else put(box, now ? fadeIn(now) : null);
+    // No flash: no card (the shape, if it showed, folds away). ESPN's newest
+    // story isn't put in its place: that's the quote or preview a 快訊 leaves
+    // out (it stays the card in English, which has no flashes).
+    if (box.firstChild) foldAway(box, null);
   });
   return box;
 }
@@ -1251,7 +1258,7 @@ const axisRow = marks => (marks.length ? el('div', { class: 'wp-axis', 'aria-hid
 // teammate's dashed), by lap once the laps are in (by the clock while it
 // runs); a finger on it reads each one's chance at that lap. To come: each
 // one's chance now, the likeliest first.
-const driverShort = (name, en) => (en ? f1Driver(name).surname || name.split(' ').at(-1) : String(f1Driver(name).zh).split('.').at(-1));
+const driverShort = name => f1Driver(name).surname || name.split(' ').at(-1);
 function raceChanceCard(line, ss, feed = null) {
   const en = L() === 'en';
   if (line.drivers[0]?.chance != null)
@@ -1266,7 +1273,7 @@ function raceChanceCard(line, ss, feed = null) {
             el('button', { class: 'rc-bar', type: 'button', onclick: async () => {
               const who = fieldDriver(ss.field, d.name) || fieldDriver(await seasonDrivers(), d.name);
               if (who?.id) ctx.openPlayer('f1', who.id, who);
-            } }, [el('span', { class: 'rc-name' }, [personPic(fieldDriver(ss.field, d.name) || { name: d.name }, 'f1', 'xs round'), el('span', { text: driverShort(d.name, en) })]), el('span', { class: 'rc-track' }, [el('i', { style: `width:${Math.max(2, d.chance * 100)}%;background:${f1Driver(d.name).color}` })]), el('strong', { class: 'num', text: `${Math.round(d.chance * 100)}%` })])
+            } }, [el('span', { class: 'rc-name' }, [personPic(fieldDriver(ss.field, d.name) || { name: d.name }, 'f1', 'xs round'), el('span', { text: driverShort(d.name) })]), el('span', { class: 'rc-track' }, [el('i', { style: `width:${Math.max(2, d.chance * 100)}%;background:${f1Driver(d.name).color}` })]), el('strong', { class: 'num', text: `${Math.round(d.chance * 100)}%` })])
           )
         )
       ])
@@ -2346,10 +2353,10 @@ export async function openPlayer(league, id, fallback = {}) {
     const latestFor = {
       team: a.teamId,
       name: a.name,
-      zh: league === 'f1' ? f1Driver(a.name).zh : '',
+      zh: '',
       // Who its card can name: them, and their teammates.
-      people: () => (a.teamId && league !== 'f1' ? roster(league, a.teamId).catch(() => []) : Promise.resolve([])).then(list => [{ id, name: a.name, headshot: a.headshot, zh: league === 'f1' ? f1Driver(a.name).zh : '', self: true }, ...list]),
-      facts: [`${name}（${a.name}）：${[leagueName(league, L()), driver?.team ? f1Constructor(driver.team).zh : a.team, a.position].filter(Boolean).join('・')}`],
+      people: () => (a.teamId && league !== 'f1' ? roster(league, a.teamId).catch(() => []) : Promise.resolve([])).then(list => [{ id, name: a.name, headshot: a.headshot, self: true }, ...list]),
+      facts: [`${name === a.name ? name : `${name}（${a.name}）`}：${[leagueName(league, L()), driver?.team ? f1Constructor(driver.team).zh : a.team, a.position].filter(Boolean).join('・')}`],
       report: [
         injury && Date.now() - Date.parse(injury.date || 0) < 30 * 86_400_000 ? `傷病（ESPN ${String(injury.date).slice(0, 10)}）：${[injury.status, injury.what].filter(Boolean).join('，')}${injury.back ? `，預計 ${localDate(Date.parse(injury.back))} 回歸` : ''}。${injury.comment}` : '',
         ov?.note && Date.now() - Date.parse(ov.note.date || 0) < 14 * 86_400_000 ? `RotoWire（${String(ov.note.date || '').slice(0, 10)}）：${ov.note.headline} ${String(ov.note.story || '').slice(0, 300)}` : ''
