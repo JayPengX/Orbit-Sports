@@ -891,7 +891,7 @@ function winProbCard(line, e, timeline, events = []) {
   const face = m => (m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : el('span', { text: m.icon }));
   const tell = (m, label) => {
     why.hidden = !m;
-    if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, ...momentWords(m.text)]), gainChip(m));
+    if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, momentWords(m.text, label)), gainChip(m));
   };
   const show = (j, picked) => {
     // A moment picked from the list: that one; a finger close to one: on it.
@@ -957,10 +957,13 @@ function winProbCard(line, e, timeline, events = []) {
   return card(T('winProb'), box);
 }
 
-// A moment's words, broken only between its parts ("E. Hernandez 全壘打 ·
-// 2 分打點 · 超前" wraps at a ·, never inside 打點).
-// (A long part, an English play's sentence, still wraps inside.)
-const momentWords = text => joinNodes(String(text || '').split(' · ').map(x => el('span', { class: x.length <= 18 ? 'nb' : '', text: x })), ' · ');
+// A moment's words: the play on the first line, what came of it small on
+// the second ("E. Hernandez 全壘打" over "2 分打點 · 超前"), so neither
+// wraps at a stray ·. (A long play, an English sentence, takes two lines.)
+const momentWords = (text, label = '') => {
+  const [main, ...rest] = String(text || '').split(' · ');
+  return [el('span', { class: 'mo-main' }, [label ? el('b', { text: `${label} · ` }) : null, document.createTextNode(main)]), rest.length ? el('small', { class: 'mo-sub', text: rest.join(' · ') }) : null];
+};
 // 過程's way around a long game (an NBA game's 400-odd plays): a bar kept
 // at the top while it scrolls, a filter (全部 / 得分 / 關鍵: every play,
 // the scores, the chart's key moments) and a chip a period that jumps to
@@ -1146,7 +1149,7 @@ function raceChanceCard(line, ss, feed = null) {
   const open = ss.status.state === 'in' ? bands.find(b => b.i1 >= last) : null;
   const tell = (m, label) => {
     why.hidden = !m;
-    if (m) put(why, el('span', { class: 'wp-why-icon' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-why-text' }, [label ? el('b', { text: `${label} · ` }) : null, ...momentWords(m.band && m.driver ? `${m.icon} ${m.text}` : m.text)]), gainChip(m));
+    if (m) put(why, el('span', { class: 'wp-why-icon' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-why-text' }, momentWords(m.band && m.driver ? `${m.icon} ${m.text}` : m.text, label)), gainChip(m));
   };
   const show = (j, picked) => {
     // A moment picked from the list: that one; a finger close to a stop or a lead (the closest): on it.
