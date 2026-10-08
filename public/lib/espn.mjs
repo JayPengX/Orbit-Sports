@@ -287,6 +287,8 @@ export function freshGame(e) {
 // "If Necessary" games, and a game that's now sure to be played loses its
 // （如需）. settleSeries(list) -> the list so.
 const seriesNow = new Map();
+// Each league's latest series won (its deciding game's start): a day's "TBD" from before it may have names now.
+const seriesWon = new Map();
 const seriesKey = e => `${e.league}|${e.round?.key}|${[e.home?.id, e.away?.id].map(String).sort().join('|')}`;
 const playedOf = s => Object.values(s?.wins || {}).reduce((n, w) => n + (Number(w) || 0), 0);
 export function settleSeries(list) {
@@ -294,6 +296,7 @@ export function settleSeries(list) {
     if (e?.kind !== 'match' || !e.series || !e.round || e.status?.state !== 'post') continue;
     const k = seriesKey(e);
     if (playedOf(e.series) >= playedOf(seriesNow.get(k))) seriesNow.set(k, e.series);
+    if (e.series.completed) seriesWon.set(e.league, Math.max(seriesWon.get(e.league) || 0, Date.parse(e.start) || 0));
   }
   const out = [];
   for (const e of list) {
@@ -322,17 +325,34 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   const list = [].concat(dates || []);
   // Scores on now: read again after 10 seconds (the proxy's live copy).
   // A day two or more back is over: kept on the phone 6 hours, not asked again every 10 seconds.
-  const pages = list.length ? await Promise.all(list.map(d => getJson(`${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`, { ttl: /^\d{8}$/.test(d) && d < yyyymmdd(new Date(Date.now() - 2 * 86_400_000)) ? keep : LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
+  const urlOf = d => `${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`;
+  const pages = list.length ? await Promise.all(list.map(d => getJson(urlOf(d), { ttl: /^\d{8}$/.test(d) && d < yyyymmdd(new Date(Date.now() - 2 * 86_400_000)) ? keep : LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
   // Not one page read: a failure, never "no games" (a day saved without the
   // league, or the league taken for out of season).
   if (!pages.some(Boolean)) throw new Error(`${league}: unread`);
+  const parsed = pages.map(p => (p ? parseScoreboard(p, league) : []));
+  settleSeries(parsed.flat());
+  // A day still waiting on a series (the next round's "TBD") as the nightly
+  // copy had it, a series won since: read again live, once (ESPN names the
+  // sides as soon as it's won; the copy only the next night).
+  await Promise.all(
+    list.map(async (d, i) => {
+      const url = urlOf(d);
+      if (!kit.unmirror || !/^\d{8}$/.test(d) || refreshed.has(url) || !parsed[i].some(waiting) || !(Date.now() - seriesWon.get(league) < 36 * 3_600_000)) return;
+      refreshed.add(url);
+      kit.unmirror(url);
+      const page = await getJson(url, { ttl: 0 }).catch(() => null);
+      if (page) parsed[i] = parseScoreboard(page, league);
+    })
+  );
   const seen = new Set();
-  const events = pages
-    .filter(Boolean)
-    .flatMap(p => parseScoreboard(p, league))
-    .filter(e => !seen.has(e.id) && seen.add(e.id));
+  const events = parsed.flat().filter(e => !seen.has(e.id) && seen.add(e.id));
   return noteLatest(settleSeries(league === 'mlb' ? await withMlbLive(events) : events));
 }
+// A playoff game to come between sides not known yet ("TBD", "CLE/CHW").
+const placeholder = x => /^tbd$/i.test(String(x?.abbr || x?.short || '').trim()) || String(x?.abbr || '').includes('/') || Number(x?.id) <= 0;
+const waiting = e => e.round && e.status?.state === 'pre' && (placeholder(e.home) || placeholder(e.away));
+const refreshed = new Set();
 
 // An MLB game on now without ESPN's count (its feed can go innings with the
 // score alone): the count, runners, batter, pitcher and last play from MLB's own.

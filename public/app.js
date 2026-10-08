@@ -1500,7 +1500,7 @@ function playoffView(model, league) {
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
     if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}`;
     if (t.live) return en ? 'On now' : '進行中';
-    if (t.next) return `${t.kind === 'series' ? `G${t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${clock(t.next.start)}`;
+    if (t.next) return `${t.kind === 'series' ? `G${Number(/\bgame (\d+)/i.exec(t.next.note || '')?.[1]) || t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${clock(t.next.start)}`;
     return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : t.pending ? (en ? 'To be decided' : '待定') : '';
   };
   const tie = (t, r) => {
@@ -1520,10 +1520,71 @@ function playoffView(model, league) {
     { class: 'bracket' },
     model.rounds.map(r => el('section', { class: `br-col ${r.state}` }, [el('div', { class: 'br-head' }, [el('strong', { text: en ? r.title.en : r.title.zh }), el('small', { text: stateText(r) })]), el('div', { class: 'br-ties' }, r.ties.map(t => tie(t, r)))]))
   );
+  linkTies(map, model);
   // Opened on the round that's on (or next), not always the first.
   const at = openRound(model) - 1;
   if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.children[at]?.offsetLeft - map.offsetLeft - 16));
   return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, map]);
+}
+// The lines from each tie to the one it feeds (a bracket's elbows), drawn
+// once the columns are laid out and again when they change size. A tie goes
+// to the next one holding its winner (7 v 8's past the 8th seed game, to the
+// first round), else where its seeds' winner waits ("4/5 勝者"), else the
+// one beside it; a decided tie's line drawn stronger, to follow a side's way.
+function linkTies(map, model) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const ids = t => (t ? [...(t.sides || []), ...(t.options || []).flat()].filter(Boolean).map(x => String(x.id)) : []);
+  const R = model.rounds;
+  const target = (i, j) => {
+    const t = R[i].ties[j];
+    const next = R[i + 1]?.ties || [];
+    const past = next[j]?.through;
+    if (t.winner)
+      for (const k of past ? [i + 1, i + 2] : [i + 1]) {
+        const m = (R[k]?.ties || []).findIndex(x => x && !x.gap && ids(x).includes(t.winner));
+        if (m >= 0) return [k, m];
+      }
+    const key = t.projected && t.seeds?.every(Boolean) ? `${t.seeds.join('/')} 勝者` : '';
+    const waits = key ? next.findIndex(x => x?.labels?.includes(key)) : -1;
+    if (waits >= 0) return [i + 1, waits];
+    if (past) return R[i + 2] ? [i + 2, j] : null;
+    const m = Math.floor((j * next.length) / R[i].ties.length);
+    return next.length && !next[m]?.gap ? [i + 1, m] : null;
+  };
+  const draw = () => {
+    if (!map.isConnected) return void ro.disconnect();
+    map.querySelector(':scope > .br-links')?.remove();
+    const nodes = [...map.querySelectorAll(':scope > .br-col')].map(c => [...c.querySelectorAll('.br-ties > .br-tie')]);
+    if (!nodes[0]?.[0]?.offsetHeight) return;
+    const box = map.getBoundingClientRect();
+    const at = n => {
+      const r = n.getBoundingClientRect();
+      return { l: r.left - box.left + map.scrollLeft, r: r.right - box.left + map.scrollLeft, y: r.top - box.top + map.scrollTop + r.height / 2 };
+    };
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'br-links');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('width', map.scrollWidth);
+    svg.setAttribute('height', map.scrollHeight);
+    R.forEach((r, i) =>
+      r.ties.forEach((t, j) => {
+        if (!t || t.gap || !nodes[i]?.[j]) return;
+        const to = target(i, j);
+        const end = to && nodes[to[0]]?.[to[1]];
+        if (!end) return;
+        const [a, b] = [at(nodes[i][j]), at(end)];
+        // The turn just before the tie fed, so a line passing a column runs straight.
+        const turn = b.l - 9;
+        const path = document.createElementNS(NS, 'path');
+        path.setAttribute('d', `M${a.r} ${a.y}H${turn}V${b.y}H${b.l}`);
+        if (t.winner) path.setAttribute('class', 'won');
+        svg.append(path);
+      })
+    );
+    map.prepend(svg);
+  };
+  const ro = new ResizeObserver(() => requestAnimationFrame(draw));
+  ro.observe(map);
 }
 // Its shape while it's read: the round chips and four ties in grey.
 const bracketShape = () =>
