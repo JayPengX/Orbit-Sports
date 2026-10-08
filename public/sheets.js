@@ -4,7 +4,7 @@
 import { translate, workerLines, proxyJson } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
-import { splitName } from './lib/compname.mjs';
+import { splitName, otherName } from './lib/compname.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, news, newsAbout, storyAbout, storyAboutTeam, homeLeague, roundLabel, roundKind } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
@@ -1821,14 +1821,16 @@ export async function openTeam(league, id, fallback = {}) {
             ? el(
                 'div',
                 { class: 'q-card list results-list' },
-                past.map(x => {
+                past.map((x, _, all) => {
+                  // Its competition under the opponent, as a player's last games have it, when they're not all one.
+                  const mixed = new Set(all.map(g => g.other || g.league)).size > 1;
                   const r = resultOf(x);
                   const them = x.home.id === String(id) ? x.away : x.home;
                   const at = x.home.id === String(id) ? 'vs' : '@';
                   const score = x.home.id === String(id) ? `${x.home.score}-${x.away.score}` : `${x.away.score}-${x.home.score}`;
                   return el('button', { class: 'res-row', type: 'button', onclick: () => ctx.openEvent(x) }, [
                     el('span', { class: 'res-date num', text: localDate(Date.parse(x.start)).slice(5).replace('-', '/') }),
-                    el('span', { class: 'res-opp' }, [el('small', { class: 'muted', text: at }), logo(them.logo, them.name, 'xs'), el('span', { text: them.short || them.name })]),
+                    el('span', { class: 'res-opp' }, [el('small', { class: 'muted', text: at }), logo(them.logo, them.name, 'xs'), el('span', { class: 'res-name' }, [el('span', { text: them.short || them.name }), mixed ? el('small', { class: 'res-comp', text: x.other ? otherName(x.other, en) : leagueName(x.league, L()) }) : null])]),
                     el('span', { class: `result-pill ${r === 'W' ? 'w' : r === 'L' ? 'l' : 'd'}`, text: `${en ? r : { W: '勝', L: '敗', D: '和' }[r]} ${score}` })
                   ]);
                 })
