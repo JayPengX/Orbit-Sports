@@ -2546,7 +2546,7 @@ export async function openConstructor(row) {
           el('h3', { text: en ? c.name : c.zh }),
           !en && c.zh !== c.name ? el('small', { class: 'muted', text: c.name }) : null,
           // Its place and the gap to the top (its points are the tiles').
-          at >= 0 ? el('p', { class: 'muted', text: [W(`車隊積分榜第\u00a0${at + 1}`, `P${at + 1} in the constructors'`), gap > 0 ? W(`落後\u00a0${gap}\u00a0分`, `${gap}\u00a0behind`) : ''].filter(Boolean).join(' · ') }) : null
+          at >= 0 ? el('p', { class: 'muted', text: [W(`第\u00a0${at + 1}\u00a0名`, `P${at + 1}`), gap > 0 ? W(`落後\u00a0${gap}\u00a0分`, `${gap}\u00a0behind`) : ''].filter(Boolean).join(' · ') }) : null
         ]),
         followBtn
       ]),
