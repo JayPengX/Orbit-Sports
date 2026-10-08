@@ -2549,6 +2549,8 @@ export async function openConstructor(row) {
     const all = weekends.flatMap(w => w.fin.filter(p => p > 0));
     const wins = weekends.filter(w => w.fin.includes(1)).length;
     const podiums = all.filter(p => p <= 3).length;
+    // Both cars on the podium: said beside the drivers (車手 · 雙登台 5 次).
+    const doubles = weekends.filter(w => w.fin.length === 2 && w.fin.every(p => p > 0 && p <= 3)).length;
     const next = races.find(e => e.status.state !== 'post' && (e.sessions || []).some(x => x.status.state !== 'post'));
     const pts = me.stats?.PTS ?? '';
     // Followed by the kit's name (ESPN's constructor ids aren't kept anywhere else).
@@ -2585,7 +2587,8 @@ export async function openConstructor(row) {
                   el('small', { class: 'muted num', text: `P${d.pos} · ${d.stats?.PTS ?? 0} ${W('分', 'pts')}` }),
                 ])
               )
-            )
+            ),
+            { sub: doubles ? W(`雙登台 ${doubles} 次`, `${doubles} double podium${doubles > 1 ? 's' : ''}`) : '' }
           )
         : null,
       og.gp ? card(W('正賽', 'Grand Prix'), f1Tiles(og.gp, en)) : null,
