@@ -525,14 +525,8 @@ function matchSection(view, d, e, table, lw = {}) {
           .filter(tb => tb.rows.length)
           .map(tb =>
             card(
-              `${nameOf(p.team)} · ${boxTableName(tb.name)}`,
-              el('div', { class: 'table-wrap' }, [
-                el('table', { class: 'data' }, [
-                  el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...tb.labels.map(l => el('th', { text: l }))])]),
-                  el(
-                    'tbody',
-                    {},
-                    tb.rows.map(r =>
+              [nameOf(p.team), boxTableName(tb.name)].filter(Boolean).join(' · '),
+              boxTable(tb, r =>
                       el('tr', {}, [
                         // Each player's face (live too: the box score's own, else the kit's way), name and
                         // position on one line (Safari dropped the position below, over the numbers).
@@ -540,10 +534,7 @@ function matchSection(view, d, e, table, lw = {}) {
                         // One cell per column for a player yet to come on (no numbers), so the row's line runs across.
                         ...tb.labels.map((_, i) => el('td', { class: 'num', text: r.stats[i] ?? '' }))
                       ])
-                    )
-                  )
-                ])
-              ])
+              )
             )
           )
       )
@@ -957,6 +948,39 @@ function winProbCard(line, e, timeline, events = []) {
   return card(T('winProb'), box);
 }
 
+// A box score's table, sorted by a column's tap: the most first, a second
+// tap the fewest, a third back to the box score's own order. A made-of
+// count (FG 7-11) by what was made; a player with no numbers (yet to come
+// on) always last.
+function boxTable(tb, rowOf) {
+  const rows = tb.rows.map(r => [r, rowOf(r)]);
+  const body = el('tbody', {}, rows.map(([, tr]) => tr));
+  let by = -1;
+  let dir = 0;
+  const value = (r, i) => {
+    const m = /^[+-]?\d+(\.\d+)?/.exec(String(r.stats[i] ?? '').trim());
+    return m ? Number(m[0]) : null;
+  };
+  const heads = tb.labels.map((l, i) =>
+    el('th', { class: 'sortable', 'aria-sort': 'none' }, [
+      el('button', { type: 'button', class: 'sort-btn', text: l, onclick: () => {
+        dir = by === i ? (dir === -1 ? 1 : dir === 1 ? 0 : -1) : -1;
+        by = dir ? i : -1;
+        const order = by < 0 ? rows : [...rows].sort((a, b) => {
+          const [x, y] = [value(a[0], by), value(b[0], by)];
+          if (x == null || y == null) return (x == null) - (y == null);
+          return (x - y) * dir;
+        });
+        body.replaceChildren(...order.map(([, tr]) => tr));
+        heads.forEach((h, k) => {
+          h.setAttribute('aria-sort', k === by ? (dir < 0 ? 'descending' : 'ascending') : 'none');
+          h.classList.toggle('on', k === by);
+        });
+      } })
+    ])
+  );
+  return el('div', { class: 'table-wrap' }, [el('table', { class: 'data box' }, [el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...heads])]), body])]);
+}
 // A moment's words: the play on the first line, what came of it small on
 // the second ("E. Hernandez 全壘打" over "2 分打點 · 超前"), so neither
 // wraps at a stray ·. (A long play, an English sentence, takes two lines.)

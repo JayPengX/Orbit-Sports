@@ -191,6 +191,14 @@ thead th { color: var(--q-muted); font-weight: 650; font-size: 12px; border-bott
 tbody tr + tr > * { border-top: 1px solid var(--q-divider, var(--q-border)); }
 th.left, td.left { text-align: left; }
 tbody th.left { font-weight: 600; position: sticky; left: 0; background: var(--q-surface); z-index: 1; }
+/* The header's corner stays over the names too: the columns scroll under it, never through it. */
+thead th.left:first-child { position: sticky; left: 0; background: var(--q-surface); z-index: 2; }
+/* A box score's columns: a tap sorts by it (most first, then fewest). */
+table.box th.sortable { padding: 0; }
+table.box .sort-btn { all: unset; display: block; box-sizing: border-box; width: 100%; padding: 6px 7px; text-align: right; cursor: pointer; color: inherit; font: inherit; }
+table.box th.sortable.on { color: var(--accent); }
+table.box th.sortable.on .sort-btn::after { content: '▼'; font-size: 8px; margin-left: 2px; vertical-align: 1px; }
+table.box th.sortable[aria-sort='ascending'] .sort-btn::after { content: '▲'; }
 tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .linescore { background: var(--q-surface); border: 1px solid transparent; border-radius: 12px; overflow: hidden; }
 .linescore th:first-child { text-align: left; }
