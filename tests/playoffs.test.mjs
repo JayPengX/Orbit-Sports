@@ -16,7 +16,9 @@ test('MLB predicted from the table: 3 v 6 and 4 v 5 a league, 1 and 2 waiting', 
 test('NBA and MLS: each conference by seed', () => {
   const g = [{ en: 'Eastern Conference', rows: rows('E', 15) }, { en: 'Western Conference', rows: rows('W', 15) }];
   const nba = playoffModel({ league: 'nba', mode: 'projected', groups: g });
-  assert.deepEqual(nba.rounds[0].ties.slice(0, 4).map(seeds), ['E1 v E8', 'E4 v E5', 'E3 v E6', 'E2 v E7']);
+  assert.deepEqual(nba.rounds.map(r => r.key), ['PLAYIN', 'RD16', 'QTR', 'SEMI', 'FINAL']);
+  assert.deepEqual(nba.rounds[0].ties.map(seeds), ['E7 v E8', 'E9 v E10', '(7/8 敗者) v (9/10 勝者)', 'W7 v W8', 'W9 v W10', '(7/8 敗者) v (9/10 勝者)']);
+  assert.deepEqual(nba.rounds[1].ties.slice(0, 4).map(seeds), ['E1 v E8', 'E4 v E5', 'E3 v E6', 'E2 v E7']);
   const mls = playoffModel({ league: 'mls', mode: 'projected', groups: g });
   assert.deepEqual(mls.rounds[0].ties.map(seeds), ['E8 v E9', 'W8 v W9']);
   assert.equal(seeds(mls.rounds[1].ties[0]), 'E1 v (8/9 勝者)');
@@ -38,4 +40,21 @@ test("The Nations League: League A's winners v another group's runners-up", () =
   const m = playoffModel({ league: 'nationsleague', mode: 'projected', groups: g });
   assert.deepEqual(m.rounds[0].ties.map(seeds), ['A11 v A22', 'A21 v A12', 'A31 v A42', 'A41 v A32']);
   assert.deepEqual(m.rounds[0].ties[0].labels, ['A1 組', 'A2 組']);
+});
+
+test('NBA: the play-in its own column before the first round, each game a tie of its own', async () => {
+  const { parseScoreboard } = await import('../public/lib/espn.mjs');
+  const game = (id, date, note, home, away, homeWon) => ({ id, date, season: { year: 2026, type: 5, slug: 'play-in-season' }, status: { type: { state: 'post', completed: true } }, competitions: [{ type: { abbreviation: 'STD' }, notes: [{ headline: note }], competitors: [{ homeAway: 'home', winner: homeWon, score: homeWon ? '110' : '100', team: { id: home, abbreviation: home, displayName: home, shortDisplayName: home } }, { homeAway: 'away', winner: !homeWon, score: homeWon ? '100' : '110', team: { id: away, abbreviation: away, displayName: away, shortDisplayName: away } }] }] });
+  const events = parseScoreboard({ events: [
+    game('1', '2026-04-14T23:00Z', 'NBA Play-In - East - 9th Place vs 10th Place', 'CHA', 'MIA', true),
+    game('2', '2026-04-15T23:00Z', 'NBA Play-In - East - 7th Place vs 8th Place', 'PHI', 'ORL', true),
+    game('3', '2026-04-17T23:00Z', 'NBA Play-In - East - 8th Seed Game', 'ORL', 'CHA', true)
+  ] }, 'nba');
+  assert.deepEqual(events.map(e => e.round?.key), ['PLAYIN', 'PLAYIN', 'PLAYIN']);
+  const m = playoffModel({ league: 'nba', events });
+  assert.equal(m.rounds[0].title.zh, '附加賽');
+  const ties = m.rounds[0].ties.filter(Boolean);
+  assert.equal(ties.length, 3);
+  assert.deepEqual(ties.map(t => t.winner).sort(), ['CHA', 'ORL', 'PHI']);
+  assert.equal(m.rounds[0].state, 'on');
 });

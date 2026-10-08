@@ -13,7 +13,7 @@ import { roundName } from './stage.mjs';
 // The leagues whose rounds are known ahead: each round's key, names and number of ties.
 const SHAPES = {
   mlb: [['RD16', '外卡賽', 'Wild Card', 4], ['QTR', '分區系列賽', 'Division Series', 4], ['SEMI', '聯盟冠軍賽', 'LCS', 2], ['FINAL', '世界大賽', 'World Series', 1]],
-  nba: [['RD16', '首輪', 'First Round', 8], ['QTR', '分區準決賽', 'Conf. Semifinals', 4], ['SEMI', '分區冠軍賽', 'Conf. Finals', 2], ['FINAL', '總冠軍賽', 'NBA Finals', 1]]
+  nba: [['PLAYIN', '附加賽', 'Play-In', 6], ['RD16', '首輪', 'First Round', 8], ['QTR', '分區準決賽', 'Conf. Semifinals', 4], ['SEMI', '分區冠軍賽', 'Conf. Finals', 2], ['FINAL', '總冠軍賽', 'NBA Finals', 1]]
 };
 // A round by how many ties it has (the rounds after the last one drawn).
 const BY_COUNT = { 1: ['決賽', 'Final'], 2: ['準決賽', 'Semifinals'], 4: ['八強', 'Quarterfinals'], 8: ['16 強', 'Round of 16'] };
@@ -174,9 +174,17 @@ export function buildBracket(events, league, { shape: given = null } = {}) {
   for (let i = rounds.length - 1; i >= 0; i--) {
     const r = rounds[i];
     const later = rounds[i + 1]?.ties || [];
-    const feeds = t => {
+    const direct = t => {
       const j = later.findIndex(x => x && sideIds(x).some(id => sideIds(t).includes(id)));
       return j < 0 ? 999 : j;
+    };
+    // A tie feeding none directly (the play-in's 9 v 10, whose winner plays
+    // again in it): beside the tie of its round it fed.
+    const feeds = t => {
+      const own = direct(t);
+      if (own < 999) return own;
+      const near = r.ties.filter(x => x !== t && sideIds(x).some(id => sideIds(t).includes(id))).map(direct).filter(j => j < 999);
+      return near.length ? Math.min(...near) + 0.5 : 999;
     };
     r.ties = [...r.ties].sort((a, b) => feeds(a) - feeds(b) || (Date.parse(startOf(a)) || 8.64e15) - (Date.parse(startOf(b)) || 8.64e15));
     while (r.ties.length < r.n) r.ties.push(null);

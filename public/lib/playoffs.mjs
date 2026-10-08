@@ -20,9 +20,13 @@ export const FORMATS = {
     project: g => leagues2(g).reduce((o, rows) => ({ RD16: [...(o.RD16 || []), pair(rows, 3, 6), pair(rows, 4, 5)], QTR: [...(o.QTR || []), waits(rows, 1, '4/5'), waits(rows, 2, '3/6')] }), {})
   },
   nba: {
-    rounds: [R('RD16', '首輪', 'First Round', 8), R('QTR', '分區準決賽', 'Conf. Semifinals', 4), R('SEMI', '分區冠軍賽', 'Conf. Finals', 2), R('FINAL', '總冠軍賽', 'NBA Finals', 1)],
-    // Each conference: 1 v 8, 4 v 5, 3 v 6, 2 v 7 (7 and 8 through the play-in).
-    project: g => ({ RD16: leagues2(g).flatMap(rows => [pair(rows, 1, 8, ['', '附加賽']), pair(rows, 4, 5), pair(rows, 3, 6), pair(rows, 2, 7, ['', '附加賽'])]) })
+    rounds: [R('PLAYIN', '附加賽', 'Play-In', 6), R('RD16', '首輪', 'First Round', 8), R('QTR', '分區準決賽', 'Conf. Semifinals', 4), R('SEMI', '分區冠軍賽', 'Conf. Finals', 2), R('FINAL', '總冠軍賽', 'NBA Finals', 1)],
+    // Each conference: the play-in (7 v 8, 9 v 10, then 7/8's loser v 9/10's
+    // winner), then 1 v 8, 4 v 5, 3 v 6, 2 v 7 (7 and 8 through the play-in).
+    project: g => ({
+      PLAYIN: leagues2(g).flatMap(rows => [pair(rows, 7, 8), pair(rows, 9, 10), { projected: true, sides: [null, null], seeds: [0, 0], labels: ['7/8 敗者', '9/10 勝者'] }]),
+      RD16: leagues2(g).flatMap(rows => [pair(rows, 1, 8, ['', '附加賽']), pair(rows, 4, 5), pair(rows, 3, 6), pair(rows, 2, 7, ['', '附加賽'])])
+    })
   },
   mls: {
     rounds: [R('wildcard', '外卡賽', 'Wild Card', 2), R('round-one', '首輪', 'Round One', 8), R('conf-semis', '分區準決賽', 'Conf. Semifinals', 4), R('conf-finals', '分區冠軍賽', 'Conf. Finals', 2), R('final', 'MLS 盃決賽', 'MLS Cup', 1)],
