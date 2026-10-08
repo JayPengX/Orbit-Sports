@@ -97,9 +97,9 @@ export async function openMatch(e) {
     const st = sm?.status || e.status;
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
-        el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
+        el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
         x.record || raw.record ? el('small', { text: x.record || raw.record }) : null,
-        hasTeamPage(e.league) ? followChip(e.league, x, () => paintHeader(sm)) : null
+        hasTeamPage(e.league) && !x.guest && !raw.guest ? followChip(e.league, x, () => paintHeader(sm)) : null
       ]);
     put(
       header,
@@ -537,7 +537,7 @@ function matchSection(view, d, e, table, lw = {}) {
           .map(tb =>
             card(
               [nameOf(p.team), boxTableName(tb.name)].filter(Boolean).join(' · '),
-              boxTable(tb, r =>
+              boxTable(tb, `${e.id}|${p.team}|${tb.name}`, r =>
                       el('tr', {}, [
                         // Each player's face (live too: the box score's own, else the kit's way), name and
                         // position on one line (Safari dropped the position below, over the numbers).
@@ -890,7 +890,7 @@ function winProbCard(line, e, timeline, events = []) {
   const latest = live ? moments.find(m => pts.length - 1 - m.i <= Math.max(2, pts.length * 0.03)) : null;
   // The player's face (the batter, the scorer), else the team's badge (a run), else the sport's sign.
   // A run's team badge to the team's page.
-  const teamTap = x => (hasTeamPage(e.league) && x.id ? el('button', { class: 'wp-who team', type: 'button', 'aria-label': x.name || '', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, x.id, x)) }, [sideLogo(x, e.league, 'sm')]) : sideLogo(x, e.league, 'sm'));
+  const teamTap = x => (hasTeamPage(e.league) && x.id && !x.guest ? el('button', { class: 'wp-who team', type: 'button', 'aria-label': x.name || '', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, x.id, x)) }, [sideLogo(x, e.league, 'sm')]) : sideLogo(x, e.league, 'sm'));
   const face = m => (m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : el('span', { text: m.icon }));
   const tell = (m, label) => {
     why.hidden = !m;
@@ -992,33 +992,41 @@ function gameNotes(t, team) {
 // tap the fewest, a third back to the box score's own order. A made-of
 // count (FG 7-11) by what was made; a player with no numbers (yet to come
 // on) always last.
-function boxTable(tb, rowOf) {
+// (Each table's sort kept for the game, by its key: the sheet draws its
+// sections again on a live game's refresh and on coming back from a
+// player's page, and the sort stays as it was left.)
+const boxSorts = new Map();
+function boxTable(tb, key, rowOf) {
   const rows = tb.rows.map(r => [r, rowOf(r)]);
   const body = el('tbody', {}, rows.map(([, tr]) => tr));
-  let by = -1;
-  let dir = 0;
+  let { by, dir } = boxSorts.get(key) || { by: -1, dir: 0 };
   const value = (r, i) => {
     const m = /^[+-]?\d+(\.\d+)?/.exec(String(r.stats[i] ?? '').trim());
     return m ? Number(m[0]) : null;
+  };
+  const apply = () => {
+    const order = by < 0 ? rows : [...rows].sort((a, b) => {
+      const [x, y] = [value(a[0], by), value(b[0], by)];
+      if (x == null || y == null) return (x == null) - (y == null);
+      return (x - y) * dir;
+    });
+    body.replaceChildren(...order.map(([, tr]) => tr));
+    heads.forEach((h, k) => {
+      h.setAttribute('aria-sort', k === by ? (dir < 0 ? 'descending' : 'ascending') : 'none');
+      h.classList.toggle('on', k === by);
+    });
   };
   const heads = tb.labels.map((l, i) =>
     el('th', { class: 'sortable', 'aria-sort': 'none' }, [
       el('button', { type: 'button', class: 'sort-btn', text: l, onclick: () => {
         dir = by === i ? (dir === -1 ? 1 : dir === 1 ? 0 : -1) : -1;
         by = dir ? i : -1;
-        const order = by < 0 ? rows : [...rows].sort((a, b) => {
-          const [x, y] = [value(a[0], by), value(b[0], by)];
-          if (x == null || y == null) return (x == null) - (y == null);
-          return (x - y) * dir;
-        });
-        body.replaceChildren(...order.map(([, tr]) => tr));
-        heads.forEach((h, k) => {
-          h.setAttribute('aria-sort', k === by ? (dir < 0 ? 'descending' : 'ascending') : 'none');
-          h.classList.toggle('on', k === by);
-        });
+        boxSorts.set(key, { by, dir });
+        apply();
       } })
     ])
   );
+  if (by >= 0 && by < tb.labels.length) apply();
   // The team's totals under its players (never sorted among them).
   const totals = tb.totals?.some(v => v !== '' && v != null) ? el('tfoot', {}, [el('tr', {}, [el('th', { class: 'left', text: L() === 'en' ? 'Totals' : '合計' }), ...tb.labels.map((_, i) => el('td', { class: 'num', text: tb.totals[i] ?? '' }))])]) : null;
   return el('div', { class: 'table-wrap' }, [el('table', { class: 'data box' }, [el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...heads])]), body, totals])]);
@@ -1728,7 +1736,7 @@ const raceLines = new Map();
 // its league named, no roster (its home games, opponents and players are
 // ones ELTA doesn't show, ESPN half-covers and nobody here has heard of).
 export async function openTeam(league, id, fallback = {}) {
-  if (!id || !hasTeamPage(league)) return;
+  if (!id || !hasTeamPage(league) || fallback.guest) return;
   const s = sheet(leagueName(league, L()), { league });
   const content = el('div', {}, [spinner()]);
   s.body.append(content);

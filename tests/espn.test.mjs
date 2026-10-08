@@ -43,10 +43,12 @@ const lions = { events: [{ id: '401914130', date: '2026-10-12T20:00Z', name: 'Lo
   { homeAway: 'home', team: { id: '5', displayName: 'Cleveland Cavaliers', abbreviation: 'CLE', logo: 'https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/cle.png' } },
   { homeAway: 'away', team: { id: '2', displayName: 'Boston Celtics', abbreviation: 'BOS', logo: 'https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/bos.png' } }
 ] }] }] };
-test("NBA teams carry NBA.com's primary logos (the Celtics' Lucky, not ESPN's shamrock); a guest club none, never a guessed NBA file", () => {
+test("NBA teams carry NBA.com's primary logos (the Celtics' Lucky, not ESPN's shamrock); a guest club its own (the kit's), marked a guest, never a guessed NBA file", () => {
   const [lon, bos] = parseScoreboard(lions, 'nba');
   assert.equal(lon.stage.key, 'pre');
-  assert.equal(lon.away.logo, null);
+  assert.match(lon.away.logo, /upload\.wikimedia\.org\/.*London_Lions_logo/);
+  assert.equal(lon.away.guest, true);
+  assert.equal(lon.home.guest, undefined);
   assert.equal(lon.away.en ?? lon.away.name, 'London Lions');
   assert.equal(lon.home.logo, 'https://cdn.nba.com/logos/nba/1610612757/primary/L/logo.svg');
   assert.equal(bos.away.logo, 'https://cdn.nba.com/logos/nba/1610612738/primary/L/logo.svg');
@@ -123,7 +125,8 @@ test('a missing logo falls back to ESPN\'s CDN', async () => {
   assert.match(fallbackLogo('f1', { id: '5503', athlete: true }), /headshots\/rpm\/players\/full\/5503\.png$/);
   assert.equal(fallbackLogo('f1', { id: '1', logo: 'x' }), 'x');
   assert.equal(fallbackLogo('epl', { id: '359', name: 'Nobody FC' }), 'https://a.espncdn.com/i/teamlogos/soccer/500/359.png');
-  assert.equal(fallbackLogo('nba', { id: '134478', name: 'London Lions', abbr: 'LON' }), null);
+  assert.match(fallbackLogo('nba', { id: '134478', name: 'London Lions', abbr: 'LON' }), /London_Lions_logo/);
+  assert.equal(fallbackLogo('nba', { id: '134479', name: 'Somebody Else', abbr: 'SOM' }), null);
   assert.equal(fallbackLogo('mlb', { id: '-1', name: 'TBD', abbr: 'TBD' }), null);
   assert.equal(fallbackLogo('ucl', { id: '-2', name: 'TBD' }), null);
 });

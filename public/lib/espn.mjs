@@ -11,7 +11,7 @@
 //             lines (each period's score) }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
 import { cpblBoxUrl, cpblSummary } from './cpblbox.mjs';
-import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor } from '#kit/logos.mjs';
+import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor, NBA_ID } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
@@ -109,9 +109,10 @@ export function fallbackLogo(league, side) {
 }
 // An NBA team's logo is always NBA.com's primary mark (the kit's): ESPN's
 // files are some clubs' alternates (the Celtics' shamrock). A club from
-// outside the league (a preseason guest: the London Lions) has none, so it
-// shows its initial.
-const nbaLogo = (league, side) => (league === 'nba' && side && !side.athlete ? { ...side, logo: teamLogo('nba', side.en || side.name) } : side);
+// outside the league (a preseason guest: the London Lions) has the kit's
+// own (NBA_GUESTS), else its initial.
+// A guest (no NBA.com mark) is marked so: no team page, nothing to follow.
+const nbaLogo = (league, side) => (league === 'nba' && side && !side.athlete ? { ...side, logo: teamLogo('nba', side.en || side.name), ...(NBA_ID[side.en || side.name] ? {} : { guest: true }) } : side);
 // A team as shown: its logo (an NBA team's, above), and its name in the
 // reader's language: Chinese from the kit's names (lib/names.mjs) when it has
 // the team, the English kept as `en` (Play's ids and the matching use it).
