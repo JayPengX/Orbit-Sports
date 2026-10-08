@@ -11,7 +11,7 @@
 //             lines (each period's score) }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
 import { cpblBoxUrl, cpblSummary } from './cpblbox.mjs';
-import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Driver, f1Constructor, NBA_ID } from '#kit/logos.mjs';
+import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Constructor, NBA_ID } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
@@ -1003,10 +1003,10 @@ export function parseStandings(data, league = null) {
         // A championship of drivers (F1) has athletes where a league has teams.
         if (!en.team && en.athlete) {
           const a = en.athlete;
-          // F1's drivers by their Chinese names (the lottery's), as on the race board.
-          const zh = league === 'f1' && detectLocale() !== 'en' ? f1Driver(a.displayName || a.name).zh : null;
-          const f1zh = zh && zh !== (a.displayName || a.name) ? zh : null;
-          return { id: String(a.id ?? ''), name: f1zh || a.displayName || a.name || '', short: f1zh || a.shortName || a.displayName || '', en: a.displayName || a.name || '', logo: a.flag?.href || '', note: '', color: '', stats, athlete: true };
+          // A driver by their full name, on a phone too (G. Russell is George
+          // Russell everywhere else in the app; an F1 table has room for it).
+          const full = a.displayName || a.name || '';
+          return { id: String(a.id ?? ''), name: full, short: full || a.shortName || '', en: full, logo: a.flag?.href || '', note: '', color: '', stats, athlete: true };
         }
         // ESPN's clinch mark (MLB's, the NBA's: x, y, z clinched; e eliminated, its own math, divisions in).
         const clincher = String((en.stats || []).find(x => x.name === 'clincher')?.displayValue || '').trim();
