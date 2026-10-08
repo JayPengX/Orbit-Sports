@@ -2549,7 +2549,6 @@ export async function openConstructor(row) {
     const all = weekends.flatMap(w => w.fin.filter(p => p > 0));
     const wins = weekends.filter(w => w.fin.includes(1)).length;
     const podiums = all.filter(p => p <= 3).length;
-    const doubles = weekends.filter(w => w.fin.length === 2 && w.fin.every(p => p > 0 && p <= 3)).length;
     const next = races.find(e => e.status.state !== 'post' && (e.sessions || []).some(x => x.status.state !== 'post'));
     const pts = me.stats?.PTS ?? '';
     // Followed by the kit's name (ESPN's constructor ids aren't kept anywhere else).
@@ -2570,7 +2569,7 @@ export async function openConstructor(row) {
         tile(W('排名', 'Place'), at >= 0 ? `P${at + 1}` : '–'),
         tile(W('積分', 'Points'), String(pts || '–')),
         tile(W('分站冠軍', 'Wins'), String(wins)),
-        tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
+        tile(W('頒獎台', 'Podiums'), String(podiums))
       ]),
       latestSlot(league, 'team', c.name.replace(/[^A-Za-z0-9]+/g, '-'), { name: c.name, zh: c.zh, facts: [`${c.zh}（${c.name}），F1 車隊；車手：${drivers.map(d => f1Driver(d.en || d.name).zh).join('、')}`, f1RaceFacts(races)].filter(Boolean) }, freshNews(teamStories, league)),
       drivers.length
