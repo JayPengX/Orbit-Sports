@@ -184,7 +184,8 @@ img { max-width: 100%; }
 .mh-score { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; line-height: 1.1; }
 .mh-time { font-size: 26px; font-weight: 800; white-space: nowrap; }
 
-.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+/* (Its own stacking: the pinned column stays over the table's columns, never over a sheet's sticky title.) */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; isolation: isolate; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { padding: 6px 7px; text-align: right; white-space: nowrap; }
 thead th { color: var(--q-muted); font-weight: 650; font-size: 12px; border-bottom: 1px solid var(--q-border); }
@@ -193,6 +194,9 @@ th.left, td.left { text-align: left; }
 tbody th.left { font-weight: 600; position: sticky; left: 0; background: var(--q-surface); z-index: 1; }
 /* The header's corner stays over the names too: the columns scroll under it, never through it. */
 thead th.left:first-child { position: sticky; left: 0; background: var(--q-surface); z-index: 2; }
+/* A table whose first column is a td (F1's race by race, a player's game log): pinned with its
+   header, or the header stayed put over the columns while the rows went by under it. */
+tbody td.left:first-child { position: sticky; left: 0; background: var(--q-surface); z-index: 1; }
 /* A box score's columns: a tap sorts by it (most first, then fewest). */
 table.box th.sortable { padding: 0; position: relative; }
 table.box tfoot > tr > * { border-top: 1px solid var(--q-border); font-weight: 750; }
