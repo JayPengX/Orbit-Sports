@@ -769,12 +769,21 @@ function noticeChanges(events) {
 
 // A sideways row of chips scrolled so the chosen one sits in the middle
 // (the row only, never the page).
+// Only when the choice is new: a redraw with the same chip chosen (the
+// games coming in, a live refresh) leaves the row where the person scrolled
+// it (the kit's keepStrips puts it back), never pulls it back to the chip.
+const centered = new Map();
 function centerChosen(box) {
   // A date strip the person scrolled stays where they left it (dateStrip).
   for (const row of box.querySelectorAll('.day-strip')) if (row.keepLeft != null) row.scrollLeft = row.keepLeft;
+  const rows = [...box.querySelectorAll('.q-chips, .segmented')];
   for (const chip of box.querySelectorAll('.q-chips [aria-pressed="true"], .segmented [aria-pressed="true"]')) {
     const row = chip.parentElement;
     if (row.keepLeft != null) continue;
+    const key = `${box.id || ''}|${row.className}|${rows.indexOf(row)}`;
+    const chosen = chip.textContent;
+    if (centered.get(key) === chosen) continue;
+    centered.set(key, chosen);
     if (row.scrollWidth > row.clientWidth) row.scrollLeft = chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2;
   }
 }
