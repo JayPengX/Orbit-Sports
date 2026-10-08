@@ -2545,8 +2545,8 @@ const repaintOpen = () => {
   clearTimeout(repaintTimer);
   repaintTimer = setTimeout(() => {
     // ELTA's list in: the hours it sets, on the days held (the same day, only the time).
-    for (const slot of state.days.values()) if (slot.events?.some(e => e.timeTbd)) slot.events = slot.events.map(fixTime);
-    if (state.scores.byDay instanceof Map && state.scores.all?.some(e => e.timeTbd)) applyScores(state.scores, state.scores.all.map(fixTime));
+    for (const slot of state.days.values()) if (slot.events?.some(e => e.timeTbd && !e.timeFrom)) slot.events = slot.events.map(fixTime);
+    if (state.scores.byDay instanceof Map && state.scores.all?.some(e => e.timeTbd && !e.timeFrom)) applyScores(state.scores, state.scores.all.map(fixTime));
     // Which days a sport plays on TV here changes with the lists: worked out again.
     state.home.sportDays.clear();
     if (state.tab === 'home' && SPORTS[state.home.filter]) pickFilter(state.home.filter);

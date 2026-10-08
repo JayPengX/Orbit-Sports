@@ -211,8 +211,8 @@ const SESSION_WORD = { FP1: '第1節', FP2: '第2節', FP3: '第3節', Qual: '�
 export function eltaPrograms(programs, e, sides, others = [], sidesOf = null) {
   if (!programs?.length || !e) return [];
   const t = Date.parse(e.start);
-  // Its hour not set yet: only a program naming it (eltaStart's), never an unnamed one near the guess.
-  if (e.timeTbd && e.kind === 'match') return [];
+  // Its hour not set yet, nor placed at ELTA's slot (eltaStart's): no program near a guess.
+  if (e.timeTbd && !e.timeFrom && e.kind === 'match') return [];
   const within = (before, after) => p => p.league === e.league && p.start >= t - before * 60_000 && p.start <= t + after * 60_000;
   const cand = programs.filter(within(60, 20));
   if (e.kind !== 'match') {

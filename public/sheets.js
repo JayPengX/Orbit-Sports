@@ -707,7 +707,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // Where to watch has its own card when there's a link to it (a schedule's channel, Apple TV); the list here otherwise.
   const exactTv = e.status.state !== 'post' && tvOf(e).some(b => b.exact);
   const info = [
-    ['🕒', T('kickoff'), `${dayLabel(localDate(when.getTime()), { long: true })} ${timeText(e)}`],
+    ['🕒', T('kickoff'), `${dayLabel(localDate(when.getTime()), { long: true })} ${timeText(e)}${e.timeTbd && e.timeFrom === 'elta' ? (L() === 'en' ? ` (ELTA's slot ${clock(e.start)})` : `（愛爾達暫排 ${clock(e.start)}）`) : ''}`],
     // The ground, and its city on a line of its own (each said apart: a ground's name never broken by its city's).
     ['📍', T('venue'), d?.venue || e.venue || d?.city ? [d?.venue || e.venue ? zhLater(d?.venue || e.venue) : null, d?.city ? el('small', { class: 'muted venue-city' }, [zhLater(d.city)]) : null].filter(Boolean) : ''],
     exactTv ? null : ['📺', T('tv'), tvOf(e).map(tvName).join('、') || T('noTw')],

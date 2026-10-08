@@ -227,7 +227,7 @@ export function startOf(date, comp) {
 // A game's time from another list (ELTA's, the app's): set from outside, ESPN's own stands once it has one.
 let timeFix = e => e;
 export const fixTimes = fn => (timeFix = fn);
-export const fixTime = (e, _, list = []) => (e?.timeTbd ? timeFix(e, list) : e);
+export const fixTime = (e, _, list = []) => (e?.timeTbd && !e.timeFrom ? timeFix(e, list) : e);
 export function parseScoreboard(data, league) {
   const kind = LEAGUES[league]?.kind || 'match';
   const out = [];

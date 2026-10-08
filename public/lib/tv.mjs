@@ -82,12 +82,14 @@ export const tvOf = e => {
   const nba = e.league === 'nba' ? { games: nbaSchedule(), ids: { home: nbaId(e.home), away: nbaId(e.away) } } : null;
   return broadcastsFor(e, eltaSchedule(), { sides: zhSides(e), others: known(), prefer: prefer(), nba, sidesOf: zhSides });
 };
-// A game whose hour isn't set yet, with ELTA's (its program of the game, once
-// listed): the same game at that hour. Else the game as it is.
+// A game whose hour isn't set yet, placed at ELTA's (its program of the game,
+// once listed): ELTA's slot is its own booking, not the league's time, so
+// the game still says 待定 (`timeFrom: 'elta'`: the slot shown beside it).
+// Else the game as it is.
 // (`list`: the games read with it, the day's others.)
 export const eltaTime = (e, list = []) => {
   const at = e?.timeTbd ? eltaStart(eltaSchedule(), e, zhSides(e), [...list, ...known()].filter((o, i, all) => all.findIndex(x => x.league === o.league && x.id === o.id) === i)) : null;
-  return at ? { ...e, start: new Date(at).toISOString(), timeTbd: false, timeFrom: 'elta' } : e;
+  return at ? { ...e, start: new Date(at).toISOString(), timeFrom: 'elta' } : e;
 };
 // Only those of this very game (a schedule's, or Apple TV's every MLS game): for a row's 📺 line.
 export const channelsOf = e => tvOf(e).filter(b => b.exact);
