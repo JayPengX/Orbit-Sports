@@ -20,6 +20,7 @@ import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { SEASON_GAMES } from './lib/title.mjs';
+import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { ctx, el, shownStart, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
 
@@ -2643,24 +2644,28 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
     })
   );
 }
-// The sides greyed out in a table: those with no chance left at all, and
-// only while its season is still being played (once it's over, the playoffs
-// tab says who's in). MLB's and the NBA's by ESPN's own mark (e:
-// eliminated, its math with the divisions in); a points table's by every
-// point a side can still win (a tie counted as a chance) against the
-// lowest good zone (Europe, playoffs, promotion: MLS's 9th, the wild
-// card); a championship's (F1's) against the title.
+// The sides greyed out in a table: those with no chance left at all. A
+// league with playoffs (MLB, the NBA, MLS) keeps them greyed once its
+// season's over: everyone who missed the playoffs, everyone in (wild cards
+// too) not, their results the playoffs tab's. MLB's and the NBA's by ESPN's
+// own mark (e: eliminated, its math with the divisions in); a points
+// table's by every point a side can still win (a tie counted as a chance)
+// against the lowest good zone (Europe, playoffs, promotion: MLS's 9th, the
+// wild card), and once over, by its zones; a championship's (F1's) against
+// the title.
 export function outOfIt(g, race, league) {
   const rows = g?.rows || [];
   const sport = LEAGUES[league]?.sport;
   const total = SEASON_GAMES[league];
   const played = r => (sport === 'soccer' ? Number(r.stats.GP) : Number(r.stats.W) + Number(r.stats.L) + (Number(r.stats.T) || 0));
   const over = race ? race.rows.every(x => x.settled) && race.title.done : total ? rows.every(r => played(r) >= total) : false;
-  // Over once every side has ESPN's mark (in, or e: out), not only once every
-  // side has played its 162: a rainout never made up leaves a side at 161.
-  if (rows.some(r => r.clincher)) return new Set(rows.every(r => r.clincher) || (total && rows.every(r => played(r) >= total)) ? [] : rows.filter(r => r.clincher === 'e').map(r => r.id));
-  if (!race || over || (total && rows.every(r => played(r) >= total))) return new Set();
+  // ESPN's e: out of the playoffs, during the season and after it.
+  if (rows.some(r => r.clincher)) return new Set(rows.filter(r => r.clincher === 'e').map(r => r.id));
   const zones = rows.some(r => r.note && !/relegat|eliminat/i.test(r.note));
+  const ended = over || (total && rows.every(r => played(r) >= total));
+  // A playoff league's season over: the sides outside its playoff zones.
+  if (ended && zones && FORMATS[league] && !LEAGUES[league]?.cup) return new Set(rows.filter(r => !r.note || /relegat|eliminat/i.test(r.note)).map(r => r.id));
+  if (!race || ended) return new Set();
   if (sport === 'racing') return new Set(race.title.done ? [] : race.rows.filter(x => x.best > 1).map(x => x.id));
   if (!zones) return new Set();
   const reach = goodZoneReach(rows);

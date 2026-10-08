@@ -135,11 +135,13 @@ test("greyed out: only no chance left at all, only while the season's on (ESPN's
   const { outOfIt } = await import('../public/sheets.js');
   const mlb = (gp, marks) => ({ rows: marks.map((c, i) => ({ id: String(i), clincher: c, stats: { W: String(gp - 70), L: '70' } })) });
   assert.deepEqual([...outOfIt(mlb(150, ['x', 'y', 'e', '']), null, 'mlb')], ['2'], 'mid-season: the eliminated');
-  assert.deepEqual([...outOfIt(mlb(162, ['x', 'y', 'e', 'e']), null, 'mlb')], [], 'season over: the playoffs tab says the rest');
-  // 2026's AL: the Yankees and Orioles at 161 (a rainout never made up), every side marked: over too.
+  assert.deepEqual([...outOfIt(mlb(162, ['x', 'y', 'e', 'e']), null, 'mlb')], ['2', '3'], 'season over: those who missed the playoffs, the wild cards not');
+  // 2026's AL and NL alike: the Yankees and Orioles at 161 (a rainout never made up).
   const al = mlb(162, ['*', 'x', 'y', 'e']);
   al.rows[0].stats = { W: '93', L: '68' };
-  assert.deepEqual([...outOfIt(al, null, 'mlb')], [], 'every side marked: over, a game short or not');
+  assert.deepEqual([...outOfIt(al, null, 'mlb')], ['3'], 'a game short or not');
+  const mls = { rows: [{ id: 'a', note: 'Qualifies for MLS Cup Playoffs - Round One', stats: { GP: '34' } }, { id: 'b', note: 'Qualifies for MLS Cup Playoffs - Wild Card Matches', stats: { GP: '34' } }, { id: 'c', note: '', stats: { GP: '34' } }] };
+  assert.deepEqual([...outOfIt(mls, null, 'mls')], ['c'], 'MLS over: outside the playoff zones');
   const g = { rows: [{ id: 'a', note: 'Champions League', stats: { GP: '30' } }, { id: 'b', note: 'Europa League', stats: { GP: '30' } }, { id: 'c', note: '', stats: { GP: '30' } }, { id: 'd', note: 'Relegation', stats: { GP: '30' } }] };
   const race = { title: { done: false }, rows: [{ id: 'a', best: 1, settled: false }, { id: 'b', best: 1, settled: false }, { id: 'c', best: 2, settled: false }, { id: 'd', best: 3, settled: false }] };
   assert.deepEqual([...outOfIt(g, race, 'epl')], ['d'], 'd can no longer reach 2nd (Europe); c still can');
