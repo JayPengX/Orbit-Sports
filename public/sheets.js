@@ -2519,7 +2519,6 @@ export async function openConstructor(row) {
     const at = teams.findIndex(r => r.id === row.id || f1Constructor(r.en || r.name).name === c.name);
     const me = teams[at] || row;
     const lead = teams[0];
-    const lead2 = teams[1];
     const drivers = (groups.find(g => g.rows.some(r => r.athlete))?.rows || []).map((r, i) => ({ ...r, pos: i + 1 })).filter(r => f1Driver(r.en || r.name).team === c.name);
     const ids = new Set(drivers.map(d => d.id));
     // 最新動態: a recent story about the team itself (its name in the headline), not a race weekend's piece.
@@ -2560,19 +2559,18 @@ export async function openConstructor(row) {
     const followBtn = followButton(() => ctx.isFollowed(league, side.id), () => ctx.toggleFollow(league, side));
     put(
       content,
-      el('div', { class: 'team-head player-hero tinted', style: `--hero:${c.color}` }, [
+      el('div', { class: 'team-head player-hero tinted wide-sub', style: `--hero:${c.color}` }, [
         constructorBadge(c.name, 'xl'),
         el('div', { class: 'team-head-text' }, [
           el('h3', { text: en ? c.name : c.zh }),
           !en && c.zh !== c.name ? el('small', { class: 'muted', text: c.name }) : null,
-          // Its place and its points (the gap to the top is the tiles').
-          at >= 0 ? el('p', { class: 'muted', text: [W(`第\u00a0${at + 1}\u00a0名`, `P${at + 1}`), pts !== '' ? W(`${pts}\u00a0分`, `${pts}\u00a0pts`) : ''].filter(Boolean).join(' · ') }) : null
+          el('p', { class: 'muted team-place', text: [at >= 0 ? W(`車隊積分榜第\u00a0${at + 1}`, `P${at + 1} in the constructors'`) : '', pts !== '' ? W(`${pts}\u00a0分`, `${pts}\u00a0pts`) : ''].filter(Boolean).join(' · ') })
         ]),
         followBtn
       ]),
-      // Three numbers in a row (the place and points are the hero's): even tiles.
-      el('div', { class: 'team-tiles three' }, [
-        at === 0 && lead2 ? tile(W('領先第二', 'Lead'), String(Number(pts) - Number(lead2.stats?.PTS || 0))) : tile(W('落後領先者', 'Behind'), gap > 0 ? String(gap) : '–'),
+      el('div', { class: 'team-tiles' }, [
+        tile(W('排名', 'Place'), at >= 0 ? `P${at + 1}` : '–', gap > 0 ? W(`落後\u00a0${gap}`, `${gap}\u00a0behind`) : at === 0 ? W('領先', 'Leading') : ''),
+        tile(W('積分', 'Points'), String(pts || '–')),
         tile(W('分站冠軍', 'Wins'), String(wins)),
         tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
       ]),
@@ -2588,13 +2586,6 @@ export async function openConstructor(row) {
                   personPic(d, league, 'lg round'),
                   el('strong', { text: en ? d.en || d.name : f1Driver(d.en || d.name).zh }),
                   el('small', { class: 'muted num', text: `P${d.pos} · ${d.stats?.PTS ?? 0} ${W('分', 'pts')}` }),
-                  // Their share of the team's points, said in words beside the bar.
-                  Number(pts) > 0
-                    ? el('span', { class: 'share-line' }, [
-                        el('span', { class: 'share-bar', style: `--w:${Math.round((100 * Number(d.stats?.PTS || 0)) / Number(pts))}%` }),
-                        el('small', { class: 'muted num', text: W(`占車隊積分 ${Math.round((100 * Number(d.stats?.PTS || 0)) / Number(pts))}%`, `${Math.round((100 * Number(d.stats?.PTS || 0)) / Number(pts))}% of the team's points`) })
-                      ])
-                    : null
                 ])
               )
             )

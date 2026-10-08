@@ -841,8 +841,6 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .team-driver { display: grid; justify-items: center; gap: 4px; padding: 12px 8px; border: 0; border-radius: 14px; background: var(--q-sunken); color: inherit; font: inherit; text-align: center; }
 /* A driver's whole name, in two lines when it must (George / Russell), never George Rus…. */
 .team-driver strong { font-size: 14.5px; line-height: 1.25; white-space: normal; overflow: visible; text-overflow: clip; text-wrap: balance; }
-.share-bar { width: 80%; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 18%, transparent); position: relative; overflow: hidden; margin-top: 4px; }
-.share-bar::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--w); background: var(--accent); border-radius: 3px; }
 /* Separate borders: with merged ones a pinned cell's line sat off from its row's. */
 table.game-log { border-collapse: separate; border-spacing: 0; }
 .pos-pill.win { background: #d4a017; color: #111; }
@@ -892,8 +890,6 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .team-disc { display: inline-grid; place-items: center; background: var(--team); color: #fff; font-size: 9px; font-weight: 800; border-radius: 50%; overflow: hidden; flex: none; }
 .team-disc .logo-wrap { display: contents; }
 .team-disc-img { width: 74%; height: 74%; object-fit: contain; }
-.share-line { display: grid; gap: 4px; width: 100%; justify-items: center; }
-.share-line small { font-size: 0.7rem; }
 /* F1: a retirement. */
 .pos-pill.out { background: color-mix(in srgb, var(--q-bad) 18%, transparent); color: var(--q-bad); }
 /* An F1 result: driver over team, time over gained places and points. */
@@ -1430,4 +1426,11 @@ button.lp-person.tap:active { opacity: 0.6; }
 .rw-sprint.podium { color: #d4a017; }
 .rw-pts { text-align: right; font-size: 14px; }
 .rw-car .logo { width: 30px; height: 30px; }
-.team-tiles.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* An F1 team's hero: the lines under its name run under 追蹤 too, so its place and points fit one line. */
+.team-head.wide-sub { row-gap: 2px; }
+.team-head.wide-sub .team-head-text { display: contents; }
+.team-head.wide-sub > :first-child { grid-row: 1 / span 3; }
+.team-head.wide-sub h3 { grid-column: 2; grid-row: 1; align-self: end; }
+.team-head.wide-sub > .follow-btn { grid-column: 3; grid-row: 1; }
+.team-head.wide-sub .team-head-text > small, .team-head.wide-sub .team-head-text > p { grid-column: 2 / -1; margin-top: 0; }
+.team-head.wide-sub .team-head-text > p { align-self: start; }
