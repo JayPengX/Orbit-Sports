@@ -845,7 +845,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
           )
         )
       : null,
-    d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) })) : null,
+    d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
     d?.injuries.some(i => i.list.length)
       ? card(
           T('injuries'),
@@ -2081,6 +2081,16 @@ const raceWhere = name => {
   const m = String(name || '').match(/^(.+?)\s*[（(]([^）)]+)[）)]$/);
   return m ? [m[1], m[2]] : [name, ''];
 };
+// For an F1 card's facts: the last race run and the next, with their days (a
+// grid penalty is news only until its race is run).
+function f1RaceFacts(races) {
+  const raceOf = e => (e.sessions || []).find(x => x.abbr === 'Race') || e;
+  const day = e => localDate(Date.parse(raceOf(e).start)).slice(5).replace('-', '/');
+  const done = (races || []).filter(e => raceOf(e).status?.state === 'post');
+  const last = done.at(-1);
+  const next = (races || []).find(e => raceOf(e).status?.state !== 'post' && !done.includes(e));
+  return [last ? `上一站：${last.name}，正賽 ${day(last)} 已賽完` : '', next ? `下一站：${next.name}，正賽 ${day(next)}` : ''].filter(Boolean).join('；');
+}
 // Each weekend this season, latest first, a row each opening the race: its
 // round, flag and name; per car its race finish with the sprint's under it
 // (S3); the points. A team's cars head their columns with face and name (the
@@ -2357,7 +2367,7 @@ export async function openPlayer(league, id, fallback = {}) {
       zh: '',
       // Who its card can name: them, and their teammates.
       people: () => (a.teamId && league !== 'f1' ? roster(league, a.teamId).catch(() => []) : Promise.resolve([])).then(list => [{ id, name: a.name, headshot: a.headshot, self: true }, ...list]),
-      facts: [`${name === a.name ? name : `${name}（${a.name}）`}：${[leagueName(league, L()), driver?.team ? f1Constructor(driver.team).zh : a.team, a.position].filter(Boolean).join('・')}`],
+      facts: [`${name === a.name ? name : `${name}（${a.name}）`}：${[leagueName(league, L()), driver?.team ? f1Constructor(driver.team).zh : a.team, a.position].filter(Boolean).join('・')}`, league === 'f1' ? f1RaceFacts(races) : ''].filter(Boolean),
       report: [
         injury && Date.now() - Date.parse(injury.date || 0) < 30 * 86_400_000 ? `傷病（ESPN ${String(injury.date).slice(0, 10)}）：${[injury.status, injury.what].filter(Boolean).join('，')}${injury.back ? `，預計 ${localDate(Date.parse(injury.back))} 回歸` : ''}。${injury.comment}` : '',
         ov?.note && Date.now() - Date.parse(ov.note.date || 0) < 14 * 86_400_000 ? `RotoWire（${String(ov.note.date || '').slice(0, 10)}）：${ov.note.headline} ${String(ov.note.story || '').slice(0, 300)}` : ''
@@ -2546,7 +2556,7 @@ export async function openConstructor(row) {
         tile(W('分站冠軍', 'Wins'), String(wins)),
         tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
       ]),
-      latestSlot(league, 'team', c.name.replace(/[^A-Za-z0-9]+/g, '-'), { name: c.name, zh: c.zh, facts: [`${c.zh}（${c.name}），F1 車隊；車手：${drivers.map(d => f1Driver(d.en || d.name).zh).join('、')}`] }, freshNews(teamStories, league)),
+      latestSlot(league, 'team', c.name.replace(/[^A-Za-z0-9]+/g, '-'), { name: c.name, zh: c.zh, facts: [`${c.zh}（${c.name}），F1 車隊；車手：${drivers.map(d => f1Driver(d.en || d.name).zh).join('、')}`, f1RaceFacts(races)].filter(Boolean) }, freshNews(teamStories, league)),
       drivers.length
         ? card(
             W('車手', 'Drivers'),

@@ -15,7 +15,7 @@ const ZH = {
   'fast break points': '快攻得分', 'points in paint': '禁區得分', 'points off turnovers': '失誤轉換得分', 'largest lead': '最大領先', points: '得分',
   'lead changes': '領先易手', 'personal fouls': '個人犯規', 'team turnovers': '球隊失誤',
   // Baseball
-  hits: '安打', runs: '得分', errors: '失誤', 'batting average': '打擊率', avg: '打擊率', 'home runs': '全壘打', rbis: '打點', rbi: '打點', walks: '保送',
+  hits: '安打', runs: '得分', errors: '失誤', 'batting average': '打擊率', avg: '打擊率', 'home runs': '全壘打', rbis: '打點', rbi: '打點', 'runs batted in': '打點', 'earned run average': '防禦率', 'on-base percentage': '上壘率', 'slugging percentage': '長打率', 'walks and hits per inning pitched': '每局被上壘率', walks: '保送',
   strikeouts: '三振', 'stolen bases': '盜壘', 'left on base': '殘壘', era: '防禦率', 'earned runs': '自責分', 'innings pitched': '投球局數', pitches: '投球數',
   doubles: '二壘安打', triples: '三壘安打', 'on base %': '上壘率', obp: '上壘率', slg: '長打率', ops: '整體攻擊指數', whip: '每局被上壘率', wins: '勝投', saves_: '救援'
 };

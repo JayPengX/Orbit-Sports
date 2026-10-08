@@ -286,3 +286,18 @@ test("a game ESPN has dated but not timed: Taiwan's next morning, its time å¾…å®
   assert.deepEqual(startOf('2026-10-09T00:00Z', { timeValid: true }), { start: '2026-10-09T00:00Z' });
   assert.deepEqual(startOf('2026-10-11T19:00Z', { timeValid: false }), { start: '2026-10-11T19:00Z', timeTbd: true });
 });
+
+test("A baseball pair's season series: never the preseason; the playoff once it's begun, the regular season before", () => {
+  const ev = done => ({ id: '1', date: '2026-10-11T00:00Z', statusType: { completed: done }, competitors: [] });
+  const list = (playoffDone) => [
+    { type: 'preseason', summary: 'Series tied 1-1', events: [ev(true), ev(true)] },
+    { type: 'season', summary: 'MIL wins series 4-3', events: [ev(true)] },
+    { type: 'playoff', summary: playoffDone ? 'LAD leads series 1-0' : 'Series starts 10/11', events: [ev(playoffDone), ev(false)] }
+  ];
+  const before = parseSummary({ ...fx('mlb-summary'), seasonseries: list(false) }, 'mlb');
+  assert.equal(before.series[0].summary, 'MIL wins series 4-3');
+  assert.equal(before.series[0].kind, 'season');
+  assert.ok(!before.series.some(s => s.summary === 'Series tied 1-1'));
+  const during = parseSummary({ ...fx('mlb-summary'), seasonseries: list(true) }, 'mlb');
+  assert.equal(during.series[0].kind, 'playoff');
+});

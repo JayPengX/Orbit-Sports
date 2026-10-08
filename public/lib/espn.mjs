@@ -844,9 +844,17 @@ export function parseSummary(data, league) {
   // The season series (a playoff or a season's meetings), or soccer's
   // head-to-head (the last meetings, any competition): `h2h` with each
   // side's wins and the draws, by team id.
-  const series = (data?.seasonseries || []).map(s => {
+  // ESPN lists a baseball pair's preseason, regular season and playoff
+  // series (preseason first: a playoff that hadn't started read "1-1" from
+  // two March games). Never the preseason; the playoff once a game of it is
+  // played, the regular season before.
+  const played = s => (s.events || []).some(ev => ev.statusType?.completed || ev.status === 'post');
+  const rank = s => (s.type === 'playoff' && played(s) ? 0 : s.type === 'season' ? 1 : s.type === 'playoff' ? 2 : 3);
+  const listed = data?.seasonseries || [];
+  const shown = listed.length > 1 ? listed.filter(s => s.type !== 'preseason').sort((x, y) => rank(x) - rank(y)) : listed;
+  const series = shown.map(s => {
     const events = (s.events || []).map(ev => ({ id: String(ev.id), date: ev.date, score: (ev.competitors || []).map(c => `${c.team?.abbreviation || ''} ${c.score ?? ''}`).join(' · ') }));
-    if (s.type !== 'head-to-head') return { summary: s.summary || s.description || '', events };
+    if (s.type !== 'head-to-head') return { summary: s.summary || s.description || '', kind: s.type || '', events };
     const wins = {};
     let draws = 0;
     const done = (s.events || []).filter(ev => ev.statusType?.completed || ev.status === 'post');
