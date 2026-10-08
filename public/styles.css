@@ -1376,6 +1376,14 @@ button.lp-person.tap:active { opacity: 0.6; }
 .player-note .note-who.chip .logo { width: 22px; height: 22px; }
 .player-note .note-who.lead { margin-left: 0; }
 .player-note .note-src { justify-self: start; margin-top: 2px; font-size: 13px; font-weight: 650; color: var(--q-accent, #ea580c); text-decoration: none; }
+.player-note.big { border-left: 3px solid var(--q-accent, #ea580c); padding-left: 10px; }
+.player-note.minor .note-head { font-size: 14px; font-weight: 650; }
+.player-note .note-also { display: grid; gap: 8px; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--q-divider, var(--q-border)); }
+.player-note .note-also .mini-h { margin: 0; }
+.player-note .note-also-row { display: flex; align-items: baseline; gap: 8px; font-size: 13.5px; line-height: 1.5; color: var(--q-text-2); }
+.player-note .note-also-row .note-topic { flex: none; padding: 1px 7px; font-size: 11px; }
+.player-note .note-also-line { flex: 1; min-width: 0; }
+.player-note .note-also-src { flex: none; padding: 0 4px; font-size: 16px; font-weight: 700; color: var(--q-accent, #ea580c); text-decoration: none; }
 
 /* 近期交手: two sides and the draws, a bar split by them. */
 .h2h { display: grid; gap: 10px; }

@@ -519,15 +519,31 @@ function namePeople(node, league, people) {
   }
 }
 // What the news is, as a tag: Gemini's topic.
-const NOTE_TOPIC = { injury: ['傷勢', 'bad'], return: ['回歸', 'good'], suspension: ['禁賽', 'bad'], legal: ['司法', 'bad'], transfer: ['轉會', 'info'], contract: ['合約', 'info'], rumour: ['傳聞', 'muted'], role: ['陣容', 'info'], milestone: ['里程碑', 'good'], criticism: ['批評', 'bad'], quote: ['發言', 'muted'] };
-const latestNote = (headline, points, sub, { topic = '', url = '', source = '' } = {}) =>
+const NOTE_TOPIC = { injury: ['傷勢', 'bad'], return: ['回歸', 'good'], suspension: ['禁賽', 'bad'], grid: ['發車', 'bad'], legal: ['司法', 'bad'], transfer: ['轉會', 'info'], contract: ['合約', 'info'], rumour: ['傳聞', 'muted'], coach: ['教練', 'info'], role: ['陣容', 'info'], milestone: ['里程碑', 'good'], criticism: ['批評', 'bad'], quote: ['發言', 'muted'] };
+const topicTag = topic => (NOTE_TOPIC[topic] ? el('span', { class: `note-topic ${NOTE_TOPIC[topic][1]}`, text: NOTE_TOPIC[topic][0] }) : null);
+// The biggest story first (Gemini's weight: big, normal, minor; a minor one
+// is its headline only), then up to two more in a line each (其他消息), each
+// its own link.
+const latestNote = (headline, points, sub, { topic = '', url = '', source = '', weight = '', more = [] } = {}) =>
   card(
     '最新動態',
-    el('div', { class: 'player-note' }, [
-      NOTE_TOPIC[topic] ? el('span', { class: `note-topic ${NOTE_TOPIC[topic][1]}`, text: NOTE_TOPIC[topic][0] }) : null,
+    el('div', { class: `player-note${weight ? ` ${weight}` : ''}` }, [
+      topicTag(topic),
       el('strong', { class: 'note-head' }, noteWords(headline)),
-      points?.length ? el('ul', { class: 'note-points' }, points.map(p => el('li', {}, noteWords(p)))) : null,
-      url ? el('a', { class: 'note-src', href: url, target: '_blank', rel: 'noopener', text: `閱讀原文${source ? ` · ${source}` : ''} ›` }) : null
+      points?.length && weight !== 'minor' ? el('ul', { class: 'note-points' }, points.map(p => el('li', {}, noteWords(p)))) : null,
+      url ? el('a', { class: 'note-src', href: url, target: '_blank', rel: 'noopener', text: `閱讀原文${source ? ` · ${source}` : ''} ›` }) : null,
+      more?.length
+        ? el('div', { class: 'note-also' }, [
+            el('p', { class: 'mini-h', text: '其他消息' }),
+            ...more.map(m =>
+              el('div', { class: 'note-also-row' }, [
+                topicTag(m.topic),
+                el('span', { class: 'note-also-line' }, noteWords(m.line)),
+                m.url ? el('a', { class: 'note-also-src', href: m.url, target: '_blank', rel: 'noopener', 'aria-label': `閱讀原文${m.source ? ` · ${m.source}` : ''}`, text: '›' }) : null
+              ])
+            )
+          ])
+        : null
     ]),
     { sub }
   );
