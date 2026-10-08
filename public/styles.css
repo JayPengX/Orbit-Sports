@@ -752,8 +752,10 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .injury-tag { margin-top: 6px; font-size: 12.5px; font-weight: 650; color: var(--loss); }
 .player-note { display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
 .player-note .note-head { font-size: 15px; line-height: 1.45; }
-.player-note .note-head, .player-note .note-points, .player-note .note-also-row { word-break: keep-all; overflow-wrap: anywhere; }
-.player-note .note-points li { text-wrap: pretty; }
+/* The headline (short) breaks at its punctuation and spaces; the sentences as
+   Chinese does, anywhere but before a 。，, with no short last line. */
+.player-note .note-head { word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
+.player-note .note-points li, .player-note .note-also-row { line-break: strict; text-wrap: pretty; }
 .note-points { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; color: var(--q-text-2); }
 .note-points li::marker { color: var(--q-accent, #ea580c); }
 .note-more { justify-self: start; font-size: 13px; font-weight: 650; }

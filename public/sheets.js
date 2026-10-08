@@ -453,8 +453,8 @@ function freshNews(stories, league = '') {
 // on a quiet day, never the page's numbers read back. No match cards.
 //
 // Fast: each answer (a card or none) is kept on the phone half an hour, so
-// opening a sheet again asks nothing (an update to the app forgets them all:
-// the new version's answers at once). Older than that, the kept one shows at
+// opening a sheet again asks nothing. Older than that, or kept by an older
+// version of the app, the kept one shows at
 // once and a new one is fetched for the next opening (never swapped in
 // under a finger); none kept: nothing until the Worker says it's writing a
 // card (then its shape), so a sheet with no news never shows a loader.
@@ -497,8 +497,8 @@ function findPerson(people, name) {
   const last = want.split(' ').at(-1);
   return people.find(p => notePlain(p.name) === want) || people.find(p => p.name && notePlain(p.name).split(' ').at(-1) === last && notePlain(p.name)[0] === want[0]) || null;
 }
-// Lines break between clauses (after ，、；; the card's text keeps CJK runs whole,
-// breaking inside one only when it's longer than the line).
+// Lines may break after a clause (，、；) and on either side of a name (the
+// headline breaks only there, when it can).
 const noteWords = text => {
   const out = [];
   let clause = [];
@@ -593,8 +593,9 @@ function latestSlot(league, kind, id, { name = '', zh = '', team = '', facts = [
   const k = `${league}|${kind}|${id}`;
   const sent = JSON.stringify([facts, report]);
   const memo = latestMemo()[k];
-  const known = memo?.sent === sent && memo.build === BUILD() ? memo : null;
-  if (known && Date.now() - known.at < LATEST_FRESH_MS) return aiCard(known.answer, league, people);
+  // (One kept by an older version of the app still shows at once; the new answer is for the next opening.)
+  const known = memo?.sent === sent ? memo : null;
+  if (known && known.build === BUILD() && Date.now() - known.at < LATEST_FRESH_MS) return aiCard(known.answer, league, people);
   const body = JSON.stringify({ league, kind, id: String(id), team: String(team || ''), name, zh, facts, report });
   // Nothing shown until there's something: the shape only once a card is being written.
   const box = el('div', { class: 'latest-slot' });
