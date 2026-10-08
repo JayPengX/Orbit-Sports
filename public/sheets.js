@@ -487,10 +487,9 @@ function rememberLatest(k, sent, answer) {
   }
 }
 // One ask per body a session (a card or none; a failure asked again).
-// `writing`: told when the Worker starts writing a card (Gemini asked).
 const latestAsked = new Map();
-function askLatest(body, writing = () => {}) {
-  if (!latestAsked.has(body)) latestAsked.set(body, workerLines('/latest', 'stream=1', { body, timeout: 20000, onLine: x => x?.writing && writing() }).then(r => (r?.headline || r?.none ? r : (latestAsked.delete(body), null))));
+function askLatest(body) {
+  if (!latestAsked.has(body)) latestAsked.set(body, workerLines('/latest', 'stream=1', { body, timeout: 20000 }).then(r => (r?.headline || r?.none ? r : (latestAsked.delete(body), null))));
   return latestAsked.get(body);
 }
 // 最新動態's words: a space between Chinese and Latin ("Van de Ven 傷勢無礙"),
@@ -579,19 +578,6 @@ const aiCard = (ai, league = '', people = null) => {
   if (people && node.querySelector('.note-who[data-who]')) Promise.resolve(people()).then(list => list?.length && namePeople(node, league, list)).catch(() => {});
   return node;
 };
-// A card's shape that came to nothing (Gemini found no news): folded away, not snapped off.
-function foldAway(box, then) {
-  const h = box.offsetHeight;
-  if (!h || matchMedia('(prefers-reduced-motion: reduce)').matches) return put(box, then);
-  Object.assign(box.style, { height: `${h}px`, overflow: 'hidden', transition: 'height .3s ease, opacity .2s ease' });
-  void box.offsetHeight;
-  Object.assign(box.style, { height: '0px', opacity: '0' });
-  setTimeout(() => {
-    box.removeAttribute('style');
-    put(box, then ? fadeIn(then) : null);
-  }, 320);
-}
-const latestShape = () => card('最新動態', el('div', { class: 'player-note waiting' }, [skeleton([55, 95, 80])]));
 const fadeIn = node => (node && node.classList.add('fade-in'), node);
 // `people`: () => [{ id, name, headshot, zh?, self? }] (or a promise of them), the names its card can make chips of.
 function latestSlot(league, kind, id, { name = '', zh = '', team = '', facts = [], report = [], people = null } = {}, now = null) {
@@ -603,17 +589,17 @@ function latestSlot(league, kind, id, { name = '', zh = '', team = '', facts = [
   const known = memo?.sent === sent ? memo : null;
   if (known && known.build === BUILD() && Date.now() - known.at < LATEST_FRESH_MS) return aiCard(known.answer, league, people);
   const body = JSON.stringify({ league, kind, id: String(id), team: String(team || ''), name, zh, facts, report });
-  // Nothing shown until there's something: the shape only once a card is being written.
+  // Nothing shown until there's a card: no loading shape (most answers are
+  // "no flash", and a shape that came and went was worse than nothing).
   const box = el('div', { class: 'latest-slot' });
-  const asked = askLatest(body, () => !known && !box.firstChild && put(box, latestShape())).then(a => (a && rememberLatest(k, sent, a), a));
+  const asked = askLatest(body).then(a => (a && rememberLatest(k, sent, a), a));
   if (known) return aiCard(known.answer, league, people);
   asked.then(a => {
     const card = a ? aiCard(a, league, people) : null;
-    if (card) return put(box, fadeIn(card));
-    // No flash: no card (the shape, if it showed, folds away). ESPN's newest
-    // story isn't put in its place: that's the quote or preview a 快訊 leaves
-    // out (it stays the card in English, which has no flashes).
-    if (box.firstChild) foldAway(box, null);
+    // No flash: no card. ESPN's newest story isn't put in its place: that's
+    // the quote or preview a 快訊 leaves out (it stays the card in English,
+    // which has no flashes).
+    if (card) put(box, fadeIn(card));
   });
   return box;
 }
