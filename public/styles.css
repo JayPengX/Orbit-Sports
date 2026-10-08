@@ -1431,8 +1431,3 @@ button.lp-person.tap:active { opacity: 0.6; }
 .rw-pts { text-align: right; font-size: 14px; }
 .rw-car .logo { width: 30px; height: 30px; }
 .team-tiles.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-/* A followed F1 team on 追蹤: each driver's share of its points. */
-.crew-shares { display: grid; gap: 6px; margin: 2px 0 4px; }
-.crew-share { display: grid; grid-template-columns: minmax(0, 1fr) 38% auto; align-items: center; gap: 8px; font-size: 13px; }
-.crew-share .crew-name { font-weight: 650; min-width: 0; overflow-wrap: anywhere; }
-.crew-share .share-bar { width: 100%; margin-top: 0; }

@@ -2519,6 +2519,7 @@ export async function openConstructor(row) {
     const at = teams.findIndex(r => r.id === row.id || f1Constructor(r.en || r.name).name === c.name);
     const me = teams[at] || row;
     const lead = teams[0];
+    const lead2 = teams[1];
     const drivers = (groups.find(g => g.rows.some(r => r.athlete))?.rows || []).map((r, i) => ({ ...r, pos: i + 1 })).filter(r => f1Driver(r.en || r.name).team === c.name);
     const ids = new Set(drivers.map(d => d.id));
     // 最新動態: a recent story about the team itself (its name in the headline), not a race weekend's piece.
@@ -2564,14 +2565,14 @@ export async function openConstructor(row) {
         el('div', { class: 'team-head-text' }, [
           el('h3', { text: en ? c.name : c.zh }),
           !en && c.zh !== c.name ? el('small', { class: 'muted', text: c.name }) : null,
-          // Its place and the gap to the top (its points are the tiles').
-          at >= 0 ? el('p', { class: 'muted', text: [W(`第\u00a0${at + 1}\u00a0名`, `P${at + 1}`), gap > 0 ? W(`落後\u00a0${gap}\u00a0分`, `${gap}\u00a0behind`) : ''].filter(Boolean).join(' · ') }) : null
+          // Its place and its points (the gap to the top is the tiles').
+          at >= 0 ? el('p', { class: 'muted', text: [W(`第\u00a0${at + 1}\u00a0名`, `P${at + 1}`), pts !== '' ? W(`${pts}\u00a0分`, `${pts}\u00a0pts`) : ''].filter(Boolean).join(' · ') }) : null
         ]),
         followBtn
       ]),
-      // Three numbers in a row (the place is the hero's): even tiles, no empty half.
+      // Three numbers in a row (the place and points are the hero's): even tiles.
       el('div', { class: 'team-tiles three' }, [
-        tile(W('積分', 'Points'), String(pts || '–')),
+        at === 0 && lead2 ? tile(W('領先第二', 'Lead'), String(Number(pts) - Number(lead2.stats?.PTS || 0))) : tile(W('落後領先者', 'Behind'), gap > 0 ? String(gap) : '–'),
         tile(W('分站冠軍', 'Wins'), String(wins)),
         tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
       ]),
