@@ -887,6 +887,13 @@ function leagueDays(league, then) {
 }
 
 const ENDED_PICKS = { zh: '已結束的推薦', en: 'Picks that ended' };
+// ELTA's four 體育台 (its own commentators); MAX's channels carry the English feed.
+const MAIN_CHANNELS = new Set([101, 105, 110, 115]);
+const onMain = e => channelsOf(e).some(c => MAIN_CHANNELS.has(c.ch));
+// The broadcaster's pick: a game on a main channel while another of its
+// league, starting within the hour, is on TV only on MAX. (One game on
+// alone isn't a pick: there was nothing to choose from.)
+const featuredIn = list => e => onMain(e) && list.some(o => o !== e && o.id !== e.id && o.league === e.league && Math.abs(Date.parse(o.start) - Date.parse(e.start)) < 3_600_000 && onTv(o) && !onMain(o));
 function renderHome() {
   const box = $('panel-home');
   const h = state.home;
@@ -904,7 +911,7 @@ function renderHome() {
     return;
   }
   const now = Date.now();
-  const pctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: h.tables, aff: affinity(null, now, ['match']), now };
+  const pctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: h.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(dayAll(slot)) };
   let past = h.date < today();
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).

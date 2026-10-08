@@ -100,3 +100,24 @@ test('an F1 session takes its own length: qualifying (an hour) runs into no 22:0
   // The race (two hours) still does.
   assert.equal(clash({ ...quali, sessionKey: 'Race' }, epl), true);
 });
+
+test("seven games in, the table counts for a share; the broadcaster's pick of the games then counts more", () => {
+  const side = id => ({ id, name: id });
+  const game = (id, away, home) => ({ id, league: 'epl', kind: 'match', start: '2026-10-10T14:00:00Z', status: { state: 'pre' }, away: side(away), home: side(home) });
+  const row = (pos, gp) => ({ pos, n: 20, gp });
+  const early = { epl: { BHA: row(3, 7), SUN: row(14, 7), CHE: row(10, 7), BOU: row(17, 7) } };
+  const ctx = { leagues: ['epl'], tables: early, now: Date.parse('2026-10-08T12:00:00Z') };
+  const bha = game('1', 'BHA', 'SUN');
+  const che = game('2', 'BOU', 'CHE');
+  const gap = (c, t) => scoreMatch(bha, { ...ctx, tables: t, featured: c }).score - scoreMatch(che, { ...ctx, tables: t, featured: c }).score;
+  // The table alone still prefers Brighton's game, by less than a full season's table would.
+  const late = { epl: Object.fromEntries(Object.entries(early.epl).map(([k, r]) => [k, { ...r, gp: 30 }])) };
+  assert.ok(gap(null, early) > 0 && gap(null, early) < gap(null, late));
+  // ELTA's main channel for Chelsea's: that one first.
+  const elta = e => e.id === '2';
+  assert.ok(gap(elta, early) < 0);
+  assert.ok(scoreMatch(che, { ...ctx, featured: elta }).reasons.includes('featured'));
+  // No "前段班對決" from a table seven games old.
+  const top = { epl: { BHA: row(3, 7), SUN: row(2, 7) } };
+  assert.ok(!scoreMatch(bha, { ...ctx, tables: top }).reasons.includes('topClash'));
+});

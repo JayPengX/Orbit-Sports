@@ -10,6 +10,9 @@
 //   fame       a headline league, a final
 //   habit      what they open, follow and bet on in every Quadra app (the
 //              shared affinity map)
+//   featured   the broadcaster's own pick: of a league's games at one time,
+//              the one ELTA puts on a main channel with its commentators
+//              (the rest on MAX's English feed)
 //   now        live now, or starting soon
 //
 // Then a plan: the best match first, then the best one that doesn't clash
@@ -43,13 +46,22 @@ export function tableStarted(g) {
 }
 
 // The tables a set of standings groups gives (each group ranked on its own; none before a game's played).
+// `gp`: the games a side has played (how much its place says).
 export function tableIndex(groups) {
   const out = {};
-  for (const g of (groups || []).filter(tableStarted)) g.rows.forEach((r, i) => r.id && (out[r.id] = { pos: i + 1, n: g.rows.length, group: g.name }));
+  for (const g of (groups || []).filter(tableStarted)) g.rows.forEach((r, i) => r.id && (out[r.id] = { pos: i + 1, n: g.rows.length, group: g.name, gp: Number(r.stats?.GP) || null }));
   return out;
 }
+// How much a table says yet: a few games in, places are mostly luck (Brighton
+// 3rd and Chelsea 10th seven games in), so they count for a share, all of
+// it from TABLE_GAMES games on. A table without games played counts whole.
+const TABLE_GAMES = 15;
+const tableWeight = (...rows) => {
+  const gp = rows.map(r => r?.gp).filter(Number.isFinite);
+  return gp.length ? Math.min(1, Math.min(...gp) / TABLE_GAMES) : 1;
+};
 
-export function scoreMatch(e, { leagues = [], follows = [], games = [], tables = {}, aff = {}, now = Date.now() } = {}) {
+export function scoreMatch(e, { leagues = [], follows = [], games = [], tables = {}, aff = {}, now = Date.now(), featured = null } = {}) {
   const reasons = [];
   let score = 0.2;
   // A match followed on its own: the person asked for this one.
@@ -72,13 +84,19 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   const a = strength(tables, e.league, e.away);
   const h = strength(tables, e.league, e.home);
   if (a != null && h != null) {
-    score += 0.35 * ((a + h) / 2) + 0.15 * (1 - Math.abs(a - h));
+    const w = tableWeight(tables[e.league][e.away.id], tables[e.league][e.home.id]);
+    score += w * (0.35 * ((a + h) / 2) + 0.15 * (1 - Math.abs(a - h)));
     const ra = tables[e.league][e.away.id].pos;
     const rh = tables[e.league][e.home.id].pos;
     if (ra <= 4 && rh <= 4) {
-      score += 0.25;
-      reasons.push('topClash');
-    } else if (Math.abs(a - h) < 0.12) reasons.push('close');
+      score += 0.25 * w;
+      if (w >= 0.5) reasons.push('topClash');
+    } else if (Math.abs(a - h) < 0.12 && w >= 0.5) reasons.push('close');
+  }
+  // The broadcaster's pick of the games then (its main channel, its commentators).
+  if (featured?.(e)) {
+    score += 0.2;
+    reasons.push('featured');
   }
   if (bigGame(e)) {
     score += 0.3;
