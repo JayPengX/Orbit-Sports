@@ -2656,7 +2656,9 @@ export function outOfIt(g, race, league) {
   const total = SEASON_GAMES[league];
   const played = r => (sport === 'soccer' ? Number(r.stats.GP) : Number(r.stats.W) + Number(r.stats.L) + (Number(r.stats.T) || 0));
   const over = race ? race.rows.every(x => x.settled) && race.title.done : total ? rows.every(r => played(r) >= total) : false;
-  if (rows.some(r => r.clincher)) return new Set(total && rows.every(r => played(r) >= total) ? [] : rows.filter(r => r.clincher === 'e').map(r => r.id));
+  // Over once every side has ESPN's mark (in, or e: out), not only once every
+  // side has played its 162: a rainout never made up leaves a side at 161.
+  if (rows.some(r => r.clincher)) return new Set(rows.every(r => r.clincher) || (total && rows.every(r => played(r) >= total)) ? [] : rows.filter(r => r.clincher === 'e').map(r => r.id));
   if (!race || over || (total && rows.every(r => played(r) >= total))) return new Set();
   const zones = rows.some(r => r.note && !/relegat|eliminat/i.test(r.note));
   if (sport === 'racing') return new Set(race.title.done ? [] : race.rows.filter(x => x.best > 1).map(x => x.id));
