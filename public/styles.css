@@ -1147,6 +1147,14 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 /* A place still being played for: the two sides that could take it, each logo by its name. */
 .br-tie.pending { border-style: dashed; border-color: var(--q-border); box-shadow: none; }
 .br-maybe { grid-column: 2 / 5; display: flex; align-items: center; gap: 5px; min-width: 0; }
+/* A phone: two whole rounds across the screen, a swipe snapping to the next. */
+@media (max-width: 560px) {
+  .bracket { gap: 14px; scroll-snap-type: x mandatory; }
+  .br-col { flex-basis: calc((100% - 14px) / 2); }
+  .br-tie { padding: 9px 9px; }
+  .br-side { grid-template-columns: 12px auto minmax(0, 1fr) auto; gap: 5px; font-size: 14px; }
+  .br-maybe { grid-column: 1 / 5; gap: 4px; }
+}
 .br-opt { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .br-maybe .br-name { overflow: visible; }
 .br-maybe .logo { width: 20px; height: 20px; flex: none; }

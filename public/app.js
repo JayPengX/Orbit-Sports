@@ -1523,7 +1523,8 @@ function playoffView(model, league) {
   linkTies(map, model);
   // Opened on the round that's on (or next), not always the first.
   const at = openRound(model) - 1;
-  if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.children[at]?.offsetLeft - map.offsetLeft - 16));
+  // (By the rounds themselves: the lines' drawing sits first in the map.)
+  if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.querySelectorAll(':scope > .br-col')[at]?.offsetLeft - map.offsetLeft - 16));
   return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, map]);
 }
 // The lines from each tie to the one it feeds (a bracket's elbows), drawn
@@ -1573,8 +1574,8 @@ function linkTies(map, model) {
         const end = to && nodes[to[0]]?.[to[1]];
         if (!end) return;
         const [a, b] = [at(nodes[i][j]), at(end)];
-        // The turn just before the tie fed, so a line passing a column runs straight.
-        const turn = b.l - 9;
+        // The turn halfway across the gap before the tie fed, so a line passing a column runs straight.
+        const turn = b.l - (parseFloat(getComputedStyle(map).columnGap) || 18) / 2;
         const path = document.createElementNS(NS, 'path');
         path.setAttribute('d', `M${a.r} ${a.y}H${turn}V${b.y}H${b.l}`);
         if (t.winner) path.setAttribute('class', 'won');
