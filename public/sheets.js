@@ -2518,7 +2518,6 @@ export async function openConstructor(row) {
     const teams = groups.find(g => g.rows.some(r => !r.athlete))?.rows || [];
     const at = teams.findIndex(r => r.id === row.id || f1Constructor(r.en || r.name).name === c.name);
     const me = teams[at] || row;
-    const lead = teams[0];
     const drivers = (groups.find(g => g.rows.some(r => r.athlete))?.rows || []).map((r, i) => ({ ...r, pos: i + 1 })).filter(r => f1Driver(r.en || r.name).team === c.name);
     const ids = new Set(drivers.map(d => d.id));
     // 最新動態: a recent story about the team itself (its name in the headline), not a race weekend's piece.
@@ -2553,7 +2552,6 @@ export async function openConstructor(row) {
     const doubles = weekends.filter(w => w.fin.length === 2 && w.fin.every(p => p > 0 && p <= 3)).length;
     const next = races.find(e => e.status.state !== 'post' && (e.sessions || []).some(x => x.status.state !== 'post'));
     const pts = me.stats?.PTS ?? '';
-    const gap = lead && lead !== me ? Number(lead.stats?.PTS) - Number(pts) : 0;
     // Followed by the kit's name (ESPN's constructor ids aren't kept anywhere else).
     const side = { id: `f1team:${c.name}`, name: c.name, en: c.name, f1team: true };
     const followBtn = followButton(() => ctx.isFollowed(league, side.id), () => ctx.toggleFollow(league, side));
@@ -2569,7 +2567,7 @@ export async function openConstructor(row) {
         followBtn
       ]),
       el('div', { class: 'team-tiles' }, [
-        tile(W('排名', 'Place'), at >= 0 ? `P${at + 1}` : '–', gap > 0 ? W(`落後\u00a0${gap}`, `${gap}\u00a0behind`) : at === 0 ? W('領先', 'Leading') : ''),
+        tile(W('排名', 'Place'), at >= 0 ? `P${at + 1}` : '–'),
         tile(W('積分', 'Points'), String(pts || '–')),
         tile(W('分站冠軍', 'Wins'), String(wins)),
         tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
