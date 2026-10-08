@@ -2545,13 +2545,13 @@ export async function openConstructor(row) {
         el('div', { class: 'team-head-text' }, [
           el('h3', { text: en ? c.name : c.zh }),
           !en && c.zh !== c.name ? el('small', { class: 'muted', text: c.name }) : null,
-          // (Its points are the tile below's.)
-          at >= 0 ? el('p', { class: 'muted', text: W(`車隊積分榜第\u00a0${at + 1}`, `P${at + 1} in the constructors'`) }) : null
+          // Its place and the gap to the top (its points are the tiles').
+          at >= 0 ? el('p', { class: 'muted', text: [W(`車隊積分榜第\u00a0${at + 1}`, `P${at + 1} in the constructors'`), gap > 0 ? W(`落後\u00a0${gap}\u00a0分`, `${gap}\u00a0behind`) : ''].filter(Boolean).join(' · ') }) : null
         ]),
         followBtn
       ]),
-      el('div', { class: 'team-tiles' }, [
-        tile(W('排名', 'Place'), at >= 0 ? `P${at + 1}` : '–', gap > 0 ? W(`落後 ${gap}\u00a0分`, `${gap}\u00a0behind`) : at === 0 ? W('領先', 'Leading') : ''),
+      // Three numbers in a row (the place is the hero's): even tiles, no empty half.
+      el('div', { class: 'team-tiles three' }, [
         tile(W('積分', 'Points'), String(pts || '–')),
         tile(W('分站冠軍', 'Wins'), String(wins)),
         tile(W('頒獎台', 'Podiums'), String(podiums), doubles ? W(`雙登台 ${doubles}`, `${doubles} double`) : '')
@@ -2834,14 +2834,19 @@ function zoneLegend(rows) {
 function stageLine(e) {
   const parts = [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null, weekOf(e) ? el('small', { text: roundLabel(e.league, weekOf(e), weekOf(e), L()) }) : null];
   if (!e.round || !(e.series || e.round.leg) || !ctx.seriesOf) return el('div', { class: 'mh-stage' }, parts);
-  const btn = el('button', { class: 'mh-stage link', type: 'button', 'aria-label': L() === 'en' ? 'See the whole series' : '看整個系列賽' }, [...parts, el('span', { class: 'mh-chev', 'aria-hidden': 'true', text: '›' })]);
+  // The › at the end of the last words, never alone on a line of its own.
+  const shown = parts.filter(Boolean);
+  const chev = el('span', { class: 'mh-chev', 'aria-hidden': 'true', text: '\u00a0›' });
+  if (shown.at(-1)?.tagName === 'SMALL') shown.at(-1).append(chev);
+  else shown.push(chev);
+  const btn = el('button', { class: 'mh-stage link', type: 'button', 'aria-label': L() === 'en' ? 'See the whole series' : '看整個系列賽' }, shown);
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     const got = await ctx.seriesOf(e).catch(() => null);
     btn.disabled = false;
     if (got) openTie(got.tie, e.league, got.title);
     // Not in the bracket read (a season long gone): just the line, no more.
-    else btn.replaceWith(el('div', { class: 'mh-stage' }, parts));
+    else (chev.remove(), btn.replaceWith(el('div', { class: 'mh-stage' }, parts)));
   });
   return btn;
 }
