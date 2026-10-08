@@ -1279,7 +1279,6 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .follow-btn.on { background: var(--accent-wash); color: var(--accent); }
 .mh-side .follow-btn { margin-top: 4px; }
 /* A guest's side: the follow button's room kept, so the two sides stand level. */
-.mh-chip-space { display: block; height: 32px; margin-top: 4px; }
 /* 勝率走勢: each side's logo in a column beside the chart (home at the top,
    away at the bottom, as the halves are coloured), the marks under it lined up. */
 .wp-frame { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; margin-top: 6px; }
@@ -1358,3 +1357,11 @@ span.hero-team { cursor: default; }
 /* The live panel's person as a tap: drawn as it was, a press dimming it. */
 button.lp-person.tap { all: unset; display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 button.lp-person.tap:active { opacity: 0.6; }
+
+/* A dark logo with no dark-screen version (ui.js PLATED): a light round plate in dark mode. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .logo.plate { background: #f2f2f4; border-radius: 50%; padding: 9%; box-sizing: border-box; }
+}
+:root[data-theme='dark'] .logo.plate { background: #f2f2f4; border-radius: 50%; padding: 9%; box-sizing: border-box; }
+/* The follow row under the score: the match and, in a guest club's game, the league side, side by side. */
+.mh-follow { flex-wrap: wrap; gap: 8px; }

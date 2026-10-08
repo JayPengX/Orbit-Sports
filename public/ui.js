@@ -148,8 +148,11 @@ export function logo(url, name, cls = '') {
     const flag = countryFlag(name);
     return flag ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: flag }) : el('span', { class: `logo logo-fallback ${cls}`, 'aria-hidden': 'true', text: (name || '?').trim().slice(0, 1) });
   };
-  return logoPicture(smallPhoto(freshHeadshot(url)), darkLogo(url), `logo ${cls}`, fallback);
+  return logoPicture(smallPhoto(freshHeadshot(url)), darkLogo(url), `logo ${cls}${PLATED.test(url || '') ? ' plate' : ''}`, fallback);
 }
+// Logos drawn dark with no version for a dark screen (the London Lions' black
+// lion): on a light round plate there, so they don't vanish into the card.
+const PLATED = /London_Lions_logo/;
 // A team logo's version for a dark screen (ESPN's 500-dark, NBA.com's D): the
 // Padres' brown or the Yankees' navy mark doesn't vanish on a dark card.
 export const darkLogo = url =>

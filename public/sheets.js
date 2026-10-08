@@ -99,11 +99,13 @@ export async function openMatch(e) {
     const home = sm?.home || e.home;
     const away = sm?.away || e.away;
     const st = sm?.status || e.status;
+    const guestGame = Boolean(e.home.guest || e.away.guest);
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
         el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
         x.record || raw.record ? el('small', { text: x.record || raw.record }) : x.guest || raw.guest ? el('small', { text: GUEST_FROM[raw.en || raw.name]?.[L() === 'en' ? 1 : 0] || (L() === 'en' ? 'Guest club' : '表演賽客隊') }) : null,
-        hasTeamPage(e.league) && !x.guest && !raw.guest ? followChip(e.league, x, () => paintHeader(sm)) : e.home.guest || e.away.guest ? el('span', { class: 'mh-chip-space', 'aria-hidden': 'true' }) : null
+        // A guest club's game: neither side's follow here (the two sides even), the league side's under the score.
+        hasTeamPage(e.league) && !guestGame ? followChip(e.league, x, () => paintHeader(sm)) : null
       ]);
     put(
       header,
@@ -116,7 +118,7 @@ export async function openMatch(e) {
         side(home, e.home)
       ]),
       stageTag(e, L()) || seriesText(e) || weekOf(e) ? stageLine(e) : null,
-      gameFollow(e, st, () => paintHeader(sm)),
+      gameFollow(e, st, () => paintHeader(sm), guestGame && hasTeamPage(e.league) ? [away, home].filter((x, i) => !x.guest && ![e.away, e.home][i].guest) : []),
       // On now or about to start: one tap to watch it, at the top.
       watchButton({ ...e, status: st }, 'wide'),
       linescore(sm, e),
@@ -326,17 +328,27 @@ const dots = (n, of, cls) => el('span', { class: `lp-dots ${cls}` }, Array.from(
 // quiet with a tick. `isOn()` says whether it's followed; `toggle()` flips it.
 // This one match followed on its own (its start and final told, first on 首頁, in 追蹤):
 // offered until it's over, and shown while it's followed.
-function gameFollow(e, st, after) {
-  if (!ctx.isFollowedGame) return null;
-  const on = ctx.isFollowedGame(e);
-  if (!on && st.state === 'post') return null;
+// `teams`: sides followed from here rather than under their names (a guest
+// club's game: the header kept even, its one league side's follow beside this).
+function gameFollow(e, st, after, teams = []) {
   const en = L() === 'en';
-  return el('div', { class: 'mh-follow' }, [
-    el('button', { class: `game-follow${on ? ' on' : ''}`, type: 'button', 'aria-pressed': String(on), onclick: () => (ctx.toggleFollowGame(e), after()) }, [
-      el('span', { class: 'gf-star', 'aria-hidden': 'true', text: on ? '★' : '☆' }),
-      el('span', { text: on ? (en ? 'Following this match' : '已追蹤這場') : en ? 'Follow this match' : '追蹤這場比賽' })
-    ])
-  ]);
+  const on = ctx.isFollowedGame?.(e);
+  const game = ctx.isFollowedGame && (on || st.state !== 'post')
+    ? el('button', { class: `game-follow${on ? ' on' : ''}`, type: 'button', 'aria-pressed': String(on), onclick: () => (ctx.toggleFollowGame(e), after()) }, [
+        el('span', { class: 'gf-star', 'aria-hidden': 'true', text: on ? '★' : '☆' }),
+        el('span', { text: on ? (en ? 'Following this match' : '已追蹤這場') : en ? 'Follow this match' : '追蹤這場比賽' })
+      ])
+    : null;
+  const team = x => {
+    const mine = ctx.isFollowed(e.league, x.id);
+    const name = x.short || x.name;
+    return el('button', { class: `game-follow${mine ? ' on' : ''}`, type: 'button', 'aria-pressed': String(mine), onclick: () => (ctx.toggleFollow(e.league, x), after()) }, [
+      el('span', { class: 'gf-star', 'aria-hidden': 'true', text: mine ? '✓' : '+' }),
+      el('span', { text: mine ? (en ? `Following ${name}` : `已追蹤${name}`) : en ? `Follow ${name}` : `追蹤${name}` })
+    ]);
+  };
+  const all = [game, ...teams.map(team)].filter(Boolean);
+  return all.length ? el('div', { class: 'mh-follow' }, all) : null;
 }
 // A race weekend followed from any of its sessions (every session of it counts):
 // offered until its last session is over.
