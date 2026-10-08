@@ -1843,7 +1843,9 @@ export async function openTeam(league, id, fallback = {}) {
       ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null, news(league, { team: id }).catch(() => []), homeLeague(league, id).catch(() => null)])
       : await ownTeam(league, id, fallback);
     const outside = Boolean(home && !home.key && home.name);
-    const sched = outside ? all.filter(x => !x.other) : all;
+    // Only the competitions Orbit Sports has: a friendly or another country's
+    // cup has nothing of its own here (its table, its names, its page).
+    const sched = all.filter(x => !x.other && LEAGUES[x.league]);
     // 最新動態: a recent story about the club itself (storyAboutTeam), not its games.
     const stories = newsAbout([teamNews], { team: id }).filter(st => storyAboutTeam(st, { en: info.en || info.name, enShort: info.enShort, sport: LEAGUES[league]?.sport }));
     const now = Date.now();
@@ -1854,7 +1856,7 @@ export async function openTeam(league, id, fallback = {}) {
     const followBtn = followButton(() => ctx.isFollowed(league, id), () => ctx.toggleFollow(league, side));
     const place = placeOf(groups, id);
     // A club in several competitions: each game says which.
-    const comps = new Set(sched.map(x => x.other || x.league)).size > 1;
+    const comps = new Set(sched.map(x => x.league)).size > 1;
     const resultOf = x => {
       const [me, them] = x.home.id === String(id) ? [x.home, x.away] : [x.away, x.home];
       return me.winner ? 'W' : them.winner ? 'L' : Number(me.score) === Number(them.score) && me.score !== '' ? 'D' : Number(me.score) > Number(them.score) ? 'W' : 'L';

@@ -1460,14 +1460,18 @@ export function parseGameLog(log) {
       const score = us != null && them != null && us !== '' && them !== '' ? `${us}-${them}` : g.score || '';
       return { id: String(x.eventId), date: g.gameDate || '', at: g.atVs || 'vs', league: own, leagueName: g.leagueShortName || g.leagueName || '', team: { id: mine, abbr: g.team?.abbreviation || '', logo: logoOf(g.team) }, home: mine ? home : null, opp: { id: String(g.opponent?.id ?? ''), name: g.opponent?.displayName || '', abbr: g.opponent?.abbreviation || '', logo: logoOf(g.opponent) }, result: g.gameResult || '', score, stats: (x.stats || []).slice(0, n) };
     })
-    .filter(Boolean)
-    .slice(0, 5);
+    .filter(Boolean);
   return games.length ? { title: block.displayName || '', labels: block.labels.slice(0, n), games } : null;
 }
 export async function athleteOverview(league, id) {
   const ov = parseOverview(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }));
   // A game's league: the one it names, else (one league to a sport: the NBA's, MLB's) the player's own.
-  if (ov.log) ov.log.games = ov.log.games.map(g => ({ ...g, league: g.league || (LEAGUES[league].espn.startsWith('soccer/') ? '' : league), opp: nbaLogo(league, g.opp) }));
+  // Only the competitions Orbit Sports has (a friendly, another country's
+  // cup: nothing of theirs to open or name), the last five of them.
+  if (ov.log) {
+    ov.log.games = ov.log.games.map(g => ({ ...g, league: g.league || (LEAGUES[league].espn.startsWith('soccer/') ? '' : league), opp: nbaLogo(league, g.opp) })).filter(g => LEAGUES[g.league]).slice(0, 5);
+    if (!ov.log.games.length) ov.log = null;
+  }
   return ov;
 }
 

@@ -689,7 +689,8 @@ async function loadFollowedTeams() {
         teamsAt.set(key, Date.now());
         // Followed from one of our cups (Benfica in 歐霸): its games in our
         // competitions only, not its league's that ELTA doesn't show.
-        state.home.teams.set(key, LEAGUES[f.league].cup ? list.filter(e => !e.other) : list);
+        // (Only the competitions Orbit Sports has: a friendly isn't one.)
+        state.home.teams.set(key, list.filter(e => !e.other && LEAGUES[e.league]));
         if (state.tab === 'home') renderHome();
         if (state.tab === 'following') renderFollowing();
         clearTimeout(pushTimer);
