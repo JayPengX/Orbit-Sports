@@ -191,9 +191,11 @@ export function leagueMark(key, cls = 'lg-mark') {
   const icon = () => el('span', { class: 'league-icon', 'aria-hidden': 'true', text: sportIcon(key) });
   return el('span', { class: `league-badge ${cls}` }, [logoPicture(leagueLogo(key), null, 'league-img', icon)]);
 }
-export const leagueChip = key => el('span', { class: 'league-tag' }, [leagueMark(key), el('span', { text: leagueName(key, ctx.locale) })]);
+export const leagueChip = (key, short = false) => el('span', { class: 'league-tag' }, [leagueMark(key), el('span', { text: short ? shortLeague(key) : leagueName(key, ctx.locale) })]);
+// A row's narrow column: a league known by its letters by them alone (MLB, not MLB 美國職棒).
+const shortLeague = key => /^([A-Za-z0-9]+) [^\x00-\x7f]/.exec(leagueName(key, ctx.locale))?.[1] || leagueName(key, ctx.locale);
 // An event's competition: its league, or (a friendly, a cup Orbit Sports doesn't have) its own name.
-const compChip = e => (e.other ? el('span', { class: 'league-tag other' }, [el('span', { text: otherName(e.other, ctx.locale === 'en') })]) : leagueChip(e.league));
+const compChip = e => (e.other ? el('span', { class: 'league-tag other' }, [el('span', { text: otherName(e.other, ctx.locale === 'en') })]) : leagueChip(e.league, true));
 
 // ---- Events --------------------------------------------------------------------------
 
@@ -251,7 +253,11 @@ export const shownStart = e => e?.official || e?.start;
 function statusEl(e, day = true) {
   if (e.status.state === 'pre' && !e.status.void && localDate(Date.parse(e.start)) !== today())
     return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: clock(shownStart(e)) })]) : el('span', { class: 'event-status pre', text: clock(shownStart(e)) });
-  return el('span', { class: `event-status ${e.status.state}`, text: statusText(e) });
+  // A game on now with its clock (第4節 8:58): the period, the clock under it (two lines drawn for it, never a wrap).
+  const text = statusText(e);
+  const clockAt = e.status.state === 'in' ? /^(.+?)\s+(\d{1,2}:\d{2}(?:\.\d)?)$/.exec(text) : null;
+  if (clockAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: clockAt[1] }), el('small', { class: 'num', text: clockAt[2] })]);
+  return el('span', { class: `event-status ${e.status.state}`, text });
 }
 // A side's picture: a person's photo (a driver), a team's badge.
 export const sideLogo = (side, league, cls = '') => (side && side.athlete ? personPic(side, league, `${cls} round`) : logo(side?.logo, side?.name, cls));
