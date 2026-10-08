@@ -279,3 +279,10 @@ test('settleSeries: the nightly copy of the days to come, built on with the game
   ]);
   assert.equal(out.find(e => e.id === '4').stage.round.en, 'ALDS - Game 4');
 });
+
+test("a game ESPN has dated but not timed: Taiwan's next morning, its time 待定", async () => {
+  const { startOf } = await import('../public/lib/espn.mjs');
+  assert.deepEqual(startOf('2026-10-11T04:00Z', { timeValid: false }), { start: '2026-10-12T00:00:00.000Z', timeTbd: true });
+  assert.deepEqual(startOf('2026-10-09T00:00Z', { timeValid: true }), { start: '2026-10-09T00:00Z' });
+  assert.deepEqual(startOf('2026-10-11T19:00Z', { timeValid: false }), { start: '2026-10-11T19:00Z', timeTbd: true });
+});

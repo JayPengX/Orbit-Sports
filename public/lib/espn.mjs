@@ -214,6 +214,20 @@ export function knockoutRound(e, comp, league) {
   const title = comp?.series?.title || (cup ? slug.replace(/-/g, ' ') : note.replace(/\s*-\s*(Game|Leg)\b.*$/i, '')) || key;
   return { key, title, leg: Number(comp?.leg?.value) || 0, through: (comp?.series?.competitors || []).filter(c => c.winner).map(c => String(c.id)) };
 }
+// A game's start, and whether its time is set: a play-off's next game is
+// dated before its hour is (ESPN's timeValid false, the day's 00:00 in New
+// York, 12:00 in Taiwan). An American game of that day is played in
+// Taiwan's next morning: placed there (20:00 New York, 08:00 here, the usual
+// hour) with its time shown as 待定 until ESPN or ELTA's list sets it.
+const ET_MIDNIGHT = /T0[45]:00(:00)?(\.000)?Z$/;
+export function startOf(date, comp) {
+  if (comp?.timeValid !== false || !date) return { start: date };
+  return { start: ET_MIDNIGHT.test(date) ? new Date(Date.parse(date) + 20 * 3_600_000).toISOString() : date, timeTbd: true };
+}
+// A game's time from another list (ELTA's, the app's): set from outside, ESPN's own stands once it has one.
+let timeFix = e => e;
+export const fixTimes = fn => (timeFix = fn);
+export const fixTime = (e, _, list = []) => (e?.timeTbd ? timeFix(e, list) : e);
 export function parseScoreboard(data, league) {
   const kind = LEAGUES[league]?.kind || 'match';
   const out = [];
@@ -227,7 +241,7 @@ export function parseScoreboard(data, league) {
       name: league === 'f1' ? raceName(e.name, detectLocale()) : e.name || '',
       enName: e.name || '',
       short: e.shortName || '',
-      start: e.date,
+      ...startOf(e.date, comp),
       end: e.endDate || null,
       status: parseStatus(e.status || comp?.status),
       venue: comp?.venue?.fullName || e.venue?.fullName || e.circuit?.fullName || '',
@@ -365,11 +379,11 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   );
   const seen = new Set();
   const events = parsed.flat().filter(e => !seen.has(e.id) && seen.add(e.id));
-  return noteLatest(settleSeries(league === 'mlb' ? await withMlbLive(events) : events));
+  return noteLatest(settleSeries(league === 'mlb' ? await withMlbLive(events) : events)).map(fixTime);
 }
 // A playoff game to come between sides not known yet ("TBD", "CLE/CHW").
 const placeholder = x => /^tbd$/i.test(String(x?.abbr || x?.short || '').trim()) || String(x?.abbr || '').includes('/') || Number(x?.id) <= 0;
-const waiting = e => e.round && e.status?.state === 'pre' && (placeholder(e.home) || placeholder(e.away) || /if necessary/i.test(e.note || ''));
+const waiting = e => e.round && e.status?.state === 'pre' && (e.timeTbd || placeholder(e.home) || placeholder(e.away) || /if necessary/i.test(e.note || ''));
 // The days read live (above): url -> { page, done: the last playoff game over then, waiting, first: its first start }.
 const liveDays = new Map();
 // A game's start this long before the copy was built could have ended after it.
@@ -1287,7 +1301,7 @@ export function parseSchedule(data, league) {
     const lg = own || league;
     const home = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'home')));
     const away = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'away')));
-    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, start: e.date, status: parseStatus(comp?.status), home, away, venue: comp?.venue?.fullName || '', ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
+    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, ...startOf(e.date, comp), status: parseStatus(comp?.status), home, away, venue: comp?.venue?.fullName || '', ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
   });
 }
 // A team's season: its results and the games to come. A soccer club's across

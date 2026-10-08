@@ -12,7 +12,7 @@
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, settleSeries, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -22,13 +22,13 @@ import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { liveTable, standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
-import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted } from './lib/picks.mjs';
+import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted, clash } from './lib/picks.mjs';
 import { liveTiming } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
-import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList, replayHint } from './lib/tv.mjs';
-import { ctx, el, shownStart, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
+import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
+import { ctx, el, shownStart, timeText, bestOf, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // New kit names through the module (a phone can still run an older kit).
@@ -718,9 +718,9 @@ function syncPush() {
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     const league = leagueName(e.league, locale);
     // Its start only when it's on TV here (where, in the notice); its final score in any case.
-    if (start > now && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
+    if (start > now && !e.timeTbd && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
     // The Worker fills in the score (the title) and who won ({result}) once ESPN has the final.
-    if (LEAGUES[e.league].espn && /^\d+$/.test(e.id)) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} · {result}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
+    if (LEAGUES[e.league].espn && /^\d+$/.test(e.id) && !e.timeTbd) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} · {result}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
   }
   // A followed race weekend: each qualifying, sprint and race starting, and
   // the sprint's and the race's result (the Worker reads the podium off ESPN's day).
@@ -798,7 +798,7 @@ function pickCard(item, n) {
   const series = seriesText(e);
   return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => openEvent(e) }, [
     el('div', { class: 'pick-time' }, [
-      el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : clock(shownStart(e)) }),
+      el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : timeText(e) }),
       el('small', { text: e.status.state === 'in' ? statusText(e) : n === 0 ? t('firstUp') : '' })
     ]),
     el('div', { class: 'pick-body' }, [
@@ -1019,7 +1019,7 @@ function renderHome() {
       ? section(fallback ? t('othersPicks') : isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${past ? L(ENDED_PICKS) : t('picksOn')}`, el('div', { class: 'pick-list' }, planList.map((x, i) => pickCard(x, i))), { sub: fallback ? '' : t('recsN', { n: planList.length }) })
       : finding || fallback || liveBlock ? null : section(t('todayPicks'), el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: h.filter === 'all' ? noTvText(h.date) : t('noPicksMine') }), fullSchedule()])),
     shownMore.length
-      ? section(t('moreRecs'), el('div', { class: 'q-card list' }, shownMore.map(x => eventRow(x.event))), {
+      ? section(t('moreRecs'), el('div', { class: 'q-card list' }, shownMore.map(x => clashRow(x.event, planList))), {
           action: null
         })
       : null,
@@ -1032,6 +1032,16 @@ function renderHome() {
   centerChosen(box);
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
+}
+// A game among the rest that a pick takes the time of: its row, and which
+// pick (the plan is a day that can be watched, one game at a time).
+function clashRow(e, plan) {
+  const row = eventRow(e);
+  const c = e.status.state === 'pre' && !e.timeTbd ? plan.find(p => p.event.status.state !== 'post' && clash(p.event, e))?.event : null;
+  if (!c) return row;
+  const what = c.kind === 'match' ? `${leagueName(c.league, locale)} ${c.away.short || c.away.name}／${c.home.short || c.home.name}` : `${leagueName(c.league, locale)} ${c.session || c.name}`;
+  (row.querySelector('.event-sides') || row.querySelector('.event-title'))?.append(el('small', { class: 'clash-note', text: L({ zh: `與推薦的 ${what} 同時段`, en: `Same time as ${what}, picked` }) }));
+  return row;
 }
 // Nothing on TV here that day: why (past ELTA's list, only the NBA's and
 // MLS's games are known), and the way to every game (賽事).
@@ -1474,6 +1484,8 @@ const md = ms => {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 };
 const roundDates = r => (!r.dates ? '' : r.dates.about ? `${locale === 'en' ? 'c.' : '約'} ${md(r.dates.from)}${locale === 'en' ? '' : ' 起'}` : md(r.dates.from) === md(r.dates.to) ? md(r.dates.from) : `${md(r.dates.from)}–${md(r.dates.to)}`);
+// How many games a round's series runs to, where its games don't say yet.
+const SERIES_LEN = { mlb: { RD16: 3, QTR: 5, SEMI: 7, FINAL: 7 }, nba: { RD16: 7, QTR: 7, SEMI: 7, FINAL: 7 }, nhl: { RD16: 7, QTR: 7, SEMI: 7, FINAL: 7 } };
 function playoffView(model, league) {
   const en = locale === 'en';
   const banner =
@@ -1482,6 +1494,8 @@ function playoffView(model, league) {
       : model.mode === 'last'
         ? el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Last season' : '上季' }), document.createTextNode(`${model.season ? ` ${model.season}` : ''}${en ? ': this season’s playoffs haven’t begun.' : '　本季季後賽尚未開打。'}`)])
         : null;
+  // A round's length (七戰四勝): its games' series, else the league's format.
+  const lenOf = r => bestOf(r.ties.flatMap(t => t?.games || []).find(g => g.series?.games)) || bestOf({ series: { games: SERIES_LEN[league]?.[r.key] } });
   const stateText = r => (r.state === 'done' ? (en ? 'Done' : '已完成') : r.state === 'live' ? (en ? 'On now' : '進行中') : roundDates(r) || (en ? 'TBD' : '待定'));
   const sideRow = (s, t, i) => {
     const id = s ? String(s.id) : '';
@@ -1509,7 +1523,7 @@ function playoffView(model, league) {
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
     if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}`;
     if (t.live) return en ? 'On now' : '進行中';
-    if (t.next) return `${t.kind === 'series' ? `G${Number(/\bgame (\d+)/i.exec(t.next.note || '')?.[1]) || t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${clock(t.next.start)}`;
+    if (t.next) return `${t.kind === 'series' ? `G${Number(/\bgame (\d+)/i.exec(t.next.note || '')?.[1]) || t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${timeText(t.next)}`;
     return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : t.pending ? (en ? 'To be decided' : '待定') : '';
   };
   const tie = (t, r) => {
@@ -1527,7 +1541,7 @@ function playoffView(model, league) {
   const map = el(
     'div',
     { class: 'bracket' },
-    model.rounds.map(r => el('section', { class: `br-col ${r.state}` }, [el('div', { class: 'br-head' }, [el('strong', { text: en ? r.title.en : r.title.zh }), el('small', { text: stateText(r) })]), el('div', { class: 'br-ties' }, r.ties.map(t => tie(t, r)))]))
+    model.rounds.map(r => el('section', { class: `br-col ${r.state}` }, [el('div', { class: 'br-head' }, [el('strong', { text: en ? r.title.en : r.title.zh }), el('small', { text: [lenOf(r), stateText(r)].filter(Boolean).join(' · ') })]), el('div', { class: 'br-ties' }, r.ties.map(t => tie(t, r)))]))
   );
   linkTies(map, model);
   // Opened on the round that's on (or next), not always the first.
@@ -1878,7 +1892,7 @@ function weekendCard(sessions) {
           list.map(x => {
             const kind = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' }[x.sessionKey] || 'other';
             return el('div', { class: `wk-row ${kind}${x.status.state === 'in' ? ' live' : ''}${x.status.state === 'post' ? ' done' : ''}` }, [
-              el('span', { class: 'wk-time num' }, [el('small', { text: dayLabel(localDate(Date.parse(x.start))) }), document.createTextNode(clock(shownStart(x)))]),
+              el('span', { class: 'wk-time num' }, [el('small', { text: dayLabel(localDate(Date.parse(x.start))) }), document.createTextNode(timeText(x))]),
               el('span', { class: 'wk-name' }, [sessionTag(x)]),
               el('span', { class: `wk-state ${x.status.state}`, text: x.status.state === 'post' ? t('final') : x.status.state === 'in' ? t('live') : '' })
             ]);
@@ -2525,9 +2539,14 @@ document.addEventListener('visibilitychange', liveTick);
 let repaintTimer = 0;
 knownEvents(() => [...state.days.values()].flatMap(slot => dayAll(slot)));
 audioPref(() => state.prefs.audio || 'en');
+// A game whose hour isn't set yet takes ELTA's, once its list has the game.
+fixTimes(eltaTime);
 const repaintOpen = () => {
   clearTimeout(repaintTimer);
   repaintTimer = setTimeout(() => {
+    // ELTA's list in: the hours it sets, on the days held (the same day, only the time).
+    for (const slot of state.days.values()) if (slot.events?.some(e => e.timeTbd)) slot.events = slot.events.map(fixTime);
+    if (state.scores.byDay instanceof Map && state.scores.all?.some(e => e.timeTbd)) applyScores(state.scores, state.scores.all.map(fixTime));
     // Which days a sport plays on TV here changes with the lists: worked out again.
     state.home.sportDays.clear();
     if (state.tab === 'home' && SPORTS[state.home.filter]) pickFilter(state.home.filter);

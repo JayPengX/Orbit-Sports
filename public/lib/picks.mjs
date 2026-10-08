@@ -134,7 +134,9 @@ const window = e => {
   return [start, start + minutes(e) * 60_000];
 };
 // Two matches clash when more than half an hour (or half the shorter one) overlaps.
+// A game whose hour isn't set yet (timeTbd) clashes with nothing: its place in the day is a guess.
 export function clash(x, y) {
+  if (x.timeTbd || y.timeTbd) return false;
   const [a1, a2] = window(x);
   const [b1, b2] = window(y);
   const overlap = Math.min(a2, b2) - Math.max(a1, b1);

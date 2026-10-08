@@ -252,10 +252,12 @@ function fieldStatus(text) {
 // The time a schedule shows: an F1 session's official start (its `start`
 // is when the titles come, a few minutes before).
 export const shownStart = e => e?.official || e?.start;
+// A game's hour: 待定 while it isn't set (a play-off's next game: its day is known, its time not yet).
+export const timeText = e => (e?.timeTbd ? (ctx.locale === 'en' ? 'TBD' : '待定') : clock(shownStart(e)));
 // A row's status: a game on another day shows its day above its time.
 function statusEl(e, day = true) {
   if (e.status.state === 'pre' && !e.status.void && localDate(Date.parse(e.start)) !== today())
-    return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: clock(shownStart(e)) })]) : el('span', { class: 'event-status pre', text: clock(shownStart(e)) });
+    return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: timeText(e) })]) : el('span', { class: 'event-status pre', text: timeText(e) });
   // A game on now with its clock (第4節 8:58): the period, the clock under it (two lines drawn for it, never a wrap).
   const text = statusText(e);
   const clockAt = e.status.state === 'in' ? /^(.+?)\s+(\d{1,2}:\d{2}(?:\.\d)?)$/.exec(text) : null;
@@ -280,12 +282,21 @@ export function winners(e) {
 }
 // A playoff series line under a match: "LAL lead series 2-1".
 // In Chinese: "洋基 系列賽 2-1 領先" (the sides by their names).
+// A series' length: 七戰四勝 / Best of 7 (ESPN's totalCompetitions), or ''.
+const ZH_N = ['', '一', '兩', '三', '四', '五', '六', '七', '八', '九'];
+export const bestOf = e => {
+  const n = Number(e?.series?.games) || 0;
+  if (n < 3 || n > 9 || n % 2 === 0) return '';
+  return ctx.locale === 'en' ? `Best of ${n}` : `${ZH_N[n]}戰${ZH_N[(n + 1) / 2]}勝`;
+};
+// A series game's line: its length, then how it stands (白襪 2-1 領先).
 export const seriesText = e => {
   const s = e.series?.summary;
-  if (!s || /^series starts/i.test(s)) return '';
-  if (ctx.locale === 'en') return s;
+  const len = bestOf(e);
+  if (!s || /^series starts/i.test(s)) return len;
   const name = abbr => [e.home, e.away].find(x => x?.abbr && x.abbr.toUpperCase() === String(abbr).toUpperCase())?.short || abbr;
-  return seriesLineZh(s, name) || s;
+  const now = ctx.locale === 'en' ? s : seriesLineZh(s, name) || s;
+  return [len, now].filter(Boolean).join(' · ');
 };
 export function eventRow(e, { league = true, day = true } = {}) {
   const mine = ctx.isFollowedEvent?.(e);

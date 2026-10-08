@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson } from '#kit/quadra.mjs';
-import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, inReplay, replayState, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { watchOf as packOf } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
@@ -81,6 +81,13 @@ export const tvOf = e => {
   if (!e) return [];
   const nba = e.league === 'nba' ? { games: nbaSchedule(), ids: { home: nbaId(e.home), away: nbaId(e.away) } } : null;
   return broadcastsFor(e, eltaSchedule(), { sides: zhSides(e), others: known(), prefer: prefer(), nba, sidesOf: zhSides });
+};
+// A game whose hour isn't set yet, with ELTA's (its program of the game, once
+// listed): the same game at that hour. Else the game as it is.
+// (`list`: the games read with it, the day's others.)
+export const eltaTime = (e, list = []) => {
+  const at = e?.timeTbd ? eltaStart(eltaSchedule(), e, zhSides(e), [...list, ...known()].filter((o, i, all) => all.findIndex(x => x.league === o.league && x.id === o.id) === i)) : null;
+  return at ? { ...e, start: new Date(at).toISOString(), timeTbd: false, timeFrom: 'elta' } : e;
 };
 // Only those of this very game (a schedule's, or Apple TV's every MLS game): for a row's 📺 line.
 export const channelsOf = e => tvOf(e).filter(b => b.exact);

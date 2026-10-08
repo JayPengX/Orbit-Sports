@@ -211,6 +211,8 @@ const SESSION_WORD = { FP1: '第1節', FP2: '第2節', FP3: '第3節', Qual: '�
 export function eltaPrograms(programs, e, sides, others = [], sidesOf = null) {
   if (!programs?.length || !e) return [];
   const t = Date.parse(e.start);
+  // Its hour not set yet: only a program naming it (eltaStart's), never an unnamed one near the guess.
+  if (e.timeTbd && e.kind === 'match') return [];
   const within = (before, after) => p => p.league === e.league && p.start >= t - before * 60_000 && p.start <= t + after * 60_000;
   const cand = programs.filter(within(60, 20));
   if (e.kind !== 'match') {
@@ -237,6 +239,26 @@ export function eltaPrograms(programs, e, sides, others = [], sidesOf = null) {
   // Several games near it: one of them, not yet said which (ELTA names it nearer the day).
   const rivals = others.filter(o => o !== e && o.id !== e.id && o.league === e.league && Math.abs(Date.parse(o.start) - t) < 45 * 60_000);
   return rivals.length ? blank.map(p => ({ ...p, tentative: true })) : blank;
+}
+
+// A game whose hour isn't set yet (timeTbd: a play-off's next game): ELTA's
+// program of it, the same two sides that day in Taiwan, gives it. ESPN can
+// be a day behind ELTA in setting it. ms, or null.
+const twDay = ms => new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10);
+// Else, ELTA's one unnamed program that day (【on ELTA 季後賽】) not near a
+// game of the league whose hour is set, when this is the day's one game of
+// the league still without its hour (`others`: the games known).
+export function eltaStart(programs, e, sides, others = []) {
+  if (!e?.timeTbd || e.kind !== 'match' || !programs?.length) return null;
+  const day = twDay(Date.parse(e.start));
+  const theDay = programs.filter(p => p.league === e.league && twDay(p.start) === day);
+  const hits = theDay.filter(p => p.teams?.length >= 2 && pairFit(p.teams, sides, { both: true }) >= FIT);
+  if (hits.length) return Math.min(...hits.map(p => p.start));
+  const games = others.filter(o => o.league === e.league && o.kind === 'match' && o.status?.state !== 'post' && twDay(Date.parse(o.start)) === day);
+  const timed = games.filter(o => !o.timeTbd).map(o => Date.parse(o.start));
+  const untimed = new Set([e, ...games.filter(o => o.timeTbd)].map(o => o.id));
+  const blank = theDay.filter(p => !p.teams?.length && !timed.some(t => Math.abs(p.start - t) <= 60 * 60_000));
+  return blank.length === 1 && untimed.size === 1 ? blank[0].start : null;
 }
 
 // ---- NBA.com's Taiwan schedule: the NBA games on ELTA, the whole season -------------------
@@ -284,6 +306,9 @@ export function eltaListed(programs, e) {
   const day = new Date(start + 8 * 3_600_000).toISOString().slice(0, 10);
   return day >= days.from && day <= days.to && programs.some(p => p.league === e.league && p.start >= start - 30 * 60_000);
 }
+const CHANNEL_TBA = { zh: '頻道待公布', en: 'channel TBA' };
+const unknownSide = x => !x || /^tbd$/i.test(String(x.abbr || x.short || '').trim()) || String(x.abbr || '').includes('/') || Number(x.id) <= 0;
+const playoffToCome = (e, base) => e.kind === 'match' && e.series && !base.note && e.status?.state !== 'post' && !e.status?.void && !unknownSide(e.home) && !unknownSide(e.away);
 export function broadcastsFor(e, programs, { sides = [], others = [], prefer = 'en', nba = null, sidesOf = null } = {}) {
   const base = broadcastsOf(e.league);
   if (base[0]?.svc !== 'elta') return base;
@@ -307,6 +332,17 @@ export function broadcastsFor(e, programs, { sides = [], others = [], prefer = '
   }
   // Every session on ELTA (F1): this one too, its channel not yet named.
   if (base[0].every && e.kind !== 'match') return [{ ...base[0], exact: true }];
+  // A play-off series game of a league ELTA has whole (MLB's postseason) that
+  // its list doesn't name yet: the series' next games are set only as it
+  // goes, and ELTA lists them a day or so later (first as 【on ELTA 季後賽】,
+  // no sides). Taken as on, its channel to come; unless, its hour set, ELTA
+  // names another game of the league at that hour and not this one (its pick of the two).
+  if (playoffToCome(e, base[0])) {
+    const t = Date.parse(e.start);
+    const other = !e.timeTbd && programs?.some(p => p.league === e.league && p.teams?.length >= 2 && Math.abs(p.start - t) <= 45 * 60_000);
+    const blank = !e.timeTbd && programs?.some(p => p.league === e.league && !p.teams?.length && Math.abs(p.start - t) <= 45 * 60_000);
+    if (!other || blank) return [{ ...base[0], note: CHANNEL_TBA, at: null, exact: true, tba: true }];
+  }
   // ELTA's list covers the day and hasn't the game: not on ELTA.
   return listed ? [] : base;
 }

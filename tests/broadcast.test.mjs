@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -388,4 +388,32 @@ test("a finished game's row keeps its ELTA label while it can be watched again: 
   // Where it is in the guide: Taiwan's day and time.
   assert.equal(guideWhen(Date.parse('2026-10-06T11:35:00Z')), '10/6（二）19:35');
   assert.equal(guideWhen(Date.parse('2026-10-06T11:35:00Z'), true), 'Tue 10/6 19:35');
+});
+
+// A play-off's next game, its hour not set yet (ESPN's timeValid false), as ELTA's list of 8 October 2026 has them.
+const mlb = (id, start, away, home, more = {}) => ({ id, league: 'mlb', kind: 'match', start, status: { state: 'pre' }, series: { games: 7, wins: {} }, away: { name: away, abbr: away.slice(0, 3) }, home: { name: home, abbr: home.slice(0, 3) }, ...more });
+const mlbSides = e => [e.home, e.away].map(s => Object.values(teamNameZh('mlb', s.name) || {}));
+
+test("a game whose hour isn't set takes ELTA's program naming it that day", () => {
+  const oct = elta('2026-10-08');
+  const g1 = mlb('1', '2026-10-12T00:00:00.000Z', 'Los Angeles Dodgers', 'Milwaukee Brewers', { timeTbd: true });
+  assert.equal(new Date(eltaStart(oct, g1, mlbSides(g1))).toISOString(), '2026-10-12T00:00:00.000Z');
+  // G2: only 【on ELTA 季後賽】 twice that day (06:00 and 09:00), with ALCS G1 also untimed: not said which.
+  const g2 = mlb('2', '2026-10-13T00:00:00.000Z', 'Los Angeles Dodgers', 'Milwaukee Brewers', { timeTbd: true });
+  const alcs = mlb('3', '2026-10-13T00:00:00.000Z', 'TBD', 'Tampa Bay Rays', { timeTbd: true });
+  assert.equal(eltaStart(oct, g2, mlbSides(g2), [g2, alcs]), null);
+  // A game with its hour is left alone.
+  assert.equal(eltaStart(oct, { ...g1, timeTbd: false }, mlbSides(g1)), null);
+});
+
+test('a play-off series game ELTA has yet to name is on, its channel to come', () => {
+  const oct = elta('2026-10-08');
+  const g2 = mlb('2', '2026-10-13T00:00:00.000Z', 'Los Angeles Dodgers', 'Milwaukee Brewers', { timeTbd: true });
+  const [tba] = broadcastsFor(g2, oct, { sides: mlbSides(g2) });
+  assert.equal(tba.exact, true);
+  assert.equal(tba.note.zh, '頻道待公布');
+  // A regular-season game ELTA's list doesn't have: not on.
+  assert.deepEqual(broadcastsFor({ ...g2, series: null, timeTbd: false }, oct, { sides: mlbSides(g2) }), []);
+  // Sides not known yet: not taken as on.
+  assert.deepEqual(broadcastsFor({ ...g2, away: { name: 'TBD', abbr: 'TBD', id: '-1' } }, oct, { sides: mlbSides(g2) }), []);
 });
