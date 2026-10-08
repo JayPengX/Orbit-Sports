@@ -287,8 +287,9 @@ export function freshGame(e) {
 // "If Necessary" games, and a game that's now sure to be played loses its
 // （如需）. settleSeries(list) -> the list so.
 const seriesNow = new Map();
-// Each league's latest series won (its deciding game's start): a day's "TBD" from before it may have names now.
-const seriesWon = new Map();
+// Each league's latest playoff game over (its start): a day's "TBD" or
+// "If Necessary" from before it may have changed.
+const playoffDone = new Map();
 const seriesKey = e => `${e.league}|${e.round?.key}|${[e.home?.id, e.away?.id].map(String).sort().join('|')}`;
 const playedOf = s => Object.values(s?.wins || {}).reduce((n, w) => n + (Number(w) || 0), 0);
 export function settleSeries(list) {
@@ -296,7 +297,7 @@ export function settleSeries(list) {
     if (e?.kind !== 'match' || !e.series || !e.round || e.status?.state !== 'post') continue;
     const k = seriesKey(e);
     if (playedOf(e.series) >= playedOf(seriesNow.get(k))) seriesNow.set(k, e.series);
-    if (e.series.completed) seriesWon.set(e.league, Math.max(seriesWon.get(e.league) || 0, Date.parse(e.start) || 0));
+    playoffDone.set(e.league, Math.max(playoffDone.get(e.league) || 0, Date.parse(e.start) || 0));
   }
   const out = [];
   for (const e of list) {
@@ -332,13 +333,16 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   if (!pages.some(Boolean)) throw new Error(`${league}: unread`);
   const parsed = pages.map(p => (p ? parseScoreboard(p, league) : []));
   settleSeries(parsed.flat());
-  // A day still waiting on a series (the next round's "TBD") as the nightly
-  // copy had it, a series won since: read again live, once (ESPN names the
-  // sides as soon as it's won; the copy only the next night).
+  // A playoff day still waiting on results as the nightly copy had it (the
+  // next round's "TBD", a game "If Necessary"), a playoff game over since:
+  // read again live, once. ESPN names the sides, drops or confirms a game and
+  // sets its time (ALDS G4 moved 05:00 to 08:00 once the Rays were through,
+  // off ELTA's listing by the copy's time) as soon as a game ends; the copy
+  // only the next night.
   await Promise.all(
     list.map(async (d, i) => {
       const url = urlOf(d);
-      if (!kit.unmirror || !/^\d{8}$/.test(d) || refreshed.has(url) || !parsed[i].some(waiting) || !(Date.now() - seriesWon.get(league) < 36 * 3_600_000)) return;
+      if (!kit.unmirror || !/^\d{8}$/.test(d) || refreshed.has(url) || !parsed[i].some(waiting) || !(Date.now() - playoffDone.get(league) < 36 * 3_600_000)) return;
       refreshed.add(url);
       kit.unmirror(url);
       const page = await getJson(url, { ttl: 0 }).catch(() => null);
@@ -351,7 +355,7 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
 }
 // A playoff game to come between sides not known yet ("TBD", "CLE/CHW").
 const placeholder = x => /^tbd$/i.test(String(x?.abbr || x?.short || '').trim()) || String(x?.abbr || '').includes('/') || Number(x?.id) <= 0;
-const waiting = e => e.round && e.status?.state === 'pre' && (placeholder(e.home) || placeholder(e.away));
+const waiting = e => e.round && e.status?.state === 'pre' && (placeholder(e.home) || placeholder(e.away) || /if necessary/i.test(e.note || ''));
 const refreshed = new Set();
 
 // An MLB game on now without ESPN's count (its feed can go innings with the
