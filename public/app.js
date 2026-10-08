@@ -780,9 +780,15 @@ function centerChosen(box) {
   for (const chip of box.querySelectorAll('.q-chips [aria-pressed="true"], .segmented [aria-pressed="true"]')) {
     const row = chip.parentElement;
     if (row.keepLeft != null) continue;
+    // Not laid out yet (under the loading screen): nothing to centre, and not
+    // counted as done (it was, and every redraw after left the date strip on
+    // its first day, a month back).
+    if (!row.clientWidth) continue;
     const key = `${box.id || ''}|${row.className}|${rows.indexOf(row)}`;
     const chosen = chip.textContent;
-    if (centered.get(key) === chosen) continue;
+    // A date strip drawn anew at its very start, not one the person scrolled (keepLeft): on its day.
+    const fresh = row.classList.contains('day-strip') && row.scrollLeft === 0;
+    if (centered.get(key) === chosen && !fresh) continue;
     centered.set(key, chosen);
     if (row.scrollWidth > row.clientWidth) row.scrollLeft = chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2;
   }
@@ -853,6 +859,16 @@ function dateStrip(current, onPick, { only = null, range = stripRange } = {}) {
   // Scrolled by the person: a repaint (a day or a team read, the live
   // refresh) keeps it where they left it (centerChosen), not back on the day.
   row.keepLeft = range.held ? range.left : null;
+  // Drawn under the loading screen (no width yet): on its day the moment it has one.
+  if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(() => {
+      if (!row.clientWidth) return;
+      ro.disconnect();
+      const chip = row.querySelector('[aria-pressed="true"]');
+      if (chip && !range.held && row.scrollLeft === 0 && row.scrollWidth > row.clientWidth) row.scrollLeft = chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2;
+    });
+    ro.observe(row);
+  }
   for (const ev of ['pointerdown', 'touchstart', 'wheel']) row.addEventListener(ev, () => (range.held = true), { passive: true });
   row.addEventListener('scroll', () => row.isConnected && row.clientWidth && range.held && (range.left = row.scrollLeft), { passive: true });
   // Any day: the browser's own date picker.
