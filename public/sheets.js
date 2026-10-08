@@ -431,18 +431,17 @@ const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad 
 // league ESPN keeps no report for (soccer, Asian baseball) has no card.
 const INJ_TONE = { out: 'bad', 'injured reserve': 'bad', 'injured list': 'bad', suspension: 'bad', doubtful: 'bad', questionable: 'warn', 'day-to-day': 'warn', probable: 'good' };
 const injTone = status => Object.entries(INJ_TONE).find(([k]) => String(status).toLowerCase().includes(k))?.[1] || 'warn';
-// One player's line: status chip, what's wrong, when they're back, and (`full`) the report's word.
-function injuryLine(x, league, { full = false, pic = true } = {}) {
+// One player's line: status chip, what's wrong, when they're back.
+function injuryLine(x, league) {
   const en = L() === 'en';
   const back = x.back ? (en ? `back ${dayLabel(localDate(Date.parse(x.back)))}` : `預計 ${dayLabel(localDate(Date.parse(x.back)))} 回歸`) : '';
   return el('div', { class: 'inj-row' }, [
-    pic && x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(league, x.id, { name: x.name, logo: x.headshot }) }, [personPic(x, league, 'xs round'), el('span', { text: x.name })]) : null,
+    x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(league, x.id, { name: x.name, logo: x.headshot }) }, [personPic(x, league, 'xs round'), el('span', { text: x.name })]) : null,
     el('span', { class: 'inj-meta' }, [
       el('span', { class: `inj-status ${injTone(x.status)}`, text: injuryText(x.status) }),
       x.what ? el('small', {}, [en ? x.what : zhLater(x.what)]) : null,
       back ? el('small', { class: 'muted', text: back }) : null
-    ]),
-    full && x.comment ? el('p', { class: 'inj-comment' }, [en ? x.comment : zhLater(x.comment)]) : null
+    ])
   ]);
 }
 // A team's card: everyone on its report, the most serious first.
@@ -452,8 +451,6 @@ function teamInjuryCard(list, league) {
   const sorted = [...list].sort((a, b) => INJ_ORDER.indexOf(injTone(a.status)) - INJ_ORDER.indexOf(injTone(b.status)));
   return card(L() === 'en' ? 'Injury report' : '傷兵報告', el('div', { class: 'inj-report' }, sorted.map(x => injuryLine(x, league))), { sub: dayLabel(localDate(Math.max(...list.map(x => Date.parse(x.date) || 0)) || Date.now())) });
 }
-// A player's own: their line and the report's word.
-const playerInjuryCard = (injury, league) => (injury?.status ? card(L() === 'en' ? 'Injury report' : '傷病報告', el('div', { class: 'inj-report' }, [injuryLine(injury, league, { full: true, pic: false })]), { sub: injury.date ? dayLabel(localDate(Date.parse(injury.date))) : '' }) : null);
 
 // A side's row in the league's table: [place, row, group size]; none before the table's first game.
 function placeOf(groups, id) {
@@ -2183,7 +2180,6 @@ export async function openPlayer(league, id, fallback = {}) {
     const keep = list => list.filter(Boolean);
     const racing = sport === 'racing';
     const overview = keep([
-      playerInjuryCard(a.injury, league),
       og.season
         ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...og.season.map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
         : null,

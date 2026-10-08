@@ -1410,13 +1410,10 @@ button.lp-person.tap:active { opacity: 0.6; }
 .inj-row .roster-name { min-width: 0; }
 .inj-row .roster-name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .inj-meta { display: grid; justify-items: end; gap: 2px; text-align: right; }
-.inj-row:has(> .inj-meta:first-child) { grid-template-columns: 1fr; }
-.inj-row:has(> .inj-meta:first-child) .inj-meta { justify-items: start; text-align: left; }
 .inj-status { justify-self: inherit; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.6; white-space: nowrap; }
 .inj-status.bad { background: color-mix(in srgb, var(--q-bad, #ef4444) 16%, transparent); color: var(--q-bad, #ef4444); }
 .inj-status.warn { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #d97706; }
 .inj-status.good { background: color-mix(in srgb, var(--q-good, #22c55e) 16%, transparent); color: var(--q-good, #22c55e); }
-.inj-comment { grid-column: 1 / -1; margin: 2px 0 0; font-size: 14px; line-height: 1.55; color: var(--q-text-2); text-wrap: pretty; }
 /* 賽事幹事: a driver named in the message, a chip with their face that opens them. */
 .lb-msg .rc-who { display: inline-flex; align-items: center; gap: 4px; margin: 0 .2em; padding: 1px 8px 1px 1px; border: 0; border-radius: 999px; background: var(--q-sunken); color: inherit; font: inherit; font-weight: 700; vertical-align: -0.3em; cursor: pointer; }
 .lb-msg .rc-who .logo { width: 18px; height: 18px; }
