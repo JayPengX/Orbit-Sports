@@ -476,6 +476,17 @@ const latestMemo = () => {
 };
 // This deploy's stamp: answers kept by an older one aren't used.
 const BUILD = () => document.querySelector('meta[name="build-version"]')?.content || '';
+// The Worker's prompt as last seen (each answer says it, `v`): a card kept
+// here from another is never taken as fresh.
+const LATEST_V_KEY = 'fx.latest.prompt';
+function seenPrompt(v) {
+  try {
+    if (v) localStorage.setItem(LATEST_V_KEY, v);
+    return localStorage.getItem(LATEST_V_KEY) || '';
+  } catch {
+    return '';
+  }
+}
 function rememberLatest(k, sent, answer) {
   try {
     const m = latestMemo();
@@ -585,21 +596,29 @@ function latestSlot(league, kind, id, { name = '', zh = '', team = '', facts = [
   const k = `${league}|${kind}|${id}`;
   const sent = JSON.stringify([facts, report]);
   const memo = latestMemo()[k];
-  // (One kept by an older version of the app still shows at once; the new answer is for the next opening.)
   const known = memo?.sent === sent ? memo : null;
-  if (known && known.build === BUILD() && Date.now() - known.at < LATEST_FRESH_MS) return aiCard(known.answer, league, people);
+  // Kept on this phone, from the Worker's prompt as last seen and this
+  // version of the app, and under half an hour old: shown, not asked again.
+  if (known && known.build === BUILD() && known.answer?.v && known.answer.v === seenPrompt() && Date.now() - known.at < LATEST_FRESH_MS) return aiCard(known.answer, league, people);
   const body = JSON.stringify({ league, kind, id: String(id), team: String(team || ''), name, zh, facts, report });
   // Nothing shown until there's a card: no loading shape (most answers are
-  // "no flash", and a shape that came and went was worse than nothing).
+  // "no flash", and a shape that came and went was worse than nothing). One
+  // kept here shows at once, and the Worker's answer takes its place when it
+  // differs (a new prompt's: a card gone, or another), not the next opening.
   const box = el('div', { class: 'latest-slot' });
-  const asked = askLatest(body).then(a => (a && rememberLatest(k, sent, a), a));
-  if (known) return aiCard(known.answer, league, people);
-  asked.then(a => {
-    const card = a ? aiCard(a, league, people) : null;
+  const shown = known ? aiCard(known.answer, league, people) : null;
+  if (shown) box.append(shown);
+  const same = (a, b) => JSON.stringify([a?.headline, a?.points, a?.more, a?.none]) === JSON.stringify([b?.headline, b?.points, b?.more, b?.none]);
+  askLatest(body).then(a => {
+    if (!a) return;
+    rememberLatest(k, sent, a);
+    if (a.v) seenPrompt(a.v);
+    if (known && same(a, known.answer)) return;
     // No flash: no card. ESPN's newest story isn't put in its place: that's
     // the quote or preview a 快訊 leaves out (it stays the card in English,
     // which has no flashes).
-    if (card) put(box, fadeIn(card));
+    const card = aiCard(a, league, people);
+    put(box, card ? fadeIn(card) : null);
   });
   return box;
 }

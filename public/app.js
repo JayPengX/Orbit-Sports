@@ -2264,9 +2264,37 @@ function crewRow(f) {
         el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(session.start) }), whereTv(session)])
       ])
     : null;
+  // As a followed driver's: its place, points and the gap to the top, then
+  // each of its drivers' share of the points.
+  readF1Table();
+  const car = f1Constructor(f.name).name;
+  const teamRows = (f1Table || []).find(g => g.rows.some(r => !r.athlete))?.rows || [];
+  const at = teamRows.findIndex(r => f1Constructor(r.en || r.name).name === car);
+  const pts = at >= 0 ? Number(teamRows[at].stats?.PTS || 0) : 0;
+  const gap = at > 0 ? Number(teamRows[0].stats?.PTS || 0) - pts : 0;
+  const crew = ((f1Table || []).find(g => g.rows.some(r => r.athlete))?.rows || []).filter(r => r.athlete && f1Driver(r.en || r.name).team === car && Number(r.stats?.PTS || 0) > 0);
+  const stats =
+    at >= 0
+      ? el('div', { class: 'pf-stats' }, [
+          el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: `P${at + 1}` }), el('small', { text: L({ zh: '車隊積分榜', en: 'Standings' }) })]),
+          el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: String(pts) }), el('small', { text: L({ zh: '積分', en: 'Points' }) })]),
+          gap > 0 ? el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: String(gap) }), el('small', { text: L({ zh: '落後', en: 'Behind' }) })]) : null
+        ])
+      : null;
+  const shares =
+    pts > 0 && crew.length
+      ? el(
+          'div',
+          { class: 'crew-shares' },
+          crew.map(r => {
+            const share = Math.round((100 * Number(r.stats.PTS)) / pts);
+            return el('div', { class: 'crew-share' }, [el('span', { class: 'crew-name', text: r.en || r.name }), el('span', { class: 'share-bar', style: `--w:${share}%` }), el('small', { class: 'muted num', text: `${r.stats.PTS} · ${share}%` })]);
+          })
+        )
+      : null;
   return el('div', { class: 'tf-row' }, [
     el('button', { class: 'tf-team', type: 'button', onclick: () => openConstructor({ id: f.id, name: f.name, en: f.name }) }, [constructorBadge(f.name, 'tf-logo'), el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: leagueName(f.league, locale) })])]),
-    f1Season === undefined ? el('small', { class: 'muted tf-wait', text: '…' }) : el('div', { class: 'tf-games' }, [nextLine, lastLine])
+    f1Season === undefined ? el('small', { class: 'muted tf-wait', text: '…' }) : el('div', { class: 'tf-games' }, [stats, shares, nextLine, lastLine])
   ]);
 }
 
@@ -2296,14 +2324,17 @@ function loadPerson(f) {
     .then(([a, ov]) => people.set(key, { a, ov }))
     .catch(() => people.set(key, { a: null, ov: null }))
     .then(() => state.tab === 'following' && renderFollowing());
-  if (f.league === 'f1' && f1Table === undefined) {
-    f1Table = null;
-    standings('f1')
-      .then(groups => (f1Table = groups))
-      .catch(() => (f1Table = []))
-      .then(() => state.tab === 'following' && renderFollowing());
-  }
+  if (f.league === 'f1') readF1Table();
   return null;
+}
+// F1's tables (drivers' and constructors'), read once a visit for 追蹤.
+function readF1Table() {
+  if (f1Table !== undefined) return;
+  f1Table = null;
+  standings('f1')
+    .then(groups => (f1Table = groups))
+    .catch(() => (f1Table = []))
+    .then(() => state.tab === 'following' && renderFollowing());
 }
 const personHead = (f, sub, tag) =>
   el('button', { class: 'tf-team', type: 'button', onclick: () => openPlayer(f.league, f.id) }, [personPic(f, f.league, 'tf-logo round'), el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: sub })]), tag]);
