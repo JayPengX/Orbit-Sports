@@ -23,7 +23,8 @@ const has = v => v != null && v !== '';
 // games each, not a round robin of its 36).
 export const SEASON_GAMES = { mlb: 162, nba: 82, wnba: 44, nbl: 29, mls: 34, nfl: 17, nhl: 82, cpbl: 60, ucl: 8, uel: 8, uecl: 6 };
 
-const COUNTS = e => !['pre', 'post', 'final', 'playin', 'allstar', 'off'].includes(e.stage?.key || '');
+// A game the table counts (the regular season: not the preseason, play-in, playoffs or all-star game).
+export const COUNTS = e => !['pre', 'post', 'final', 'playin', 'allstar', 'off'].includes(e.stage?.key || '');
 const playedOf = (r, sport) => (sport === 'soccer' ? num(r.stats.GP) : num(r.stats.W) + num(r.stats.L) + num(r.stats.T));
 // "4-0-1", "90-72": the games in a record.
 const recordGames = rec => (/^\d+(-\d+)+$/.test(String(rec || '').trim()) ? String(rec).split('-').reduce((a, n) => a + Number(n), 0) : null);

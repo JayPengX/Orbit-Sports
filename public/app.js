@@ -21,7 +21,7 @@ import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from '
 import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { liveTable, standingsRace, SEASON_GAMES } from './lib/title.mjs';
+import { liveTable, standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted } from './lib/picks.mjs';
 import { liveTiming } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
@@ -2422,8 +2422,11 @@ function tableOf(league) {
   if (!groups.length) return empty(t('noStandings'));
   // Before this season's first counted game (a preseason's table is all
   // zeros, its order meaningless): last season's final table, said so, as
-  // the playoffs tab shows last season's bracket.
-  if (!groups.some(tableStarted) && groups.year) {
+  // the playoffs tab shows last season's bracket. Not once a game that
+  // counts is on or over (opening night, before ESPN's table has it): this
+  // season's, with that game in (liveTable), never last season's carried on.
+  const begun = recentOf(league).some(e => COUNTS(e) && ['in', 'post'].includes(e.status?.state));
+  if (!groups.some(tableStarted) && groups.year && !begun) {
     const key = `${league}:${groups.year - 1}`;
     if (!lastTables.has(key)) {
       lastTables.set(key, null);
