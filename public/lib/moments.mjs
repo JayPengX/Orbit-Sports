@@ -180,7 +180,14 @@ function swingMoments(points, sport, side) {
       const [pa, pb] = [points[from].play, points[to].play];
       const scored = k => (Number(pb?.[k]) || 0) - (Number(pa?.[k]) || 0);
       const [mine, theirs] = delta >= 0 ? [scored('home'), scored('away')] : [scored('away'), scored('home')];
-      const text = side.en ? `${who.name} ${mine}-${theirs}` : `${who.name} ${mine}-${theirs} ${to - from > RUN_PLAYS ? '拉開' : '攻勢'}`;
+      // What it did to the score: from behind to level (追平), to ahead
+      // (超前), still behind but closer (追近); else a lead made (攻勢), a
+      // long one stretched (拉開).
+      const side0 = k => Number((delta >= 0 ? pa : pa && { home: pa.away, away: pa.home })?.[k]) || 0;
+      const side1 = k => Number((delta >= 0 ? pb : pb && { home: pb.away, away: pb.home })?.[k]) || 0;
+      const [m0, m1] = [side0('home') - side0('away'), side1('home') - side1('away')];
+      const did = m0 < 0 && m1 === 0 ? ['追平', ' · ties it'] : m0 < 0 && m1 > 0 ? ['超前', ' · takes the lead'] : m1 < 0 ? ['追近', ''] : [to - from > RUN_PLAYS ? '拉開' : '攻勢', ''];
+      const text = side.en ? `${who.name} ${mine}-${theirs}${did[1]}` : `${who.name} ${mine}-${theirs} ${did[0]}`;
       return { i: to, from, delta, side: home(delta), icon: ICON.basketball, text, team: who.id, periods: [points[from].n, points[to].n] };
     });
   // The biggest few (RUNS), in the game's order.

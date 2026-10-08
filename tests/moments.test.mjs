@@ -140,7 +140,7 @@ test('basketball: the stretch it drifted over and the possessions that decided i
   const list = playMoments(s.winProb, 'basketball', { home: { id: s.home.id, name: '馬刺' }, away: { id: s.away.id, name: '尼克' }, en: false });
   // The slow slide: one stretch over two quarters, told by the points.
   const stretch = list.find(m => m.periods && m.periods[1] > m.periods[0]);
-  assert.match(stretch.text, /^尼克 \d+-\d+ 拉開$/);
+  assert.match(stretch.text, /^尼克 \d+-\d+ 超前$/, "from behind to ahead");
   // The last possessions, who did what.
   const texts = list.map(m => m.text);
   assert.ok(texts.includes('V. Wembanyama 跳投不進'));
@@ -306,4 +306,22 @@ test('basketball: a single possession in mid-game is never a moment, only the ru
   for (let i = 0; i < 15; i++) add(0.5 - (i + 1) * 0.025, 3, 0, 2, `${10 - (i % 10)}:30`); // the run: 0.5 → 0.125
   const list = playMoments(pts, 'basketball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false });
   assert.ok(list.length >= 1 && list.every(m => m.periods), list.map(m => m.text).join(' / '));
+});
+
+// Trail Blazers at Warriors, 2026-10-08: the Warriors' 19-10 from 22-31 to
+// 41-41 was told as 拉開 (a long stretch) when it levelled the game.
+test('basketball: a run says what it did to the score: levelled, went ahead, closed in, or built a lead', () => {
+  const run = (h0, a0, dh, da) => {
+    const pts = [];
+    let [h, a] = [h0, a0];
+    const add = (v, dH, dA) => pts.push({ home: v, n: 1, play: { home: (h += dH), away: (a += dA), clock: '' } });
+    for (let i = 0; i < 3; i++) add(0.3, 0, 0);
+    for (let i = 0; i < 15; i++) add(0.3 + (i + 1) * 0.02, i < dh ? 1 : 0, i < da ? 1 : 0);
+    for (let i = 0; i < 3; i++) add(0.6, 0, 0);
+    return playMoments(pts, 'basketball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false }).find(m => m.periods)?.text;
+  };
+  assert.match(run(22, 31, 12, 3), /追平$/);
+  assert.match(run(22, 31, 15, 2), /超前$/);
+  assert.match(run(10, 30, 12, 2), /追近$/);
+  assert.match(run(30, 20, 12, 2), /攻勢$/);
 });
