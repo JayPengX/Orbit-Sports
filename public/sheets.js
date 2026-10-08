@@ -537,6 +537,7 @@ function matchSection(view, d, e, table, lw = {}) {
               )
             )
           )
+          .concat(gameNotes(d.details?.find(x => x.team === p.team), nameOf(p.team)) || [])
       )
     );
   }
@@ -948,6 +949,34 @@ function winProbCard(line, e, timeline, events = []) {
   return card(T('winProb'), box);
 }
 
+// A team's game notes under its tables (baseball's, as MLB's own box score
+// has them): each group (打擊, 跑壘, 投球, 守備) its lines, the note's name
+// in Chinese over ESPN's words (the players' names as ESPN writes them).
+const NOTE_GROUP = { battingDetails: ['打擊', 'Batting'], baserunningDetails: ['跑壘', 'Baserunning'], pitchingDetails: ['投球', 'Pitching'], fieldingDetails: ['守備', 'Fielding'] };
+const NOTE_ZH = {
+  doubles: '二壘安打', triples: '三壘安打', homeruns: '全壘打', homeRuns: '全壘打', totalBases: '壘打數', rbi: '打點', '2outRBI': '兩出局打點',
+  sacHit: '犧牲觸擊', sacFly: '高飛犧牲打', sacFlies: '高飛犧牲打', gidp: '雙殺打', teamLOB: '球隊殘壘', teamRISP: '得點圈打擊',
+  runnersLeftScoringPosition2Outs: '兩出局得點圈殘壘', stolenBases: '盜壘', caughtStealing: '盜壘失敗', pickoffs: '牽制出局', hitByPitch: '觸身球',
+  wildPitches: '暴投', balks: '投手犯規', intentionalWalks: '故意四壞', firstPitchStrikesBattersFaced: '首球好球／面對打者', strikeRatio: '好球（看-揮-界外-擊出）',
+  groundballFlyballRatio: '滾地-飛球', gameScores: '比賽分數', errors: '失誤', doublePlays: '雙殺', triplePlays: '三殺', passedBalls: '捕逸', outfieldAssists: '外野助殺'
+};
+function gameNotes(t, team) {
+  if (!t) return null;
+  const en = L() === 'en';
+  return card(
+    [team, en ? 'Notes' : '比賽細節'].filter(Boolean).join(' · '),
+    el(
+      'div',
+      { class: 'game-notes' },
+      t.groups.map(g =>
+        el('div', { class: 'gn-group' }, [
+          el('p', { class: 'mini-h', text: NOTE_GROUP[g.name]?.[en ? 1 : 0] || g.name }),
+          ...g.items.map(x => el('p', { class: 'gn-line' }, [el('b', { text: en ? x.abbr || x.label : NOTE_ZH[x.key] || x.abbr || x.label }), el('span', { text: x.text })]))
+        ])
+      )
+    )
+  );
+}
 // A box score's table, sorted by a column's tap: the most first, a second
 // tap the fewest, a third back to the box score's own order. A made-of
 // count (FG 7-11) by what was made; a player with no numbers (yet to come
@@ -979,7 +1008,9 @@ function boxTable(tb, rowOf) {
       } })
     ])
   );
-  return el('div', { class: 'table-wrap' }, [el('table', { class: 'data box' }, [el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...heads])]), body])]);
+  // The team's totals under its players (never sorted among them).
+  const totals = tb.totals?.some(v => v !== '' && v != null) ? el('tfoot', {}, [el('tr', {}, [el('th', { class: 'left', text: L() === 'en' ? 'Totals' : '合計' }), ...tb.labels.map((_, i) => el('td', { class: 'num', text: tb.totals[i] ?? '' }))])]) : null;
+  return el('div', { class: 'table-wrap' }, [el('table', { class: 'data box' }, [el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...heads])]), body, totals])]);
 }
 // A moment's words: the play on the first line, what came of it small on
 // the second ("E. Hernandez 全壘打" over "2 分打點 · 超前"), so neither

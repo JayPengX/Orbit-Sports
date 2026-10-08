@@ -656,6 +656,12 @@ export function parseSummary(data, league) {
   const hs = flat(home);
   const as = flat(away);
   for (const [key, h] of hs) if (as.has(key) && h.value !== undefined) teamStats.push({ key, label: h.label, group: h.group || '', home: h.value, away: as.get(key).value });
+  // A game's notes per team (baseball's: 2B, HR, RBI, team LOB, SB, DP,
+  // HBP… as the league's own box score lists them under its tables):
+  // [{ team, groups: [{ name, items: [{ key, abbr, label, text }] }] }].
+  const details = (box.teams || [])
+    .map(t => ({ team: String(t.team?.id ?? ''), groups: (t.details || []).map(g => ({ name: g.name || '', items: (g.stats || []).filter(x => x.displayValue).map(x => ({ key: x.name || '', abbr: x.abbreviation || x.shortDisplayName || '', label: x.displayName || '', text: x.displayValue })) })).filter(g => g.items.length) }))
+    .filter(t => t.groups.length);
   // Player tables per team: [{ team, tables: [{ name, labels, rows: [{ id, name, stats }] }] }].
   const players = (box.players || []).map(p => ({
     team: String(p.team?.id ?? ''),
@@ -765,9 +771,9 @@ export function parseSummary(data, league) {
   // lineups' own numbers (goals, assists, shots, cards, a keeper's saves).
   if (!players.length && rosters.some(r => r.players.some(p => p.played && Object.keys(p.stats).length))) {
     const en = detectLocale() === 'en';
-    const cols = [['totalGoals', '進球', 'G'], ['goalAssists', '助攻', 'A'], ['totalShots', '射門', 'SH'], ['shotsOnTarget', '射正', 'SOT'], ['foulsCommitted', '犯規', 'FC'], ['yellowCards', '黃牌', 'YC'], ['redCards', '紅牌', 'RC'], ['saves', '撲救', 'SV']];
+    const cols = [['totalGoals', '進球', 'G'], ['goalAssists', '助攻', 'A'], ['totalShots', '射門', 'SH'], ['shotsOnTarget', '射正', 'SOT'], ['foulsCommitted', '犯規', 'FC'], ['foulsSuffered', '被犯規', 'FS'], ['offsides', '越位', 'OFF'], ['yellowCards', '黃牌', 'YC'], ['redCards', '紅牌', 'RC'], ['saves', '撲救', 'SV'], ['goalsConceded', '失球', 'GA']];
     for (const r of rosters) {
-      const rows = r.players.filter(p => p.played).map(p => ({ id: p.id, name: p.short || p.name, full: p.name, headshot: p.headshot, pos: p.pos, starter: p.starter, stats: cols.map(([k]) => p.stats[k] ?? '0') }));
+      const rows = r.players.filter(p => p.played).map(p => ({ id: p.id, name: p.short || p.name, full: p.name, headshot: p.headshot, pos: p.pos, starter: p.starter, stats: cols.map(([k]) => (/^(saves|goalsConceded)$/.test(k) && p.pos !== 'G' ? '' : p.stats[k] ?? '0')) }));
       if (rows.length) players.push({ team: r.team, tables: [{ name: en ? 'Players' : '球員', labels: cols.map(c => (en ? c[2] : c[1])), rows, totals: [] }] });
     }
   }
@@ -786,6 +792,7 @@ export function parseSummary(data, league) {
     away: sides.find(s => s.homeAway === 'away') || sides[1] || null,
     byId,
     teamStats,
+    details,
     players,
     plays,
     feed,

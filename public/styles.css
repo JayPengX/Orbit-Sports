@@ -194,10 +194,19 @@ tbody th.left { font-weight: 600; position: sticky; left: 0; background: var(--q
 /* The header's corner stays over the names too: the columns scroll under it, never through it. */
 thead th.left:first-child { position: sticky; left: 0; background: var(--q-surface); z-index: 2; }
 /* A box score's columns: a tap sorts by it (most first, then fewest). */
-table.box th.sortable { padding: 0; }
+table.box th.sortable { padding: 0; position: relative; }
+table.box tfoot > tr > * { border-top: 1px solid var(--q-border); font-weight: 750; }
+table.box tfoot th.left { position: sticky; left: 0; background: var(--q-surface); z-index: 1; }
+/* A team's game notes: each its name over ESPN's words, the words wrapping as a sentence does. */
+.game-notes { display: grid; gap: 12px; }
+.gn-group { display: grid; gap: 6px; }
+.gn-line { margin: 0; display: grid; gap: 1px; font-size: 13px; line-height: 1.4; }
+.gn-line b { font-size: 12px; font-weight: 700; color: var(--q-muted); }
+.gn-line span { color: var(--q-text); overflow-wrap: anywhere; }
 table.box .sort-btn { all: unset; display: block; box-sizing: border-box; width: 100%; padding: 6px 7px; text-align: right; cursor: pointer; color: inherit; font: inherit; }
 table.box th.sortable.on { color: var(--accent); }
-table.box th.sortable.on .sort-btn::after { content: '▼'; font-size: 8px; margin-left: 2px; vertical-align: 1px; }
+/* (The arrow drawn in the cell's own padding, under its name: the column never widens, nothing moves.) */
+table.box th.sortable.on .sort-btn::after { content: '▼'; position: absolute; right: 7px; bottom: 0; font-size: 7px; line-height: 1; }
 table.box th.sortable[aria-sort='ascending'] .sort-btn::after { content: '▲'; }
 tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .linescore { background: var(--q-surface); border: 1px solid transparent; border-radius: 12px; overflow: hidden; }

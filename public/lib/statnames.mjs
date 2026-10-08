@@ -226,6 +226,23 @@ const TEAM_KEY = {
   totalTurnovers: ['總失誤', LOW], technicalFouls: ['技術犯規', LOW], flagrantFouls: ['惡意犯規', LOW], turnoverPoints: ['失誤被得分', LOW],
   fastBreakPoints: ['快攻得分'], pointsInPaint: ['禁區得分'], fouls: ['犯規', LOW], largestLead: ['最大領先'], leadChanges: ['領先易手'], leadPercentage: ['領先時間比例']
 };
+// A sport's own names where a key means something else elsewhere (hockey's
+// hits are checks, not 安打; football's interceptions are thrown, not made).
+const SPORT_KEY = {
+  football: {
+    firstDowns: ['首攻'], firstDownsPassing: ['傳球首攻'], firstDownsRushing: ['跑球首攻'], firstDownsPenalty: ['對手犯規首攻'],
+    thirdDownEff: ['三檔轉換'], fourthDownEff: ['四檔轉換'], totalOffensivePlays: ['進攻次數'], totalYards: ['總推進碼數'], yardsPerPlay: ['每次推進碼數'],
+    totalDrives: ['進攻回合'], netPassingYards: ['傳球碼數'], completionAttempts: ['傳球成功-嘗試'], yardsPerPass: ['每次傳球碼數'],
+    interceptions: ['被抄截', LOW], sacksYardsLost: ['被擒殺-損失碼數', LOW], rushingYards: ['跑球碼數'], rushingAttempts: ['跑球次數'],
+    yardsPerRushAttempt: ['每次跑球碼數'], redZoneAttempts: ['紅區得分-進入'], totalPenaltiesYards: ['犯規-罰碼', LOW], turnovers: ['失誤', LOW],
+    fumblesLost: ['掉球被奪', LOW], defensiveTouchdowns: ['防守/特勤達陣'], possessionTime: ['控球時間']
+  },
+  hockey: {
+    shotsTotal: ['射門'], blockedShots: ['阻擋射門'], hits: ['衝撞'], takeaways: ['抄截'], giveaways: ['失誤', LOW],
+    powerPlayGoals: ['多打一進球'], powerPlayOpportunities: ['多打一機會'], powerPlayPct: ['多打一成功率'], shortHandedGoals: ['少打一進球'],
+    shootoutGoals: ['射門大賽進球'], faceoffsWon: ['爭球勝'], faceoffPercent: ['爭球勝率'], penalties: ['犯規', LOW], penaltyMinutes: ['受罰分鐘', LOW]
+  }
+};
 const GROUP_ZH = { batting: '打擊', pitching: '投球', fielding: '守備' };
 const DULL = /^(games ?played|team games played|is qualified|games started)$/i;
 
@@ -255,7 +272,7 @@ export function teamStatRows(stats, sport, lang = 'zh') {
   return (stats || [])
     .filter(s => !DULL.test(s.label) && !(Number(s.home) === 0 && Number(s.away) === 0 && !/:|-|\//.test(`${s.home}${s.away}`)))
     .map(s => {
-      const [name, low] = TEAM_KEY[s.key] || [statName(s.label, 'zh') !== s.label ? statName(s.label, 'zh') : ''];
+      const [name, low] = SPORT_KEY[sport]?.[s.key] || TEAM_KEY[s.key] || [statName(s.label, 'zh') !== s.label ? statName(s.label, 'zh') : ''];
       const [away, home] = pctText(s.key, s.away, s.home);
       return { group: '', label: zh ? name : s.label, away, home, low: Boolean(low) };
     })
