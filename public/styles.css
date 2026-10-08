@@ -728,7 +728,8 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .hero-form small { flex: none; margin-right: 2px; white-space: nowrap; }
 .hero-form .pos-pill { flex: none; font-size: 12px; padding: 1px 6px; }
 /* A driver's last races, under the head across its width: each race's flag over the finish, the latest on the right. */
-.player-hero .team-head-text > p.muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* A hero's line under the name wraps whole, at its · (never cut to 31…). */
+.player-hero .team-head-text > p.muted { white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
 .hero-races { grid-column: 1 / -1; display: flex; align-items: flex-end; gap: 6px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--hero, var(--q-border)) 25%, var(--q-border)); }
 .hero-races > small { flex: none; align-self: center; margin-right: auto; font-size: 12.5px; }
 .hero-race { flex: 0 1 52px; min-width: 0; display: grid; justify-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
@@ -749,9 +750,8 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .nr-sess small { white-space: nowrap; color: var(--q-text-2); font-size: 13px; }
 .nr-sess.main { outline: 1px solid color-mix(in srgb, var(--accent, #e10600) 45%, transparent); }
 /* A fact with its badge or flag; a race's name with its flag. */
-.fact-mark, .race-cell { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.fact-mark { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 .fact-flag { font-size: 16px; line-height: 1; }
-.race-cell .race-flag { width: 20px; height: 20px; }
 .q-btn.with-mark { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .injury-tag { margin-top: 6px; font-size: 12.5px; font-weight: 650; color: var(--loss); }
 .player-note { display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
@@ -841,8 +841,8 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .team-driver strong { font-size: 14.5px; }
 .share-bar { width: 80%; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 18%, transparent); position: relative; overflow: hidden; margin-top: 4px; }
 .share-bar::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--w); background: var(--accent); border-radius: 3px; }
-.team-season td.left { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.team-season tr.tap { cursor: pointer; }
+/* Separate borders: with merged ones a pinned cell's line sat off from its row's. */
+table.game-log { border-collapse: separate; border-spacing: 0; }
 .pos-pill.win { background: #d4a017; color: #111; }
 .logo.photo { object-fit: cover; object-position: 50% 20%; }
 .logo.flag-pic { opacity: 0.9; }
@@ -892,21 +892,8 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .team-disc-img { width: 74%; height: 74%; object-fit: contain; }
 .share-line { display: grid; gap: 4px; width: 100%; justify-items: center; }
 .share-line small { font-size: 0.7rem; }
-/* F1: a retirement, and a sprint's finish beside the race's. */
+/* F1: a retirement. */
 .pos-pill.out { background: color-mix(in srgb, var(--q-bad) 18%, transparent); color: var(--q-bad); }
-.pos-pill.small { font-size: 11px; padding: 0 6px; margin-left: 4px; opacity: 0.85; }
-/* A car's race finish and its sprint, in fixed places so the rows line up. */
-.f1-cell { display: inline-grid; grid-template-columns: 42px 30px; align-items: center; justify-items: center; }
-.f1-cell > :only-child { grid-column: 1; }
-.f1-cell .pos-pill { justify-self: center; padding: 2px 7px; }
-.f1-cell .pos-pill.small { padding: 0 5px; }
-/* The round under the race's name, so the cars' columns fit a phone. */
-.f1-weekends td.left small { display: block; font-size: 11px; }
-.f1-weekends td, .f1-weekends th { padding-left: 4px; padding-right: 4px; }
-.f1-cell .pos-pill.small { margin-left: 0; }
-.pos-pill.blank { visibility: hidden; }
-.f1-weekends td.left small { margin-left: 6px; }
-.f1-weekends td.num { white-space: nowrap; }
 /* An F1 result: driver over team, time over gained places and points. */
 .f1-field li { grid-template-columns: 34px auto minmax(0, 1fr) auto; }
 .f1-field .pos.out { font-size: 11px; color: var(--q-bad); }
@@ -968,8 +955,6 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .pf-stat { display: grid; justify-items: center; gap: 1px; padding: 6px 4px; border-radius: 10px; background: var(--q-sunken); min-width: 0; }
 .pf-stat b { font-size: 15px; }
 .pf-stat small { font-size: 10.5px; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.f1-weekends th.num, .f1-weekends td.num { text-align: center; }
-.f1-weekends tr > :last-child { text-align: right; }
 
 /* 排名: past seasons, and a past season's champion. */
 
@@ -1421,3 +1406,25 @@ button.lp-person.tap:active { opacity: 0.6; }
 .guide-open > span { display: grid; gap: 2px; flex: 1; }
 .guide-open strong { font-size: 15px; }
 .guide-open .guide-go { font-size: 20px; color: var(--q-accent, #ea580c); }
+
+/* F1's race by race: a row a weekend (round, flag and name, a column a car,
+   the points), its columns heading the rows; up to three cars fit a phone. */
+/* (The race keeps room for five characters; the cars give way first.) */
+.race-weeks { display: grid; grid-template-columns: 18px minmax(96px, 1fr) repeat(var(--cols), minmax(38px, 56px)) 32px; column-gap: 6px; margin: 0 -2px; }
+.rw-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; min-height: 48px; padding: 6px 2px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rw-row.rw-head { min-height: 0; padding-top: 0; border-top: 0; cursor: default; align-items: end; }
+.rw-row:active:not(.rw-head) { background: var(--q-fill, var(--q-sunken)); }
+.rw-h { font-size: 11.5px; font-weight: 650; color: var(--q-muted); text-align: center; white-space: nowrap; }
+.rw-h.left { text-align: left; }
+.rw-car { display: grid; justify-items: center; gap: 3px; min-width: 0; color: var(--q-text-2); }
+.rw-car > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.rw-round { font-size: 11.5px; font-weight: 650; color: var(--q-muted); text-align: right; }
+.rw-race { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rw-name { display: grid; min-width: 0; font-size: 14px; font-weight: 600; line-height: 1.25; word-break: keep-all; overflow-wrap: anywhere; }
+.rw-name small { font-size: 11px; font-weight: 500; }
+.rw-cell { display: grid; justify-items: center; gap: 2px; min-width: 0; }
+.rw-cell .pos-pill { justify-self: center; padding: 2px 7px; font-size: 13px; }
+.rw-sprint { font-size: 10.5px; font-weight: 650; color: var(--q-muted); line-height: 1; }
+.rw-sprint.podium { color: #d4a017; }
+.rw-pts { text-align: right; font-size: 14px; }
+.rw-car .logo { width: 30px; height: 30px; }
