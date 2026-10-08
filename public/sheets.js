@@ -2311,9 +2311,14 @@ export async function openPlayer(league, id, fallback = {}) {
     // Their team at a glance: its logo and name, a tap to its page (a driver's, an individual's: as before).
     // A tap opens it in its own league, only when that's one of ours (a
     // national side's player's club in Cyprus: its name, no page).
-    const teamChip = team && teamShown ? el('span', { class: 'hero-team' }, [a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null, el('span', { text: teamShown })]) : null;
+    // A driver's team, as a player's: its badge and name, a tap to its page.
+    const teamChip = driver?.team
+      ? el('button', { class: 'hero-team', type: 'button', onclick: () => openConstructor({ id: '', name: driver.team, en: driver.team }) }, [constructorBadge(driver.team, 'xs'), el('span', { text: teamShown })])
+      : team && teamShown
+        ? el('span', { class: 'hero-team' }, [a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null, el('span', { text: teamShown })])
+        : null;
     // A club from a league we don't cover says which league it is (few know Omonia Aradippou).
-    if (teamChip)
+    if (teamChip && team)
       homeLeague(league, team.id)
         .then(({ key, name }) => {
           if (!teamChip.isConnected) return;

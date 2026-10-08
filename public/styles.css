@@ -766,7 +766,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .mate-grid { display: grid; grid-template-columns: minmax(0, 1fr) 84px 84px; align-items: center; gap: 8px 10px; font-size: 14px; }
 /* Each side's face over their name; the teammate's opens their sheet. */
 .mate-who { display: grid; justify-items: center; gap: 5px; min-width: 0; font: inherit; color: inherit; background: none; border: 0; padding: 0; }
-.mate-who strong { max-width: 100%; font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mate-who strong { max-width: 100%; font-size: 12.5px; font-weight: 700; line-height: 1.25; text-align: center; white-space: normal; text-wrap: balance; overflow-wrap: anywhere; }
 .mate-who .logo.round { object-position: center 18%; }
 .mate-them { cursor: pointer; }
 .mate-them strong { color: var(--q-accent, #ea580c); }
@@ -838,7 +838,8 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 /* An F1 team: its drivers side by side, each with their share of the points. */
 .team-drivers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .team-driver { display: grid; justify-items: center; gap: 4px; padding: 12px 8px; border: 0; border-radius: 14px; background: var(--q-sunken); color: inherit; font: inherit; text-align: center; }
-.team-driver strong { font-size: 14.5px; }
+/* A driver's whole name, in two lines when it must (George / Russell), never George Rus…. */
+.team-driver strong { font-size: 14.5px; line-height: 1.25; white-space: normal; overflow: visible; text-overflow: clip; text-wrap: balance; }
 .share-bar { width: 80%; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 18%, transparent); position: relative; overflow: hidden; margin-top: 4px; }
 .share-bar::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--w); background: var(--accent); border-radius: 3px; }
 /* Separate borders: with merged ones a pinned cell's line sat off from its row's. */
