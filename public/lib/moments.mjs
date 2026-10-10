@@ -531,38 +531,44 @@ const shortName = n => {
   const parts = String(n || '').trim().split(/\s+/);
   return parts.length > 1 ? `${parts[0][0]}. ${parts.slice(1).join(' ')}` : n;
 };
+// The line is short (who, and what: 射門偏出, 破門, 犯規), its details in
+// brackets (playParts puts them on the small line under it: where from,
+// which foot, who set it up), so neither runs out of its row.
 export function soccerLineZh(play, team = '') {
   const t = String(play.text || '');
   const kind = String(play.kind || '');
-  const who = play.who || '';
+  const who = shortName(play.who || '');
   const lower = t.toLowerCase();
-  const how = [pick(FROM, lower), pick(FOOT, lower)].filter(Boolean).join('');
+  const from = pick(FROM, lower);
+  const foot = pick(FOOT, lower);
   const assist = /Assisted by ([^.]+?)(?: with| following|\.|$)/.exec(t)?.[1];
   const setUp = pick(SET_UP, lower);
-  const aside = assist ? `（${shortName(assist)}${setUp && setUp !== '角球' && setUp !== '定位球' ? ` ${setUp}` : ''} 助攻）` : setUp ? `（${setUp}後）` : '';
+  const helped = assist ? `${shortName(assist)} 助攻` : setUp ? `${setUp}後` : '';
+  const line = (main, details) => {
+    const d = details.filter(Boolean);
+    return d.length ? `${main}（${d.join(' · ')}）` : main;
+  };
   if (/^shot-(off-target|on-target|blocked)$|^shot/.test(kind)) {
     const end = pick(ENDS, lower) || { 'shot-off-target': '偏出', 'shot-on-target': '射正', 'shot-blocked': '被封阻' }[kind] || '';
-    // "saved … by Emiliano Martínez": the keeper named.
-    const keeper = /saved .*?by ([^(]+?) \(/.exec(t)?.[1];
-    const ended = keeper && end === '被撲出' ? `被 ${shortName(keeper)} 撲出` : end;
-    return `${who} ${how || '射門'}${how ? '射門' : ''}${ended}${aside}`.replace('頭球射門', '頭球');
+    const what = { 中柱: '射中門柱', 中楣: '射中橫樑', 被撲出: '射正被撲出', 射正: '射正' }[end] || `${foot === '頭球' ? '頭球' : '射門'}${end}`;
+    return line(`${who} ${what}`, [`${from}${foot === '頭球' && what.startsWith('頭球') ? '' : foot}`, helped]);
   }
   if (/^goal/.test(kind)) {
     const spot = /penalty/.test(kind) || /penalty/.test(lower);
-    return `${who} ${spot ? '12 碼' : how}破門${aside}`;
+    return line(`${who} ${spot ? '12 碼破門' : foot === '頭球' ? '頭球破門' : '破門'}`, [spot ? '' : `${from}${foot === '頭球' ? '' : foot}`, helped]);
   }
   // A foul and the free kick it gave, one line (the commentary's two): who fouled whom.
   if (kind === 'foul' || /wins a free kick/.test(t)) {
     const won = /^(.+?) \([^)]*\) wins a free kick/.exec(t)?.[1] || play.fouled;
     const by = /^Foul by (.+?) \(/.exec(t)?.[1] || play.foulBy;
     const where = /attacking half/.test(t) ? '前場' : /defensive half/.test(t) ? '後場' : /on the (left|right) wing/.test(t) ? '邊路' : '';
-    if (by) return `${who || shortName(by)} 犯規${play.fouled || won ? `（${play.fouled || shortName(won)} 被犯）` : ''}`;
-    if (won) return `${shortName(won)} 製造自由球${where ? `（${where}）` : ''}`;
+    if (by) return line(`${who || shortName(by)} 犯規`, [play.fouled || won ? `${play.fouled || shortName(won)} 被犯` : '']);
+    if (won) return line(`${shortName(won)} 製造自由球`, [where]);
     return '';
   }
   if (kind === 'corner-awarded') {
     const by = /Conceded by ([^.]+)\./.exec(t)?.[1];
-    return `${team ? `${team} ` : ''}獲得角球${by ? `（${shortName(by)} 送出）` : ''}`;
+    return line(`${team ? `${team} ` : ''}角球`, [by ? `${shortName(by)} 送出` : '']);
   }
   if (kind === 'handball') return `${who} 手球`;
   if (kind === 'offside') {
@@ -571,12 +577,12 @@ export function soccerLineZh(play, team = '') {
   }
   if (kind === 'start-delay') {
     const hurt = /injury ([^(]+?) \(/.exec(t)?.[1];
-    return hurt ? `比賽暫停（${shortName(hurt)} 受傷）` : '比賽暫停';
+    return line('比賽暫停', [hurt ? `${shortName(hurt)} 受傷` : '']);
   }
   if (kind === 'end-delay') return '比賽繼續';
   if (/yellow-card|red-card/.test(kind)) {
-    const why = /for a bad foul/.test(t) ? '（危險犯規）' : /for hand ball/.test(t) ? '（手球）' : /for dissent/.test(t) ? '（抗議判決）' : /time wasting/.test(t) ? '（拖延時間）' : '';
-    return `${who} ${/second yellow|yellow-red/.test(kind + lower) ? '兩黃變一紅' : /red/.test(kind) ? '紅牌' : '黃牌'}${why}`;
+    const why = /for a bad foul/.test(t) ? '危險犯規' : /for hand ball/.test(t) ? '手球' : /for dissent/.test(t) ? '抗議判決' : /time wasting/.test(t) ? '拖延時間' : '';
+    return line(`${who} ${/second yellow|yellow-red/.test(kind + lower) ? '兩黃變一紅' : /red/.test(kind) ? '紅牌' : '黃牌'}`, [why]);
   }
   if (/VAR Decision/i.test(t)) return `VAR 判決：${/Goal/i.test(t) ? '進球' : /Penalty/i.test(t) ? '12 碼' : '檢視'}${/cancelled|no goal|overturned/i.test(t) ? '取消' : /confirmed|stands/i.test(t) ? '維持' : ''}`;
   if (kind === 'halftime') return '上半場結束';

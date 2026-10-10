@@ -329,11 +329,8 @@ function livePanel(e, sm = null) {
   }
   return rows.length ? el('div', { class: 'live-panel' }, rows) : null;
 }
-// A football game's goals and red cards as a match centre lists them: one
-// row each in the order they came, the minute in the middle, the player on
-// his team's side (away left, home right, as the score above), his face and
-// name a tap to his page; a penalty, an own goal (the team it counted for,
-// the defender named) and a red card each marked.
+// A football game's goals and red cards as a match centre lists them, each
+// face and name a tap to the player's page.
 function goalTimeline(e, events) {
   const en = L() === 'en';
   const mins = x => {
@@ -341,22 +338,41 @@ function goalTimeline(e, events) {
     return (a || 0) + (b || 0) / 100;
   };
   const side = x => (x.team === String(e.home.id) ? 'home' : 'away');
-  const cell = x => {
-    const tag = x.kind === 'pen' ? 'PK' : x.kind === 'own' ? (en ? 'OG' : '烏龍') : '';
-    // (Every row's a goal but a red card: only that one marked.)
-    const mark = x.kind === 'red' ? el('i', { class: 'lg-red', 'aria-label': en ? 'Red card' : '紅牌' }) : null;
-    const p = x.person || { name: x.who };
-    // An own goal: its team's logo (the defender's face on the other side read as his goal).
-    const team = e[side(x)];
-    const pic = x.kind === 'own' ? logo(team.logo, team.name, 'xs') : personPic({ ...p, en: p.name }, e.league, 'xs round');
-    const kids = [pic, el('span', { class: 'lg-name', text: x.who || p.name || '' }), tag ? el('small', { class: 'lg-tag', text: tag }) : null, mark];
-    const can = x.kind !== 'own' && p.id && LEAGUES[e.league]?.espn && /^\d+$/.test(String(p.id));
-    return can ? el('button', { class: 'lg-who tap', type: 'button', 'aria-label': p.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, String(p.id), { name: p.name, logo: p.headshot })) }, kids) : el('span', { class: 'lg-who' }, kids);
-  };
+  // One full-width line a goal, in time order (two columns left half the
+  // card empty and cut the names short): the minute, the scorer's face, the
+  // name whole with the team (and PK, or the defender's own goal) under it,
+  // and the score it made, the scoring side's number bold. A red card the same, no score.
+  const score = { home: 0, away: 0 };
+  // (Away first, as the score above.)
+  const order = ['away', 'home'];
   return el(
     'ol',
     { class: 'lp-goals' },
-    [...events].sort((a, b) => mins(a) - mins(b)).map(x => el('li', { class: `lg-${side(x)}` }, [side(x) === 'away' ? cell(x) : el('span'), el('span', { class: 'lg-min num', text: x.minute }), side(x) === 'home' ? cell(x) : el('span')]))
+    [...events]
+      .sort((a, b) => mins(a) - mins(b))
+      .map(x => {
+        const s = side(x);
+        const team = e[s];
+        const red = x.kind === 'red';
+        if (!red) score[s] += 1;
+        const p = x.person || { name: x.who };
+        // An own goal: the team it counted for (the defender's face read as his goal), the defender named under it.
+        const pic = x.kind === 'own' ? logo(team.logo, team.name, 'sm') : personPic({ ...p, en: p.name }, e.league, 'sm round');
+        const tag = x.kind === 'pen' ? (en ? 'Penalty' : '點球') : x.kind === 'own' ? (en ? 'Own goal' : '對方烏龍球') : red ? (en ? 'Red card' : '紅牌') : '';
+        const can = x.kind !== 'own' && p.id && LEAGUES[e.league]?.espn && /^\d+$/.test(String(p.id));
+        const who = [
+          pic,
+          el('span', { class: 'lg-text' }, [
+            el('span', { class: 'lg-name' }, [document.createTextNode(x.kind === 'own' ? team.short || team.name : x.who || p.name || ''), red ? el('i', { class: 'lg-red', 'aria-hidden': 'true' }) : null]),
+            el('small', { class: 'lg-sub', text: [x.kind === 'own' ? x.who || p.name : team.short || team.name, tag].filter(Boolean).join(' · ') })
+          ])
+        ];
+        return el('li', { class: `lg-${s}${red ? ' lg-card' : ''}` }, [
+          el('span', { class: 'lg-min num', text: x.minute }),
+          can ? el('button', { class: 'lg-who tap', type: 'button', 'aria-label': p.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, String(p.id), { name: p.name, logo: p.headshot })) }, who) : el('span', { class: 'lg-who' }, who),
+          red ? el('span') : el('span', { class: 'lg-score num' }, order.flatMap((k, i) => [i ? document.createTextNode('–') : null, el('b', { class: k === s ? 'on' : '', text: String(score[k]) })]).filter(Boolean))
+        ]);
+      })
   );
 }
 // A count as dots: balls of 4, strikes and outs of 3.
@@ -704,7 +720,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     ['🕒', T('kickoff'), [el('span', { class: 'nb', text: `${dayLabel(localDate(when.getTime()), { long: true })} ${timeText(e)}` }), e.timeTbd && e.timeFrom === 'elta' ? el('small', { class: 'info-sub', text: L() === 'en' ? `ELTA's slot ${clock(e.start)}` : `愛爾達暫排 ${clock(e.start)}` }) : null].filter(Boolean)],
     // The ground, and its city on a line of its own (each said apart: a ground's name never broken by its city's).
     ['📍', T('venue'), d?.venue || e.venue || d?.city ? [d?.venue || e.venue ? zhLater(d?.venue || e.venue) : null, d?.city ? el('small', { class: 'muted venue-city' }, [zhLater(d.city)]) : null].filter(Boolean) : ''],
-    exactTv ? null : ['📺', T('tv'), tvOf(e).map(tvName).join('、') || T('noTw')],
+    // Each channel on a line of its own (two in a row ran onto a second line mid-name).
+    exactTv ? null : ['📺', T('tv'), tvOf(e).length ? tvOf(e).map(b => el('span', { class: 'nb info-line', text: tvName(b) })) : T('noTw')],
     // Each part whole on a line ("2-1 領先" never split; a name never broken).
     stageTag(e, L()) ? ['🏅', T('stage'), joinNodes([stageTag(e, L()), seriesText(e)].filter(Boolean).map(x => el('span', { class: 'nb', text: x })), ' · ')] : null,
     ['🌤', T('weather'), weatherText(d?.weather)],
@@ -1294,10 +1311,13 @@ function personName(league, p, cls = 'field-name') {
 // line wraps. `side`: the team ({ name, short, logo }) or its name.
 function playLine(league, p, side) {
   const team = typeof side === 'string' ? side : side?.short || side?.name || '';
-  const { main, sub } = playParts(feedText(LEAGUES[league]?.sport, p, L() === 'en', team), team);
   // (An own goal: the team it counts for, not the defender who put it in.)
   const own = /own-goal/i.test(String(p.kind || p.type || ''));
-  const face = p.pic && !own ? personTap(league, p.pic, personPic(p.pic, league, 'xs round')) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
+  // A player's play: their face with their team's badge on it, so the small
+  // line under it is the play's details alone (the team's name took its room).
+  const badged = Boolean(p.pic && !own && side?.logo);
+  const { main, sub } = playParts(feedText(LEAGUES[league]?.sport, p, L() === 'en', team), badged ? '' : team);
+  const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge') : null])) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
   // A play with neither (本節結束, 比賽結束): the league's mark, so every row has its picture.
   return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(league)]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null])]);
 }
@@ -1546,6 +1566,7 @@ function f1Field(rows, field) {
 // part cuts, the cars under it shaded; the ones already out greyed.
 const TRACK = { 1: ['綠旗', 'Green', 'green'], 2: ['黃旗', 'Yellow', 'yellow'], 4: ['安全車', 'Safety car', 'yellow'], 5: ['紅旗', 'Red flag', 'red'], 6: ['虛擬安全車', 'VSC', 'yellow'], 7: ['虛擬安全車結束', 'VSC ending', 'yellow'] };
 const TYRE = { SOFT: ['S', '#e10600'], MEDIUM: ['M', '#ffd12e'], HARD: ['H', '#f2f2f2'], INTERMEDIATE: ['I', '#43b02a'], WET: ['W', '#0067ad'] };
+const TYRE_NAME = { SOFT: ['軟胎', 'Soft'], MEDIUM: ['中性胎', 'Medium'], HARD: ['硬胎', 'Hard'], INTERMEDIATE: ['半雨胎', 'Inter'], WET: ['全雨胎', 'Wet'] };
 // A tyre as Pirelli draws it: the black tyre, its compound's coloured band
 // and letter, the letter centred by the drawing itself (not a font's box).
 function tyreIcon(compound) {
@@ -1572,7 +1593,7 @@ function tyreIcon(compound) {
 const mmss = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
 // How long each part of a session runs (seconds), for the time bar: a practice, qualifying's three parts, the sprint's.
 const PART_S = { FP1: [3600], FP2: [3600], FP3: [3600], Qual: [1080, 900, 720], SS: [720, 600, 480], SQ: [720, 600, 480] };
-function f1LiveBoard(b, ss) {
+function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
   const en = L() === 'en';
   const quali = /^(Qual|SS|SQ)$/.test(ss.abbr);
   const race = ss.abbr === 'Race' || ss.abbr === 'SR';
@@ -1639,97 +1660,216 @@ function f1LiveBoard(b, ss) {
   };
   // (Over: race control's last word, a flag long gone, isn't said.)
   const msg = b.message?.text && !over ? el('p', { class: 'lb-msg' }, [el('small', { text: en ? 'Race control' : '賽事幹事' }), ...raceControlParts(b.message.text, !en).map(x => (typeof x === 'string' ? document.createTextNode(x) : carChip(x.no)))]) : null;
-  // 成績 or 數據 (F1 timing's other numbers), the choice kept as the board's read again.
-  const stats = f1Stats(b, ss);
   const order = el('ol', { class: 'field f1-field lb-rows' }, rows);
-  if (!stats) return el('div', { class: 'live-board' }, [head, msg, order]);
-  const body = el('div', {}, [f1BoardView === 'stats' ? stats : order]);
-  const views = [['order', en ? 'Order' : '成績'], ['stats', en ? 'Stats' : '數據']];
-  const pickView = segmented(views, f1BoardView, v => {
-    f1BoardView = v;
-    put(body, v === 'stats' ? stats : order);
-    pickView.querySelectorAll('button').forEach((x, i) => x.setAttribute('aria-pressed', String(views[i][0] === v)));
-  }, 'lb-views');
-  return el('div', { class: 'live-board' }, [head, msg, pickView, body]);
+  if (orderOnly) return order;
+  // Over: no head (its part, clock and flag are gone; "最終成績" over the
+  // results said nothing), the order and its 數據 as every finished session.
+  // On: the head, race control's latest, then 成績 or 數據 (F1 timing's other numbers).
+  return el('div', { class: 'live-board' }, over ? [f1Views(order, f1Stats(b, ss))] : [head, msg, f1Views(order, f1Stats(b, ss))]);
 }
-let f1BoardView = 'order';
-// A session's other numbers, as F1's timing has them: a race's tyre strategy
-// (each car's stints by compound and length, the places it gained from the
-// grid, its stops) and the speed trap; a qualifying's or practice's best
-// sectors (the fastest of each purple, as F1 marks it), the ideal lap they
-// make, and the speed trap. Null when the feed has none of them.
+// A session's other numbers, as F1's timing has them, for every session
+// (practice, sprint qualifying, sprint, qualifying, race), on and over:
+//   - the headline numbers as tiles: the fastest lap, the ideal lap (each
+//     best sector, whoever set it), the speed trap, the most places gained
+//     (a race) or the most laps run (a practice);
+//   - a qualifying's best lap in each part (Q1, Q2, Q3), each part's fastest purple;
+//   - the tyres: each car's stints by compound and length, its stops (a race) or laps;
+//   - a race's fastest laps, each with the lap it was set on;
+//   - the best sectors (the fastest of each purple, as F1 marks it) and each car's ideal lap;
+//   - the speed traps: the trap's top ten, with the two intermediates and the line.
+// Every name is the driver's surname, whole (the columns are made for the
+// longest on the grid). Null when the feed has none of it.
+const fmtLap = n => (n ? `${Math.floor(n / 60000)}:${((n % 60000) / 1000).toFixed(3).padStart(6, '0')}` : '');
 function f1Stats(b, ss) {
   const en = L() === 'en';
   const race = ss.abbr === 'Race' || ss.abbr === 'SR';
+  const quali = /^(Qual|SS|SQ)$/.test(ss.abbr);
+  const prefix = ss.abbr === 'Qual' ? 'Q' : 'SQ';
   const cars = b.cars.filter(c => c.name);
-  const who = c => {
-    const d = fieldDriver(ss.field, c.name) || { name: c.name };
-    return el('span', { class: 'fs-who' }, [personPic(d, 'f1', 'xs round'), el('span', { class: 'fs-name', text: f1Shown(c.name).split(' ').slice(-1)[0] })]);
-  };
+  // The surname as F1 writes it (Hülkenberg, Pérez; Sainz, not "Jr.").
+  const sur = c => f1Shown(c.name).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1) || driverShort(c.name);
+  const face = c => personPic(fieldDriver(ss.field, c.name) || { name: c.name }, 'f1', 'xs round');
+  const who = c => el('span', { class: 'fs-who' }, [face(c), el('span', { class: 'fs-name', text: sur(c) })]);
+  const teamed = c => (c.colour ? `--team:${c.colour}` : null);
+  const ms = t => lapMs(t);
   const cards = [];
-  if (cars.some(c => c.stints?.length)) {
-    const most = Math.max(1, ...cars.map(c => (c.stints || []).reduce((n, x) => n + x.laps, 0)));
+
+  // The headline numbers.
+  const tiles = [];
+  // (A driver's tile says the detail by its label, "最快圈 · 第 13 圈": under it the face and the name, whole.)
+  const tile = (label, value, c, note = '') => tiles.push(el('div', { class: 'fs-tile', style: c ? teamed(c) : null }, [el('small', { text: c && note ? `${label} · ${note}` : label }), el('strong', { class: 'num', text: value }), c ? el('span', { class: 'fs-tile-who' }, [face(c), el('span', { text: sur(c) })]) : note ? el('span', { class: 'fs-tile-who' }, [el('small', { text: note })]) : null]));
+  const lapOf = c => ms(c.pb?.v) || ms(c.best);
+  const fastest = [...cars].filter(lapOf).sort((x, y) => lapOf(x) - lapOf(y))[0];
+  if (fastest) tile(race ? (en ? 'Fastest lap' : '最快圈') : quali ? (en ? 'Pole lap' : '最快圈速') : en ? 'Fastest' : '最快圈速', fmtLap(lapOf(fastest)), fastest, race && fastest.pb?.lap ? (en ? `lap ${fastest.pb.lap}` : `第 ${fastest.pb.lap} 圈`) : '');
+  const bestSector = i => Math.min(...cars.map(c => ms(c.sectors?.[i]?.v) || Infinity));
+  const ideal = [0, 1, 2].map(bestSector).reduce((n, x) => n + x, 0);
+  if (!race && Number.isFinite(ideal) && fastest) tile(en ? 'Ideal lap' : '理想圈速', fmtLap(ideal), null, en ? `${((lapOf(fastest) - ideal) / 1000).toFixed(3)}s under the best` : `比最快圈快 ${((lapOf(fastest) - ideal) / 1000).toFixed(3)} 秒`);
+  const trap = [...cars].filter(c => c.speed?.v).sort((x, y) => y.speed.v - x.speed.v);
+  if (trap[0]) tile(en ? 'Top speed' : '極速', `${trap[0].speed.v} km/h`, trap[0]);
+  if (race) {
+    const gainer = [...cars].filter(c => c.grid && !c.retired && !c.stopped).sort((x, y) => y.grid - y.pos - (x.grid - x.pos))[0];
+    if (gainer && gainer.grid > gainer.pos) tile(en ? 'Most places gained' : '進步最多', `▲${gainer.grid - gainer.pos}`, gainer, `P${gainer.grid}→P${gainer.pos}`);
+    const running = cars.filter(c => !c.retired && !c.stopped).length;
+    tile(b.final || feedOver(b) ? (en ? 'Finished' : '完賽') : en ? 'Still running' : '仍在賽道', `${running} / ${cars.length}`, null, en ? `${cars.length - running} out` : `${cars.length - running} 位退賽`);
+  } else {
+    const busiest = [...cars].sort((x, y) => y.laps - x.laps)[0];
+    if (busiest?.laps) tile(en ? 'Most laps' : '跑最多圈', `${busiest.laps}${en ? ' laps' : ' 圈'}`, busiest);
+  }
+  if (tiles.length) cards.push(el('div', { class: 'fs-tiles' }, tiles));
+
+  // A qualifying's parts.
+  if (quali && cars.some(c => c.parts?.some(Boolean))) {
+    const fastestIn = [0, 1, 2].map(i => Math.min(...cars.map(c => ms(c.parts?.[i]) || Infinity)));
     cards.push(
       card(
-        en ? 'Tyre strategy' : '輪胎策略',
+        en ? 'Each part' : '各節圈速',
+        el('table', { class: 'fs-table fs-parts' }, [
+          el('thead', {}, [el('tr', {}, [el('th', { class: 'pos' }), el('th', { class: 'n' }), ...[1, 2, 3].map(n => el('th', { text: `${prefix}${n}` }))])]),
+          el(
+            'tbody',
+            {},
+            cars.map(c =>
+              el('tr', { style: teamed(c) }, [
+                el('td', { class: 'pos num', text: String(c.pos) }),
+                el('th', { class: 'n', text: sur(c) }),
+                ...[0, 1, 2].map(i => el('td', { class: `num${ms(c.parts?.[i]) && ms(c.parts[i]) === fastestIn[i] ? ' best' : ''}`, text: c.parts?.[i] || '' }))
+              ])
+            )
+          )
+        ]),
+        { sub: en ? 'Purple: fastest in the part' : '紫色：該節最快' }
+      )
+    );
+  }
+
+  // Tyres.
+  if (cars.some(c => c.stints?.length)) {
+    const total = c => (c.stints || []).reduce((n, x) => n + x.laps, 0);
+    const most = Math.max(1, ...cars.map(total));
+    cards.push(
+      card(
+        en ? 'Tyres' : '輪胎策略',
         el(
           'ol',
           { class: 'fs-rows' },
-          cars.map(c => {
-            const gained = race && c.grid ? c.grid - c.pos : 0;
-            return el('li', { style: c.colour ? `--team:${c.colour}` : null }, [
+          cars.map(c =>
+            el('li', { style: teamed(c) }, [
               el('span', { class: 'pos num', text: String(c.pos) }),
               who(c),
               el(
                 'span',
                 { class: 'fs-stints' },
-                (c.stints || []).map(x => el('i', { class: `stint ${String(x.c).toLowerCase()}${x.new ? '' : ' used'}`, style: `flex-grow:${x.laps / most}`, title: `${x.c} ${x.laps}` }, [x.laps >= 4 ? el('small', { class: 'num', text: String(x.laps) }) : null])).concat(el('i', { class: 'stint-rest', style: `flex-grow:${Math.max(0, 1 - (c.stints || []).reduce((n, x) => n + x.laps, 0) / most)}` }))
+                (c.stints || [])
+                  .filter(x => x.laps > 0)
+                  .map(x => el('i', { class: `stint ${String(x.c).toLowerCase()}${x.new ? '' : ' used'}`, style: `flex-grow:${x.laps / most}`, title: `${x.c} ${x.laps}` }, [x.laps / most >= 0.12 ? el('small', { class: 'num', text: String(x.laps) }) : null]))
+                  .concat(el('i', { class: 'stint-rest', style: `flex-grow:${Math.max(0, 1 - total(c) / most)}` }))
               ),
-              el('small', { class: `num fs-gain${gained > 0 ? ' up' : gained < 0 ? ' down' : ''}`, text: race ? (gained ? `${gained > 0 ? '▲' : '▼'}${Math.abs(gained)}` : '–') : `${(c.stints || []).reduce((n, x) => n + x.laps, 0)}${en ? 'L' : '圈'}` })
-            ]);
-          })
+              el('small', { class: 'num fs-end', text: race ? (en ? `${Math.max(0, (c.stints || []).length - 1)} stop${(c.stints || []).length === 2 ? '' : 's'}` : `${Math.max(0, (c.stints || []).length - 1)} 停`) : `${total(c)}${en ? ' laps' : ' 圈'}` })
+            ])
+          )
         ),
-        { sub: el('span', { class: 'fs-key' }, Object.entries(TYRE).map(([k, [l]]) => el('span', {}, [el('i', { class: `stint ${k.toLowerCase()}` }), document.createTextNode(l)]))) }
+        { sub: el('span', { class: 'fs-key' }, Object.entries(TYRE).filter(([k]) => cars.some(c => c.stints?.some(x => x.c === k))).map(([k]) => el('span', {}, [el('i', { class: `stint ${k.toLowerCase()}` }), document.createTextNode(TYRE_NAME[k][en ? 1 : 0])]))) }
       )
     );
   }
-  if (!race && cars.some(c => c.sectors?.some(x => x.v))) {
-    const ms = t => lapMs(t);
-    const ideal = c => (c.sectors.length === 3 && c.sectors.every(x => ms(x.v)) ? c.sectors.reduce((n, x) => n + ms(x.v), 0) : 0);
-    const fmt = n => (n ? `${Math.floor(n / 60000)}:${((n % 60000) / 1000).toFixed(3).padStart(6, '0')}` : '');
+
+  // A race's fastest laps.
+  if (race && cars.some(c => ms(c.pb?.v))) {
+    const laps = [...cars].filter(c => ms(c.pb?.v)).sort((x, y) => ms(x.pb.v) - ms(y.pb.v)).slice(0, 10);
+    const top = ms(laps[0].pb.v);
+    cards.push(
+      card(
+        en ? 'Fastest laps' : '最快圈速',
+        el(
+          'ol',
+          { class: 'fs-rows fs-laps' },
+          laps.map((c, i) =>
+            el('li', { style: teamed(c) }, [
+              el('span', { class: 'pos num', text: String(i + 1) }),
+              who(c),
+              el('small', { class: 'num fs-lapno', text: c.pb.lap ? (en ? `lap ${c.pb.lap}` : `第 ${c.pb.lap} 圈`) : '' }),
+              el('span', { class: `num fs-end${i === 0 ? ' best' : ''}`, text: i === 0 ? c.pb.v : `+${((ms(c.pb.v) - top) / 1000).toFixed(3)}` })
+            ])
+          )
+        )
+      )
+    );
+  }
+
+  // Sectors.
+  if (cars.some(c => c.sectors?.some(x => x.v))) {
+    const best = [0, 1, 2].map(bestSector);
+    const own = c => (c.sectors?.length === 3 && c.sectors.every(x => ms(x.v)) ? c.sectors.reduce((n, x) => n + ms(x.v), 0) : 0);
     cards.push(
       card(
         en ? 'Best sectors' : '最佳分段',
-        el('table', { class: 'fs-sectors' }, [
-          el('thead', {}, [el('tr', {}, [el('th'), el('th', { text: 'S1' }), el('th', { text: 'S2' }), el('th', { text: 'S3' }), el('th', { text: en ? 'Ideal' : '理想圈' })])]),
+        el('table', { class: 'fs-table fs-sectors' }, [
+          el('thead', {}, [el('tr', {}, [el('th', { class: 'n' }), el('th', { text: 'S1' }), el('th', { text: 'S2' }), el('th', { text: 'S3' }), el('th', { class: 'ideal', text: en ? 'Ideal' : '理想圈' })])]),
           el(
             'tbody',
             {},
             cars
               .filter(c => c.sectors?.some(x => x.v))
-              .map(c => el('tr', {}, [el('th', { class: 'fs-name', text: f1Shown(c.name).split(' ').slice(-1)[0] }), ...[0, 1, 2].map(i => el('td', { class: `num${c.sectors[i]?.p === 1 ? ' best' : ''}`, text: c.sectors[i]?.v || '' })), el('td', { class: 'num', text: fmt(ideal(c)) })]))
+              .map(c =>
+                el('tr', { style: teamed(c) }, [
+                  el('th', { class: 'n', text: sur(c) }),
+                  ...[0, 1, 2].map(i => el('td', { class: `num${ms(c.sectors[i]?.v) && ms(c.sectors[i].v) === best[i] ? ' best' : ''}`, text: c.sectors[i]?.v || '' })),
+                  el('td', { class: 'num ideal', text: fmtLap(own(c)) })
+                ])
+              )
           )
         ]),
         { sub: en ? 'Purple: fastest of all' : '紫色：全場最快' }
       )
     );
   }
-  if (cars.some(c => c.speed?.v)) {
-    const top = [...cars].filter(c => c.speed?.v).sort((a, b) => b.speed.v - a.speed.v).slice(0, 10);
+
+  // Speed traps.
+  if (trap.length) {
+    const top = trap.slice(0, 10);
     const max = top[0].speed.v;
-    const min = top.at(-1).speed.v - 5;
+    const min = top.at(-1).speed.v - 4;
+    const traps = [['i1', en ? 'Int. 1' : '第一測速'], ['i2', en ? 'Int. 2' : '第二測速'], ['fl', en ? 'Finish' : '終點線']];
+    const fastestAt = k => [...cars].filter(c => c.speeds?.[k]?.v).sort((x, y) => y.speeds[k].v - x.speeds[k].v)[0];
+    const others = traps.map(([k, label]) => [label, fastestAt(k), k]).filter(([, c]) => c);
     cards.push(
       card(
         en ? 'Speed trap' : '極速',
-        el(
-          'ol',
-          { class: 'fs-rows' },
-          top.map((c, i) => el('li', { style: c.colour ? `--team:${c.colour}` : null }, [el('span', { class: 'pos num', text: String(i + 1) }), who(c), el('span', { class: 'fs-speed' }, [el('i', { style: `width:${Math.round(((c.speed.v - min) / (max - min || 1)) * 100)}%` })]), el('small', { class: 'num fs-gain', text: `${c.speed.v} km/h` })]))
-        )
+        el('div', {}, [
+          el(
+            'ol',
+            { class: 'fs-rows' },
+            top.map((c, i) => el('li', { style: teamed(c) }, [el('span', { class: 'pos num', text: String(i + 1) }), who(c), el('span', { class: 'fs-speed' }, [el('i', { style: `width:${Math.round(((c.speed.v - min) / (max - min || 1)) * 100)}%` })]), el('small', { class: 'num fs-end', text: `${c.speed.v}` })]))
+          ),
+          others.length ? el('div', { class: 'fs-traps' }, others.map(([label, c, k]) => el('div', { style: teamed(c) }, [el('small', { text: label }), el('strong', { class: 'num', text: `${c.speeds[k].v}` }), el('span', { text: sur(c) })]))) : null
+        ]),
+        { sub: 'km/h' }
       )
     );
   }
   return cards.length ? el('div', { class: 'stack fs-stats' }, cards) : null;
+}
+// The session's two views, 成績 (the order) and 數據 (f1Stats), the choice
+// kept for the next session opened.
+let f1BoardView = 'order';
+function f1Views(order, stats) {
+  const en = L() === 'en';
+  if (!stats) return order;
+  const body = el('div', {}, [f1BoardView === 'stats' ? stats : order]);
+  const views = [['order', en ? 'Results' : '成績'], ['stats', en ? 'Stats' : '數據']];
+  const pick = segmented(views, f1BoardView, v => {
+    f1BoardView = v;
+    put(body, v === 'stats' ? stats : order);
+    pick.querySelectorAll('button').forEach((x, i) => x.setAttribute('aria-pressed', String(views[i][0] === v)));
+  }, 'lb-views');
+  return el('div', { class: 'f1-views' }, [pick, body]);
+}
+// A session that's over: the official order (a race's points and grid, a
+// qualifying's parts) where it's in, else F1's archive's order, and F1's
+// archive's 數據; the same for every session, practice to race.
+function f1Final(rows, board, ss) {
+  const order = rows?.length ? f1Field(rows, ss.field) : board ? f1LiveBoard({ ...board, final: true }, ss, { order: true }) : null;
+  return order ? el('div', { class: 'f1-final' }, [f1Views(order, board ? f1Stats(board, ss) : null)]) : null;
 }
 function fillField(s, e) {
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), // The place, then the day and the official start: two designed lines (the
@@ -1794,33 +1934,33 @@ function fillField(s, e) {
       const at = pick;
       const weekend = e.weekend || e.id;
       const key = `${weekend}:${ss.id}`;
-      // F1's archive of the session, drawn as its live board was (each car's
-      // best lap or gap): a practice's numbers, and a race's or qualifying's
-      // until jolpica has them (a sprint over an hour had none: ESPN's bare
-      // order showed). Not kept in place of jolpica's (its points, the grid).
+      // F1's archive of the session (each car's best lap or gap, and the
+      // numbers behind 數據): every session, practice to race. A slow read
+      // isn't waited on past 6 seconds (the official order shows; 數據 next time).
       const archive = () =>
-        sessionTiming(ss.start)
-          .then(b => (b ? Object.assign([b], { board: true }) : []))
-          .catch(() => []);
-      // Each source asked at once, the best one that has them taken (one after another, the last waited on the first two).
+        Promise.race([sessionTiming(ss.start).catch(() => null), new Promise(r => setTimeout(() => r(null), 6_000))]);
+      // Each official source asked at once, the best one that has them taken.
       const first = (...asks) => Promise.all(asks.map(a => a.catch(() => []))).then(lists => lists.find(rows => rows.length) || []);
-      const numbers =
+      const official =
         f1Numbers.has(key) || e.league !== 'f1' || ss.status.state !== 'post'
           ? null
           : ss.abbr === 'Race' || ss.abbr === 'SR'
-            ? first(raceResult(ss.start, ss.abbr === 'SR', L() === 'en'), archive())
+            ? first(raceResult(ss.start, ss.abbr === 'SR', L() === 'en'))
             : ss.abbr === 'Qual'
-              ? first(qualifyingResult(ss.start), espnQualifying(weekend, ss.id, ss.field), archive())
+              ? first(qualifyingResult(ss.start), espnQualifying(weekend, ss.id, ss.field))
               : ss.abbr === 'SS' || ss.abbr === 'SQ'
-                ? first(espnQualifying(weekend, ss.id, ss.field, 'SQ'), archive())
+                ? first(espnQualifying(weekend, ss.id, ss.field, 'SQ'))
                 : /^FP\d$/.test(ss.abbr)
-                  ? archive()
+                  ? Promise.resolve([])
                   : null;
+      // Both at once: the official order and the archive, drawn together (never the list then its 數據 jumping in).
+      const numbers = official && Promise.all([official.catch(() => []), archive()]);
       // Over and its numbers still coming: its last live reading meanwhile (never an empty list or rows in their shape).
       const lastWord = numbers && keptTiming(ss.abbr, ss.start);
       const espnList = () => (ss.field.length && e.league === 'f1' ? el('ol', { class: 'field f1-field' }, ss.field.map((c, i) => f1Row({ pos: i + 1, full: c.name, field: ss.field, main: c.score || '' }))) : ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField')));
       const known = f1Numbers.get(key);
       const shape = () => el('ol', { class: 'field f1-field waiting' }, Array.from({ length: Math.max(1, Math.min(ss.field.length || 10, 22)) }, () => el('li', { class: 'skel-row' }, [skeleton([70], 'skel-pos'), el('i', { class: 'skel skel-pic' }), skeleton([62, 40]), skeleton([90, 50], 'skel-right')])));
+      const holder = el('div', { class: 'f1-holder' }, [known ? f1Final(known.rows, known.board, ss) : lastWord ? f1Final(null, { ...lastWord, final: true }, ss) : numbers ? shape() : espnList()]);
       put(
         box,
         sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,
@@ -1830,23 +1970,21 @@ function fillField(s, e) {
           const one = { ...e, id: `${weekend}~${ss.abbr}`, weekend, sessionKey: ss.abbr, session: sessionName(ss, L()), start: ss.start, official: ss.start, status: ss.status };
           return ss.status.state === 'post' ? [replayLink(one), highlights(one)].filter(Boolean) : [];
         })(),
-        known?.length ? (known.board ? f1LiveBoard(known[0], ss) : f1Field(known, ss.field)) : lastWord ? Object.assign(f1LiveBoard({ ...lastWord, final: true }, ss), { className: 'live-board numbers-due' }) : numbers ? shape() : espnList(),
+        holder,
         raceBox
       );
       loadRace();
-      numbers
-        ?.catch(() => [])
-        .then(rows => {
-          if (rows.length && !(rows.board && !/^FP\d$/.test(ss.abbr))) f1Numbers.set(key, rows);
-          if (at !== pick || !box.isConnected) return;
-          const waiting = box.querySelector('ol.field.waiting, .numbers-due');
-          if (!waiting) return;
-          // (The last live reading stays where nothing better came.)
-          if (!rows.length && waiting.classList.contains('numbers-due')) return;
-          const done = rows.board ? f1LiveBoard(rows[0], ss) : rows.length ? f1Field(rows, ss.field) : espnList();
-          if (waiting.matches('ol.field.waiting')) done.classList.add('fade-in');
-          waiting.replaceWith(done);
-        });
+      numbers?.then(([rows, board]) => {
+        // Kept for the session once the official order is in (a practice has none: its archive).
+        if (rows.length || (board && /^FP\d$/.test(ss.abbr))) f1Numbers.set(key, { rows, board });
+        if (at !== pick || !box.isConnected) return;
+        const done = f1Final(rows, board, ss);
+        // (The last live reading stays where nothing better came.)
+        if (!done && lastWord) return;
+        const fresh = done || espnList();
+        if (!lastWord) fresh.classList.add('fade-in');
+        put(holder, fresh);
+      });
       // F1, a session on now: F1's own live timing, again every 5 seconds in place.
       clearInterval(liveTimer);
       if (e.league === 'f1' && ss.status.state === 'in') {

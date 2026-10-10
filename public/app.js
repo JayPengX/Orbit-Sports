@@ -1639,13 +1639,26 @@ function playoffView(model, league) {
     if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}`;
     if (t.live) return en ? 'On now' : '進行中';
     if (t.next) return `${t.kind === 'series' ? `G${Number(/\bgame (\d+)/i.exec(t.next.note || '')?.[1]) || t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${timeText(t.next)}`;
+    // A series under way with its next game not yet set: where it stands ("中信兄弟 2–1 領先", "1–1 平手").
+    if (t.kind === 'series' && t.sides.every(Boolean) && t.score) {
+      const [a, b] = t.sides.map(x => Number(t.score[String(x.id)]) || 0);
+      if (a + b > 0) {
+        if (a === b) return en ? `Level ${a}–${b}` : `系列賽 ${a}–${b} 平手`;
+        const lead = a > b ? t.sides[0] : t.sides[1];
+        return en ? `${lead.short || lead.name} lead ${Math.max(a, b)}–${Math.min(a, b)}` : `${lead.short || lead.name} ${Math.max(a, b)}–${Math.min(a, b)} 領先`;
+      }
+    }
+    // A place still being played for: what it waits on ("等待季後挑戰賽勝隊").
+    const before = model.rounds[model.rounds.indexOf(r) - 1];
+    if (t.options?.some(Boolean) && before) return en ? `Waiting on the ${before.title.en} winner` : `等待${before.title.zh}勝隊`;
     return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : t.pending ? (en ? 'To be decided' : '待定') : '';
   };
   const tie = (t, r) => {
     const blank = { projected: true, seeds: [], labels: [] };
     // An empty row (the play-in's): a card's height, unseen, so the columns line up.
     if (t?.gap) return el('div', { class: `br-tie gap${t.through ? ' through' : ''}`, 'aria-hidden': 'true' }, [sideRow(null, blank, 0), sideRow(null, blank, 1), el('small', { class: 'br-note', text: '·' })]);
-    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), el('small', { class: `br-note${t?.live ? ' live' : ''}`, text: note(t, r) })];
+    const said = note(t, r);
+    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}`, text: said }) : null];
     return t && !t.projected && !t.pending
       ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openTie({ ...t, games: t.games.map(freshGame) }, league, en ? r.title.en : r.title.zh) }, body)
       : el('div', { class: `br-tie ${t?.pending ? 'pending' : t ? 'projected' : 'tbd'}` }, body);
@@ -1653,14 +1666,17 @@ function playoffView(model, league) {
   const entry = brackets.get(league);
   const fade = entry && !entry.shown;
   if (entry) entry.shown = true;
+  // Two rounds or fewer (CPBL's challenge series and Taiwan Series): one
+  // under the other, each tie the screen's width (two columns cut its names).
+  const stacked = model.rounds.length <= 2;
   const map = el(
     'div',
-    { class: 'bracket' },
+    { class: `bracket${stacked ? ' stacked' : ''}${model.rounds.some(r => r.ties.some(t => t?.seeds?.some(Boolean) || t?.sides?.some(x => x?.seed))) ? '' : ' no-seeds'}` },
     model.rounds.map(r => el('section', { class: `br-col ${r.state}` }, [el('div', { class: 'br-head' }, [el('strong', { text: en ? r.title.en : r.title.zh }), el('small', { text: [lenOf(r), stateText(r)].filter(Boolean).join(' · ') })]), el('div', { class: 'br-ties' }, r.ties.map(t => tie(t, r)))]))
   );
-  linkTies(map, model);
+  if (!stacked) linkTies(map, model);
   // Opened on the round that's on (or next), not always the first.
-  const at = openRound(model) - 1;
+  const at = stacked ? 0 : openRound(model) - 1;
   // (By the rounds themselves: the lines' drawing sits first in the map.)
   if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.querySelectorAll(':scope > .br-col')[at]?.offsetLeft - map.offsetLeft - 16));
   return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, map]);

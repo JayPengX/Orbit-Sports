@@ -153,5 +153,8 @@ test("each side in its colour, readable on the card and told apart from the othe
   assert.deepEqual(sideColors(sd, mil, '#1c1c1e'), { home: '#ffc425', away: '#2f66bb' });
   // On a light card the Padres' brown reads as it is.
   assert.equal(sideColors(sd, mil, '#ffffff').home, '#2f241d');
+  // Inter on a dark card: its blue lightened, never its white second colour; Genoa's navy and Fiorentina's purple both kept.
+  assert.equal(sideColors({ color: '#00239c', alt: '#ffffff' }, { color: '#19161d', alt: '#ffdd30' }, '#1c1c1e').home, '#2959ff');
+  assert.deepEqual(sideColors({ color: '#08305d', alt: '#ffffff' }, { color: '#4c1d84', alt: '#ffffff' }), { home: '#08305d', away: '#4c1d84' });
   assert.deepEqual(sideColors({}, {}), { home: null, away: null });
 });

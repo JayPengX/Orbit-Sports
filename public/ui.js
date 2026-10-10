@@ -354,15 +354,16 @@ export function liveLine(e) {
   if (goal) {
     const en = ctx.locale === 'en';
     const side = [e.home, e.away].find(s => String(s?.id) === goal.team);
-    // The scorer's face with a ball on it (an own goal: the logo of the team it counted for), then the minute over who and for whom.
+    // The scorer's face with their team's badge on it (an own goal: that team's logo alone, the defender named),
+    // then the minute over the scorer: the line says who, the badge for whom (the team's name ran out of room).
     const own = goal.kind === 'own';
     const p = goal.person || { name: goal.who };
     const pic = own && side ? logo(side.logo, side.name, 'sm') : personPic({ ...p, en: p.name }, e.league, 'sm round');
     return el('div', { class: 'live-line base goal' }, [
-      el('span', { class: 'live-scorer', 'aria-hidden': 'true' }, [pic, el('i', { class: 'live-ball' })]),
+      el('span', { class: 'live-scorer', 'aria-hidden': 'true' }, [pic, !own && side?.logo ? logo(side.logo, side.name, 'scorer-team') : null]),
       el('span', { class: 'live-text' }, [
         el('span', { class: 'live-count' }, [el('span', { text: en ? 'Latest goal' : '最新進球' }), el('span', { class: 'num live-min', text: goal.minute })]),
-        el('span', { class: 'live-who' }, [el('span', { class: 'live-names', text: [own && side ? side.short || side.name : goal.who, own ? `${goal.who} ${en ? 'OG' : '烏龍'}` : side ? side.short || side.name : '', goal.kind === 'pen' ? 'PK' : ''].filter(Boolean).join(' · ') })])
+        el('span', { class: 'live-who' }, [el('span', { class: 'live-names', text: own ? `${goal.who} ${en ? 'own goal' : '烏龍球'}` : `${goal.who}${goal.kind === 'pen' ? (en ? ' (pen)' : '（點球）') : ''}` })])
       ])
     ]);
   }
@@ -473,11 +474,8 @@ export function podium(e) {
   const ss = e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1);
   const top = (ss?.field || e.field || []).slice(0, 3);
   if (top.length < 3) return null;
-  const en = ctx.locale === 'en';
-  const nameOf = x => {
-    const zh = e.league === 'f1' ? f1Driver(x.name).zh : '';
-    return String(en || !zh || zh === x.name ? x.short || x.name : zh).split(/[.\s]/).filter(Boolean).at(-1);
-  };
+  // Each by their full name ("Max Verstappen"), as every card names a player.
+  const nameOf = x => (e.league === 'f1' ? f1Shown(x.name) : x.name || x.short);
   return el('ol', { class: 'top-three' }, top.map((x, i) => el('li', { class: `p${i + 1}` }, [
     el('span', { class: 'pos num', text: String(i + 1) }),
     personPic({ ...x, en: x.name }, e.league, 'xs round'),

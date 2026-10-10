@@ -96,9 +96,23 @@ export function readableOn(c, bg = '#ffffff') {
 export function sideColors(home, away, bg = '#ffffff') {
   // A colour readable as it is first (Newcastle's light blue before its black lightened), then made readable.
   const ok = c => rgb(c) && contrast(rgb(c), rgb(bg) || [255, 255, 255]) >= READABLE;
-  const tries = s => [...new Set([...[s?.color, s?.alt].filter(ok), ...[s?.color, s?.alt].map(c => readableOn(c, bg))].filter(Boolean).map(c => c.toLowerCase()))];
+  // A colour of its own: a hue, not white, black or grey (ESPN's second
+  // colour is white for most clubs: Inter showed white, not its blue).
+  const hued = c => {
+    const [, sat, l] = rgb(c) ? toHsl(rgb(c)) : [0, 0, 0];
+    return sat >= 0.25 && l > 0.08 && l < 0.92;
+  };
+  const own = c => (ok(c) ? c : readableOn(c, bg));
+  // Its own colour as it is, then its hues (its own, then its second) made readable, then whatever's readable.
+  const tries = s => [...new Set([...[s?.color].filter(ok), ...[s?.color, s?.alt].filter(hued).map(own), ...[s?.color, s?.alt].filter(ok), ...[s?.color, s?.alt].map(c => readableOn(c, bg))].filter(Boolean).map(c => c.toLowerCase()))];
   const [hs, as] = [tries(home), tries(away)];
-  for (const h of hs) for (const a of as) if (apart(rgb(h), rgb(a)) >= 90) return { home: h, away: a };
+  // Told apart: far apart, or two clear hues a good way round the wheel (Genoa's navy and Fiorentina's purple).
+  const hueGap = (x, y) => {
+    const [[h1, s1], [h2, s2]] = [toHsl(rgb(x)), toHsl(rgb(y))];
+    const d = Math.abs(h1 - h2) * 360;
+    return s1 >= 0.35 && s2 >= 0.35 ? Math.min(d, 360 - d) : 0;
+  };
+  for (const h of hs) for (const a of as) if (apart(rgb(h), rgb(a)) >= 90 || hueGap(h, a) >= 40) return { home: h, away: a };
   return { home: hs[0] || null, away: hs.length ? null : as[0] || null };
 }
 
