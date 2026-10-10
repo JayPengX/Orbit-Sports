@@ -719,19 +719,20 @@ function syncPush() {
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     const league = leagueName(e.league, locale);
     // Its start only when it's on TV here (where, in the notice); its final score in any case.
-    if (start > now && !e.timeTbd && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
+    // (Kept on the list for 10 minutes after the start: an open app sending its list again at the start
+    // took it off before the Worker's run, and the notice never came. The Worker sends each once.)
+    if (start > now - GRACE && !e.timeTbd && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
     // The Worker fills in the score (the title) and who won ({result}) once ESPN has the final.
-    if (LEAGUES[e.league].espn && /^\d+$/.test(e.id) && !e.timeTbd) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} · {result}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
+    if (LEAGUES[e.league].espn && /^\d+$/.test(e.id) && !e.timeTbd) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `{result} · ${league}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
   }
   // Today's picks, each starting (its own kind of notice, 今日推薦開賽): one
   // a followed team's start notice already covers isn't said twice.
   for (const e of (state.todayPicks || []).map(freshGame)) {
     const start = Date.parse(e.official || e.start);
-    if (e.status?.state !== 'pre' || e.timeTbd || !(start > now) || start > now + 86_400_000) continue;
+    if (e.status?.state === 'post' || e.status?.void || e.timeTbd || !(start > now - GRACE) || start > now + 86_400_000) continue;
     const key = `${e.league}:${e.id}`;
     if (items.some(x => x.tag === `start:${key}`)) continue;
-    const title = e.kind === 'match' ? matchLine(e) : `${e.name}${e.session ? ` · ${e.session}` : ''}`;
-    items.push({ at: start, title, body: [`${L({ zh: '今日推薦', en: 'Today’s pick' })} · ${leagueName(e.league, locale)} ${L(NOTICE_TEXT.start)}`, channelsOf(e)[0]?.short[locale === 'en' ? 'en' : 'zh']].filter(Boolean).join(' · '), tag: `pick:${key}`, hash: 'home', kind: 'pick' });
+    items.push({ at: start, title: startTitle(e), body: startLine(e, true), tag: `pick:${key}`, hash: 'home', kind: 'pick' });
   }
   // A followed race weekend: each qualifying, sprint and race starting, and
   // the sprint's and the race's result (the Worker reads the podium off ESPN's day).
@@ -739,19 +740,24 @@ function syncPush() {
     if (e.kind !== 'field' || !['Qual', 'SR', 'Race'].includes(e.sessionKey) || e.status.state === 'post') continue;
     const start = Date.parse(e.official || e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
-    const title = `${e.name} · ${e.session}`;
-    if (start > now && e.status.state === 'pre') items.push({ at: start, title, body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: 'live', kind: 'start' });
+    const title = `${e.name} ${e.session}`;
+    if (start > now - GRACE) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: 'live', kind: 'start' });
     if (e.sessionKey !== 'Qual' && LEAGUES[e.league].espn && /^\d+$/.test(String(e.weekend)))
-      items.push({ at: Math.max(now + 60_000, start + (e.sessionKey === 'Race' ? 100 : 40) * 60_000), title, body: `${leagueName(e.league, locale)} · {result}`, tag: `end:${e.league}:${e.id}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } });
+      items.push({ at: Math.max(now + 60_000, start + (e.sessionKey === 'Race' ? 100 : 40) * 60_000), title, body: `{result} · ${leagueName(e.league, locale)}`, tag: `end:${e.league}:${e.id}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } });
   }
   schedulePush(q, items);
 }
 
-// A notice's words: the teams (and the score) on top, the league and what
-// happened below.
-const NOTICE_TEXT = { start: { zh: '開賽了', en: 'game started' } };
-// "MLB 美國職棒 開賽了 · 愛爾達1台": the league, and where it's on.
-const startLine = e => [`${leagueName(e.league, locale)} ${L(NOTICE_TEXT.start)}`, channelsOf(e)[0]?.short[locale === 'en' ? 'en' : 'zh']].filter(Boolean).join(' · ');
+// A notice's words, read at a glance on the lock screen: the title says what
+// happened ("道奇 vs 費城人 開賽", "新加坡站 排位賽 開始", the final score),
+// the line under it where to watch it, the league, and why it came
+// ("愛爾達1台 直播 · MLB 美國職棒 · 今日推薦"). Never a line that repeats the title.
+const GRACE = 10 * 60_000;
+const startTitle = e => (e.kind === 'match' ? `${matchLine(e)} ${L({ zh: '開賽', en: 'is on' })}` : `${e.name}${e.session ? ` ${e.session}` : ''} ${L({ zh: '開始', en: 'is on' })}`);
+const startLine = (e, pick = false) => {
+  const tv = channelsOf(e)[0]?.short[locale === 'en' ? 'en' : 'zh'];
+  return [tv ? `${tv} ${L({ zh: '直播', en: 'live' })}` : '', leagueName(e.league, locale), pick ? L({ zh: '今日推薦', en: 'Today’s pick' }) : ''].filter(Boolean).join(' · ');
+};
 // Who won, for the final's notice: "Yankees 贏了", or a draw.
 function resultLine(e) {
   if (e.status?.void) return L({ zh: '比賽取消', en: 'Canceled' });
@@ -773,8 +779,8 @@ function noticeChanges(events) {
     lastState.set(key, e.status.state);
     if (!was || was === e.status.state) continue;
     const league = leagueName(e.league, locale);
-    if (e.status.state === 'in' && (onTv(e) || isFollowedGame(e))) notify(q, { title: matchLine(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
-    if (e.status.state === 'post') notify(q, { title: matchLine(e, true), body: `${league} · ${resultLine(e)}`, tag: `end:${key}`, hash: 'home', kind: 'end' });
+    if (e.status.state === 'in' && (onTv(e) || isFollowedGame(e))) notify(q, { title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
+    if (e.status.state === 'post') notify(q, { title: matchLine(e, true), body: `${resultLine(e)} · ${league}`, tag: `end:${key}`, hash: 'home', kind: 'end' });
   }
 }
 
