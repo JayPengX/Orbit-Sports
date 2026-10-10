@@ -1248,7 +1248,8 @@ export function cpblTable(pack, events = [], lang = 'zh') {
   // once each side's 60 of the half are in.
   const now = tables.find(t => t.key === pack.half) || tables[0];
   const halfOver = now.rows.every(r => r.gp >= 60);
-  const later = halfOver ? [] : events.filter(e => e.status?.state === 'post' && !e.status.void && Date.parse(e.start) + 3 * 3_600_000 > built);
+  // (Never a play-off game: the season's table is the regular season's.)
+  const later = halfOver ? [] : events.filter(e => e.status?.state === 'post' && !e.status.void && !e.playoff && Date.parse(e.start) + 3 * 3_600_000 > built);
   const groups = tables.map(t => {
     const rows = t.rows.map(r => ({ ...r }));
     if (t === now || t.key === 'year') {
