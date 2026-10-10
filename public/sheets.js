@@ -671,7 +671,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   ]
     .filter(Boolean)
     .filter(([, , v]) => v && (!Array.isArray(v) || v.length));
-  const leadersBy = sides.map(s => (d?.leaders || []).filter(l => l.team === s.id).slice(0, 4));
+  const leadersBy = sides.map(s => (d?.leaders || []).filter(l => l.team === s.id && l.name).slice(0, 4));
   return el('div', { class: 'stack' }, [
     replayLink(e),
     highlights(e),

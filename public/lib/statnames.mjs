@@ -7,7 +7,7 @@ const ZH = {
   passes: '傳球', 'accurate passes': '成功傳球', 'pass completion %': '傳球成功率', 'pass %': '傳球成功率', crosses: '傳中', 'accurate crosses': '成功傳中',
   'long balls': '長傳', 'accurate long balls': '成功長傳', tackles: '搶斷', 'effective tackles': '成功搶斷', 'tackle %': '搶斷成功率', interceptions: '攔截',
   'total shots': '射門總數', 'total passes': '傳球總數', 'passes completed': '成功傳球', 'big chances': '絕佳機會', 'key passes': '關鍵傳球', dribbles: '盤帶', 'duels won': '對抗成功',
-  clearances: '解圍', 'effective clearances': '有效解圍', 'penalty goals': '點球進球', 'penalty kicks taken': '罰點球', goals: '進球', assists: '助攻',
+  clearances: '解圍', 'defensive interventions': '防守貢獻', 'defensive actions': '防守動作', 'effective clearances': '有效解圍', 'penalty goals': '點球進球', 'penalty kicks taken': '罰點球', goals: '進球', assists: '助攻',
   // Basketball
   'field goals': '投籃', 'field goal %': '投籃命中率', 'fg%': '投籃命中率', '3pt': '三分球', 'three point %': '三分命中率', '3p%': '三分命中率',
   'free throws': '罰球', 'free throw %': '罰球命中率', 'ft%': '罰球命中率', rebounds: '籃板', 'offensive rebounds': '進攻籃板', 'defensive rebounds': '防守籃板',
