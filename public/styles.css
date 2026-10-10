@@ -315,7 +315,14 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .q-btn.small { min-height: 34px; padding: 0 14px; font-size: 13.5px; flex: none; }
 .section-more { border: 0; background: var(--accent-wash); color: var(--accent); font-size: 12.5px; font-weight: 750; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
 .pick-list { display: grid; gap: 10px; }
-@media (min-width: 720px) { .pick-list { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 720px) {
+  .pick-list { grid-template-columns: 1fr 1fr; }
+  /* One pick alone (a day's last one, or the only one that ended): the full
+     width like the lists around it, not half a row beside a gap; its
+     contents kept to a readable width. */
+  .pick-list > .pick-card:only-child, .pick-list > .pick-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .pick-list > .pick-card:only-child .pick-body, .pick-list > .pick-card:last-child:nth-child(odd) .pick-body { max-width: 620px; }
+}
 .ended-picks { display: grid; gap: 10px; }
 .pick-card { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 12px; width: 100%; padding: 14px; border-radius: var(--q-radius); border: 1px solid transparent; background: var(--q-surface); box-shadow: var(--q-shadow); text-align: left; color: inherit; position: relative; overflow: hidden; }
 .pick-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); opacity: 0.85; }
@@ -1417,3 +1424,17 @@ button.lp-person.tap:active { opacity: 0.6; }
 /* 賽事幹事: a driver named in the message, a chip with their face that opens them. */
 .lb-msg .rc-who { display: inline-flex; align-items: center; gap: 4px; margin: 0 .2em; padding: 1px 8px 1px 1px; border: 0; border-radius: 999px; background: var(--q-sunken); color: inherit; font: inherit; font-weight: 700; vertical-align: -0.3em; cursor: pointer; }
 .lb-msg .rc-who .logo { width: 18px; height: 18px; }
+/* ---- F1's live board as a timing tower (2026-10-10) ---- */
+.lb-top { display: grid; gap: 8px; padding: 12px 14px; border-radius: 16px; background: var(--q-sunken); }
+.lb-head { display: flex; align-items: baseline; gap: 10px; }
+.lb-part { font-size: 20px; letter-spacing: -0.01em; }
+.lb-flag { align-self: center; }
+.lb-bar { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--q-text) 10%, transparent); overflow: hidden; }
+.lb-bar i { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.9s linear; }
+.lb-rows li { position: relative; padding-left: 12px; }
+.lb-rows li::before { content: ''; position: absolute; left: 2px; top: 12px; bottom: 12px; width: 3px; border-radius: 2px; background: var(--team, transparent); }
+.lb-rows .f1-res { display: grid; justify-items: end; gap: 3px; }
+.lb-rows .f1-main { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+.lb-rows .f1-tags { display: inline-flex; align-items: center; gap: 5px; color: var(--q-muted); }
+.lb-rows .lb-gap { font-weight: 650; }
+.lb-rows li:nth-child(-n + 3) .f1-main { color: var(--accent); }

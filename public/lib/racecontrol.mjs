@@ -25,6 +25,7 @@ const RULES = [
   [/BLUE FLAG FOR /g, '藍旗：'],
   [/INCIDENT INVOLVING /g, '事故：'],
   [/ TIME (\d+:\d{2}\.\d{3}) DELETED/g, ' 圈速 $1 取消'],
+  [/ LAP DELETED/g, ' 圈速取消'],
   [/ LAP (\d+) DELETED/g, ' 第 $1 圈成績取消'],
   [/TRACK LIMITS AT TURN (\d+)/g, '第 $1 彎超出賽道界線'],
   [/TRACK LIMITS/g, '超出賽道界線'],
@@ -87,7 +88,8 @@ export function raceControlParts(message, zh = true) {
     let out = text;
     for (const [re, to] of RULES) out = out.replace(re, to);
     // A clock at the end (track limits: "15:03:22") says nothing more.
-    out = out.replace(/\s+\d{2}:\d{2}:\d{2}$/, '').replace(/\s*([：，（）])\s*/g, '$1').replace(/：$/, '');
+    // (So is "(PIT)" after it: the lap was the one into the pits.)
+    out = out.replace(/\s+\d{2}:\d{2}:\d{2}(\s*\(PIT\))?$/, '').replace(/\s*([：，（）])\s*/g, '$1').replace(/：$/, '');
     // Anything English left (besides DRS, a lap time): the rules didn't know it.
     if (!/[A-Z]{2,}/.test(out.replace(/DRS|\u0001\d+\u0001/g, ''))) text = out;
   }

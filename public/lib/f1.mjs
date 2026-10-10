@@ -3,7 +3,7 @@
 // biography or the team's profile; through the proxy, trimmed to its grids)
 // and each weekend's results from Jolpica (the grid, the finish, a retirement
 // and the sprint).
-import { getJson } from './espn.mjs';
+import { getJson, feedEnded } from './espn.mjs';
 import { f1Driver } from '#kit/logos.mjs';
 
 const F1 = 'https://www.formula1.com/en';
@@ -245,6 +245,8 @@ let last = null;
 try {
   last = JSON.parse(sessionStorage.getItem(KEPT) || 'null');
 } catch {}
+// The feed's word that a session is over (its status, or race control's "END OF SESSION" / the chequered flag).
+export const feedOver = feed => /^(Finished|Finalised|Ends)$/i.test(feed?.session?.status || '') || /CHEQUERED FLAG|END OF SESSION/i.test(feed?.message?.text || '');
 export async function liveTiming(abbr, start) {
   const feed = await getJson(LIVE, { ttl: 4_000 });
   if (!feed?.cars?.length) return null;
@@ -252,8 +254,15 @@ export async function liveTiming(abbr, start) {
   try {
     sessionStorage.setItem(KEPT, JSON.stringify(feed));
   } catch {}
-  return sameSession(feed, abbr, start) ? feed : null;
+  if (!sameSession(feed, abbr, start)) return null;
+  if (feedOver(feed)) feedEnded.add(`${abbr}|${start}`);
+  return feed;
 }
+// A session that's over, from F1's archive (f1-live.js /session.json): each
+// car's best lap and gap (a practice: ESPN keeps only the order), in the live
+// board's shape. Null when it isn't there (yet).
+const ARCHIVE = start => `https://f1-live.quadra/session.json?start=${encodeURIComponent(new Date(start).toISOString())}`;
+export const sessionTiming = start => getJson(ARCHIVE(start), { ttl: 24 * 3_600_000 }).then(b => (b?.cars?.length ? b : null));
 // The last reading of this session if it's recent (10 minutes), else null.
 export const keptTiming = (abbr, start) => (last && Date.now() - last.at < 10 * 60_000 && sameSession(last, abbr, start) ? last : null);
 // Where a qualifying part cuts (NoEntries: [22, 16, 10]): the last place through, or 0.

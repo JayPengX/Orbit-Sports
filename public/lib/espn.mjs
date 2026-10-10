@@ -176,13 +176,16 @@ export const sessionName = (x, lang = 'zh', short = false) => {
 };
 // A race weekend as its sessions, each an event (the weekend's other
 // fields kept, so its sheet opens on that session). Anything else as it is.
+// Sessions F1's own feed has said are over ('FP1|<start>'): ESPN's copy says
+// so minutes later (a sprint qualifying stayed "on" well after its end).
+export const feedEnded = new Set();
 export function splitWeekend(e, now = Date.now(), lang = 'zh') {
   if (e?.kind !== 'field' || LEAGUES[e.league]?.sport !== 'racing' || e.sessionKey) return [e];
   const main = (e.sessions || []).filter(x => x.start && MAIN_SESSIONS.includes(x.abbr));
   if (main.length < 2) return [settleField(e, now)];
   return main.map(x => {
     // The feed can leave a session "on" (or "to come") long after it ended.
-    const done = Date.parse(x.start) + SESSION_MS < now;
+    const done = Date.parse(x.start) + SESSION_MS < now || feedEnded.has(`${x.abbr}|${x.start}`);
     const status = done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true } : x.status;
     const shown = titlesAt(e.league, x.abbr, x.start);
     return { ...e, id: `${e.id}~${x.abbr}`, weekend: e.id, start: shown, at: shown, official: x.start, titles: shown, end: null, session: sessionName(x, lang), sessionKey: x.abbr, status };

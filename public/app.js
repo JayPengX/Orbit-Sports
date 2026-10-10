@@ -12,7 +12,7 @@
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedEnded, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -723,6 +723,16 @@ function syncPush() {
     // The Worker fills in the score (the title) and who won ({result}) once ESPN has the final.
     if (LEAGUES[e.league].espn && /^\d+$/.test(e.id) && !e.timeTbd) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `${league} · {result}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
   }
+  // Today's picks, each starting (its own kind of notice, 今日推薦開賽): one
+  // a followed team's start notice already covers isn't said twice.
+  for (const e of (state.todayPicks || []).map(freshGame)) {
+    const start = Date.parse(e.official || e.start);
+    if (e.status?.state !== 'pre' || e.timeTbd || !(start > now) || start > now + 86_400_000) continue;
+    const key = `${e.league}:${e.id}`;
+    if (items.some(x => x.tag === `start:${key}`)) continue;
+    const title = e.kind === 'match' ? matchLine(e) : `${e.name}${e.session ? ` · ${e.session}` : ''}`;
+    items.push({ at: start, title, body: [`${L({ zh: '今日推薦', en: 'Today’s pick' })} · ${leagueName(e.league, locale)} ${L(NOTICE_TEXT.start)}`, channelsOf(e)[0]?.short[locale === 'en' ? 'en' : 'zh']].filter(Boolean).join(' · '), tag: `pick:${key}`, hash: 'home', kind: 'pick' });
+  }
   // A followed race weekend: each qualifying, sprint and race starting, and
   // the sprint's and the race's result (the Worker reads the podium off ESPN's day).
   for (const e of followedGames()) {
@@ -798,6 +808,14 @@ function centerChosen(box) {
 // ---- 推薦: every match of the chosen day, ranked for this person ---------------------------
 
 const REASON = r => t(`why_${r}`);
+// "35 分後", "3 小時後" for a start within the next 12 hours; nothing past that or once started.
+function untilText(start) {
+  const m = Math.round((Date.parse(start) - Date.now()) / 60_000);
+  if (!(m > 0) || m > 12 * 60) return '';
+  if (m < 60) return locale === 'en' ? `in ${m} min` : `${m} 分後`;
+  const h = Math.round(m / 60);
+  return locale === 'en' ? `in ${h} h` : `${h} 小時後`;
+}
 function pickCard(item, n) {
   const e = item.event;
   const reasons = item.reasons.slice(0, 2).map(r => REASON(r));
@@ -806,7 +824,8 @@ function pickCard(item, n) {
   return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => openEvent(e) }, [
     el('div', { class: 'pick-time' }, [
       el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : timeText(e) }),
-      el('small', { text: e.status.state === 'in' ? statusText(e) : n === 0 ? t('firstUp') : '' })
+      // Under the time: what's on now, or how long until it starts (within the day); not 「第一場」, which was every first card's.
+      el('small', { text: e.status.state === 'in' ? statusText(e) : e.status.state === 'pre' && !e.timeTbd ? untilText(shownStart(e)) : '' })
     ]),
     el('div', { class: 'pick-body' }, [
       el('div', { class: 'pick-top' }, [leagueChip(e.league), tag ? el('span', { class: 'stage-tag', text: tag }) : null]),
@@ -1032,6 +1051,19 @@ function renderHome() {
   // the followed teams, and no search for other games or days going on.
   h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !h.tablesPending && ![...h.teams.values()].includes(null);
   const shownMore = more.slice(0, h.shown);
+  // Today's picks (the 今日推薦 list, not 更多推薦 or the others when none are
+  // yours), for their start notices: kept when the list settles, and the
+  // Worker's list sent again when they change.
+  if (isToday && h.filter === 'all' && h.settled) {
+    const picks = fallback ? [] : planList.map(x => x.event);
+    const sig = picks.map(e => `${e.league}:${e.id}:${e.start}`).join('|');
+    if (sig !== state.todayPicksSig) {
+      state.todayPicks = picks;
+      state.todayPicksSig = sig;
+      clearTimeout(pushTimer);
+      pushTimer = setTimeout(syncPush, 1500);
+    }
+  }
   put(
     box,
     homeHead(),
@@ -2610,6 +2642,13 @@ async function pollF1Live() {
   f1Live.feed = feed;
   f1Live.key = on.id;
   for (const node of document.querySelectorAll(`[data-f1-brief="${CSS.escape(on.id)}"]`)) fillF1Brief(node, on);
+  // F1's feed says it's over (ESPN would minutes later): the day drawn again with it ended.
+  if (feedEnded.has(`${on.sessionKey}|${on.official || on.start}`)) {
+    const over = e => (e.league === 'f1' && e.status?.state === 'in' && feedEnded.has(`${e.sessionKey}|${e.official || e.start}`) ? { ...e, status: { ...e.status, state: 'post', completed: true } } : e);
+    for (const slot of state.days.values()) for (const k of ['events', 'others', 'rest']) if (Array.isArray(slot?.[k])) slot[k] = slot[k].map(over);
+    if (state.tab === 'home') renderHome();
+    else if (state.tab === 'live') renderLive();
+  }
 }
 setInterval(pollF1Live, 10_000);
 document.addEventListener('visibilitychange', pollF1Live);

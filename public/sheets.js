@@ -16,7 +16,7 @@ import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLine
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, sessionTiming } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
@@ -1511,25 +1511,38 @@ function tyreIcon(compound) {
   return svg;
 }
 const mmss = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
+// How long each part of a session runs (seconds), for the time bar: a practice, qualifying's three parts, the sprint's.
+const PART_S = { FP1: [3600], FP2: [3600], FP3: [3600], Qual: [1080, 900, 720], SS: [720, 600, 480], SQ: [720, 600, 480] };
 function f1LiveBoard(b, ss) {
   const en = L() === 'en';
   const quali = /^(Qual|SS|SQ)$/.test(ss.abbr);
   const race = ss.abbr === 'Race' || ss.abbr === 'SR';
+  // A practice: each car by its best lap, like a qualifying (it showed 領先 and no times at all).
+  const timed = !race;
   const prefix = ss.abbr === 'Qual' ? 'Q' : 'SQ';
   const cut = quali ? qualiCut(b.part, b.entries) : 0;
-  const flag = TRACK[b.track.status];
-  // The time left, counting down between reads.
+  // Over (F1's archive, or its feed's last word): the final order, no clock or flag.
+  const over = b.final || feedOver(b);
+  const flag = over ? null : TRACK[b.track.status];
+  // The time left, counting down between reads, and the bar under the head.
   const left = el('span', { class: 'num lb-clock' });
+  const fill = el('i');
+  const total = (PART_S[ss.abbr] || [])[Math.max(0, (b.part || 1) - 1)] || 0;
   const tickClock = () => {
     const n = Math.max(0, b.clock.left - (b.clock.running ? (Date.now() - b.at) / 1000 : 0));
-    left.textContent = race && b.lap ? '' : `${en ? '' : '剩 '}${mmss(n)}${en ? ' left' : ''}`;
+    left.textContent = over ? (en ? 'Final' : '最終成績') : race && b.lap ? '' : `${en ? '' : '剩 '}${mmss(n)}${en ? ' left' : ''}`;
+    const done = over ? 1 : race && b.lap?.of ? b.lap.now / b.lap.of : total ? 1 - n / total : 0;
+    fill.style.width = `${Math.round(Math.min(1, Math.max(0, done)) * 100)}%`;
   };
   tickClock();
   const clockTimer = setInterval(() => (left.isConnected ? tickClock() : clearInterval(clockTimer)), 1000);
-  const head = el('div', { class: 'lb-head' }, [
-    el('strong', { class: 'lb-part', text: quali && b.part ? `${prefix}${b.part}` : race && b.lap?.now ? (en ? `Lap ${b.lap.now}/${b.lap.of}` : `第 ${b.lap.now}/${b.lap.of} 圈`) : sessionName(ss, L(), true) }),
-    left,
-    flag ? el('span', { class: `lb-flag ${flag[2]}`, text: en ? flag[1] : flag[0] }) : null
+  const head = el('div', { class: 'lb-top' }, [
+    el('div', { class: 'lb-head' }, [
+      el('strong', { class: 'lb-part', text: quali && b.part && !over ? `${prefix}${b.part}` : race && b.lap?.now && !over ? (en ? `Lap ${b.lap.now}/${b.lap.of}` : `第 ${b.lap.now}/${b.lap.of} 圈`) : sessionName(ss, L(), true) }),
+      left,
+      flag ? el('span', { class: `lb-flag ${flag[2]}`, text: en ? flag[1] : flag[0] }) : null
+    ]),
+    !over && (total || (race && b.lap?.of)) ? el('div', { class: 'lb-bar', 'aria-hidden': 'true' }, [fill]) : null
   ]);
   const rows = b.cars.flatMap((c, i) => {
     const tyre = TYRE[c.tyre];
@@ -1541,16 +1554,19 @@ function f1LiveBoard(b, ss) {
       short: true,
       team: c.team,
       field: ss.field,
-      cls: `${cut && c.pos > cut && !c.out ? 'drop' : ''}${c.out || c.retired ? ' gone' : ''}`.trim(),
-      // Qualifying: the best lap of this part, the gap to the top under it; a race: the gap, the car ahead's interval under it.
-      main: quali ? c.best : i === 0 ? (en ? 'Leader' : '領先') : c.gap,
+      // Out of it (retired, stopped, knocked out): greyed, every one alike (a stopped car said 退賽 but stayed bright).
+      cls: `${cut && c.pos > cut && !c.out ? 'drop' : ''}${c.out || c.retired || c.stopped ? ' gone' : ''}`.trim(),
+      // Qualifying and practice: the best lap (of this part), the gap to the top under it; a race: the gap, the car ahead's interval under it.
+      main: timed ? c.best || '—' : i === 0 ? (en ? 'Leader' : '領先') : c.gap,
       tags: [
         state ? el('small', { class: `lb-state${c.inPit || c.pitOut ? ' pit' : ''}`, text: state }) : null,
         tyreIcon(c.tyre),
         tyre && c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? 'L' : '圈'}` }) : null,
-        quali ? (i > 0 && c.gap ? el('small', { class: 'num', text: c.gap }) : null) : i > 0 && c.interval ? el('small', { class: 'num', text: `${en ? 'int ' : '前車 '}${c.interval}` }) : null
+        timed ? (i > 0 && c.gap ? el('small', { class: 'num lb-gap', text: c.gap }) : null) : i > 0 && c.interval ? el('small', { class: 'num lb-gap', text: `${en ? 'int ' : '前車 '}${c.interval}` }) : null
       ]
     });
+    // The team's colour down the row's edge, as F1's timing tower has it.
+    if (c.colour) row.style.setProperty('--team', c.colour);
     return cut && c.pos === cut ? [row, el('li', { class: 'lb-cut', 'aria-hidden': 'true' }, [el('span', { text: en ? `Out after ${prefix}${b.part}` : `${prefix}${b.part} 淘汰線` })])] : [row];
   });
   // Race control's word, in Chinese by rule (lib/racecontrol.mjs); each car named a driver chip that opens them.
@@ -1634,7 +1650,12 @@ function fillField(s, e) {
               ? qualifyingResult(ss.start).then(rows => (rows.length ? rows : espnQualifying(weekend, ss.id, ss.field)))
               : ss.abbr === 'SS' || ss.abbr === 'SQ'
                 ? espnQualifying(weekend, ss.id, ss.field, 'SQ')
-                : null;
+                : /^FP\d$/.test(ss.abbr)
+                  ? // A practice: F1's archive of it, drawn as its live board was (each car's best lap and gap).
+                    sessionTiming(ss.start)
+                      .then(b => (b ? Object.assign([b], { board: true }) : []))
+                      .catch(() => [])
+                  : null;
       const espnList = () => (ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField')));
       const known = f1Numbers.get(key);
       const shape = () => el('ol', { class: 'field f1-field waiting' }, Array.from({ length: Math.max(1, Math.min(ss.field.length || 10, 22)) }, () => el('li', { class: 'skel-row' }, [skeleton([70], 'skel-pos'), el('i', { class: 'skel skel-pic' }), skeleton([62, 40]), skeleton([90, 50], 'skel-right')])));
@@ -1647,7 +1668,7 @@ function fillField(s, e) {
           const one = { ...e, id: `${weekend}~${ss.abbr}`, weekend, sessionKey: ss.abbr, session: sessionName(ss, L()), start: ss.start, official: ss.start, status: ss.status };
           return ss.status.state === 'post' ? [replayLink(one), highlights(one)].filter(Boolean) : [];
         })(),
-        known?.length ? f1Field(known, ss.field) : numbers ? shape() : espnList(),
+        known?.length ? (known.board ? f1LiveBoard(known[0], ss) : f1Field(known, ss.field)) : numbers ? shape() : espnList(),
         raceBox
       );
       loadRace();
@@ -1658,7 +1679,7 @@ function fillField(s, e) {
           if (at !== pick || !box.isConnected) return;
           const waiting = box.querySelector('ol.field.waiting');
           if (!waiting) return;
-          const done = rows.length ? f1Field(rows, ss.field) : espnList();
+          const done = rows.board ? f1LiveBoard(rows[0], ss) : rows.length ? f1Field(rows, ss.field) : espnList();
           done.classList.add('fade-in');
           waiting.replaceWith(done);
         });

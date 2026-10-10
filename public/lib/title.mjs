@@ -289,7 +289,9 @@ function liveRacing(groups, events, teamOf) {
   for (const e of events || []) if (e.sessions?.length && !weekends.has(e.weekend || e.id)) weekends.set(e.weekend || e.id, e);
   let fresh = 0;
   for (const e of weekends.values()) {
-    const scoring = e.sessions.filter(x => POINTS[x.abbr] && (x.status?.state === 'in' || x.status?.state === 'post') && x.field?.length);
+    // Only a sprint or race that's over: the order while it runs isn't points
+    // (the table moved with every pass during a session, 2026-10-10).
+    const scoring = e.sessions.filter(x => POINTS[x.abbr] && x.status?.state === 'post' && x.field?.length);
     if (!scoring.length) continue;
     let added = false;
     for (const g of out) {
@@ -308,7 +310,7 @@ function liveRacing(groups, events, teamOf) {
           const r = team ? g.rows.find(r => teamOf && teamOf(side) && sameTeam(teamOf(side), r)) : g.rows.find(r => r.id === side.id);
           if (!r) return;
           r.stats.PTS = String(num(r.stats.PTS) + pts);
-          r.fresh = x.status.state === 'in' ? 'in' : r.fresh || 'post';
+          r.fresh = r.fresh || 'post';
         });
       g.rows.sort((a, b) => num(b.stats.PTS) - num(a.stats.PTS));
       const top = num(g.rows[0].stats.PTS);

@@ -77,14 +77,17 @@ test('every place: settled ones, the places still open, the zones', () => {
   assert.deepEqual(r.zones.map(z => [z.note, z.sure]), [['Champions League', ['A', 'B']], ['Relegation', ['D']]]);
 });
 
-test('F1: a race on now counts by the running order until its column has numbers; constructors by their drivers', () => {
+test('F1: a race counts once it’s over (not while it runs) until its column has numbers; constructors by their drivers', () => {
   const drivers = { name: '車手', rows: [row('1', { PTS: '300', MYS: '-' }), row('2', { PTS: '290', MYS: '-' })].map(r => ({ ...r, athlete: true })), rounds: [{ key: 'MYS', name: 'Malaysia GP' }] };
   const teams = { name: '車隊', rows: [{ ...row('m', { PTS: '500', MYS: ' ' }), en: 'Mercedes' }, { ...row('r', { PTS: '480', MYS: ' ' }), en: 'Red Bull' }], rounds: [{ key: 'MYS', name: 'Malaysia GP' }] };
-  const race = { abbr: 'Race', status: { state: 'in' }, field: [{ id: '2', en: 'Max Verstappen' }, { id: '1', en: 'Kimi Antonelli' }] };
+  const race = { abbr: 'Race', status: { state: 'post' }, field: [{ id: '2', en: 'Max Verstappen' }, { id: '1', en: 'Kimi Antonelli' }] };
   const ev = { id: 'w', name: 'Malaysia GP', kind: 'field', start: new Date().toISOString(), sessions: [race] };
   const teamOf = s => ({ 'Max Verstappen': 'Red Bull Racing', 'Kimi Antonelli': 'Mercedes' })[s.en];
+  // On now: the table as it stands, nothing added by the running order.
+  const running = { ...ev, sessions: [{ ...race, status: { state: 'in' } }] };
+  assert.equal(liveTable([drivers, teams], [running], 'racing', { teamOf }).fresh, 0);
   const out = liveTable([drivers, teams], [ev], 'racing', { teamOf });
-  assert.deepEqual(out[0].rows.map(r => [r.id, r.stats.PTS, r.fresh]), [['2', '315', 'in'], ['1', '318', 'in']].sort((a, b) => b[1] - a[1]));
+  assert.deepEqual(out[0].rows.map(r => [r.id, r.stats.PTS, r.fresh]), [['2', '315', 'post'], ['1', '318', 'post']].sort((a, b) => b[1] - a[1]));
   assert.deepEqual(out[1].rows.map(r => [r.id, r.stats.PTS]), [['m', '518'], ['r', '505']]);
   // Counted (numbers in the column): nothing more.
   const done = { ...drivers, rows: [row('1', { PTS: '318', MYS: '18' }), row('2', { PTS: '315', MYS: '25' })].map(r => ({ ...r, athlete: true })) };

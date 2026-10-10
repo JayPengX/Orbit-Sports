@@ -19,3 +19,7 @@ test('words the rules don\'t know: English, the cars still drivers', () => {
   assert.equal(said('CAR 63 (RUS) WILL START FROM THE BACK OF THE GRID'), '[63] WILL START FROM THE BACK OF THE GRID');
   assert.equal(said('CAR 18 (STR) STOPPED AT TURN 15', false), '[18] STOPPED AT TURN 15');
 });
+
+test('a lap deleted without its number, with a clock and (PIT) after it: in Chinese, short (Stroll, Singapore FP1)', () => {
+  assert.equal(said('CAR 18 (STR) LAP DELETED - TRACK LIMITS AT TURN 11 LAP 16 17:04:46 (PIT)'), '[18] 圈速取消：第 11 彎超出賽道界線，第 16 圈');
+});
