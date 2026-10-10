@@ -50,8 +50,40 @@ export const FORMATS = {
       return { quarterfinals: [[0, 1], [1, 0], [2, 3], [3, 2]].map(([w, r]) => ({ projected: true, sides: [t(w, 0), t(r, 1)], seeds: [1, 2], labels: [`${name(w)} 組`, `${name(r)} 組`] })) };
     }
   },
+  // The challenge (best of five, the half champion a win given) and the
+  // Taiwan Series against the better half champion, who waits (espn.mjs cpblSeeds).
+  cpbl: {
+    rounds: [R('challenge', '季後挑戰賽', 'Playoff Challenge', 1), R('final', '台灣大賽', 'Taiwan Series', 1)],
+    project: (g, seeds) => {
+      const club = cpblClub(g);
+      if (!seeds?.direct) return {};
+      return {
+        challenge: [{ projected: true, sides: [club(seeds.given), club(seeds.rival)], seeds: [0, 0], labels: [seeds.given ? '一勝優勢' : '', ''] }],
+        final: [{ projected: true, sides: [club(seeds.direct), null], seeds: [0, 0], labels: ['', '挑戰賽勝者'] }]
+      };
+    },
+    // The Taiwan Series before it's drawn: the club waiting in it, and the challenge's winner (or both its sides).
+    fill: (rounds, g, seeds) => {
+      const [ch, fin] = ['challenge', 'final'].map(k => rounds.find(r => r.key === k));
+      if (!fin || fin.ties.some(Boolean) || !seeds?.direct) return;
+      const t = ch?.ties.find(x => x && !x.projected);
+      const waiting = t?.sides.find(x => String(x.id) === seeds.direct) ? null : cpblClub(g)(seeds.direct);
+      if (!waiting) return;
+      const won = t?.winner ? t.sides.find(x => String(x.id) === t.winner) : null;
+      fin.ties = [
+        t
+          ? { id: 'final|pending|0', round: 'final', title: '', pending: true, kind: 'pending', sides: [waiting, won], options: [null, won ? null : t.sides], score: {}, winner: null, live: false, next: null, games: [] }
+          : { projected: true, sides: [waiting, null], seeds: [0, 0], labels: ['', '挑戰賽勝者'] }
+      ];
+    }
+  },
   facup: { rounds: [R('third-round', '第三輪', 'Third Round', 32), R('fourth-round', '第四輪', 'Fourth Round', 16), R('fifth-round', '第五輪', 'Fifth Round', 8), R('quarterfinals', '八強', 'Quarterfinals', 4), R('semifinals', '準決賽', 'Semifinals', 2), R('final', '決賽', 'Final', 1)] },
   worldcup: { rounds: [R('round-of-32', '32 強', 'Round of 32', 16), R('round-of-16', '16 強', 'Round of 16', 8), R('quarterfinals', '八強', 'Quarterfinals', 4), R('semifinals', '準決賽', 'Semifinals', 2), R('final', '決賽', 'Final', 1)] }
+};
+// A CPBL club as the table has it (any of its halves).
+const cpblClub = groups => en => {
+  const row = en && (groups || []).flatMap(x => x.rows || []).find(r => r.id === en || r.en === en);
+  return row ? side(row, 0) : null;
 };
 const side = (row, seed) => (row ? { id: row.id, name: row.name, short: row.short || row.name, logo: row.logo, seed } : null);
 // The two conferences / leagues of a table, each in seed order.
@@ -76,7 +108,7 @@ export const stageKey = label =>
 const tbd = s => /^tbd$/i.test(String(s?.short || s?.abbr || s?.name || '').trim()) || Number(s?.id) <= 0;
 
 // `startsAfter`: the regular season's last day (ms), for a first round no calendar dates yet (about 3 days after it).
-export function playoffModel({ league, mode = 'live', events = [], groups = null, stages = [], season = '', startsAfter = 0, now = Date.now() }) {
+export function playoffModel({ league, mode = 'live', events = [], groups = null, seeds = null, stages = [], season = '', startsAfter = 0, now = Date.now() }) {
   const fmt = FORMATS[league] || null;
   const shape = fmt?.rounds?.map(r => [r.key, r.zh, r.en, r.n]);
   // Only the rounds the view shows (a cup's early rounds, before its third, left out).
@@ -85,9 +117,10 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
   if (!rounds.length && shape) rounds = shape.map(([key, zh, en, n]) => ({ key, title: { zh, en }, ties: Array(n).fill(null) }));
   // The table's prediction in the rounds it decides.
   if (mode === 'projected' && fmt?.project) {
-    const p = fmt.project(groups) || {};
+    const p = fmt.project(groups, seeds) || {};
     for (const r of rounds) if (p[r.key]?.length && r.ties.every(t => !t)) r.ties = p[r.key];
   }
+  if (mode !== 'projected') fmt?.fill?.(rounds, groups, seeds);
   // Each round's dates: its games' (games not drawn yet count too), else the calendar's stage.
   for (const r of rounds) {
     const games = events.filter(e => e.round?.key === r.key);

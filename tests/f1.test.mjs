@@ -65,3 +65,17 @@ test("F1's live feed is this session's only when its kind and time agree", () =>
   assert.equal(qualiCut(2, [22, 16, 10]), 10);
   assert.equal(qualiCut(3, [22, 16, 10]), 0);
 });
+
+test('a qualifying between its parts is not over: only its last part ends it', async () => {
+  const { feedOver, feedBreak } = await import('../public/lib/f1.mjs');
+  const q = (part, status, message, left = 0, running = false) => ({ session: { type: 'Qualifying', name: 'Qualifying', status }, part, entries: [22, 16, 10], clock: { left, running }, message: { text: message } });
+  assert.equal(feedOver(q(1, 'Finished', 'CHEQUERED FLAG')), false);
+  assert.equal(feedBreak(q(1, 'Finished', 'CHEQUERED FLAG')), true);
+  // Q2 set up, not begun: a break still.
+  assert.equal(feedBreak(q(2, 'Inactive', 'CHEQUERED FLAG', 900)), true);
+  assert.equal(feedBreak(q(2, 'Started', 'GREEN LIGHT - PIT EXIT OPEN', 880, true)), false);
+  assert.equal(feedOver(q(3, 'Finished', 'CHEQUERED FLAG')), true);
+  assert.equal(feedOver(q(2, 'Finalised', '')), true);
+  // A practice or a race: the flag is the end.
+  assert.equal(feedOver({ session: { type: 'Practice', name: 'Practice 1', status: 'Finished' }, part: 0, message: { text: '' } }), true);
+});

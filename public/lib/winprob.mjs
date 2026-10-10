@@ -14,7 +14,8 @@ export const GAMMA = 'https://gamma-api.polymarket.com';
 export const CLOB = 'https://clob.polymarket.com/prices-history';
 export const GAMES_TRIM = 'polymarket-games';
 // Each league's Polymarket series (its games' list).
-export const PM_LEAGUE = { mlb: 3, nba: 10345, cpbl: 11972, epl: 10188, seriea: 10203, bundesliga: 10194, ligue1: 10195, ucl: 10204, uel: 10209, scotland: 10674, mls: 10189, facup: 10314, nationsleague: 11446 };
+// CPBL's market isn't one: it's traded too thinly most games to draw a line (the owner, 2026-10-10).
+export const PM_LEAGUE = { mlb: 3, nba: 10345, epl: 10188, seriea: 10203, bundesliga: 10194, ligue1: 10195, ucl: 10204, uel: 10209, scotland: 10674, mls: 10189, facup: 10314, nationsleague: 11446 };
 
 // Names compared plainly (accents, "FC" and the like aside).
 const plain = s =>

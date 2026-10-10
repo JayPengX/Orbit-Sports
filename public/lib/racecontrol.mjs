@@ -23,7 +23,13 @@ const RULES = [
   [/BLACK AND WHITE FLAG FOR /g, '黑白旗警告：'],
   [/BLACK AND ORANGE FLAG FOR /g, '黑橘旗（車損須進站）：'],
   [/BLUE FLAG FOR /g, '藍旗：'],
+  [/TURN (\d+) INCIDENT INVOLVING /g, '第 $1 彎事故：'],
+  [/PIT LANE INCIDENT INVOLVING /g, '維修區事故：'],
+  [/PIT EXIT INCIDENT INVOLVING /g, '維修區出口事故：'],
+  [/START INCIDENT INVOLVING /g, '起跑事故：'],
   [/INCIDENT INVOLVING /g, '事故：'],
+  [/PENALTY SERVED/g, '已執行罰則'],
+  [/DECISION:?/g, '判決：'],
   [/ TIME (\d+:\d{2}\.\d{3}) DELETED/g, ' 圈速 $1 取消'],
   [/ LAP DELETED/g, ' 圈速取消'],
   [/ LAP (\d+) DELETED/g, ' 第 $1 圈成績取消'],
@@ -36,6 +42,15 @@ const RULES = [
   [/FORCING ANOTHER DRIVER OFF THE TRACK/g, '將對手擠出賽道'],
   [/LEAVING THE TRACK AND GAINING AN ADVANTAGE/g, '離開賽道並取得優勢'],
   [/UNSAFE RELEASE/g, '不安全放行'],
+  [/UNSAFE REJOIN/g, '不安全回到賽道'],
+  [/CROSSING THE PIT (EXIT|ENTRY) LINE/g, '越過維修區線'],
+  [/PIT LANE INFRINGEMENT/g, '維修區違規'],
+  [/NOT FOLLOWING (THE )?RACE DIRECTOR'?S INSTRUCTIONS/g, '未遵守賽事總監指示'],
+  [/EXCEEDING THE MAXIMUM (DELTA )?TIME/g, '超過規定時間'],
+  [/DRIVING UNNECESSARILY SLOWLY/g, '不必要的慢速駕駛'],
+  [/ERRATIC DRIVING/g, '駕駛不穩定'],
+  [/IGNORING (YELLOW|BLUE) FLAGS?/g, '無視旗號'],
+  [/TECHNICAL INFRINGEMENT/g, '技術違規'],
   [/SPEEDING IN THE PIT LANE/g, '維修區超速'],
   [/MOVING UNDER BRAKING/g, '煞車時變線'],
   [/IMPEDING/g, '阻擋'],
@@ -57,6 +72,15 @@ const RULES = [
   [/SAFETY CAR THROUGH THE PIT LANE/g, '安全車經由維修區'],
   [/LAPPED CARS (WILL BE|MAY) ALLOWED TO OVERTAKE|LAPPED CARS MAY NOW OVERTAKE/g, '被套圈車可超越'],
   [/LAPPED CARS WILL NOT BE ALLOWED TO OVERTAKE/g, '被套圈車不可超越'],
+  [/SAFETY CAR ENDING/g, '安全車即將結束'],
+  [/RECOVERY VEHICLE ON TRACK/g, '拖吊車上賽道'],
+  [/MEDICAL CAR (DEPLOYED|ON TRACK)/g, '醫療車上賽道'],
+  [/DEBRIS ON TRACK/g, '賽道上有碎片'],
+  [/SLIPPERY SURFACE/g, '路面濕滑'],
+  [/FORMATION LAP/g, '暖胎圈'],
+  [/ROLLING START/g, '滾動起跑'],
+  [/STANDING START/g, '定點起跑'],
+  [/START DELAYED/g, '延後起跑'],
   [/RED FLAG/g, '紅旗'],
   [/CHEQUERED FLAG/g, '方格旗'],
   [/DOUBLE YELLOW IN TRACK SECTOR (\d+)/g, '第 $1 區段雙黃旗'],
@@ -74,6 +98,9 @@ const RULES = [
   [/(SESSION|RACE) WILL RESUME AT (\d{1,2}:\d{2})/g, '$2 恢復比賽'],
   [/(SESSION|RACE) SUSPENDED/g, '比賽暫停'],
   [/ AT TURN (\d+)/g, '（第 $1 彎）'],
+  [/\bTURN (\d+)/g, '第 $1 彎'],
+  [/\b(Q[123]|SQ[123])\b/g, '$1'],
+  [/\bSESSION\b/g, '本節'],
   [/ LAP (\d+)/g, '，第 $1 圈'],
   [/ AND /g, '與'],
   [/\s+-\s+/g, '：']
@@ -89,9 +116,9 @@ export function raceControlParts(message, zh = true) {
     for (const [re, to] of RULES) out = out.replace(re, to);
     // A clock at the end (track limits: "15:03:22") says nothing more.
     // (So is "(PIT)" after it: the lap was the one into the pits.)
-    out = out.replace(/\s+\d{2}:\d{2}:\d{2}(\s*\(PIT\))?$/, '').replace(/\s*([：，（）])\s*/g, '$1').replace(/：$/, '');
+    out = out.replace(/\s+\(?\d{2}:\d{2}:\d{2}\)?(\s*\(PIT\))?$/, '').replace(/\s*([：，（）])\s*/g, '$1').replace(/：$/, '');
     // Anything English left (besides DRS, a lap time): the rules didn't know it.
-    if (!/[A-Z]{2,}/.test(out.replace(/DRS|\u0001\d+\u0001/g, ''))) text = out;
+    if (!/[A-Z]{2,}/.test(out.replace(/DRS|S?Q[123]|\u0001\d+\u0001/g, ''))) text = out;
   }
   return text.split('\u0001').map((x, i) => (i % 2 ? { no: x } : x)).filter(x => x !== '');
 }

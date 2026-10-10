@@ -16,14 +16,14 @@ import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLine
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, sessionTiming } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { SEASON_GAMES } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
+import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -1444,21 +1444,26 @@ const seasonDrivers = () =>
     .then(groups => (groups || []).flatMap(g => g.rows || []).filter(r => r.athlete && r.id).map(r => ({ id: r.id, name: r.en || r.name, headshot: r.logo || null })))
     .catch(() => ((seasonDriverList = null), [])));
 const fieldDriver = (field = [], full, family = String(full || '').split(' ').slice(1).join(' ') || full) => field.find(x => plainName(x.name) === plainName(full)) || field.find(x => plainName(x.name).endsWith(plainName(family))) || null;
-function f1Row({ pos, posText = '', posOut = false, full, family, team, field, main = '', tags = [], cls = '', short = false }) {
+// One row for every F1 list (results, qualifying, practice, live): the team's
+// colour down its edge, the place, the face, the driver and team on two lines,
+// and on the right the time (or gap) over one line of what else counts. Each
+// line stays one line: the name ends in … before anything moves.
+function f1Row({ pos, posText = '', posOut = false, full, team, field, main = '', tags = [], cls = '', colour = '' }) {
   const en = L() === 'en';
-  const c = fieldDriver(field, full, family) || { name: full };
-  // `short`: the surname only (the live board, its gap, tyre and interval beside it).
-  const who = { ...c, name: short ? family : en ? c.name : f1Driver(full).zh || c.name };
+  const c = fieldDriver(field, full) || { name: full };
+  const who = { ...c, name: f1Shown(full) };
   const car = f1Constructor(team || f1Driver(full).team);
-  return el('li', { class: `${ctx.isFollowed('f1', c.id) ? 'mine' : ''}${cls ? ` ${cls}` : ''}`.trim() }, [
+  const row = el('li', { class: `${ctx.isFollowed('f1', c.id) ? 'mine' : ''}${cls ? ` ${cls}` : ''}`.trim() }, [
     el('span', { class: `pos num${posOut ? ' out' : ''}`, text: posText || String(pos) }),
     personPic(c, 'f1', 'sm round'),
     el('span', { class: 'f1-who' }, [
       personName('f1', who),
       el('button', { class: 'link f1-team', type: 'button', onclick: () => openConstructor({ id: '', name: car.name, en: car.name }) }, [constructorBadge(car.name, 'xxs'), el('span', { text: en ? car.name : car.zh })])
     ]),
-    el('span', { class: 'f1-res' }, [el('span', { class: 'num f1-main', text: main }), tags.some(Boolean) ? el('span', { class: 'f1-tags' }, tags) : null])
+    el('span', { class: 'f1-res' }, [el('span', { class: 'num f1-main', text: main }), tags.some(Boolean) ? el('span', { class: 'f1-tags' }, tags.filter(Boolean)) : null])
   ]);
+  row.style.setProperty('--team', colour || car.color);
+  return row;
 }
 function f1Field(rows, field) {
   const en = L() === 'en';
@@ -1472,18 +1477,17 @@ function f1Field(rows, field) {
         posText: r.out ? r.text : '',
         posOut: r.out,
         full: `${r.driver.givenName} ${r.driver.familyName}`,
-        family: r.driver.familyName,
         team: r.team,
         field,
+        cls: r.out ? 'gone' : '',
         main: r.out ? r.why : r.time || (r.status === 'Lapped' ? (en ? 'Lapped' : '被套圈') : ''),
         tags: [
-          r.gap ? el('small', { class: 'num', text: r.gap }) : null,
-          r.outIn ? el('small', { class: 'q-out', title: en ? `Out in ${r.outIn}` : `${r.outIn} 淘汰`, text: r.outIn }) : null,
-          // Each its own chip under the time (it read as one string of numbers):
-          // places from the grid, the fastest lap, the points as points.
+          // Places from the grid, the fastest lap, the points: each its own, in that order.
           gained ? el('small', { class: `num gain ${gained > 0 ? 'up' : 'down'}`, title: en ? `From P${r.grid}` : `起跑第 ${r.grid}`, text: `${gained > 0 ? '▲' : '▼'}${Math.abs(gained)}` }) : null,
-          r.fastest ? el('small', { class: 'fl', title: en ? 'Fastest lap' : '最快圈', text: en ? 'FL' : '最快圈' }) : null,
-          r.points ? el('small', { class: 'num pts', text: en ? `${r.points} pts` : `${r.points} 分` }) : null
+          r.gap ? el('small', { class: 'num', text: r.gap }) : null,
+          r.outIn ? el('small', { class: 'f1-pill', title: en ? `Out in ${r.outIn}` : `${r.outIn} 淘汰`, text: en ? `Out ${r.outIn}` : `${r.outIn} 淘汰` }) : null,
+          r.fastest ? el('small', { class: 'f1-pill fl', title: en ? 'Fastest lap' : '最快圈', text: en ? 'Fastest' : '最快圈' }) : null,
+          r.points ? el('small', { class: 'f1-pill num', text: en ? `${r.points} pts` : `${r.points} 分` }) : null
         ]
       });
     })
@@ -1529,9 +1533,12 @@ function f1LiveBoard(b, ss) {
   // A practice: each car by its best lap, like a qualifying (it showed 領先 and no times at all).
   const timed = !race;
   const prefix = ss.abbr === 'Qual' ? 'Q' : 'SQ';
-  const cut = quali ? qualiCut(b.part, b.entries) : 0;
   // Over (F1's archive, or its feed's last word): the final order, no clock or flag.
   const over = b.final || feedOver(b);
+  // Between parts: the one just run is over; a part not begun has no cut line yet (Q2's showed before Q2 began).
+  const pause = quali && !over && feedBreak(b);
+  const begun = !pause || (b.clock.left < ([0, 1080, 900, 720][b.part] || 0) - 2);
+  const cut = quali && begun ? qualiCut(b.part, b.entries) : 0;
   const flag = over ? null : TRACK[b.track.status];
   // The time left, counting down between reads, and the bar under the head.
   const left = el('span', { class: 'num lb-clock' });
@@ -1539,7 +1546,7 @@ function f1LiveBoard(b, ss) {
   const total = (PART_S[ss.abbr] || [])[Math.max(0, (b.part || 1) - 1)] || 0;
   const tickClock = () => {
     const n = Math.max(0, b.clock.left - (b.clock.running ? (Date.now() - b.at) / 1000 : 0));
-    left.textContent = over ? (en ? 'Final' : '最終成績') : race && b.lap ? '' : `${en ? '' : '剩 '}${mmss(n)}${en ? ' left' : ''}`;
+    left.textContent = over ? (en ? 'Final' : '最終成績') : pause ? (begun ? (en ? 'Over · break' : '結束 · 休息中') : en ? 'Starting soon' : '即將開始') : race && b.lap ? '' : `${en ? '' : '剩 '}${mmss(n)}${en ? ' left' : ''}`;
     const done = over ? 1 : race && b.lap?.of ? b.lap.now / b.lap.of : total ? 1 - n / total : 0;
     fill.style.width = `${Math.round(Math.min(1, Math.max(0, done)) * 100)}%`;
   };
@@ -1559,23 +1566,23 @@ function f1LiveBoard(b, ss) {
     const row = f1Row({
       pos: c.pos,
       full: c.name,
-      family: driverShort(c.name),
-      short: true,
       team: c.team,
       field: ss.field,
+      colour: c.colour,
       // Out of it (retired, stopped, knocked out): greyed, every one alike (a stopped car said 退賽 but stayed bright).
       cls: `${cut && c.pos > cut && !c.out ? 'drop' : ''}${c.out || c.retired || c.stopped ? ' gone' : ''}`.trim(),
       // Qualifying and practice: the best lap (of this part), the gap to the top under it; a race: the gap, the car ahead's interval under it.
       main: timed ? c.best || '—' : i === 0 ? (over ? (en ? 'Winner' : '冠軍') : en ? 'Leader' : '領先') : c.gap,
-      tags: [
-        state ? el('small', { class: `lb-state${c.inPit || c.pitOut ? ' pit' : ''}`, text: state }) : null,
-        tyreIcon(c.tyre),
-        tyre && c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? 'L' : '圈'}` }) : null,
-        timed ? (i > 0 && c.gap ? el('small', { class: 'num lb-gap', text: c.gap }) : null) : i > 0 && c.interval ? el('small', { class: 'num lb-gap', text: `${en ? 'int ' : '前車 '}${c.interval}` }) : null
-      ]
+      // Over: the laps each car ran (every car's in the pits by then: no 進站, no tyre).
+      tags: over
+        ? [timed && i > 0 && c.gap ? el('small', { class: 'num', text: c.gap }) : null, c.laps ? el('small', { class: 'num', text: `${c.laps}${en ? ' laps' : ' 圈'}` }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
+        : [
+            state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null,
+            tyreIcon(c.tyre),
+            tyre && c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? 'L' : '圈'}` }) : null,
+            timed ? (i > 0 && c.gap ? el('small', { class: 'num', text: c.gap }) : null) : i > 0 && c.interval ? el('small', { class: 'num', text: `${en ? 'int ' : '前車 '}${c.interval}` }) : null
+          ]
     });
-    // The team's colour down the row's edge, as F1's timing tower has it.
-    if (c.colour) row.style.setProperty('--team', c.colour);
     return cut && c.pos === cut ? [row, el('li', { class: 'lb-cut', 'aria-hidden': 'true' }, [el('span', { text: en ? `Out after ${prefix}${b.part}` : `${prefix}${b.part} 淘汰線` })])] : [row];
   });
   // Race control's word, in Chinese by rule (lib/racecontrol.mjs); each car named a driver chip that opens them.
@@ -1592,8 +1599,8 @@ function f1LiveBoard(b, ss) {
 function fillField(s, e) {
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), // The place, then the day and the official start: two designed lines (the
       // titles' time isn't said: the broadcast card says when the channel's on air).
-      el('p', { class: 'muted sess-where', text: e.venue || '' }),
-      el('p', { class: 'muted sess-when', text: whenText(shownStart(e)) }), weekendFollow(e), watchButton(e, 'wide')]));
+      // The day and time, then the place, on one line: the time always whole, a long place cut (two lines read as one wrapped).
+      el('p', { class: 'muted sess-line' }, [el('span', { class: 'sess-when num', text: whenText(shownStart(e)) }), e.venue ? el('span', { class: 'sess-where', text: e.venue }) : null]), weekendFollow(e), watchButton(e, 'wide')]));
   // A race weekend's replay and highlights go with the session picked below
   // (they're that session's); anything else's here.
   if (e.kind !== 'field') {
@@ -1660,20 +1667,23 @@ function fillField(s, e) {
         sessionTiming(ss.start)
           .then(b => (b ? Object.assign([b], { board: true }) : []))
           .catch(() => []);
-      const orArchive = rows => (rows.length ? rows : archive());
+      // Each source asked at once, the best one that has them taken (one after another, the last waited on the first two).
+      const first = (...asks) => Promise.all(asks.map(a => a.catch(() => []))).then(lists => lists.find(rows => rows.length) || []);
       const numbers =
         f1Numbers.has(key) || e.league !== 'f1' || ss.status.state !== 'post'
           ? null
           : ss.abbr === 'Race' || ss.abbr === 'SR'
-            ? raceResult(ss.start, ss.abbr === 'SR', L() === 'en').catch(() => []).then(orArchive)
+            ? first(raceResult(ss.start, ss.abbr === 'SR', L() === 'en'), archive())
             : ss.abbr === 'Qual'
-              ? qualifyingResult(ss.start).then(rows => (rows.length ? rows : espnQualifying(weekend, ss.id, ss.field))).catch(() => []).then(orArchive)
+              ? first(qualifyingResult(ss.start), espnQualifying(weekend, ss.id, ss.field), archive())
               : ss.abbr === 'SS' || ss.abbr === 'SQ'
-                ? espnQualifying(weekend, ss.id, ss.field, 'SQ').catch(() => []).then(orArchive)
+                ? first(espnQualifying(weekend, ss.id, ss.field, 'SQ'), archive())
                 : /^FP\d$/.test(ss.abbr)
                   ? archive()
                   : null;
-      const espnList = () => (ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField')));
+      // Over and its numbers still coming: its last live reading meanwhile (never an empty list or rows in their shape).
+      const lastWord = numbers && keptTiming(ss.abbr, ss.start);
+      const espnList = () => (ss.field.length && e.league === 'f1' ? el('ol', { class: 'field f1-field' }, ss.field.map((c, i) => f1Row({ pos: i + 1, full: c.name, field: ss.field, main: c.score || '' }))) : ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField')));
       const known = f1Numbers.get(key);
       const shape = () => el('ol', { class: 'field f1-field waiting' }, Array.from({ length: Math.max(1, Math.min(ss.field.length || 10, 22)) }, () => el('li', { class: 'skel-row' }, [skeleton([70], 'skel-pos'), el('i', { class: 'skel skel-pic' }), skeleton([62, 40]), skeleton([90, 50], 'skel-right')])));
       put(
@@ -1685,7 +1695,7 @@ function fillField(s, e) {
           const one = { ...e, id: `${weekend}~${ss.abbr}`, weekend, sessionKey: ss.abbr, session: sessionName(ss, L()), start: ss.start, official: ss.start, status: ss.status };
           return ss.status.state === 'post' ? [replayLink(one), highlights(one)].filter(Boolean) : [];
         })(),
-        known?.length ? (known.board ? f1LiveBoard(known[0], ss) : f1Field(known, ss.field)) : numbers ? shape() : espnList(),
+        known?.length ? (known.board ? f1LiveBoard(known[0], ss) : f1Field(known, ss.field)) : lastWord ? Object.assign(f1LiveBoard({ ...lastWord, final: true }, ss), { className: 'live-board numbers-due' }) : numbers ? shape() : espnList(),
         raceBox
       );
       loadRace();
@@ -1694,10 +1704,12 @@ function fillField(s, e) {
         .then(rows => {
           if (rows.length && !(rows.board && !/^FP\d$/.test(ss.abbr))) f1Numbers.set(key, rows);
           if (at !== pick || !box.isConnected) return;
-          const waiting = box.querySelector('ol.field.waiting');
+          const waiting = box.querySelector('ol.field.waiting, .numbers-due');
           if (!waiting) return;
+          // (The last live reading stays where nothing better came.)
+          if (!rows.length && waiting.classList.contains('numbers-due')) return;
           const done = rows.board ? f1LiveBoard(rows[0], ss) : rows.length ? f1Field(rows, ss.field) : espnList();
-          done.classList.add('fade-in');
+          if (waiting.matches('ol.field.waiting')) done.classList.add('fade-in');
           waiting.replaceWith(done);
         });
       // F1, a session on now: F1's own live timing, again every 5 seconds in place.

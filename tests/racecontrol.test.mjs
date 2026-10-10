@@ -23,3 +23,8 @@ test('words the rules don\'t know: English, the cars still drivers', () => {
 test('a lap deleted without its number, with a clock and (PIT) after it: in Chinese, short (Stroll, Singapore FP1)', () => {
   assert.equal(said('CAR 18 (STR) LAP DELETED - TRACK LIMITS AT TURN 11 LAP 16 17:04:46 (PIT)'), '[18] 圈速取消：第 11 彎超出賽道界線，第 16 圈');
 });
+
+test('an incident at a turn, its clock in brackets, in Chinese', () => {
+  const parts = raceControlParts('FIA STEWARDS: TURN 5 INCIDENT INVOLVING CARS 27 (HUL) AND 55 (SAI) WILL BE INVESTIGATED AFTER THE SESSION - IMPEDING (22:10:13)');
+  assert.deepEqual(parts, ['幹事決定：第 5 彎事故：', { no: '27' }, '與', { no: '55' }, ' 賽後調查：阻擋']);
+});

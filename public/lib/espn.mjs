@@ -182,10 +182,14 @@ export const feedEnded = new Set();
 // …and the ones it has said are running ('Started'): live at once, not when
 // ESPN's copy says so minutes later.
 export const feedStarted = new Set();
+// …and when it last said one was still on (a qualifying between its parts,
+// which ESPN's copy can call over): on, while that's fresh (2 minutes).
+export const feedOnAt = new Map();
 // A session's status as F1's feed has it, over ESPN's ('FP1', its official start).
 export function feedStatus(abbr, start, status) {
   const k = `${abbr}|${start}`;
   if (feedEnded.has(k) && status?.state !== 'post') return { ...status, state: 'post', completed: true };
+  if (!feedEnded.has(k) && status?.state === 'post' && Date.now() - (feedOnAt.get(k) || 0) < 120_000) return { ...status, state: 'in', completed: false };
   if (feedStarted.has(k) && status?.state === 'pre') return { ...status, state: 'in' };
   return status;
 }
@@ -706,6 +710,8 @@ export function parseAsia(games, league, lang = detectLocale()) {
   const play = LEAGUES[league]?.play || league;
   return (games || []).map(g => {
     const done = g.state === 'post';
+    // One side scored and the other empty: the other was held to 0 (an older list's copy).
+    if (g.homeScore != null || g.awayScore != null) g = { ...g, homeScore: g.homeScore ?? 0, awayScore: g.awayScore ?? 0 };
     const side = (x, key, score, other) => ({
       id: x.en,
       name: lang === 'en' ? x.en : x.zh,
@@ -744,34 +750,100 @@ export function parseAsia(games, league, lang = detectLocale()) {
     };
   });
 }
-// CPBL's play-offs (its own lists say which kind, TheSportsDB only that it's
-// one): the games by pairing, in order, each its series' name and number
-// (季後挑戰賽 G2), the first pairing the challenge (季後挑戰賽), the next the
-// Taiwan Series (台灣大賽). The regular season's games are said to be so
-// once there are play-offs (the scores' 例行賽 / 季後賽 filter). No series
-// score: the challenge can start with a win given, which neither list says.
 const CPBL_SERIES = {
   challenge: { key: 'post', zh: '季後挑戰賽', en: 'Playoff Challenge' },
   final: { key: 'final', zh: '台灣大賽', en: 'Taiwan Series' }
 };
-export function cpblPlayoffs(events) {
+// The play-offs' seeds from the table pack (2024 on): the two half
+// champions, the better by the year's record straight to the Taiwan Series,
+// the other a win given in the challenge (best of five) against the year's
+// best of the rest. One club winning both halves waits; the year's next two
+// play, the better given the win. Before a half is over its leader stands
+// in (`sure` false). -> { direct, given, rival, sure } (clubs' English names) | null
+export function cpblSeeds(pack) {
+  const tables = pack?.tables || [];
+  const half = k => tables.find(t => t.key === k);
+  const [first, second] = [half('first'), half('second')];
+  if (!first?.rows?.length) return null;
+  const year = new Map();
+  const yearTable = half('year');
+  for (const t of yearTable ? [yearTable] : [first, second].filter(Boolean))
+    for (const r of t.rows) {
+      const y = year.get(r.en) || { w: 0, l: 0 };
+      year.set(r.en, { w: y.w + r.w, l: y.l + r.l });
+    }
+  const p = en => {
+    const y = year.get(en);
+    return y && y.w + y.l ? y.w / (y.w + y.l) : 0;
+  };
+  const order = [...year.keys()].sort((a, b) => p(b) - p(a));
+  const champs = [...new Set([first.rows[0]?.en, second?.rows?.[0]?.en].filter(Boolean))];
+  const over = t => t?.rows?.length && t.rows.every(r => r.gp >= 60);
+  const sure = Boolean(over(first) && over(second));
+  if (champs.length === 2) {
+    const [direct, given] = [...champs].sort((a, b) => p(b) - p(a));
+    return { direct, given, rival: order.find(en => !champs.includes(en)) || null, sure, year: pack.year || null };
+  }
+  const rest = order.filter(en => en !== champs[0]);
+  return { direct: champs[0], given: rest[0] || null, rival: rest[1] || null, sure, year: pack.year || null };
+}
+// CPBL's play-offs (its own lists say which kind, TheSportsDB only that it's
+// one): the games by pairing, in order, each its series' name and number
+// (季後挑戰賽 G2), the first pairing the challenge (季後挑戰賽), the next the
+// Taiwan Series (台灣大賽), each with its round (the 季後賽 bracket) and how
+// its series stands (the challenge's given win in it, from `seeds`). The
+// regular season's games are said to be so once there are play-offs (the
+// scores' 例行賽 / 季後賽 filter).
+const CPBL_BEST = { challenge: 5, final: 7 };
+export function cpblPlayoffs(events, seeds = null) {
   const post = events.filter(e => e.playoff && !e.status.void).sort((a, b) => a.start.localeCompare(b.start));
   if (!post.length) return events;
   const pair = e => [e.home.en, e.away.en].sort().join('|');
   const tagged = new Map();
+  const list = [];
   let series = null;
   let count = 0;
   for (const e of post) {
     if (!series || series.pair !== pair(e)) {
       count += 1;
-      series = { pair: pair(e), kind: typeof e.playoff === 'string' ? e.playoff : count === 1 ? 'challenge' : 'final', n: 0 };
+      const kind = typeof e.playoff === 'string' ? e.playoff : count === 1 ? 'challenge' : 'final';
+      const wins = { [e.home.id]: 0, [e.away.id]: 0 };
+      // (Only the pack's own year: last year's challenge had seeds of its own.)
+      const sameYear = !seeds?.year || Number(e.start.slice(0, 4)) === Number(seeds.year);
+      if (kind === 'challenge' && sameYear && seeds?.given && seeds.given in wins) wins[seeds.given] = 1;
+      series = { pair: pair(e), kind, n: 0, wins, games: [] };
+      list.push(series);
     }
     series.n += 1;
+    series.games.push(e);
+    if (e.status.state === 'post') {
+      const [h, a] = [Number(e.home.score), Number(e.away.score)];
+      if (h !== a) series.wins[h > a ? e.home.id : e.away.id] += 1;
+    }
     const s = CPBL_SERIES[series.kind];
-    tagged.set(e.id, { key: s.key, zh: s.key === 'final' ? '總冠軍賽' : '季後賽', en: s.key === 'final' ? 'Finals' : 'Playoffs', round: { zh: `${s.zh} G${series.n}`, en: `${s.en} - Game ${series.n}` }, special: true });
+    tagged.set(e.id, { series, stage: { key: s.key, zh: s.key === 'final' ? '總冠軍賽' : '季後賽', en: s.key === 'final' ? 'Finals' : 'Playoffs', round: { zh: `${s.zh} G${series.n}`, en: `${s.en} - Game ${series.n}` }, special: true } });
   }
+  // How each series stands now, on every one of its games (as ESPN's do).
+  const standing = new Map(
+    list.map(x => {
+      const need = (CPBL_BEST[x.kind] + 1) / 2;
+      const [a, b] = Object.keys(x.wins);
+      const [wa, wb] = [x.wins[a], x.wins[b]];
+      const ab = id => x.games[0][x.games[0].home.id === id ? 'home' : 'away'].abbr;
+      const lead = wa === wb ? null : wa > wb ? a : b;
+      const done = Math.max(wa, wb) >= need;
+      const score = `${Math.max(wa, wb)}-${Math.min(wa, wb)}`;
+      const summary = !lead ? `Series tied ${score}` : `${ab(lead)} ${done ? 'win' : 'lead'} series ${score}`;
+      return [x, { summary, completed: done, games: CPBL_BEST[x.kind], wins: { ...x.wins } }];
+    })
+  );
   const regular = { key: 'regular', zh: '例行賽', en: 'Regular season', round: null, special: false };
-  return events.map(e => ({ ...e, stage: tagged.get(e.id) || (e.playoff ? e.stage : regular) }));
+  return events.map(e => {
+    const t = tagged.get(e.id);
+    if (!t) return { ...e, stage: e.playoff ? e.stage : regular };
+    const s = CPBL_SERIES[t.series.kind];
+    return { ...e, stage: t.stage, round: { key: t.series.kind, title: s.en, leg: 0, through: standing.get(t.series).completed ? Object.keys(t.series.wins).filter(id => t.series.wins[id] >= (CPBL_BEST[t.series.kind] + 1) / 2) : [] }, series: standing.get(t.series) };
+  });
 }
 // The months around now (and `extra` more either side): a whole stretch of
 // the season, past games and the next ones.
@@ -786,7 +858,7 @@ export async function asiaEvents(league, extra = 0, now = Date.now()) {
   const events = parseAsia(lists.flat(), league)
     .filter(e => !seen.has(e.id) && seen.add(e.id))
     .sort((a, b) => a.start.localeCompare(b.start));
-  const shown = league === 'cpbl' ? cpblPlayoffs(events) : events;
+  const shown = league === 'cpbl' ? cpblPlayoffs(events, cpblSeeds(await cpblPack().catch(() => null))) : events;
   return shown.some(e => e.status.state === 'in') ? withKambiLive(shown, league) : shown;
 }
 
@@ -1231,9 +1303,10 @@ export async function standings(league, { season = null } = {}) {
 // CPBL's tables: the league's own (Shared-Data's nightly copy: the half on
 // now, the other half, the year), with the games finished since it was
 // built put in (a night's games before midnight). Only this season's.
+export const cpblPack = async () => kit.packJson('sports/cpbl/standings.json', { ttl: 30 * 60_000 });
 export async function asiaStandings(league, season = null) {
   if (league !== 'cpbl') return [];
-  const [pack, events] = await Promise.all([kit.packJson('sports/cpbl/standings.json', { ttl: 30 * 60_000 }), asiaEvents(league).catch(() => [])]);
+  const [pack, events] = await Promise.all([cpblPack(), asiaEvents(league).catch(() => [])]);
   if (season && pack?.year && season !== pack.year) return [];
   return cpblTable(pack, events, detectLocale());
 }

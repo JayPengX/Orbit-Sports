@@ -415,6 +415,11 @@ const mmss = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2
 // pictures and best lap (qualifying, practice) or gap (a race). A slot
 // (`data-f1-brief`) app.js fills again as the feed moves; until the feed is
 // in, the leader as ESPN has it.
+// A driver as F1 names them (its page's: "Kimi Antonelli", not ESPN's "Andrea Kimi Antonelli").
+export const f1Shown = full => {
+  const page = f1Driver(full).page;
+  return page ? page.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ').replace(/\bHulkenberg\b/, 'Hülkenberg').replace(/\bPerez\b/, 'Pérez') : full;
+};
 export function f1Brief(e) {
   if (e?.league !== 'f1' || e.status?.state !== 'in') return null;
   const box = el('div', { class: 'f1-brief', 'data-f1-brief': e.id });
@@ -446,12 +451,10 @@ export function fillF1Brief(box, e) {
       { class: 'f1-brief-top' },
       f.cars.slice(0, 3).map((c, i) => {
         const espn = field.find(x => plain(x.name) === plain(c.name)) || { name: c.name };
-        const zh = f1Driver(c.name).zh;
-        const last = String(en || !zh || zh === c.name ? c.name : zh).split(/[.\s]/).at(-1);
         return el('li', {}, [
           el('span', { class: 'pos num', text: String(c.pos) }),
           personPic({ ...espn, en: c.name }, 'f1', 'xs round'),
-          el('span', { class: 'f1-brief-name', text: last }),
+          el('span', { class: 'f1-brief-name', text: f1Shown(c.name) }),
           el('span', { class: 'num f1-brief-v', text: race ? (i === 0 ? '' : c.gap) : c.best || (i === 0 ? '' : c.gap) || '' })
         ]);
       })

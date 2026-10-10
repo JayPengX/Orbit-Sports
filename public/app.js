@@ -12,7 +12,7 @@
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -1423,7 +1423,7 @@ function openScores(league, date, view = 'games') {
 // season's on, last season's when this one hasn't begun. Read once a league
 // is opened, kept 10 minutes.
 const brackets = new Map();
-const hasBracket = k => LEAGUES[k]?.kind === 'match' && !LEAGUES[k].asia && Boolean(FORMATS[k]);
+const hasBracket = k => LEAGUES[k]?.kind === 'match' && (!LEAGUES[k].asia || k === 'cpbl') && Boolean(FORMATS[k]);
 const played = r => Number(r.stats?.GP ?? r.stats?.gamesPlayed ?? 0) || Number(r.stats?.W || 0) + Number(r.stats?.L || 0);
 // Playoff games read back a week of game days at a time from the latest of
 // `days`, until a week with none (the regular season): one small batch after
@@ -1459,7 +1459,23 @@ async function lastSeason(league, info) {
   if (!events.length) throw new Error(`${league}: last playoffs unread`);
   return { mode: 'last', events, season: prev?.season?.name || '' };
 }
+// CPBL's: this season's play-off games (its own lists), else the table's
+// prediction while the season's on (March to October), else last year's.
+async function cpblPlayoffData() {
+  const [pack, groups] = await Promise.all([cpblPack(), standings('cpbl')]);
+  const seeds = cpblSeeds(pack);
+  const year = new Date(Date.now() + 8 * 3_600_000).getUTCFullYear();
+  const events = (await asiaEvents('cpbl', 1)).filter(e => e.round && Date.parse(e.start) >= Date.UTC(year, 0, 1));
+  if (events.length) return { mode: 'live', events, groups, seeds, season: String(year) };
+  const month = new Date(Date.now() + 8 * 3_600_000).getUTCMonth() + 1;
+  if (pack?.year === year && month >= 3 && month <= 10 && seeds) return { mode: 'projected', events: [], groups, seeds, season: String(year) };
+  const last = (await asiaEvents('cpbl', 0, Date.UTC(year - 1, 9, 20))).filter(e => e.round);
+  // Last year's seeds aren't this pack's: its games say who met whom.
+  if (!last.length) throw new Error('cpbl: last playoffs unread');
+  return { mode: 'last', events: last, groups: null, seeds: null, season: String(year - 1) };
+}
 async function playoffData(league) {
+  if (league === 'cpbl') return cpblPlayoffData();
   // Unread is a failure (asked again soon), never taken for "no season".
   const info = await seasonInfo(league);
   const season = info?.season || {};

@@ -75,3 +75,11 @@ test("F1: a session F1's feed says has started is on at once (ESPN says so minut
   const split = splitWeekend(weekend, Date.parse('2026-10-10T08:02:00Z'));
   assert.deepEqual(split.map(x => x.status.state), ['post', 'in', 'pre']);
 });
+
+test('a side held scoreless shows 0, not an empty score', () => {
+  const t = { en: 'CTBC Brothers', zh: '中信兄弟' };
+  const l = { en: 'Uni-President Lions', zh: '統一7-ELEVEn獅' };
+  const [e] = parseAsia([{ id: 'x', start: '2026-10-10T09:05:00.000Z', home: l, away: t, homeScore: 1, awayScore: null, state: 'post' }], 'cpbl', 'zh');
+  assert.equal(e.away.score, 0);
+  assert.equal(e.home.winner, true);
+});

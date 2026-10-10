@@ -3,7 +3,7 @@
 // biography or the team's profile; through the proxy, trimmed to its grids)
 // and each weekend's results from Jolpica (the grid, the finish, a retirement
 // and the sprint).
-import { getJson, feedEnded, feedStarted } from './espn.mjs';
+import { getJson, feedEnded, feedStarted, feedOnAt } from './espn.mjs';
 import { f1Driver } from '#kit/logos.mjs';
 
 const F1 = 'https://www.formula1.com/en';
@@ -238,25 +238,44 @@ export function sameSession(feed, abbr, start) {
   const named = kind === 'Sprint' ? s.name === 'Sprint' : kind === 'Race' ? s.type === 'Race' && s.name !== 'Sprint' : kind === 'Sprint Qualifying' ? /sprint/i.test(s.name) && /qualifying|shootout/i.test(`${s.name} ${s.type}`) : s.type === kind && !/sprint/i.test(s.name);
   return named && Math.abs(at - Date.parse(start)) < 3 * 3_600_000;
 }
-// The last reading, kept for the session (sessionStorage too, so a reload
-// or a sheet opened from a card draws it at once, not after the read).
-const KEPT = 'fx.f1live';
+// The last reading, kept on the device (a reload, a reopen or a sheet opened
+// from a card draws it at once, not after the read; a session just over
+// shows its last reading until the official numbers are in).
+const KEPT = 'fx.f1live.v2';
 let last = null;
 try {
-  last = JSON.parse(sessionStorage.getItem(KEPT) || 'null');
+  sessionStorage.removeItem('fx.f1live');
+  last = JSON.parse(localStorage.getItem(KEPT) || 'null');
 } catch {}
 // The feed's word that a session is over (its status, or race control's "END OF SESSION" / the chequered flag).
-export const feedOver = feed => /^(Finished|Finalised|Ends)$/i.test(feed?.session?.status || '') || /CHEQUERED FLAG|END OF SESSION/i.test(feed?.message?.text || '');
+// A qualifying's parts each end with the chequered flag and "Finished": only
+// its last part's end is the session's (between Q1 and Q2 it said 完賽, with
+// a replay to watch and no live board).
+export const feedParts = feed => (/qualifying|shootout/i.test(`${feed?.session?.type || ''} ${feed?.session?.name || ''}`) ? Math.max(3, feed?.entries?.length || 0) : 1);
+export const feedOver = feed => {
+  const status = feed?.session?.status || '';
+  if (/^(Finalised|Ends)$/i.test(status)) return true;
+  const said = /^Finished$/i.test(status) || /CHEQUERED FLAG|END OF SESSION/i.test(feed?.message?.text || '');
+  return said && (feed?.part || 1) >= feedParts(feed);
+};
+// Between a qualifying's parts: the last one over, the next not begun (its clock full and standing).
+export const feedBreak = feed => {
+  if (feedParts(feed) < 2 || feedOver(feed) || feed?.clock?.running) return false;
+  const status = feed?.session?.status || '';
+  const full = [0, 1080, 900, 720][feed?.part || 0] || 0;
+  return /^(Finished|Inactive)$/i.test(status) || /CHEQUERED FLAG/i.test(feed?.message?.text || '') || (full > 0 && feed?.clock?.left >= full - 2);
+};
 export async function liveTiming(abbr, start) {
   const feed = await getJson(LIVE, { ttl: 4_000 });
   if (!feed?.cars?.length) return null;
   last = feed;
   try {
-    sessionStorage.setItem(KEPT, JSON.stringify(feed));
+    localStorage.setItem(KEPT, JSON.stringify(feed));
   } catch {}
   if (!sameSession(feed, abbr, start)) return null;
-  if (feedOver(feed)) feedEnded.add(`${abbr}|${start}`);
-  else if (/^(Started|Aborted)$/i.test(feed.session?.status || '') || feed.clock?.running) feedStarted.add(`${abbr}|${start}`);
+  const k = `${abbr}|${start}`;
+  if (feedOver(feed)) feedEnded.add(k);
+  else if (/^(Started|Aborted)$/i.test(feed.session?.status || '') || feed.clock?.running || feedBreak(feed)) feedStarted.add(k), feedOnAt.set(k, Date.now());
   return feed;
 }
 // A session that's over, from F1's archive (f1-live.js /session.json): each
@@ -264,7 +283,8 @@ export async function liveTiming(abbr, start) {
 // board's shape. Null when it isn't there (yet).
 const ARCHIVE = start => `https://f1-live.quadra/session.json?start=${encodeURIComponent(new Date(start).toISOString())}`;
 export const sessionTiming = start => getJson(ARCHIVE(start), { ttl: 24 * 3_600_000 }).then(b => (b?.cars?.length ? b : null));
-// The last reading of this session if it's recent (10 minutes), else null.
-export const keptTiming = (abbr, start) => (last && Date.now() - last.at < 10 * 60_000 && sameSession(last, abbr, start) ? last : null);
+// The last reading of this session if it's recent (10 minutes), or its last
+// word (the session over: it stands until the official numbers come), else null.
+export const keptTiming = (abbr, start) => (last && sameSession(last, abbr, start) && (Date.now() - last.at < 10 * 60_000 || (feedOver(last) && Date.now() - last.at < 2 * 86_400_000)) ? last : null);
 // Where a qualifying part cuts (NoEntries: [22, 16, 10]): the last place through, or 0.
 export const qualiCut = (part, entries = []) => (part >= 1 && part < entries.length ? entries[part] : 0);
