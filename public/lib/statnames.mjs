@@ -210,8 +210,22 @@ const TEAM_PICK = {
     ['pitching.innings', '投球局數'], ['pitching.pitches', '用球數', LOW], ['pitching.strikeouts', '奪三振'], ['pitching.walks', '投出保送', LOW],
     ['pitching.hits', '被安打', LOW], ['pitching.homeRuns', '被全壘打', LOW], ['pitching.earnedRuns', '自責分', LOW], ['pitching.ERA', '防禦率', LOW], ['pitching.WHIP', 'WHIP', LOW],
     ['fielding.errors', '失誤', LOW], ['fielding.doublePlays', '雙殺']
+  ],
+  // As a broadcast's stats screen and the leagues' apps run them: the game's shape first (possession, shots), then passing, defending, discipline; 0-0 kept (no red cards is a number too).
+  soccer: [
+    ['possessionPct', '控球率', false, '攻勢'], ['totalShots', '射門', false, '攻勢'], ['shotsOnTarget', '射正', false, '攻勢'], ['shotPct', '射正率', false, '攻勢'], ['wonCorners', '角球', false, '攻勢'], ['offsides', '越位', LOW, '攻勢'], ['penaltyKickGoals', '點球進球', false, '攻勢'],
+    ['totalPasses', '傳球', false, '傳球'], ['accuratePasses', '成功傳球', false, '傳球'], ['passPct', '傳球成功率', false, '傳球'], ['totalCrosses', '傳中', false, '傳球'], ['crossPct', '傳中成功率', false, '傳球'], ['totalLongBalls', '長傳', false, '傳球'], ['longballPct', '長傳成功率', false, '傳球'],
+    ['totalTackles', '搶斷', false, '防守'], ['tacklePct', '搶斷成功率', false, '防守'], ['interceptions', '攔截', false, '防守'], ['totalClearance', '解圍', false, '防守'], ['blockedShots', '封阻射門', false, '防守'], ['saves', '撲救', false, '防守'],
+    ['foulsCommitted', '犯規', LOW, '紀律'], ['yellowCards', '黃牌', LOW, '紀律'], ['redCards', '紅牌', LOW, '紀律']
+  ],
+  basketball: [
+    ['fieldGoalsMade-fieldGoalsAttempted', '投籃', false, '投籃'], ['fieldGoalPct', '投籃命中率', false, '投籃'], ['threePointFieldGoalsMade-threePointFieldGoalsAttempted', '三分球', false, '投籃'], ['threePointFieldGoalPct', '三分命中率', false, '投籃'], ['freeThrowsMade-freeThrowsAttempted', '罰球', false, '投籃'], ['freeThrowPct', '罰球命中率', false, '投籃'],
+    ['totalRebounds', '籃板', false, '籃板與傳導'], ['offensiveRebounds', '進攻籃板', false, '籃板與傳導'], ['defensiveRebounds', '防守籃板', false, '籃板與傳導'], ['assists', '助攻', false, '籃板與傳導'], ['steals', '抄截', false, '籃板與傳導'], ['blocks', '阻攻', false, '籃板與傳導'],
+    ['pointsInPaint', '禁區得分', false, '得分來源'], ['fastBreakPoints', '快攻得分', false, '得分來源'], ['turnoverPoints', '失誤得分', false, '得分來源'], ['largestLead', '最大領先', false, '得分來源'],
+    ['totalTurnovers', '失誤', LOW, '失誤與犯規'], ['fouls', '犯規', LOW, '失誤與犯規'], ['technicalFouls', '技術犯規', LOW, '失誤與犯規'], ['flagrantFouls', '惡意犯規', LOW, '失誤與犯規']
   ]
 };
+const GROUP_EN = { 攻勢: 'Attack', 傳球: 'Passing', 防守: 'Defending', 紀律: 'Discipline', 投籃: 'Shooting', 籃板與傳導: 'Rebounds & playmaking', 得分來源: 'Scoring', 失誤與犯規: 'Turnovers & fouls' };
 const TEAM_KEY = {
   // Soccer
   possessionPct: ['控球率'], totalShots: ['射門'], shotsOnTarget: ['射正'], shotPct: ['射正率'], wonCorners: ['角球'], foulsCommitted: ['犯規', LOW],
@@ -262,12 +276,17 @@ export function teamStatRows(stats, sport, lang = 'zh') {
   const byKey = new Map((stats || []).map(s => [s.key, s]));
   const pick = TEAM_PICK[sport];
   if (pick) {
+    // (In English, ESPN's others after them, in its words.)
+    const rest = zh ? [] : (stats || []).filter(s => !pick.some(([k]) => k === s.key) && !DULL.test(s.label)).map(s => ({ group: '', label: s.label, away: s.away, home: s.home, low: false }));
     return pick
       .filter(([k]) => byKey.has(k))
-      .map(([k, name, low]) => {
+      .map(([k, name, low, group]) => {
         const s = byKey.get(k);
-        return { group: zh ? GROUP_ZH[s.group] || s.group : s.group.replace(/^./, c => c.toUpperCase()), label: zh ? name : s.label, away: s.away, home: s.home, low: Boolean(low) };
-      });
+        const [away, home] = pctText(k, s.away, s.home);
+        const g = group ? (zh ? group : GROUP_EN[group] || group) : zh ? GROUP_ZH[s.group] || s.group : String(s.group || '').replace(/^./, c => c.toUpperCase());
+        return { group: g, label: zh ? name : s.label, away, home, low: Boolean(low) };
+      })
+      .concat(rest);
   }
   return (stats || [])
     .filter(s => !DULL.test(s.label) && !(Number(s.home) === 0 && Number(s.away) === 0 && !/:|-|\//.test(`${s.home}${s.away}`)))

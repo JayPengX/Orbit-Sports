@@ -972,6 +972,43 @@ export function parseSummary(data, league) {
   const plays = (data?.scoringPlays || data?.plays?.filter(p => p.scoringPlay) || [])
     .slice(-60)
     .map(p => ({ text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), periodNum: p.period?.number || 0, periodType: p.period?.type || '', clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore, ...detailOf(p) }));
+  // A football game's whole commentary (every shot, corner, foul and stoppage; key events are a third of it):
+  // its players by name (it names them, no ids) for their faces, its team by name, the score after a goal.
+  // (Its words write "Brighton and Hove Albion" for the header's "Brighton & Hove Albion".)
+  const fold = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s*&\s*/g, ' and ').toLowerCase().trim();
+  const byName = new Map();
+  for (const [id, x] of people) byName.set(fold(x.name), { id, ...x });
+  const comps = (header?.competitors || []).map(c => ({ id: String(c.team?.id ?? ''), home: c.homeAway === 'home', names: [c.team?.displayName, c.team?.shortDisplayName, c.team?.name].filter(Boolean) }));
+  const teamOf = name => comps.find(c => c.names.some(n => fold(n) === fold(name)))?.id || '';
+  // "Goal! Chelsea 1, Brighton and Hove Albion 0.": each side's number after its name.
+  const scoreIn = text => {
+    const said = fold(text);
+    const got = comps.map(c => c.names.map(n => new RegExp(`${fold(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} (\\d+)[,.]`).exec(said)).find(Boolean)?.[1]);
+    return got.every(v => v != null) ? Object.fromEntries(comps.map((c, i) => [c.home ? 'home' : 'away', Number(got[i])])) : {};
+  };
+  const commentary = (data?.commentary || [])
+    .filter(c => c.play?.type?.type)
+    .map(c => {
+      const p = c.play;
+      const [a, b] = (p.participants || []).map(x => x.athlete?.displayName || '');
+      const k = byName.get(fold(a));
+      const scoring = /^goal|own-goal/.test(p.type.type);
+      return { id: String(p.id ?? ''), text: c.text || p.text || '', commentary: true, kind: p.type.type, type: p.type.text || '', clock: c.time?.displayValue || p.clock?.displayValue || '', periodNum: p.period?.number || 0, team: teamOf(p.team?.displayName), scoring, who: k?.short || a || '', pic: k ? { id: k.id, name: k.name, headshot: k.headshot } : null, ...(b ? { other: byName.get(fold(b))?.short || b } : {}), ...(scoring ? scoreIn(c.text || '') : {}) };
+    })
+    // A foul is two lines (the free kick won, then "Foul by"): one, the player fouled kept on it.
+    .reduce((out, p) => {
+      const prev = out.at(-1);
+      const won = /^(.+?) \([^)]*\) wins a free kick/.exec(p.text)?.[1];
+      const by = /^Foul by /.test(p.text);
+      if (prev && prev.clock === p.clock && ((by && prev.wonBy) || (won && prev.foulLine))) {
+        const foul = by ? p : prev;
+        const fouled = by ? prev.wonBy : won;
+        out[out.length - 1] = { ...foul, fouled: byName.get(fold(fouled))?.short || fouled, foulLine: false, wonBy: '' };
+        return out;
+      }
+      out.push(won ? { ...p, wonBy: won } : by ? { ...p, foulLine: true } : p);
+      return out;
+    }, []);
   const keyEvents = (data?.keyEvents || [])
     .filter(k => k.type?.type !== 'kickoff' && k.type?.type !== 'halftime' && k.type?.type !== 'end-regular-time')
     .map(k => ({ text: k.text || k.type?.text || '', type: k.type?.type || '', clock: k.clock?.displayValue || '', team: String(k.team?.id ?? ''), scoring: Boolean(k.scoringPlay), ...detailOf(k), type: k.type?.type || '' }));
@@ -1085,6 +1122,7 @@ export function parseSummary(data, league) {
     feed,
     drives,
     keyEvents,
+    commentary,
     rosters,
     leaders,
     injuries,
@@ -1168,7 +1206,8 @@ export async function winLine(e) {
 // a race to come, each driver's chance now. Null where there's no market.
 export async function raceWinLine(ss) {
   const state = ss.status.state;
-  if (state === 'pre') return raceNow(ss.start, (url, { trim = '', kind }) => getJson(url, { trim, ttl: PM_TTL[kind] ?? 5 * 60_000 }));
+  // A race to come: its prices as of now each time it's opened (kept half a minute, not five: a qualifying just over moves them).
+  if (state === 'pre') return raceNow(ss.start, (url, { trim = '', kind }) => getJson(url, { trim, ttl: kind === 'now' ? 30_000 : PM_TTL[kind] ?? 5 * 60_000 }));
   if (state === 'post' && kit.packJson) {
     const month = await kit.packJson(monthPack('f1', ss.start), { ttl: 6 * 3_600_000 }).catch(() => null);
     const kept = month?.games?.[raceKey(ss.start)];

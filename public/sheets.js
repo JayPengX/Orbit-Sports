@@ -16,11 +16,11 @@ import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLine
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, lapMs } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
-import { SEASON_GAMES } from './lib/title.mjs';
+import { SEASON_GAMES, liveTable } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
@@ -191,7 +191,7 @@ export async function openMatch(e) {
     // The game's own numbers, once it's begun (before it, ESPN's are a stray season total or two: 助攻 4–3).
     if ((data?.status || e.status).state !== 'pre' && teamStatRows(data?.teamStats, LEAGUES[e.league]?.sport, L()).length) tabs.push(['stats', T('stats')]);
     if (data?.players.some(p => p.tables.some(tb => tb.rows.length))) tabs.push(['players', T('players')]);
-    if (data?.plays.length || data?.keyEvents.length) tabs.push(['plays', T('plays')]);
+    if (data?.plays.length || data?.keyEvents.length || data?.commentary?.length) tabs.push(['plays', T('plays')]);
     if (data?.rosters.some(r => r.players.length)) tabs.push(['lineups', T('lineups')]);
     // The table only once it has a game in it (a preseason's is all zeros in the feed's order).
     const shownTable = table?.length ? table : data?.table.length ? [{ rows: data.table.map(r => ({ id: r.id, stats: r.stats })) }] : [];
@@ -318,10 +318,7 @@ function livePanel(e, sm = null) {
       ])
     );
   }
-  if (lv.events?.length) {
-    const col = id => lv.events.filter(x => x.team === id).map(x => el('li', {}, [el('span', { class: 'num', text: x.minute }), el('span', { text: `${x.kind === 'red' ? '🟥' : '⚽'} ${x.who}${x.kind === 'pen' ? '（PK）' : x.kind === 'own' ? (en ? ' (OG)' : '（烏龍）') : ''}` })]));
-    rows.push(el('div', { class: 'lp-goals' }, [el('ul', {}, col(e.away.id)), el('ul', { class: 'home' }, col(e.home.id))]));
-  }
+  if (lv.events?.length) rows.push(goalTimeline(e, lv.events));
   if (lv.lastPlay) {
     // ESPN writes it in English: in Chinese once translated (kept 30 days per line).
     // A pitch ("Strike 2 Foul") in fixed words; anything else translated.
@@ -331,6 +328,36 @@ function livePanel(e, sm = null) {
     rows.push(el('p', { class: 'lp-last' }, [el('small', { text: T('lastPlay') }), text]));
   }
   return rows.length ? el('div', { class: 'live-panel' }, rows) : null;
+}
+// A football game's goals and red cards as a match centre lists them: one
+// row each in the order they came, the minute in the middle, the player on
+// his team's side (away left, home right, as the score above), his face and
+// name a tap to his page; a penalty, an own goal (the team it counted for,
+// the defender named) and a red card each marked.
+function goalTimeline(e, events) {
+  const en = L() === 'en';
+  const mins = x => {
+    const [a, b] = String(x.minute || '').replace(/'/g, '').split('+').map(Number);
+    return (a || 0) + (b || 0) / 100;
+  };
+  const side = x => (x.team === String(e.home.id) ? 'home' : 'away');
+  const cell = x => {
+    const tag = x.kind === 'pen' ? 'PK' : x.kind === 'own' ? (en ? 'OG' : '烏龍') : '';
+    // (Every row's a goal but a red card: only that one marked.)
+    const mark = x.kind === 'red' ? el('i', { class: 'lg-red', 'aria-label': en ? 'Red card' : '紅牌' }) : null;
+    const p = x.person || { name: x.who };
+    // An own goal: its team's logo (the defender's face on the other side read as his goal).
+    const team = e[side(x)];
+    const pic = x.kind === 'own' ? logo(team.logo, team.name, 'xs') : personPic({ ...p, en: p.name }, e.league, 'xs round');
+    const kids = [pic, el('span', { class: 'lg-name', text: x.who || p.name || '' }), tag ? el('small', { class: 'lg-tag', text: tag }) : null, mark];
+    const can = x.kind !== 'own' && p.id && LEAGUES[e.league]?.espn && /^\d+$/.test(String(p.id));
+    return can ? el('button', { class: 'lg-who tap', type: 'button', 'aria-label': p.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, String(p.id), { name: p.name, logo: p.headshot })) }, kids) : el('span', { class: 'lg-who' }, kids);
+  };
+  return el(
+    'ol',
+    { class: 'lp-goals' },
+    [...events].sort((a, b) => mins(a) - mins(b)).map(x => el('li', { class: `lg-${side(x)}` }, [side(x) === 'away' ? cell(x) : el('span'), el('span', { class: 'lg-min num', text: x.minute }), side(x) === 'home' ? cell(x) : el('span')]))
+  );
 }
 // A count as dots: balls of 4, strikes and outs of 3.
 const dots = (n, of, cls) => el('span', { class: `lp-dots ${cls}` }, Array.from({ length: of }, (_, i) => el('i', { class: i < n ? 'on' : '' })));
@@ -403,11 +430,21 @@ function linescore(sm, e) {
   const away = sm?.away || e.away;
   const n = Math.max(home.lines?.length || 0, away.lines?.length || 0);
   if (!n || n > 20) return null;
-  const head = Array.from({ length: n }, (_, i) => el('th', { text: String(i + 1) }));
+  // Each column by its sport's name for it: a football game's halves (上半 / 下半, extra time, penalties), a period past regulation OT.
+  const sport = LEAGUES[e.league]?.sport;
+  const en = L() === 'en';
+  const regular = { basketball: 4, hockey: 3, football: 4 }[sport] || 0;
+  const colName = i =>
+    sport === 'soccer'
+      ? (en ? ['1H', '2H', 'ET1', 'ET2', 'Pens'] : ['上半', '下半', '延長上', '延長下', 'PK'])[i] || String(i + 1)
+      : regular && i >= regular
+        ? `OT${i - regular ? i - regular + 1 : ''}`
+        : String(i + 1);
+  const head = Array.from({ length: n }, (_, i) => el('th', { text: colName(i) }));
   // The sides by their Chinese names when they have them (a short one fits the column).
   const tag = x => (L() !== 'en' && x.en && x.short && x.short.length <= 5 ? x.short : x.abbr || x.short);
   const row = x => el('tr', {}, [el('th', { class: 'ls-team', text: tag(x) }), ...Array.from({ length: n }, (_, i) => el('td', { class: 'num', text: x.lines?.[i] ?? '' })), el('td', { class: 'num total', text: x.score })]);
-  return el('div', { class: 'table-wrap' }, [el('table', { class: 'linescore' }, [el('thead', {}, [el('tr', {}, [el('th'), ...head, el('th', { text: 'T' })])]), el('tbody', {}, [row(away), row(home)])])]);
+  return el('div', { class: 'table-wrap' }, [el('table', { class: 'linescore' }, [el('thead', {}, [el('tr', {}, [el('th'), ...head, el('th', { text: sport === 'baseball' ? 'R' : en ? 'T' : '總分' })])]), el('tbody', {}, [row(away), row(home)])])]);
 }
 
 // A stat's number: "12-25" (made-attempted) is its rate, "45%" and ".271" as they are.
@@ -467,11 +504,13 @@ const boxTableName = name => BOX_TABLES[String(name).toLowerCase()]?.[L() === 'e
 function matchSection(view, d, e, table, lw = {}) {
   const nameOf = id => d?.byId[id]?.short || d?.byId[id]?.name || (id === e.home.id ? e.home.short : id === e.away.id ? e.away.short : '');
   if (view === 'stats' && d) {
+    // Each side in its own colour (the win chance chart's: told apart from each other and the card), the leagues' own apps' way.
+    const tint = sideColors(e.home, e.away, getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff');
     return card(
       T('teamStats'),
       el(
         'div',
-        { class: 'stat-bars' },
+        { class: 'stat-bars', style: [tint.away ? `--away:${tint.away}` : '', tint.home ? `--home:${tint.home}` : ''].filter(Boolean).join(';') || null },
         [el('div', { class: 'sb-legend' }, [el('span', { class: 'away', text: nameOf(e.away.id) || e.away.short }), el('span', { class: 'home', text: nameOf(e.home.id) || e.home.short })])].concat(
           teamStatRows(d.teamStats, LEAGUES[e.league]?.sport, L()).flatMap((s, i, rows) => {
             const [a, h] = [statValue(s.away), statValue(s.home)];
@@ -544,7 +583,8 @@ function matchSection(view, d, e, table, lw = {}) {
       }
       return playsNav(el('ol', { class: 'plays' }, rows));
     }
-    const list = sport === 'basketball' && d.feed.length ? d.feed : sport === 'baseball' && d.feed.some(p => p.kind === 'play-result') ? d.feed.filter(p => p.kind === 'play-result' || (p.scoring && p.kind !== 'play-result')) : d.keyEvents.length ? d.keyEvents : d.plays;
+    // Football: the whole commentary (every shot, corner and foul), its key events where there's none.
+    const list = sport === 'basketball' && d.feed.length ? d.feed : sport === 'baseball' && d.feed.some(p => p.kind === 'play-result') ? d.feed.filter(p => p.kind === 'play-result' || (p.scoring && p.kind !== 'play-result')) : sport === 'soccer' && d.commentary?.length ? d.commentary : d.keyEvents.length ? d.keyEvents : d.plays;
     // The chart's key moments, by play: a run told where it ended, a play by itself.
     const marks = new Map();
     const tint = sideColors(e.home, e.away, getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff');
@@ -600,7 +640,11 @@ function matchSection(view, d, e, table, lw = {}) {
     );
   }
   if (view === 'table') {
-    const groups = table?.length ? table : [{ name: '', rows: (d?.table || []).map(r => ({ id: r.id, name: r.team, short: r.team, logo: null, stats: r.stats })) }];
+    const official = table?.length ? table : [{ name: '', rows: (d?.table || []).map(r => ({ id: r.id, name: r.team, short: r.team, logo: null, stats: r.stats })) }];
+    // This game over (or the day's others) before the official table has it: counted in at once, as 賽事's table does.
+    const sport = LEAGUES[e.league]?.sport;
+    const recent = [...(ctx.recentOf?.(e.league) || []).filter(x => x.id !== e.id), { ...e, status: d?.status || e.status, home: { ...e.home, ...(d?.home || {}) }, away: { ...e.away, ...(d?.away || {}) } }];
+    const groups = table?.length && sport !== 'racing' ? liveTable(official, recent, sport) : official;
     return standingsTables(groups, e.league, { mark: [e.home.id, e.away.id] });
   }
   return overview(d, e, table, nameOf, lw);
@@ -1251,7 +1295,9 @@ function personName(league, p, cls = 'field-name') {
 function playLine(league, p, side) {
   const team = typeof side === 'string' ? side : side?.short || side?.name || '';
   const { main, sub } = playParts(feedText(LEAGUES[league]?.sport, p, L() === 'en', team), team);
-  const face = p.pic ? personTap(league, p.pic, personPic(p.pic, league, 'xs round')) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
+  // (An own goal: the team it counts for, not the defender who put it in.)
+  const own = /own-goal/i.test(String(p.kind || p.type || ''));
+  const face = p.pic && !own ? personTap(league, p.pic, personPic(p.pic, league, 'xs round')) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
   // A play with neither (本節結束, 比賽結束): the league's mark, so every row has its picture.
   return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(league)]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null])]);
 }
@@ -1540,18 +1586,17 @@ function f1LiveBoard(b, ss) {
   const begun = !pause || (b.clock.left < ([0, 1080, 900, 720][b.part] || 0) - 2);
   const cut = quali && begun ? qualiCut(b.part, b.entries) : 0;
   const flag = over ? null : TRACK[b.track.status];
-  // The time left, counting down between reads, and the bar under the head.
+  // The time left as F1's feed last said it (never counted on between reads: it stood still on screen when the feed did), and the bar under the head.
   const left = el('span', { class: 'num lb-clock' });
   const fill = el('i');
   const total = (PART_S[ss.abbr] || [])[Math.max(0, (b.part || 1) - 1)] || 0;
   const tickClock = () => {
-    const n = Math.max(0, b.clock.left - (b.clock.running ? (Date.now() - b.at) / 1000 : 0));
+    const n = Math.max(0, b.clock.left);
     left.textContent = over ? (en ? 'Final' : '最終成績') : pause ? (begun ? (en ? 'Over · break' : '結束 · 休息中') : en ? 'Starting soon' : '即將開始') : race && b.lap ? '' : `${en ? '' : '剩 '}${mmss(n)}${en ? ' left' : ''}`;
     const done = over ? 1 : race && b.lap?.of ? b.lap.now / b.lap.of : total ? 1 - n / total : 0;
     fill.style.width = `${Math.round(Math.min(1, Math.max(0, done)) * 100)}%`;
   };
   tickClock();
-  const clockTimer = setInterval(() => (left.isConnected ? tickClock() : clearInterval(clockTimer)), 1000);
   const head = el('div', { class: 'lb-top' }, [
     el('div', { class: 'lb-head' }, [
       el('strong', { class: 'lb-part', text: quali && b.part && !over ? `${prefix}${b.part}` : race && b.lap?.now && !over ? (en ? `Lap ${b.lap.now}/${b.lap.of}` : `第 ${b.lap.now}/${b.lap.of} 圈`) : sessionName(ss, L(), true) }),
@@ -1594,7 +1639,97 @@ function f1LiveBoard(b, ss) {
   };
   // (Over: race control's last word, a flag long gone, isn't said.)
   const msg = b.message?.text && !over ? el('p', { class: 'lb-msg' }, [el('small', { text: en ? 'Race control' : '賽事幹事' }), ...raceControlParts(b.message.text, !en).map(x => (typeof x === 'string' ? document.createTextNode(x) : carChip(x.no)))]) : null;
-  return el('div', { class: 'live-board' }, [head, msg, el('ol', { class: 'field f1-field lb-rows' }, rows)]);
+  // 成績 or 數據 (F1 timing's other numbers), the choice kept as the board's read again.
+  const stats = f1Stats(b, ss);
+  const order = el('ol', { class: 'field f1-field lb-rows' }, rows);
+  if (!stats) return el('div', { class: 'live-board' }, [head, msg, order]);
+  const body = el('div', {}, [f1BoardView === 'stats' ? stats : order]);
+  const views = [['order', en ? 'Order' : '成績'], ['stats', en ? 'Stats' : '數據']];
+  const pickView = segmented(views, f1BoardView, v => {
+    f1BoardView = v;
+    put(body, v === 'stats' ? stats : order);
+    pickView.querySelectorAll('button').forEach((x, i) => x.setAttribute('aria-pressed', String(views[i][0] === v)));
+  }, 'lb-views');
+  return el('div', { class: 'live-board' }, [head, msg, pickView, body]);
+}
+let f1BoardView = 'order';
+// A session's other numbers, as F1's timing has them: a race's tyre strategy
+// (each car's stints by compound and length, the places it gained from the
+// grid, its stops) and the speed trap; a qualifying's or practice's best
+// sectors (the fastest of each purple, as F1 marks it), the ideal lap they
+// make, and the speed trap. Null when the feed has none of them.
+function f1Stats(b, ss) {
+  const en = L() === 'en';
+  const race = ss.abbr === 'Race' || ss.abbr === 'SR';
+  const cars = b.cars.filter(c => c.name);
+  const who = c => {
+    const d = fieldDriver(ss.field, c.name) || { name: c.name };
+    return el('span', { class: 'fs-who' }, [personPic(d, 'f1', 'xs round'), el('span', { class: 'fs-name', text: f1Shown(c.name).split(' ').slice(-1)[0] })]);
+  };
+  const cards = [];
+  if (cars.some(c => c.stints?.length)) {
+    const most = Math.max(1, ...cars.map(c => (c.stints || []).reduce((n, x) => n + x.laps, 0)));
+    cards.push(
+      card(
+        en ? 'Tyre strategy' : '輪胎策略',
+        el(
+          'ol',
+          { class: 'fs-rows' },
+          cars.map(c => {
+            const gained = race && c.grid ? c.grid - c.pos : 0;
+            return el('li', { style: c.colour ? `--team:${c.colour}` : null }, [
+              el('span', { class: 'pos num', text: String(c.pos) }),
+              who(c),
+              el(
+                'span',
+                { class: 'fs-stints' },
+                (c.stints || []).map(x => el('i', { class: `stint ${String(x.c).toLowerCase()}${x.new ? '' : ' used'}`, style: `flex-grow:${x.laps / most}`, title: `${x.c} ${x.laps}` }, [x.laps >= 4 ? el('small', { class: 'num', text: String(x.laps) }) : null])).concat(el('i', { class: 'stint-rest', style: `flex-grow:${Math.max(0, 1 - (c.stints || []).reduce((n, x) => n + x.laps, 0) / most)}` }))
+              ),
+              el('small', { class: `num fs-gain${gained > 0 ? ' up' : gained < 0 ? ' down' : ''}`, text: race ? (gained ? `${gained > 0 ? '▲' : '▼'}${Math.abs(gained)}` : '–') : `${(c.stints || []).reduce((n, x) => n + x.laps, 0)}${en ? 'L' : '圈'}` })
+            ]);
+          })
+        ),
+        { sub: el('span', { class: 'fs-key' }, Object.entries(TYRE).map(([k, [l]]) => el('span', {}, [el('i', { class: `stint ${k.toLowerCase()}` }), document.createTextNode(l)]))) }
+      )
+    );
+  }
+  if (!race && cars.some(c => c.sectors?.some(x => x.v))) {
+    const ms = t => lapMs(t);
+    const ideal = c => (c.sectors.length === 3 && c.sectors.every(x => ms(x.v)) ? c.sectors.reduce((n, x) => n + ms(x.v), 0) : 0);
+    const fmt = n => (n ? `${Math.floor(n / 60000)}:${((n % 60000) / 1000).toFixed(3).padStart(6, '0')}` : '');
+    cards.push(
+      card(
+        en ? 'Best sectors' : '最佳分段',
+        el('table', { class: 'fs-sectors' }, [
+          el('thead', {}, [el('tr', {}, [el('th'), el('th', { text: 'S1' }), el('th', { text: 'S2' }), el('th', { text: 'S3' }), el('th', { text: en ? 'Ideal' : '理想圈' })])]),
+          el(
+            'tbody',
+            {},
+            cars
+              .filter(c => c.sectors?.some(x => x.v))
+              .map(c => el('tr', {}, [el('th', { class: 'fs-name', text: f1Shown(c.name).split(' ').slice(-1)[0] }), ...[0, 1, 2].map(i => el('td', { class: `num${c.sectors[i]?.p === 1 ? ' best' : ''}`, text: c.sectors[i]?.v || '' })), el('td', { class: 'num', text: fmt(ideal(c)) })]))
+          )
+        ]),
+        { sub: en ? 'Purple: fastest of all' : '紫色：全場最快' }
+      )
+    );
+  }
+  if (cars.some(c => c.speed?.v)) {
+    const top = [...cars].filter(c => c.speed?.v).sort((a, b) => b.speed.v - a.speed.v).slice(0, 10);
+    const max = top[0].speed.v;
+    const min = top.at(-1).speed.v - 5;
+    cards.push(
+      card(
+        en ? 'Speed trap' : '極速',
+        el(
+          'ol',
+          { class: 'fs-rows' },
+          top.map((c, i) => el('li', { style: c.colour ? `--team:${c.colour}` : null }, [el('span', { class: 'pos num', text: String(i + 1) }), who(c), el('span', { class: 'fs-speed' }, [el('i', { style: `width:${Math.round(((c.speed.v - min) / (max - min || 1)) * 100)}%` })]), el('small', { class: 'num fs-gain', text: `${c.speed.v} km/h` })]))
+        )
+      )
+    );
+  }
+  return cards.length ? el('div', { class: 'stack fs-stats' }, cards) : null;
 }
 function fillField(s, e) {
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), // The place, then the day and the official start: two designed lines (the

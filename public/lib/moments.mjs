@@ -448,7 +448,8 @@ export function lateClock(sport, point) {
 // period's end, a substitution, a card. Never ESPN's English in Chinese:
 // a play with nothing known said by its team's name and the kind of play.
 const SOCCER_KIND = [
-  [/own-goal/, () => '烏龍球'],
+  // An own goal is the team's that it counts for (ESPN files it there): its goal, the defender aside (often given to an attacker minutes later).
+  [/own-goal/, (w, team) => `${team || w} 進球（${w && w !== team ? `${w} ` : ''}烏龍）`],
   [/penalty---scored|goal---penalty/, w => `${w} 12 碼進球`],
   [/penalty---missed/, w => `${w} 12 碼罰球未進`],
   [/penalty---saved/, w => `${w} 12 碼罰球被撲出`],
@@ -505,6 +506,85 @@ function basketballFeed(play, team) {
   const helper = /\(([^)]+?) assists?\)/i.exec(play.text)?.[1];
   return [play.who || team, what].filter(Boolean).join(' ') + (helper && !free ? `（${initial(helper)} 助攻）` : '');
 }
+// A football commentary line (Opta's set phrases, ESPN's 過程) in Chinese,
+// its details kept: the foot or the head, where from, how it ended, who set
+// it up. -> '' for a line these don't know (the kind's words say it then).
+const FOOT = [[/right footed/, '右腳'], [/left footed/, '左腳'], [/header/, '頭球']];
+const FROM = [
+  [/from very close range/, '近距離'], [/from the six yard box|from the centre of the six yard box/, '小禁區內'], [/from the (left|right) side of the six yard box/, m => `小禁區${m[1] === 'left' ? '左' : '右'}側`],
+  [/from the centre of the box/, '禁區中路'], [/from the (left|right) side of the box/, m => `禁區${m[1] === 'left' ? '左' : '右'}側`], [/from outside the box/, '禁區外'],
+  [/from more than (\d+) yards/, '遠射'], [/from a difficult angle/, '小角度'], [/from a direct free kick/, '直接自由球'], [/from the penalty spot/, '12 碼']
+];
+const ENDS = [
+  [/hits the (left|right) post/, '中柱'], [/hits the bar/, '中楣'], [/is too high/, '偏高'], [/is high and wide to the (left|right)/, '偏高偏出'], [/misses to the (left|right)/, '偏出'],
+  [/is saved in the (?:bottom|top|centre|center)/, '被撲出'], [/is saved/, '被撲出'], [/is blocked/, '被封阻'], [/is close, but misses/, '稍稍偏出']
+];
+const SET_UP = [[/with a cross/, '傳中'], [/with a through ball/, '直塞'], [/with a headed pass/, '頭球擺渡'], [/following a corner/, '角球'], [/following a set piece situation/, '定位球'], [/following a fast break/, '快速反擊']];
+const pick = (list, t) => {
+  for (const [re, to] of list) {
+    const m = re.exec(t);
+    if (m) return typeof to === 'function' ? to(m) : to;
+  }
+  return '';
+};
+const shortName = n => {
+  const parts = String(n || '').trim().split(/\s+/);
+  return parts.length > 1 ? `${parts[0][0]}. ${parts.slice(1).join(' ')}` : n;
+};
+export function soccerLineZh(play, team = '') {
+  const t = String(play.text || '');
+  const kind = String(play.kind || '');
+  const who = play.who || '';
+  const lower = t.toLowerCase();
+  const how = [pick(FROM, lower), pick(FOOT, lower)].filter(Boolean).join('');
+  const assist = /Assisted by ([^.]+?)(?: with| following|\.|$)/.exec(t)?.[1];
+  const setUp = pick(SET_UP, lower);
+  const aside = assist ? `（${shortName(assist)}${setUp && setUp !== '角球' && setUp !== '定位球' ? ` ${setUp}` : ''} 助攻）` : setUp ? `（${setUp}後）` : '';
+  if (/^shot-(off-target|on-target|blocked)$|^shot/.test(kind)) {
+    const end = pick(ENDS, lower) || { 'shot-off-target': '偏出', 'shot-on-target': '射正', 'shot-blocked': '被封阻' }[kind] || '';
+    // "saved … by Emiliano Martínez": the keeper named.
+    const keeper = /saved .*?by ([^(]+?) \(/.exec(t)?.[1];
+    const ended = keeper && end === '被撲出' ? `被 ${shortName(keeper)} 撲出` : end;
+    return `${who} ${how || '射門'}${how ? '射門' : ''}${ended}${aside}`.replace('頭球射門', '頭球');
+  }
+  if (/^goal/.test(kind)) {
+    const spot = /penalty/.test(kind) || /penalty/.test(lower);
+    return `${who} ${spot ? '12 碼' : how}破門${aside}`;
+  }
+  // A foul and the free kick it gave, one line (the commentary's two): who fouled whom.
+  if (kind === 'foul' || /wins a free kick/.test(t)) {
+    const won = /^(.+?) \([^)]*\) wins a free kick/.exec(t)?.[1] || play.fouled;
+    const by = /^Foul by (.+?) \(/.exec(t)?.[1] || play.foulBy;
+    const where = /attacking half/.test(t) ? '前場' : /defensive half/.test(t) ? '後場' : /on the (left|right) wing/.test(t) ? '邊路' : '';
+    if (by) return `${who || shortName(by)} 犯規${play.fouled || won ? `（${play.fouled || shortName(won)} 被犯）` : ''}`;
+    if (won) return `${shortName(won)} 製造自由球${where ? `（${where}）` : ''}`;
+    return '';
+  }
+  if (kind === 'corner-awarded') {
+    const by = /Conceded by ([^.]+)\./.exec(t)?.[1];
+    return `${team ? `${team} ` : ''}獲得角球${by ? `（${shortName(by)} 送出）` : ''}`;
+  }
+  if (kind === 'handball') return `${who} 手球`;
+  if (kind === 'offside') {
+    const caught = /but ([^.]+?) is caught offside/.exec(t)?.[1];
+    return `${caught ? shortName(caught) : who} 越位`;
+  }
+  if (kind === 'start-delay') {
+    const hurt = /injury ([^(]+?) \(/.exec(t)?.[1];
+    return hurt ? `比賽暫停（${shortName(hurt)} 受傷）` : '比賽暫停';
+  }
+  if (kind === 'end-delay') return '比賽繼續';
+  if (/yellow-card|red-card/.test(kind)) {
+    const why = /for a bad foul/.test(t) ? '（危險犯規）' : /for hand ball/.test(t) ? '（手球）' : /for dissent/.test(t) ? '（抗議判決）' : /time wasting/.test(t) ? '（拖延時間）' : '';
+    return `${who} ${/second yellow|yellow-red/.test(kind + lower) ? '兩黃變一紅' : /red/.test(kind) ? '紅牌' : '黃牌'}${why}`;
+  }
+  if (/VAR Decision/i.test(t)) return `VAR 判決：${/Goal/i.test(t) ? '進球' : /Penalty/i.test(t) ? '12 碼' : '檢視'}${/cancelled|no goal|overturned/i.test(t) ? '取消' : /confirmed|stands/i.test(t) ? '維持' : ''}`;
+  if (kind === 'halftime') return '上半場結束';
+  if (/^(end|full)/.test(kind) || /^Match ends/.test(t)) return '全場結束';
+  if (/^Second Half begins/.test(t)) return '下半場開始';
+  if (/^First Half begins/.test(t)) return '上半場開始';
+  return '';
+}
 export function feedText(sport, play, en, team = '') {
   // A league's own words (CPBL's, Chinese already).
   if (play.zh) return play.zh;
@@ -512,9 +592,14 @@ export function feedText(sport, play, en, team = '') {
   const who = play.who || named(play.text) || team;
   if (sport === 'soccer') {
     const kind = String(play.kind || play.type || '').toLowerCase();
+    // A commentary line: its own details, where these know them (own goals and substitutions as below).
+    if (play.commentary && !/own-goal|substitution/.test(kind)) {
+      const said = soccerLineZh(play, team);
+      if (said) return said;
+    }
     if (/substitution/.test(kind)) return play.who ? (play.other ? `${play.who} 替換 ${play.other}` : `${play.who} 上場`) : `${team} 換人`;
     const hit = SOCCER_KIND.find(([re]) => re.test(kind));
-    return hit ? hit[1](who).trim() : [team, '比賽事件'].filter(Boolean).join(' ');
+    return hit ? hit[1](who, team).trim() : [team, '比賽事件'].filter(Boolean).join(' ');
   }
   if (sport === 'basketball') return basketballFeed(play, team);
   if (sport === 'hockey') return [who, firstOf(HOCKEY_ZH, play.type, play.text) || '比賽事件'].filter(Boolean).join(' ');

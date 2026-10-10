@@ -28,7 +28,7 @@ import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { ctx, el, shownStart, timeText, bestOf, put, spinner, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
+import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // New kit names through the module (a phone can still run an older kit).
@@ -1255,6 +1255,12 @@ function dayAll(slot) {
   const seen = new Set();
   return [...(slot?.events || []), ...(slot?.others || []), ...(slot?.rest || [])].filter(e => !seen.has(`${e.league}:${e.id}`) && seen.add(`${e.league}:${e.id}`));
 }
+const liveGate = { drawn: false, since: 0, timer: 0 };
+const liveShape = () =>
+  el('div', { class: 'live-shape', 'aria-hidden': 'true' }, [
+    el('div', { class: 'home-hero' }, [skeleton([28, 52], 'hero-skel')]),
+    el('div', { class: 'q-card list' }, Array.from({ length: 4 }, () => el('div', { class: 'event-row skel-row' }, [skeleton([30, 70, 60])])))
+  ]);
 function renderLive() {
   const box = $('panel-live');
   const slot = state.days.get(today());
@@ -1281,6 +1287,22 @@ function renderLive() {
   if (!next?.at && !next?.loading) loadDay(tomorrow);
   else if (next?.at && !next.othersAt && !next.othersLoading) loadOthers(tomorrow);
   const reading = !next?.at || !slot.othersAt || !next.othersAt;
+  // Drawn once everything's in (the other leagues, tomorrow's, every league
+  // on now, the followed teams' schedules), or after 3 s with what there is:
+  // drawn on each arrival, the rows reshuffled under the finger as games
+  // slotted in among them. Meanwhile, its shape.
+  if (!liveGate.drawn) {
+    const ready = !reading && slot.restAt && ![...teamsAt.values()].includes('loading');
+    liveGate.since ||= now;
+    if (!ready && now - liveGate.since < 3_000) {
+      clearTimeout(liveGate.timer);
+      liveGate.timer = setTimeout(() => state.tab === 'live' && renderLive(), liveGate.since + 3_000 - now);
+      if (!box.querySelector('.live-shape')) put(box, liveShape());
+      return;
+    }
+    liveGate.drawn = true;
+    clearTimeout(liveGate.timer);
+  }
   const ahead = all;
   const window = (live.length ? 3 : 24) * 3_600_000;
   const soon = ahead.filter(e => e.status.state === 'pre' && !e.status.void && Date.parse(e.start) - now < window && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
@@ -2468,6 +2490,7 @@ function driverRow(f, a) {
 const tables = new Map();
 // The league's games of the last few days that the app has (the day lists
 // and the league's own schedule), for the table's games not counted yet.
+ctx.recentOf = league => recentOf(league);
 function recentOf(league) {
   const since = Date.now() - 3 * 86_400_000;
   const seen = new Set();
@@ -2672,6 +2695,8 @@ async function pollF1Live() {
     if (state.tab === 'home') renderHome();
     else if (state.tab === 'live') renderLive();
     else if (state.tab === 'following') renderFollowing();
+    // (A race over moves the standings: an open table shows it now.)
+    else if (state.tab === 'matches' && state.scores.league === 'f1') renderScores();
     renderTabs();
   }
 }

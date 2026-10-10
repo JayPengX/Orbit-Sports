@@ -38,7 +38,7 @@ export function liveOf(comp, status, sport) {
   if (sport === 'soccer') {
     live.events = (comp?.details || [])
       .filter(d => d.scoringPlay || d.redCard)
-      .map(d => ({ kind: d.redCard ? 'red' : d.ownGoal ? 'own' : d.penaltyKick ? 'pen' : 'goal', minute: d.clock?.displayValue || '', team: String(d.team?.id ?? ''), who: d.athletesInvolved?.[0]?.shortName || d.athletesInvolved?.[0]?.displayName || '' }));
+      .map(d => ({ kind: d.redCard ? 'red' : d.ownGoal ? 'own' : d.penaltyKick ? 'pen' : 'goal', minute: d.clock?.displayValue || '', team: String(d.team?.id ?? ''), who: d.athletesInvolved?.[0]?.shortName || d.athletesInvolved?.[0]?.displayName || '', person: who(d.athletesInvolved?.[0]) }));
   }
   // Basketball: each side's points leader as it stands (the scoreboard's own), for the card.
   if (sport === 'basketball') {

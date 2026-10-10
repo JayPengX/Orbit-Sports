@@ -354,11 +354,15 @@ export function liveLine(e) {
   if (goal) {
     const en = ctx.locale === 'en';
     const side = [e.home, e.away].find(s => String(s?.id) === goal.team);
+    // The scorer's face with a ball on it (an own goal: the logo of the team it counted for), then the minute over who and for whom.
+    const own = goal.kind === 'own';
+    const p = goal.person || { name: goal.who };
+    const pic = own && side ? logo(side.logo, side.name, 'sm') : personPic({ ...p, en: p.name }, e.league, 'sm round');
     return el('div', { class: 'live-line base goal' }, [
-      el('span', { class: 'live-ball', 'aria-hidden': 'true', text: '⚽' }),
+      el('span', { class: 'live-scorer', 'aria-hidden': 'true' }, [pic, el('i', { class: 'live-ball' })]),
       el('span', { class: 'live-text' }, [
-        el('span', { class: 'live-count num', text: `${en ? 'Goal' : '最新進球'} ${goal.minute}` }),
-        el('span', { class: 'live-who' }, [el('span', { class: 'live-names', text: `${goal.who}${goal.kind === 'pen' ? (en ? ' (pen)' : '（PK）') : goal.kind === 'own' ? (en ? ' (OG)' : '（烏龍）') : ''}${side ? ` · ${side.short || side.name}` : ''}` })])
+        el('span', { class: 'live-count' }, [el('span', { text: en ? 'Latest goal' : '最新進球' }), el('span', { class: 'num live-min', text: goal.minute })]),
+        el('span', { class: 'live-who' }, [el('span', { class: 'live-names', text: [own && side ? side.short || side.name : goal.who, own ? `${goal.who} ${en ? 'OG' : '烏龍'}` : side ? side.short || side.name : '', goal.kind === 'pen' ? 'PK' : ''].filter(Boolean).join(' · ') })])
       ])
     ]);
   }
@@ -439,7 +443,8 @@ export function fillF1Brief(box, e) {
   const first = Boolean(box.querySelector('.f1-brief-skel'));
   const race = e.sessionKey === 'Race' || e.sessionKey === 'SR';
   const quali = /^(Qual|SS|SQ)$/.test(e.sessionKey || '');
-  const left = Math.max(0, f.clock.left - (f.clock.running ? (Date.now() - f.at) / 1000 : 0));
+  // As the feed last said it, not counted on between reads.
+  const left = Math.max(0, f.clock.left);
   const head = race && f.lap?.now ? (en ? `Lap ${f.lap.now}/${f.lap.of}` : `第 ${f.lap.now}/${f.lap.of} 圈`) : [quali && f.part ? `${e.sessionKey === 'Qual' ? 'Q' : 'SQ'}${f.part}` : '', `${en ? '' : '剩 '}${mmss(left)}${en ? ' left' : ''}`].filter(Boolean).join(' · ');
   const field = (e.sessions || []).find(x => x.abbr === e.sessionKey)?.field || [];
   const plain = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();

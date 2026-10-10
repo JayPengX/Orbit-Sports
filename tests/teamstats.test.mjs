@@ -29,8 +29,8 @@ test('soccer percentages read as percents; untranslated stats are left out in Ch
     'soccer'
   );
   assert.deepEqual(rows.map(r => [r.label, r.away, r.home]), [
-    ['射正率', '40%', '25%'],
-    ['控球率', '64%', '36%']
+    ['控球率', '64%', '36%'],
+    ['射正率', '40%', '25%']
   ]);
   assert.equal(teamStatRows([{ key: 'mysteryIndex', label: 'Mystery Index', away: '3', home: '2' }], 'soccer', 'en')[0].label, 'Mystery Index');
 });
