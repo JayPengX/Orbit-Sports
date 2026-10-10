@@ -179,6 +179,18 @@ export const sessionName = (x, lang = 'zh', short = false) => {
 // Sessions F1's own feed has said are over ('FP1|<start>'): ESPN's copy says
 // so minutes later (a sprint qualifying stayed "on" well after its end).
 export const feedEnded = new Set();
+// …and the ones it has said are running ('Started'): live at once, not when
+// ESPN's copy says so minutes later.
+export const feedStarted = new Set();
+// A session's status as F1's feed has it, over ESPN's ('FP1', its official start).
+export function feedStatus(abbr, start, status) {
+  const k = `${abbr}|${start}`;
+  if (feedEnded.has(k) && status?.state !== 'post') return { ...status, state: 'post', completed: true };
+  if (feedStarted.has(k) && status?.state === 'pre') return { ...status, state: 'in' };
+  return status;
+}
+// Due to start: its start a minute away or passed (up to 3 h), not yet said to be on.
+export const dueToStart = (x, now = Date.now()) => x?.status?.state === 'pre' && Date.parse(x.start) - now < 60_000 && now - Date.parse(x.start) < 3 * 3_600_000;
 export function splitWeekend(e, now = Date.now(), lang = 'zh') {
   if (e?.kind !== 'field' || LEAGUES[e.league]?.sport !== 'racing' || e.sessionKey) return [e];
   const main = (e.sessions || []).filter(x => x.start && MAIN_SESSIONS.includes(x.abbr));
@@ -186,7 +198,7 @@ export function splitWeekend(e, now = Date.now(), lang = 'zh') {
   return main.map(x => {
     // The feed can leave a session "on" (or "to come") long after it ended.
     const done = Date.parse(x.start) + SESSION_MS < now || feedEnded.has(`${x.abbr}|${x.start}`);
-    const status = done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true } : x.status;
+    const status = feedStatus(x.abbr, x.start, done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true } : x.status);
     const shown = titlesAt(e.league, x.abbr, x.start);
     return { ...e, id: `${e.id}~${x.abbr}`, weekend: e.id, start: shown, at: shown, official: x.start, titles: shown, end: null, session: sessionName(x, lang), sessionKey: x.abbr, status };
   });
@@ -709,6 +721,10 @@ export function parseAsia(games, league, lang = detectLocale()) {
       lines: [],
       homeAway: key
     });
+    // Its start passed since the list was read (kept two minutes): on, as the
+    // list itself would say (a game past its start and not over is on), at once.
+    const t = Date.parse(g.start);
+    const state = g.state === 'pre' && Date.now() >= t && Date.now() - t < 5 * 3_600_000 ? 'in' : g.state;
     return {
       id: g.id,
       league,
@@ -716,16 +732,46 @@ export function parseAsia(games, league, lang = detectLocale()) {
       name: `${g.away.en} @ ${g.home.en}`,
       short: `${g.away.zh} @ ${g.home.zh}`,
       start: g.start,
-      status: { state: g.state === 'void' ? 'pre' : g.state, detail: '', short: '', completed: done, void: g.state === 'void' },
+      status: { state: state === 'void' ? 'pre' : state, detail: '', short: '', completed: done, void: state === 'void' },
       venue: g.venue || '',
       tv: '',
       note: '',
       home: side(g.home, 'home', g.homeScore, g.awayScore),
       away: side(g.away, 'away', g.awayScore, g.homeScore),
       live: null,
-      asia: true
+      asia: true,
+      ...(g.playoff ? { playoff: g.playoff } : {})
     };
   });
+}
+// CPBL's play-offs (its own lists say which kind, TheSportsDB only that it's
+// one): the games by pairing, in order, each its series' name and number
+// (季後挑戰賽 G2), the first pairing the challenge (季後挑戰賽), the next the
+// Taiwan Series (台灣大賽). The regular season's games are said to be so
+// once there are play-offs (the scores' 例行賽 / 季後賽 filter). No series
+// score: the challenge can start with a win given, which neither list says.
+const CPBL_SERIES = {
+  challenge: { key: 'post', zh: '季後挑戰賽', en: 'Playoff Challenge' },
+  final: { key: 'final', zh: '台灣大賽', en: 'Taiwan Series' }
+};
+export function cpblPlayoffs(events) {
+  const post = events.filter(e => e.playoff && !e.status.void).sort((a, b) => a.start.localeCompare(b.start));
+  if (!post.length) return events;
+  const pair = e => [e.home.en, e.away.en].sort().join('|');
+  const tagged = new Map();
+  let series = null;
+  let count = 0;
+  for (const e of post) {
+    if (!series || series.pair !== pair(e)) {
+      count += 1;
+      series = { pair: pair(e), kind: typeof e.playoff === 'string' ? e.playoff : count === 1 ? 'challenge' : 'final', n: 0 };
+    }
+    series.n += 1;
+    const s = CPBL_SERIES[series.kind];
+    tagged.set(e.id, { key: s.key, zh: s.key === 'final' ? '總冠軍賽' : '季後賽', en: s.key === 'final' ? 'Finals' : 'Playoffs', round: { zh: `${s.zh} G${series.n}`, en: `${s.en} - Game ${series.n}` }, special: true });
+  }
+  const regular = { key: 'regular', zh: '例行賽', en: 'Regular season', round: null, special: false };
+  return events.map(e => ({ ...e, stage: tagged.get(e.id) || (e.playoff ? e.stage : regular) }));
 }
 // The months around now (and `extra` more either side): a whole stretch of
 // the season, past games and the next ones.
@@ -740,7 +786,8 @@ export async function asiaEvents(league, extra = 0, now = Date.now()) {
   const events = parseAsia(lists.flat(), league)
     .filter(e => !seen.has(e.id) && seen.add(e.id))
     .sort((a, b) => a.start.localeCompare(b.start));
-  return events.some(e => e.status.state === 'in') ? withKambiLive(events, league) : events;
+  const shown = league === 'cpbl' ? cpblPlayoffs(events) : events;
+  return shown.some(e => e.status.state === 'in') ? withKambiLive(shown, league) : shown;
 }
 
 // ---- A CPBL game on now: Kambi's live feed (the bookmaker's, through the

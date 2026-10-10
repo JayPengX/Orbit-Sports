@@ -5,7 +5,7 @@ import { translate, proxyJson } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, dueToStart } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
@@ -1393,24 +1393,33 @@ function weekendTimeline(sessions) {
 export function openFieldEvent(e) {
   const s = sheet(leagueName(e.league, L()), { league: e.league });
   fillField(s, e);
-  // A session on: the order again every 30 seconds.
+  // A session on, or due to start (open before it, the sheet turns live
+  // the moment it does): read again every 15 seconds. F1's own feed is asked
+  // too, which says a session has started minutes before ESPN does.
+  const states = x => [x.status.state, ...(x.sessions || []).map(y => feedStatus(y.abbr, y.start, y.status).state)].join();
+  let busy = false;
   const timer = setInterval(async () => {
     if (!s.dialog.isConnected) return clearInterval(timer);
-    if (document.visibilityState !== 'visible' || e.status.state !== 'in') return;
-    const fresh = (await scoreboard(e.league).catch(() => [])).find(x => x.id === (e.weekend || e.id));
-    if (!fresh) return;
     const now = Date.now();
-    const again = e.sessionKey ? splitWeekend(fresh, now, L()).find(x => x.sessionKey === e.sessionKey) : fresh.sessions ? settleField(fresh, now) : fresh;
-    if (!again) return;
-    // Drawn again only when a session starts or ends: the live board keeps itself current.
-    const states = x => (x.sessions || []).map(y => y.status.state).join();
-    if (states(again) === states(e) && again.status.state === e.status.state) return;
-    e = again;
+    const due = [e, ...(e.sessions || [])].filter(x => dueToStart(x, now));
+    if (busy || document.visibilityState !== 'visible' || (e.status.state !== 'in' && !due.length && !(e.sessions || []).some(x => x.status.state === 'in'))) return;
+    busy = true;
+    try {
+      const before = states(e);
+      if (e.league === 'f1') await Promise.all(due.filter(x => x.abbr || x.sessionKey).map(x => liveTiming(x.abbr || x.sessionKey, x.official || x.start).catch(() => null)));
+      const fresh = (await scoreboard(e.league).catch(() => [])).find(x => x.id === (e.weekend || e.id));
+      const again = !fresh ? null : e.sessionKey ? splitWeekend(fresh, Date.now(), L()).find(x => x.sessionKey === e.sessionKey) : fresh.sessions ? settleField(fresh, Date.now()) : fresh;
+      // Drawn again only when a session starts or ends: the live board keeps itself current.
+      if (again ? states(again) === before : states(e) === before) return;
+      if (again) e = again;
+    } finally {
+      busy = false;
+    }
     const top = s.body.scrollTop;
     s.body.replaceChildren();
     fillField(s, e);
     s.body.scrollTop = top;
-  }, 30_000);
+  }, 15_000);
   s.dialog.addEventListener('close', () => clearInterval(timer));
 }
 // An F1 result, row by row: the place (or the retirement), the driver (to
@@ -1557,7 +1566,7 @@ function f1LiveBoard(b, ss) {
       // Out of it (retired, stopped, knocked out): greyed, every one alike (a stopped car said 退賽 but stayed bright).
       cls: `${cut && c.pos > cut && !c.out ? 'drop' : ''}${c.out || c.retired || c.stopped ? ' gone' : ''}`.trim(),
       // Qualifying and practice: the best lap (of this part), the gap to the top under it; a race: the gap, the car ahead's interval under it.
-      main: timed ? c.best || '—' : i === 0 ? (en ? 'Leader' : '領先') : c.gap,
+      main: timed ? c.best || '—' : i === 0 ? (over ? (en ? 'Winner' : '冠軍') : en ? 'Leader' : '領先') : c.gap,
       tags: [
         state ? el('small', { class: `lb-state${c.inPit || c.pitOut ? ' pit' : ''}`, text: state }) : null,
         tyreIcon(c.tyre),
@@ -1576,7 +1585,8 @@ function f1LiveBoard(b, ss) {
     const who = fieldDriver(ss.field, c.name, driverShort(c.name)) || { name: c.name };
     return el(who.id ? 'button' : 'span', { class: 'rc-who', type: who.id ? 'button' : null, onclick: who.id ? () => ctx.openPlayer('f1', who.id, who) : null }, [personPic(who, 'f1', 'xs round'), el('span', { text: driverShort(c.name) })]);
   };
-  const msg = b.message?.text ? el('p', { class: 'lb-msg' }, [el('small', { text: en ? 'Race control' : '賽事幹事' }), ...raceControlParts(b.message.text, !en).map(x => (typeof x === 'string' ? document.createTextNode(x) : carChip(x.no)))]) : null;
+  // (Over: race control's last word, a flag long gone, isn't said.)
+  const msg = b.message?.text && !over ? el('p', { class: 'lb-msg' }, [el('small', { text: en ? 'Race control' : '賽事幹事' }), ...raceControlParts(b.message.text, !en).map(x => (typeof x === 'string' ? document.createTextNode(x) : carChip(x.no)))]) : null;
   return el('div', { class: 'live-board' }, [head, msg, el('ol', { class: 'field f1-field lb-rows' }, rows)]);
 }
 function fillField(s, e) {
@@ -1594,7 +1604,8 @@ function fillField(s, e) {
   }
   if (e.kind === 'field') {
     // The weekend's (or week's) sessions, then the chosen one's order.
-    const sessions = [...e.sessions].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    // (Each as F1's feed has it where it has said: on or over before ESPN.)
+    const sessions = [...e.sessions].map(x => ({ ...x, status: feedStatus(x.abbr, x.start, x.status) })).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
     // A session on: its live board first, the weekend's schedule after it.
     const liveNow = sessions.some(x => x.status.state === 'in');
     // The weekend's schedule under the session's results (not a long list on top of them).
@@ -1641,20 +1652,26 @@ function fillField(s, e) {
       const at = pick;
       const weekend = e.weekend || e.id;
       const key = `${weekend}:${ss.id}`;
+      // F1's archive of the session, drawn as its live board was (each car's
+      // best lap or gap): a practice's numbers, and a race's or qualifying's
+      // until jolpica has them (a sprint over an hour had none: ESPN's bare
+      // order showed). Not kept in place of jolpica's (its points, the grid).
+      const archive = () =>
+        sessionTiming(ss.start)
+          .then(b => (b ? Object.assign([b], { board: true }) : []))
+          .catch(() => []);
+      const orArchive = rows => (rows.length ? rows : archive());
       const numbers =
         f1Numbers.has(key) || e.league !== 'f1' || ss.status.state !== 'post'
           ? null
           : ss.abbr === 'Race' || ss.abbr === 'SR'
-            ? raceResult(ss.start, ss.abbr === 'SR', L() === 'en')
+            ? raceResult(ss.start, ss.abbr === 'SR', L() === 'en').catch(() => []).then(orArchive)
             : ss.abbr === 'Qual'
-              ? qualifyingResult(ss.start).then(rows => (rows.length ? rows : espnQualifying(weekend, ss.id, ss.field)))
+              ? qualifyingResult(ss.start).then(rows => (rows.length ? rows : espnQualifying(weekend, ss.id, ss.field))).catch(() => []).then(orArchive)
               : ss.abbr === 'SS' || ss.abbr === 'SQ'
-                ? espnQualifying(weekend, ss.id, ss.field, 'SQ')
+                ? espnQualifying(weekend, ss.id, ss.field, 'SQ').catch(() => []).then(orArchive)
                 : /^FP\d$/.test(ss.abbr)
-                  ? // A practice: F1's archive of it, drawn as its live board was (each car's best lap and gap).
-                    sessionTiming(ss.start)
-                      .then(b => (b ? Object.assign([b], { board: true }) : []))
-                      .catch(() => [])
+                  ? archive()
                   : null;
       const espnList = () => (ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField')));
       const known = f1Numbers.get(key);
@@ -1675,7 +1692,7 @@ function fillField(s, e) {
       numbers
         ?.catch(() => [])
         .then(rows => {
-          if (rows.length) f1Numbers.set(key, rows);
+          if (rows.length && !(rows.board && !/^FP\d$/.test(ss.abbr))) f1Numbers.set(key, rows);
           if (at !== pick || !box.isConnected) return;
           const waiting = box.querySelector('ol.field.waiting');
           if (!waiting) return;

@@ -12,7 +12,7 @@
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedEnded, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, asiaEvents, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -2579,13 +2579,14 @@ function liveTick() {
   if (document.visibilityState !== 'visible' || !q.active) return;
   const day = state.days.get(today());
   // On now, or due to start (its kickoff passed or a minute away): watched as live.
-  const live = dayAll(day).some(e => e.status.state === 'in' || (e.status.state === 'pre' && Date.parse(e.start) - Date.now() < 60_000 && Date.now() - Date.parse(e.start) < 3 * 3_600_000));
+  const live = dayAll(day).some(e => e.status.state === 'in' || dueToStart(e));
   const age = Date.now() - (day?.at || 0);
   const onScreen = (state.tab === 'home' && state.home.date === today()) || state.tab === 'live' || state.tab === 'following';
   if (onScreen && live && age > 12_000) loadDay(today());
   else if (age > 120_000) loadDay(today());
   if (state.tab === 'home' && state.home.date !== today() && Date.now() - (state.days.get(state.home.date)?.at || 0) > 10 * 60_000) loadDay(state.home.date);
-  if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in')) loadScores();
+  // 比分 too: a game on, or one due to start (it had waited for another game on to be read again).
+  if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in' || dueToStart(e))) loadScores();
   paintStatus();
   renderTabs();
 }
@@ -2631,7 +2632,9 @@ new MutationObserver(() => fitNumbers([...document.querySelectorAll('.mh-score, 
 let f1Polling = false;
 async function pollF1Live() {
   if (document.visibilityState !== 'visible' || f1Polling) return;
-  const on = dayAll(state.days.get(today())).find(e => e.league === 'f1' && e.sessionKey && e.status.state === 'in');
+  // On, or due to start: F1's feed says it has started minutes before ESPN does.
+  const all = dayAll(state.days.get(today())).filter(e => e.league === 'f1' && e.sessionKey);
+  const on = all.find(e => e.status.state === 'in') || all.find(e => dueToStart(e));
   if (!on) return void (f1Live.key = '');
   f1Polling = true;
   const feed = await liveTiming(on.sessionKey, on.official || on.start).catch(() => null);
@@ -2642,12 +2645,18 @@ async function pollF1Live() {
   f1Live.feed = feed;
   f1Live.key = on.id;
   for (const node of document.querySelectorAll(`[data-f1-brief="${CSS.escape(on.id)}"]`)) fillF1Brief(node, on);
-  // F1's feed says it's over (ESPN would minutes later): the day drawn again with it ended.
-  if (feedEnded.has(`${on.sessionKey}|${on.official || on.start}`)) {
-    const over = e => (e.league === 'f1' && e.status?.state === 'in' && feedEnded.has(`${e.sessionKey}|${e.official || e.start}`) ? { ...e, status: { ...e.status, state: 'post', completed: true } } : e);
-    for (const slot of state.days.values()) for (const k of ['events', 'others', 'rest']) if (Array.isArray(slot?.[k])) slot[k] = slot[k].map(over);
+  // F1's feed says it's started or over (ESPN would minutes later): the day drawn again with it so.
+  const fed = e => (e.league === 'f1' && e.sessionKey ? feedStatus(e.sessionKey, e.official || e.start, e.status) : e.status);
+  if (fed(on).state !== on.status.state) {
+    const turn = e => {
+      const status = fed(e);
+      return status === e.status ? e : { ...e, status };
+    };
+    for (const slot of state.days.values()) for (const k of ['events', 'others', 'rest']) if (Array.isArray(slot?.[k])) slot[k] = slot[k].map(turn);
     if (state.tab === 'home') renderHome();
     else if (state.tab === 'live') renderLive();
+    else if (state.tab === 'following') renderFollowing();
+    renderTabs();
   }
 }
 setInterval(pollF1Live, 10_000);

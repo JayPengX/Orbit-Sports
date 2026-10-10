@@ -3,7 +3,7 @@
 // biography or the team's profile; through the proxy, trimmed to its grids)
 // and each weekend's results from Jolpica (the grid, the finish, a retirement
 // and the sprint).
-import { getJson, feedEnded } from './espn.mjs';
+import { getJson, feedEnded, feedStarted } from './espn.mjs';
 import { f1Driver } from '#kit/logos.mjs';
 
 const F1 = 'https://www.formula1.com/en';
@@ -256,6 +256,7 @@ export async function liveTiming(abbr, start) {
   } catch {}
   if (!sameSession(feed, abbr, start)) return null;
   if (feedOver(feed)) feedEnded.add(`${abbr}|${start}`);
+  else if (/^(Started|Aborted)$/i.test(feed.session?.status || '') || feed.clock?.running) feedStarted.add(`${abbr}|${start}`);
   return feed;
 }
 // A session that's over, from F1's archive (f1-live.js /session.json): each

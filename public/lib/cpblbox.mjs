@@ -8,7 +8,8 @@
 export const ASIA = 'https://asia-baseball.quadra';
 // The game's year and number from its id (`cpbl-2026-290-2026-08-26`).
 export function cpblBoxUrl(e) {
-  const m = /^cpbl-(\d{4})-(\d+)-/.exec(String(e?.id || ''));
+  // (A play-off game's number has its kind before it: cpbl-2026-E2-…)
+  const m = /^cpbl-(\d{4})-([CE]?\d+)-/.exec(String(e?.id || ''));
   return m ? `${ASIA}/cpbl/box/${m[1]}-${m[2]}.json` : null;
 }
 
