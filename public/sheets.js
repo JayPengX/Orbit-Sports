@@ -331,7 +331,7 @@ function livePanel(e, sm = null) {
 }
 // A football game's goals and red cards as a match centre lists them, each
 // face and name a tap to the player's page.
-function goalTimeline(e, events) {
+export function goalTimeline(e, events) {
   const en = L() === 'en';
   const mins = x => {
     const [a, b] = String(x.minute || '').replace(/'/g, '').split('+').map(Number);

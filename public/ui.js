@@ -496,7 +496,10 @@ export const tvName = b => `${ctx.locale === 'en' ? b.en : b.zh}${b.note ? `（$
 export function twChips(league, n = 3, e = null) {
   const list = e ? tvOf(e) : broadcastsOf(league);
   if (!list.length) return null;
-  return el('div', { class: 'tw-chips' }, list.slice(0, n).map(b => el('span', { class: `tw-chip${b.exact ? ' exact' : ''}`, text: tvName(b) })));
+  // A game's own channels by their short names ("愛爾達MAX8台": "ELTA.tv 體育MAX8台" twice ran out of the card), the rest as +N.
+  const name = b => (e && b.short ? b.short[ctx.locale === 'en' ? 'en' : 'zh'] : tvName(b));
+  const more = list.length - n;
+  return el('div', { class: 'tw-chips' }, [...list.slice(0, n).map(b => el('span', { class: `tw-chip${b.exact ? ' exact' : ''}`, text: name(b) })), more > 0 ? el('span', { class: 'tw-chip', text: `+${more}` }) : null].filter(Boolean));
 }
 // A finished game's chips, as a game to come has its channels': where it
 // can be watched again (愛爾達1台・回看 for 48 hours, then 愛爾達・重播), or null.

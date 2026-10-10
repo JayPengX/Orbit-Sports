@@ -680,9 +680,9 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
   .lp-who { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 10px; }
 }
 .lp-goals { list-style: none; margin: 0; padding: 0; display: grid; }
-.lp-goals li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 48px; padding: 6px 0; }
+.lp-goals li { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 48px; padding: 6px 0; }
 .lp-goals li + li { border-top: 1px solid var(--q-divider, var(--q-border)); }
-.lp-goals .lg-min { font-size: 13px; font-weight: 750; color: var(--q-muted); }
+.lp-goals .lg-min { font-size: 12.5px; font-weight: 750; color: var(--q-muted); white-space: nowrap; }
 .lg-who { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; }
 .lg-who.tap:active { opacity: .6; }
 .lp-goals .lg-who .logo, .lp-goals .lg-who .person-pic { flex: none; }
