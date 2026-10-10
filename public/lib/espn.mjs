@@ -376,7 +376,55 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   );
   const seen = new Set();
   const events = parsed.flat().filter(e => !seen.has(e.id) && seen.add(e.id));
-  return noteLatest(settleSeries(league === 'mlb' ? await withMlbLive(events) : events)).map(fixTime);
+  if (league !== 'mlb') return noteLatest(settleSeries(events)).map(fixTime);
+  const [live] = await Promise.all([withMlbLive(events), loadPostseason(events)]);
+  return noteLatest(byMlbPostseason(settleSeries(live))).map(fixTime);
+}
+
+// ---- MLB's postseason over the copies ------------------------------------------------
+//
+// The days come from the nightly copy (and a day read live when it's behind,
+// above), each read at its own moment, so one series could show G4 待定, G5
+// timed and G6 待定. MLB's own list of the games still to come
+// (kit/postseason.mjs: one small read for all of October, minutes fresh) is
+// one moment for all of them: every playoff game to come takes its time,
+// 待定 and 如需 from it, and one MLB no longer lists (its series over) goes.
+// An older kit without it: as before.
+const postKit = import('#kit/postseason.mjs').catch(() => null);
+let postNow = null;
+// (A team's schedule has no round: its note says it, "ALCS - Game 3".)
+const waitingPost = e => e?.league === 'mlb' && (e.round || /\bgame \d/i.test(e.note || '')) && e.status?.state === 'pre';
+export async function loadPostseason(events) {
+  if (!events.some(waitingPost)) return postNow;
+  const k = await postKit;
+  if (!k?.mlbPostseason) return postNow;
+  // Only games from yesterday's US date on are taken off (one of last night's not started yet is still listed).
+  const from = mlbDate(Date.now() - 86_400_000);
+  const data = await getJson(k.mlbPostseasonUrl(from.slice(0, 4)), { ttl: 5 * 60_000, mirror: false }).catch(() => null);
+  if (data?.dates) postNow = { k, from, list: k.mlbPostseason(data) };
+  return postNow;
+}
+export function byMlbPostseason(list, post = postNow) {
+  if (!post?.list) return list;
+  const out = [];
+  for (const e of list) {
+    if (!waitingPost(e) || !e.note) {
+      out.push(e);
+      continue;
+    }
+    const g = post.k.mlbGameFor(post.list, e);
+    if (!g) {
+      // Not on MLB's list, its series over: it won't be played.
+      if (!post.k.mlbGone?.(post.list, e, mlbDate(e.start), post.from)) out.push(e);
+      continue;
+    }
+    const plainNote = e.note.replace(/\s*-?\s*if necessary/i, '');
+    const note = g.maybe ? `${plainNote} If Necessary` : plainNote;
+    // Timed by MLB: its hour. Not yet: 待定 on MLB's day (ELTA's slot put back on after, fixTime).
+    const when = g.timeTbd ? { start: e.timeTbd && mlbDate(e.start) === g.day ? e.start : g.start, timeTbd: true, timeFrom: undefined } : { start: g.start, timeTbd: undefined, timeFrom: undefined };
+    out.push({ ...e, ...when, note, ...(e.stage ? { stage: { ...e.stage, round: { zh: roundName(note, 'zh'), en: note } } } : {}) });
+  }
+  return out;
 }
 // A playoff game to come between sides not known yet ("TBD", "CLE/CHW").
 const placeholder = x => /^tbd$/i.test(String(x?.abbr || x?.short || '').trim()) || String(x?.abbr || '').includes('/') || Number(x?.id) <= 0;
@@ -1324,7 +1372,7 @@ export function parseSchedule(data, league) {
     const lg = own || league;
     const home = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'home')));
     const away = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'away')));
-    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, ...startOf(e.date, comp), status: parseStatus(comp?.status), home, away, venue: comp?.venue?.fullName || '', ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
+    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, ...startOf(e.date, comp), status: parseStatus(comp?.status), home, away, venue: comp?.venue?.fullName || '', note: comp?.notes?.[0]?.headline || '', ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
   });
 }
 // A team's season: its results and the games to come. A soccer club's across
@@ -1336,7 +1384,9 @@ export async function teamSchedule(league, id) {
     const data = await getJson(base, { ttl: 3 * 60_000 });
     const earlier = data?.requestedSeason?.type === 3 ? await getJson(`${base}?seasontype=2`, { ttl: 60 * 60_000 }).catch(() => null) : null;
     const seen = new Set();
-    return [...parseSchedule(earlier, league), ...parseSchedule(data, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).map(freshGame).sort((a, b) => a.start.localeCompare(b.start));
+    const games = [...parseSchedule(earlier, league), ...parseSchedule(data, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).map(freshGame);
+    if (league === 'mlb') await loadPostseason(games);
+    return (league === 'mlb' ? byMlbPostseason(games) : games).sort((a, b) => a.start.localeCompare(b.start));
   }
   const [done, next] = await Promise.all([getJson(base, { ttl: 10 * 60_000 }), getJson(`${base}?fixture=true`, { ttl: 10 * 60_000 }).catch(() => null)]);
   const seen = new Set();

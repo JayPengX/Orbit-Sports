@@ -322,3 +322,42 @@ test("A baseball pair's season series: never the preseason; the playoff once it'
   const during = parseSummary({ ...fx('mlb-summary'), seasonseries: list(true) }, 'mlb');
   assert.equal(during.series[0].kind, 'playoff');
 });
+
+test("byMlbPostseason: one series' days from different copies (G4 待定, G5 timed, G6 待定) all take MLB's one list; a finished series' game goes", async () => {
+  const { byMlbPostseason } = await import('../public/lib/espn.mjs');
+  const k = await import('#kit/postseason.mjs');
+  const { readFile } = await import('node:fs/promises');
+  const list = k.mlbPostseason(JSON.parse(await readFile(new URL('./fixtures/mlb-postseason-2026-10-10.json', import.meta.url))));
+  const team = en => (en ? { en, name: en, id: en } : { en: 'TBD', name: 'TBD', abbr: 'TBD', id: '-1' });
+  const g = (id, note, start, home, away, extra = {}) => ({ id, league: 'mlb', kind: 'match', note, start, status: { state: 'pre' }, home: team(home), away: team(away), round: { key: 'X' }, stage: { round: { zh: note, en: note } }, ...extra });
+  const tbd = { timeTbd: true };
+  const out = byMlbPostseason(
+    [
+      g('1', 'ALCS - Game 4', '2026-10-17T00:00:00.000Z', null, 'Tampa Bay Rays', tbd),
+      g('2', 'ALCS - Game 5 If Necessary', '2026-10-18T00:00Z', null, 'Tampa Bay Rays'),
+      g('3', 'ALCS - Game 6 If Necessary', '2026-10-20T00:00:00.000Z', 'Tampa Bay Rays', null, tbd),
+      // ALDS 'A' (Rays over Yankees) is over: its Game 5 won't be played.
+      g('4', 'ALDS - Game 5 If Necessary', '2026-10-10T00:00Z', 'Tampa Bay Rays', 'New York Yankees'),
+      // ALDS 'B' is 2-2: its Game 5 is sure.
+      g('5', 'ALDS - Game 5 If Necessary', '2026-10-11T00:00Z', 'Cleveland Guardians', 'Chicago White Sox'),
+      // The World Series isn't timed: still 待定, on MLB's day at 08:00 here.
+      g('6', 'World Series - Game 1', '2026-10-24T00:00:00.000Z', null, null, tbd),
+      // Over or another league: as it was.
+      { ...g('7', 'ALDS - Game 4', '2026-10-09T00:00Z', 'Chicago White Sox', 'Cleveland Guardians'), status: { state: 'post' } },
+      { id: '8', league: 'nba', note: 'Game 1', status: { state: 'pre' } }
+    ],
+    { k, from: '2026-10-09', list }
+  );
+  const by = Object.fromEntries(out.map(e => [e.id, e]));
+  assert.equal(by['4'], undefined);
+  assert.deepEqual(['1', '2', '3'].map(i => [by[i].start, Boolean(by[i].timeTbd), by[i].note]), [
+    ['2026-10-16T22:00:00Z', false, 'ALCS - Game 4'],
+    ['2026-10-18T00:00:00Z', false, 'ALCS - Game 5 If Necessary'],
+    ['2026-10-19T21:00:00Z', false, 'ALCS - Game 6 If Necessary']
+  ]);
+  assert.equal(by['5'].note, 'ALDS - Game 5');
+  assert.equal(by['5'].stage.round.zh, '美聯分區系列賽 G5');
+  assert.deepEqual([by['6'].start, by['6'].timeTbd], ['2026-10-24T00:00:00.000Z', true]);
+  assert.equal(by['7'].note, 'ALDS - Game 4');
+  assert.ok(by['8']);
+});
