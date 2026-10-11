@@ -3759,8 +3759,9 @@ function raceBlock(race, g, league, many) {
     }
   } else if (t.soonest != null) {
     const second = g.rows[1];
-    const gap = second ? (race.unit === 'wins' ? Number(second.stats.GB) : Number(t.leader.stats[sport === 'racing' ? 'PTS' : 'P']) - Number(second.stats[sport === 'racing' ? 'PTS' : 'P'])) : 0;
-    lines.push(line('clock', W(`${many ? top : '冠軍'}${when}才會確定`, `${many ? top : 'The title'}: ${when}`), gap > 0 ? W(`${nm(t.leader)} 領先 ${gap}${unit}`, `${nm(t.leader)} lead by ${gap}`) : ''));
+    // (The lead as the title's own sums have it: a table's points column isn't named alike in every league, and the line went blank.)
+    const gap = second ? (race.unit === 'wins' ? Number(second.stats.GB) : t.gap) : 0;
+    lines.push(line('clock', W(`${many ? top : '冠軍'}${when}才會確定`, `${many ? top : 'The title'}: ${when}`), !second ? '' : gap > 0 ? W(`${nm(t.leader)} 領先 ${gap}${unit}`, `${nm(t.leader)} lead by ${gap}`) : W(`${nm(t.leader)} 與 ${nm(second)} 同${race.unit === 'pts' ? '分' : '勝'}`, `${nm(t.leader)} level with ${nm(second)}`)));
   }
   // The next places still open: F1's always (a championship's 2nd and 3rd
   // matter), a league's once its title is settled.
