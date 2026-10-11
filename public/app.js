@@ -2824,7 +2824,8 @@ async function boot() {
   // Kept on the device: today's read while the sign-in is on its way (the
   // nightly copies need none; a read through the proxy waits for that
   // sign-in, not a second one), not a round trip after it.
-  const early = quick != null ? loadDay(today()) : null;
+  // (Not under a sign-in link: its hand-off is redeemed first.)
+  const early = quick != null && !/[#&]q[hp]=/.test(location.hash) ? loadDay(today()) : null;
   const first = await starting;
   state.wallet = first.wallet || q.wallet;
   const before = JSON.stringify(state.prefs);
