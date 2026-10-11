@@ -2374,7 +2374,6 @@ function f1Stats(b, ss) {
   const who = c => el('span', { class: 'fs-who' }, [face(c), fitName(f1NameTap(ss, c, '', 'fs-name'), f1Whole(c.name), sur(c))]);
   const teamed = c => (c.colour ? `--team:${c.colour}` : null);
   const ms = t => lapMs(t);
-  const cards = [];
 
   // The headline numbers.
   const tiles = [];
@@ -2397,24 +2396,22 @@ function f1Stats(b, ss) {
     const busiest = [...cars].sort((x, y) => y.laps - x.laps)[0];
     if (busiest?.laps) tile(en ? 'Most laps' : '跑最多圈', `${busiest.laps}${en ? ' laps' : ' 圈'}`, busiest);
   }
-  // In the order they're read: the weather in a line; the cars picked side
-  // by side (what one opens 數據 for); live, the track with the cars on it
-  // and a race's stop window; a practice's long runs; then the numbers.
+  // Each card by name; put in their order at the end.
   const live = !(b.final || feedOver(b));
-  if (live) cards.push(f1Weather(b));
-  if (/^FP\d$/.test(ss.abbr)) cards.push(f1PracticePace(b, ss));
-  cards.push(f1LapCompare(b, ss));
-  if (live && race) cards.push(f1LiveTable(b, ss));
-  if (live) {
-    cards.push(f1TrackMap(b, ss));
-    if (race) cards.push(f1PitWindow(b, ss));
-  }
-  if (tiles.length) cards.push(el('div', { class: 'fs-tiles' }, tiles));
+  const named = {};
+  const add = (k, x) => (named[k] = x);
+  if (live) add('weather', f1Weather(b));
+  if (/^FP\d$/.test(ss.abbr)) add('pace', f1PracticePace(b, ss));
+  add('compare', f1LapCompare(b, ss));
+  if (live && race) add('table', f1LiveTable(b, ss));
+  if (live) add('map', f1TrackMap(b, ss));
+  if (live && race) add('stop', f1PitWindow(b, ss));
+  if (tiles.length) add('tiles', el('div', { class: 'fs-tiles' }, tiles));
 
   // A qualifying's parts.
   if (quali && cars.some(c => c.parts?.some(Boolean))) {
     const fastestIn = [0, 1, 2].map(i => Math.min(...cars.map(c => ms(c.parts?.[i]) || Infinity)));
-    cards.push(
+    add('parts',
       card(
         en ? 'Each part' : '各節圈速',
         el('table', { class: 'fs-table fs-parts' }, [
@@ -2440,7 +2437,7 @@ function f1Stats(b, ss) {
   if (cars.some(c => c.stints?.length)) {
     const total = c => (c.stints || []).reduce((n, x) => n + x.laps, 0);
     const most = Math.max(1, ...cars.map(total));
-    cards.push(
+    add('tyres',
       card(
         en ? 'Tyres' : '輪胎策略',
         el(
@@ -2471,7 +2468,7 @@ function f1Stats(b, ss) {
   if (race && cars.some(c => ms(c.pb?.v))) {
     const laps = [...cars].filter(c => ms(c.pb?.v)).sort((x, y) => ms(x.pb.v) - ms(y.pb.v)).slice(0, 10);
     const top = ms(laps[0].pb.v);
-    cards.push(
+    add('laps',
       card(
         en ? 'Fastest laps' : '最快圈速',
         el(
@@ -2494,7 +2491,7 @@ function f1Stats(b, ss) {
   if (cars.some(c => c.sectors?.some(x => x.v))) {
     const best = [0, 1, 2].map(bestSector);
     const own = c => (c.sectors?.length === 3 && c.sectors.every(x => ms(x.v)) ? c.sectors.reduce((n, x) => n + ms(x.v), 0) : 0);
-    cards.push(
+    add('sectors',
       card(
         en ? 'Best sectors' : '最佳分段',
         el('table', { class: 'fs-table fs-sectors' }, [
@@ -2523,7 +2520,7 @@ function f1Stats(b, ss) {
     const top = trap.slice(0, 10);
     const max = top[0].speed.v;
     const min = top.at(-1).speed.v - 4;
-    cards.push(
+    add('speed',
       card(
         en ? 'Speed trap' : '極速',
         el(
@@ -2536,7 +2533,19 @@ function f1Stats(b, ss) {
       )
     );
   }
-  return cards.some(Boolean) ? el('div', { class: 'stack fs-stats' }, cards.filter(Boolean)) : null;
+  // In the order they're read (the owner, 2026-10-11). Live: the weather in
+  // a line, the cars on the track, the drivers picked side by side, a race's
+  // stop window and tyres (the strategy), the headline numbers, a
+  // qualifying's parts, the race's fastest laps, the championship as it
+  // stands (context, after the race itself), the sectors and the speed
+  // trap. Over: the headline numbers first, then the same without the
+  // live-only cards. A practice's long runs after the compare.
+  const order = live
+    ? ['weather', 'map', 'compare', 'pace', 'stop', 'parts', 'tyres', 'tiles', 'laps', 'table', 'sectors', 'speed']
+    : ['tiles', 'compare', 'pace', 'parts', 'tyres', 'laps', 'sectors', 'speed'];
+  const cards = order.map(k => named[k]).filter(Boolean);
+  return cards.length ? el('div', { class: 'stack fs-stats' }, cards) : null;
+
 }
 // The session's two views, 成績 (the order) and 數據 (f1Stats), the choice
 // kept for the next session opened.
