@@ -80,7 +80,12 @@ export const audioPref = fn => (prefer = fn);
 export const tvOf = e => {
   if (!e) return [];
   const nba = e.league === 'nba' ? { games: nbaSchedule(), ids: { home: nbaId(e.home), away: nbaId(e.away) } } : null;
-  return broadcastsFor(e, eltaSchedule(), { sides: zhSides(e), others: known(), prefer: prefer(), nba, sidesOf: zhSides });
+  const list = broadcastsFor(e, eltaSchedule(), { sides: zhSides(e), others: known(), prefer: prefer(), nba, sidesOf: zhSides });
+  // Apple TV's page of this very game (Shared-Data's pack, watch.mjs): the
+  // TV app opens at the game, live and after (the channel's page left the
+  // person to find it).
+  const apple = packOf(e)?.apple;
+  return apple ? list.map(b => (b.svc === 'appletv' ? { ...b, url: apple, game: true } : b)) : list;
 };
 // A game whose hour isn't set yet, placed at ELTA's (its program of the game,
 // once listed): ELTA's slot is its own booking, not the league's time, so
@@ -135,6 +140,8 @@ function keepReplay(e) {
 // as is known without reading anything.
 export function replayHint(e, now = Date.now()) {
   if (e?.status?.state !== 'post' || e.status.void) return null;
+  // Apple TV keeps every MLS game whole.
+  if (channelsOf(e).some(b => b.svc === 'appletv')) return { video: true, apple: true };
   replaySet ??= new Set(keptReplays());
   // Its video found: on this device, or in Shared-Data's pack of recent games.
   return replayState(e, channelsOf(e), replaySet.has(replayKey(e)) || Boolean(packOf(e)?.elta), now);

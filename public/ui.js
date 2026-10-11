@@ -529,7 +529,7 @@ export function tvLine(e) {
   if (e.status?.state === 'post') {
     const r = replayHint(e);
     if (!r) return null;
-    const again = el('span', { class: 'tv-again', text: ctx.locale === 'en' ? (r.replay ? ' · replay' : 'ELTA · replay') : r.replay ? '・回看' : '愛爾達・重播' });
+    const again = el('span', { class: 'tv-again', text: r.apple ? (ctx.locale === 'en' ? 'Apple TV · replay' : 'Apple TV・重播') : ctx.locale === 'en' ? (r.replay ? ' · replay' : 'ELTA · replay') : r.replay ? '・回看' : '愛爾達・重播' });
     if (r.video) return el('small', { class: 'tv-line' }, [again]);
     const ch = r.channels.slice(0, 2).flatMap((b, i) => [i ? document.createTextNode('、') : null, el('span', { class: 'tv-ch', text: name(b) })]);
     return el('small', { class: 'tv-line' }, [...ch, again]);

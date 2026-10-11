@@ -1366,7 +1366,16 @@ function replayRows(e, r, logo = eltaLogo()) {
   ].filter(Boolean);
 }
 function replayLink(e) {
-  if (e?.status?.state !== 'post' || e.status.void || broadcastsOf(e.league)[0]?.svc !== 'elta') return null;
+  if (e?.status?.state !== 'post' || e.status.void) return null;
+  // Apple TV (MLS): every game whole, at its own page once Shared-Data has it, else the channel's.
+  const apple = tvOf(e).find(b => b.svc === 'appletv');
+  if (apple) {
+    const en = L() === 'en';
+    return el('div', { class: 'replay-group' }, [
+      watchLink(apple, { class: 'replay-link' }, [el('span', { class: 'replay-icon apple', 'aria-hidden': 'true', text: '\uF8FFtv' }), el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: apple.game ? (en ? 'Apple TV · MLS Season Pass' : 'Apple TV・MLS Season Pass') : en ? "On Apple TV's MLS channel" : '在 Apple TV 的 MLS 頻道' })]), el('span', { class: 'replay-go', text: en ? 'Watch' : '觀看' })])
+    ]);
+  }
+  if (broadcastsOf(e.league)[0]?.svc !== 'elta') return null;
   // Only where there'll likely be one (a season of videos, or its channel in
   // ELTA's list): a row that comes and goes would move the sheet.
   if (!ELTA_VOD[e.league] && e.league !== 'cpbl' && !tvOf(e).some(b => b.exact)) return null;
