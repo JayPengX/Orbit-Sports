@@ -1829,21 +1829,16 @@ function f1Stats(b, ss) {
     const top = trap.slice(0, 10);
     const max = top[0].speed.v;
     const min = top.at(-1).speed.v - 4;
-    const traps = [['i1', en ? 'Int. 1' : '第一測速'], ['i2', en ? 'Int. 2' : '第二測速'], ['fl', en ? 'Finish' : '終點線']];
-    const fastestAt = k => [...cars].filter(c => c.speeds?.[k]?.v).sort((x, y) => y.speeds[k].v - x.speeds[k].v)[0];
-    const others = traps.map(([k, label]) => [label, fastestAt(k), k]).filter(([, c]) => c);
     cards.push(
       card(
         en ? 'Speed trap' : '極速',
-        el('div', {}, [
-          el(
-            'ol',
-            { class: 'fs-rows' },
-            top.map((c, i) => el('li', { style: teamed(c) }, [el('span', { class: 'pos num', text: String(i + 1) }), who(c), el('span', { class: 'fs-speed' }, [el('i', { style: `width:${Math.round(((c.speed.v - min) / (max - min || 1)) * 100)}%` })]), el('small', { class: 'num fs-end', text: `${c.speed.v}` })]))
-          ),
-          others.length ? el('div', { class: 'fs-traps' }, others.map(([label, c, k]) => el('div', { style: teamed(c) }, [el('small', { text: label }), el('strong', { class: 'num', text: `${c.speeds[k].v}` }), el('span', { text: sur(c) })]))) : null
-        ]),
-        { sub: 'km/h' }
+        el(
+          'ol',
+          { class: 'fs-rows' },
+          top.map((c, i) => el('li', { style: teamed(c) }, [el('span', { class: 'pos num', text: String(i + 1) }), who(c), el('span', { class: 'fs-speed' }, [el('i', { style: `width:${Math.round(((c.speed.v - min) / (max - min || 1)) * 100)}%` })]), el('small', { class: 'num fs-end', text: `${c.speed.v}` })]))
+        ),
+        // (F1's other traps, I1 and I2 mid-sector, said nothing anyone reads.)
+        { sub: en ? 'km/h, on the longest straight' : 'km/h · 最長直道測速' }
       )
     );
   }

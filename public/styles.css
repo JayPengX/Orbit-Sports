@@ -1510,10 +1510,5 @@ button.lp-person.tap:active { opacity: 0.6; }
 .fs-sectors td.ideal { color: var(--q-text); font-weight: 650; }
 .fs-speed { height: 6px; border-radius: 3px; background: var(--q-fill, var(--q-sunken)); overflow: hidden; }
 .fs-speed i { display: block; height: 100%; border-radius: 3px; background: var(--team, var(--accent)); }
-.fs-traps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--q-divider, var(--q-border)); }
-.fs-traps > div { display: grid; gap: 1px; padding-left: 8px; box-shadow: inset 3px 0 0 var(--team, transparent); }
-.fs-traps small { font-size: 11px; color: var(--q-muted); font-weight: 650; }
-.fs-traps strong { font-size: 16px; font-weight: 800; }
-.fs-traps span { font-size: 12px; font-weight: 650; }
 
 .info-line { display: block; }
