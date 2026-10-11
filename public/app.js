@@ -12,7 +12,7 @@
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, onAir, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, onAir, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -23,7 +23,7 @@ import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { liveTable, standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted } from './lib/picks.mjs';
-import { liveTiming } from './lib/f1.mjs';
+import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
@@ -2518,23 +2518,24 @@ function recentOf(league) {
   return lists.flat().filter(e => e.league === league && Date.parse(e.start) > since && !seen.has(e.id) && seen.add(e.id));
 }
 // F1: the race weekends (and sprints) still to run, for the title's maths.
-let f1Left = null;
+let f1Rounds = null;
 function racesLeft(league) {
   if (league !== 'f1') return null;
-  if (f1Left === null) {
-    f1Left = undefined;
+  if (f1Rounds === null) {
+    f1Rounds = undefined;
     seasonEvents(league)
-      .then(list => {
-        const ahead = (list || []).filter(e => e.sessions?.length);
-        const open = abbr => ahead.filter(e => e.sessions.some(x => x.abbr === abbr && x.status?.state !== 'post')).length;
-        // The weekends still to come, in order, each with whether it has a sprint (when a title can be settled, by name).
-        const weeks = ahead.filter(e => e.sessions.some(x => x.abbr === 'Race' && x.status?.state !== 'post')).sort((a, b) => Date.parse(a.start || a.date || 0) - Date.parse(b.start || b.date || 0)).map(e => ({ name: e.name, sprint: e.sessions.some(x => x.abbr === 'SR' && x.status?.state !== 'post') }));
-        f1Left = ahead.length ? { races: open('Race'), sprints: open('SR'), list: weeks } : undefined;
-      })
+      .then(list => (f1Rounds = (list || []).filter(e => e.sessions?.length)))
       .catch(() => {})
       .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
   }
-  return f1Left || null;
+  if (!f1Rounds?.length) return null;
+  // Each time, as F1's feed has the sessions (a race over at its flag, not when ESPN's copy says so: Singapore 2026 still counted as to come).
+  const ahead = settleScoring(f1Rounds);
+  const left = x => x.status?.state !== 'post' && sessionStatus(x).state !== 'post';
+  const open = abbr => ahead.filter(e => e.sessions.some(x => x.abbr === abbr && left(x))).length;
+  // The weekends still to come, in order, each with whether it has a sprint (when a title can be settled, by name).
+  const weeks = ahead.filter(e => e.sessions.some(x => x.abbr === 'Race' && left(x))).sort((a, b) => Date.parse(a.start || a.date || 0) - Date.parse(b.start || b.date || 0)).map(e => ({ name: e.name, sprint: e.sessions.some(x => x.abbr === 'SR' && left(x)) }));
+  return { races: open('Race'), sprints: open('SR'), list: weeks };
 }
 // Last seasons' final tables ('<league>:<year>'), read once.
 const lastTables = new Map();
@@ -2576,7 +2577,10 @@ function tableOf(league) {
   }
   // The games the official table hasn't counted yet, in; then each table's race.
   const sport = LEAGUES[league].sport;
-  const now = liveTable(groups, recentOf(league), sport, { teamOf: side => f1Driver(side.en || side.name).team });
+  // (F1: a sprint or race in the moment F1's feed calls it over, in its finishing order; ESPN's copy says so an hour or more later.)
+  const recent = sport === 'racing' ? settleScoring(recentOf(league)) : recentOf(league);
+  if (sport === 'racing') askFinishes(recentOf(league), () => state.tab === 'matches' && state.scores.league === league && renderScores());
+  const now = liveTable(groups, recent, sport, { teamOf: side => f1Driver(side.en || side.name).team });
   const races = now.map(g => standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league), team: sport === 'racing' && !g.rows.some(r => r.athlete) }));
   return el('div', {}, [
     standingsTables(now, league, { races, many: sport !== 'racing' && now.length > 1 }),

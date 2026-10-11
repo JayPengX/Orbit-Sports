@@ -282,6 +282,23 @@ export function titleRace(group, sport, opts = {}) {
 // points, 36 in all, at most): then the race still goes in.
 export const POINTS = { Race: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], SR: [8, 7, 6, 5, 4, 3, 2, 1] };
 const SPRINT_TOTAL = 36;
+// A weekend's column in ESPN's F1 table ({ key, name }), by the weekend's
+// name: ESPN's own ("Singapore Airlines Singapore Grand Prix") or F1's
+// ("Singapore Grand Prix"), the one inside the other.
+export function roundOf(group, name) {
+  const want = plain(name);
+  return (want && group?.rounds?.find(r => plain(r.name) === want || plain(r.name).includes(want) || want.includes(plain(r.name)))) || null;
+}
+// Whether ESPN's table has a weekend's sprint or race in: its column has
+// numbers (the race: more than a sprint's whole 36, on a sprint weekend).
+// No column found: taken as in (never counted twice).
+export function roundCounted(group, name, abbr, sprintWeekend = false) {
+  const col = roundOf(group, name)?.key;
+  if (!col) return true;
+  const sum = group.rows.reduce((a, r) => a + (/\d/.test(String(r.stats?.[col] ?? '')) ? num(r.stats[col]) : 0), 0);
+  const counted = group.rows.some(r => /\d/.test(String(r.stats?.[col] ?? '')));
+  return abbr === 'Race' && sprintWeekend ? sum > SPRINT_TOTAL : counted;
+}
 function liveRacing(groups, events, teamOf) {
   if (!groups?.length) return groups;
   const out = groups.map(g => ({ ...g, rows: g.rows.map(r => ({ ...r, stats: { ...r.stats } })) }));
@@ -295,12 +312,7 @@ function liveRacing(groups, events, teamOf) {
     if (!scoring.length) continue;
     let added = false;
     for (const g of out) {
-      // By the feed's own name for the weekend (the shown one is "新加坡站").
-      const col = g.rounds?.find(r => r.name === (e.enName || e.name))?.key;
-      if (!col) continue;
-      const sum = g.rows.reduce((a, r) => a + (/\d/.test(String(r.stats[col] ?? '')) ? num(r.stats[col]) : 0), 0);
-      const counted = g.rows.some(r => /\d/.test(String(r.stats[col] ?? '')));
-      const todo = !counted ? scoring : sum <= SPRINT_TOTAL && e.sessions.some(x => x.abbr === 'SR') ? scoring.filter(x => x.abbr === 'Race') : [];
+      const todo = scoring.filter(x => !roundCounted(g, e.enName || e.name, x.abbr, e.sessions.some(y => y.abbr === 'SR')));
       if (!todo.length) continue;
       const team = !g.rows.some(r => r.athlete);
       for (const x of todo)

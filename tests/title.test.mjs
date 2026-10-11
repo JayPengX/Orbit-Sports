@@ -144,3 +144,14 @@ test("a zone's fight is two to eight sides: none where half the table's bunched"
   const apart = { rows: [t('A', 4, 12, 'R16'), t('B', 4, 9, 'R16'), t('C', 4, 8, ''), t('D', 4, 1, 'Out'), t('E', 4, 0, 'Out')] };
   assert.deepEqual(standingsRace(apart, 'soccer', { total: 8 }).zones[0].fight.rows.map(x => x.id), ['B', 'C'], 'A is four clear of the first side out');
 });
+
+test('F1: the weekend\'s column by ESPN\'s sponsor name or F1\'s; a race in only past the sprint\'s points', async () => {
+  const { roundOf, roundCounted } = await import('../public/lib/title.mjs');
+  const g = { rows: [row('1', { PTS: '300', SGP: '8' }), row('2', { PTS: '290', SGP: '7' })], rounds: [{ key: 'SGP', name: 'Singapore Airlines Singapore Grand Prix' }] };
+  assert.equal(roundOf(g, 'Singapore Grand Prix')?.key, 'SGP');
+  assert.equal(roundOf(g, 'Singapore Airlines Singapore Grand Prix')?.key, 'SGP');
+  assert.equal(roundCounted(g, 'Singapore Grand Prix', 'SR', true), true);
+  assert.equal(roundCounted(g, 'Singapore Grand Prix', 'Race', true), false);
+  const after = { ...g, rows: [row('1', { PTS: '333', SGP: '33' }), row('2', { PTS: '308', SGP: '25' })] };
+  assert.equal(roundCounted(after, 'Singapore Grand Prix', 'Race', true), true);
+});

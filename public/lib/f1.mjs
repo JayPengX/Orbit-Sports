@@ -274,18 +274,70 @@ export async function liveTiming(abbr, start) {
   } catch {}
   if (!sameSession(feed, abbr, start)) return null;
   const k = `${abbr}|${start}`;
-  if (feedOver(feed)) feedEnded.add(k);
+  if (feedOver(feed)) feedEnded.add(k), finishOrders.set(k, orderOf(feed));
   else if (/^(Started|Aborted)$/i.test(feed.session?.status || '') || feed.clock?.running || feedBreak(feed)) feedStarted.add(k), feedOnAt.set(k, Date.now());
   return feed;
 }
+// A sprint's or race's finishing order the moment F1's feed calls it over
+// (its last word, kept on the device too): each car's name, out or not, by
+// place. ESPN's scoreboard has the race "to come", its field in the grid's
+// order, for an hour or more after the flag (Singapore 2026).
+const finishOrders = new Map();
+const orderOf = feed => [...feed.cars].sort((a, b) => a.pos - b.pos).map(c => ({ name: c.name, out: Boolean(c.retired || c.stopped) }));
+export const finishOrder = (abbr, start) => finishOrders.get(`${abbr}|${start}`) || (last?.cars?.length && feedOver(last) && sameSession(last, abbr, start) ? orderOf(last) : null);
+// The league's recent weekends with each sprint and race F1's feed has
+// called over, over, its field in that order (a car out takes no points:
+// its place is left empty): what the championship counts at once
+// (title.mjs liveTable), before ESPN's scoreboard and table have it.
+const plainName = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const surname = s => plainName(s).split(' ').filter(w => !/^(jr|sr)\.?$/.test(w)).at(-1) || '';
+export function settleScoring(events = []) {
+  return events.map(e => {
+    if (!e?.sessions?.some(x => POINTS[x.abbr])) return e;
+    return {
+      ...e,
+      sessions: e.sessions.map(x => {
+        if (!POINTS[x.abbr] || x.status?.state === 'post') return x;
+        const order = finishOrder(x.abbr, x.start);
+        if (!order?.length) return x;
+        const sideOf = name => (x.field || []).find(f => plainName(f.en || f.name) === plainName(name)) || (x.field || []).find(f => surname(f.en || f.name) === surname(name));
+        return { ...x, status: { ...x.status, state: 'post', completed: true }, field: order.map(o => (o.out ? { id: '', name: '', en: '' } : sideOf(o.name) || { id: '', name: o.name, en: o.name })) };
+      })
+    };
+  });
+}
+// The sprints and races the feed may have called over that ESPN hasn't yet
+// (their start up to a day ago, no order kept): each asked of the feed once
+// a minute, `then` called when one comes in.
+const asked = new Map();
+export function askFinishes(events = [], then = () => {}) {
+  const now = Date.now();
+  for (const e of events)
+    for (const x of e?.sessions || []) {
+      const k = `${x.abbr}|${x.start}`;
+      const at = Date.parse(x.start);
+      if (!POINTS[x.abbr] || x.status?.state === 'post' || finishOrder(x.abbr, x.start) || !(at < now && now - at < 86_400_000) || now - (asked.get(k) || 0) < 60_000) continue;
+      asked.set(k, now);
+      liveTiming(x.abbr, x.start).then(() => finishOrder(x.abbr, x.start) && then()).catch(() => {});
+    }
+}
+
 // A session that's over, from F1's archive (f1-live.js /session.json): each
 // car's best lap and gap (a practice: ESPN keeps only the order), in the live
 // board's shape. Null when it isn't there (yet).
 const ARCHIVE = start => `https://f1-live.quadra/session.json?start=${encodeURIComponent(new Date(start).toISOString())}`;
 // Every car's laps in a session ({ cars: { no: [[lap, ms, gap, place, pit]…] } },
 // f1-live.js /laps.json): again each 15 seconds while it runs, kept once over.
-export const sessionLaps = (start, over) =>
-  getJson(`https://f1-live.quadra/laps.json?start=${encodeURIComponent(new Date(start).toISOString())}${over ? '&final=1' : ''}`, { ttl: over ? 24 * 3_600_000 : 2_000 }).then(b => (b?.cars ? b : null));
+// Over but not in F1's archive yet (it comes an hour or more after the
+// flag): the proxy's own log of it, read again each minute until it is
+// (`live` says which).
+const lapsUrl = (start, final) => `https://f1-live.quadra/laps.json?start=${encodeURIComponent(new Date(start).toISOString())}${final ? '&final=1' : ''}`;
+export const sessionLaps = async (start, over) => {
+  const got = await getJson(lapsUrl(start, over), { ttl: over ? 24 * 3_600_000 : 2_000 }).catch(() => null);
+  if (got?.cars || !over) return got?.cars ? got : null;
+  const kept = await getJson(lapsUrl(start, false), { ttl: 60_000 });
+  return kept?.cars ? { ...kept, live: true } : null;
+};
 // A circuit's outline, corners and the time a stop costs there (f1-live.js /circuit.json).
 export const circuitMap = (key, year) => getJson(`https://f1-live.quadra/circuit.json?key=${Number(key)}&year=${Number(year)}`, { ttl: 7 * 24 * 3_600_000 }).then(c => (c?.x?.length ? c : null));
 export const sessionTiming = start => getJson(ARCHIVE(start), { ttl: 24 * 3_600_000 }).then(b => (b?.cars?.length ? b : null));

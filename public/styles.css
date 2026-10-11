@@ -1516,8 +1516,11 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-edge { fill: none; stroke: var(--q-surface-2, rgba(127,127,127,.25)); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; }
 .tm-car { transition: transform 4.8s linear; }
 .tm-car circle { fill: var(--team, #888); stroke: var(--q-surface, #1c1c1e); stroke-width: 1.6; }
-.tm-car text { display: none; font-size: 10px; font-weight: 800; fill: var(--q-text); paint-order: stroke; stroke: var(--q-surface, #1c1c1e); stroke-width: 3px; }
-.tm-car.named text { display: block; }
+.tm-car .tm-tag { display: none; font-size: 10.5px; font-weight: 800; fill: var(--q-text); paint-order: stroke; stroke: var(--q-surface, #1c1c1e); stroke-width: 3px; }
+.tm-car.named .tm-tag { display: block; }
+.tm-car .tm-no { font-size: 7.5px; font-weight: 850; text-anchor: middle; fill: #fff; pointer-events: none; font-variant-numeric: tabular-nums; }
+.tm-car.light .tm-no { fill: #111; }
+.tm-car.dim .tm-no { opacity: 0.5; }
 .tm-car.pit { opacity: 0.45; }
 .lc { display: grid; gap: 10px; }
 .lc-svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -1722,8 +1725,8 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-finish { stroke: #fff; stroke-width: 4; stroke-dasharray: 2.2 2.2; stroke-linecap: butt; }
 .tm-sector { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
 .tm-sector-t { fill: var(--q-muted); font-size: 9px; font-weight: 800; text-anchor: middle; }
-.tm-car.dim .tm-dot { opacity: 0.35; }
-.tm-car.picked .tm-dot { r: 6.5; stroke-width: 2.2; }
+.tm-car.dim .tm-dot { opacity: 0.45; }
+.tm-car.picked .tm-dot { r: 8.5; stroke-width: 2.2; }
 .tm-note { margin: 6px 0 0; text-align: center; }
 .tm-dom { fill: none; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
 .tm-dom.dash { stroke-dasharray: 7 5; }
