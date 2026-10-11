@@ -155,3 +155,13 @@ test('F1: the weekend\'s column by ESPN\'s sponsor name or F1\'s; a race in only
   const after = { ...g, rows: [row('1', { PTS: '333', SGP: '33' }), row('2', { PTS: '308', SGP: '25' })] };
   assert.equal(roundCounted(after, 'Singapore Grand Prix', 'Race', true), true);
 });
+
+test('a zone stays with its place when a fresh result reorders the table', () => {
+  // B (68) beats A (70) away: B 71 goes top; 1st's colour stays with 1st, 2nd's with 2nd.
+  const t = soccerTable();
+  t[0].rows[0] = { ...t[0].rows[0], note: 'Champions League', color: '#0f0' };
+  t[0].rows[1] = { ...t[0].rows[1], stats: { ...t[0].rows[1].stats, P: '68' }, note: 'Europa League', color: '#00f' };
+  const g = game('1', 'post', 'B', 'A', 1, 0, '21-6-4', '22-4-5');
+  const out = liveTable(t, [g], 'soccer');
+  assert.deepEqual(out[0].rows.map(r => [r.id, r.note, r.color]), [['B', 'Champions League', '#0f0'], ['A', 'Europa League', '#00f'], ['C', undefined, undefined]]);
+});

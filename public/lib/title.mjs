@@ -107,11 +107,16 @@ export function liveTable(groups, events, sport, { teamOf = null } = {}) {
   }
   for (const g of touched) {
     const key = sport === 'soccer' ? r => [num(r.stats.P), num(r.stats.GD), num(r.stats.F)] : r => [num(r.stats.PCT), num(r.stats.W)];
+    // A zone (the Champions League's, the drop) is a place's, not a side's:
+    // kept by place through the new order (a side moved up into 5th came
+    // without the colour, the one it passed took 5th's down to 6th).
+    const zones = g.rows.map(r => [r.note, r.color]);
     g.rows.sort((x, y) => {
       const [p, q] = [key(x), key(y)];
       for (let i = 0; i < p.length; i++) if (p[i] !== q[i]) return q[i] - p[i];
       return 0;
     });
+    g.rows.forEach((r, i) => ([r.note, r.color] = zones[i]));
     const top = g.rows[0];
     for (const [i, r] of g.rows.entries()) {
       if (sport === 'soccer') r.stats.GAP = i === 0 ? '-' : String(num(top.stats.P) - num(r.stats.P));
