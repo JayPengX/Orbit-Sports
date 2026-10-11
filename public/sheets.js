@@ -1974,16 +1974,32 @@ function fillField(s, e) {
         raceBox
       );
       loadRace();
-      numbers?.then(([rows, board]) => {
-        // Kept for the session once the official order is in (a practice has none: its archive).
-        if (rows.length || (board && /^FP\d$/.test(ss.abbr))) f1Numbers.set(key, { rows, board });
+      const draw = (rows, board, fade) => {
         if (at !== pick || !box.isConnected) return;
         const done = f1Final(rows, board, ss);
         // (The last live reading stays where nothing better came.)
         if (!done && lastWord) return;
         const fresh = done || espnList();
-        if (!lastWord) fresh.classList.add('fade-in');
+        if (fade) fresh.classList.add('fade-in');
         put(holder, fresh);
+      };
+      numbers?.then(([rows, board]) => {
+        // Kept for the session only whole: the order and the archive's 數據
+        // (a practice has no official order). An archive slower than the
+        // wait is still read, and drawn in place when it comes (it was kept
+        // missing for good, 數據 left with the last live reading's scraps).
+        if (board) {
+          if (rows.length || /^FP\d$/.test(ss.abbr)) f1Numbers.set(key, { rows, board });
+          return draw(rows, board, !lastWord);
+        }
+        draw(rows, lastWord ? { ...lastWord, final: true } : null, !lastWord);
+        sessionTiming(ss.start)
+          .then(late => {
+            if (!late) return;
+            f1Numbers.set(key, { rows, board: late });
+            draw(rows, late, false);
+          })
+          .catch(() => {});
       });
       // F1, a session on now: F1's own live timing, again every 5 seconds in place.
       clearInterval(liveTimer);
