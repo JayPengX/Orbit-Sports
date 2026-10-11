@@ -380,3 +380,18 @@ test("settleSeries: a series won puts its winner in the next round's placeholder
   // Another day read later in the session (the ALCS's Game 2): the same.
   assert.equal(settleSeries([{ ...next, id: '11' }])[0].away.id, '5');
 });
+
+test("a player's game log: this season's own (its preseason too, marked), newest first; ESPN's season by its year", async () => {
+  const { parseSeasonLog, logSeason } = await import('../public/lib/espn.mjs');
+  const ev = (id, date, opp) => ({ id, gameDate: date, atVs: '@', opponent: { id: '9', displayName: opp, abbreviation: opp }, team: { id: '13', abbreviation: 'LAL' }, homeTeamId: '9', awayTeamId: '13', homeTeamScore: '114', awayTeamScore: '108', gameResult: 'L', links: [] });
+  const log = parseSeasonLog({
+    labels: ['MIN', 'PTS'],
+    events: { 1: ev('1', '2026-10-08T23:30:00Z', 'BKN'), 2: ev('2', '2026-10-10T02:00:00Z', 'GS') },
+    seasonTypes: [{ displayName: '2026-27 Preseason', categories: [{ displayName: 'Preseason', events: [{ eventId: '1', stats: ['18', '10'] }, { eventId: '2', stats: ['22', '14'] }] }] }]
+  });
+  assert.deepEqual(log.games.map(g => [g.opp.abbr, g.pre, g.score]), [['GS', true, '108-114'], ['BKN', true, '108-114']]);
+  assert.equal(logSeason('nba', Date.parse('2026-10-11T00:00Z')), 2027);
+  assert.equal(logSeason('nba', Date.parse('2027-03-01T00:00Z')), 2027);
+  assert.equal(logSeason('mlb', Date.parse('2026-10-11T00:00Z')), 2026);
+  assert.equal(logSeason('epl'), null);
+});

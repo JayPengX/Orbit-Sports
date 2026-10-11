@@ -16,6 +16,7 @@ import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox } from './mlb.mjs';
+import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
 import * as kit from '#kit/quadra.mjs';
@@ -1624,6 +1625,28 @@ export async function roster(league, id, home = '') {
   const path = home && LEAGUES[league].espn.startsWith('soccer/') ? `soccer/${home}` : LEAGUES[league].espn;
   return parseRoster(await getJson(`${SITE}/${path}/teams/${encodeURIComponent(id)}/roster`, { ttl: 60 * 60_000 }));
 }
+// Who starts a game to come (lib/lineups.mjs): MLB's probable pitchers and
+// batting orders ({ kind: 'mlb', pitchers, order }); an NBA, WNBA or NHL
+// side's starters once announced ({ kind: 'core', away, home, pending: none
+// yet }), asked only near the start; else null.
+export async function pregameLineups(e, now = Date.now()) {
+  if (e?.kind !== 'match' || e.status?.state !== 'pre') return null;
+  const ahead = Date.parse(e.start) - now;
+  if (e.league === 'mlb') {
+    if (ahead > 3 * 86_400_000) return null;
+    const m = mlbLineups(await getJson(mlbLineupsUrl(mlbDate(Date.parse(e.start))), { ttl: 2 * 60_000 }), e);
+    return m && (m.pitchers.away || m.pitchers.home || m.order.away.length || m.order.home.length) ? { kind: 'mlb', ...m } : null;
+  }
+  const far = CORE_LINEUPS[e.league];
+  if (!far || ahead > far || !LEAGUES[e.league]?.espn || !e.home?.id || !e.away?.id) return null;
+  const sides = await Promise.all(
+    [e.away, e.home].map(async t => {
+      const starters = coreStarters(await getJson(coreRosterUrl(LEAGUES[e.league].espn, e.id, t.id), { ttl: 60_000 }));
+      return starters.length ? withRoster(starters, await roster(e.league, t.id).catch(() => [])) : [];
+    })
+  );
+  return { kind: 'core', away: sides[0], home: sides[1], pending: !sides.some(x => x.length) };
+}
 export function parseAthlete(data) {
   const a = data?.athlete || {};
   return {
@@ -1731,8 +1754,43 @@ export function parseGameLog(log) {
     .filter(Boolean);
   return games.length ? { title: block.displayName || '', labels: block.labels.slice(0, n), games } : null;
 }
+// ESPN's season by its year, for a player's game log: a season across the
+// new year (the NBA's, NHL's) is named by its second (2026-27: 2027).
+const LOG_SEASON = { nba: 'split', wnba: 'year', nhl: 'split', mlb: 'year', nfl: 'year', ncaaf: 'year' };
+export const logSeason = (league, now = Date.now()) => {
+  const d = new Date(now);
+  const kind = LOG_SEASON[league];
+  if (!kind) return null;
+  return kind === 'split' && d.getUTCMonth() >= 8 ? d.getUTCFullYear() + 1 : d.getUTCFullYear();
+};
+// A season's game log (the gamelog read: its preseason, regular season and
+// playoffs, newest first), in the overview's shape, each preseason game marked.
+export function parseSeasonLog(data) {
+  if (!data?.events || !data.labels?.length) return null;
+  const pre = new Set();
+  const rows = [];
+  for (const t of data.seasonTypes || [])
+    for (const c of t.categories || [])
+      for (const x of c.events || []) {
+        rows.push(x);
+        if (/preseason/i.test(`${t.displayName} ${c.displayName}`)) pre.add(String(x.eventId));
+      }
+  rows.sort((a, b) => Date.parse(data.events[b.eventId]?.gameDate || 0) - Date.parse(data.events[a.eventId]?.gameDate || 0));
+  const log = parseGameLog({ statistics: [{ displayName: '', labels: data.labels, events: rows }], events: data.events });
+  if (log) log.games = log.games.map(g => (pre.has(g.id) ? { ...g, pre: true } : g));
+  return log;
+}
 export async function athleteOverview(league, id) {
-  const ov = parseOverview(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }));
+  const season = logSeason(league);
+  const [raw, seasonLog] = await Promise.all([
+    getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }),
+    // ESPN's overview keeps last season's games until a player's first of the
+    // new regular season (no preseason): this season's own log, its preseason too.
+    season ? getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/gamelog?season=${season}`, { ttl: 60 * 60_000 }).then(parseSeasonLog, () => null) : null
+  ]);
+  const ov = parseOverview(raw);
+  const newest = l => Date.parse(l?.games?.[0]?.date || '') || 0;
+  if (seasonLog && newest(seasonLog) > newest(ov.log)) ov.log = seasonLog;
   // A game's league: the one it names, else (one league to a sport: the NBA's, MLB's) the player's own.
   // Only the competitions Orbit Sports has (a friendly, another country's
   // cup: nothing of theirs to open or name), the last five of them.

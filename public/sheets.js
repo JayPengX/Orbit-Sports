@@ -5,7 +5,7 @@ import { translate, proxyJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
@@ -87,6 +87,8 @@ export async function openMatch(e) {
   let table = null;
   // Each side's injuries from its roster (ESPN's game page leaves some out).
   let hurt = {};
+  // Who starts, before the game (pregameLineups).
+  let lineups = null;
   // Polymarket's win probability where ESPN draws none (a game on: again each
   // minute); a game to come, its chance for each side now, where ESPN has no
   // prediction of its own.
@@ -199,7 +201,7 @@ export async function openMatch(e) {
     if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     else if (view === 'table') view = 'overview';
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
-    put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt) }, e, table, { line, wait }));
+    put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt), lineups }, e, table, { line, wait }));
   };
   // The league's table: both sides' places, and the Table section.
   if (hasStandings(e.league))
@@ -237,6 +239,23 @@ export async function openMatch(e) {
         .catch(() => {});
     return;
   }
+  // A game to come: who starts (lib/lineups.mjs), again each minute while
+  // the sheet is open, until it starts (an NBA five comes 30 minutes before).
+  let lineupTimer = 0;
+  const stopLineups = () => clearInterval(lineupTimer);
+  const loadLineups = () => {
+    if (!s.dialog.isConnected || (data?.status || e.status).state !== 'pre') return stopLineups();
+    pregameLineups(e)
+      .then(l => {
+        if (JSON.stringify(l) === JSON.stringify(lineups)) return;
+        lineups = l;
+        paint();
+      })
+      .catch(() => {});
+  };
+  loadLineups();
+  lineupTimer = setInterval(loadLineups, 60_000);
+  s.dialog.addEventListener('close', stopLineups);
   // A game to come or on: who's out, from each team's roster too (soccer's rosters say nothing of it).
   if (e.kind === 'match' && e.status.state !== 'post' && LEAGUES[e.league].sport !== 'soccer')
     Promise.all([e.away, e.home].map(x => (x?.id ? teamInjuries(e.league, x.id).then(list => [x.id, list]).catch(() => null) : null))).then(got => {
@@ -741,6 +760,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     // (A guest club from outside the league has no record or place to set beside the other's.)
     e.home.guest || e.away.guest ? null : card(T('matchup'), compare),
     winCard(d, e, line, wait),
+    lineupCard(d?.lineups, e, nameOf),
     leadersBy.some(x => x.length)
       ? card(
           T('leaders'),
@@ -774,6 +794,38 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     exactTv ? twCard(e.league, e) : null,
     card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([, k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
   ]);
+}
+
+// Who starts (pregameLineups): MLB's probable pitchers and batting orders,
+// an NBA, WNBA or NHL side's starters once announced; before then, when
+// they're said. Each side a list of its own (two columns cut the names).
+function lineupCard(l, e, nameOf) {
+  if (!l) return null;
+  const en = L() === 'en';
+  const sport = LEAGUES[e.league]?.sport;
+  const who = p => (p.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, e.league, 'xs round'), el('span', { text: p.name })]) : el('span', { class: 'roster-name' }, [personPic(p, e.league, 'xs round'), el('span', { text: p.name })]));
+  const row = (p, lead = '') => el('li', {}, [lead ? el('span', { class: 'jersey num', text: lead }) : null, who(p), el('small', { text: posZh(p.pos, sport, L()) })]);
+  const side = (team, list, lead) => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(team.id) }), el('ul', { class: 'inj-list lineup-list' }, list.map((p, i) => row(p, lead(p, i))))]);
+  const sides = [e.away, e.home];
+  if (l.kind === 'mlb') {
+    const pitchers = sides.map((t, i) => [t, [l.pitchers.away, l.pitchers.home][i]]).filter(([, p]) => p);
+    const orders = sides.map((t, i) => [t, [l.order.away, l.order.home][i]]).filter(([, o]) => o.length);
+    return card(
+      en ? 'Starters' : '先發',
+      el('div', { class: 'injuries' }, [
+        pitchers.length ? el('div', {}, [el('p', { class: 'mini-h', text: en ? 'Probable pitchers' : '預計先發投手' }), el('ul', { class: 'inj-list lineup-list' }, pitchers.map(([t, p]) => el('li', {}, [who(p), el('small', { text: t.short || t.name })])))]) : null,
+        ...orders.map(([t, o]) => side(t, o, (p, i) => String(i + 1)))
+      ]),
+      { sub: orders.length ? (en ? 'Batting orders posted' : '打序已公布') : en ? 'Batting orders hours before' : '打序賽前數小時公布' }
+    );
+  }
+  if (l.pending)
+    return card(en ? 'Starting lineups' : '先發陣容', el('p', { class: 'muted small', text: e.league === 'nhl' ? (en ? 'Starting goalies are named before the game.' : '先發門將賽前公布。') : en ? 'Named about 30 minutes before tip-off.' : '開賽前約 30 分鐘公布。' }));
+  return card(
+    en ? 'Starting lineups' : '先發陣容',
+    el('div', { class: 'injuries' }, sides.map((t, i) => [t, [l.away, l.home][i]]).filter(([, list]) => list.length).map(([t, list]) => side(t, list, p => p.jersey))),
+    { sub: en ? 'Announced' : '已公布' }
+  );
 }
 
 // A few table columns worth comparing, by sport.
@@ -2892,7 +2944,7 @@ export async function openPlayer(league, id, fallback = {}) {
                     el('td', { class: 'left num', text: g.date ? localDate(Date.parse(g.date)).slice(5).replace('-', '/') : '' }),
                     el('td', { class: 'left' }, [
                       el('span', { class: 'opp-cell' }, [el('span', { class: 'muted opp-at', text: g.at === '@' ? '@' : 'vs' }), logo(g.opp.logo, g.opp.name, 'xs'), el('span', { class: 'opp-name', text: g.opp.abbr || g.opp.name })]),
-                      !oneComp && (g.league || g.leagueName) ? el('small', { class: 'log-comp' }, [compOf(g)]) : null
+                      g.pre ? el('small', { class: 'log-comp', text: W('熱身賽', 'Preseason') }) : !oneComp && (g.league || g.leagueName) ? el('small', { class: 'log-comp' }, [compOf(g)]) : null
                     ]),
                     el('td', { class: 'left' }, [el('span', { class: `result-pill ${g.result === 'W' ? 'w' : g.result === 'L' ? 'l' : g.result === 'D' || g.result === 'T' ? 'd' : ''}`, text: [g.result ? (en ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result) : '', g.score].filter(Boolean).join(' ') })]),
                     ...g.stats.map(v => el('td', { class: 'num', text: en ? v : LOG_WORDS[v] || v })),
