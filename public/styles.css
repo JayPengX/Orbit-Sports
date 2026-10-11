@@ -1087,9 +1087,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .lp-feed li .play-when { color: var(--q-muted); font-weight: 650; }
 .lp-feed li b { color: var(--q-text); font-weight: 700; }
 .lp-feed li strong { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--accent-wash); color: var(--accent); }
-/* Soccer's latest goal on a card: the scorer's face, their club's badge on it. */
-.live-scorer { position: relative; flex: none; display: inline-grid; }
-.live-scorer .scorer-team { position: absolute; right: -5px; bottom: -3px; width: 17px; height: 17px; padding: 1.5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px var(--q-surface, #1c1c1e); object-fit: contain; }
+/* Soccer's latest goal on a card: a ball where baseball draws its diamond. */
+.live-ball { flex: none; display: block; width: 32px; height: 32px; border-radius: 50%; background: var(--q-fill, rgba(127,127,127,.16)); font-size: 18px; line-height: 32px; text-align: center; }
 .live-line.base.goal .live-text > .live-count { display: flex; gap: 6px; align-items: baseline; }
 .live-line.goal .live-min { color: var(--accent); font-weight: 800; }
 /* A sheet's watch button with nothing under it but a card: room between them. */
