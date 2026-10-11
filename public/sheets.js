@@ -1654,18 +1654,21 @@ function f1Field(rows, field) {
     { class: 'field f1-field' },
     rows.map(r => {
       const gained = r.grid && !r.out ? r.grid - r.pos : 0;
+      // A car out as the live board has it: its place, 退賽 by the name, the laps it ran (a race's; a qualifying's out has none: 退賽 in its place).
+      const placed = r.out && r.place;
       return f1Row({
-        pos: r.pos,
-        posText: r.out ? r.text : '',
-        posOut: r.out,
+        pos: placed ? r.place : r.pos,
+        posText: r.out && !placed ? r.text : '',
+        posOut: r.out && !placed,
         full: `${r.driver.givenName} ${r.driver.familyName}`,
         team: r.team,
         field,
         cls: r.out ? 'gone' : '',
-        main: r.out ? r.why : r.time || (r.status === 'Lapped' ? (en ? 'Lapped' : '被套圈') : ''),
+        main: r.out ? (placed ? (en ? `${r.laps} laps` : `${r.laps} 圈`) : r.why) : r.time || (r.status === 'Lapped' ? (en ? 'Lapped' : '被套圈') : ''),
         // Under the name: places from the grid, out in which part, the fastest lap; on the right under the time: the points (or the gap).
         notes: [
           gained ? el('small', { class: `num gain ${gained > 0 ? 'up' : 'down'}`, title: en ? `From P${r.grid}` : `起跑第 ${r.grid}`, text: `${gained > 0 ? '▲' : '▼'}${Math.abs(gained)}` }) : null,
+          placed ? el('small', { class: 'f1-pill bad', text: r.text }) : null,
           r.outIn ? el('small', { class: 'f1-pill', text: en ? `Out ${r.outIn}` : `${r.outIn} 淘汰` }) : null,
           r.fastest ? el('small', { class: 'f1-pill fl', text: en ? 'Fastest' : '最快圈' }) : null
         ],
@@ -1773,7 +1776,8 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
       // Out of it (retired, stopped, knocked out): greyed, every one alike (a stopped car said 退賽 but stayed bright).
       cls: `${cut && c.pos > cut && !c.out ? 'drop' : ''}${c.out || c.retired || c.stopped ? ' gone' : ''}`.trim(),
       // Qualifying and practice: the best lap (of this part), the gap to the top under it; a race: the gap, the car ahead's interval under it.
-      main: timed ? c.best || '—' : i === 0 ? (over ? (en ? 'Winner' : '冠軍') : en ? 'Leader' : '領先') : c.gap,
+      // (A car out: the laps it ran, not the laps it's down: "55L" read as still running, long after it stopped.)
+      main: timed ? c.best || '—' : i === 0 ? (over ? (en ? 'Winner' : '冠軍') : en ? 'Leader' : '領先') : race && (c.retired || c.stopped) ? (c.laps ? (en ? `${c.laps} laps` : `${c.laps} 圈`) : en ? 'DNS' : '未起跑') : c.gap,
       // Under the name: the tyre and its age, in the pits or out; on the right under the gap: the car ahead (a race), the gap (qualifying, practice); over, the laps run.
       // (A race, on and over: the places from the grid by the name, as the official results have them; over, the points it took under the gap.)
       // (A race over: the official results' own row, whichever came first: the places gained, the fastest lap, the points.)

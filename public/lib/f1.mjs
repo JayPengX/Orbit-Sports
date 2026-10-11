@@ -168,6 +168,9 @@ export async function raceResult(start, sprint = false, en = false) {
     driver: x.Driver || {},
     team: x.Constructor?.name || '',
     grid: Number(x.grid) || 0,
+    // (Where a car out was put, and the laps it ran: drawn as the live board draws it.)
+    place: Number(x.position) || 0,
+    laps: Number(x.laps) || 0,
     time: x.Time?.time || (/^\+\d+ Laps?$/.test(x.status) ? x.status : ''),
     status: x.status || '',
     points: Number(x.points || 0),
