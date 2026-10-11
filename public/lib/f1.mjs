@@ -282,6 +282,12 @@ export async function liveTiming(abbr, start) {
 // car's best lap and gap (a practice: ESPN keeps only the order), in the live
 // board's shape. Null when it isn't there (yet).
 const ARCHIVE = start => `https://f1-live.quadra/session.json?start=${encodeURIComponent(new Date(start).toISOString())}`;
+// Every car's laps in a session ({ cars: { no: [[lap, ms, gap, place, pit]…] } },
+// f1-live.js /laps.json): again each 15 seconds while it runs, kept once over.
+export const sessionLaps = (start, over) =>
+  getJson(`https://f1-live.quadra/laps.json?start=${encodeURIComponent(new Date(start).toISOString())}${over ? '&final=1' : ''}`, { ttl: over ? 24 * 3_600_000 : 12_000 }).then(b => (b?.cars ? b : null));
+// A circuit's outline, corners and the time a stop costs there (f1-live.js /circuit.json).
+export const circuitMap = (key, year) => getJson(`https://f1-live.quadra/circuit.json?key=${Number(key)}&year=${Number(year)}`, { ttl: 7 * 24 * 3_600_000 }).then(c => (c?.x?.length ? c : null));
 export const sessionTiming = start => getJson(ARCHIVE(start), { ttl: 24 * 3_600_000 }).then(b => (b?.cars?.length ? b : null));
 // The last reading of this session if it's recent (10 minutes), or its last
 // word (the session over: it stands until the official numbers come), else null.

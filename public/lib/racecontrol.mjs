@@ -1,4 +1,4 @@
-// Race control's messages (賽事幹事) in Chinese: they're FIA's set phrases
+// Race control's messages (賽事控制) in Chinese: they're FIA's set phrases
 // ("CAR 18 (STR) STOPPED AT TURN 15"), so each is told by rule, never by a
 // translator that guesses at the jargon. Each car named becomes { no } (the
 // app draws the driver, a tap opening them). A message with words the rules

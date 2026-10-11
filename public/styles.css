@@ -1452,7 +1452,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .inj-status.bad { background: color-mix(in srgb, var(--q-bad, #ef4444) 16%, transparent); color: var(--q-bad, #ef4444); }
 .inj-status.warn { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #d97706; }
 .inj-status.good { background: color-mix(in srgb, var(--q-good, #22c55e) 16%, transparent); color: var(--q-good, #22c55e); }
-/* 賽事幹事: a driver named in the message, a chip with their face that opens them. */
+/* Race control (賽事控制): a driver named in the message, a chip with their face that opens them. */
 .lb-msg .rc-who { display: inline-flex; align-items: center; gap: 4px; margin: 0 .2em; padding: 1px 8px 1px 1px; border: 0; border-radius: 999px; background: var(--q-sunken); color: inherit; font: inherit; font-weight: 700; vertical-align: -0.3em; cursor: pointer; }
 .lb-msg .rc-who .logo { width: 18px; height: 18px; }
 /* ---- F1's live board as a timing tower (2026-10-10) ---- */
@@ -1512,3 +1512,74 @@ button.lp-person.tap:active { opacity: 0.6; }
 .fs-speed i { display: block; height: 100%; border-radius: 3px; background: var(--team, var(--accent)); }
 
 .info-line { display: block; }
+/* F1 數據 live: the weather, the track with the cars, laps compared, the stop window. */
+.fs-weather { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.fs-weather > div { display: grid; gap: 1px; padding: 9px 10px; border-radius: 14px; background: var(--q-surface); }
+.fs-weather small { font-size: 11.5px; font-weight: 650; color: var(--q-muted); }
+.fs-weather strong { font-size: 16px; font-weight: 800; white-space: nowrap; }
+.tm-box { margin: 2px -4px 0; }
+.tm-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tm-track { fill: none; stroke: var(--q-text-2, #c7c7cc); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; opacity: 0.55; }
+.tm-edge { fill: none; stroke: var(--q-surface-2, rgba(127,127,127,.25)); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; }
+.tm-car { transition: transform 4.8s linear; }
+.tm-car circle { fill: var(--team, #888); stroke: var(--q-surface, #1c1c1e); stroke-width: 1.6; }
+.tm-car text { display: none; font-size: 10px; font-weight: 800; fill: var(--q-text); paint-order: stroke; stroke: var(--q-surface, #1c1c1e); stroke-width: 3px; }
+.tm-car.named text { display: block; }
+.tm-car.pit { opacity: 0.45; }
+.lc { display: grid; gap: 10px; }
+.fs-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+.fs-pick { display: grid; place-items: center; padding: 3px 0; border: 0; border-radius: 12px; background: none; cursor: pointer; opacity: 0.55; }
+.fs-pick .logo { box-shadow: 0 0 0 2px var(--q-surface), 0 0 0 4px transparent; }
+.fs-pick[aria-pressed="true"] { opacity: 1; background: color-mix(in srgb, var(--team, var(--accent)) 18%, transparent); }
+.fs-pick[aria-pressed="true"] .logo { box-shadow: 0 0 0 2px var(--q-surface), 0 0 0 4px var(--team, var(--accent)); }
+.lc-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.lc-grid { stroke: var(--q-divider, rgba(127,127,127,.2)); stroke-width: 1; }
+.lc-y { fill: var(--q-muted); font-size: 9.5px; text-anchor: end; font-variant-numeric: tabular-nums; }
+.lc-x { fill: var(--q-muted); font-size: 9.5px; text-anchor: middle; }
+.lc-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.lc-line.dash { stroke-dasharray: 5 4; }
+.lc-pit { fill: var(--q-surface, #1c1c1e); stroke-width: 2; }
+.lc-tyres { display: grid; gap: 4px; }
+.lc-tyre-row { position: relative; height: 10px; }
+.lc-tyre-who { position: absolute; left: 0; top: -2px; font-size: 10px; font-weight: 800; color: var(--q-muted); }
+.lc-tyre-track { position: relative; display: block; height: 10px; border-radius: 3px; background: var(--q-fill, rgba(127,127,127,.12)); }
+.lc-tyre-track .stint { position: absolute; top: 0; bottom: 0; min-width: 0; border-radius: 3px; }
+.lc-rows li { grid-template-columns: 22px 104px minmax(0, 1fr) auto; }
+.lc-pace { margin: 0; font-size: 13px; font-weight: 650; }
+.fs-empty { margin: 4px 0; }
+.pw-rows li { grid-template-columns: 22px 104px minmax(0, 1fr) 44px; }
+.pw-note { display: inline-flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; color: var(--q-muted); }
+.pw-note small { font-size: 12px; }
+.pw-to { display: grid; justify-items: end; line-height: 1.15; }
+.pw-to strong { font-size: 15px; font-weight: 800; color: var(--q-muted); }
+.pw-to strong.lose { color: var(--q-bad, #f87171); }
+.pw-to small { font-size: 11px; font-weight: 650; color: var(--q-muted); }
+.face-btn { flex: none; display: inline-grid; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+.lc-fight { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--q-fill, rgba(127,127,127,.12)); box-shadow: inset 3px 0 0 var(--team, transparent); }
+.lc-fight-text { display: grid; gap: 2px; min-width: 0; }
+.lc-fight-text strong { font-size: 15px; font-weight: 750; white-space: nowrap; }
+.lc-fight-text strong .muted { font-weight: 600; }
+.lc-fight-text small { font-size: 12.5px; color: var(--q-muted); white-space: nowrap; }
+.lc-tyrenow { display: flex; gap: 14px; flex-wrap: nowrap; }
+.lc-tyrenow > span { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; white-space: nowrap; }
+.lc-head { text-align: right; }
+.lc-head .logo { box-shadow: 0 0 0 2px var(--team, transparent); }
+.lc-tyrenow .tyre { width: 16px; height: 16px; }
+.lc-tyrenow small { color: var(--q-muted); }
+.lc-grid.zero { stroke: var(--q-muted); stroke-dasharray: 3 3; }
+.lc-table td.quick { color: #a855f7; font-weight: 800; }
+.lc-table td.pit { color: var(--q-muted); }
+.lc-table td.lc-delta { font-weight: 750; }
+/* The live head: one card, the lap large, the flag a dot and a word, race control's word under a hairline. */
+.lb-top { gap: 10px; padding: 14px 16px; background: var(--q-surface); }
+.lb-head { align-items: center; }
+.lb-lap { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.lb-lap small { font-size: 13px; font-weight: 700; color: var(--q-muted); }
+.lb-lap strong { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.lb-flag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; white-space: nowrap; }
+.lb-flag i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.lb-top .lb-msg { padding: 10px 0 0; border-radius: 0; background: none; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 13.5px; }
+.lb-top .lb-msg small { margin-bottom: 2px; font-size: 11.5px; letter-spacing: 0.02em; }
+.f1-sub { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
+.f1-tyre { display: inline-flex; align-items: center; gap: 3px; flex: none; font-size: 12px; color: var(--q-muted); }
+.f1-tyre .tyre { width: 15px; height: 15px; }

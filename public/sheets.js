@@ -16,7 +16,7 @@ import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLine
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, lapMs } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
@@ -1514,17 +1514,19 @@ const fieldDriver = (field = [], full, family = String(full || '').split(' ').sl
 // colour down its edge, the place, the face, the driver and team on two lines,
 // and on the right the time (or gap) over one line of what else counts. Each
 // line stays one line: the name ends in … before anything moves.
-function f1Row({ pos, posText = '', posOut = false, full, team, field, main = '', tags = [], cls = '', colour = '' }) {
+function f1Row({ pos, posText = '', posOut = false, full, team, field, main = '', tags = [], sub = [], cls = '', colour = '' }) {
   const en = L() === 'en';
   const c = fieldDriver(field, full) || { name: full };
   const who = { ...c, name: f1Shown(full) };
   const car = f1Constructor(team || f1Driver(full).team);
   const row = el('li', { class: `${ctx.isFollowed('f1', c.id) ? 'mine' : ''}${cls ? ` ${cls}` : ''}`.trim() }, [
     el('span', { class: `pos num${posOut ? ' out' : ''}`, text: posText || String(pos) }),
-    personPic(c, 'f1', 'sm round'),
+    // (The face opens the driver too.)
+    c.id ? el('button', { class: 'face-btn', type: 'button', 'aria-label': who.name, onclick: () => ctx.openPlayer('f1', c.id, c) }, [personPic(c, 'f1', 'sm round')]) : personPic(c, 'f1', 'sm round'),
     el('span', { class: 'f1-who' }, [
       personName('f1', who),
-      el('button', { class: 'link f1-team', type: 'button', onclick: () => openConstructor({ id: '', name: car.name, en: car.name }) }, [constructorBadge(car.name, 'xxs'), el('span', { text: en ? car.name : car.zh })])
+      // The team, and live the tyre it's on beside it (the right side kept for the gaps: the names had no room).
+      el('span', { class: 'f1-sub' }, [el('button', { class: 'link f1-team', type: 'button', onclick: () => openConstructor({ id: '', name: car.name, en: car.name }) }, [constructorBadge(car.name, 'xxs'), el('span', { text: en ? car.name : car.zh })]), ...sub.filter(Boolean)])
     ]),
     el('span', { class: 'f1-res' }, [el('span', { class: 'num f1-main', text: main }), tags.some(Boolean) ? el('span', { class: 'f1-tags' }, tags.filter(Boolean)) : null])
   ]);
@@ -1618,11 +1620,17 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
     fill.style.width = `${Math.round(Math.min(1, Math.max(0, done)) * 100)}%`;
   };
   tickClock();
+  // The head: the lap (or part) large, its total small, the clock, the flag
+  // as a coloured dot and word; the bar under it; race control's last word
+  // in the same card under a hairline (two grey boxes stacked, before).
+  const lapNow = race && b.lap?.now && !over;
   const head = el('div', { class: 'lb-top' }, [
     el('div', { class: 'lb-head' }, [
-      el('strong', { class: 'lb-part', text: quali && b.part && !over ? `${prefix}${b.part}` : race && b.lap?.now && !over ? (en ? `Lap ${b.lap.now}/${b.lap.of}` : `第 ${b.lap.now}/${b.lap.of} 圈`) : sessionName(ss, L(), true) }),
+      lapNow
+        ? el('span', { class: 'lb-lap' }, [el('small', { text: en ? 'Lap' : '第' }), el('strong', { class: 'num', text: String(b.lap.now) }), el('small', { class: 'num', text: en ? `/ ${b.lap.of}` : `/ ${b.lap.of} 圈` })])
+        : el('strong', { class: 'lb-part', text: quali && b.part && !over ? `${prefix}${b.part}` : sessionName(ss, L(), true) }),
       left,
-      flag ? el('span', { class: `lb-flag ${flag[2]}`, text: en ? flag[1] : flag[0] }) : null
+      flag ? el('span', { class: `lb-flag ${flag[2]}` }, [el('i'), el('span', { text: en ? flag[1] : flag[0] })]) : null
     ]),
     !over && (total || (race && b.lap?.of)) ? el('div', { class: 'lb-bar', 'aria-hidden': 'true' }, [fill]) : null
   ]);
@@ -1639,13 +1647,12 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
       cls: `${cut && c.pos > cut && !c.out ? 'drop' : ''}${c.out || c.retired || c.stopped ? ' gone' : ''}`.trim(),
       // Qualifying and practice: the best lap (of this part), the gap to the top under it; a race: the gap, the car ahead's interval under it.
       main: timed ? c.best || '—' : i === 0 ? (over ? (en ? 'Winner' : '冠軍') : en ? 'Leader' : '領先') : c.gap,
+      sub: over ? [] : [tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? ' laps' : ' 圈'}` }) : null]) : null],
       // Over: the laps each car ran (every car's in the pits by then: no 進站, no tyre).
       tags: over
         ? [timed && i > 0 && c.gap ? el('small', { class: 'num', text: c.gap }) : null, c.laps ? el('small', { class: 'num', text: `${c.laps}${en ? ' laps' : ' 圈'}` }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
         : [
             state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null,
-            tyreIcon(c.tyre),
-            tyre && c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? 'L' : '圈'}` }) : null,
             timed ? (i > 0 && c.gap ? el('small', { class: 'num', text: c.gap }) : null) : i > 0 && c.interval ? el('small', { class: 'num', text: `${en ? 'int ' : '前車 '}${c.interval}` }) : null
           ]
     });
@@ -1659,13 +1666,14 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
     return el(who.id ? 'button' : 'span', { class: 'rc-who', type: who.id ? 'button' : null, onclick: who.id ? () => ctx.openPlayer('f1', who.id, who) : null }, [personPic(who, 'f1', 'xs round'), el('span', { text: driverShort(c.name) })]);
   };
   // (Over: race control's last word, a flag long gone, isn't said.)
-  const msg = b.message?.text && !over ? el('p', { class: 'lb-msg' }, [el('small', { text: en ? 'Race control' : '賽事幹事' }), ...raceControlParts(b.message.text, !en).map(x => (typeof x === 'string' ? document.createTextNode(x) : carChip(x.no)))]) : null;
+  const msg = b.message?.text && !over ? el('p', { class: 'lb-msg' }, [el('small', { text: en ? 'Race control' : '賽事控制' }), ...raceControlParts(b.message.text, !en).map(x => (typeof x === 'string' ? document.createTextNode(x) : carChip(x.no)))]) : null;
   const order = el('ol', { class: 'field f1-field lb-rows' }, rows);
   if (orderOnly) return order;
   // Over: no head (its part, clock and flag are gone; "最終成績" over the
   // results said nothing), the order and its 數據 as every finished session.
   // On: the head, race control's latest, then 成績 or 數據 (F1 timing's other numbers).
-  return el('div', { class: 'live-board' }, over ? [f1Views(order, f1Stats(b, ss))] : [head, msg, f1Views(order, f1Stats(b, ss))]);
+  if (msg) head.append(msg);
+  return el('div', { class: 'live-board' }, over ? [f1Views(order, f1Stats(b, ss))] : [head, f1Views(order, f1Stats(b, ss))]);
 }
 // A session's other numbers, as F1's timing has them, for every session
 // (practice, sprint qualifying, sprint, qualifying, race), on and over:
@@ -1680,6 +1688,308 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
 // Every name is the driver's surname, whole (the columns are made for the
 // longest on the grid). Null when the feed has none of it.
 const fmtLap = n => (n ? `${Math.floor(n / 60000)}:${((n % 60000) / 1000).toFixed(3).padStart(6, '0')}` : '');
+// ---- F1 數據, live and after: the weather, the track with the cars on it,
+// each car's laps side by side, and where a stop now would put each car ----
+
+// The weather at the track (live): four small numbers in one row.
+function f1Weather(b) {
+  const w = b.weather;
+  if (!w) return null;
+  const en = L() === 'en';
+  const items = [[en ? 'Air' : '氣溫', `${w.air.toFixed(1)}°`], [en ? 'Track' : '賽道', `${w.track.toFixed(1)}°`], [en ? 'Humidity' : '濕度', `${Math.round(w.humidity)}%`], [en ? 'Rain' : '降雨', w.rain ? (en ? 'Yes' : '有') : en ? 'No' : '無']];
+  return el('div', { class: 'fs-weather' }, items.map(([k, v]) => el('div', {}, [el('small', { text: k }), el('strong', { class: 'num', text: v })])));
+}
+
+// Circuits by F1's key, read once (MultiViewer's outline, F1's coordinates).
+const f1Circuits = new Map();
+function circuitOf(b, ss, redraw) {
+  const key = b.session?.circuit;
+  if (!key) return null;
+  const c = f1Circuits.get(key);
+  if (c === undefined) {
+    f1Circuits.set(key, 'loading');
+    circuitMap(key, new Date(ss.start).getUTCFullYear())
+      .then(x => {
+        f1Circuits.set(key, x);
+        if (x) redraw?.();
+      })
+      .catch(() => f1Circuits.set(key, null));
+  }
+  return c && c !== 'loading' ? c : null;
+}
+
+// The track and every car on it where F1's feed has it now, the board's 5
+// seconds glided over (one drawing kept for the session, the cars moved in
+// it, not drawn again). The cars picked for 圈速比較 named and on top.
+const f1Maps = new Map();
+function f1TrackMap(b, ss) {
+  const c = circuitOf(b, ss);
+  if (!c || !b.cars.some(x => x.at)) return null;
+  const en = L() === 'en';
+  const ns = 'http://www.w3.org/2000/svg';
+  let m = f1Maps.get(ss.start);
+  if (!m) {
+    const a = ((c.rotation + 90) * Math.PI) / 180;
+    const cx = (Math.min(...c.x) + Math.max(...c.x)) / 2;
+    const cy = (Math.min(...c.y) + Math.max(...c.y)) / 2;
+    // Turned as MultiViewer draws it (its rotation and a quarter turn, y as it comes), then fitted to the card.
+    const turn = (x, y) => [(x - cx) * Math.cos(a) - (y - cy) * Math.sin(a), (y - cy) * Math.cos(a) + (x - cx) * Math.sin(a)];
+    const pts = c.x.map((x, i) => turn(x, c.y[i]));
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const W = 340, pad = 12;
+    const k = (W - pad * 2) / (x1 - x0);
+    const H = Math.round(Math.min(340, Math.max(180, (y1 - y0) * k + pad * 2)));
+    const kk = Math.min(k, (H - pad * 2) / (y1 - y0));
+    const ox = (W - (x1 - x0) * kk) / 2, oy = (H - (y1 - y0) * kk) / 2;
+    const fit = (x, y) => {
+      const [u, v] = turn(x, y);
+      return [ox + (u - x0) * kk, oy + (v - y0) * kk];
+    };
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('class', 'tm-svg');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', c.name || (en ? 'Track map' : '賽道'));
+    const d = c.x.map((x, i) => fit(x, c.y[i]).map(n => n.toFixed(1)).join(',')).join(' ');
+    svg.innerHTML = `<polyline class="tm-edge" points="${d}"/><polyline class="tm-track" points="${d}"/>`;
+    const layer = document.createElementNS(ns, 'g');
+    svg.append(layer);
+    m = { svg, fit, layer, cars: new Map() };
+    f1Maps.set(ss.start, m);
+  }
+  const picked = new Set(f1Picks.get(ss.start) || []);
+  const order = [...b.cars].filter(x => x.at).sort((x, y) => (picked.has(x.no) ? 1 : 0) - (picked.has(y.no) ? 1 : 0) || y.pos - x.pos);
+  for (const car of order) {
+    let g = m.cars.get(car.no);
+    if (!g) {
+      g = document.createElementNS(ns, 'g');
+      g.setAttribute('class', 'tm-car');
+      g.innerHTML = `<circle r="5.5"/><text x="8" y="3.5"></text>`;
+      m.cars.set(car.no, g);
+    }
+    const [x, y] = m.fit(car.at[0], car.at[1]);
+    g.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    g.style.setProperty('--team', car.colour || '#888');
+    g.classList.toggle('named', picked.has(car.no) || car.pos <= 3);
+    g.classList.toggle('pit', car.inPit);
+    g.querySelector('text').textContent = car.tla || car.no;
+    m.layer.append(g);
+  }
+  for (const [no, g] of m.cars) if (!b.cars.some(x => x.no === no && x.at)) g.remove();
+  return card(en ? 'On track' : '賽道位置', el('div', { class: 'tm-box' }, [m.svg]), { sub: c.name });
+}
+
+// Each car's laps (f1-live.js /laps.json, again each 15 seconds while it
+// runs), with the board's own last lap of each car added as it comes (the
+// stream may lag the board).
+const f1LapData = new Map();
+const f1Seen = new Map();
+const f1Picks = new Map();
+let f1LapMode = 'gap';
+function lapsFor(b, ss, over, redraw) {
+  const k = ss.start;
+  const seen = f1Seen.get(k) || {};
+  if (!over)
+    for (const c of b.cars) {
+      const ms = lapMs(c.last);
+      if (!ms || !c.laps) continue;
+      const list = (seen[c.no] ||= []);
+      if (list.at(-1)?.[0] !== c.laps) list.push([c.laps, ms, c.pos === 1 ? 0 : /^\+?\d+(\.\d+)?$/.test(c.gap) ? Number(String(c.gap).replace('+', '')) : null, c.pos, c.inPit || c.pitOut ? 1 : 0]);
+    }
+  f1Seen.set(k, seen);
+  const got = f1LapData.get(k);
+  if (!got?.loading && (!got || (!over && Date.now() - got.at > 15_000))) {
+    f1LapData.set(k, { ...(got || { at: 0 }), loading: true });
+    sessionLaps(k, over)
+      .then(d => f1LapData.set(k, { at: Date.now(), cars: d?.cars || got?.cars || null }))
+      .catch(() => f1LapData.set(k, { at: Date.now(), cars: got?.cars || null }))
+      .then(redraw);
+  }
+  const base = got?.cars || {};
+  const out = {};
+  for (const no of new Set([...Object.keys(base), ...Object.keys(seen)])) {
+    const by = new Map((base[no] || []).map(x => [x[0], x]));
+    for (const x of seen[no] || []) if (!by.has(x[0])) by.set(x[0], x);
+    out[no] = [...by.values()].sort((x, y) => x[0] - y[0]);
+  }
+  return out;
+}
+
+const fmtGap = s => (s >= 60 ? `+${Math.floor(s / 60)}:${(s % 60).toFixed(0).padStart(2, '0')}` : `+${s.toFixed(s < 10 ? 1 : 0)}`);
+// A driver's face that opens them (every face in F1's 數據 and board).
+function f1Face(ss, name, size = 'xs round') {
+  const who = fieldDriver(ss.field, name, driverShort(name)) || { name };
+  const pic = personPic(who, 'f1', size);
+  return who.id ? el('button', { class: 'face-btn', type: 'button', 'aria-label': f1Shown(name), onclick: () => ctx.openPlayer('f1', who.id, who) }, [pic]) : pic;
+}
+const f1Sur = c => f1Shown(c.name).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1) || c.tla;
+const gapNum = c => (c.pos === 1 ? 0 : /^\+?\d+(\.\d+)?$/.test(c.gap || '') ? Number(String(c.gap).replace('+', '')) : null);
+// Two cars (or up to four) side by side, the way one watches a fight: how
+// far apart, closing or not and when they'd meet, the tyres each is on, and
+// the last laps lap by lap with the difference; the chart the gap between
+// them by lap (or each one's lap times).
+function f1LapCompare(b, ss) {
+  const en = L() === 'en';
+  const race = ss.abbr === 'Race' || ss.abbr === 'SR';
+  const over = Boolean(b.final || feedOver(b));
+  const box = el('div', { 'data-laps': ss.start });
+  const draw = () => {
+    const laps = lapsFor(b, ss, over, () => box.isConnected && draw());
+    const cars = b.cars.filter(c => c.name);
+    if (!f1Picks.has(ss.start)) f1Picks.set(ss.start, cars.slice(0, 2).map(c => c.no));
+    const car = no => cars.find(c => c.no === no);
+    // In the order they run (the one ahead first).
+    const picks = f1Picks.get(ss.start).filter(no => car(no)).sort((x, y) => car(x).pos - car(y).pos);
+    const dashed = no => picks.slice(0, picks.indexOf(no)).some(o => car(o)?.colour === car(no)?.colour);
+    const battle = race && picks.length >= 2;
+    const mode = battle ? f1LapMode : 'time';
+    const timeOf = (no, lap) => (laps[no] || []).find(x => x[0] === lap);
+
+    const pic = c => personPic(fieldDriver(ss.field, c.name, driverShort(c.name)) || { name: c.name }, 'f1', 'xs round');
+    // Every driver's face to pick (a code read as letters, not people).
+    const chips = el('div', { class: 'fs-picks' }, cars.map(c => el('button', {
+      type: 'button', class: 'fs-pick', style: c.colour ? `--team:${c.colour}` : null, 'aria-pressed': String(picks.includes(c.no)), 'aria-label': f1Shown(c.name),
+      onclick: () => {
+        const now = f1Picks.get(ss.start) || [];
+        f1Picks.set(ss.start, now.includes(c.no) ? now.filter(x => x !== c.no) : [...now, c.no].slice(-4));
+        draw();
+      }
+    }, [personPic(fieldDriver(ss.field, c.name, driverShort(c.name)) || { name: c.name }, 'f1', 'sm round')])));
+    if (!picks.length) return put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [chips, el('p', { class: 'muted small fs-empty', text: en ? 'Pick drivers above.' : '在上面選車手' })]), { sub: en ? 'Up to 4' : '最多 4 位' }));
+
+    // The fight now: the one behind, how far, closing or not, when they'd meet.
+    const [a, ...rest] = picks.map(car);
+    const fights = battle
+      ? rest.map(c => {
+          const gap = gapNum(c) != null && gapNum(a) != null ? gapNum(c) - gapNum(a) : null;
+          const diffs = (laps[c.no] || []).map(x => [x[0], x[2], timeOf(a.no, x[0])?.[2]]).filter(([, g, h]) => g != null && h != null).map(([l, g, h]) => [l, g - h]);
+          const last = diffs.slice(-5);
+          const rate = last.length >= 3 ? (last[0][1] - last.at(-1)[1]) / (last.length - 1) : 0;
+          const left = b.lap?.of && b.lap?.now ? b.lap.of - b.lap.now : 0;
+          const meet = gap != null && rate > 0.05 ? Math.ceil((gap - 0.5) / rate) : 0;
+          const trend = rate > 0.05
+            ? en ? `closing ${rate.toFixed(2)}s a lap` : `每圈追近 ${rate.toFixed(2)} 秒`
+            : rate < -0.05 ? (en ? `losing ${(-rate).toFixed(2)}s a lap` : `每圈被拉開 ${(-rate).toFixed(2)} 秒`) : en ? 'holding the gap' : '差距持平';
+          const when = meet && !over ? (meet <= left ? (en ? `on ${a.tla}'s gearbox in ~${meet} laps` : `約 ${meet} 圈後追上`) : en ? 'not before the flag at this rate' : '照這速度完賽前追不上') : '';
+          return el('div', { class: 'lc-fight', style: c.colour ? `--team:${c.colour}` : null }, [
+            f1Face(ss, c.name, 'sm round'),
+            el('span', { class: 'lc-fight-text' }, [
+              el('strong', {}, [document.createTextNode(`${f1Sur(c)} `), el('span', { class: 'muted', text: en ? 'behind' : '落後' }), document.createTextNode(` ${f1Sur(a)} `), el('span', { class: 'num', text: gap != null ? `${gap.toFixed(1)}${en ? 's' : ' 秒'}` : '—' })]),
+              el('small', { text: [trend, when].filter(Boolean).join(' · ') })
+            ]),
+            f1Face(ss, a.name, 'sm round')
+          ]);
+        })
+      : [];
+
+    // The tyres each is on, and how old.
+    const tyres = el('div', { class: 'lc-tyrenow' }, picks.map(no => {
+      const c = car(no);
+      return el('span', { style: c.colour ? `--team:${c.colour}` : null }, [f1Face(ss, c.name), tyreIcon(c.tyre), el('small', { class: 'num', text: c.tyreLaps ? `${c.tyreLaps}${en ? ' laps' : ' 圈'}` : '' }), el('small', { class: 'num', text: c.pits ? (en ? `${c.pits} stop${c.pits > 1 ? 's' : ''}` : `${c.pits} 停`) : '' })]);
+    }));
+
+    // The chart: the gap to the one ahead by lap (battle), or each one's lap times.
+    const W = 340, H = 160, L0 = 40, R0 = 6, T0 = 8, B0 = 18;
+    const series = mode === 'gap'
+      ? rest.map(c => ({ no: c.no, c, pts: (laps[c.no] || []).map(x => [x[0], x[2] != null && timeOf(a.no, x[0])?.[2] != null ? x[2] - timeOf(a.no, x[0])[2] : null, 0, 0, x[4]]).filter(x => x[1] != null) }))
+      : picks.map(no => ({ no, c: car(no), pts: (laps[no] || []).filter(x => x[1] > 0) }));
+    const allLaps = series.flatMap(s => s.pts.map(x => x[0]));
+    let chart = el('p', { class: 'muted small fs-empty', text: en ? 'Laps show here as they are run.' : '跑完的圈會出現在這裡' });
+    if (allLaps.length) {
+      const lapLo = Math.min(...allLaps), lapHi = Math.max(lapLo + 1, ...allLaps);
+      const X = lap => L0 + ((lap - lapLo) / (lapHi - lapLo)) * (W - L0 - R0);
+      const val = x => x[1];
+      let lo, hi, label;
+      if (mode === 'gap') {
+        const vs = series.flatMap(s => s.pts.map(val));
+        lo = Math.min(0, ...vs);
+        hi = Math.max(lo + 1, ...vs);
+        label = v => (Math.abs(v) < 0.05 ? a.tla : v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1));
+      } else {
+        // Racing laps set the range: a pit lap or one behind the safety car runs off the top.
+        const clean = series.flatMap(s => s.pts.filter(x => !x[4]).map(val));
+        const best = Math.min(...(clean.length ? clean : series.flatMap(s => s.pts.map(val))));
+        const cap = best * 1.06;
+        lo = best - 300;
+        hi = Math.max(lo + 1000, Math.min(cap, Math.max(...clean.filter(v => v <= cap), best + 700)) + 300);
+        label = v => fmtLap(v).replace(/(\.\d)\d\d$/, '$1');
+      }
+      // Slower (or further behind) up.
+      const Y = v => H - B0 - ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * (H - T0 - B0);
+      const ticks = mode === 'gap' ? [...new Set([lo, 0, hi])] : [lo, (lo + hi) / 2, hi];
+      const grid = ticks.map(v => `<line class="lc-grid${mode === 'gap' && v === 0 ? ' zero' : ''}" x1="${L0}" x2="${W - R0}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="lc-y" x="${L0 - 5}" y="${(Y(v) + 3.5).toFixed(1)}">${label(v)}</text>`).join('');
+      const xt = [...new Set([lapLo, Math.round((lapLo + lapHi) / 2), lapHi])].map(l => `<text class="lc-x" x="${X(l).toFixed(1)}" y="${H - 4}">${en ? `L${l}` : `第${l}圈`}</text>`).join('');
+      const lines = series.map(s => {
+        const col = s.c?.colour || '#888';
+        const d = s.pts.map((x, i) => `${i ? 'L' : 'M'}${X(x[0]).toFixed(1)},${Y(val(x)).toFixed(1)}`).join('');
+        const pits = s.pts.filter(x => x[4]).map(x => `<circle class="lc-pit" cx="${X(x[0]).toFixed(1)}" cy="${Y(val(x)).toFixed(1)}" r="3" style="stroke:${col}"/>`).join('');
+        return `<path class="lc-line${dashed(s.no) ? ' dash' : ''}" d="${d}" style="stroke:${col}"/>${pits}`;
+      }).join('');
+      chart = el('div', { class: 'lc-box', html: `<svg viewBox="0 0 ${W} ${H}" class="lc-svg" aria-hidden="true">${grid}${xt}${lines}</svg>` });
+    }
+
+    // The last laps lap by lap, each pick a column; two: the difference.
+    const lapNos = [...new Set(picks.flatMap(no => (laps[no] || []).map(x => x[0])))].sort((x, y) => y - x).slice(0, 5);
+    const two = picks.length === 2;
+    const table = lapNos.length
+      ? el('table', { class: 'fs-table lc-table' }, [
+          el('thead', {}, [el('tr', {}, [el('th', { class: 'n', text: en ? 'Lap' : '圈' }), ...picks.map(no => el('th', { class: 'lc-head', style: car(no).colour ? `--team:${car(no).colour}` : null }, [pic(car(no))])), two ? el('th', { text: 'Δ' }) : null])]),
+          el('tbody', {}, lapNos.map(l => {
+            const ts = picks.map(no => timeOf(no, l));
+            const best = Math.min(...ts.filter(x => x?.[1] && !x[4]).map(x => x[1]));
+            const d = two && ts[0]?.[1] && ts[1]?.[1] ? (ts[1][1] - ts[0][1]) / 1000 : null;
+            return el('tr', {}, [
+              el('th', { class: 'n num', text: String(l) }),
+              ...ts.map(x => el('td', { class: `num${x?.[1] === best && picks.length > 1 ? ' quick' : ''}${x?.[4] ? ' pit' : ''}`, text: x?.[1] ? `${fmtLap(x[1])}${x[4] ? ' P' : ''}` : '—' })),
+              // The difference in the colour of whoever was quicker that lap.
+              two ? el('td', { class: 'num lc-delta', style: d == null ? null : `color:${car(picks[d > 0 ? 0 : 1]).colour || 'inherit'}`, text: d == null ? '' : Math.abs(d).toFixed(3) }) : null
+            ]);
+          }))
+        ])
+      : null;
+
+    const modes = battle ? segmented([['gap', en ? 'Gap between them' : '兩車差距'], ['time', en ? 'Lap times' : '圈速']], mode, v => ((f1LapMode = v), draw()), 'lc-modes') : null;
+    put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [chips, ...fights, tyres, modes, chart, table]), { sub: en ? 'Up to 4' : '最多 4 位' }));
+  };
+  draw();
+  return box;
+}
+
+// A race on: where a stop now would put each car (its gap to the leader
+// plus the time a stop costs here, under the safety car or not), the
+// strategy question every lap.
+function f1PitWindow(b, ss) {
+  const c = circuitOf(b, ss);
+  if (!c?.pitLoss?.normal) return null;
+  const en = L() === 'en';
+  const status = b.track?.status;
+  const [loss, under] = status === '4' ? [c.pitLoss.sc, en ? 'safety car' : '安全車'] : status === '6' || status === '7' ? [c.pitLoss.vsc, en ? 'VSC' : '虛擬安全車'] : [c.pitLoss.normal, ''];
+  const gapOf = car => (car.pos === 1 ? 0 : /^\+?\d+(\.\d+)?$/.test(car.gap) ? Number(String(car.gap).replace('+', '')) : null);
+  const running = b.cars.filter(x => !x.retired && !x.stopped && gapOf(x) != null);
+  if (running.length < 4) return null;
+  const sur = car => f1Shown(car.name).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1) || car.tla;
+  const rows = running.slice(0, 10).map(car => {
+    const after = gapOf(car) + loss;
+    const others = running.filter(o => o !== car).map(o => [o, gapOf(o)]).sort((x, y) => x[1] - y[1]);
+    const ahead = others.filter(([, g]) => g <= after).at(-1);
+    const behind = others.find(([, g]) => g > after);
+    const place = 1 + others.filter(([, g]) => g <= after).length;
+    // Who it'd come out beside: their face (it opens them), and by how much.
+    const note = behind || ahead
+      ? el('span', { class: 'pw-note' }, [el('small', { text: behind ? (en ? 'ahead of' : '領先') : en ? 'behind' : '落後' }), f1Face(ss, (behind || ahead)[0].name), el('small', { class: 'num', text: `${(behind ? behind[1] - after : after - ahead[1]).toFixed(1)}${en ? 's' : ' 秒'}` })])
+      : el('span');
+    return el('li', { style: car.colour ? `--team:${car.colour}` : null }, [
+      el('span', { class: 'pos num', text: String(car.pos) }),
+      el('span', { class: 'fs-who' }, [f1Face(ss, car.name), el('span', { class: 'fs-name', text: sur(car) })]),
+      note,
+      // How many places a stop costs (a red ▼ and the count), where it lands under it.
+      el('span', { class: 'pw-to' }, [el('strong', { class: `num${place > car.pos ? ' lose' : ''}`, text: place > car.pos ? `▼${place - car.pos}` : '—' }), el('small', { class: 'num', text: `P${place}` })])
+    ]);
+  });
+  return card(en ? 'If they stop now' : '現在進站會掉到', el('ol', { class: 'fs-rows pw-rows' }, rows), { sub: en ? `a stop costs ~${loss.toFixed(0)}s${under ? ` (${under})` : ''}` : `進站約損失 ${loss.toFixed(0)} 秒${under ? `（${under}）` : ''}` });
+}
+
 function f1Stats(b, ss) {
   const en = L() === 'en';
   const race = ss.abbr === 'Race' || ss.abbr === 'SR';
@@ -1688,7 +1998,7 @@ function f1Stats(b, ss) {
   const cars = b.cars.filter(c => c.name);
   // The surname as F1 writes it (Hülkenberg, Pérez; Sainz, not "Jr.").
   const sur = c => f1Shown(c.name).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1) || driverShort(c.name);
-  const face = c => personPic(fieldDriver(ss.field, c.name) || { name: c.name }, 'f1', 'xs round');
+  const face = c => f1Face(ss, c.name);
   const who = c => el('span', { class: 'fs-who' }, [face(c), el('span', { class: 'fs-name', text: sur(c) })]);
   const teamed = c => (c.colour ? `--team:${c.colour}` : null);
   const ms = t => lapMs(t);
@@ -1716,6 +2026,19 @@ function f1Stats(b, ss) {
     if (busiest?.laps) tile(en ? 'Most laps' : '跑最多圈', `${busiest.laps}${en ? ' laps' : ' 圈'}`, busiest);
   }
   if (tiles.length) cards.push(el('div', { class: 'fs-tiles' }, tiles));
+  // Live: the weather and the track with the cars on it first; a race's stop
+  // window; then every session's laps side by side, live and after.
+  const live = !(b.final || feedOver(b));
+  if (live) {
+    const w = f1Weather(b);
+    const map = f1TrackMap(b, ss);
+    if (map || w) cards.unshift(...[map, w].filter(Boolean));
+    if (race) {
+      const pw = f1PitWindow(b, ss);
+      if (pw) cards.push(pw);
+    }
+  }
+  cards.push(f1LapCompare(b, ss));
 
   // A qualifying's parts.
   if (quali && cars.some(c => c.parts?.some(Boolean))) {
