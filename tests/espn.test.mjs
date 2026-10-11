@@ -352,8 +352,9 @@ test("byMlbPostseason: one series' days from different copies (G4 待定, G5 tim
   assert.equal(by['4'], undefined);
   assert.deepEqual(['1', '2', '3'].map(i => [by[i].start, Boolean(by[i].timeTbd), by[i].note]), [
     ['2026-10-16T22:00:00Z', false, 'ALCS - Game 4'],
-    ['2026-10-18T00:00:00Z', false, 'ALCS - Game 5 If Necessary'],
-    ['2026-10-19T21:00:00Z', false, 'ALCS - Game 6 If Necessary']
+    // If Necessary: 待定 until the game before is over (MLB's hour for it is a placeholder), on MLB's day.
+    ['2026-10-18T00:00:00.000Z', true, 'ALCS - Game 5 If Necessary'],
+    ['2026-10-20T00:00:00.000Z', true, 'ALCS - Game 6 If Necessary']
   ]);
   assert.equal(by['5'].note, 'ALDS - Game 5');
   assert.equal(by['5'].stage.round.zh, '美聯分區系列賽 G5');

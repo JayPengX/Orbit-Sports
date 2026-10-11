@@ -724,7 +724,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     // Each channel on a line of its own (two in a row ran onto a second line mid-name).
     exactTv ? null : ['📺', T('tv'), tvOf(e).length ? tvOf(e).map(b => el('span', { class: 'nb info-line', text: tvName(b) })) : T('noTw')],
     // Each part whole on a line ("2-1 領先" never split; a name never broken).
-    stageTag(e, L()) ? ['🏅', T('stage'), joinNodes([stageTag(e, L()), seriesText(e)].filter(Boolean).map(x => el('span', { class: 'nb', text: x })), ' · ')] : null,
+    // The round, then how the series stands under it (a line each: " · " between them wrapped, the dot left hanging).
+    stageTag(e, L()) ? ['🏅', T('stage'), [el('span', { class: 'nb', text: stageTag(e, L()) }), seriesText(e) ? el('small', { class: 'info-sub', text: seriesText(e) }) : null].filter(Boolean)] : null,
     ['🌤', T('weather'), weatherText(d?.weather)],
     ['👥', T('attendance'), d?.attendance ? Number(d.attendance).toLocaleString(L() === 'en' ? 'en-US' : 'zh-TW') : ''],
     ['🧑‍⚖️', T('officials'), joinNodes((d?.officials || []).slice(0, 3).map(x => el('span', { class: 'nb', text: x })), '、')],
@@ -1398,6 +1399,22 @@ function replayLink(e) {
     .catch(() => out.remove());
   return out;
 }
+// A broadcast's lines on 台灣轉播, each short enough for its row.
+function twLines(b, e) {
+  const en = L() === 'en';
+  const when = at => {
+    const iso = new Date(at).toISOString();
+    return localDate(at) === today() ? clock(iso) : `${dayLabel(localDate(at))} ${clock(iso)}`;
+  };
+  const guess = e?.timeFrom === 'elta';
+  const air = at => (guess ? (en ? `Expected ${when(at)}` : `預計 ${when(at)}`) : `${when(at)} ${en ? 'on air' : '開播'}`);
+  if (b.ch) return [[audioName(b), b.adFree ? (en ? 'no ads' : '無廣告') : ''].filter(Boolean).join(en ? ', ' : '・'), b.at ? air(b.at) : ''].filter(Boolean);
+  if (b.svc === 'appletv') return [en ? 'Every game' : '每場都有'];
+  if (b.every) return [en ? 'Every session' : '每節都轉播'];
+  // A play-off game ELTA hasn't named yet (MLB's postseason: it has every game).
+  if (b.tba) return [en ? 'Every postseason game' : '季後賽每場都轉播', guess ? air(Date.parse(e.start)) : ''].filter(Boolean);
+  return [en ? 'On ELTA, says NBA.com' : 'NBA.com 確認有轉播'];
+}
 function twCard(league, e = null) {
   const list = e ? tvOf(e) : broadcastsOf(league);
   const exact = list.filter(b => b.exact);
@@ -1414,9 +1431,11 @@ function twCard(league, e = null) {
                   watchLink(b, { class: 'tw-watch' }, [
                     el('span', { class: 'tw-watch-name' }, [
                       el('strong', { text: tvName(b) }),
-                      // Its commentary and ads, then when it starts; a game NBA.com
-                      // names without its channel: ELTA's schedule says which.
-                      el('small', { text: b.ch ? [[audioName(b), b.adFree ? (L() === 'en' ? 'no ads' : '無廣告') : ''].filter(Boolean).join(L() === 'en' ? ', ' : '・'), b.at ? `${clock(new Date(b.at).toISOString())} ${L() === 'en' ? 'on air' : '開播'}` : ''].filter(Boolean).join(' · ') : b.svc === 'appletv' ? (L() === 'en' ? 'Every game' : '每場都有') : b.every ? (L() === 'en' ? "Every session; channel in ELTA's schedule" : '每節都轉播・頻道見愛爾達節目表') : L() === 'en' ? "This game (NBA.com); channel in ELTA's schedule" : '這場有轉播（NBA.com）・頻道見愛爾達節目表' })
+                      // Short lines, each designed for its own row (one long one wrapped):
+                      // its commentary and ads, then when it's on air (its day too when
+                      // it isn't today; 預計 when the game's hour isn't set and this is
+                      // ELTA's slot); a channel not yet named, who says it's on.
+                      ...twLines(b, e).map(text => el('small', { class: 'one-line', text }))
                     ]),
                     b.url ? el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` }) : null
                   ])
