@@ -35,7 +35,8 @@ export const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
 // never asked for again, even after the app was closed).
 export const getJson = (url, { ttl = 60_000, trim = '', mirror = true } = {}) => proxyJson(url, { ttl, trim, mirror });
 // How long a live answer (scores, a game's summary) is kept before asking again.
-export const LIVE_TTL = 10_000;
+// A live read kept on the phone only to share one read between the parts that want it: the refresh speed is the admin panel's (kit dev), the proxy's cache the rest.
+export const LIVE_TTL = 2_000;
 
 export const yyyymmdd = date => date.toISOString().slice(0, 10).replaceAll('-', '');
 export const taipeiDate = t => new Date(new Date(t).getTime() + 8 * 3_600_000).toISOString().slice(0, 10);

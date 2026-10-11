@@ -1,7 +1,7 @@
 // Orbit Sports' sheets: a match (header, then its data by section), a
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
-import { translate, proxyJson } from '#kit/quadra.mjs';
+import { translate, proxyJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
@@ -161,10 +161,11 @@ export async function openMatch(e) {
       busy = false;
     }
   };
-  const timer = setInterval(refresh, 15_000);
+  // (Every dev('sportsGame') seconds: the admin panel's 開發, 5 by default.)
+  const stopBeat = everyDev('sportsGame', refresh);
   document.addEventListener('visibilitychange', refresh);
   const stop = () => {
-    clearInterval(timer);
+    stopBeat();
     document.removeEventListener('visibilitychange', refresh);
   };
   s.dialog.addEventListener('close', stop);
@@ -1464,8 +1465,8 @@ export function openFieldEvent(e) {
   // too, which says a session has started minutes before ESPN does.
   const states = x => [x.status.state, ...(x.sessions || []).map(y => feedStatus(y.abbr, y.start, y.status).state)].join();
   let busy = false;
-  const timer = setInterval(async () => {
-    if (!s.dialog.isConnected) return clearInterval(timer);
+  const timer = everyDev('sportsGame', async () => {
+    if (!s.dialog.isConnected) return timer();
     const now = Date.now();
     const due = [e, ...(e.sessions || [])].filter(x => dueToStart(x, now));
     if (busy || document.visibilityState !== 'visible' || (e.status.state !== 'in' && !due.length && !(e.sessions || []).some(x => x.status.state === 'in'))) return;
@@ -1485,8 +1486,8 @@ export function openFieldEvent(e) {
     s.body.replaceChildren();
     fillField(s, e);
     s.body.scrollTop = top;
-  }, 15_000);
-  s.dialog.addEventListener('close', () => clearInterval(timer));
+  });
+  s.dialog.addEventListener('close', () => timer());
 }
 // An F1 result, row by row: the place (or the retirement), the driver (to
 // their page) and team (to its page), the time or gap, the places gained and
@@ -1799,7 +1800,7 @@ function lapsFor(b, ss, over, redraw) {
     }
   f1Seen.set(k, seen);
   const got = f1LapData.get(k);
-  if (!got?.loading && (!got || (!over && Date.now() - got.at > 15_000))) {
+  if (!got?.loading && (!got || (!over && Date.now() - got.at > dev('f1Laps') * 1000))) {
     f1LapData.set(k, { ...(got || { at: 0 }), loading: true });
     sessionLaps(k, over)
       .then(d => f1LapData.set(k, { at: Date.now(), cars: d?.cars || got?.cars || null }))
@@ -2212,7 +2213,7 @@ function fillField(s, e) {
     const schedule = sessions.length > 1 ? card(T('schedule'), weekendTimeline(sessions)) : null;
     let pick = e.sessionKey ? Math.max(0, sessions.findIndex(x => x.abbr === e.sessionKey)) : Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
     const box = el('div');
-    let liveTimer = 0;
+    let liveTimer = () => {};
     // F1's race: each driver's chance to win (to come, on, over), read again each minute while it runs.
     const raceBox = el('div');
     let raceAt = 0;
@@ -2320,7 +2321,7 @@ function fillField(s, e) {
           .catch(() => {});
       });
       // F1, a session on now: F1's own live timing, again every 5 seconds in place.
-      clearInterval(liveTimer);
+      liveTimer();
       if (e.league === 'f1' && ss.status.state === 'in') {
         // The last reading at once if there is one, else the board's shape;
         // ESPN's order comes back only if F1's feed can't be read.
@@ -2330,7 +2331,7 @@ function fillField(s, e) {
         espnOrder?.replaceWith(kept ? f1LiveBoard(kept, ss) : shape());
         if (!kept) box.querySelector('.live-board')?.classList.add('waiting');
         const tick = () => {
-          if (!box.isConnected || at !== pick) return clearInterval(liveTimer);
+          if (!box.isConnected || at !== pick) return liveTimer();
           if (document.visibilityState !== 'visible') return;
           loadRace();
           liveTiming(ss.abbr, ss.start)
@@ -2347,7 +2348,7 @@ function fillField(s, e) {
             .catch(() => {});
         };
         tick();
-        liveTimer = setInterval(tick, 5_000);
+        liveTimer = everyDev('f1Board', tick);
       }
     };
     paint();

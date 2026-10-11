@@ -2632,7 +2632,7 @@ async function reloadNow() {
 // scores 10 seconds), at once on coming back to the app or to a tab that
 // shows them; today every 2 minutes in any case (so a followed team's start
 // and finish are noticed).
-const LIVE_MS = 15_000;
+// (Every dev('sportsList') seconds: the admin panel's 開發, 10 by default.)
 function liveTick() {
   if (document.visibilityState !== 'visible' || !q.active) return;
   const day = state.days.get(today());
@@ -2640,7 +2640,7 @@ function liveTick() {
   const live = dayAll(day).some(e => e.status.state === 'in' || dueToStart(e));
   const age = Date.now() - (day?.at || 0);
   const onScreen = (state.tab === 'home' && state.home.date === today()) || state.tab === 'live' || state.tab === 'following';
-  if (onScreen && live && age > 12_000) loadDay(today());
+  if (onScreen && live && age > kit.dev('sportsList') * 1000 - 2_000) loadDay(today());
   else if (age > 120_000) loadDay(today());
   if (state.tab === 'home' && state.home.date !== today() && Date.now() - (state.days.get(state.home.date)?.at || 0) > 10 * 60_000) loadDay(state.home.date);
   // 比分 too: a game on, or one due to start (it had waited for another game on to be read again).
@@ -2648,7 +2648,7 @@ function liveTick() {
   paintStatus();
   renderTabs();
 }
-setInterval(liveTick, LIVE_MS);
+kit.everyDev('sportsList', liveTick);
 document.addEventListener('visibilitychange', liveTick);
 
 // ELTA's schedule came in: its 📺 channels appear (or go) on the open tab.
@@ -2719,7 +2719,7 @@ async function pollF1Live() {
     renderTabs();
   }
 }
-setInterval(pollF1Live, 10_000);
+kit.everyDev('f1Feed', pollF1Live);
 document.addEventListener('visibilitychange', pollF1Live);
 
 window.__fxStarted = true;
