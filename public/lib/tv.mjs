@@ -12,28 +12,51 @@ import { LEAGUES } from './leagues.mjs';
 let changed = () => {};
 export const onTvChange = fn => (changed = fn);
 // A schedule read now and again: null until read, then what `parse` makes of
-// it (an empty list when it can't be read).
-function schedule(read, parse, ttl) {
+// it (an empty list when it can't be read). `keep`: the last copy kept on
+// the device (12 hours at most) is the answer from the first call, the
+// fresh one read behind it and drawn only if it's changed: the picks are
+// the games on TV, so opening waited on both lists every time.
+const KEEP_MS = 12 * 3_600_000;
+function schedule(read, parse, ttl, keep = '') {
   let value = null;
   let at = 0;
   let loading = false;
+  let text = '';
+  if (keep)
+    try {
+      const saved = JSON.parse(globalThis.localStorage?.getItem(keep) || 'null');
+      if (saved?.data && Date.now() - saved.at < KEEP_MS) {
+        value = parse(saved.data);
+        text = JSON.stringify(saved.data);
+      }
+    } catch {}
   return () => {
     if (!loading && Date.now() - at > ttl) {
       loading = true;
+      let moved = true;
       read()
-        .then(data => (value = parse(data)))
+        .then(data => {
+          const fresh = JSON.stringify(data);
+          moved = fresh !== text || value === null;
+          if (moved) value = parse(data);
+          text = fresh;
+          if (keep)
+            try {
+              globalThis.localStorage?.setItem(keep, JSON.stringify({ at: Date.now(), data }));
+            } catch {}
+        })
         .catch(() => (value = value || []))
         .finally(() => {
           loading = false;
           at = Date.now();
-          changed();
+          if (moved) changed();
         });
     }
     return value;
   };
 }
 // ELTA's programs.
-export const eltaSchedule = schedule(() => proxyJson(ELTA_LIST, { ttl: 30 * 60_000 }), parseElta, 30 * 60_000);
+export const eltaSchedule = schedule(() => proxyJson(ELTA_LIST, { ttl: 30 * 60_000 }), parseElta, 30 * 60_000, 'fx.tv.elta');
 // NBA.com's ELTA games, the season: the deploy's copy on this site (scripts/nba-elta.mjs).
 const nbaSchedule = schedule(
   () =>
@@ -42,7 +65,8 @@ const nbaSchedule = schedule(
       return r.json();
     }),
   nbaEltaGames,
-  6 * 3_600_000
+  6 * 3_600_000,
+  'fx.tv.nba'
 );
 // NBA.com's ELTA games after ELTA's own list ends, for its guide: the game
 // known, its channel not yet ({ league, start, end, teams, title, day, channels: [] }).

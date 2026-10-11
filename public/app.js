@@ -2809,8 +2809,9 @@ async function boot() {
   // day it last read, while the Worker is asked for the fresh ones (the
   // picks wait behind the loading screen for their fresh day).
   const quick = cachedPayload('match');
-  // ELTA's schedule, early: the picks and rows read each game's channels from it.
-  eltaSchedule();
+  // The TV lists (ELTA's, NBA.com's), early: the picks and rows read each
+  // game's channels from them.
+  tvReady();
   if (quick != null) {
     state.wallet = cachedWallet();
     applyPrefs(quick);
@@ -2819,7 +2820,12 @@ async function boot() {
     showTab(firstTab());
     restorePlace();
   }
-  const first = await q.start();
+  const starting = q.start();
+  // Kept on the device: today's read while the sign-in is on its way (the
+  // nightly copies need none; a read through the proxy waits for that
+  // sign-in, not a second one), not a round trip after it.
+  const early = quick != null ? loadDay(today()) : null;
+  const first = await starting;
   state.wallet = first.wallet || q.wallet;
   const before = JSON.stringify(state.prefs);
   if (typeof first?.payload === 'string') applyPrefs(first.payload);
@@ -2833,12 +2839,13 @@ async function boot() {
     state.days.clear();
     showTab(state.tab);
   }
+  const prefsMoved = quick != null && JSON.stringify(state.prefs) !== before;
   booted = true;
   setTimeout(syncFollows, 3000);
   window.__bootStep?.(t('loadingGames'), 0.84);
   // Which leagues have games now (after the day's own reading, not before it).
   setTimeout(() => checkActive().catch(() => {}), 1500);
-  await loadDay(today());
+  await (early && !prefsMoved ? early : loadDay(today()));
   window.__bootStep?.(t('loadingPicks'), 0.94);
   await homeReady(until);
   $('loading').hidden = true;
