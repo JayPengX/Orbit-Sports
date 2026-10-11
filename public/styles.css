@@ -1727,18 +1727,26 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-note { margin: 6px 0 0; text-align: center; }
 .tm-dom { fill: none; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
 .tm-dom.dash { stroke-dasharray: 7 5; }
-.tm-dom-box { display: grid; gap: 8px; margin-top: 8px; }
-.dom-table td.dom-win { font-weight: 800; }
-.dom-table tr.dom-sum > * { font-weight: 700; }
 .tm-dom.faint { opacity: 0.25; }
 .tm-lit { fill: none; stroke: var(--q-text); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; opacity: 0.25; }
 .tm-car.close .tm-dot { stroke: var(--q-text); stroke-width: 2.4; }
-.dom-row { cursor: pointer; }
-.dom-row.on > * { background: color-mix(in srgb, var(--q-text) 7%, transparent); }
-.tm-focus { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+
+/* Under the track: one block, the same height whichever view (no view moves the page). */
+.tm-dom-box { display: grid; gap: 10px; margin-top: 10px; }
+.tm-panel { display: grid; align-content: center; gap: 8px; min-height: 92px; }
+.tm-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.tm-sec { display: grid; justify-items: start; gap: 3px; padding: 8px 9px; border: 0; border-radius: 12px; background: var(--q-sunken); color: var(--q-text); font: inherit; text-align: left; cursor: pointer; box-shadow: inset 0 3px 0 var(--team, transparent); }
+.tm-sec.on { background: color-mix(in srgb, var(--team, var(--accent)) 18%, var(--q-sunken)); }
+.tm-sec > small { font-size: 11px; font-weight: 800; color: var(--q-muted); }
+.tm-sec-who { display: inline-flex; align-items: center; gap: 5px; font-size: 13.5px; white-space: nowrap; }
+.tm-sec-who .logo { width: 18px; height: 18px; }
+.tm-sec-t { font-size: 14px; font-weight: 750; }
+.tm-sec-gap { font-size: 11px; font-weight: 650; color: var(--q-muted); white-space: nowrap; }
+.tm-focus { display: flex; gap: 6px; justify-content: center; }
 .tm-focus-b { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px 3px 3px; border: 0; border-radius: 999px; background: var(--q-sunken); color: var(--q-muted); font: inherit; font-size: 12.5px; font-weight: 750; cursor: pointer; }
 .tm-focus-b[aria-pressed="true"] { color: var(--q-text); box-shadow: inset 0 0 0 2px var(--team); }
-.tm-lap-key { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin: 0; font-size: 12px; font-weight: 650; }
-.tm-lap-key span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.tm-lap-key { display: flex; justify-content: center; gap: 14px; margin: 0; font-size: 12px; font-weight: 650; color: var(--q-muted); }
+.tm-lap-key > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .tm-lap-key i { width: 12px; height: 4px; border-radius: 2px; }
-.tm-lap-key small { flex-basis: 100%; text-align: center; }
+.tm-lap-key strong { color: var(--q-text); font-weight: 800; }
+.tm-lap-at { text-align: center; font-size: 11.5px; }
