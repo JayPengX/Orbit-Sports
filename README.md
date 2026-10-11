@@ -645,5 +645,5 @@ node ../Shared-Proxy/tools/preview.mjs sports --serve --port 8125
 | `f1Row` | Every F1 list: live, results (official and archive), qualifying, practice |
 | `trimF1Live` (Shared-Proxy) | The board, 數據, track map, compare, stop window, standings at the flag, Quadra Play's settling |
 | `lib/highlights.mjs`, `broadcast.mjs`, `winprob.mjs` | Shared-Data loads them alone (`watch.mjs`, `winprob.mjs`): `broadcast.mjs` and `winprob.mjs` import nothing, `highlights.mjs` only `broadcast.mjs`; keep it so |
-| The row or card design | 375 px, light and dark, both languages, the longest names (TRUTH §6) |
-| A saved key's meaning | Bump its version and remove the old key (TRUTH §4) |
+| The row or card design | 375 px, light and dark, both languages, the longest names (TRUTH §10) |
+| A saved key's meaning | Bump its version and remove the old key (TRUTH §7) |
