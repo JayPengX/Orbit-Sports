@@ -1421,7 +1421,7 @@ function openGuide(events) {
       s.body,
       el('div', { class: 'q-chips tvg-days' }, days.map(d => el('button', { class: `q-chip${d === day ? ' on' : ''}`, type: 'button', 'aria-pressed': String(d === day), text: dayLabel(d), onclick: () => ((day = d), paint()) }))),
       list.length ? el('div', { class: 'q-card list tv-guide' }, list.map(p => guideRow(p, events, now))) : el('p', { class: 'muted small', text: L({ zh: '這天沒有節目。', en: 'Nothing that day.' }) }),
-      el('p', { class: 'section-sub', text: L({ zh: '愛爾達公布的節目表約兩週；之後的 NBA 依 NBA.com，頻道待公布。需訂閱 ELTA.tv。', en: "ELTA publishes about two weeks; NBA games after that are NBA.com's, channel to come. Needs ELTA.tv." }) })
+      el('p', { class: 'section-sub', text: L({ zh: '需訂閱 ELTA.tv', en: 'Needs ELTA.tv' }) })
     );
   };
   paint();
@@ -1742,15 +1742,18 @@ function linkTies(map, model) {
 const bracketShape = () =>
   el('div', { class: 'playoffs waiting', 'aria-hidden': 'true' }, [el('div', { class: 'bracket' }, [4, 2, 1].map(n => el('section', { class: 'br-col' }, [el('div', { class: 'br-head' }, [el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })]), el('div', { class: 'br-ties' }, Array.from({ length: n }, () => el('div', { class: 'br-tie tbd' }, [el('i', { class: 'skel' }), el('i', { class: 'skel' }), el('i', { class: 'skel skel-short' })])))])))]);
 
-async function loadScores() {
+// `quiet`: the live tick's read again: no "reading" drawing first, and only
+// what changed put in on the page (a card's score and clock), never the
+// whole list drawn again every few seconds.
+async function loadScores({ quiet = false } = {}) {
   const sc = state.scores;
   const league = sc.league;
   const key = `${league}|${sc.extra}`;
   sc.loadingKey = key;
-  sc.loading = true;
+  sc.loading = !quiet;
   // A new league: its own stretch of days on the strip.
   if (sc.rangeOf !== league) (sc.range = { from: STRIP.from, to: STRIP.to }), (sc.rangeOf = league);
-  renderScores();
+  if (!quiet) renderScores();
   track([`league:${leagueKey(league)}`], 0.3);
   let events = [];
   try {
@@ -1775,7 +1778,31 @@ async function loadScores() {
     if (sc.picked && sc.date && !byDay.has(sc.date)) return pickScoresDay(sc.date);
     if (!sc.date || !byDay.has(sc.date)) sc.date = liveDay || next || nearestDay(sc.days) || today();
   }
-  renderScores();
+  if (quiet) {
+    scoresQuiet = true;
+    try {
+      renderScores();
+    } finally {
+      scoresQuiet = false;
+    }
+  } else renderScores();
+}
+// While set, renderScores changes the page in place (morph), not anew.
+let scoresQuiet = false;
+// The page as drawn, made like the new drawing with the least change: a
+// node the same kept (its scroll, its handlers), text changed in place, an
+// element whose tag, attributes or children's count differ replaced whole.
+function morph(old, neu) {
+  if (old.nodeType !== neu.nodeType || old.nodeName !== neu.nodeName) return old.replaceWith(neu);
+  if (old.nodeType === 3) {
+    if (old.nodeValue !== neu.nodeValue) old.nodeValue = neu.nodeValue;
+    return;
+  }
+  if (old.nodeType !== 1 || old.isEqualNode(neu)) return;
+  const attrs = n => [...n.attributes].map(a => `${a.name}=${a.value}`).join('\u0001');
+  if (attrs(old) !== attrs(neu) || old.childNodes.length !== neu.childNodes.length) return old.replaceWith(neu);
+  const [a, b] = [[...old.childNodes], [...neu.childNodes]];
+  a.forEach((n, i) => morph(n, b[i]));
 }
 // The games grouped by the viewer's day.
 function applyScores(sc, events) {
@@ -2161,7 +2188,9 @@ function renderScores() {
   const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : [])];
   const views = viewList.length > 1 ? segmented(viewList, knockView ? 'bracket' : tableView ? 'table' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
   const other = tableView || knockView;
-  put(box, sportChips, leagueChips, tools, views, other ? null : strip, other ? null : stages, list);
+  const parts = [sportChips, leagueChips, tools, views, other ? null : strip, other ? null : stages, list].filter(Boolean);
+  if (scoresQuiet && box.childNodes.length === parts.length) return parts.forEach((n, i) => morph(box.childNodes[i], n));
+  put(box, ...parts);
   centerChosen(box);
 }
 
@@ -2648,7 +2677,7 @@ function liveTick() {
   else if (age > 120_000) loadDay(today());
   if (state.tab === 'home' && state.home.date !== today() && Date.now() - (state.days.get(state.home.date)?.at || 0) > 10 * 60_000) loadDay(state.home.date);
   // 比分 too: a game on, or one due to start (it had waited for another game on to be read again).
-  if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in' || dueToStart(e))) loadScores();
+  if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in' || dueToStart(e))) loadScores({ quiet: true });
   paintStatus();
   renderTabs();
 }

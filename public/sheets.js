@@ -20,7 +20,7 @@ import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualif
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
-import { SEASON_GAMES, liveTable, roundCounted } from './lib/title.mjs';
+import { SEASON_GAMES, liveTable, roundCounted, roundOf } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
@@ -2139,7 +2139,6 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
   }
   const holder = m.domBox || (m.domBox = el('div'));
   put(holder, dom);
-  const guessed = !b.cars.some(x => x.at);
   const note = !picks.length
     ? en ? 'Tap a car to compare it below. ◯ within a second of the car ahead.' : '點車加入下方的車手比較 · ◯ 與前車 1 秒內'
     : mode === 'lap'
@@ -2150,7 +2149,7 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
   noteEl.textContent = note;
   // A redraw (a tap, a pick in 車手比較): the drawing on the page changed in place, no new card (it would take the drawing off the page).
   if (redraw) return null;
-  return card(en ? 'On track' : '賽道位置', el('div', { class: 'tm-box' }, [m.svg, holder, noteEl]), { sub: guessed ? (en ? `${c.name} · by timing points` : `${c.name} · 依計時點`) : c.name });
+  return card(en ? 'On track' : '賽道位置', el('div', { class: 'tm-box' }, [m.svg, holder, noteEl]), { sub: c.name });
 }
 
 // Each car's laps (f1-live.js /laps.json, again each 15 seconds while it
@@ -2509,13 +2508,16 @@ function f1LiveTable(b, ss) {
     const pick = tRows.length ? segmented([['drivers', en ? 'Drivers' : '車手'], ['teams', en ? 'Teams' : '車隊']], view, v => ((f1TableView = v), draw(groups)), 'st-modes') : null;
     const more = list.length > 10 ? el('button', { class: 'q-btn small lc-more', type: 'button', text: all ? (en ? 'Top 10' : '只看前 10') : en ? `All ${list.length}` : `全部 ${list.length} ${view === 'teams' ? '隊' : '位'}`, onclick: () => (all ? f1TableAll.delete(ss.start) : f1TableAll.add(ss.start), draw(groups)) }) : null;
     const what = ss.abbr === 'SR' ? (en ? 'sprint' : '衝刺賽') : en ? 'race' : '正賽';
-    const key = over ? (en ? `With this ${what}'s points, before the official table has them. ▲▼ places moved; + points from this ${what}.` : `已計入本場${what}得分（官方積分榜尚未更新）· ▲▼ 名次變化 · + 本場得分`) : en ? `If the ${what} ended now. ▲▼ places moved; + points from this ${what}.` : `假如${what}現在結束 · ▲▼ 名次變化 · + 本場得分`;
-    put(box, card(over ? (en ? 'Championship, after this ' + what : '最新積分榜') : en ? 'Championship, as it stands' : '即時積分榜', el('div', { class: 'lc' }, [pick, lead ? el('p', { class: 'st-lead', text: lead }) : null, el('ol', { class: 'fs-rows st-rows' }, rows), more, el('p', { class: 'muted small lc-key-note', text: key })]), { sub: over ? null : el('span', { class: 'live-dot-text', text: en ? 'Live' : '即時' }) }));
+    const key = over ? (en ? `▲▼ places moved; + points from this ${what}.` : `▲▼ 名次變化 · + 本場得分`) : en ? `If the ${what} ended now. ▲▼ places moved; + points from this ${what}.` : `假如${what}現在結束 · ▲▼ 名次變化 · + 本場得分`;
+    put(box, card(over ? (en ? 'Championship' : '積分榜') : en ? 'Championship, as it stands' : '即時積分榜', el('div', { class: 'lc' }, [pick, lead ? el('p', { class: 'st-lead', text: lead }) : null, el('ol', { class: 'fs-rows st-rows' }, rows), more, el('p', { class: 'muted small lc-key-note', text: key })]), { sub: over ? null : el('span', { class: 'live-dot-text', text: en ? 'Live' : '即時' }) }));
   };
   // Over, until ESPN's table has it in (title.mjs roundCounted, the rule the
   // 賽事 table's count goes by; a race in only past a sprint's 36 points,
   // which a weekend with no sprint passes too once its race is in).
-  const counted = group => roundCounted(group, b.meeting || '', ss.abbr, true);
+  // (Only the latest: an older race's 數據 put its points on today's table,
+  // its column not found, 2026-10-12. Its round found and not yet in, and
+  // the race in the last two days, or nothing.)
+  const counted = group => !roundOf(group, b.meeting || '') || Date.now() - Date.parse(ss.start) > 2 * 86_400_000 || roundCounted(group, b.meeting || '', ss.abbr, true);
   // (Drawn at once from the last table: the board is drawn again every 5 seconds.)
   if (f1TableLast) draw(f1TableLast);
   standings('f1')
