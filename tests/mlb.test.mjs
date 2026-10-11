@@ -13,7 +13,8 @@ test("MLB's own live state: count, runners, batter, pitcher, the last play", () 
   assert.equal(g.live.bases.length, 3);
   assert.ok(Number.isInteger(g.live.outs));
   assert.match(g.live.batter, /^[A-Z]\. /);
-  assert.ok(g.live.pitcherWho.headshot.includes('mlbstatic.com'));
+  // No MLB picture (its big cropped headshot): the app's face by name, as the box score's.
+  assert.equal(g.live.pitcherWho.headshot, null);
   assert.equal(mlbGameOf(games, { home: { name: 'Cleveland Guardians' }, away: { name: 'Chicago White Sox' } }), null);
 });
 

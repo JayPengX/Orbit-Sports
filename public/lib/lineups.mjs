@@ -8,7 +8,6 @@
 //     its batting order once the manager posts it (hours before).
 // Pure parsing here; the reads in espn.mjs (pregameLineups).
 
-import { mlbHeadshot } from './mlb.mjs';
 
 // The leagues whose starters ESPN marks before a game, and how far ahead
 // it's worth asking (an NBA five comes 30 minutes before, an NHL goalie
@@ -34,7 +33,8 @@ export function withRoster(starters, roster) {
 // MLB: a day's games with lineups and probable pitchers.
 export const mlbLineupsUrl = date => `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=lineups,probablePitcher`;
 const plain = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-const mlbPerson = p => (p?.id ? { id: '', mlb: String(p.id), name: p.fullName || '', headshot: mlbHeadshot(p.id), pos: p.primaryPosition?.abbreviation || '' } : null);
+// (No MLB picture: MLB's own is a big cropped headshot; the kit finds the same face the box score shows, by name.)
+const mlbPerson = p => (p?.id ? { id: '', mlb: String(p.id), name: p.fullName || '', headshot: null, pos: p.primaryPosition?.abbreviation || '' } : null);
 // The game of an event (each side's English name): { pitchers: { away, home }, order: { away: [...], home: [...] } }, or null.
 export function mlbLineups(data, e) {
   const home = plain(e?.home?.en || e?.home?.name);
