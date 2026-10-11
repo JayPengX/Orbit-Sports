@@ -294,3 +294,59 @@ export const sessionTiming = start => getJson(ARCHIVE(start), { ttl: 24 * 3_600_
 export const keptTiming = (abbr, start) => (last && sameSession(last, abbr, start) && (Date.now() - last.at < 10 * 60_000 || (feedOver(last) && Date.now() - last.at < 2 * 86_400_000)) ? last : null);
 // Where a qualifying part cuts (NoEntries: [22, 16, 10]): the last place through, or 0.
 export const qualiCut = (part, entries = []) => (part >= 1 && part < entries.length ? entries[part] : 0);
+
+// A practice's two readings, as the teams' own are read: each car's long
+// run (its race simulation: the most laps run in a row on one set of tyres,
+// cool-down laps dropped, as an average) and its best lap on each compound
+// (the short run). `laps`: [[lap, ms, gap, place, pit]…] (sessionLaps);
+// `stints`: [{ c: 'SOFT', laps, new }…] in order (TimingStats).
+// A run is the laps between two trips to the pits: a lap with the pit flag
+// is the out-lap (and the time in the garage), the in-lap has no time. Its
+// tyre is the stint in the same place when the runs and stints agree in
+// number (a used set's stint counts the laps it had before, so laps can't be
+// matched by counting). A long run needs MIN_RUN clean laps; laps over 104%
+// of the run's median are cool-down or traffic, not pace.
+export const MIN_RUN = 5;
+export function practicePace(laps = [], stints = []) {
+  const timed = laps.filter(x => x[1] > 0).sort((a, b) => a[0] - b[0]);
+  const runs = [];
+  let cur = null;
+  let prev = -1;
+  for (const x of timed) {
+    // An out-lap opens a run (and isn't in it); a lap missing (an in-lap) ends one.
+    if (x[4]) runs.push((cur = []));
+    else {
+      if (!cur || x[0] !== prev + 1) runs.push((cur = []));
+      cur.push(x);
+    }
+    prev = x[0];
+  }
+  const list = runs.filter(r => r.length);
+  // Each stint's laps here, counted from the first (the feed's own count).
+  const spans = [];
+  let from = 1;
+  for (const st of stints) spans.push([from, (from += st.laps || 0) - 1, st.c]);
+  const tyreAt = lap => spans.find(([a, b]) => lap >= a && lap <= b)?.[2] || null;
+  // Pace is within 8% of the driver's own best: slower is a cool-down,
+  // traffic or a flag, whatever the run's median.
+  const own = Math.min(...list.flat().map(x => x[1]));
+  const best = {};
+  const long = [];
+  list.forEach(run => {
+    const c = tyreAt(run[Math.floor(run.length / 2)][0]);
+    for (const x of run) if (c && (!best[c] || x[1] < best[c].ms)) best[c] = { ms: x[1], lap: x[0] };
+    if (run.length < MIN_RUN) return;
+    const sorted = run.map(x => x[1]).sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const clean = run.filter(x => x[1] <= median * 1.04 && x[1] <= own * 1.08);
+    if (clean.length < MIN_RUN) return;
+    const avg = clean.reduce((n, x) => n + x[1], 0) / clean.length;
+    // Falling off: the last third against the first (ms a lap, + slower).
+    const third = Math.max(1, Math.floor(clean.length / 3));
+    const head = clean.slice(0, third).reduce((n, x) => n + x[1], 0) / third;
+    const tail = clean.slice(-third).reduce((n, x) => n + x[1], 0) / third;
+    long.push({ c, laps: clean.length, avg, fade: (tail - head) / Math.max(1, clean.length - third), from: clean[0][0], to: clean.at(-1)[0] });
+  });
+  // The run that says most: the longest, then the quickest.
+  return { long: long.sort((a, b) => b.laps - a.laps || a.avg - b.avg)[0] || null, best };
+}

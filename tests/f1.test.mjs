@@ -79,3 +79,25 @@ test('a qualifying between its parts is not over: only its last part ends it', a
   // A practice or a race: the flag is the end.
   assert.equal(feedOver({ session: { type: 'Practice', name: 'Practice 1', status: 'Finished' }, part: 0, message: { text: '' } }), true);
 });
+
+test('practicePace: runs between trips to the pits, cool-down laps dropped; the best lap on each compound', async () => {
+  const { practicePace } = await import('../public/lib/f1.mjs');
+  const L = (lap, s, pit = 0) => [lap, Math.round(s * 1000), null, 1, pit];
+  // Run 1 (softs): out-lap, a push lap, a cool-down; the in-lap has no time.
+  // Run 2 (mediums): out-lap with the garage time, then 8 laps with a cool-down among them.
+  const laps = [L(1, 99, 1), L(2, 92.4), L(3, 110), L(5, 600, 1), L(6, 95.0), L(7, 95.2), L(8, 95.4), L(9, 104), L(10, 95.6), L(11, 95.8), L(12, 96.0), L(13, 96.2)];
+  const stints = [{ c: 'SOFT', laps: 4, new: true }, { c: 'MEDIUM', laps: 9, new: false }];
+  const p = practicePace(laps, stints);
+  assert.equal(p.best.SOFT.ms, 92400);
+  assert.equal(p.best.MEDIUM.ms, 95000);
+  assert.equal(p.long.c, 'MEDIUM');
+  assert.equal(p.long.laps, 7);
+  assert.equal(Math.round(p.long.avg), Math.round(((95 + 95.2 + 95.4 + 95.6 + 95.8 + 96 + 96.2) / 7) * 1000));
+  assert.ok(p.long.fade > 0);
+  // No stints: the pace still, no tyre named.
+  assert.equal(practicePace(laps, []).long.c, null);
+  // A run of cool-down laps (all over 108% of the best) is no long run.
+  assert.equal(practicePace([L(1, 99, 1), L(2, 90), L(4, 300, 1), ...[5, 6, 7, 8, 9, 10].map(n => L(n, 99 + n / 10))], []).long, null);
+  // Too short a run: no long run.
+  assert.equal(practicePace(laps.slice(0, 3), stints.slice(0, 1)).long, null);
+});

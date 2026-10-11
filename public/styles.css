@@ -1561,12 +1561,27 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lc-fight-text strong .muted { font-weight: 600; }
 .lc-fight-text small { font-size: 12.5px; color: var(--q-muted); white-space: nowrap; }
 .lc-tyrenow { display: flex; gap: 14px; flex-wrap: nowrap; }
+.lc-tyrenow.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+.lc-fights { display: grid; gap: 8px; }
+.lc-fight-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 650; color: var(--q-muted); }
+.lc-gap { font-size: 17px; font-weight: 800; white-space: nowrap; }
+.lc-stints { display: grid; gap: 6px; }
+.lc-stint-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.lc-key { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
+.lc-key-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.lc-key-line svg { display: block; width: 22px; height: 6px; overflow: visible; }
+.lc-key-note { margin: 4px 0 0; }
+.lc-more { justify-self: center; }
 .lc-tyrenow > span { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; white-space: nowrap; }
 .lc-head { text-align: right; }
 .lc-head .logo { box-shadow: 0 0 0 2px var(--team, transparent); }
 .lc-tyrenow .tyre { width: 16px; height: 16px; }
 .lc-tyrenow small { color: var(--q-muted); }
 .lc-grid.zero { stroke: var(--q-muted); stroke-dasharray: 3 3; }
+.lc-table { table-layout: fixed; width: 100%; }
+.lc-table th.n { width: 30px; }
+.lc-table.many td { font-size: 12.5px; padding-left: 2px; padding-right: 2px; letter-spacing: -0.02em; }
+.lc-table.many td.quick { font-weight: 750; }
 .lc-table td.quick { color: #a855f7; font-weight: 800; }
 .lc-table td.pit { color: var(--q-muted); }
 .lc-table td.lc-delta { font-weight: 750; }
@@ -1583,3 +1598,10 @@ button.lp-person.tap:active { opacity: 0.6; }
 .f1-sub { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
 .f1-tyre { display: inline-flex; align-items: center; gap: 3px; flex: none; font-size: 12px; color: var(--q-muted); }
 .f1-tyre .tyre { width: 15px; height: 15px; }
+/* A practice's long runs (f1PracticePace): place, driver, tyre, the average and its detail. */
+.pp-rows li { grid-template-columns: 22px minmax(0, 1fr) 20px 150px; }
+.pp-rows .tyre { width: 18px; height: 18px; }
+.pp-val { display: grid; justify-items: end; gap: 1px; min-width: 0; }
+.pp-val strong { font-size: 15px; font-weight: 750; }
+.pp-val small { font-size: 11.5px; color: var(--q-muted); white-space: nowrap; }
+.pp-best th .tyre { width: 18px; height: 18px; vertical-align: middle; }

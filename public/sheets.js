@@ -5,7 +5,7 @@ import { translate, proxyJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, dueToStart } from './lib/espn.mjs';
+import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { playPeriod } from './lib/live.mjs';
@@ -16,7 +16,7 @@ import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLine
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
@@ -1788,6 +1788,7 @@ const f1LapData = new Map();
 const f1Seen = new Map();
 const f1Picks = new Map();
 let f1LapMode = 'gap';
+const f1AllLaps = new Set();
 function lapsFor(b, ss, over, redraw) {
   const k = ss.start;
   const seen = f1Seen.get(k) || {};
@@ -1859,9 +1860,16 @@ function f1LapCompare(b, ss) {
     }, [personPic(fieldDriver(ss.field, c.name, driverShort(c.name)) || { name: c.name }, 'f1', 'sm round')])));
     if (!picks.length) return put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [chips, el('p', { class: 'muted small fs-empty', text: en ? 'Pick drivers above.' : '在上面選車手' })]), { sub: en ? 'Up to 4' : '最多 4 位' }));
 
-    // The fight now: the one behind, how far, closing or not, when they'd meet.
+    // The fight: each one behind the leader of the picks, how far, closing
+    // or not and when they'd meet (live); over, where they finished and how
+    // much a lap they were off on the laps both ran clean. The leader's face
+    // and name once above the rows (each row said both names and wrapped).
     const [a, ...rest] = picks.map(car);
-    const fights = battle
+    const avgDiff = c => {
+      const both = (laps[c.no] || []).map(x => [x, timeOf(a.no, x[0])]).filter(([x, y]) => y && x[1] && y[1] && !x[4] && !y[4]);
+      return both.length >= 3 ? both.reduce((n, [x, y]) => n + (x[1] - y[1]), 0) / both.length / 1000 : null;
+    };
+    const fightRows = battle
       ? rest.map(c => {
           const gap = gapNum(c) != null && gapNum(a) != null ? gapNum(c) - gapNum(a) : null;
           const diffs = (laps[c.no] || []).map(x => [x[0], x[2], timeOf(a.no, x[0])?.[2]]).filter(([, g, h]) => g != null && h != null).map(([l, g, h]) => [l, g - h]);
@@ -1869,26 +1877,40 @@ function f1LapCompare(b, ss) {
           const rate = last.length >= 3 ? (last[0][1] - last.at(-1)[1]) / (last.length - 1) : 0;
           const left = b.lap?.of && b.lap?.now ? b.lap.of - b.lap.now : 0;
           const meet = gap != null && rate > 0.05 ? Math.ceil((gap - 0.5) / rate) : 0;
-          const trend = rate > 0.05
-            ? en ? `closing ${rate.toFixed(2)}s a lap` : `每圈追近 ${rate.toFixed(2)} 秒`
-            : rate < -0.05 ? (en ? `losing ${(-rate).toFixed(2)}s a lap` : `每圈被拉開 ${(-rate).toFixed(2)} 秒`) : en ? 'holding the gap' : '差距持平';
-          const when = meet && !over ? (meet <= left ? (en ? `on ${a.tla}'s gearbox in ~${meet} laps` : `約 ${meet} 圈後追上`) : en ? 'not before the flag at this rate' : '照這速度完賽前追不上') : '';
+          let line;
+          if (over) {
+            const d = avgDiff(c);
+            line = d == null ? '' : Math.abs(d) < 0.02 ? (en ? 'same pace' : '每圈一樣快') : d > 0 ? (en ? `${d.toFixed(2)}s a lap slower` : `平均每圈慢 ${d.toFixed(2)} 秒`) : en ? `${(-d).toFixed(2)}s a lap quicker` : `平均每圈快 ${(-d).toFixed(2)} 秒`;
+          } else {
+            const trend = rate > 0.05 ? (en ? `closing ${rate.toFixed(2)}s a lap` : `每圈追近 ${rate.toFixed(2)} 秒`) : rate < -0.05 ? (en ? `losing ${(-rate).toFixed(2)}s a lap` : `每圈被拉開 ${(-rate).toFixed(2)} 秒`) : en ? 'holding the gap' : '差距持平';
+            const when = meet ? (meet <= left ? (en ? `on him in ~${meet} laps` : `約 ${meet} 圈後追上`) : en ? 'not before the flag' : '完賽前追不上') : '';
+            // (The catch-up its own line: both on one ran past the row.)
+            line = when ? [trend, when] : trend;
+          }
+          const retired = c.retired || c.stopped;
           return el('div', { class: 'lc-fight', style: c.colour ? `--team:${c.colour}` : null }, [
             f1Face(ss, c.name, 'sm round'),
-            el('span', { class: 'lc-fight-text' }, [
-              el('strong', {}, [document.createTextNode(`${f1Sur(c)} `), el('span', { class: 'muted', text: en ? 'behind' : '落後' }), document.createTextNode(` ${f1Sur(a)} `), el('span', { class: 'num', text: gap != null ? `${gap.toFixed(1)}${en ? 's' : ' 秒'}` : '—' })]),
-              el('small', { text: [trend, when].filter(Boolean).join(' · ') })
-            ]),
-            f1Face(ss, a.name, 'sm round')
+            el('span', { class: 'lc-fight-text' }, [el('strong', { text: f1Sur(c) }), ...[].concat(line || []).map(t => el('small', { text: t }))]),
+            el('span', { class: 'lc-gap num', text: retired ? (en ? 'Out' : '退賽') : gap != null ? `+${gap.toFixed(1)}${en ? 's' : ' 秒'}` : '—' })
           ]);
         })
       : [];
+    const fights = fightRows.length
+      ? [el('div', { class: 'lc-fights' }, [el('p', { class: 'lc-fight-head' }, [f1Face(ss, a.name), el('span', { text: over ? (en ? `Behind ${f1Sur(a)} at the flag` : `完賽時落後 ${f1Sur(a)}`) : en ? `Behind ${f1Sur(a)}` : `落後 ${f1Sur(a)}` })]), ...fightRows])]
+      : [];
 
-    // The tyres each is on, and how old.
-    const tyres = el('div', { class: 'lc-tyrenow' }, picks.map(no => {
-      const c = car(no);
-      return el('span', { style: c.colour ? `--team:${c.colour}` : null }, [f1Face(ss, c.name), tyreIcon(c.tyre), el('small', { class: 'num', text: c.tyreLaps ? `${c.tyreLaps}${en ? ' laps' : ' 圈'}` : '' }), el('small', { class: 'num', text: c.pits ? (en ? `${c.pits} stop${c.pits > 1 ? 's' : ''}` : `${c.pits} 停`) : '' })]);
-    }));
+    // Tyres: live, the set each is on and how old (two a row from three
+    // picks: four in one row ran off the screen); over, each one's stints.
+    const tyres = over
+      ? el('div', { class: 'lc-stints' }, picks.map(no => {
+          const c = car(no);
+          const total = Math.max(1, ...picks.map(n => (car(n).stints || []).reduce((t, x) => t + x.laps, 0)));
+          return el('div', { class: 'lc-stint-row', style: c.colour ? `--team:${c.colour}` : null }, [f1Face(ss, c.name), el('span', { class: 'fs-stints' }, (c.stints || []).filter(x => x.laps > 0).map(x => el('i', { class: `stint ${String(x.c).toLowerCase()}${x.new ? '' : ' used'}`, style: `flex-grow:${x.laps / total}` }, [x.laps / total >= 0.12 ? el('small', { class: 'num', text: String(x.laps) }) : null])).concat(el('i', { class: 'stint-rest', style: `flex-grow:${Math.max(0, 1 - (c.stints || []).reduce((t, x) => t + x.laps, 0) / total)}` })))]);
+        }))
+      : el('div', { class: `lc-tyrenow${picks.length > 2 ? ' two' : ''}` }, picks.map(no => {
+          const c = car(no);
+          return el('span', { style: c.colour ? `--team:${c.colour}` : null }, [f1Face(ss, c.name), tyreIcon(c.tyre), el('small', { class: 'num', text: [c.tyreLaps ? `${c.tyreLaps}${en ? ' laps' : ' 圈'}` : '', c.pits ? (en ? `${c.pits} stop${c.pits > 1 ? 's' : ''}` : `${c.pits} 停`) : ''].filter(Boolean).join(' · ') })]);
+        }));
 
     // The chart: the gap to the one ahead by lap (battle), or each one's lap times.
     const W = 340, H = 160, L0 = 40, R0 = 6, T0 = 8, B0 = 18;
@@ -1928,13 +1950,23 @@ function f1LapCompare(b, ss) {
         return `<path class="lc-line${dashed(s.no) ? ' dash' : ''}" d="${d}" style="stroke:${col}"/>${pits}`;
       }).join('');
       chart = el('div', { class: 'lc-box', html: `<svg viewBox="0 0 ${W} ${H}" class="lc-svg" aria-hidden="true">${grid}${xt}${lines}</svg>` });
+      // Which line is whose (two Ferraris are one colour: the second dashed).
+      const key = series.map(sr => el('span', { class: 'lc-key-item' }, [
+        el('span', { class: 'lc-key-line', 'aria-hidden': 'true', html: `<svg viewBox="0 0 22 6"><line x1="1" y1="3" x2="21" y2="3" class="lc-line${dashed(sr.no) ? ' dash' : ''}" style="stroke:${sr.c?.colour || '#888'}"/></svg>` }),
+        f1Face(ss, sr.c.name),
+        el('span', { text: mode === 'gap' ? (en ? `${f1Sur(sr.c)} to ${f1Sur(a)}` : `${f1Sur(sr.c)} 與 ${f1Sur(a)} 的差距`) : f1Sur(sr.c) })
+      ]));
+      chart = el('div', { class: 'lc-chart' }, [chart, el('div', { class: 'lc-key' }, key), mode === 'gap' ? el('p', { class: 'muted small lc-key-note', text: en ? `Higher: further behind ${f1Sur(a)}. ○ a pit stop.` : `越高差越遠，${f1Sur(a)} 在虛線上。○ 進站。` }) : el('p', { class: 'muted small lc-key-note', text: en ? 'Higher: slower. ○ a pit stop.' : `越高越慢。○ 進站。` })]);
     }
 
     // The last laps lap by lap, each pick a column; two: the difference.
-    const lapNos = [...new Set(picks.flatMap(no => (laps[no] || []).map(x => x[0])))].sort((x, y) => y - x).slice(0, 5);
+    // Live: the last 5. Over: every lap, the latest 10 first and the rest a tap away.
+    const allNos = [...new Set(picks.flatMap(no => (laps[no] || []).map(x => x[0])))].sort((x, y) => y - x);
+    const opened = f1AllLaps.has(ss.start);
+    const lapNos = over ? (opened ? allNos : allNos.slice(0, 10)) : allNos.slice(0, 5);
     const two = picks.length === 2;
     const table = lapNos.length
-      ? el('table', { class: 'fs-table lc-table' }, [
+      ? el('table', { class: `fs-table lc-table${picks.length > 2 ? ' many' : ''}` }, [
           el('thead', {}, [el('tr', {}, [el('th', { class: 'n', text: en ? 'Lap' : '圈' }), ...picks.map(no => el('th', { class: 'lc-head', style: car(no).colour ? `--team:${car(no).colour}` : null }, [pic(car(no))])), two ? el('th', { text: 'Δ' }) : null])]),
           el('tbody', {}, lapNos.map(l => {
             const ts = picks.map(no => timeOf(no, l));
@@ -1950,9 +1982,59 @@ function f1LapCompare(b, ss) {
         ])
       : null;
 
+    const more = over && allNos.length > lapNos.length ? el('button', { class: 'q-btn small lc-more', type: 'button', text: en ? `All ${allNos.length} laps` : `顯示全部 ${allNos.length} 圈`, onclick: () => (f1AllLaps.add(ss.start), draw()) }) : null;
     const modes = battle ? segmented([['gap', en ? 'Gap between them' : '兩車差距'], ['time', en ? 'Lap times' : '圈速']], mode, v => ((f1LapMode = v), draw()), 'lc-modes') : null;
-    put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [chips, ...fights, tyres, modes, chart, table]), { sub: en ? 'Up to 4' : '最多 4 位' }));
+    put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [chips, ...fights, tyres, modes, chart, table, more]), { sub: en ? 'Up to 4' : '最多 4 位' }));
   };
+  // (Drawn again when 數據 is shown: built behind 成績, its laps came while it wasn't on the page.)
+  box.__redraw = draw;
+  draw();
+  return box;
+}
+
+// A practice, as the teams read one: each car's long run (its race
+// simulation, lib/f1.mjs practicePace) ranked by its average lap, with the
+// tyre, how many laps and how much it fell away; and the best lap each car
+// set on each compound (its short runs). From each car's laps
+// (lapsFor) and its stints; live, again as the laps come.
+function f1PracticePace(b, ss) {
+  const en = L() === 'en';
+  const over = Boolean(b.final || feedOver(b));
+  const box = el('div', { 'data-pace': ss.start });
+  const draw = () => {
+    const laps = lapsFor(b, ss, over, () => box.isConnected && draw());
+    const cars = b.cars.filter(c => c.name && c.stints?.length);
+    const paced = cars.map(c => ({ c, p: practicePace(laps[c.no] || [], c.stints) }));
+    const runs = paced.filter(x => x.p.long).sort((x, y) => x.p.long.avg - y.p.long.avg);
+    const cards = [];
+    if (runs.length) {
+      const top = runs[0].p.long.avg;
+      cards.push(card(en ? 'Long runs' : '長距離模擬', el('ol', { class: 'fs-rows pp-rows' }, runs.map(({ c, p }, i) => {
+        const r = p.long;
+        return el('li', { style: c.colour ? `--team:${c.colour}` : null }, [
+          el('span', { class: 'pos num', text: String(i + 1) }),
+          el('span', { class: 'fs-who' }, [f1Face(ss, c.name), el('span', { class: 'fs-name', text: f1Sur(c) })]),
+          r.c ? tyreIcon(r.c) : el('span', { class: 'tyre none', 'aria-hidden': 'true' }),
+          el('span', { class: 'pp-val' }, [el('strong', { class: 'num', text: fmtLap(r.avg) }), el('small', { class: 'num', text: [i ? `+${((r.avg - top) / 1000).toFixed(3)}` : '', `${r.laps}${en ? ' laps' : ' 圈'}`, Math.abs(r.fade) >= 30 ? `${r.fade > 0 ? '+' : '−'}${(Math.abs(r.fade) / 1000).toFixed(2)}${en ? '/lap' : '/圈'}` : ''].filter(Boolean).join(' · ') })])
+        ]);
+      })), { sub: en ? `average lap, ${MIN_RUN}+ laps in a row on one set` : `同一套胎連續 ${MIN_RUN} 圈以上的平均圈速` }));
+    }
+    // Best lap on each compound run.
+    const kinds = Object.keys(TYRE).filter(k => paced.some(x => x.p.best[k]));
+    if (kinds.length) {
+      const fastest = Object.fromEntries(kinds.map(k => [k, Math.min(...paced.map(x => x.p.best[k]?.ms || Infinity))]));
+      const rows = paced.filter(x => kinds.some(k => x.p.best[k])).sort((x, y) => Math.min(...kinds.map(k => x.p.best[k]?.ms || Infinity)) - Math.min(...kinds.map(k => y.p.best[k]?.ms || Infinity)));
+      cards.push(card(en ? 'Best lap on each tyre' : '各配方最快圈', el('table', { class: 'fs-table pp-best' }, [
+        el('thead', {}, [el('tr', {}, [el('th', { class: 'n' }), ...kinds.map(k => el('th', {}, [tyreIcon(k)]))])]),
+        el('tbody', {}, rows.map(({ c, p }) => el('tr', { style: c.colour ? `--team:${c.colour}` : null }, [
+          el('th', { class: 'n', text: f1Sur(c) }),
+          ...kinds.map(k => el('td', { class: `num${p.best[k] && p.best[k].ms === fastest[k] ? ' best' : ''}`, text: p.best[k] ? fmtLap(p.best[k].ms) : '' }))
+        ])))
+      ])));
+    }
+    put(box, ...cards);
+  };
+  box.__redraw = draw;
   draw();
   return box;
 }
@@ -2039,6 +2121,8 @@ function f1Stats(b, ss) {
       if (pw) cards.push(pw);
     }
   }
+  // A practice: the long runs and each tyre's best lap, what a practice is for.
+  if (/^FP\d$/.test(ss.abbr)) cards.push(f1PracticePace(b, ss));
   cards.push(f1LapCompare(b, ss));
 
   // A qualifying's parts.
@@ -2179,6 +2263,7 @@ function f1Views(order, stats) {
   const pick = segmented(views, f1BoardView, v => {
     f1BoardView = v;
     put(body, v === 'stats' ? stats : order);
+    if (v === 'stats') for (const n of stats.querySelectorAll('[data-laps], [data-pace]')) n.__redraw?.();
     pick.querySelectorAll('button').forEach((x, i) => x.setAttribute('aria-pressed', String(views[i][0] === v)));
   }, 'lb-views');
   return el('div', { class: 'f1-views' }, [pick, body]);
@@ -2206,7 +2291,8 @@ function fillField(s, e) {
   if (e.kind === 'field') {
     // The weekend's (or week's) sessions, then the chosen one's order.
     // (Each as F1's feed has it where it has said: on or over before ESPN.)
-    const sessions = [...e.sessions].map(x => ({ ...x, status: feedStatus(x.abbr, x.start, x.status) })).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    // (The home's cards' rule: a session long past its start is over, ESPN's "on" or not.)
+    const sessions = [...e.sessions].map(x => ({ ...x, status: sessionStatus(x) })).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
     // A session on: its live board first, the weekend's schedule after it.
     const liveNow = sessions.some(x => x.status.state === 'in');
     // The weekend's schedule under the session's results (not a long list on top of them).

@@ -196,14 +196,19 @@ export function feedStatus(abbr, start, status) {
 }
 // Due to start: its start a minute away or passed (up to 3 h), not yet said to be on.
 export const dueToStart = (x, now = Date.now()) => x?.status?.state === 'pre' && Date.parse(x.start) - now < 60_000 && now - Date.parse(x.start) < 3 * 3_600_000;
+// A session's state, the one rule for every view of it (the home's cards,
+// the weekend's sheet): F1's own feed where it has said, and a session long
+// past its start over, whatever ESPN still says ("on", "to come").
+export function sessionStatus(x, now = Date.now()) {
+  const done = Date.parse(x.start) + SESSION_MS < now || feedEnded.has(`${x.abbr}|${x.start}`);
+  return feedStatus(x.abbr, x.start, done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true } : x.status);
+}
 export function splitWeekend(e, now = Date.now(), lang = 'zh') {
   if (e?.kind !== 'field' || LEAGUES[e.league]?.sport !== 'racing' || e.sessionKey) return [e];
   const main = (e.sessions || []).filter(x => x.start && MAIN_SESSIONS.includes(x.abbr));
   if (main.length < 2) return [settleField(e, now)];
   return main.map(x => {
-    // The feed can leave a session "on" (or "to come") long after it ended.
-    const done = Date.parse(x.start) + SESSION_MS < now || feedEnded.has(`${x.abbr}|${x.start}`);
-    const status = feedStatus(x.abbr, x.start, done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true } : x.status);
+    const status = sessionStatus(x, now);
     const shown = titlesAt(e.league, x.abbr, x.start);
     return { ...e, id: `${e.id}~${x.abbr}`, weekend: e.id, start: shown, at: shown, official: x.start, titles: shown, end: null, session: sessionName(x, lang), sessionKey: x.abbr, status };
   });
