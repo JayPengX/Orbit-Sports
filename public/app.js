@@ -2011,7 +2011,7 @@ function weekendCard(sessions) {
   // tap, so where the finger fell picked 一練, the sprint or qualifying.)
   const open = list.find(x => x.status.state === 'in') || list.find(x => x.status.state === 'pre') || race;
   return el('button', { class: `q-card wk-card${live ? ' live' : ''}${done ? ' done' : ''}`, type: 'button', onclick: () => openEvent(open) }, [
-    el('div', { class: 'wk-card-head' }, [raceFlag(e, 'big'), el('div', { class: 'wk-card-text' }, [el('strong', { class: 'wk-card-name', text: e.name }), el('small', { class: 'muted', text: [e.venue, days].filter(Boolean).join(' · ') })])]),
+    el('div', { class: 'wk-card-head' }, [raceFlag(e, 'big'), el('div', { class: 'wk-card-text' }, [el('strong', { class: 'wk-card-name', text: e.name }), e.venue ? el('small', { class: 'muted wk-card-line', text: e.venue }) : null, el('small', { class: 'muted wk-card-line num', text: days })])]),
     winner
       ? el('div', { class: 'wk-winner' }, [personPic(winner, e.league, 'sm round'), el('span', {}, [el('small', { class: 'muted', text: L({ zh: '冠軍', en: 'Winner' }) }), el('strong', { text: winner.short || winner.name })])])
       : el(

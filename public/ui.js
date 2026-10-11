@@ -133,10 +133,16 @@ export function watchButton(e, cls = '') {
     el('span', { class: 'watch-text' }, [el('strong', { text: ctx.locale === 'en' ? 'Watch' : '觀看' }), cls.includes('wide') ? el('small', { text: b.short[ctx.locale === 'en' ? 'en' : 'zh'] }) : null])
   ]);
 }
-// A row with its watch button beside it (a live game's), or the row alone.
+// A row with its watch button (a live game's): at the foot of the row's
+// left column, under the time and league (on a line of its own under the
+// row it left the card half empty, the time floating in the middle); kept
+// outside the row's own button (a link in a button isn't followed), the
+// column holding room for it. Or the row alone.
 export const withWatch = (row, e) => {
   const watch = watchButton(e);
-  return watch ? el('div', { class: 'watch-row' }, [row, watch]) : row;
+  if (!watch) return row;
+  const side = row.classList.contains('event-row') && row.querySelector(':scope > .event-meta');
+  return el('div', { class: `watch-row${side ? ' in-meta' : ''}` }, [row, watch]);
 };
 
 // ---- Logos, leagues ----------------------------------------------------------------

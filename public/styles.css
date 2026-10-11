@@ -1605,3 +1605,17 @@ button.lp-person.tap:active { opacity: 0.6; }
 .pp-val strong { font-size: 15px; font-weight: 750; }
 .pp-val small { font-size: 11.5px; color: var(--q-muted); white-space: nowrap; }
 .pp-best th .tyre { width: 18px; height: 18px; vertical-align: middle; }
+
+/* A weekend's circuit and its days, a line each (one line wrapped the days under the circuit). */
+.wk-card-text .wk-card-line { display: block; white-space: nowrap; }
+
+/* A live game with 觀看 (withWatch): the time and league down the left from
+   the top, level with the first side, 觀看 at the column's foot (room kept
+   for it under them); the scorer's face in the logos' column. */
+.watch-row.in-meta { position: relative; }
+.watch-row.in-meta > .event-row { align-items: start; padding-bottom: 10px; }
+.watch-row.in-meta .event-meta { padding-top: 3px; padding-bottom: 40px; }
+.watch-row.in-meta > .watch-btn { position: absolute; left: 14px; bottom: 11px; margin: 0; padding: 7px 11px 7px 9px; gap: 6px; }
+.watch-row.in-meta > .watch-btn .watch-text strong { font-size: 13px; }
+.watch-row.in-meta > .watch-btn .watch-play { border-width: 5px 0 5px 8px; }
+.live-line.base.goal { gap: 4px; }
