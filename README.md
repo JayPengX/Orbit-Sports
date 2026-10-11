@@ -417,6 +417,13 @@ game).
 - **NBA.com's Taiwan schedule** (`public/nba-elta.json`, written by
   `scripts/nba-elta.mjs` in the deploy every 6 hours) lists the whole
   season's ELTA games. NBA.com's CDN refuses Workers.
+- **Both lists open on the device's copy** (`schedule(…, keep)` in
+  `lib/tv.mjs`: `fx.tv.elta`, `fx.tv.nba` in localStorage, 12 hours at
+  most), and are read fresh behind it; the page is drawn again only when a
+  list changed. The picks are only games on TV (`tvReady()`), so without
+  this every open waited on both lists (NBA.com's was never kept). Both are
+  asked at boot (`tvReady()` in `boot`). Today's games are read while the
+  sign-in is on its way (`early` in `boot`, not under a `#qh=` sign-in link).
 - **Apple TV**: every MLS game. Its 觀看 opens that game's own page in the
   TV app, from Shared-Data's `watch.json` (`packOf(e).apple`, a week ahead
   and ten days back), else the MLS channel.
