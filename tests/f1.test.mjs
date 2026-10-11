@@ -113,6 +113,13 @@ test('two cars\' gap at every line, counted back from the gap now by the lap tim
   assert.deepEqual(gapsBetween(a, c, { now: null, live: true }), [[1, 1], [2, 2.5], [3, 2]]);
   assert.equal(closingRate([[1, 3], [2, 2.5], [3, 2], [4, 1.5]]), 0.5);
   assert.equal(closingRate([[1, 3], [2, 2.5], [3, 30], [4, 29.5]], new Set([3])), null);
+  // Singapore 2026: the leader stopped 4 laps back; only the laps since count, and a stop's swing never reads as pace.
+  assert.equal(closingRate([[30, 25], [31, 21], [32, 5.6], [33, 5.5], [34, 5.5], [35, 5.5]], new Set([31])), 0);
+  assert.equal(closingRate([[30, 25], [31, 21], [32, 17], [33, 13]]), null);
+  assert.equal(closingRate([[1, 3], [2, 2.5], [3, 2], [4, 1.5], [5, 1]], new Set(), 5, new Set([4, 5])), 0.5);
+  const { stintStops } = await import('../public/lib/f1.mjs');
+  assert.deepEqual(stintStops([{ c: 'SOFT', laps: 32 }, { c: 'MEDIUM', laps: 4 }]), [32]);
+  assert.deepEqual([...pitLaps([], [], [{ laps: 20 }, { laps: 10 }, { laps: 3 }])], [20, 30]);
   assert.equal(closingRate([[1, 3], [2, 3]]), null);
   assert.deepEqual([...pitLaps([[5, 1, 0, 1, 1]], [[12, 2.4, 24]])], [12, 5]);
   assert.equal(recentPace([[1, 90000], [2, 91000], [3, 120000], [4, 92000]], new Set([4])), 90500);

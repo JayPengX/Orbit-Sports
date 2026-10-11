@@ -16,7 +16,7 @@ import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLine
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, stintStops, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
@@ -1994,7 +1994,7 @@ function f1LapCompare(b, ss) {
     const setPicks = next => (f1Picks.set(ss.start, next), draw());
     const dashed = no => picks.slice(0, picks.indexOf(no)).some(o => car(o)?.colour === car(no)?.colour);
     const colourOf = no => car(no)?.colour || '#888';
-    const pitsOf = no => pitLaps(laps[no] || [], stops[no] || []);
+    const pitsOf = no => pitLaps(laps[no] || [], stops[no] || [], car(no)?.stints || []);
     const timeOf = (no, lap) => (laps[no] || []).find(x => x[0] === lap);
     const sec = en ? 's' : ' 秒';
 
@@ -2046,7 +2046,8 @@ function f1LapCompare(b, ss) {
       })));
       if (!over && rest.length) {
         // Closing (green, ▲) or losing (red, ▼) a lap, over the last five; when it would meet.
-        const rates = Object.fromEntries(rest.map(c => [c.no, closingRate(gaps[c.no], new Set([...pitsOf(a.no), ...pitsOf(c.no)]))]));
+        const neutral = new Set(neutralLaps(b.control || [], b.lap?.now || 0).flatMap(p => Array.from({ length: p.to - p.from + 2 }, (_, k) => p.from + k)));
+        const rates = Object.fromEntries(rest.map(c => [c.no, closingRate(gaps[c.no], new Set([...pitsOf(a.no), ...pitsOf(c.no)]), 5, neutral)]));
         rows.push(row(en ? 'A lap' : '每圈', picks.map((no, i) => {
           const r = i ? rates[no] : null;
           if (r == null) return cell(i ? '—' : '', 'muted');

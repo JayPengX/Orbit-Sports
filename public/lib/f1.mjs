@@ -355,8 +355,8 @@ export function practicePace(laps = [], stints = []) {
 
 // The laps a car came into the pits on: its stops (PitStopSeries' laps), and
 // the laps flagged in or out of the pits.
-export function pitLaps(laps = [], stops = []) {
-  return new Set([...stops.map(s => s[0]), ...laps.filter(x => x[4]).map(x => x[0])]);
+export function pitLaps(laps = [], stops = [], stints = []) {
+  return new Set([...stops.map(s => s[0]), ...laps.filter(x => x[4]).map(x => x[0]), ...stintStops(stints)]);
 }
 // How far `c` was behind `a` at the line, lap by lap ([[lap, s]…]). Live,
 // the laps are a minute's looks (f1-live.js sampleLive), each gap read some
@@ -382,12 +382,27 @@ export function gapsBetween(a = [], c = [], { now = null, live = false } = {}) {
   }
   return [...out].sort((p, q) => p[0] - q[0]);
 }
-// Closing or not: the gap's change a lap over the last `n` laps (s a lap, +
-// closing), the pit laps left out (a stop isn't pace). Null with under 3.
-export function closingRate(gaps = [], pits = new Set(), n = 5) {
-  const clean = gaps.filter(([lap]) => !pits.has(lap) && !pits.has(lap - 1)).slice(-n);
+// Closing or not: the gap's change a lap (s a lap, + closing), over the
+// last `n` laps since either car last stopped (a stop isn't pace: Singapore
+// 2026, Verstappen's stop four laps back read as Leclerc closing 4.16s a
+// lap) and off the safety car (`neutral`: laps). Null with under 3 such
+// laps, or a change no racing lap makes (over 2s a lap).
+export function closingRate(gaps = [], pits = new Set(), n = 5, neutral = new Set()) {
+  const last = gaps.at(-1)?.[0] ?? 0;
+  const stop = Math.max(0, ...[...pits].filter(l => l <= last));
+  const clean = gaps.filter(([lap]) => (!stop || lap > stop + 1) && !neutral.has(lap)).slice(-n);
   if (clean.length < 3) return null;
-  return (clean[0][1] - clean.at(-1)[1]) / (clean.at(-1)[0] - clean[0][0]);
+  const rate = (clean[0][1] - clean.at(-1)[1]) / (clean.at(-1)[0] - clean[0][0]);
+  return Math.abs(rate) > 2 ? null : rate;
+}
+// The laps a car stopped on, from its tyres (each stint's laps, counted
+// from the start: the lap a set came off): the feed's stops come late or
+// not at all while a race runs.
+export function stintStops(stints = []) {
+  const out = [];
+  let lap = 0;
+  for (const st of stints.slice(0, -1)) out.push((lap += st.laps || 0));
+  return out.filter(l => l > 0);
 }
 // The average of a car's last `n` racing laps (no pit laps, none over 107%
 // of its best: a safety car), ms, or null.
