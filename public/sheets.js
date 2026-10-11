@@ -1897,7 +1897,10 @@ function f1TrackMap(b, ss) {
     if (!g) {
       g = document.createElementNS(ns, 'g');
       g.setAttribute('class', 'tm-car');
-      g.innerHTML = `<circle r="5.5"/><text x="8" y="3.5"></text>`;
+      g.innerHTML = `<circle r="9" class="tm-hit"/><circle r="5.5"/><text x="8" y="3.5"></text>`;
+      // (A car opens its driver, as every face does.)
+      const who = fieldDriver(ss.field, car.name, driverShort(car.name));
+      if (who?.id) g.addEventListener('click', () => ctx.openPlayer('f1', who.id, who));
       m.cars.set(car.no, g);
     }
     const [x, y] = m.fit(car.at[0], car.at[1]);
@@ -1959,6 +1962,11 @@ function f1Face(ss, name, size = 'xs round') {
   const pic = personPic(who, 'f1', size);
   return who.id ? el('button', { class: 'face-btn', type: 'button', 'aria-label': f1Shown(name), onclick: () => ctx.openPlayer('f1', who.id, who) }, [pic]) : pic;
 }
+// A driver's name (or code) that opens them, as their face does.
+function f1NameTap(ss, c, text, cls = '') {
+  const who = fieldDriver(ss.field, c.name, driverShort(c.name));
+  return who?.id ? el('button', { type: 'button', class: `link name-tap ${cls}`.trim(), text, onclick: () => ctx.openPlayer('f1', who.id, who) }) : el('span', { class: cls, text });
+}
 const f1Sur = c => f1Shown(c.name).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1) || c.tla;
 const gapNum = c => (c.pos === 1 ? 0 : /^\+?\d+(\.\d+)?$/.test(c.gap || '') ? Number(String(c.gap).replace('+', '')) : null);
 // Up to four cars side by side, the way one watches a fight. One table, a
@@ -2018,11 +2026,11 @@ function f1LapCompare(b, ss) {
     const head = el('tr', {}, [el('th', { class: 'dc-label' }), ...picks.map(no => {
       const c = car(no);
       return el('th', { class: 'dc-head', style: `--team:${colourOf(no)}` }, [
-        el('button', { type: 'button', class: 'dc-who', 'aria-label': en ? `Remove ${f1Shown(c.name)}` : `移除 ${f1Shown(c.name)}`, onclick: () => setPicks(picks.filter(x => x !== no)) }, [
-          personPic(fieldDriver(ss.field, c.name, driverShort(c.name)) || { name: c.name }, 'f1', 'sm round'),
-          // (Four abreast, the code: four surnames don't fit a phone.)
-          picks.length > 3 ? el('span', { class: 'dc-name', text: c.tla || f1Sur(c) }) : fitName(el('span', { class: 'dc-name' }), f1Whole(c.name), f1Sur(c)),
-          el('i', { class: 'dc-x', 'aria-hidden': 'true', text: '×' })
+        el('span', { class: 'dc-who' }, [
+          f1Face(ss, c.name, 'sm round'),
+          // (Four abreast, the code: four surnames don't fit a phone.) A tap on the face or the name opens the driver; × takes them off.
+          picks.length > 3 ? f1NameTap(ss, c, c.tla || f1Sur(c), 'dc-name') : fitName(f1NameTap(ss, c, f1Whole(c.name), 'dc-name'), f1Whole(c.name), f1Sur(c)),
+          el('button', { type: 'button', class: 'dc-x', 'aria-label': en ? `Remove ${f1Shown(c.name)}` : `移除 ${f1Shown(c.name)}`, text: '×', onclick: () => setPicks(picks.filter(x => x !== no)) })
         ])
       ]);
     })]);
@@ -2107,53 +2115,83 @@ function f1LapCompare(b, ss) {
       const lapLo = Math.min(...all.map(p => p[0]));
       const lapHi = Math.max(lapLo + 1, ...all.map(p => p[0]));
       const X = lap => L0 + ((lap - lapLo) / (lapHi - lapLo)) * (W - L0 - R0);
-      let lo, hi, label, ticks;
+      // Better is up in every view (the owner, 2026-10-11): quicker laps, a
+      // smaller gap (the first of them along the top line), a higher place.
+      let top, bottom, label, ticks;
       if (mode === 'gap') {
         const vs = all.map(p => p[1]);
-        lo = Math.min(0, ...vs);
-        hi = Math.max(lo + 1, ...vs);
-        label = v => (Math.abs(v) < 0.05 ? a.tla : `${v > 0 ? '+' : ''}${v.toFixed(Math.abs(hi - lo) < 5 ? 1 : 0)}`);
-        ticks = [...new Set([lo, 0, (lo + hi) / 2, hi])];
+        top = Math.min(0, ...vs);
+        bottom = Math.max(top + 1, ...vs);
+        label = v => (Math.abs(v) < 0.05 ? a.tla : `${v > 0 ? '+' : ''}${v.toFixed(Math.abs(bottom - top) < 5 ? 1 : 0)}`);
+        ticks = [...new Set([top, 0, (top + bottom) / 2, bottom])];
       } else if (mode === 'place') {
-        lo = Math.max(...all.map(p => p[1])) + 0.5;
-        hi = Math.max(0.5, Math.min(...all.map(p => p[1])) - 0.5);
+        top = Math.max(0.5, Math.min(...all.map(p => p[1])) - 0.5);
+        bottom = Math.max(...all.map(p => p[1])) + 0.5;
         label = v => `P${Math.round(v)}`;
-        const top = Math.ceil(hi), bottom = Math.floor(lo);
-        ticks = [...new Set([top, Math.round((top + bottom) / 2), bottom])];
+        const first = Math.ceil(top), last = Math.floor(bottom);
+        ticks = [...new Set([first, Math.round((first + last) / 2), last])];
       } else {
-        // Racing laps set the range: a pit lap or one behind the safety car runs off the top.
+        // Racing laps set the range: a pit lap or one behind the safety car runs off the bottom.
         const best = Math.min(...all.map(p => p[1]));
         const cap = best * 1.06;
-        lo = best - 300;
-        hi = Math.max(lo + 1000, Math.min(cap, Math.max(...all.map(p => p[1]).filter(v => v <= cap))) + 300);
+        top = best - 300;
+        bottom = Math.max(top + 1000, Math.min(cap, Math.max(...all.map(p => p[1]).filter(v => v <= cap))) + 300);
         label = v => fmtLap(v).replace(/(\.\d)\d\d$/, '$1');
-        ticks = [lo + 300, (lo + hi) / 2, hi - 300];
+        ticks = [top + 300, (top + bottom) / 2, bottom - 300];
       }
-      // Slower, further behind or lower down: down the chart for places, up for the rest.
-      const Y = v => (mode === 'place' ? T0 + ((Math.min(Math.max(v, hi), lo) - hi) / (lo - hi)) * (H - T0 - B0) : H - B0 - ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo)) * (H - T0 - B0));
+      const Y = v => T0 + ((Math.min(Math.max(v, top), bottom) - top) / (bottom - top)) * (H - T0 - B0);
       const shade = neutralLaps(b.control || [], b.lap?.now || lapHi)
         .filter(p => p.to >= lapLo && p.from <= lapHi)
         .map(p => `<rect class="lc-sc ${p.kind}" x="${X(Math.max(lapLo, p.from - 0.5)).toFixed(1)}" y="${T0}" width="${Math.max(3, X(Math.min(lapHi, p.to + 0.5)) - X(Math.max(lapLo, p.from - 0.5))).toFixed(1)}" height="${H - T0 - B0}"/><text class="lc-sc-t" x="${(X(Math.max(lapLo, p.from - 0.5)) + 3).toFixed(1)}" y="${H - B0 - 4}">${p.kind === 'sc' ? 'SC' : 'VSC'}</text>`)
         .join('');
       const grid = ticks.map(v => `<line class="lc-grid${mode === 'gap' && v === 0 ? ' zero' : ''}" x1="${L0}" x2="${W - R0}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="lc-y" x="${L0 - 6}" y="${(Y(v) + 3.5).toFixed(1)}">${label(v)}</text>`).join('');
       const step = Math.max(1, Math.ceil((lapHi - lapLo) / 5 / 5) * 5);
-      const xs = [lapLo, ...Array.from({ length: 6 }, (_, k) => Math.ceil(lapLo / step) * step + k * step).filter(l => l > lapLo + step / 2 && l < lapHi - step / 2), lapHi];
-      const xt = xs.map(l => `<text class="lc-x" x="${X(l).toFixed(1)}" y="${H - 5}">${l}</text>`).join('');
+      const xsLaps = [lapLo, ...Array.from({ length: 6 }, (_, k) => Math.ceil(lapLo / step) * step + k * step).filter(l => l > lapLo + step / 2 && l < lapHi - step / 2), lapHi];
+      const xt = xsLaps.map(l => `<text class="lc-x" x="${X(l).toFixed(1)}" y="${H - 5}">${l}</text>`).join('');
       const lines = series.map(s => {
         const col = colourOf(s.no);
-        const pits = mode === 'place' ? pitsOf(s.no) : pitsOf(s.no);
+        const pits = pitsOf(s.no);
         const d = s.pts.map((p, i) => `${i && s.pts[i - 1][0] === p[0] - 1 ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('');
         const dots = s.pts.filter(p => pits.has(p[0])).map(p => `<circle class="lc-pit" cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="3.2" style="stroke:${col}"/>`).join('');
-        const end = s.pts.at(-1);
-        return `<path class="lc-line${dashed(s.no) ? ' dash' : ''}" d="${d}" style="stroke:${col}"/>${dots}${end ? `<circle cx="${X(end[0]).toFixed(1)}" cy="${Y(end[1]).toFixed(1)}" r="3" style="fill:${col}"/>` : ''}`;
+        return `<path class="lc-line${dashed(s.no) ? ' dash' : ''}" d="${d}" style="stroke:${col}"/>${dots}`;
       }).join('');
-      const svg = el('div', { class: 'lc-box', html: `<svg viewBox="0 0 ${W} ${H}" class="lc-svg" aria-hidden="true">${shade}${grid}${xt}${lines}</svg>` });
-      const key = el('div', { class: 'lc-key' }, series.map(sr => el('span', { class: 'lc-key-item' }, [
+      // A finger (or a mouse) on it reads every line at that lap, as every chart here: the chips above say each one's number, a rule and a dot on each line mark it.
+      const laps = Array.from({ length: lapHi - lapLo + 1 }, (_, k) => lapLo + k);
+      const xs = laps.map(l => X(l) / W);
+      const valueText = v => (v == null ? '—' : mode === 'gap' ? `+${Math.max(0, v).toFixed(1)}`.replace('+-', '−') : mode === 'place' ? `P${v}` : fmtLap(v));
+      const chipVal = series.map(() => el('strong', { class: 'num' }));
+      const chips = el('div', { class: 'rc-chips lc-chips' }, series.map((sr, k) => el('span', { class: 'rc-chip lc-chip' }, [
         el('span', { class: 'lc-key-line', 'aria-hidden': 'true', html: `<svg viewBox="0 0 22 6"><line x1="1" y1="3" x2="21" y2="3" class="lc-line${dashed(sr.no) ? ' dash' : ''}" style="stroke:${colourOf(sr.no)}"/></svg>` }),
-        el('span', { text: picks.length > 3 ? sr.c.tla || f1Sur(sr.c) : f1Sur(sr.c) })
+        f1Face(ss, sr.c.name),
+        f1NameTap(ss, sr.c, picks.length > 3 ? sr.c.tla || f1Sur(sr.c) : f1Sur(sr.c)),
+        chipVal[k]
       ])));
-      const note = mode === 'gap' ? (en ? `Up: further behind ${f1Sur(a)} (the dashes). ○ a stop.` : `越高落後 ${f1Sur(a)}（虛線）越多 · ○ 進站`) : mode === 'place' ? (en ? 'Each lap\'s place, from the start. ○ a stop.' : '每圈名次，從起跑開始 · ○ 進站') : en ? 'Up: slower. ○ a stop.' : '越高越慢 · ○ 進站';
-      chart = el('div', { class: 'lc-chart' }, [svg, el('div', { class: 'lc-foot' }, [key, el('p', { class: 'muted small lc-key-note', text: note })])]);
+      const at = el('small', { class: 'wp-at' });
+      const rule = el('span', { class: 'wp-rule', hidden: true });
+      const marks = series.map(sr => el('span', { class: 'wp-dot', hidden: true, style: `background:${colourOf(sr.no)}` }));
+      const show = i => {
+        const lap = i == null ? null : laps[i];
+        series.forEach((sr, k) => {
+          const p = lap == null ? sr.pts.at(-1) : sr.pts.find(x => x[0] === lap);
+          chipVal[k].textContent = valueText(p?.[1]);
+          marks[k].hidden = lap == null || !p;
+          if (p && lap != null) Object.assign(marks[k].style, { left: `${(X(p[0]) / W) * 100}%`, top: `${(Y(p[1]) / H) * 100}%` });
+        });
+        const under = lap != null && neutralLaps(b.control || [], b.lap?.now || lapHi).find(p => lap >= p.from && lap <= p.to);
+        at.textContent = lap == null ? `${en ? `Lap ${series[0]?.pts.at(-1)?.[0] ?? lapHi}` : `第 ${series[0]?.pts.at(-1)?.[0] ?? lapHi} 圈`} · ${en ? 'Hold the chart to look back' : '按住圖表查看'}` : `${en ? `Lap ${lap}` : `第 ${lap} 圈`}${pitsAt(lap)}${under ? ` · ${under.kind === 'sc' ? (en ? 'Safety car' : '安全車') : en ? 'VSC' : '虛擬安全車'}` : ''}`;
+        at.classList.toggle('on', lap != null);
+        rule.hidden = lap == null;
+        if (lap != null) rule.style.left = `${xs[i] * 100}%`;
+      };
+      // (Who stopped on that lap, said beside it.)
+      const pitsAt = lap => {
+        const who = series.filter(sr => pitsOf(sr.no).has(lap)).map(sr => sr.c.tla || f1Sur(sr.c));
+        return who.length ? ` · ${who.join('、')} ${en ? 'pit' : '進站'}` : '';
+      };
+      const plot = scrubPlot(xs, show, [el('div', { class: 'lc-box', html: `<svg viewBox="0 0 ${W} ${H}" class="lc-svg" aria-hidden="true">${shade}${grid}${xt}${lines}</svg>` }), rule, ...marks]);
+      show();
+      const note = mode === 'gap' ? (en ? `Up: closer to ${f1Sur(a)} (the dashes). ○ a stop.` : `越高越接近 ${f1Sur(a)}（虛線）· ○ 進站`) : mode === 'place' ? (en ? 'Each lap\'s place, from the start. ○ a stop.' : '每圈名次，從起跑開始 · ○ 進站') : en ? 'Up: quicker. ○ a stop.' : '越高越快 · ○ 進站';
+      chart = el('div', { class: 'lc-chart' }, [chips, at, plot, el('p', { class: 'muted small lc-key-note', text: note })]);
     }
     const pick = modes.length > 1 ? segmented(modes, mode, v => ((f1LapMode = v), draw()), 'lc-modes') : null;
 
@@ -2163,7 +2201,7 @@ function f1LapCompare(b, ss) {
     const lapNos = over ? (opened ? allNos : allNos.slice(0, 10)) : allNos.slice(0, 5);
     const lapTable = lapNos.length
       ? el('table', { class: `dc-table dc-laps n${picks.length}` }, [
-          el('thead', {}, [el('tr', {}, [el('th', { class: 'dc-label', text: en ? 'Lap' : '圈' }), ...picks.map(no => el('th', { class: 'dc-colour', style: `--team:${colourOf(no)}`, text: car(no).tla || f1Sur(car(no)) }))])]),
+          el('thead', {}, [el('tr', {}, [el('th', { class: 'dc-label', text: en ? 'Lap' : '圈' }), ...picks.map(no => el('th', { class: 'dc-colour', style: `--team:${colourOf(no)}` }, [el('span', { class: 'dc-code' }, [f1Face(ss, car(no).name), f1NameTap(ss, car(no), car(no).tla || f1Sur(car(no)))])]))])]),
           el('tbody', {}, lapNos.map(l => {
             const ts = picks.map(no => timeOf(no, l));
             const best = Math.min(...ts.filter(x => x?.[1]).map(x => x[1]));
@@ -2205,23 +2243,23 @@ function f1LiveTable(b, ss) {
     const teamOf = name => f1Constructor(name).name;
     const tGain = new Map();
     for (const c of cars) tGain.set(teamOf(c.team), (tGain.get(teamOf(c.team)) || 0) + gain(c));
-    const tRows = asItStands(teams.map(r => ({ ...r, key: teamOf(r.name), pts: r.stats?.PTS, rank: r.stats?.RK })), tGain);
+    const tRows = asItStands(teams.map(r => ({ ...r, key: teamOf(r.en || r.name), pts: r.stats?.PTS, rank: r.stats?.RK })), tGain);
     const view = f1TableView === 'teams' && tRows.length ? 'teams' : 'drivers';
     const list = view === 'teams' ? tRows : dRows;
     const all = f1TableAll.has(ss.start);
     const shown = all ? list : list.slice(0, 10);
     const [first, second] = list;
-    const lead = first && second ? (en ? `${view === 'teams' ? f1Constructor(first.name).name : f1Sur({ name: first.en || first.name })} leads by ${first.total - second.total}` : `${view === 'teams' ? f1Constructor(first.name).zh : f1Sur({ name: first.en || first.name })} 領先 ${first.total - second.total} 分`) : '';
+    const lead = first && second ? (en ? `${view === 'teams' ? f1Constructor(first.en || first.name).name : f1Sur({ name: first.en || first.name })} leads by ${first.total - second.total}` : `${view === 'teams' ? f1Constructor(first.en || first.name).zh : f1Sur({ name: first.en || first.name })} 領先 ${first.total - second.total} 分`) : '';
     const rows = shown.map(r => {
       const moved = r.was - r.now;
       const c = view === 'drivers' ? carOf(r) : null;
-      const team = view === 'teams' ? f1Constructor(r.name) : null;
+      const team = view === 'teams' ? f1Constructor(r.en || r.name) : null;
       return el('li', { style: `--team:${view === 'teams' ? team.color : c?.colour || f1Driver(r.en || r.name).color || 'transparent'}` }, [
         el('span', { class: 'pos num', text: String(r.now) }),
         el('small', { class: `num st-move${moved > 0 ? ' up' : moved < 0 ? ' down' : ''}`, text: moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : '' }),
         view === 'teams'
-          ? el('span', { class: 'fs-who' }, [constructorBadge(team.name, 'xs'), el('span', { class: 'fs-name', text: en ? team.name : team.zh })])
-          : el('span', { class: 'fs-who' }, [f1Face(ss, r.en || r.name), fitName(el('span', { class: 'fs-name' }), f1Whole(r.en || r.name), f1Sur({ name: r.en || r.name }))]),
+          ? el('button', { type: 'button', class: 'fs-who link', onclick: () => openConstructor({ id: r.id || '', name: team.name, en: team.name }) }, [constructorBadge(team.name, 'xs'), el('span', { class: 'fs-name', text: en ? team.name : team.zh })])
+          : el('span', { class: 'fs-who' }, [f1Face(ss, r.en || r.name), fitName(f1NameTap(ss, { name: r.en || r.name }, '', 'fs-name'), f1Whole(r.en || r.name), f1Sur({ name: r.en || r.name }))]),
         el('small', { class: `num st-add${r.add ? '' : ' none'}`, text: r.add ? `+${r.add}` : '' }),
         el('strong', { class: 'num st-total', text: String(r.total) })
       ]);
@@ -2263,7 +2301,7 @@ function f1PracticePace(b, ss) {
         const r = p.long;
         return el('li', { style: c.colour ? `--team:${c.colour}` : null }, [
           el('span', { class: 'pos num', text: String(i + 1) }),
-          el('span', { class: 'fs-who' }, [f1Face(ss, c.name), fitName(el('span', { class: 'fs-name' }), f1Whole(c.name), f1Sur(c))]),
+          el('span', { class: 'fs-who' }, [f1Face(ss, c.name), fitName(f1NameTap(ss, c, '', 'fs-name'), f1Whole(c.name), f1Sur(c))]),
           r.c ? tyreIcon(r.c) : el('span', { class: 'tyre none', 'aria-hidden': 'true' }),
           el('span', { class: 'pp-val' }, [el('strong', { class: 'num', text: fmtLap(r.avg) }), el('small', { class: 'num', text: [i ? `+${((r.avg - top) / 1000).toFixed(3)}` : '', `${r.laps}${en ? ' laps' : ' 圈'}`, Math.abs(r.fade) >= 30 ? `${r.fade > 0 ? '+' : '−'}${(Math.abs(r.fade) / 1000).toFixed(2)}${en ? '/lap' : '/圈'}` : ''].filter(Boolean).join(' · ') })])
         ]);
@@ -2277,7 +2315,7 @@ function f1PracticePace(b, ss) {
       cards.push(card(en ? 'Best lap on each tyre' : '各配方最快圈', el('table', { class: 'fs-table pp-best' }, [
         el('thead', {}, [el('tr', {}, [el('th', { class: 'n' }), ...kinds.map(k => el('th', {}, [tyreIcon(k)]))])]),
         el('tbody', {}, rows.map(({ c, p }) => el('tr', { style: c.colour ? `--team:${c.colour}` : null }, [
-          el('th', { class: 'n', text: f1Sur(c) }),
+          el('th', { class: 'n' }, [f1NameTap(ss, c, f1Sur(c))]),
           ...kinds.map(k => el('td', { class: `num${p.best[k] && p.best[k].ms === fastest[k] ? ' best' : ''}`, text: p.best[k] ? fmtLap(p.best[k].ms) : '' }))
         ])))
       ])));
@@ -2315,7 +2353,7 @@ function f1PitWindow(b, ss) {
     return el('li', { style: car.colour ? `--team:${car.colour}` : null }, [
       el('span', { class: 'pos num', text: String(car.pos) }),
       f1Face(ss, car.name),
-      el('span', { class: 'pw-who' }, [fitName(el('strong'), f1Whole(car.name), sur(car)), note ? el('small', { text: note }) : null]),
+      el('span', { class: 'pw-who' }, [fitName(f1NameTap(ss, car, '', 'pw-name'), f1Whole(car.name), sur(car)), note ? el('small', { text: note }) : null]),
       // Where it lands, and how many places that costs (a red ▼ and the count).
       el('span', { class: 'pw-to' }, [el('strong', { class: 'num', text: `P${place}` }), el('small', { class: `num${lost > 0 ? ' lose' : ''}`, text: lost > 0 ? `▼${lost}` : en ? 'same' : '不變' })])
     ]);
@@ -2332,7 +2370,7 @@ function f1Stats(b, ss) {
   // The surname as F1 writes it (Hülkenberg, Pérez; Sainz, not "Jr.").
   const sur = c => f1Shown(c.name).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1) || driverShort(c.name);
   const face = c => f1Face(ss, c.name);
-  const who = c => el('span', { class: 'fs-who' }, [face(c), fitName(el('span', { class: 'fs-name' }), f1Whole(c.name), sur(c))]);
+  const who = c => el('span', { class: 'fs-who' }, [face(c), fitName(f1NameTap(ss, c, '', 'fs-name'), f1Whole(c.name), sur(c))]);
   const teamed = c => (c.colour ? `--team:${c.colour}` : null);
   const ms = t => lapMs(t);
   const cards = [];
@@ -2340,7 +2378,7 @@ function f1Stats(b, ss) {
   // The headline numbers.
   const tiles = [];
   // (A driver's tile says the detail by its label, "最快圈 · 第 13 圈": under it the face and the name, whole.)
-  const tile = (label, value, c, note = '') => tiles.push(el('div', { class: 'fs-tile', style: c ? teamed(c) : null }, [el('small', { text: c && note ? `${label} · ${note}` : label }), el('strong', { class: 'num', text: value }), c ? el('span', { class: 'fs-tile-who' }, [face(c), el('span', { text: sur(c) })]) : note ? el('span', { class: 'fs-tile-who' }, [el('small', { text: note })]) : null]));
+  const tile = (label, value, c, note = '') => tiles.push(el('div', { class: 'fs-tile', style: c ? teamed(c) : null }, [el('small', { text: c && note ? `${label} · ${note}` : label }), el('strong', { class: 'num', text: value }), c ? el('span', { class: 'fs-tile-who' }, [face(c), f1NameTap(ss, c, sur(c))]) : note ? el('span', { class: 'fs-tile-who' }, [el('small', { text: note })]) : null]));
   const lapOf = c => ms(c.pb?.v) || ms(c.best);
   const fastest = [...cars].filter(lapOf).sort((x, y) => lapOf(x) - lapOf(y))[0];
   if (fastest) tile(race ? (en ? 'Fastest lap' : '最快圈') : quali ? (en ? 'Pole lap' : '最快圈速') : en ? 'Fastest' : '最快圈速', fmtLap(lapOf(fastest)), fastest, race && fastest.pb?.lap ? (en ? `lap ${fastest.pb.lap}` : `第 ${fastest.pb.lap} 圈`) : '');
@@ -2386,7 +2424,7 @@ function f1Stats(b, ss) {
             cars.map(c =>
               el('tr', { style: teamed(c) }, [
                 el('td', { class: 'pos num', text: String(c.pos) }),
-                el('th', { class: 'n', text: sur(c) }),
+                el('th', { class: 'n' }, [f1NameTap(ss, c, sur(c))]),
                 ...[0, 1, 2].map(i => el('td', { class: `num${ms(c.parts?.[i]) && ms(c.parts[i]) === fastestIn[i] ? ' best' : ''}`, text: c.parts?.[i] || '' }))
               ])
             )
@@ -2467,7 +2505,7 @@ function f1Stats(b, ss) {
               .filter(c => c.sectors?.some(x => x.v))
               .map(c =>
                 el('tr', { style: teamed(c) }, [
-                  el('th', { class: 'n', text: sur(c) }),
+                  el('th', { class: 'n' }, [f1NameTap(ss, c, sur(c))]),
                   ...[0, 1, 2].map(i => el('td', { class: `num${ms(c.sectors[i]?.v) && ms(c.sectors[i].v) === best[i] ? ' best' : ''}`, text: c.sectors[i]?.v || '' })),
                   el('td', { class: 'num ideal', text: fmtLap(own(c)) })
                 ])

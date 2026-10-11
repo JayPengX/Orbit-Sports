@@ -1703,3 +1703,17 @@ button.lp-person.tap:active { opacity: 0.6; }
 .fs-rows .fs-who, .fs-table .fs-who { min-width: 0; }
 .f1-team { flex: 0 1 auto; overflow: hidden; }
 .f1-sub > :not(.f1-team) { flex: none; }
+
+/* Every driver and team name opens them (f1NameTap): looks like text, the tap says it. */
+.name-tap { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
+.fs-who.link { display: flex; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.tm-car { cursor: pointer; }
+.tm-car .tm-hit { fill: transparent; stroke: none; }
+.dc-who { display: grid; justify-items: center; gap: 4px; position: relative; padding-top: 6px; }
+.dc-x { position: absolute; top: 0; right: 2px; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: var(--q-sunken); color: var(--q-muted); font-size: 12px; line-height: 18px; cursor: pointer; }
+.dc-code { display: inline-flex; align-items: center; gap: 4px; }
+.dc-code .logo { width: 18px; height: 18px; }
+.lc-chips { gap: 6px 12px; }
+.lc-chip .logo { width: 18px; height: 18px; }
+.lc-chip .lc-key-line svg { width: 16px; }
+.lc-chart .wp-at { display: block; margin: 4px 0 -2px; }
