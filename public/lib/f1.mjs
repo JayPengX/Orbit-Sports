@@ -350,3 +350,69 @@ export function practicePace(laps = [], stints = []) {
   // The run that says most: the longest, then the quickest.
   return { long: long.sort((a, b) => b.laps - a.laps || a.avg - b.avg)[0] || null, best };
 }
+
+// ---- Two cars side by side (Orbit Sports' 車手比較) ---------------------------
+
+// The laps a car came into the pits on: its stops (PitStopSeries' laps), and
+// the laps flagged in or out of the pits.
+export function pitLaps(laps = [], stops = []) {
+  return new Set([...stops.map(s => s[0]), ...laps.filter(x => x[4]).map(x => x[0])]);
+}
+// How far `c` was behind `a` at the line, lap by lap ([[lap, s]…]). Live,
+// the laps are a minute's looks (f1-live.js sampleLive), each gap read some
+// time into the lap: the gap is the lap times' own, counted back from the
+// gap now (`now`: c's gap to a on the board) one lap at a time (c's lap less
+// a's), exact at every line; where a lap is missing, or there's no gap now
+// (a lapped car), the gaps as read. Over (F1's archive: each gap at the line):
+// as read.
+export function gapsBetween(a = [], c = [], { now = null, live = false } = {}) {
+  const ta = new Map(a.map(x => [x[0], x]));
+  const read = c.map(x => [x[0], x[2] != null && ta.get(x[0])?.[2] != null ? x[2] - ta.get(x[0])[2] : null]).filter(x => x[1] != null);
+  if (!live || now == null) return read;
+  const tc = new Map(c.map(x => [x[0], x]));
+  const last = Math.min(a.at(-1)?.[0] ?? 0, c.at(-1)?.[0] ?? 0);
+  const out = new Map(read);
+  let g = now;
+  for (let lap = last; lap >= 1; lap--) {
+    out.set(lap, Math.round(g * 1000) / 1000);
+    const x = tc.get(lap)?.[1];
+    const y = ta.get(lap)?.[1];
+    if (!x || !y) break;
+    g -= (x - y) / 1000;
+  }
+  return [...out].sort((p, q) => p[0] - q[0]);
+}
+// Closing or not: the gap's change a lap over the last `n` laps (s a lap, +
+// closing), the pit laps left out (a stop isn't pace). Null with under 3.
+export function closingRate(gaps = [], pits = new Set(), n = 5) {
+  const clean = gaps.filter(([lap]) => !pits.has(lap) && !pits.has(lap - 1)).slice(-n);
+  if (clean.length < 3) return null;
+  return (clean[0][1] - clean.at(-1)[1]) / (clean.at(-1)[0] - clean[0][0]);
+}
+// The average of a car's last `n` racing laps (no pit laps, none over 107%
+// of its best: a safety car), ms, or null.
+export function recentPace(laps = [], pits = new Set(), n = 5) {
+  const timed = laps.filter(x => x[1] > 0 && !pits.has(x[0]));
+  if (!timed.length) return null;
+  const best = Math.min(...timed.map(x => x[1]));
+  const clean = timed.filter(x => x[1] <= best * 1.07).slice(-n);
+  return clean.length >= 2 ? clean.reduce((s, x) => s + x[1], 0) / clean.length : null;
+}
+// The safety car and the virtual one, by lap ([{ from, to, kind: 'sc'|'vsc' }…]),
+// from race control's words (the board's `control`). One still out runs to `lapNow`.
+export function neutralLaps(control = [], lapNow = 0) {
+  const out = [];
+  let open = null;
+  for (const m of control) {
+    const t = String(m.message || '').toUpperCase();
+    const lap = Number(m.lap) || 0;
+    if (/VIRTUAL SAFETY CAR DEPLOYED|VSC DEPLOYED/.test(t)) open = { from: lap, kind: 'vsc' };
+    else if (/SAFETY CAR DEPLOYED/.test(t)) open = { from: lap, kind: 'sc' };
+    else if (open && (/(VIRTUAL SAFETY CAR|VSC) ENDING/.test(t) || /SAFETY CAR IN THIS LAP/.test(t) || (/RED FLAG/.test(t) && open.kind === 'vsc'))) {
+      out.push({ ...open, to: Math.max(open.from, lap) });
+      open = null;
+    }
+  }
+  if (open) out.push({ ...open, to: Math.max(open.from, lapNow) });
+  return out.filter(p => p.from > 0);
+}

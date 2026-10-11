@@ -101,3 +101,21 @@ test('practicePace: runs between trips to the pits, cool-down laps dropped; the 
   // Too short a run: no long run.
   assert.equal(practicePace(laps.slice(0, 3), stints.slice(0, 1)).long, null);
 });
+
+test('two cars\' gap at every line, counted back from the gap now by the lap times (live), as read once over', async () => {
+  const { gapsBetween, closingRate, pitLaps, recentPace, neutralLaps } = await import('../public/lib/f1.mjs');
+  const a = [[1, 0, 0], [2, 90000, 0], [3, 91000, 0]];
+  // c's gaps read mid-lap (2.5, 2.0): off; its lap times are exact.
+  const c = [[1, 0, 1.0], [2, 90500, 2.5], [3, 90000, 2.0]];
+  assert.deepEqual(gapsBetween(a, c, { now: 0.9, live: true }), [[1, 1.4], [2, 1.9], [3, 0.9]]);
+  assert.deepEqual(gapsBetween(a, c, { now: 0.9, live: false }), [[1, 1], [2, 2.5], [3, 2]]);
+  // No gap now (a lapped car): as read.
+  assert.deepEqual(gapsBetween(a, c, { now: null, live: true }), [[1, 1], [2, 2.5], [3, 2]]);
+  assert.equal(closingRate([[1, 3], [2, 2.5], [3, 2], [4, 1.5]]), 0.5);
+  assert.equal(closingRate([[1, 3], [2, 2.5], [3, 30], [4, 29.5]], new Set([3])), null);
+  assert.equal(closingRate([[1, 3], [2, 3]]), null);
+  assert.deepEqual([...pitLaps([[5, 1, 0, 1, 1]], [[12, 2.4, 24]])], [12, 5]);
+  assert.equal(recentPace([[1, 90000], [2, 91000], [3, 120000], [4, 92000]], new Set([4])), 90500);
+  assert.deepEqual(neutralLaps([{ lap: 8, message: 'VSC DEPLOYED' }, { lap: 10, message: 'VSC ENDING' }, { lap: 20, message: 'SAFETY CAR DEPLOYED' }], 25), [{ from: 8, kind: 'vsc', to: 10 }, { from: 20, kind: 'sc', to: 25 }]);
+  assert.deepEqual(neutralLaps([{ lap: 20, message: 'SAFETY CAR DEPLOYED' }, { lap: 23, message: 'SAFETY CAR IN THIS LAP' }]), [{ from: 20, kind: 'sc', to: 23 }]);
+});

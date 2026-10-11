@@ -1053,8 +1053,6 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .lb-flag.green { background: color-mix(in srgb, #16a34a 18%, transparent); color: #15803d; }
 .lb-flag.yellow { background: color-mix(in srgb, #eab308 24%, transparent); color: #a16207; }
 .lb-flag.red { background: color-mix(in srgb, #dc2626 18%, transparent); color: #b91c1c; }
-.lb-msg { margin: 0; padding: 8px 12px; border-radius: 12px; background: var(--q-sunken); font-size: 13px; line-height: 1.35; }
-.lb-msg small { display: block; font-weight: 700; color: var(--q-muted); }
 .lb-rows { margin-top: 0; }
 .lb-rows li.drop { background: color-mix(in srgb, var(--q-bad) 7%, transparent); }
 .lb-rows li.drop .pos { color: var(--q-bad); }
@@ -1513,10 +1511,6 @@ button.lp-person.tap:active { opacity: 0.6; }
 
 .info-line { display: block; }
 /* F1 數據 live: the weather, the track with the cars, laps compared, the stop window. */
-.fs-weather { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.fs-weather > div { display: grid; gap: 1px; padding: 9px 10px; border-radius: 14px; background: var(--q-surface); }
-.fs-weather small { font-size: 11.5px; font-weight: 650; color: var(--q-muted); }
-.fs-weather strong { font-size: 16px; font-weight: 800; white-space: nowrap; }
 .tm-box { margin: 2px -4px 0; }
 .tm-svg { display: block; width: 100%; height: auto; overflow: visible; }
 .tm-track { fill: none; stroke: var(--q-text-2, #c7c7cc); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; opacity: 0.55; }
@@ -1527,11 +1521,6 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-car.named text { display: block; }
 .tm-car.pit { opacity: 0.45; }
 .lc { display: grid; gap: 10px; }
-.fs-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
-.fs-pick { display: grid; place-items: center; padding: 3px 0; border: 0; border-radius: 12px; background: none; cursor: pointer; opacity: 0.55; }
-.fs-pick .logo { box-shadow: 0 0 0 2px var(--q-surface), 0 0 0 4px transparent; }
-.fs-pick[aria-pressed="true"] { opacity: 1; background: color-mix(in srgb, var(--team, var(--accent)) 18%, transparent); }
-.fs-pick[aria-pressed="true"] .logo { box-shadow: 0 0 0 2px var(--q-surface), 0 0 0 4px var(--team, var(--accent)); }
 .lc-svg { display: block; width: 100%; height: auto; overflow: visible; }
 .lc-grid { stroke: var(--q-divider, rgba(127,127,127,.2)); stroke-width: 1; }
 .lc-y { fill: var(--q-muted); font-size: 9.5px; text-anchor: end; font-variant-numeric: tabular-nums; }
@@ -1547,24 +1536,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lc-rows li { grid-template-columns: 22px 104px minmax(0, 1fr) auto; }
 .lc-pace { margin: 0; font-size: 13px; font-weight: 650; }
 .fs-empty { margin: 4px 0; }
-.pw-rows li { grid-template-columns: 22px 104px minmax(0, 1fr) 44px; }
-.pw-note { display: inline-flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; color: var(--q-muted); }
-.pw-note small { font-size: 12px; }
-.pw-to { display: grid; justify-items: end; line-height: 1.15; }
-.pw-to strong { font-size: 15px; font-weight: 800; color: var(--q-muted); }
-.pw-to strong.lose { color: var(--q-bad, #f87171); }
-.pw-to small { font-size: 11px; font-weight: 650; color: var(--q-muted); }
 .face-btn { flex: none; display: inline-grid; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
-.lc-fight { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--q-fill, rgba(127,127,127,.12)); box-shadow: inset 3px 0 0 var(--team, transparent); }
-.lc-fight-text { display: grid; gap: 2px; min-width: 0; }
-.lc-fight-text strong { font-size: 15px; font-weight: 750; white-space: nowrap; }
-.lc-fight-text strong .muted { font-weight: 600; }
-.lc-fight-text small { font-size: 12.5px; color: var(--q-muted); white-space: nowrap; }
-.lc-tyrenow { display: flex; gap: 14px; flex-wrap: nowrap; }
-.lc-tyrenow.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
-.lc-fights { display: grid; gap: 8px; }
-.lc-fight-head { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 650; color: var(--q-muted); }
-.lc-gap { font-size: 17px; font-weight: 800; white-space: nowrap; }
 .lc-stints { display: grid; gap: 6px; }
 .lc-stint-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; }
 .lc-key { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
@@ -1573,18 +1545,9 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lc-key-note { margin: 4px 0 0; }
 .lc-more { justify-self: center; }
 .lc-tyrenow > span { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; white-space: nowrap; }
-.lc-head { text-align: right; }
-.lc-head .logo { box-shadow: 0 0 0 2px var(--team, transparent); }
 .lc-tyrenow .tyre { width: 16px; height: 16px; }
 .lc-tyrenow small { color: var(--q-muted); }
 .lc-grid.zero { stroke: var(--q-muted); stroke-dasharray: 3 3; }
-.lc-table { table-layout: fixed; width: 100%; }
-.lc-table th.n { width: 30px; }
-.lc-table.many td { font-size: 12.5px; padding-left: 2px; padding-right: 2px; letter-spacing: -0.02em; }
-.lc-table.many td.quick { font-weight: 750; }
-.lc-table td.quick { color: #a855f7; font-weight: 800; }
-.lc-table td.pit { color: var(--q-muted); }
-.lc-table td.lc-delta { font-weight: 750; }
 /* The live head: one card, the lap large, the flag a dot and a word, race control's word under a hairline. */
 .lb-top { gap: 10px; padding: 14px 16px; background: var(--q-surface); }
 .lb-head { align-items: center; }
@@ -1593,8 +1556,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lb-lap strong { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
 .lb-flag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; white-space: nowrap; }
 .lb-flag i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.lb-top .lb-msg { padding: 10px 0 0; border-radius: 0; background: none; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 13.5px; }
-.lb-top .lb-msg small { margin-bottom: 2px; font-size: 11.5px; letter-spacing: 0.02em; }
+.lb-top .lb-msg { padding: 10px 0 0; }
 .f1-sub { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
 .f1-tyre { display: inline-flex; align-items: center; gap: 3px; flex: none; font-size: 12px; color: var(--q-muted); }
 .f1-tyre .tyre { width: 15px; height: 15px; }
@@ -1627,3 +1589,71 @@ button.lp-person.tap:active { opacity: 0.6; }
 .inj-list.lineup-list .jersey { color: var(--q-muted); font-size: 12.5px; text-align: left; }
 .inj-list.lineup-list .roster-name { justify-content: flex-start; text-align: left; min-width: 0; }
 .inj-list.lineup-list .roster-name span { white-space: nowrap; }
+
+/* ---- F1 數據, live: the head's race control, the compare, the stop window, the weather ---- */
+.lb-msg { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--q-divider, rgba(127,127,127,.2)); font-size: 13.5px; line-height: 1.4; }
+.lb-msg-h { font-size: 12px; font-weight: 700; color: var(--q-muted); }
+.lb-msgs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.lb-msgs li { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.lb-msgs li:first-child { font-weight: 650; }
+.lb-msgs li + li { color: var(--q-text-2, var(--q-muted)); }
+.lb-msg-lap { font-size: 11.5px; font-weight: 700; color: var(--q-muted); white-space: nowrap; }
+.lb-msg-more { justify-self: start; margin-left: 46px; font-size: 12.5px; }
+
+.fs-weather { display: flex; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.fs-weather span { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.fs-weather small { font-size: 12px; font-weight: 650; color: var(--q-muted); }
+.fs-weather strong { font-size: 14px; font-weight: 750; }
+
+.dc-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 0; border-radius: 999px; background: var(--q-sunken); color: var(--q-text); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.dc-toggle small { color: var(--q-muted); font-weight: 650; }
+.dc-toggle[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
+.dc-picker { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px 4px; padding-bottom: 6px; border-bottom: 1px solid var(--q-divider, rgba(127,127,127,.2)); }
+.dc-pick { display: grid; justify-items: center; gap: 3px; padding: 5px 0 4px; border: 0; border-radius: 12px; background: none; color: var(--q-muted); font: inherit; cursor: pointer; }
+.dc-pick small { font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.dc-pick .logo { box-shadow: 0 0 0 2px var(--q-surface), 0 0 0 3.5px transparent; }
+.dc-pick[aria-pressed="true"] { background: color-mix(in srgb, var(--team, var(--accent)) 16%, transparent); color: var(--q-text); }
+.dc-pick[aria-pressed="true"] .logo { box-shadow: 0 0 0 2px var(--q-surface), 0 0 0 3.5px var(--team, var(--accent)); }
+
+.dc-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.dc-table th, .dc-table td { padding: 7px 2px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dc-table .dc-label { width: 58px; padding-left: 0; text-align: left; font-size: 12px; font-weight: 650; color: var(--q-muted); }
+.dc-table.n4 .dc-label { width: 46px; }
+.dc-table tbody tr > * { border-top: 1px solid var(--q-divider, rgba(127,127,127,.18)); }
+.dc-table th.dc-head { display: table-cell; padding: 0 2px 8px; vertical-align: bottom; }
+.dc-who { position: relative; display: grid; justify-items: center; gap: 4px; width: 100%; padding: 6px 2px 0; border: 0; border-radius: 12px; background: none; color: var(--q-text); font: inherit; cursor: pointer; }
+.dc-who::after { content: ''; position: absolute; left: 22%; right: 22%; bottom: -8px; height: 3px; border-radius: 2px; background: var(--team, var(--accent)); }
+.dc-who .logo { box-shadow: 0 0 0 2px var(--team, transparent); }
+.dc-name { font-size: 13px; font-weight: 750; letter-spacing: -0.01em; }
+.dc-table.n4 .dc-name { font-size: 13px; }
+.dc-x { position: absolute; top: 0; right: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--q-sunken); color: var(--q-muted); font-size: 12px; font-style: normal; line-height: 16px; }
+.dc-table td.dc-big { font-size: 15px; font-weight: 800; }
+.dc-table.n4 td { font-size: 12px; letter-spacing: -0.02em; }
+.dc-table.n4 td.dc-big { font-size: 13.5px; }
+.dc-table td.good { color: var(--q-good, #22c55e); font-weight: 750; }
+.dc-table td.bad { color: var(--q-bad, #f87171); font-weight: 750; }
+.dc-table td.muted { color: var(--q-muted); }
+.dc-table td.quick { color: var(--q-good, #22c55e); font-weight: 750; }
+.dc-table td.best { color: #a855f7; font-weight: 800; }
+.dc-table td.pit { color: var(--q-muted); }
+.dc-tyre span { display: inline-flex; align-items: center; gap: 4px; }
+.dc-tyre .tyre { width: 20px; height: 20px; }
+.dc-tyre small { font-size: 12px; color: var(--q-muted); }
+.dc-two { display: inline-flex; align-items: baseline; gap: 5px; }
+.dc-two small { font-size: 11.5px; color: var(--q-muted); }
+.dc-colour { font-size: 12px; font-weight: 800; color: var(--q-text); box-shadow: inset 0 -3px 0 var(--team, transparent); }
+.dc-laps thead th { padding-bottom: 6px; }
+.dc-sub { margin: 6px 0 -4px; font-size: 12px; font-weight: 700; color: var(--q-muted); }
+.lc-sc { fill: color-mix(in srgb, #eab308 16%, transparent); }
+.lc-sc.vsc { fill: color-mix(in srgb, #eab308 10%, transparent); }
+.lc-sc-t { fill: #ca8a04; font-size: 8.5px; font-weight: 800; }
+.lc-foot { display: grid; gap: 2px; }
+
+.pw-rows li { grid-template-columns: 22px auto minmax(0, 1fr) auto; gap: 8px; }
+.pw-who { display: grid; gap: 1px; min-width: 0; }
+.pw-who strong { font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+.pw-who small { font-size: 11.5px; color: var(--q-muted); white-space: nowrap; }
+.pw-to { display: grid; justify-items: end; line-height: 1.15; }
+.pw-to strong { font-size: 15px; font-weight: 800; }
+.pw-to small { font-size: 11.5px; font-weight: 700; color: var(--q-muted); }
+.pw-to small.lose { color: var(--q-bad, #f87171); }
