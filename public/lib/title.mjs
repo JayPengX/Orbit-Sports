@@ -325,6 +325,7 @@ function liveRacing(groups, events, teamOf) {
     for (const g of out) {
       const todo = scoring.filter(x => !roundCounted(g, e.enName || e.name, x.abbr, e.sessions.some(y => y.abbr === 'SR')));
       if (!todo.length) continue;
+      const col = roundOf(g, e.enName || e.name)?.key;
       const team = !g.rows.some(r => r.athlete);
       for (const x of todo)
         x.field.forEach((side, i) => {
@@ -333,16 +334,19 @@ function liveRacing(groups, events, teamOf) {
           const r = team ? g.rows.find(r => teamOf && teamOf(side) && sameTeam(teamOf(side), r)) : g.rows.find(r => r.id === side.id);
           if (!r) return;
           r.stats.PTS = String(num(r.stats.PTS) + pts);
+          // (The weekend's own column too: a driver's page lists each weekend's points.)
+          if (col) r.stats[col] = String(num(r.stats[col]) + pts);
           r.fresh = r.fresh || 'post';
         });
       g.rows.sort((a, b) => num(b.stats.PTS) - num(a.stats.PTS));
       const top = num(g.rows[0].stats.PTS);
-      g.rows.forEach((r, i) => (r.stats.GAP = i === 0 ? '-' : String(top - num(r.stats.PTS))));
+      g.rows.forEach((r, i) => ((r.stats.GAP = i === 0 ? '-' : String(top - num(r.stats.PTS))), r.stats.RK != null && (r.stats.RK = String(i + 1))));
       added = true;
     }
     if (added) fresh++;
   }
   out.fresh = fresh;
+  out.year = groups.year;
   return out;
 }
 const plain = s => String(s || '').toLowerCase().replace(/[^a-z]/g, '');

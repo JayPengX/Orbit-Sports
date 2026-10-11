@@ -16,7 +16,7 @@ import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLine
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, stintStops, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, POINTS, asItStands } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, stintStops, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, POINTS, asItStands, settleScoring } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
@@ -3017,7 +3017,7 @@ export async function openTeam(league, id, fallback = {}) {
   const W = (zh, eng) => (en ? eng : zh);
   try {
     const [info, all, groups, hurt = null, home] = espn
-      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? standings(league).catch(() => null) : null, leagueInjuries(league).catch(() => null), homeLeague(league, id).catch(() => null)])
+      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? freshStandings(league).catch(() => null) : null, leagueInjuries(league).catch(() => null), homeLeague(league, id).catch(() => null)])
       : await ownTeam(league, id, fallback);
     const outside = Boolean(home && !home.key && home.name);
     // Only the competitions Orbit Sports has: a friendly or another country's
@@ -3295,6 +3295,23 @@ function nextRaceCard(e, en) {
       : el('small', { class: 'muted num', text: whenText(race.start) })
   ]);
 }
+// A league's table with what's over that it hasn't counted yet (title.mjs
+// liveTable; F1: a race at F1's flag): every page with a table on it (a
+// team's, a driver's, a constructor's) as 賽事's table has it.
+// formula1.com's season place and points, as the table has them now (its
+// page is updated a day after a race: 196 points, 5th, beside a table with
+// the race in).
+const freshSeason = (grid, champ) => (champ ? grid.map(([k, v]) => (k === 'Season Position' ? [k, String(champ.pos)] : k === 'Season Points' ? [k, String(champ.points)] : [k, v])) : grid);
+function freshStandings(league) {
+  return standings(league).then(g => {
+    const sport = LEAGUES[league]?.sport;
+    if (!g?.length) return g;
+    const recent = ctx.recentOf?.(league) || [];
+    const out = liveTable(g, sport === 'racing' ? settleScoring(recent) : recent, sport, { teamOf: side => f1Driver(side.en || side.name).team });
+    if (out !== g) out.year = g.year;
+    return out;
+  });
+}
 export async function openPlayer(league, id, fallback = {}) {
   if (!id) return;
   const s = sheet(leagueName(league, L()), { league });
@@ -3307,8 +3324,8 @@ export async function openPlayer(league, id, fallback = {}) {
     const [a, ov, table, races, official] = await Promise.all([
       athlete(league, id),
       athleteOverview(league, id).catch(() => null),
-      sport === 'racing' && LEAGUES[league].standings ? standings(league).catch(() => null) : null,
-      sport === 'racing' ? seasonEvents(league).catch(() => []) : null,
+      sport === 'racing' && LEAGUES[league].standings ? freshStandings(league).catch(() => null) : null,
+      sport === 'racing' ? seasonEvents(league).then(settleScoring).catch(() => []) : null,
       // F1: formula1.com's figures and each weekend's grid, finish and sprint.
       league === 'f1' ? athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })).catch(() => null) : null
     ]);
@@ -3471,7 +3488,7 @@ export async function openPlayer(league, id, fallback = {}) {
     const racing = sport === 'racing';
     const overview = keep([
       og.season
-        ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...og.season.map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
+        ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...freshSeason(og.season, champ).map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
         : null,
       !og.season && champ
         ? card(
@@ -3586,7 +3603,7 @@ export async function openConstructor(row) {
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   try {
-    const [table, races, official] = await Promise.all([standings(league).catch(() => null), seasonEvents(league).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null)]);
+    const [table, races, official] = await Promise.all([freshStandings(league).catch(() => null), seasonEvents(league).then(settleScoring).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null)]);
     const og = official?.grids || {};
     const jw = (official?.weekends || []).map(w => ({ ...w, e: eventOfRace(races, w.date) }));
     const groups = table || [];
