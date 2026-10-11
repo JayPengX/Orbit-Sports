@@ -1592,6 +1592,34 @@ const seasonDrivers = () =>
     .then(groups => (groups || []).flatMap(g => g.rows || []).filter(r => r.athlete && r.id).map(r => ({ id: r.id, name: r.en || r.name, headshot: r.logo || null })))
     .catch(() => ((seasonDriverList = null), [])));
 const fieldDriver = (field = [], full, family = String(full || '').split(' ').slice(1).join(' ') || full) => field.find(x => plainName(x.name) === plainName(full)) || field.find(x => plainName(x.name).endsWith(plainName(family))) || null;
+// A driver's name whole where it fits, the surname where it doesn't (the
+// owner, 2026-10-11): each name drawn whole, measured once laid out (a
+// ResizeObserver: before the screen is painted, so it never flickers), and
+// the surname put in if the whole one runs past its box; again whenever
+// the box changes size (a turned phone).
+const fitWatch = typeof ResizeObserver === 'function'
+  ? new ResizeObserver(list => {
+      for (const { target: n } of list) {
+        if (!n.isConnected) {
+          fitWatch.unobserve(n);
+          continue;
+        }
+        n.textContent = n.dataset.full;
+        if (n.scrollWidth > n.clientWidth + 0.5) n.textContent = n.dataset.short;
+      }
+    })
+  : null;
+function fitName(node, full, short) {
+  node.dataset.full = full;
+  node.dataset.short = short || full;
+  node.textContent = full;
+  node.classList.add('fit-name');
+  fitWatch?.observe(node);
+  return node;
+}
+const f1Whole = name => f1Shown(name);
+// A team's name short ("Racing Bulls" → "RB"; one word, or Chinese, as it is).
+const teamShort = name => (/^[A-Za-z]+( [A-Za-z]+)+$/.test(name) ? name.split(' ').map(w => w[0]).join('').toUpperCase() : name);
 // One row for every F1 list (results, qualifying, practice, live), the
 // same in each and as 數據's tables read: the team's colour down its edge,
 // the place, the face; the surname, and under it the team with what else
@@ -1602,15 +1630,15 @@ const fieldDriver = (field = [], full, family = String(full || '').split(' ').sl
 function f1Row({ pos, posText = '', posOut = false, full, team, field, main = '', aside = null, notes = [], cls = '', colour = '' }) {
   const en = L() === 'en';
   const c = fieldDriver(field, full) || { name: full };
-  const who = { ...c, name: f1Sur({ name: full }) };
+  const who = { ...c, name: f1Whole(full) };
   const car = f1Constructor(team || f1Driver(full).team);
   const row = el('li', { class: `${ctx.isFollowed('f1', c.id) ? 'mine' : ''}${cls ? ` ${cls}` : ''}`.trim() }, [
     el('span', { class: `pos num${posOut ? ' out' : ''}`, text: posText || String(pos) }),
     // (The face opens the driver too.)
     c.id ? el('button', { class: 'face-btn', type: 'button', 'aria-label': f1Shown(full), onclick: () => ctx.openPlayer('f1', c.id, c) }, [personPic(c, 'f1', 'sm round')]) : personPic(c, 'f1', 'sm round'),
     el('span', { class: 'f1-who' }, [
-      personName('f1', who),
-      el('span', { class: 'f1-sub' }, [el('button', { class: 'link f1-team', type: 'button', onclick: () => openConstructor({ id: '', name: car.name, en: car.name }) }, [constructorBadge(car.name, 'xxs'), el('span', { text: en ? car.name : car.zh })]), ...notes.filter(Boolean)])
+      fitName(personName('f1', who), who.name, f1Sur({ name: full })),
+      el('span', { class: 'f1-sub' }, [el('button', { class: 'link f1-team', type: 'button', onclick: () => openConstructor({ id: '', name: car.name, en: car.name }) }, [constructorBadge(car.name, 'xxs'), fitName(el('span'), en ? car.name : car.zh, teamShort(en ? car.name : car.zh))]), ...notes.filter(Boolean)])
     ]),
     el('span', { class: 'f1-res' }, [el('span', { class: 'num f1-main', text: main }), aside ? el('small', { class: 'num f1-aside' }, [aside]) : null])
   ]);
@@ -1993,7 +2021,7 @@ function f1LapCompare(b, ss) {
         el('button', { type: 'button', class: 'dc-who', 'aria-label': en ? `Remove ${f1Shown(c.name)}` : `移除 ${f1Shown(c.name)}`, onclick: () => setPicks(picks.filter(x => x !== no)) }, [
           personPic(fieldDriver(ss.field, c.name, driverShort(c.name)) || { name: c.name }, 'f1', 'sm round'),
           // (Four abreast, the code: four surnames don't fit a phone.)
-          el('span', { class: 'dc-name', text: picks.length > 3 ? c.tla || f1Sur(c) : f1Sur(c) }),
+          picks.length > 3 ? el('span', { class: 'dc-name', text: c.tla || f1Sur(c) }) : fitName(el('span', { class: 'dc-name' }), f1Whole(c.name), f1Sur(c)),
           el('i', { class: 'dc-x', 'aria-hidden': 'true', text: '×' })
         ])
       ]);
@@ -2193,7 +2221,7 @@ function f1LiveTable(b, ss) {
         el('small', { class: `num st-move${moved > 0 ? ' up' : moved < 0 ? ' down' : ''}`, text: moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : '' }),
         view === 'teams'
           ? el('span', { class: 'fs-who' }, [constructorBadge(team.name, 'xs'), el('span', { class: 'fs-name', text: en ? team.name : team.zh })])
-          : el('span', { class: 'fs-who' }, [f1Face(ss, r.en || r.name), el('span', { class: 'fs-name', text: f1Sur({ name: r.en || r.name }) })]),
+          : el('span', { class: 'fs-who' }, [f1Face(ss, r.en || r.name), fitName(el('span', { class: 'fs-name' }), f1Whole(r.en || r.name), f1Sur({ name: r.en || r.name }))]),
         el('small', { class: `num st-add${r.add ? '' : ' none'}`, text: r.add ? `+${r.add}` : '' }),
         el('strong', { class: 'num st-total', text: String(r.total) })
       ]);
@@ -2235,7 +2263,7 @@ function f1PracticePace(b, ss) {
         const r = p.long;
         return el('li', { style: c.colour ? `--team:${c.colour}` : null }, [
           el('span', { class: 'pos num', text: String(i + 1) }),
-          el('span', { class: 'fs-who' }, [f1Face(ss, c.name), el('span', { class: 'fs-name', text: f1Sur(c) })]),
+          el('span', { class: 'fs-who' }, [f1Face(ss, c.name), fitName(el('span', { class: 'fs-name' }), f1Whole(c.name), f1Sur(c))]),
           r.c ? tyreIcon(r.c) : el('span', { class: 'tyre none', 'aria-hidden': 'true' }),
           el('span', { class: 'pp-val' }, [el('strong', { class: 'num', text: fmtLap(r.avg) }), el('small', { class: 'num', text: [i ? `+${((r.avg - top) / 1000).toFixed(3)}` : '', `${r.laps}${en ? ' laps' : ' 圈'}`, Math.abs(r.fade) >= 30 ? `${r.fade > 0 ? '+' : '−'}${(Math.abs(r.fade) / 1000).toFixed(2)}${en ? '/lap' : '/圈'}` : ''].filter(Boolean).join(' · ') })])
         ]);
@@ -2287,7 +2315,7 @@ function f1PitWindow(b, ss) {
     return el('li', { style: car.colour ? `--team:${car.colour}` : null }, [
       el('span', { class: 'pos num', text: String(car.pos) }),
       f1Face(ss, car.name),
-      el('span', { class: 'pw-who' }, [el('strong', { text: sur(car) }), note ? el('small', { text: note }) : null]),
+      el('span', { class: 'pw-who' }, [fitName(el('strong'), f1Whole(car.name), sur(car)), note ? el('small', { text: note }) : null]),
       // Where it lands, and how many places that costs (a red ▼ and the count).
       el('span', { class: 'pw-to' }, [el('strong', { class: 'num', text: `P${place}` }), el('small', { class: `num${lost > 0 ? ' lose' : ''}`, text: lost > 0 ? `▼${lost}` : en ? 'same' : '不變' })])
     ]);
@@ -2304,7 +2332,7 @@ function f1Stats(b, ss) {
   // The surname as F1 writes it (Hülkenberg, Pérez; Sainz, not "Jr.").
   const sur = c => f1Shown(c.name).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1) || driverShort(c.name);
   const face = c => f1Face(ss, c.name);
-  const who = c => el('span', { class: 'fs-who' }, [face(c), el('span', { class: 'fs-name', text: sur(c) })]);
+  const who = c => el('span', { class: 'fs-who' }, [face(c), fitName(el('span', { class: 'fs-name' }), f1Whole(c.name), sur(c))]);
   const teamed = c => (c.colour ? `--team:${c.colour}` : null);
   const ms = t => lapMs(t);
   const cards = [];

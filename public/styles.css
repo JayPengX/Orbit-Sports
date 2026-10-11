@@ -1697,3 +1697,9 @@ button.lp-person.tap:active { opacity: 0.6; }
 .f1-field li:first-child .f1-main { color: var(--accent); }
 .f1-aside { font-size: 12px; font-weight: 650; color: var(--q-muted); white-space: nowrap; }
 .f1-laps { font-size: 12px; color: var(--q-muted); white-space: nowrap; }
+/* A name whole where it fits, the surname where it doesn't (fitName): the box it's measured in. */
+.fit-name { display: block; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; }
+.fs-who .fit-name, .dc-who .fit-name { flex: 1 1 auto; }
+.fs-rows .fs-who, .fs-table .fs-who { min-width: 0; }
+.f1-team { flex: 0 1 auto; overflow: hidden; }
+.f1-sub > :not(.f1-team) { flex: none; }
