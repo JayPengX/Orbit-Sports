@@ -353,13 +353,17 @@ export function liveLine(e) {
   const goal = sport === 'soccer' ? (e.live.events || []).filter(x => x.kind !== 'red').at(-1) : null;
   if (goal) {
     const en = ctx.locale === 'en';
-    // A ball, then the minute over the scorer (an own goal: the defender named).
+    // The scorer's face with a ball at its bottom right (an own goal: that team's logo alone, the defender named),
+    // then the minute over the club's badge and the scorer.
+    const side = [e.home, e.away].find(s => String(s?.id) === goal.team);
     const own = goal.kind === 'own';
+    const p = goal.person || { name: goal.who };
+    const pic = own && side ? logo(side.logo, side.name, 'sm') : personPic({ ...p, en: p.name }, e.league, 'sm round');
     return el('div', { class: 'live-line base goal' }, [
-      el('span', { class: 'live-ball', 'aria-hidden': 'true', text: '⚽' }),
+      el('span', { class: 'live-scorer', 'aria-hidden': 'true' }, [pic, own ? null : el('span', { class: 'scorer-ball', text: '⚽' })]),
       el('span', { class: 'live-text' }, [
         el('span', { class: 'live-count' }, [el('span', { text: en ? 'Latest goal' : '最新進球' }), el('span', { class: 'num live-min', text: goal.minute })]),
-        el('span', { class: 'live-who' }, [el('span', { class: 'live-names', text: own ? `${goal.who} ${en ? 'own goal' : '烏龍球'}` : `${goal.who}${goal.kind === 'pen' ? (en ? ' (pen)' : '（點球）') : ''}` })])
+        el('span', { class: 'live-who' }, [!own && side?.logo ? logo(side.logo, side.name, 'scorer-club') : null, el('span', { class: 'live-names', text: own ? `${goal.who} ${en ? 'own goal' : '烏龍球'}` : `${goal.who}${goal.kind === 'pen' ? (en ? ' (pen)' : '（點球）') : ''}` })])
       ])
     ]);
   }
