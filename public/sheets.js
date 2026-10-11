@@ -3754,8 +3754,8 @@ function raceBlock(race, g, league, many) {
       const what = many ? W(`確定${top}`, `clinch ${top}`) : W('封王', 'clinch the title');
       const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : W(`最快 ${b(t.soonest)} 場後`, `${b(t.soonest)} game(s) away at the earliest`);
       lines.push(line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} can ${what}, ${at}`), 
-        // (What it takes, as a lead: more than the next one can still win, the lead now beside it.)
-        t.gap > 0 ? W(`領先 ${t.gap} 分・領先 ${t.gap + t.magic} 分即${what}`, `${t.gap} pts ahead, a ${t.gap + t.magic}-pt lead to ${what}`) : W(`與第二名同分・領先 ${t.magic} 分即${what}`, `level on points, a ${t.magic}-pt lead to ${what}`)));
+        // (What it takes at the soonest, as a lead: more than the next one can still win after it; the lead now beside it.)
+        t.gap > 0 ? W(`領先 ${t.gap} 分・屆時領先 ${t.leadAt} 分即${what}`, `${t.gap} pts ahead; a ${t.leadAt}-pt lead then does it`) : W(`與第二名同分・屆時領先 ${t.leadAt} 分即${what}`, `level on points; a ${t.leadAt}-pt lead then does it`)));
     }
   } else if (t.soonest != null) {
     const second = g.rows[1];

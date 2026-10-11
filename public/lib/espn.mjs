@@ -180,7 +180,29 @@ export const sessionName = (x, lang = 'zh', short = false) => {
 // fields kept, so its sheet opens on that session). Anything else as it is.
 // Sessions F1's own feed has said are over ('FP1|<start>'): ESPN's copy says
 // so minutes later (a sprint qualifying stayed "on" well after its end).
-export const feedEnded = new Set();
+// (Kept on the device, two days: an app opened after the flag drew the
+// session as still on, until the feed's first read took it away.)
+const ENDED = 'fx.f1ended';
+export const feedEnded = (() => {
+  let kept = {};
+  try {
+    kept = JSON.parse(localStorage.getItem(ENDED) || '{}') || {};
+  } catch {}
+  const now = Date.now();
+  for (const k of Object.keys(kept)) if (now - kept[k] > 2 * 86_400_000) delete kept[k];
+  const set = new Set(Object.keys(kept));
+  const add = set.add.bind(set);
+  set.add = k => {
+    if (!set.has(k)) {
+      kept[k] = Date.now();
+      try {
+        localStorage.setItem(ENDED, JSON.stringify(kept));
+      } catch {}
+    }
+    return add(k);
+  };
+  return set;
+})();
 // …and the ones it has said are running ('Started'): live at once, not when
 // ESPN's copy says so minutes later.
 export const feedStarted = new Set();
@@ -190,7 +212,8 @@ export const feedOnAt = new Map();
 // A session's status as F1's feed has it, over ESPN's ('FP1', its official start).
 export function feedStatus(abbr, start, status) {
   const k = `${abbr}|${start}`;
-  if (feedEnded.has(k) && status?.state !== 'post') return { ...status, state: 'post', completed: true };
+  // (ESPN's words for it with it: "In Progress" stayed on a race over.)
+  if (feedEnded.has(k) && status?.state !== 'post') return { ...status, state: 'post', completed: true, detail: 'Final', short: 'Final' };
   if (!feedEnded.has(k) && status?.state === 'post' && Date.now() - (feedOnAt.get(k) || 0) < 120_000) return { ...status, state: 'in', completed: false };
   if (feedStarted.has(k) && status?.state === 'pre') return { ...status, state: 'in' };
   return status;
@@ -205,7 +228,7 @@ export const dueToStart = (x, now = Date.now()) => x?.status?.state === 'pre' &&
 // past its start over, whatever ESPN still says ("on", "to come").
 export function sessionStatus(x, now = Date.now()) {
   const done = Date.parse(x.start) + SESSION_MS < now || feedEnded.has(`${x.abbr}|${x.start}`);
-  return feedStatus(x.abbr, x.start, done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true } : x.status);
+  return feedStatus(x.abbr, x.start, done && x.status.state !== 'post' ? { ...x.status, state: 'post', completed: true, detail: 'Final', short: 'Final' } : x.status);
 }
 export function splitWeekend(e, now = Date.now(), lang = 'zh') {
   if (e?.kind !== 'field' || LEAGUES[e.league]?.sport !== 'racing' || e.sessionKey) return [e];
