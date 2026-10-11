@@ -16,7 +16,7 @@ import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLine
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
@@ -1592,25 +1592,27 @@ const seasonDrivers = () =>
     .then(groups => (groups || []).flatMap(g => g.rows || []).filter(r => r.athlete && r.id).map(r => ({ id: r.id, name: r.en || r.name, headshot: r.logo || null })))
     .catch(() => ((seasonDriverList = null), [])));
 const fieldDriver = (field = [], full, family = String(full || '').split(' ').slice(1).join(' ') || full) => field.find(x => plainName(x.name) === plainName(full)) || field.find(x => plainName(x.name).endsWith(plainName(family))) || null;
-// One row for every F1 list (results, qualifying, practice, live): the team's
-// colour down its edge, the place, the face, the driver and team on two lines,
-// and on the right the time (or gap) over one line of what else counts. Each
-// line stays one line: the name ends in … before anything moves.
-function f1Row({ pos, posText = '', posOut = false, full, team, field, main = '', tags = [], sub = [], cls = '', colour = '' }) {
+// One row for every F1 list (results, qualifying, practice, live), the
+// same in each and as 數據's tables read: the team's colour down its edge,
+// the place, the face; the surname, and under it the team with what else
+// counts (the tyre, places gained, the fastest lap, in the pits); on the
+// right the time or gap, and under it one more number (the points, the car
+// ahead). Nothing is ever cut: the full name, cut to "Lewis Ha…" beside the
+// tags, is the driver's page.
+function f1Row({ pos, posText = '', posOut = false, full, team, field, main = '', aside = null, notes = [], cls = '', colour = '' }) {
   const en = L() === 'en';
   const c = fieldDriver(field, full) || { name: full };
-  const who = { ...c, name: f1Shown(full) };
+  const who = { ...c, name: f1Sur({ name: full }) };
   const car = f1Constructor(team || f1Driver(full).team);
   const row = el('li', { class: `${ctx.isFollowed('f1', c.id) ? 'mine' : ''}${cls ? ` ${cls}` : ''}`.trim() }, [
     el('span', { class: `pos num${posOut ? ' out' : ''}`, text: posText || String(pos) }),
     // (The face opens the driver too.)
-    c.id ? el('button', { class: 'face-btn', type: 'button', 'aria-label': who.name, onclick: () => ctx.openPlayer('f1', c.id, c) }, [personPic(c, 'f1', 'sm round')]) : personPic(c, 'f1', 'sm round'),
+    c.id ? el('button', { class: 'face-btn', type: 'button', 'aria-label': f1Shown(full), onclick: () => ctx.openPlayer('f1', c.id, c) }, [personPic(c, 'f1', 'sm round')]) : personPic(c, 'f1', 'sm round'),
     el('span', { class: 'f1-who' }, [
       personName('f1', who),
-      // The team, and live the tyre it's on beside it (the right side kept for the gaps: the names had no room).
-      el('span', { class: 'f1-sub' }, [el('button', { class: 'link f1-team', type: 'button', onclick: () => openConstructor({ id: '', name: car.name, en: car.name }) }, [constructorBadge(car.name, 'xxs'), el('span', { text: en ? car.name : car.zh })]), ...sub.filter(Boolean)])
+      el('span', { class: 'f1-sub' }, [el('button', { class: 'link f1-team', type: 'button', onclick: () => openConstructor({ id: '', name: car.name, en: car.name }) }, [constructorBadge(car.name, 'xxs'), el('span', { text: en ? car.name : car.zh })]), ...notes.filter(Boolean)])
     ]),
-    el('span', { class: 'f1-res' }, [el('span', { class: 'num f1-main', text: main }), tags.some(Boolean) ? el('span', { class: 'f1-tags' }, tags.filter(Boolean)) : null])
+    el('span', { class: 'f1-res' }, [el('span', { class: 'num f1-main', text: main }), aside ? el('small', { class: 'num f1-aside' }, [aside]) : null])
   ]);
   row.style.setProperty('--team', colour || car.color);
   return row;
@@ -1631,14 +1633,13 @@ function f1Field(rows, field) {
         field,
         cls: r.out ? 'gone' : '',
         main: r.out ? r.why : r.time || (r.status === 'Lapped' ? (en ? 'Lapped' : '被套圈') : ''),
-        tags: [
-          // Places from the grid, the fastest lap, the points: each its own, in that order.
+        // Under the name: places from the grid, out in which part, the fastest lap; on the right under the time: the points (or the gap).
+        notes: [
           gained ? el('small', { class: `num gain ${gained > 0 ? 'up' : 'down'}`, title: en ? `From P${r.grid}` : `起跑第 ${r.grid}`, text: `${gained > 0 ? '▲' : '▼'}${Math.abs(gained)}` }) : null,
-          r.gap ? el('small', { class: 'num', text: r.gap }) : null,
-          r.outIn ? el('small', { class: 'f1-pill', title: en ? `Out in ${r.outIn}` : `${r.outIn} 淘汰`, text: en ? `Out ${r.outIn}` : `${r.outIn} 淘汰` }) : null,
-          r.fastest ? el('small', { class: 'f1-pill fl', title: en ? 'Fastest lap' : '最快圈', text: en ? 'Fastest' : '最快圈' }) : null,
-          r.points ? el('small', { class: 'f1-pill num', text: en ? `${r.points} pts` : `${r.points} 分` }) : null
-        ]
+          r.outIn ? el('small', { class: 'f1-pill', text: en ? `Out ${r.outIn}` : `${r.outIn} 淘汰` }) : null,
+          r.fastest ? el('small', { class: 'f1-pill fl', text: en ? 'Fastest' : '最快圈' }) : null
+        ],
+        aside: r.points ? (en ? `${r.points} pts` : `${r.points} 分`) : r.gap || null
       });
     })
   );
@@ -1703,19 +1704,27 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
     fill.style.width = `${Math.round(Math.min(1, Math.max(0, done)) * 100)}%`;
   };
   tickClock();
-  // The head: the lap (or part) large, its total small, the clock, the flag
-  // as a coloured dot and word; the bar under it; race control's last word
-  // in the same card under a hairline (two grey boxes stacked, before).
+  // The head, one card: on top the session with a live dot and the flag;
+  // under it the lap (or the part) large, its total beside it, and what's
+  // left on the right (laps, or the clock); the bar with the safety car's
+  // laps marked on it; race control's last words under a hairline.
   const lapNow = race && b.lap?.now && !over;
+  const lapsLeft = lapNow ? Math.max(0, b.lap.of - b.lap.now) : 0;
+  const leftText = lapNow ? (lapsLeft ? (en ? `${lapsLeft} to go` : `剩 ${lapsLeft} 圈`) : en ? 'Last lap' : '最後一圈') : null;
+  if (leftText) left.textContent = leftText;
+  const marks = lapNow && b.lap.of ? neutralLaps(b.control || [], b.lap.now).map(p => el('b', { class: `lb-sc ${p.kind}`, style: `left:${((p.from - 1) / b.lap.of) * 100}%;width:${Math.max(0.8, ((p.to - p.from + 1) / b.lap.of) * 100)}%` })) : [];
   const head = el('div', { class: 'lb-top' }, [
+    el('div', { class: 'lb-row' }, [
+      el('span', { class: 'lb-live' }, [el('i'), el('span', { text: sessionName(ss, L()) })]),
+      flag ? el('span', { class: `lb-flag ${flag[2]}` }, [el('i'), el('span', { text: en ? flag[1] : flag[0] })]) : null
+    ]),
     el('div', { class: 'lb-head' }, [
       lapNow
         ? el('span', { class: 'lb-lap' }, [el('small', { text: en ? 'Lap' : '第' }), el('strong', { class: 'num', text: String(b.lap.now) }), el('small', { class: 'num', text: en ? `/ ${b.lap.of}` : `/ ${b.lap.of} 圈` })])
         : el('strong', { class: 'lb-part', text: quali && b.part && !over ? `${prefix}${b.part}` : sessionName(ss, L(), true) }),
-      left,
-      flag ? el('span', { class: `lb-flag ${flag[2]}` }, [el('i'), el('span', { text: en ? flag[1] : flag[0] })]) : null
+      left
     ]),
-    !over && (total || (race && b.lap?.of)) ? el('div', { class: 'lb-bar', 'aria-hidden': 'true' }, [fill]) : null
+    !over && (total || (race && b.lap?.of)) ? el('div', { class: 'lb-bar', 'aria-hidden': 'true' }, [fill, ...marks]) : null
   ]);
   const rows = b.cars.flatMap((c, i) => {
     const tyre = TYRE[c.tyre];
@@ -1730,14 +1739,13 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
       cls: `${cut && c.pos > cut && !c.out ? 'drop' : ''}${c.out || c.retired || c.stopped ? ' gone' : ''}`.trim(),
       // Qualifying and practice: the best lap (of this part), the gap to the top under it; a race: the gap, the car ahead's interval under it.
       main: timed ? c.best || '—' : i === 0 ? (over ? (en ? 'Winner' : '冠軍') : en ? 'Leader' : '領先') : c.gap,
-      sub: over ? [] : [tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? ' laps' : ' 圈'}` }) : null]) : null],
-      // Over: the laps each car ran (every car's in the pits by then: no 進站, no tyre).
-      tags: over
-        ? [timed && i > 0 && c.gap ? el('small', { class: 'num', text: c.gap }) : null, c.laps ? el('small', { class: 'num', text: `${c.laps}${en ? ' laps' : ' 圈'}` }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
-        : [
-            state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null,
-            timed ? (i > 0 && c.gap ? el('small', { class: 'num', text: c.gap }) : null) : i > 0 && c.interval ? el('small', { class: 'num', text: `${en ? 'int ' : '前車 '}${c.interval}` }) : null
-          ]
+      // Under the name: the tyre and its age, in the pits or out; on the right under the gap: the car ahead (a race), the gap (qualifying, practice); over, the laps run.
+      notes: over
+        ? [c.laps ? el('small', { class: 'num f1-laps', text: `${c.laps}${en ? ' laps' : ' 圈'}` }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
+        : [tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? ' laps' : ' 圈'}` }) : null]) : null, state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null],
+      aside: over
+        ? (timed && i > 0 && c.gap ? c.gap : null)
+        : timed ? (i > 0 && c.gap ? c.gap : null) : i > 0 && c.interval && c.interval !== c.gap ? `${en ? 'int ' : '前車 '}${c.interval}` : null
     });
     return cut && c.pos === cut ? [row, el('li', { class: 'lb-cut', 'aria-hidden': 'true' }, [el('span', { text: en ? `Out after ${prefix}${b.part}` : `${prefix}${b.part} 淘汰線` })])] : [row];
   });
@@ -1955,7 +1963,9 @@ function f1LapCompare(b, ss) {
     const sec = en ? 's' : ' 秒';
 
     // The picker: every car by its place, face and code, folded unless asked for (or nobody's picked).
-    const open = f1PickerOpen.has(ss.start) || !picks.length;
+    // (Opened by itself with nobody picked, it stays open as they're picked: it closed after the first, before.)
+    if (!picks.length) f1PickerOpen.add(ss.start);
+    const open = f1PickerOpen.has(ss.start);
     const picker = open
       ? el('div', { class: 'dc-picker' }, cars.map(c => el('button', {
           type: 'button', class: 'dc-pick', style: c.colour ? `--team:${c.colour}` : null, 'aria-pressed': String(picks.includes(c.no)), 'aria-label': f1Shown(c.name),
@@ -2145,6 +2155,65 @@ function f1LapCompare(b, ss) {
   return box;
 }
 
+// The championship as things stand, a race or a sprint on: the table
+// before it (ESPN's: the weekend's sprint in, this race not) with the
+// points each car takes from its place now, drivers or teams; who moves
+// up or down, the points each takes, the lead at the top. Only while it
+// runs (once over, ESPN's own table has the race in, and it'd count twice).
+let f1TableView = 'drivers';
+let f1TableLast = null;
+const f1TableAll = new Set();
+function f1LiveTable(b, ss) {
+  const en = L() === 'en';
+  const box = el('div', { 'data-table': ss.start });
+  const draw = groups => {
+    const [drivers, teams] = [groups?.[0]?.rows || [], groups?.[1]?.rows || []];
+    if (!drivers.length) return put(box);
+    const cars = b.cars.filter(c => c.name);
+    const sur = n => plainName(String(n).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1));
+    const carOf = r => cars.find(c => plainName(c.name) === plainName(r.en || r.name)) || cars.find(c => sur(c.name) === sur(r.en || r.name));
+    const gain = c => pointsFor(ss.abbr, c.pos, c.retired || c.stopped);
+    const dRows = asItStands(drivers.map(r => ({ ...r, key: r.id, pts: r.stats?.PTS, rank: r.stats?.RK })), new Map(drivers.map(r => [r.id, carOf(r) ? gain(carOf(r)) : 0])));
+    const teamOf = name => f1Constructor(name).name;
+    const tGain = new Map();
+    for (const c of cars) tGain.set(teamOf(c.team), (tGain.get(teamOf(c.team)) || 0) + gain(c));
+    const tRows = asItStands(teams.map(r => ({ ...r, key: teamOf(r.name), pts: r.stats?.PTS, rank: r.stats?.RK })), tGain);
+    const view = f1TableView === 'teams' && tRows.length ? 'teams' : 'drivers';
+    const list = view === 'teams' ? tRows : dRows;
+    const all = f1TableAll.has(ss.start);
+    const shown = all ? list : list.slice(0, 10);
+    const [first, second] = list;
+    const lead = first && second ? (en ? `${view === 'teams' ? f1Constructor(first.name).name : f1Sur({ name: first.en || first.name })} leads by ${first.total - second.total}` : `${view === 'teams' ? f1Constructor(first.name).zh : f1Sur({ name: first.en || first.name })} 領先 ${first.total - second.total} 分`) : '';
+    const rows = shown.map(r => {
+      const moved = r.was - r.now;
+      const c = view === 'drivers' ? carOf(r) : null;
+      const team = view === 'teams' ? f1Constructor(r.name) : null;
+      return el('li', { style: `--team:${view === 'teams' ? team.color : c?.colour || f1Driver(r.en || r.name).color || 'transparent'}` }, [
+        el('span', { class: 'pos num', text: String(r.now) }),
+        el('small', { class: `num st-move${moved > 0 ? ' up' : moved < 0 ? ' down' : ''}`, text: moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : '' }),
+        view === 'teams'
+          ? el('span', { class: 'fs-who' }, [constructorBadge(team.name, 'xs'), el('span', { class: 'fs-name', text: en ? team.name : team.zh })])
+          : el('span', { class: 'fs-who' }, [f1Face(ss, r.en || r.name), el('span', { class: 'fs-name', text: f1Sur({ name: r.en || r.name }) })]),
+        el('small', { class: `num st-add${r.add ? '' : ' none'}`, text: r.add ? `+${r.add}` : '' }),
+        el('strong', { class: 'num st-total', text: String(r.total) })
+      ]);
+    });
+    const pick = tRows.length ? segmented([['drivers', en ? 'Drivers' : '車手'], ['teams', en ? 'Teams' : '車隊']], view, v => ((f1TableView = v), draw(groups)), 'st-modes') : null;
+    const more = list.length > 10 ? el('button', { class: 'q-btn small lc-more', type: 'button', text: all ? (en ? 'Top 10' : '只看前 10') : en ? `All ${list.length}` : `全部 ${list.length} ${view === 'teams' ? '隊' : '位'}`, onclick: () => (all ? f1TableAll.delete(ss.start) : f1TableAll.add(ss.start), draw(groups)) }) : null;
+    put(box, card(en ? 'Championship, as it stands' : '即時積分榜', el('div', { class: 'lc' }, [pick, lead ? el('p', { class: 'st-lead', text: lead }) : null, el('ol', { class: 'fs-rows st-rows' }, rows), more, el('p', { class: 'muted small lc-key-note', text: en ? `If the ${ss.abbr === 'SR' ? 'sprint' : 'race'} ended now. ▲▼ places moved; + points from this ${ss.abbr === 'SR' ? 'sprint' : 'race'}.` : `假如${ss.abbr === 'SR' ? '衝刺賽' : '正賽'}現在結束 · ▲▼ 名次變化 · + 本場得分` })]), { sub: el('span', { class: 'live-dot-text', text: en ? 'Live' : '即時' }) }));
+  };
+  // (Drawn at once from the last table: the board is drawn again every 5 seconds.)
+  if (f1TableLast) draw(f1TableLast);
+  standings('f1')
+    .then(g => {
+      const fresh = g !== f1TableLast;
+      f1TableLast = g;
+      if (fresh || !box.childNodes.length) draw(g);
+    })
+    .catch(() => {});
+  return box;
+}
+
 // A practice, as the teams read one: each car's long run (its race
 // simulation, lib/f1.mjs practicePace) ranked by its average lap, with the
 // tyre, how many laps and how much it fell away; and the best lap each car
@@ -2268,6 +2337,7 @@ function f1Stats(b, ss) {
   if (live) cards.push(f1Weather(b));
   if (/^FP\d$/.test(ss.abbr)) cards.push(f1PracticePace(b, ss));
   cards.push(f1LapCompare(b, ss));
+  if (live && race) cards.push(f1LiveTable(b, ss));
   if (live) {
     cards.push(f1TrackMap(b, ss));
     if (race) cards.push(f1PitWindow(b, ss));
@@ -2518,7 +2588,8 @@ function fillField(s, e) {
       put(
         box,
         sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,
-        el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
+        // (A live F1 session's own card says it: the line said it twice.)
+        e.league === 'f1' && ss.status.state === 'in' ? null : el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
         // The picked session's whole replay and highlights, once it's over.
         ...(() => {
           const one = { ...e, id: `${weekend}~${ss.abbr}`, weekend, sessionKey: ss.abbr, session: sessionName(ss, L()), start: ss.start, official: ss.start, status: ss.status };

@@ -416,3 +416,19 @@ export function neutralLaps(control = [], lapNow = 0) {
   if (open) out.push({ ...open, to: Math.max(open.from, lapNow) });
   return out.filter(p => p.from > 0);
 }
+
+// ---- The championship as things stand (Orbit Sports' 數據, a race or a sprint on) ----
+
+// The points for each place (2026: no point for the fastest lap).
+export const POINTS = { Race: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], SR: [8, 7, 6, 5, 4, 3, 2, 1] };
+// The points a car would take if the flag fell now: its place, or none out of it.
+export const pointsFor = (abbr, pos, out = false) => (out ? 0 : POINTS[abbr]?.[pos - 1] || 0);
+// The table as it stands: each row ({ key, pts, rank, … }) with the points
+// it takes now (`gains`: key → points) added, in the new order (the points,
+// then the order it stood in), each with where it was and is.
+export function asItStands(rows = [], gains = new Map()) {
+  return rows
+    .map((r, i) => ({ ...r, was: Number(r.rank) || i + 1, add: gains.get(r.key) || 0, total: (Number(r.pts) || 0) + (gains.get(r.key) || 0) }))
+    .sort((a, b) => b.total - a.total || a.was - b.was)
+    .map((r, i) => ({ ...r, now: i + 1 }));
+}

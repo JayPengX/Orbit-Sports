@@ -119,3 +119,13 @@ test('two cars\' gap at every line, counted back from the gap now by the lap tim
   assert.deepEqual(neutralLaps([{ lap: 8, message: 'VSC DEPLOYED' }, { lap: 10, message: 'VSC ENDING' }, { lap: 20, message: 'SAFETY CAR DEPLOYED' }], 25), [{ from: 8, kind: 'vsc', to: 10 }, { from: 20, kind: 'sc', to: 25 }]);
   assert.deepEqual(neutralLaps([{ lap: 20, message: 'SAFETY CAR DEPLOYED' }, { lap: 23, message: 'SAFETY CAR IN THIS LAP' }]), [{ from: 20, kind: 'sc', to: 23 }]);
 });
+
+test('the championship as it stands: the table before the race with the points each place takes now', async () => {
+  const { asItStands, pointsFor } = await import('../public/lib/f1.mjs');
+  assert.equal(pointsFor('Race', 1), 25);
+  assert.equal(pointsFor('Race', 11), 0);
+  assert.equal(pointsFor('SR', 8), 1);
+  assert.equal(pointsFor('Race', 2, true), 0);
+  const t = asItStands([{ key: 'a', pts: '325', rank: '1' }, { key: 'b', pts: '236', rank: '2' }, { key: 'c', pts: '221', rank: '3' }], new Map([['a', 4], ['c', 25]]));
+  assert.deepEqual(t.map(r => [r.key, r.total, r.was, r.now]), [['a', 329, 1, 1], ['c', 246, 3, 2], ['b', 236, 2, 3]]);
+});
