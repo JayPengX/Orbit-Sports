@@ -1623,4 +1623,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .replay-icon.apple { display: grid; place-items: center; background: #000; color: #fff; font: 700 15px/1 -apple-system, system-ui, sans-serif; letter-spacing: -0.02em; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
 /* 先發陣容 (lineupCard): an injury list's rows, the side's words quiet, not an injury's red. */
 .inj-list.lineup-list small { color: var(--q-muted); font-weight: 600; }
-.inj-list.lineup-list .jersey { min-width: 20px; color: var(--q-muted); font-size: 12px; }
+.inj-list.lineup-list li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 5px 0; }
+.inj-list.lineup-list .jersey { color: var(--q-muted); font-size: 12.5px; text-align: left; }
+.inj-list.lineup-list .roster-name { justify-content: flex-start; text-align: left; min-width: 0; }
+.inj-list.lineup-list .roster-name span { white-space: nowrap; }

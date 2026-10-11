@@ -12,7 +12,7 @@
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, onAir, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -1021,7 +1021,7 @@ function renderHome() {
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
   // theirs on, the best of everything on now), ranked like the picks, and
   // taken out of the lists below so no game shows twice.
-  const onNow = list => list.filter(e => e.status.state === 'in' && !e.status.void);
+  const onNow = list => list.filter(e => onAir(e));
   const rankLive = (list, c) => list.map(e => ({ event: e, ...scoreMatch(e, c) })).sort((x, y) => y.score - x.score);
   let liveItems = isToday ? rankLive(onNow(filtered(mine)), pctx) : [];
   const liveMine = liveItems.length > 0;
@@ -1283,7 +1283,7 @@ function renderLive() {
   // Only what's on TV in Taiwan (賽事 has every game).
   const all = [...dayAll(slot), ...byKey.values()].filter(e => !keys.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && keys.add(`${e.league}:${e.id}:${e.sessionKey || ''}`)).filter(onTv);
   // Every game on now, the headline leagues first.
-  const live = all.filter(e => e.status.state === 'in').sort((a, b) => Boolean(LEAGUES[b.league]?.top) - Boolean(LEAGUES[a.league]?.top));
+  const live = all.filter(e => onAir(e)).sort((a, b) => Boolean(LEAGUES[b.league]?.top) - Boolean(LEAGUES[a.league]?.top));
   // Nothing on: the next 24 hours, so tomorrow's too.
   const tomorrow = addDays(today(), 1);
   const next = state.days.get(tomorrow);
@@ -1308,7 +1308,7 @@ function renderLive() {
   }
   const ahead = all;
   const window = (live.length ? 3 : 24) * 3_600_000;
-  const soon = ahead.filter(e => e.status.state === 'pre' && !e.status.void && Date.parse(e.start) - now < window && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
+  const soon = ahead.filter(e => e.status.state === 'pre' && !e.status.void && !onAir(e, now) && Date.parse(e.start) - now < window && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
   // Finished in the last few hours (by start: a game's end isn't known), latest first.
   const ended = all.filter(e => e.status.state === 'post' && !e.status.void && Date.parse(e.start) > now - 8 * 3_600_000).sort((a, b) => b.start.localeCompare(a.start));
   const mineFirst = list => [...list].sort((a, b) => isFollowedEvent(b) - isFollowedEvent(a));

@@ -264,6 +264,8 @@ export const timeText = e => (e?.timeTbd ? (ctx.locale === 'en' ? 'TBD' : '待�
 function statusEl(e, day = true) {
   if (e.status.state === 'pre' && !e.status.void && localDate(Date.parse(e.start)) !== today())
     return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: timeText(e) })]) : el('span', { class: 'event-status pre', text: timeText(e) });
+  // Its start come, ESPN not yet saying it's under way: about to start, said in the live colour.
+  if (e.status.state === 'pre' && !e.status.void && Date.parse(e.start) <= Date.now()) return el('span', { class: 'event-status in', text: ctx.locale === 'en' ? 'Starting' : '即將開賽' });
   // A game on now with its clock (第4節 8:58): the period, the clock under it (two lines drawn for it, never a wrap).
   const text = statusText(e);
   const clockAt = e.status.state === 'in' ? /^(.+?)\s+(\d{1,2}:\d{2}(?:\.\d)?)$/.exec(text) : null;

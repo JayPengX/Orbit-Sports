@@ -196,6 +196,9 @@ export function feedStatus(abbr, start, status) {
   return status;
 }
 // Due to start: its start a minute away or passed (up to 3 h), not yet said to be on.
+// On air: under way, or its start come and ESPN not yet saying so (an NBA
+// tip-off is minutes after the hour): one rule for the home's 直播中 and the 直播 tab.
+export const onAir = (x, now = Date.now()) => !x?.status?.void && (x?.status?.state === 'in' || (x?.status?.state === 'pre' && Date.parse(x.start) <= now && now - Date.parse(x.start) < 3 * 3_600_000));
 export const dueToStart = (x, now = Date.now()) => x?.status?.state === 'pre' && Date.parse(x.start) - now < 60_000 && now - Date.parse(x.start) < 3 * 3_600_000;
 // A session's state, the one rule for every view of it (the home's cards,
 // the weekend's sheet): F1's own feed where it has said, and a session long

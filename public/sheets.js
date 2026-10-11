@@ -804,7 +804,8 @@ function lineupCard(l, e, nameOf) {
   const en = L() === 'en';
   const sport = LEAGUES[e.league]?.sport;
   const who = p => (p.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, e.league, 'xs round'), el('span', { text: p.name })]) : el('span', { class: 'roster-name' }, [personPic(p, e.league, 'xs round'), el('span', { text: p.name })]));
-  const row = (p, lead = '') => el('li', {}, [lead ? el('span', { class: 'jersey num', text: lead }) : null, who(p), el('small', { text: posZh(p.pos, sport, L()) })]);
+  // Each row: its number (or place in the order), the face and name from the left, the position at the right.
+  const row = (p, lead = '') => el('li', {}, [el('span', { class: 'jersey num', text: lead || '' }), who(p), el('small', { text: posZh(p.pos, sport, L()) })]);
   const side = (team, list, lead) => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(team.id) }), el('ul', { class: 'inj-list lineup-list' }, list.map((p, i) => row(p, lead(p, i))))]);
   const sides = [e.away, e.home];
   if (l.kind === 'mlb') {
@@ -813,7 +814,7 @@ function lineupCard(l, e, nameOf) {
     return card(
       en ? 'Starters' : '先發',
       el('div', { class: 'injuries' }, [
-        pitchers.length ? el('div', {}, [el('p', { class: 'mini-h', text: en ? 'Probable pitchers' : '預計先發投手' }), el('ul', { class: 'inj-list lineup-list' }, pitchers.map(([t, p]) => el('li', {}, [who(p), el('small', { text: t.short || t.name })])))]) : null,
+        pitchers.length ? el('div', {}, [el('p', { class: 'mini-h', text: en ? 'Probable pitchers' : '預計先發投手' }), el('ul', { class: 'inj-list lineup-list' }, pitchers.map(([t, p]) => el('li', {}, [el('span', { class: 'jersey' }), who(p), el('small', { text: t.short || t.name })])))]) : null,
         ...orders.map(([t, o]) => side(t, o, (p, i) => String(i + 1)))
       ]),
       { sub: orders.length ? (en ? 'Batting orders posted' : '打序已公布') : en ? 'Batting orders hours before' : '打序賽前數小時公布' }

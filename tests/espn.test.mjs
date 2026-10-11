@@ -395,3 +395,14 @@ test("a player's game log: this season's own (its preseason too, marked), newest
   assert.equal(logSeason('mlb', Date.parse('2026-10-11T00:00Z')), 2026);
   assert.equal(logSeason('epl'), null);
 });
+
+test("on air: under way, or its start come with ESPN still saying it's to come (an NBA tip-off minutes after the hour)", async () => {
+  const { onAir } = await import('../public/lib/espn.mjs');
+  const now = Date.parse('2026-10-11T10:03:00Z');
+  const g = (state, start) => ({ status: { state }, start });
+  assert.equal(onAir(g('pre', '2026-10-11T10:00:00Z'), now), true);
+  assert.equal(onAir(g('pre', '2026-10-11T10:30:00Z'), now), false);
+  assert.equal(onAir(g('in', '2026-10-11T08:00:00Z'), now), true);
+  assert.equal(onAir(g('pre', '2026-10-11T06:00:00Z'), now), false);
+  assert.equal(onAir({ ...g('pre', '2026-10-11T10:00:00Z'), status: { state: 'pre', void: true } }, now), false);
+});
