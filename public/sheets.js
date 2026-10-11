@@ -1854,7 +1854,10 @@ function circuitOf(b, ss, redraw) {
 // seconds glided over (one drawing kept for the session, the cars moved in
 // it, not drawn again). The cars picked for 圈速比較 named and on top.
 const f1Maps = new Map();
-function f1TrackMap(b, ss) {
+let f1DomMode = 'best';
+let f1MapFocus = null;
+let f1MapSector = null;
+function f1TrackMap(b, ss, { redraw = false } = {}) {
   const c = circuitOf(b, ss);
   // (Each car where F1's feed puts it, or, as F1 stopped giving the cars' x/y in 2026, by the mini-sectors it has passed this lap.)
   if (!c || !b.cars.some(x => x.at || x.seg?.[1])) return null;
@@ -1870,7 +1873,7 @@ function f1TrackMap(b, ss) {
     const pts = c.x.map((x, i) => turn(x, c.y[i]));
     const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-    const W = 340, pad = 12;
+    const W = 340, pad = 16;
     const k = (W - pad * 2) / (x1 - x0);
     const H = Math.round(Math.min(340, Math.max(180, (y1 - y0) * k + pad * 2)));
     const kk = Math.min(k, (H - pad * 2) / (y1 - y0));
@@ -1886,23 +1889,97 @@ function f1TrackMap(b, ss) {
     svg.setAttribute('aria-label', c.name || (en ? 'Track map' : '賽道'));
     const d = c.x.map((x, i) => fit(x, c.y[i]).map(n => n.toFixed(1)).join(',')).join(' ');
     svg.innerHTML = `<polyline class="tm-edge" points="${d}"/><polyline class="tm-track" points="${d}"/>`;
+    // Over the track: the stretch between the first two picked (their gap), the sector lines and the finish, then the cars.
+    const gapLayer = document.createElementNS(ns, 'g');
+    const marks = document.createElementNS(ns, 'g');
     const layer = document.createElementNS(ns, 'g');
-    svg.append(layer);
-    // The track's length so far at each point (its outline starts at the line), for a car placed by how far round it is.
+    svg.append(gapLayer, marks, layer);
+    // How far into a lap each point is: by the time the outline's own lap
+    // took to get there (MultiViewer's, where it has it), else by distance
+    // (the outline starts at the line).
     const run = [0];
     for (let i = 1; i < c.x.length; i++) run.push(run[i - 1] + Math.hypot(c.x[i] - c.x[i - 1], c.y[i] - c.y[i - 1]));
-    const along = f => {
-      const want = (((f % 1) + 1) % 1) * run.at(-1);
-      let i = run.findIndex(d => d >= want);
-      if (i <= 0) return [c.x[0], c.y[0]];
-      const t = (want - run[i - 1]) / (run[i] - run[i - 1] || 1);
-      return [c.x[i - 1] + t * (c.x[i] - c.x[i - 1]), c.y[i - 1] + t * (c.y[i] - c.y[i - 1])];
+    const scale = c.times?.length === c.x.length && c.times.at(-1) > 0 ? c.times : run;
+    const fracOfIdx = i => scale[Math.max(0, Math.min(scale.length - 1, i))] / scale.at(-1);
+    // The point a share of the lap round ([x, y] in F1's space), between two of the outline's.
+    const pointAt = f => {
+      const want = (((f % 1) + 1) % 1) * scale.at(-1);
+      let lo = 0, hi = scale.length - 1;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (scale[mid] <= want) lo = mid;
+        else hi = mid;
+      }
+      const t = (want - scale[lo]) / (scale[hi] - scale[lo] || 1);
+      return [c.x[lo] + t * (c.x[hi] - c.x[lo]), c.y[lo] + t * (c.y[hi] - c.y[lo]), lo];
     };
-    // A car's mini-sectors passed: on the point where the next starts (the circuit's own, where it has them), else that share of the lap.
-    const bySeg = ([done, total]) => (c.mini?.length === total && c.x[c.mini[done % total]] != null ? [c.x[c.mini[done % total]], c.y[c.mini[done % total]]] : along(done / total));
-    m = { svg, fit, layer, cars: new Map(), bySeg };
+    // The outline from one share of the lap to the next (round the line, if it is), fitted.
+    const pathBetween = (f0, f1) => {
+      const [ax, ay, ai] = pointAt(f0);
+      const [bx, by, bi] = pointAt(f1);
+      const out = [fit(ax, ay)];
+      for (let i = (ai + 1) % c.x.length, n = 0; i !== (bi + 1) % c.x.length && n < c.x.length; i = (i + 1) % c.x.length, n++) out.push(fit(c.x[i], c.y[i]));
+      out.push(fit(bx, by));
+      return out;
+    };
+    m = { svg, fit, layer, marks, gapLayer, cars: new Map(), fracOfIdx, pointAt, pathBetween, W, H };
     f1Maps.set(ss.start, m);
   }
+  m.b = b;
+  // A share of the lap for a car's mini-sectors passed: on the circuit's
+  // own mini-sector point where it has them; else each sector's share of
+  // the lap by the field's best sector times (sectors aren't the same
+  // length: Singapore's three have eight mini-sectors each), the
+  // mini-sectors spread over it; else the plain share.
+  const segs = b.sectorSegs || [];
+  const best = [0, 1, 2].map(i => Math.min(...b.cars.map(x => lapMs(x.sectors?.[i]?.v) || Infinity)));
+  const timed = segs.length === 3 && best.every(Number.isFinite);
+  const lapOfSecs = best.reduce((n, x) => n + x, 0);
+  const fracOf = (done, total) => {
+    if (c.mini?.length === total && c.mini[done % total] != null) return m.fracOfIdx(c.mini[done % total]);
+    if (timed && segs.reduce((n, x) => n + x, 0) === total) {
+      let k = done % total;
+      let t = 0;
+      for (let j = 0; j < 3; j++) {
+        if (k < segs[j]) return (t + (k / segs[j]) * best[j]) / lapOfSecs;
+        k -= segs[j];
+        t += best[j];
+      }
+    }
+    return (done % total) / total;
+  };
+  const carFrac = car => (car.seg?.[1] ? fracOf(car.seg[0], car.seg[1]) : null);
+
+  // The finish (a chequered bar across the track) and the sector lines (a
+  // bar across, S1, S2, S3 by each sector's middle).
+  const total = segs.reduce((n, x) => n + x, 0);
+  const cuts = total ? [0, fracOf(segs[0], total), fracOf(segs[0] + segs[1], total)] : [0];
+  const across = (f, len) => {
+    const [x, y] = m.fit(...m.pointAt(f));
+    const [x2, y2] = m.fit(...m.pointAt(f + 0.004));
+    const [dx, dy] = [x2 - x, y2 - y];
+    const n = Math.hypot(dx, dy) || 1;
+    return [x, y, (-dy / n) * len, (dx / n) * len];
+  };
+  m.marks.innerHTML = cuts
+    .map((f, i) => {
+      const [x, y, nx, ny] = across(f, 9);
+      const line = `x1="${(x - nx).toFixed(1)}" y1="${(y - ny).toFixed(1)}" x2="${(x + nx).toFixed(1)}" y2="${(y + ny).toFixed(1)}"`;
+      return i === 0 ? `<line class="tm-finish-b" ${line}/><line class="tm-finish" ${line}/>` : `<line class="tm-sector" ${line}/>`;
+    })
+    .join('') +
+    (cuts.length === 3
+      ? [0, 1, 2]
+          .map(i => {
+            const mid = (cuts[i] + ((i < 2 ? cuts[i + 1] : 1) - cuts[i]) / 2) % 1;
+            const [x, y, nx, ny] = across(mid, 15);
+            return `<text class="tm-sector-t" x="${(x + nx).toFixed(1)}" y="${(y + ny + 3).toFixed(1)}">S${i + 1}</text>`;
+          })
+          .join('')
+      : '');
+
+  // The cars: the picked ones named, on top and bright, the others faint; a
+  // tap on a car puts it in (or takes it out of) 車手比較, the two redrawn.
   const picked = new Set(f1Picks.get(ss.start) || []);
   const placed = x => !x.retired && !x.stopped && (x.at || x.seg?.[1]);
   const order = [...b.cars].filter(placed).sort((x, y) => (picked.has(x.no) ? 1 : 0) - (picked.has(y.no) ? 1 : 0) || y.pos - x.pos);
@@ -1911,23 +1988,123 @@ function f1TrackMap(b, ss) {
     if (!g) {
       g = document.createElementNS(ns, 'g');
       g.setAttribute('class', 'tm-car');
-      g.innerHTML = `<circle r="9" class="tm-hit"/><circle r="5.5"/><text x="8" y="3.5"></text>`;
-      // (A car opens its driver, as every face does.)
-      const who = fieldDriver(ss.field, car.name, driverShort(car.name));
-      if (who?.id) g.addEventListener('click', () => ctx.openPlayer('f1', who.id, who));
+      g.innerHTML = `<circle r="10" class="tm-hit"/><circle r="5.5" class="tm-dot"/><text x="9" y="3.5"></text>`;
+      g.addEventListener('click', () => {
+        const now = f1Picks.get(ss.start) || [];
+        f1Picks.set(ss.start, now.includes(car.no) ? now.filter(x => x !== car.no) : [...now, car.no].slice(-4));
+        document.querySelectorAll(`[data-laps="${ss.start}"]`).forEach(n => n.__redraw?.());
+        f1TrackMap(m.b, ss, { redraw: true });
+      });
       m.cars.set(car.no, g);
     }
-    const [x, y] = car.at ? m.fit(car.at[0], car.at[1]) : m.fit(...m.bySeg(car.seg));
+    const [x, y] = car.at ? m.fit(car.at[0], car.at[1]) : m.fit(...m.pointAt(carFrac(car)));
     g.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     g.style.setProperty('--team', car.colour || '#888');
-    g.classList.toggle('named', picked.has(car.no) || car.pos <= 3);
+    g.classList.toggle('named', picked.size ? picked.has(car.no) : car.pos <= 3);
+    g.classList.toggle('picked', picked.has(car.no));
+    g.classList.toggle('dim', picked.size > 0 && !picked.has(car.no));
     g.classList.toggle('pit', car.inPit);
     g.querySelector('text').textContent = car.tla || car.no;
     m.layer.append(g);
   }
   for (const [no, g] of m.cars) if (!b.cars.some(x => x.no === no && placed(x))) g.remove();
+
+  // The track and 車手比較 as one (the drivers picked there are the ones
+  // drawn here, and a tap on a car picks it), three ways to read it:
+  //   - 最快分段 / 最近一圈 (two or more picked): each sector in the colour
+  //     of the quickest of them there, by their best sectors or each one's
+  //     latest (F1's feed has no times finer than the sector), their
+  //     sectors in a table under it (a row tapped lights its sector);
+  //   - 本圈計時 (one or more): one driver's lap so far, mini-sector by
+  //     mini-sector in F1's own colours (purple the session's best, green
+  //     their own, yellow neither), as F1's timing screen draws it.
+  // (A teammate in the same colour: dashed.)
+  const picks = [...picked].map(no => b.cars.find(x => x.no === no)).filter(Boolean).sort((x, y) => x.pos - y.pos);
+  const views = [...(picks.length >= 2 ? [['best', en ? 'Best sectors' : '最快分段'], ['last', en ? 'Latest lap' : '最近一圈']] : []), ...(picks.length ? [['lap', en ? 'This lap' : '本圈計時']] : [])];
+  const mode = views.some(([k]) => k === f1DomMode) ? f1DomMode : views[0]?.[0];
+  const poly = (pts, cls, style = '') => `<polyline class="${cls}" points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"${style ? ` style="${style}"` : ''}/>`;
+  m.gapLayer.innerHTML = '';
+  let dom = null;
+  if (mode && cuts.length === 3 && (mode === 'lap' || picks.length >= 2)) {
+    const pick = views.length > 1 ? segmented(views, mode, v => ((f1DomMode = v), f1TrackMap(m.b, ss, { redraw: true })), 'tm-dom-modes') : null;
+    if (mode === 'lap') {
+      const focus = picks.find(x => x.no === f1MapFocus) || picks[0];
+      const colour = st => (st === 2051 ? '#a855f7' : st === 2049 ? '#22c55e' : st === 2048 ? '#facc15' : st ? '#6b7280' : '');
+      const st = focus.segStatus || [];
+      m.gapLayer.innerHTML = st
+        .map((v, k) => (colour(v) ? poly(m.pathBetween(fracOf(k, st.length), k + 1 < st.length ? fracOf(k + 1, st.length) : 1), 'tm-dom', `stroke:${colour(v)}`) : ''))
+        .join('');
+      const count = v => st.filter(x => x === v).length;
+      dom = el('div', { class: 'tm-dom-box' }, [
+        pick,
+        picks.length > 1 ? el('div', { class: 'tm-focus' }, picks.map(car => el('button', { type: 'button', class: 'tm-focus-b', 'aria-pressed': String(car === focus), style: `--team:${car.colour || '#888'}`, onclick: () => ((f1MapFocus = car.no), f1TrackMap(m.b, ss, { redraw: true })) }, [personPic(fieldDriver(ss.field, car.name, driverShort(car.name)) || { name: car.name }, 'f1', 'xs round'), el('span', { text: car.tla || f1Sur(car) })]))) : null,
+        el('p', { class: 'tm-lap-key' }, [
+          ...[['#a855f7', en ? 'fastest of all' : '全場最快', count(2051)], ['#22c55e', en ? 'own best' : '個人最快', count(2049)], ['#facc15', en ? 'slower' : '較慢', count(2048)]].map(([c2, t, n]) => el('span', {}, [el('i', { style: `background:${c2}` }), document.createTextNode(`${t} ${n}`)])),
+          el('small', { class: 'muted', text: en ? `${f1Sur(focus)}, lap ${focus.laps + 1}: ${st.filter(Boolean).length}/${st.length} done` : `${f1Sur(focus)} 第 ${focus.laps + 1} 圈 · 已跑 ${st.filter(Boolean).length}/${st.length} 段` })
+        ])
+      ]);
+    } else {
+      const timeOf = (car, i) => lapMs(mode === 'last' ? car.lastSectors?.[i] : car.sectors?.[i]?.v) || 0;
+      const winners = [0, 1, 2].map(i => {
+        const ts = picks.map(car => timeOf(car, i));
+        const quick = Math.min(...ts.filter(Boolean));
+        return Number.isFinite(quick) ? picks[ts.indexOf(quick)] : null;
+      });
+      const dashedCar = car => picks.slice(0, picks.indexOf(car)).some(o => o.colour === car.colour);
+      const lit = f1MapSector;
+      m.gapLayer.innerHTML = [0, 1, 2]
+        .map(i => {
+          const w = winners[i];
+          const path = m.pathBetween(cuts[i], i < 2 ? cuts[i + 1] : 1);
+          return (lit === i ? poly(path, 'tm-lit') : '') + (w ? poly(path, `tm-dom${dashedCar(w) ? ' dash' : ''}${lit != null && lit !== i ? ' faint' : ''}`, `stroke:${w.colour || '#888'}`) : '');
+        })
+        .join('');
+      const sec = ms => (ms ? (ms / 1000).toFixed(3) : '—');
+      const rows = [0, 1, 2].map(i => {
+        const ts = picks.map(car => timeOf(car, i));
+        const quick = Math.min(...ts.filter(Boolean));
+        // A tap on a sector's row lights it on the track (again: all three).
+        return el('tr', { class: `dom-row${lit === i ? ' on' : ''}`, onclick: () => ((f1MapSector = lit === i ? null : i), f1TrackMap(m.b, ss, { redraw: true })) }, [
+          el('th', { class: 'dc-label', text: `S${i + 1}` }),
+          ...ts.map(t => el('td', { class: `num${t && t === quick ? ' dom-win' : ''}`, style: t && t === quick ? `color:${winners[i]?.colour || 'inherit'}` : null, text: t && t !== quick ? `+${((t - quick) / 1000).toFixed(3)}` : sec(t) }))
+        ]);
+      });
+      const sums = picks.map(car => [0, 1, 2].reduce((n, i) => (n == null || !timeOf(car, i) ? null : n + timeOf(car, i)), 0));
+      const quickSum = Math.min(...sums.filter(Boolean));
+      rows.push(el('tr', { class: 'dom-sum' }, [el('th', { class: 'dc-label', text: mode === 'last' ? (en ? 'Lap' : '一圈') : en ? 'Ideal' : '理想圈' }), ...sums.map(t => el('td', { class: `num${t && t === quickSum ? ' dom-win' : ''}`, text: t ? fmtLap(t) : '—' }))]));
+      dom = el('div', { class: 'tm-dom-box' }, [
+        pick,
+        el('table', { class: `dc-table dom-table n${picks.length}` }, [
+          el('thead', {}, [el('tr', {}, [el('th', { class: 'dc-label' }), ...picks.map(car => el('th', { class: 'dc-colour', style: `--team:${car.colour || '#888'}` }, [el('span', { class: 'dc-code' }, [f1Face(ss, car.name), f1NameTap(ss, car, car.tla || f1Sur(car))])]))])]),
+          el('tbody', {}, rows)
+        ])
+      ]);
+    }
+  }
+  // On the cars: each picked one's gap to the first picked by its code; a ring on any car within a second of the car ahead (in range to pass).
+  const first = picks[0];
+  for (const car of b.cars) {
+    const g = m.cars.get(car.no);
+    if (!g) continue;
+    const gap = first && car !== first && picked.has(car.no) && gapNum(car) != null && gapNum(first) != null ? gapNum(car) - gapNum(first) : null;
+    if (gap != null) g.querySelector('text').textContent = `${car.tla || car.no} +${gap.toFixed(1)}`;
+    const iv = Number(String(car.interval || '').replace('+', ''));
+    g.classList.toggle('close', car.pos > 1 && Number.isFinite(iv) && iv > 0 && iv < 1 && !car.inPit);
+  }
+  const holder = m.domBox || (m.domBox = el('div'));
+  put(holder, dom);
   const guessed = !b.cars.some(x => x.at);
-  return card(en ? 'On track' : '賽道位置', el('div', { class: 'tm-box' }, [m.svg]), { sub: guessed ? (en ? `${c.name} · by timing points` : `${c.name} · 依計時點`) : c.name });
+  const note = !picks.length
+    ? en ? 'Tap a car to compare it (with 車手比較 below). ◯ within a second of the car ahead.' : '點車加入下方的車手比較 · ◯ 與前車差距 1 秒內'
+    : mode === 'lap'
+      ? en ? 'Their lap so far, as F1 times it. Tap a car to add or drop it.' : '本圈目前為止的計時，F1 計時畫面的顏色 · 點車加入或移出比較'
+      : en ? 'Each sector in the colour of the quickest there; tap a row to light it. ◯ within a second.' : '每段塗上該段最快者的顏色，點表格列可標出該段 · ◯ 與前車 1 秒內';
+  // (Kept with the drawing: a tap redraws it in place, the note with it.)
+  const noteEl = m.noteEl || (m.noteEl = el('p', { class: 'muted small tm-note' }));
+  noteEl.textContent = note;
+  // A redraw (a tap, a pick in 車手比較): the drawing on the page changed in place, no new card (it would take the drawing off the page).
+  if (redraw) return null;
+  return card(en ? 'On track' : '賽道位置', el('div', { class: 'tm-box' }, [m.svg, holder, noteEl]), { sub: guessed ? (en ? `${c.name} · by timing points` : `${c.name} · 依計時點`) : c.name });
 }
 
 // Each car's laps (f1-live.js /laps.json, again each 15 seconds while it
@@ -2006,7 +2183,7 @@ function f1LapCompare(b, ss) {
     if (!f1Picks.has(ss.start)) f1Picks.set(ss.start, cars.slice(0, 2).map(c => c.no));
     const car = no => cars.find(c => c.no === no);
     const picks = f1Picks.get(ss.start).filter(no => car(no)).sort((x, y) => car(x).pos - car(y).pos);
-    const setPicks = next => (f1Picks.set(ss.start, next), draw());
+    const setPicks = next => (f1Picks.set(ss.start, next), draw(), f1Maps.get(ss.start)?.b && f1TrackMap(f1Maps.get(ss.start).b, ss, { redraw: true }));
     const dashed = no => picks.slice(0, picks.indexOf(no)).some(o => car(o)?.colour === car(no)?.colour);
     const colourOf = no => car(no)?.colour || '#888';
     const pitsOf = no => pitLaps(laps[no] || [], stops[no] || [], car(no)?.stints || []);

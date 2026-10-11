@@ -1717,3 +1717,28 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lc-chip .logo { width: 18px; height: 18px; }
 .lc-chip .lc-key-line svg { width: 16px; }
 .lc-chart .wp-at { display: block; margin: 4px 0 -2px; }
+/* The track: the finish chequered, the sector lines, the picked cars' gap along it. */
+.tm-finish-b { stroke: #111; stroke-width: 4; stroke-linecap: butt; }
+.tm-finish { stroke: #fff; stroke-width: 4; stroke-dasharray: 2.2 2.2; stroke-linecap: butt; }
+.tm-sector { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
+.tm-sector-t { fill: var(--q-muted); font-size: 9px; font-weight: 800; text-anchor: middle; }
+.tm-car.dim .tm-dot { opacity: 0.35; }
+.tm-car.picked .tm-dot { r: 6.5; stroke-width: 2.2; }
+.tm-note { margin: 6px 0 0; text-align: center; }
+.tm-dom { fill: none; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.tm-dom.dash { stroke-dasharray: 7 5; }
+.tm-dom-box { display: grid; gap: 8px; margin-top: 8px; }
+.dom-table td.dom-win { font-weight: 800; }
+.dom-table tr.dom-sum > * { font-weight: 700; }
+.tm-dom.faint { opacity: 0.25; }
+.tm-lit { fill: none; stroke: var(--q-text); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; opacity: 0.25; }
+.tm-car.close .tm-dot { stroke: var(--q-text); stroke-width: 2.4; }
+.dom-row { cursor: pointer; }
+.dom-row.on > * { background: color-mix(in srgb, var(--q-text) 7%, transparent); }
+.tm-focus { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.tm-focus-b { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px 3px 3px; border: 0; border-radius: 999px; background: var(--q-sunken); color: var(--q-muted); font: inherit; font-size: 12.5px; font-weight: 750; cursor: pointer; }
+.tm-focus-b[aria-pressed="true"] { color: var(--q-text); box-shadow: inset 0 0 0 2px var(--team); }
+.tm-lap-key { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin: 0; font-size: 12px; font-weight: 650; }
+.tm-lap-key span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.tm-lap-key i { width: 12px; height: 4px; border-radius: 2px; }
+.tm-lap-key small { flex-basis: 100%; text-align: center; }
