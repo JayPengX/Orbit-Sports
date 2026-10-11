@@ -1856,7 +1856,8 @@ function circuitOf(b, ss, redraw) {
 const f1Maps = new Map();
 function f1TrackMap(b, ss) {
   const c = circuitOf(b, ss);
-  if (!c || !b.cars.some(x => x.at)) return null;
+  // (Each car where F1's feed puts it, or, as F1 stopped giving the cars' x/y in 2026, by the mini-sectors it has passed this lap.)
+  if (!c || !b.cars.some(x => x.at || x.seg?.[1])) return null;
   const en = L() === 'en';
   const ns = 'http://www.w3.org/2000/svg';
   let m = f1Maps.get(ss.start);
@@ -1887,11 +1888,24 @@ function f1TrackMap(b, ss) {
     svg.innerHTML = `<polyline class="tm-edge" points="${d}"/><polyline class="tm-track" points="${d}"/>`;
     const layer = document.createElementNS(ns, 'g');
     svg.append(layer);
-    m = { svg, fit, layer, cars: new Map() };
+    // The track's length so far at each point (its outline starts at the line), for a car placed by how far round it is.
+    const run = [0];
+    for (let i = 1; i < c.x.length; i++) run.push(run[i - 1] + Math.hypot(c.x[i] - c.x[i - 1], c.y[i] - c.y[i - 1]));
+    const along = f => {
+      const want = (((f % 1) + 1) % 1) * run.at(-1);
+      let i = run.findIndex(d => d >= want);
+      if (i <= 0) return [c.x[0], c.y[0]];
+      const t = (want - run[i - 1]) / (run[i] - run[i - 1] || 1);
+      return [c.x[i - 1] + t * (c.x[i] - c.x[i - 1]), c.y[i - 1] + t * (c.y[i] - c.y[i - 1])];
+    };
+    // A car's mini-sectors passed: on the point where the next starts (the circuit's own, where it has them), else that share of the lap.
+    const bySeg = ([done, total]) => (c.mini?.length === total && c.x[c.mini[done % total]] != null ? [c.x[c.mini[done % total]], c.y[c.mini[done % total]]] : along(done / total));
+    m = { svg, fit, layer, cars: new Map(), bySeg };
     f1Maps.set(ss.start, m);
   }
   const picked = new Set(f1Picks.get(ss.start) || []);
-  const order = [...b.cars].filter(x => x.at).sort((x, y) => (picked.has(x.no) ? 1 : 0) - (picked.has(y.no) ? 1 : 0) || y.pos - x.pos);
+  const placed = x => !x.retired && !x.stopped && (x.at || x.seg?.[1]);
+  const order = [...b.cars].filter(placed).sort((x, y) => (picked.has(x.no) ? 1 : 0) - (picked.has(y.no) ? 1 : 0) || y.pos - x.pos);
   for (const car of order) {
     let g = m.cars.get(car.no);
     if (!g) {
@@ -1903,7 +1917,7 @@ function f1TrackMap(b, ss) {
       if (who?.id) g.addEventListener('click', () => ctx.openPlayer('f1', who.id, who));
       m.cars.set(car.no, g);
     }
-    const [x, y] = m.fit(car.at[0], car.at[1]);
+    const [x, y] = car.at ? m.fit(car.at[0], car.at[1]) : m.fit(...m.bySeg(car.seg));
     g.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     g.style.setProperty('--team', car.colour || '#888');
     g.classList.toggle('named', picked.has(car.no) || car.pos <= 3);
@@ -1911,8 +1925,9 @@ function f1TrackMap(b, ss) {
     g.querySelector('text').textContent = car.tla || car.no;
     m.layer.append(g);
   }
-  for (const [no, g] of m.cars) if (!b.cars.some(x => x.no === no && x.at)) g.remove();
-  return card(en ? 'On track' : '賽道位置', el('div', { class: 'tm-box' }, [m.svg]), { sub: c.name });
+  for (const [no, g] of m.cars) if (!b.cars.some(x => x.no === no && placed(x))) g.remove();
+  const guessed = !b.cars.some(x => x.at);
+  return card(en ? 'On track' : '賽道位置', el('div', { class: 'tm-box' }, [m.svg]), { sub: guessed ? (en ? `${c.name} · by timing points` : `${c.name} · 依計時點`) : c.name });
 }
 
 // Each car's laps (f1-live.js /laps.json, again each 15 seconds while it
