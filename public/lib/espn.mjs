@@ -326,13 +326,39 @@ const seriesNow = new Map();
 const playoffDone = new Map();
 const seriesKey = e => `${e.league}|${e.round?.key}|${[e.home?.id, e.away?.id].map(String).sort().join('|')}`;
 const playedOf = s => Object.values(s?.wins || {}).reduce((n, w) => n + (Number(w) || 0), 0);
+// A series won, by its two sides' abbreviations (as ESPN's next-round
+// placeholder names them, "CLE/CHW"): the winner. ESPN leaves the next
+// round's games on the placeholder for hours after the deciding game (its
+// id -2: no team page, no schedule), so the winner is put in here.
+const seriesWon = new Map();
+const pairKey = (league, abbrs) => `${league}|${abbrs.map(a => String(a).toUpperCase()).sort().join('/')}`;
+export function seriesWinner(e) {
+  const s = e?.series;
+  if (!s?.completed || e.status?.state !== 'post') return null;
+  const top = Math.max(...Object.values(s.wins).map(Number));
+  const id = Object.keys(s.wins).find(k => Number(s.wins[k]) === top);
+  return [e.home, e.away].find(x => String(x?.id) === id) || null;
+}
+// A side still "A/B" whose series is decided: the winner, as this game's side.
+export function decidedSide(league, side) {
+  if (!side || /^\d+$/.test(String(side.id ?? '')) || !String(side.abbr || '').includes('/')) return side;
+  const w = seriesWon.get(pairKey(league, String(side.abbr).split('/')));
+  return w ? { ...w, score: '', winner: false, lines: [], homeAway: side.homeAway, order: side.order } : side;
+}
 export function settleSeries(list) {
   for (const e of list) {
     if (e?.kind !== 'match' || !e.series || !e.round || e.status?.state !== 'post') continue;
     const k = seriesKey(e);
     if (playedOf(e.series) >= playedOf(seriesNow.get(k))) seriesNow.set(k, e.series);
     playoffDone.set(e.league, Math.max(playoffDone.get(e.league) || 0, Date.parse(e.start) || 0));
+    const w = seriesWinner(e);
+    if (w) seriesWon.set(pairKey(e.league, [e.home?.abbr, e.away?.abbr]), w);
   }
+  list = list.map(e => {
+    if (e?.kind !== 'match' || e.status?.state === 'post') return e;
+    const [home, away] = [decidedSide(e.league, e.home), decidedSide(e.league, e.away)];
+    return home === e.home && away === e.away ? e : { ...e, home, away };
+  });
   const out = [];
   for (const e of list) {
     const s = e?.kind === 'match' && e.round && e.status?.state === 'pre' ? seriesNow.get(seriesKey(e)) : null;

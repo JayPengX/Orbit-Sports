@@ -361,3 +361,21 @@ test("byMlbPostseason: one series' days from different copies (G4 待定, G5 tim
   assert.equal(by['7'].note, 'ALDS - Game 4');
   assert.ok(by['8']);
 });
+
+test("settleSeries: a series won puts its winner in the next round's placeholder (ESPN's CLE/CHW for hours)", async () => {
+  const { settleSeries } = await import('../public/lib/espn.mjs');
+  const cle = { id: '5', abbr: 'CLE', name: 'Cleveland Guardians', logo: 'cle.png', score: '4', winner: true, homeAway: 'home' };
+  const chw = { id: '4', abbr: 'CHW', name: 'Chicago White Sox', score: '1', homeAway: 'away' };
+  const done = { id: '9', league: 'mlb', kind: 'match', start: '2026-10-11T00:00Z', note: 'ALDS - Game 5', status: { state: 'post' }, home: cle, away: chw, round: { key: 'QTR' }, series: { completed: true, games: 5, wins: { 5: 3, 4: 2 } } };
+  const next = { id: '10', league: 'mlb', kind: 'match', start: '2026-10-12T00:00Z', note: 'ALCS - Game 1', status: { state: 'pre' }, home: { id: '30', abbr: 'TB', name: 'Tampa Bay Rays', homeAway: 'home' }, away: { id: '-2', abbr: 'CLE/CHW', name: 'CLE/CHW', homeAway: 'away' }, round: { key: 'SEMI' } };
+  const out = settleSeries([done, next]);
+  const g1 = out.find(e => e.id === '10');
+  assert.equal(g1.away.id, '5');
+  assert.equal(g1.away.name, 'Cleveland Guardians');
+  assert.equal(g1.away.homeAway, 'away');
+  assert.equal(g1.away.score, '');
+  assert.equal(g1.away.winner, false);
+  assert.equal(g1.home.abbr, 'TB');
+  // Another day read later in the session (the ALCS's Game 2): the same.
+  assert.equal(settleSeries([{ ...next, id: '11' }])[0].away.id, '5');
+});
