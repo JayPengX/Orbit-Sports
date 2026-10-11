@@ -718,7 +718,7 @@ function syncPush() {
     const start = Date.parse(e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     const league = leagueName(e.league, locale);
-    // Its start only when it's on TV here (where, in the notice); its final score in any case.
+    // Its start only when it's on TV here; its final score in any case.
     // (Kept on the list for 10 minutes after the start: an open app sending its list again at the start
     // took it off before the Worker's run, and the notice never came. The Worker sends each once.)
     if (start > now - GRACE && !e.timeTbd && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
@@ -750,14 +750,11 @@ function syncPush() {
 
 // A notice's words, read at a glance on the lock screen: the title says what
 // happened ("道奇 vs 費城人 開賽", "新加坡站 排位賽 開始", the final score),
-// the line under it where to watch it, the league, and why it came
-// ("愛爾達1台 直播 · MLB 美國職棒 · 今日推薦"). Never a line that repeats the title.
+// the line under it the league and why it came ("MLB 美國職棒 · 今日推薦"; no
+// channel: ELTA's isn't said in a notice). Never a line that repeats the title.
 const GRACE = 10 * 60_000;
 const startTitle = e => (e.kind === 'match' ? `${matchLine(e)} ${L({ zh: '開賽', en: 'is on' })}` : `${e.name}${e.session ? ` ${e.session}` : ''} ${L({ zh: '開始', en: 'is on' })}`);
-const startLine = (e, pick = false) => {
-  const tv = channelsOf(e)[0]?.short[locale === 'en' ? 'en' : 'zh'];
-  return [tv ? `${tv} ${L({ zh: '直播', en: 'live' })}` : '', leagueName(e.league, locale), pick ? L({ zh: '今日推薦', en: 'Today’s pick' }) : ''].filter(Boolean).join(' · ');
-};
+const startLine = (e, pick = false) => [leagueName(e.league, locale), pick ? L({ zh: '今日推薦', en: 'Today’s pick' }) : ''].filter(Boolean).join(' · ');
 // Who won, for the final's notice: "Yankees 贏了", or a draw.
 function resultLine(e) {
   if (e.status?.void) return L({ zh: '比賽取消', en: 'Canceled' });
