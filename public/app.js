@@ -16,7 +16,7 @@ import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, ses
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
-import { setWatchPack, prefetchHighlights } from './lib/highlights.mjs';
+import { setWatchPack, prefetchHighlights, watchMonthWanted, watchMonthPath, loadWatchMonth } from './lib/highlights.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
 import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
@@ -1590,7 +1590,12 @@ function loadBracket(league) {
   brackets.set(league, { ...(had || {}), loading: true, again: false });
   playoffData(league)
     // A game started or ended while it was read: read again at once (at 0).
-    .then(d => brackets.set(league, { model: playoffModel({ league, ...d }), at: brackets.get(league)?.again ? 0 : Date.now() }))
+    .then(d => {
+      const model = playoffModel({ league, ...d });
+      brackets.set(league, { model, at: brackets.get(league)?.again ? 0 : Date.now() });
+      // A series' games from weeks back: their watch links ready for its sheet.
+      watchMonthsOf(model.rounds.flatMap(r => r.ties.flatMap(t => t?.games || [])));
+    })
     .catch(() => {
       brackets.set(league, { model: had?.model || null, at: Date.now(), failed: true });
       setTimeout(() => state.tab === 'matches' && state.scores.league === league && state.scores.view === 'bracket' && renderScores(), 61_500);
@@ -1632,7 +1637,12 @@ async function seriesOf(e) {
     brackets.set(league, { ...(brackets.get(league) || {}), model, at: Date.now(), loading: false, failed: false });
   }
   for (const r of model.rounds)
-    for (const t of r.ties) if (t && !t.gap && !t.projected && !t.pending && t.games.some(g => g.id === e.id)) return { tie: { ...t, games: t.games.map(freshGame) }, title: locale === 'en' ? r.title.en : r.title.zh };
+    for (const t of r.ties)
+      if (t && !t.gap && !t.projected && !t.pending && t.games.some(g => g.id === e.id)) {
+        // Its games' watch links (weeks back) with it, a moment at most: the sheet drawn once.
+        await Promise.race([watchMonthsOf(t.games), new Promise(r => setTimeout(r, 1200))]);
+        return { tie: { ...t, games: t.games.map(freshGame) }, title: locale === 'en' ? r.title.en : r.title.zh };
+      }
   return null;
 }
 ctx.seriesOf = seriesOf;
@@ -1818,6 +1828,10 @@ async function loadScores({ quiet = false } = {}) {
   sc.loading = false;
   if (sc.byDay !== 'failed' || events.length) {
     applyScores(sc, events);
+    // Games past the recent pack's ten days: their months' watch links read
+    // now (a small file a month), so a day picked later draws its cards with
+    // 愛爾達・重播 already on them, never growing a row after.
+    watchMonthsOf(sc.all.filter(e => e.status.state === 'post' && Date.parse(e.start) > Date.now() - 45 * 86_400_000));
     // The day shown: the one asked for, else one with a game on now, else
     // today's or the next game day (however far: a break opens on the next
     // round), else the latest.
@@ -1898,17 +1912,26 @@ function tagGroups(league, events, redraw) {
 }
 // A day picked on the strip or the 📅: shown at once; a day not read yet (an
 // ESPN league's, far from now) is read first.
+// Each month's watch links these games need (once each); never throws.
+function watchMonthsOf(events) {
+  const months = new Map();
+  for (const e of events) if (watchMonthWanted(e) && !months.has(watchMonthPath(e))) months.set(watchMonthPath(e), e);
+  return Promise.all([...months.values()].map(e => loadWatchMonth(e, kit.packJson)));
+}
 async function pickScoresDay(d) {
   const sc = state.scores;
   sc.date = d;
   sc.picked = true;
   const l = LEAGUES[sc.league];
+  // A day further back than the league's months read: its month's watch
+  // links with it (the cards drawn once, with their 愛爾達・重播).
+  const at = Date.parse(`${d}T12:00:00`);
+  const month = watchMonthsOf([-1, 0, 1].map(k => ({ league: sc.league, start: new Date(at + k * 86_400_000).toISOString(), status: { state: 'post' } })));
   if (sc.byDay instanceof Map && !sc.byDay.has(d) && l.espn && sc.mode === 'days') {
     renderScores();
-    const at = Date.parse(`${d}T12:00:00`);
     // Its US days: the one before, the day, and the one after.
     const us = [-1, 0, 1].map(k => yyyymmdd(new Date(at + k * 86_400_000)));
-    const events = await scoreboard(sc.league, us).catch(() => []);
+    const [events] = await Promise.all([scoreboard(sc.league, us).catch(() => []), month]);
     if (state.scores !== sc) return;
     // A weekend read again replaces its sessions (kept apart by their own ids, they were doubled).
     const fresh = new Set(events.map(e => String(e.id)));
@@ -1917,6 +1940,10 @@ async function pickScoresDay(d) {
     applyScores(sc, [...byId.values()]);
     // Another day picked meanwhile: that one's on screen.
     if (sc.date !== d) return;
+  } else if (sc.byDay instanceof Map && (sc.byDay.get(d) || []).some(e => e.status.state === 'post' && watchMonthWanted(e))) {
+    // Read already, its month not yet: waited for a moment at most.
+    await Promise.race([month, new Promise(r => setTimeout(r, 1200))]);
+    if (state.scores !== sc || sc.date !== d) return;
   }
   renderScores();
 }

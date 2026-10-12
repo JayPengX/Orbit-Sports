@@ -206,7 +206,11 @@ Every sheet swipes down to close (the kit).
   "(August 28)" is another meeting of the two sides). A game older than
   `watch.json`'s ten days has its links in Shared-Data's season archive
   (`sports/watch/<league>/<month>.json`): its sheet reads that month once,
-  the row the same size while it does (找這場的影片…).
+  the row the same size while it does (找這場的影片…). The lists read it
+  before they draw, so their cards have 愛爾達・重播 at once, never a row
+  added after: 賽事 the league's last 45 days when it opens and a day
+  picked further back with that day (`watchMonthsOf`, `pickScoresDay`, a
+  moment at most), 季後賽 with its bracket, a series' sheet with it.
 - **Watching again.** A finished game on ELTA shows where to watch it
   again: its whole video, else its channel's 回看 within 48 hours, else the
   season's page. The video is the game's episode in Shared-Data's packs
