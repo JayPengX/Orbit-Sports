@@ -717,13 +717,12 @@ function syncPush() {
     seen.add(key);
     const start = Date.parse(e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
-    const league = leagueName(e.league, locale);
     // Its start only when it's on TV here; its final score in any case.
     // (Kept on the list for 10 minutes after the start: an open app sending its list again at the start
     // took it off before the Worker's run, and the notice never came. The Worker sends each once.)
     if (start > now - GRACE && !e.timeTbd && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
-    // The Worker fills in the score (the title) and who won ({result}) once ESPN has the final.
-    if (LEAGUES[e.league].espn && /^\d+$/.test(e.id) && !e.timeTbd) items.push({ at: Math.max(now + 60_000, start + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), body: `{result} · ${league}`, tag: `end:${key}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } });
+    const end = resultItem(e, now);
+    if (end) items.push(end);
   }
   // Today's picks, each starting (its own kind of notice, 今日推薦開賽): one
   // a followed team's start notice already covers isn't said twice.
@@ -734,6 +733,15 @@ function syncPush() {
     if (items.some(x => x.tag === `start:${key}`)) continue;
     items.push({ at: start, title: startTitle(e), body: startLine(e, true), tag: `pick:${key}`, hash: 'home', kind: 'pick' });
   }
+  // Today's picks, each ending (今日推薦賽果): every pick of the day, the ones
+  // on now too (they've left 今日推薦 for 正在進行); one a followed team's or
+  // race weekend's final already covers isn't said twice.
+  const picked = pickedToday();
+  for (const e of (state.days.get(today())?.events || []).filter(e => picked.has(`${e.league}:${e.id}`)).map(freshGame)) {
+    if (e.other || e.status?.state === 'post' || e.status?.void || items.some(x => x.tag === `end:${e.league}:${e.id}`)) continue;
+    const end = resultItem(e, now, true);
+    if (end) items.push(end);
+  }
   // A followed race weekend: each qualifying, sprint and race starting, and
   // the sprint's and the race's result (the Worker reads the podium off ESPN's day).
   for (const e of followedGames()) {
@@ -742,10 +750,44 @@ function syncPush() {
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     const title = `${e.name} ${e.session}`;
     if (start > now - GRACE) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: 'live', kind: 'start' });
-    if (e.sessionKey !== 'Qual' && LEAGUES[e.league].espn && /^\d+$/.test(String(e.weekend)))
-      items.push({ at: Math.max(now + 60_000, start + (e.sessionKey === 'Race' ? 100 : 40) * 60_000), title, body: `{result} · ${leagueName(e.league, locale)}`, tag: `end:${e.league}:${e.id}`, hash: 'home', kind: 'end', check: { espn: LEAGUES[e.league].espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } });
+    const end = resultItem(e, now);
+    if (end) items.push(end);
   }
   schedulePush(q, items);
+}
+// A game's or a sprint's or race's final, for the Worker to send once ESPN
+// has it (it fills in the score or the podium, and who won: {result}), after
+// its usual length; a pick's says so (今日推薦賽果, its own switch).
+function resultItem(e, now, pick = false) {
+  const espn = LEAGUES[e.league].espn;
+  const start = Date.parse(e.official || e.start);
+  if (!espn || e.timeTbd || !(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) return null;
+  const base = { body: [`{result}`, leagueName(e.league, locale), pick ? L(PICKED) : ''].filter(Boolean).join(' · '), tag: `end:${e.league}:${e.id}`, hash: 'home', kind: pick ? 'pickend' : 'end' };
+  if (e.kind === 'match' && /^\d+$/.test(e.id))
+    return { ...base, at: Math.max(now + 60_000, Date.parse(e.start) + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), check: { espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } };
+  if (e.kind === 'field' && ['SR', 'Race'].includes(e.sessionKey) && /^\d+$/.test(String(e.weekend)))
+    return { ...base, at: Math.max(now + 60_000, start + (e.sessionKey === 'Race' ? 100 : 40) * 60_000), title: `${e.name} ${e.session}`, check: { espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } };
+  return null;
+}
+// Every one of today's picks (今日推薦), kept on the device for the day: a
+// pick leaves the list once it's on, and its final is still said, even by an
+// app opened mid-game.
+const PICKED_KEY = 'fx.picked.v1';
+function pickedToday() {
+  try {
+    const kept = JSON.parse(localStorage.getItem(PICKED_KEY) || 'null');
+    if (kept?.date === today()) return new Set(kept.keys);
+  } catch {}
+  return new Set();
+}
+function notePicked(events) {
+  const keys = pickedToday();
+  const had = keys.size;
+  for (const e of events) keys.add(`${e.league}:${e.id}`);
+  if (keys.size === had) return;
+  try {
+    localStorage.setItem(PICKED_KEY, JSON.stringify({ date: today(), keys: [...keys] }));
+  } catch {}
 }
 
 // A notice's words, read at a glance on the lock screen: the title says what
@@ -754,7 +796,8 @@ function syncPush() {
 // channel: ELTA's isn't said in a notice). Never a line that repeats the title.
 const GRACE = 10 * 60_000;
 const startTitle = e => (e.kind === 'match' ? `${matchLine(e)} ${L({ zh: '開賽', en: 'is on' })}` : `${e.name}${e.session ? ` ${e.session}` : ''} ${L({ zh: '開始', en: 'is on' })}`);
-const startLine = (e, pick = false) => [leagueName(e.league, locale), pick ? L({ zh: '今日推薦', en: 'Today’s pick' }) : ''].filter(Boolean).join(' · ');
+const PICKED = { zh: '今日推薦', en: 'Today’s pick' };
+const startLine = (e, pick = false) => [leagueName(e.league, locale), pick ? L(PICKED) : ''].filter(Boolean).join(' · ');
 // Who won, for the final's notice: "Yankees 贏了", or a draw.
 function resultLine(e) {
   if (e.status?.void) return L({ zh: '比賽取消', en: 'Canceled' });
@@ -766,18 +809,21 @@ function resultLine(e) {
 }
 const matchLine = (e, score = false) => (score ? `${e.away.short || e.away.name} ${e.away.score} : ${e.home.score} ${e.home.short || e.home.name}` : `${e.away.short || e.away.name} vs ${e.home.short || e.home.name}`);
 
-// A followed team's game starting or ending: a notice.
+// A followed team's game starting or ending, or one of today's picks
+// ending: a notice.
 const lastState = new Map();
 function noticeChanges(events) {
+  const picked = pickedToday();
   for (const e of events) {
-    if (e.kind !== 'match' || !isFollowedEvent(e)) continue;
+    const followed = isFollowedEvent(e);
     const key = `${e.league}:${e.id}`;
+    if (e.kind !== 'match' || !(followed || picked.has(key))) continue;
     const was = lastState.get(key);
     lastState.set(key, e.status.state);
     if (!was || was === e.status.state) continue;
     const league = leagueName(e.league, locale);
-    if (e.status.state === 'in' && (onTv(e) || isFollowedGame(e))) notify(q, { title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
-    if (e.status.state === 'post') notify(q, { title: matchLine(e, true), body: `${resultLine(e)} · ${league}`, tag: `end:${key}`, hash: 'home', kind: 'end' });
+    if (followed && e.status.state === 'in' && (onTv(e) || isFollowedGame(e))) notify(q, { title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
+    if (e.status.state === 'post') notify(q, { title: matchLine(e, true), body: [resultLine(e), league, followed ? '' : L(PICKED)].filter(Boolean).join(' · '), tag: `end:${key}`, hash: 'home', kind: followed ? 'end' : 'pickend' });
   }
 }
 
@@ -1014,7 +1060,9 @@ function renderHome() {
   // ranked as it stood before, as on a past day, and what of it was on
   // show (the plan and the first of the rest) that's over now.
   const ended = x => x.event.status.state === 'post' && !x.event.status.void;
-  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] }, true) : rank(filtered(mine), 999, pctx, true)) : [[], []];
+  // (Theirs as it stood is also what their picks' finals are said for.)
+  const ownWas = isToday ? rank(filtered(mine), 999, pctx, true) : [[], []];
+  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] }, true) : ownWas) : [[], []];
   const endedPlan = wasPlan.filter(ended);
   // A few of the rest, not the whole day's results (賽事 has those).
   const endedMore = wasMore.slice(0, 20).filter(ended).slice(0, 4);
@@ -1056,13 +1104,16 @@ function renderHome() {
   const shownMore = more.slice(0, h.shown);
   // Today's picks (the 今日推薦 list, not 更多推薦 or the others when none are
   // yours), for their start notices: kept when the list settles, and the
-  // Worker's list sent again when they change.
+  // Worker's list sent again when they change. Their finals are said for the
+  // day's picks as they stood too: one on now (正在進行, or about to start)
+  // has left the list, or never was on it when the app opened.
   if (isToday && h.filter === 'all' && h.settled) {
     const picks = fallback ? [] : planList.map(x => x.event);
-    const sig = picks.map(e => `${e.league}:${e.id}:${e.start}`).join('|');
+    const sig = [...picks, ...ownWas[0].map(x => x.event)].map(e => `${e.league}:${e.id}:${e.start}`).join('|');
     if (sig !== state.todayPicksSig) {
       state.todayPicks = picks;
       state.todayPicksSig = sig;
+      notePicked([...picks, ...ownWas[0].map(x => x.event)]);
       clearTimeout(pushTimer);
       pushTimer = setTimeout(syncPush, 1500);
     }

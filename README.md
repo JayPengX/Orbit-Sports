@@ -478,6 +478,11 @@ drivers and teams, single matches and race weekends.
   length and fills in the score and who won.
 - `pick`: each of 今日推薦 starts, unless a followed team's start already
   covers it.
+- `pickend`: each of 今日推薦's final score, the same way as `end` (and not
+  twice for a followed team's game). It's sent for every pick of the day,
+  including one that's on now and has left the list for 正在進行. The day's
+  picks are kept on the device (`fx.picked.v1`), so an app opened mid-game
+  still sends it.
 - **Race weekends**: qualifying, sprint and race starting, and the sprint's
   and race's podium.
 - **How they're sent**: through `schedulePush`, while the app is closed.
