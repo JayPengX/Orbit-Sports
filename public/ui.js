@@ -223,24 +223,25 @@ export function statusText(e) {
   if (s.state === 'post') return s.short && !/^final$/i.test(s.short) ? finalText(s.short) : t('final');
   return whenText(shownStart(e));
 }
-// A finished game's ESPN status in Chinese: "Final/OT" 終場（延長）, "Final/10"
-// 終場（10 局）, "FT", "AET", "FT-Pens"…; anything else as ESPN wrote it.
+// A finished game's ESPN status in Chinese: "Final/OT" 完賽（延長）, "Final/10"
+// 完賽（10 局）, "FT", "AET", "FT-Pens"…; anything else as ESPN wrote it.
 function finalText(text) {
   if (ctx.locale === 'en') return text;
   const t = String(text).trim();
+  const F = ctx.t('final');
   const f = /^F(?:inal)?\/(.+)$/i.exec(t);
   if (f) {
     const x = f[1];
-    if (/^OT$/i.test(x)) return '終場（延長）';
+    if (/^OT$/i.test(x)) return `${F}（延長）`;
     const ot = /^(\d)OT$/i.exec(x);
-    if (ot) return `終場（${ot[1]} 度延長）`;
-    if (/^SO$/i.test(x)) return '終場（射門大賽）';
-    if (/^\d+$/.test(x)) return `終場（${x} 局）`;
-    return `終場（${x}）`;
+    if (ot) return `${F}（${ot[1]} 度延長）`;
+    if (/^SO$/i.test(x)) return `${F}（射門大賽）`;
+    if (/^\d+$/.test(x)) return `${F}（${x} 局）`;
+    return `${F}（${x}）`;
   }
   if (/^(FT|Full Time)$/i.test(t)) return ctx.t('final');
-  if (/^AET$/i.test(t)) return '終場（延長賽）';
-  if (/pens|penalties/i.test(t)) return '終場（PK 大戰）';
+  if (/^AET$/i.test(t)) return `${F}（延長賽）`;
+  if (/pens|penalties/i.test(t)) return `${F}（PK 大戰）`;
   if (/^(retired|ret\.?)$/i.test(t)) return '退賽';
   if (/^(walkover|w\/o)$/i.test(t)) return '不戰而勝';
   if (/^abandoned$/i.test(t)) return '比賽中止';
@@ -270,6 +271,9 @@ function statusEl(e, day = true) {
   const text = statusText(e);
   const clockAt = e.status.state === 'in' ? /^(.+?)\s+(\d{1,2}:\d{2}(?:\.\d)?)$/.exec(text) : null;
   if (clockAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: clockAt[1] }), el('small', { class: 'num', text: clockAt[2] })]);
+  // A final with more to say (完賽（10 局）, 完賽（PK 大戰）): 完賽, and the rest under it (two lines drawn for it, never cut).
+  const ended = e.status.state === 'post' ? /^(.+?)（(.+)）$/.exec(text) : null;
+  if (ended) return el('span', { class: 'event-status post ended' }, [el('span', { text: ended[1] }), el('small', { text: ended[2] })]);
   return el('span', { class: `event-status ${e.status.state}`, text });
 }
 // A side's picture: a person's photo (a driver), a team's badge.
