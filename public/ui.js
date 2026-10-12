@@ -29,7 +29,16 @@ export function el(tag, props = {}, children = []) {
   return node;
 }
 // replaceChildren, skipping the null and false left by conditional pieces.
-export const put = (node, ...kids) => node.replaceChildren(...kids.flat().filter(k => k != null && k !== false));
+// A child drawn again as the same node (the date strip) stays where it is,
+// never taken out and put back: that lost its scroll and closed an open picker.
+export function put(node, ...kids) {
+  const list = kids.flat().filter(k => k != null && k !== false).map(k => (typeof k === 'string' ? document.createTextNode(k) : k));
+  const keep = new Set(list.filter(k => k.parentNode === node));
+  if (!keep.size) return node.replaceChildren(...list);
+  for (const c of [...node.childNodes]) if (!keep.has(c)) c.remove();
+  let at = node.firstChild;
+  for (const k of list) k === at ? (at = at.nextSibling) : node.insertBefore(k, at);
+}
 export const spinner = () => el('div', { class: 'center-spin' }, [el('div', { class: 'spinner' })]);
 export const empty = text => el('p', { class: 'empty', text });
 export const $ = id => document.getElementById(id);

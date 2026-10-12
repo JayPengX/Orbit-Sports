@@ -846,21 +846,18 @@ function noticeChanges(events) {
 // it (the kit's keepStrips puts it back), never pulls it back to the chip.
 const centered = new Map();
 function centerChosen(box) {
-  // A date strip the person scrolled stays where they left it (dateStrip).
-  for (const row of box.querySelectorAll('.day-strip')) if (row.keepLeft != null) row.scrollLeft = row.keepLeft;
   const rows = [...box.querySelectorAll('.q-chips, .segmented')];
   for (const chip of box.querySelectorAll('.q-chips [aria-pressed="true"], .segmented [aria-pressed="true"]')) {
     const row = chip.parentElement;
-    if (row.keepLeft != null) continue;
+    // A date strip places itself (dateStrip).
+    if (row.classList.contains('day-strip')) continue;
     // Not laid out yet (under the loading screen): nothing to centre, and not
     // counted as done (it was, and every redraw after left the date strip on
     // its first day, a month back).
     if (!row.clientWidth) continue;
     const key = `${box.id || ''}|${row.className}|${rows.indexOf(row)}`;
     const chosen = chip.textContent;
-    // A date strip drawn anew at its very start, not one the person scrolled (keepLeft): on its day.
-    const fresh = row.classList.contains('day-strip') && row.scrollLeft === 0;
-    if (centered.get(key) === chosen && !fresh) continue;
+    if (centered.get(key) === chosen) continue;
     centered.set(key, chosen);
     if (row.scrollWidth > row.clientWidth) row.scrollLeft = chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2;
   }
@@ -931,40 +928,100 @@ function dayChip(d, current, onPick) {
   ]);
 }
 // `range`: the stretch of days shown (home's own by default; 賽事 keeps one
-// per league), and the person's own scroll of it (`held`, at `left`).
+// per league); it also holds the strip itself (`range.strip`), made once and
+// changed in place on every redraw after: the chips, the 📅 input and the
+// row's scroll are never thrown away under the person (a new input closed
+// iOS's open date picker, a new row lost its scroll and was pulled back by
+// three hands). `range.recenter`: the next draw brings the day to the middle.
 // `bounds`: the days that can be asked for (lib/bounds.mjs): the strip and
 // 📅 stop there.
 function dateStrip(current, onPick, { only = null, range = stripRange, bounds = null } = {}) {
   if (current && !only) reach(current, range);
-  // A day picked: the strip is centred on it again.
-  const pickDay = d => ((range.held = false), onPick(d));
   const days = stripDays(current, { only, range, base: today() }).filter(d => d === current || within(d, bounds));
-  const row = el('div', { class: 'q-chips day-strip' }, days.map(d => dayChip(d, current, pickDay)));
-  // Scrolled by the person: a repaint (a day or a team read, the live
-  // refresh) keeps it where they left it (centerChosen), not back on the day.
-  row.keepLeft = range.held ? range.left : null;
-  // Drawn under the loading screen (no width yet): on its day the moment it has one.
-  if (typeof ResizeObserver !== 'undefined') {
-    const ro = new ResizeObserver(() => {
-      if (!row.clientWidth) return;
-      ro.disconnect();
-      const chip = row.querySelector('[aria-pressed="true"]');
-      if (chip && !range.held && row.scrollLeft === 0 && row.scrollWidth > row.clientWidth) row.scrollLeft = chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2;
-    });
-    ro.observe(row);
+  const s = (range.strip ??= makeStrip());
+  Object.assign(s, { onPick, bounds, range });
+  // Back on the page after another view (a table): on its day at once.
+  if (!s.row.isConnected) (s.shown = false), (s.reveal = 'center');
+  // Other days (bounds or a season's days in, a sport picked, midnight): the
+  // chips made again inside the same row, the day first in view kept in place.
+  const key = `${today()}|${locale}|${days.join()}`;
+  if (key !== s.key) {
+    const anchor = s.row.isConnected && s.row.clientWidth ? firstInView(s.row) : null;
+    s.row.replaceChildren(...days.map(d => dayChip(d, current, s.pick)));
+    s.key = key;
+    const again = anchor && s.row.querySelector(`[data-day="${anchor.day}"]`);
+    if (again) s.row.scrollLeft += again.getBoundingClientRect().left - s.row.getBoundingClientRect().left - anchor.at;
+    else s.reveal ??= 'center';
   }
-  for (const ev of ['pointerdown', 'touchstart', 'wheel']) row.addEventListener(ev, () => (range.held = true), { passive: true });
-  row.addEventListener('scroll', () => row.isConnected && row.clientWidth && range.held && (range.left = row.scrollLeft), { passive: true });
-  // Any day: the browser's own date picker.
-  const pick = el('input', { class: 'day-pick-input', type: 'date', 'aria-label': L({ zh: '選擇日期', en: 'Pick a date' }), value: clampDay(current || today(), bounds), ...(bounds ? { min: bounds.from, max: bounds.to } : {}) });
-  pick.addEventListener('change', () => {
-    if (!pick.value) return;
-    const d = clampDay(pick.value, bounds);
-    reach(d, range);
-    pickDay(d);
+  for (const chip of s.row.children) chip.setAttribute('aria-pressed', String(chip.dataset.day === current));
+  // A day chosen elsewhere (📅, the next game day): brought into view; one
+  // tapped on the strip is in view already and stays where it is.
+  if (current !== s.current) {
+    if (s.current !== undefined && !s.tapped) s.reveal ??= 'center';
+    s.current = current;
+  }
+  s.tapped = false;
+  if (range.recenter) (range.recenter = false), (s.reveal = 'center');
+  if (s.current !== undefined && !s.shown) s.reveal ??= 'center';
+  // The input: never touched while it's open (iOS's picker would close).
+  if (document.activeElement !== s.input) syncPick(s);
+  if (s.reveal) revealDay(s);
+  return s.wrap;
+}
+function makeStrip() {
+  const s = {};
+  s.row = el('div', { class: 'q-chips day-strip' });
+  // A tap: the chip shows it at once, the page follows off the tap's stack.
+  s.pick = d => {
+    for (const chip of s.row.children) chip.setAttribute('aria-pressed', String(chip.dataset.day === d));
+    s.tapped = true;
+    requestAnimationFrame(() => setTimeout(() => s.onPick(d)));
+  };
+  // Any day: the browser's own date picker. Its day taken the moment it's
+  // chosen (the page behind it changes, the picker stays open on iPhone).
+  s.input = el('input', { class: 'day-pick-input', type: 'date', 'aria-label': L({ zh: '選擇日期', en: 'Pick a date' }) });
+  s.input.addEventListener('change', () => {
+    if (!s.input.value) return;
+    const d = clampDay(s.input.value, s.bounds);
+    if (d === s.current) return;
+    reach(d, s.range);
+    s.onPick(d);
   });
-  const cal = el('label', { class: 'q-chip day-pick', title: L({ zh: '選擇日期', en: 'Pick a date' }) }, [el('span', { class: 'day-pick-icon', 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2"/></svg>' }), pick]);
-  return el('div', { class: 'day-strip-wrap' }, [row, cal]);
+  // Closed: the day it shows is the one picked (a day past the bounds, which
+  // iOS lets through, shows the one it came to).
+  s.input.addEventListener('blur', () => syncPick(s));
+  const cal = el('label', { class: 'q-chip day-pick', title: L({ zh: '選擇日期', en: 'Pick a date' }) }, [el('span', { class: 'day-pick-icon', 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2"/></svg>' }), s.input]);
+  s.wrap = el('div', { class: 'day-strip-wrap' }, [s.row, cal]);
+  return s;
+}
+function syncPick(s) {
+  const v = clampDay(s.current || today(), s.bounds);
+  if (s.input.value !== v) s.input.value = v;
+  for (const [k, b] of [['min', s.bounds?.from], ['max', s.bounds?.to]]) b ? s.input.setAttribute(k, b) : s.input.removeAttribute(k);
+}
+// The chip first in view, and how far it sits from the row's left edge.
+function firstInView(row) {
+  const left = row.getBoundingClientRect().left;
+  const chip = [...row.children].find(c => c.getBoundingClientRect().right > left + 1);
+  return chip ? { day: chip.dataset.day, at: chip.getBoundingClientRect().left - left } : null;
+}
+// The chosen chip in the middle of the row, once the row has a width (drawn
+// under the loading screen, it has none yet): at once the first time, gently after.
+function revealDay(s) {
+  const go = () => {
+    const chip = s.row.querySelector('[aria-pressed="true"]');
+    if (!chip || !s.row.isConnected || !s.row.clientWidth) return false;
+    const left = chip.offsetLeft - s.row.offsetLeft - s.row.clientWidth / 2 + chip.clientWidth / 2;
+    s.row.scrollTo({ left, behavior: s.shown ? 'smooth' : 'auto' });
+    s.reveal = null;
+    s.shown = true;
+    return true;
+  };
+  requestAnimationFrame(() => {
+    if (go() || typeof ResizeObserver === 'undefined' || s.waiting) return;
+    s.waiting = new ResizeObserver(() => s.row.clientWidth && (s.waiting.disconnect(), (s.waiting = null), s.reveal && go()));
+    s.waiting.observe(s.row);
+  });
 }
 // The days each league can be asked for (Shared-Data's nightly
 // sports/bounds.json): read once a session; null until read (nothing locked).
@@ -1064,7 +1121,7 @@ function renderHome() {
       h.jumping = false;
       if (d && state.home.date === today()) {
         state.home.date = d;
-        stripRange.held = false;
+        stripRange.recenter = true;
         if (state.tab === 'home') renderHome();
       }
     });
@@ -1190,7 +1247,8 @@ function homeHead() {
   const hasFollows = state.prefs.leagues.length > 0 && !h.picking;
   const sport = SPORTS[h.filter] ? h.filter : null;
   const days = sport ? h.sportDays.get(sport) : null;
-  return el('div', {}, [
+  // A list, not a wrapper: the date strip stays where it is in the page (put).
+  return [
     el('div', { class: 'home-hero' }, [
       el('div', {}, [el('p', { class: 'hero-kicker', text: dayLabel(h.date, { long: true }) }), el('h2', { class: 'hero-title', text: hasFollows || !state.prefsLoaded ? t(h.date === today() ? 'heroTitle' : 'heroTitleDay') : t('heroTitleNew') })]),
       el('button', { class: 'q-btn small', type: 'button', text: hasFollows ? t('editFollows') : t('pickSports'), onclick: openFollowEditor })
@@ -1212,7 +1270,7 @@ function homeHead() {
             // Every league's days (one sport's: its leagues').
             { only: days, bounds: sport ? unionBounds(allBounds, Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport)) : homeBounds() }
           )
-  ]);
+  ];
 }
 // Every followed sport as a filter, whether it plays today or not: picking
 // one keeps the date strip to the days it plays and goes to the nearest.
@@ -1223,7 +1281,7 @@ function sportChips() {
   return el(
     'div',
     { class: 'q-chips small filter-chips' },
-    filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => ((stripRange.held = false), pickFilter(k)) }))
+    filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => ((stripRange.recenter = true), pickFilter(k)) }))
   );
 }
 // A sport's days read (again): one with a league unread is read again (15
