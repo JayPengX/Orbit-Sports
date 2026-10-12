@@ -136,3 +136,12 @@ test("a game the recent pack has let go: its month of Shared-Data's season, read
   assert.equal(asked, 1);
   assert.deepEqual(watchOf(e), entry);
 });
+
+test("a side's own video posted days after the game is the return leg's, not this game's", () => {
+  const start = '2026-09-26T18:45:00Z';
+  const now = Date.parse('2026-10-12T17:00:00Z');
+  const e = { id: '1', league: 'nationsleague', kind: 'match', start, status: { state: 'post' }, home: { id: '1', en: 'Slovenia', name: 'Slovenia', short: 'Slovenia' }, away: { id: '2', en: 'Scotland', name: 'Scotland', short: 'Scotland' } };
+  const own = (title, age) => ({ id: age, title, channel: 'Scotland National Team', channelId: 'UCx', verified: true, age, length: '6:00' });
+  assert.equal(pickHighlights([own('Scotland v Slovenia | UEFA Nations League Highlights', '4 days ago')], e, now), null);
+  assert.equal(pickHighlights([own('Scotland v Slovenia | UEFA Nations League Highlights', '4 days ago'), own('Slovenia v Scotland | UEFA Nations League Highlights', '2 weeks ago')], e, now).id, '2 weeks ago');
+});

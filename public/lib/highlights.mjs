@@ -214,9 +214,11 @@ export function pickHighlights(videos, e, now = Date.now()) {
       // the game (Ligue 1's "HAVRE AC - ANGERS SCO (0-0) | Week 4") by its sides and score.
       const called = /highlight|精華|resume/.test(title);
       if (!called && !(tier === 0 && e.kind === 'match' && scoresIn(title).length)) return false;
-      // Put up after the game, within two weeks of it.
+      // Put up after the game, within three days of it (two weeks let in
+      // the return leg's: Slovenia v Scotland's on Scotland v Slovenia's,
+      // twelve days on, 2026-10-12).
       const age = ageSpan(v.age);
-      if (age && (age.min > now - start + 3_600_000 || age.max < now - start - 14 * 86_400_000)) return false;
+      if (age && (age.min > now - start + 3_600_000 || age.max < now - start - 3 * 86_400_000)) return false;
       // Its year (a season's, 2026/27, counts both).
       const years = [...title.matchAll(/\b(20\d\d)(?:\s*[/-]\s*(\d\d))?\b/g)].flatMap(m => [Number(m[1]), ...(m[2] ? [Number(m[1].slice(0, 2) + m[2])] : [])]);
       if (years.length && !years.includes(year)) return false;
