@@ -9,8 +9,7 @@ covers every league you can watch in Taiwan on ELTA.tv (愛爾達) or Apple TV:
 
 F1 has its own live board with F1's own timing.
 
-**https://jaypengx.github.io/Orbit-Sports/** (was Quadra Fixtures; this
-local folder is still `Quadra-Fixtures`)
+**https://jaypengx.github.io/Orbit-Sports/** (was Quadra Fixtures)
 
 The family's rules are `Shared-Proxy/docs/TRUTH.md`, and they win over
 anything here. The data layers this app reads through (memory, device,
