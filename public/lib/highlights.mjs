@@ -112,9 +112,13 @@ export const videoUrl = id => `${YT}/watch?v=${id}`;
 
 const fold = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/ø/g, 'o').replace(/ß/g, 'ss');
 // Words of a club's name that say nothing on their own.
-const GENERIC = new Set(['fc', 'cf', 'ac', 'as', 'sc', 'afc', 'cfc', 'ssc', 'us', 'rc', 'sv', 'vfb', 'vfl', 'tsg', 'fk', 'sk', 'club', 'de', 'la', 'le', 'the', 'and', 'of', 'united', 'city', 'real', 'sporting', 'athletic', 'football', 'calcio', 'olympique', 'stade', 'borussia', 'hotspur', 'albion', 'wanderers', 'county', 'town', 'rovers']);
+const GENERIC = new Set(['fc', 'cf', 'ac', 'as', 'sc', 'afc', 'cfc', 'ssc', 'us', 'rc', 'sv', 'vfb', 'vfl', 'tsg', 'fk', 'sk', 'club', 'de', 'la', 'le', 'the', 'and', 'of', 'united', 'city', 'real', 'sporting', 'athletic', 'football', 'calcio', 'olympique', 'stade', 'borussia', 'hotspur', 'albion', 'wanderers', 'county', 'town', 'rovers',
+  // A city two clubs share (New York City FC, Red Bull New York; LAFC, LA
+  // Galaxy): "New York" alone named both, and NYCFC v Cincinnati had
+  // Cincinnati v Red Bull New York's video (2026-10-12). By their own names.
+  'new', 'york', 'los', 'angeles']);
 // How a side is often written in titles that its name doesn't say.
-const ALIASES = [[/manchester united/, ['man utd', 'man united']], [/manchester city/, ['man city']], [/czechia/, ['czech']], [/turkiye|turkey/, ['turkey', 'turkiye']], [/internazionale/, ['inter']], [/paris saint-germain/, ['psg']], [/bayern munich/, ['bayern']], [/wolverhampton/, ['wolves']], [/tottenham/, ['spurs']], [/nottingham forest/, ['forest']], [/brighton/, ['brighton']], [/bosnia/, ['bosnia']], [/republic of ireland/, ['ireland']], [/diamondbacks/, ['d-backs', 'dbacks']]];
+const ALIASES = [[/manchester united/, ['man utd', 'man united']], [/manchester city/, ['man city']], [/czechia/, ['czech']], [/turkiye|turkey/, ['turkey', 'turkiye']], [/internazionale/, ['inter']], [/paris saint-germain/, ['psg']], [/bayern munich/, ['bayern']], [/wolverhampton/, ['wolves']], [/tottenham/, ['spurs']], [/nottingham forest/, ['forest']], [/brighton/, ['brighton']], [/bosnia/, ['bosnia']], [/republic of ireland/, ['ireland']], [/diamondbacks/, ['d-backs', 'dbacks']], [/new york city/, ['nycfc', 'new york city']], [/red bull new york|new york red bulls/, ['red bulls', 'rbny']], [/los angeles fc|^lafc$/, ['lafc']]];
 // The ways a side can be named in a title: its distinctive words (Brewers,
 // Torino), the whole name, the ways it's shortened, its Chinese names.
 export function sideWords(side, other = null) {
@@ -133,9 +137,10 @@ export function sideWords(side, other = null) {
     const parts = n.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
     const own = parts.filter(w => w.length >= 3 && !otherWords.has(w));
     for (const w of own.filter(w => !GENERIC.has(w))) words.add(w);
-    // Only generic words of its own left (Manchester City against United): those.
-    if (!own.some(w => !GENERIC.has(w))) for (const w of own) words.add(w);
-    for (const [re, alias] of ALIASES) if (re.test(n)) alias.forEach(a => words.add(a));
+    const aliases = ALIASES.filter(([re]) => re.test(n)).flatMap(([, alias]) => alias);
+    // Only generic words of its own left (Manchester City against United): those (not when it has its own short names).
+    if (!own.some(w => !GENERIC.has(w)) && !aliases.length) for (const w of own) words.add(w);
+    aliases.forEach(a => words.add(a));
   }
   return [...words];
 }

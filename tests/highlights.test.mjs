@@ -145,3 +145,17 @@ test("a side's own video posted days after the game is the return leg's, not thi
   assert.equal(pickHighlights([own('Scotland v Slovenia | UEFA Nations League Highlights', '4 days ago')], e, now), null);
   assert.equal(pickHighlights([own('Scotland v Slovenia | UEFA Nations League Highlights', '4 days ago'), own('Slovenia v Scotland | UEFA Nations League Highlights', '2 weeks ago')], e, now).id, '2 weeks ago');
 });
+
+test('two clubs of one city: New York City FC and Red Bull New York each by its own name, never "New York" alone', () => {
+  const nycfc = { id: '1', en: 'New York City FC', name: 'New York City FC', short: 'NYCFC' };
+  const rbny = { id: '2', en: 'Red Bull New York', name: 'Red Bull New York', short: 'Red Bull NY' };
+  const cin = { id: '3', en: 'FC Cincinnati', name: 'FC Cincinnati', short: 'Cincinnati' };
+  const now = Date.parse('2026-04-26T12:00:00Z');
+  const v = title => ({ id: title, title, channel: 'Major League Soccer', channelId: 'UCSZbXT5TLLW_i-5W8FZpFsg', verified: true, age: '10 hours ago', length: '9:00' });
+  const game = (home, away) => ({ id: '9', league: 'mls', kind: 'match', start: '2026-04-25T23:30:00Z', status: { state: 'post' }, home, away });
+  assert.equal(pickHighlights([v('FC Cincinnati vs. Red Bull New York | Full Match Highlights')], game(nycfc, cin), now), null);
+  assert.ok(pickHighlights([v('FC Cincinnati vs. Red Bull New York | Full Match Highlights')], game(cin, rbny), now));
+  assert.ok(pickHighlights([v('New York City FC vs. FC Cincinnati | Full Match Highlights')], game(nycfc, cin), now));
+  assert.ok(pickHighlights([v('NYCFC vs. FC Cincinnati | Full Match Highlights')], game(nycfc, cin), now));
+  assert.equal(pickHighlights([v('New York City FC vs. FC Cincinnati | Full Match Highlights')], game(cin, rbny), now), null);
+});
