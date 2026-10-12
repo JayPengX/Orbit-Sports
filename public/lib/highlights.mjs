@@ -114,7 +114,7 @@ const fold = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-�
 // Words of a club's name that say nothing on their own.
 const GENERIC = new Set(['fc', 'cf', 'ac', 'as', 'sc', 'afc', 'cfc', 'ssc', 'us', 'rc', 'sv', 'vfb', 'vfl', 'tsg', 'fk', 'sk', 'club', 'de', 'la', 'le', 'the', 'and', 'of', 'united', 'city', 'real', 'sporting', 'athletic', 'football', 'calcio', 'olympique', 'stade', 'borussia', 'hotspur', 'albion', 'wanderers', 'county', 'town', 'rovers']);
 // How a side is often written in titles that its name doesn't say.
-const ALIASES = [[/manchester united/, ['man utd', 'man united']], [/manchester city/, ['man city']], [/czechia/, ['czech']], [/turkiye|turkey/, ['turkey', 'turkiye']], [/internazionale/, ['inter']], [/paris saint-germain/, ['psg']], [/bayern munich/, ['bayern']], [/wolverhampton/, ['wolves']], [/tottenham/, ['spurs']], [/nottingham forest/, ['forest']], [/brighton/, ['brighton']], [/bosnia/, ['bosnia']], [/republic of ireland/, ['ireland']]];
+const ALIASES = [[/manchester united/, ['man utd', 'man united']], [/manchester city/, ['man city']], [/czechia/, ['czech']], [/turkiye|turkey/, ['turkey', 'turkiye']], [/internazionale/, ['inter']], [/paris saint-germain/, ['psg']], [/bayern munich/, ['bayern']], [/wolverhampton/, ['wolves']], [/tottenham/, ['spurs']], [/nottingham forest/, ['forest']], [/brighton/, ['brighton']], [/bosnia/, ['bosnia']], [/republic of ireland/, ['ireland']], [/diamondbacks/, ['d-backs', 'dbacks']]];
 // The ways a side can be named in a title: its distinctive words (Brewers,
 // Torino), the whole name, the ways it's shortened, its Chinese names.
 export function sideWords(side, other = null) {
@@ -145,6 +145,29 @@ const twDay = title => {
   const m = /(?<![\d/])(\d{1,2})\/(\d{1,2})(?![\d/])/.exec(title);
   return m ? [Number(m[1]), Number(m[2])] : null;
 };
+// The days a title gives ("(September 18)", "18 September 2026", "Sep 18,
+// 2026"; in the US's leagues "(9/18/26)" too), each 'M-D', or [].
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const MONTH = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun[e]?|jul[y]?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?';
+const US = new Set(['mlb', 'nba', 'wnba', 'mls']);
+export function titleDays(title, league = '') {
+  const t = String(title || '').toLowerCase();
+  const days = [];
+  const at = (m, d) => m >= 1 && m <= 12 && d >= 1 && d <= 31 && days.push(`${m}-${d}`);
+  for (const m of t.matchAll(new RegExp(`\\b${MONTH}\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'g'))) at(MONTHS.indexOf(m[1].slice(0, 3)) + 1, Number(m[2]));
+  for (const m of t.matchAll(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH}\\b`, 'g'))) at(MONTHS.indexOf(m[2].slice(0, 3)) + 1, Number(m[1]));
+  if (US.has(league)) for (const m of t.matchAll(/(?<![\d/])(\d{1,2})\/(\d{1,2})\/(?:20)?\d\d(?![\d/])/g)) at(Number(m[1]), Number(m[2]));
+  return days;
+}
+// The days a game can be named by: the US's leagues by their day in New York
+// or on the west coast (MLB's "(September 18)": its day where it's played),
+// football's in London, New York's too (the Americas' late kick-offs). Never
+// a day either side: the same two sides can meet the next day.
+const zoneDay = (ms, timeZone) => {
+  const [m, d] = new Date(ms).toLocaleDateString('en-US', { timeZone, month: 'numeric', day: 'numeric' }).split('/');
+  return `${Number(m)}-${Number(d)}`;
+};
+const gameDays = (ms, league) => new Set((US.has(league) ? ['America/New_York', 'America/Los_Angeles'] : ['Europe/London', 'America/New_York']).map(z => zoneDay(ms, z)));
 // The scores a title gives ("TORINO-ROMA 0-2", "(2-1)"), never a season (2026/27).
 const scoresIn = title => [...title.matchAll(/(?<![\d/.:])(\d{1,2})\s*[-–:x]\s*(\d{1,2})(?![\d/.:])/g)].map(m => [Number(m[1]), Number(m[2])]);
 // A video's age ("10h ago", "3 days ago", "Streamed 2 weeks ago") as a span in ms, or null.
@@ -215,6 +238,12 @@ export function pickHighlights(videos, e, now = Date.now()) {
         const tw = new Date(start + 8 * 3_600_000);
         if (d && (d[0] !== tw.getUTCMonth() + 1 || d[1] !== tw.getUTCDate())) return false;
       }
+      // A title naming a day names the game's ("(August 28)" is another meeting of the two).
+      if (e.league !== 'cpbl') {
+        const said = titleDays(v.title, e.league);
+        const ours = gameDays(start, e.league);
+        if (said.length && !said.some(d => ours.has(d))) return false;
+      }
       // The game's number: a title naming another game is another game's.
       const n = [...title.matchAll(/\b(?:game|g)\s*(\d+)\b/g)].map(m => Number(m[1]));
       if (g && n.length && !n.includes(g.game)) return false;
@@ -241,11 +270,31 @@ let pack = null;
 export const setWatchPack = p => {
   if (p?.games) pack = p;
 };
-export const watchOf = e => (e ? pack?.games?.[watchKey(e)] || null : null);
+// Shared-Data's season of them, a month a file (sports/watch/<league>/<YYYY-MM>.json,
+// the same entries, carried for the season: a game's links never change),
+// for a game the recent pack has let go: read when such a game is opened.
+export const WATCH_DAYS = 10;
+export const watchMonthPath = e => `sports/watch/${e.league}/${new Date(e.official || e.start).toISOString().slice(0, 7)}.json`;
+const months = new Map();
+export const setWatchMonth = (path, p) => {
+  if (p?.games) months.set(path, p.games);
+};
+// Whether a game's links could be in its month's file and it isn't read yet.
+export const watchMonthWanted = (e, now = Date.now()) => Boolean(e?.start) && now - Date.parse(e.start) > (WATCH_DAYS - 1) * 86_400_000 && !months.has(watchMonthPath(e));
+// Its month's file read (`readPack`: the kit's packJson); never throws. A
+// failed read isn't kept (asked again next time), only the file as it is.
+export async function loadWatchMonth(e, readPack, now = Date.now()) {
+  if (!readPack || !watchMonthWanted(e, now)) return;
+  const path = watchMonthPath(e);
+  setWatchMonth(path, await readPack(path, { ttl: 6 * 3_600_000 }).catch(() => null));
+}
+export const watchOf = e => (e ? pack?.games?.[watchKey(e)] || (e.start ? months.get(watchMonthPath(e))?.[watchKey(e)] : null) || null : null);
 // Found ones kept on the device too (a game opened before the pack had it).
-const KEPT = 'fx.highlights.v2';
+// (v3: titles' days checked, so v2's another day's video is let go.)
+const KEPT = 'fx.highlights.v3';
 function kept() {
   try {
+    localStorage.removeItem('fx.highlights.v2');
     return JSON.parse(localStorage.getItem(KEPT) || '{}') || {};
   } catch {
     return {};

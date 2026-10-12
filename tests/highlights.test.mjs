@@ -99,3 +99,40 @@ test("a video's age: put up after the game, not before it", () => {
   assert.equal(pickHighlights([v('before', 'Chicago Fire FC vs. Vancouver Whitecaps | Full Match Highlights', 'Major League Soccer', mls, '5mo ago')], e, NOW), null);
   assert.equal(pickHighlights([v('now', 'Chicago Fire FC vs. Vancouver | Full Match Highlights | Lewandowski vs. Müller!', 'Major League Soccer', mls, '12h ago')], e, NOW).id, 'now');
 });
+
+test("a title's day is the game's: another meeting of the two sides isn't taken; MLB's D-BACKS are the Diamondbacks", async () => {
+  const { titleDays } = await import('../public/lib/highlights.mjs');
+  assert.deepEqual(titleDays('RED SOX vs. YANKEES: Official Full Game Highlights (August 28) | 2026 MLB Season', 'mlb'), ['8-28']);
+  assert.deepEqual(titleDays('Yankees vs. D-backs Game Highlights (9/19/26) | MLB Highlights', 'mlb'), ['9-19']);
+  assert.deepEqual(titleDays('Arsenal v Chelsea | 18th September 2026', 'epl'), ['9-18']);
+  assert.deepEqual(titleDays('Decision 5 | 18/09/2026', 'epl'), [], "not a month's word; football's numbers not read");
+  const now = Date.parse('2026-10-12T05:00:00Z');
+  // 9/18 in Arizona (23:10 UTC): the MLB's own "(September 18)", not the team's next day's.
+  const e = game('mlb', side('New York Yankees', 4), side('Arizona Diamondbacks', 3), { start: '2026-09-18T23:10Z' });
+  const next = v('next', 'Yankees vs. D-backs Game Highlights (9/19/26) | MLB Highlights | Arizona Diamondbacks', 'Arizona Diamondbacks', 'UCdbacks', '3w ago');
+  const own = v('own', 'YANKEES vs. D-BACKS: Official Full Game Highlights (September 18) | 2026 MLB Season', 'MLB', MLB, '3w ago');
+  assert.equal(pickHighlights([next, own], e, now).id, 'own');
+  assert.equal(pickHighlights([next], e, now), null);
+  // A late west-coast game (02:10 UTC on the 19th) is the 18th's.
+  const late = game('mlb', side('San Francisco Giants', 1), side('Los Angeles Dodgers', 2), { start: '2026-09-19T02:10Z' });
+  assert.equal(pickHighlights([v('g', 'GIANTS vs. DODGERS: Official Full Game Highlights (September 18) | 2026 MLB Season', 'MLB', MLB, '3w ago')], late, now).id, 'g');
+  const old = game('mlb', side('Boston Red Sox', 1), side('New York Yankees', 2), { start: '2026-09-05T23:05Z' });
+  assert.equal(pickHighlights([v('aug', 'RED SOX vs. YANKEES: Official Full Game Highlights (August 28) | 2026 MLB Season', 'MLB', MLB, '1mo ago')], old, now), null);
+});
+
+test("a game the recent pack has let go: its month of Shared-Data's season, read once, a failed read asked again", async () => {
+  const { watchMonthPath, watchMonthWanted, loadWatchMonth, watchOf } = await import('../public/lib/highlights.mjs');
+  const now = Date.parse('2026-10-12T05:00:00Z');
+  const e = { ...game('mlb', side('New York Yankees', 4), side('Arizona Diamondbacks', 3), { start: '2026-09-18T23:10Z' }), id: '77' };
+  assert.equal(watchMonthPath(e), 'sports/watch/mlb/2026-09.json');
+  assert.equal(watchMonthWanted({ ...e, start: '2026-10-10T23:10Z' }, now), false, 'the recent pack has it');
+  assert.equal(watchMonthWanted(e, now), true);
+  await loadWatchMonth(e, () => Promise.reject(new Error('offline')), now);
+  assert.equal(watchMonthWanted(e, now), true, 'a failure is never "nothing there"');
+  const entry = { t: 1, hl: { id: 'own', channel: 'MLB' }, elta: { v: 2150, eps: [['72000', '9/19 洋基 VS 響尾蛇']] } };
+  let asked = 0;
+  await loadWatchMonth(e, async path => (asked++, path === 'sports/watch/mlb/2026-09.json' ? { games: { 'mlb:77:': entry } } : null), now);
+  await loadWatchMonth(e, async () => (asked++, null), now);
+  assert.equal(asked, 1);
+  assert.deepEqual(watchOf(e), entry);
+});

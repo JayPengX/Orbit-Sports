@@ -201,10 +201,18 @@ Every sheet swipes down to close (the kit).
   video itself (league, club or an English rights holder whose videos play
   in Taiwan; the NBA's from GAMETIME HIGHLIGHTS), named for what it is, from
   Shared-Data's `watch.json` or found on the device. Else YouTube's search,
-  said so.
+  said so. A video is the game's only by both sides, its score and number
+  when the title gives them, and its day when the title says one (MLB's
+  "(August 28)" is another meeting of the two sides). A game older than
+  `watch.json`'s ten days has its links in Shared-Data's season archive
+  (`sports/watch/<league>/<month>.json`): its sheet reads that month once,
+  the row the same size while it does (找這場的影片…).
 - **Watching again.** A finished game on ELTA shows where to watch it
   again: its whole video, else its channel's 回看 within 48 hours, else the
-  season's page. For MLS, it is Apple TV's own page of the game.
+  season's page. The video is the game's episode in Shared-Data's packs
+  (any game of the season, months back too), else the newest 120 of its
+  season's page read through the proxy. For MLS, it is Apple TV's own page
+  of the game.
 - **CPBL.** The box score is the league's own (`lib/cpblbox.mjs`): line
   score, 數據, 球員 and 過程 in its own Chinese.
 
@@ -516,7 +524,7 @@ language, then ESPN's teams and players.
 | F1 drivers' and teams' pages | formula1.com (trimmed) | mirror / proxy |
 | Win probability (no ESPN line) | Polymarket | proxy (live), Shared-Data `winprob` (over) |
 | Where to watch | ELTA's list (proxy), NBA.com (`nba-elta.json`), Apple TV (`watch.json`) | — |
-| Highlights, ELTA's replays | YouTube, ELTA.tv | Shared-Data `watch.json`, else looked up on the device |
+| Highlights, ELTA's replays | YouTube, ELTA.tv | Shared-Data `watch.json` (ten days) and `watch/<league>/<month>.json` (the season), else looked up on the device |
 | Photos, logos, Chinese names | the kit (`photos.mjs`, `logos.mjs`, `names.mjs`) | — |
 | Translations (ESPN's English words) | Google translate | proxy, kept 30 days a line |
 
@@ -564,7 +572,7 @@ the app.
 | `fx.followsSynced` | When the wallet copy was last sent |
 | `fx.f1live.v2` | F1's last live reading (a reload draws it at once) |
 | `fx.f1ended` | Sessions F1's feed called over (two days) |
-| `fx.highlights.v2`, `fx.replays.v1` | Highlights and replays found on the device |
+| `fx.highlights.v3`, `fx.replays.v1` | Highlights and replays found on the device |
 | `fx.eltaAppMiss` | ELTA app links that didn't open |
 | Cache Storage | Every proxied answer (the kit) |
 

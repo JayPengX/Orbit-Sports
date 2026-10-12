@@ -2,10 +2,10 @@
 // the proxy, kept half an hour) and, for the NBA, NBA.com's Taiwan schedule
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
-import { proxyJson } from '#kit/quadra.mjs';
+import { proxyJson, packJson } from '#kit/quadra.mjs';
 import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
-import { watchOf as packOf } from './highlights.mjs';
+import { watchOf as packOf, loadWatchMonth } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
 
@@ -192,11 +192,18 @@ export async function replayOf(e, now = Date.now()) {
   const programs = eltaSchedule() || [];
   if (!channels.length && programs.some(p => p.start <= Date.parse(e.start) - 3 * 3_600_000) && eltaListed(programs, e)) return null;
   const sides = zhSides(e);
-  const vod = eltaVodOf(e, sides[0]);
+  // Shared-Data's: the game's episodes on ELTA.tv, found for its season
+  // (its month's file read for a game the recent pack has let go); else
+  // the season's page, its newest 120, read here.
+  if (!replay) await loadWatchMonth(e, packJson, now);
+  const kept = packOf(e)?.elta;
+  const vod = kept?.v || eltaVodOf(e, sides[0]);
   if (!vod) return replay ? { channels } : null;
-  const episodes = await proxyJson(eltaVodUrl(vod), { ttl: 30 * 60_000 })
-    .then(d => d?.episodes || [])
-    .catch(() => []);
+  const episodes = kept?.eps?.length
+    ? kept.eps.map(([id, title]) => ({ id: String(id), title }))
+    : await proxyJson(eltaVodUrl(vod), { ttl: 30 * 60_000 })
+        .then(d => d?.episodes || [])
+        .catch(() => []);
   const episode = e.kind === 'match' ? eltaEpisode(episodes, e, sides, { prefer: prefer() }) : eltaSessionEpisode(episodes, e, { prefer: prefer() });
   // Its video already up (the NBA's, 歐國聯's, the next day) plays the game
   // at once; else its channels' 回看 while they have it.

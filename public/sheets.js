@@ -1,8 +1,8 @@
 // Orbit Sports' sheets: a match (header, then its data by section), a
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
-import { translate, proxyJson, everyDev, dev } from '#kit/quadra.mjs';
-import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind } from './lib/highlights.mjs';
+import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
+import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups } from './lib/espn.mjs';
@@ -697,11 +697,18 @@ const ytLogo = () => {
 // in Shared-Data's pack of recent games), named for what it is (官方精華 · MLB
 // · 20:12, 愛爾達精華, 全場精華 for the NBA's one channel), else YouTube's
 // search, said so. Drawn once, never changed under the reader: a video found
-// while it's open is kept for the next time it's opened.
+// while it's open is kept for the next time it's opened. A game the recent
+// pack has let go waits for its month of Shared-Data's season (a row the
+// same size, its words only), then is drawn so.
 const HL_NAME = { official: ['官方精華', 'Official highlights'], elta: ['愛爾達精華', 'ELTA highlights'], full: ['全場精華', 'Full-game highlights'], search: ['搜尋精華影片', 'Search for highlights'] };
-function highlights(e) {
+function highlights(e, waited = false) {
   if (e?.status?.state !== 'post' || e.status.void) return null;
   const en = L() === 'en';
+  if (!waited && !knownHighlights(e) && watchMonthWanted(e)) {
+    const wait = el('div', { class: 'yt-link search' }, [ytLogo(), el('span', { class: 'yt-text' }, [el('strong', { text: HL_NAME.search[en ? 1 : 0] }), el('small', { class: 'one-line', text: en ? 'Finding the video…' : '找這場的影片…' })]), el('span', { class: 'yt-go', text: '›' })]);
+    loadWatchMonth(e, packJson).then(() => wait.isConnected && wait.replaceWith(highlights(e, true) || ''));
+    return wait;
+  }
   const v = knownHighlights(e);
   const kind = highlightsKind(v);
   if (!v) findHighlights(e, (url, o) => proxyJson(url, o)).catch(() => {});
