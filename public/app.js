@@ -11,6 +11,7 @@
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
+import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kit from '#kit/quadra.mjs';
 import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, onAir, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
@@ -569,6 +570,14 @@ function repaintDay(date) {
 async function loadDay(date) {
   const slot = state.days.get(date) || { events: [], at: 0, loading: false };
   if (slot.loading) return;
+  // A day outside every league's (nothing kept, or next season's before its
+  // schedule's in): nothing asked of the proxy.
+  await boundsRead;
+  if (!within(date, homeBounds())) {
+    Object.assign(slot, { events: [], at: Date.now(), stale: false, leagues: leaguesKey(), partial: 0 });
+    state.days.set(date, slot);
+    return repaintDay(date);
+  }
   slot.loading = true;
   state.days.set(date, slot);
   const isToday = date === today();
@@ -920,11 +929,14 @@ function dayChip(d, current, onPick) {
 }
 // `range`: the stretch of days shown (home's own by default; 賽事 keeps one
 // per league), and the person's own scroll of it (`held`, at `left`).
-function dateStrip(current, onPick, { only = null, range = stripRange } = {}) {
+// `bounds`: the days that can be asked for (lib/bounds.mjs): the strip and
+// 📅 stop there.
+function dateStrip(current, onPick, { only = null, range = stripRange, bounds = null } = {}) {
   if (current && !only) reach(current, range);
   // A day picked: the strip is centred on it again.
   const pickDay = d => ((range.held = false), onPick(d));
-  const row = el('div', { class: 'q-chips day-strip' }, stripDays(current, { only, range, base: today() }).map(d => dayChip(d, current, pickDay)));
+  const days = stripDays(current, { only, range, base: today() }).filter(d => d === current || within(d, bounds));
+  const row = el('div', { class: 'q-chips day-strip' }, days.map(d => dayChip(d, current, pickDay)));
   // Scrolled by the person: a repaint (a day or a team read, the live
   // refresh) keeps it where they left it (centerChosen), not back on the day.
   row.keepLeft = range.held ? range.left : null;
@@ -941,15 +953,30 @@ function dateStrip(current, onPick, { only = null, range = stripRange } = {}) {
   for (const ev of ['pointerdown', 'touchstart', 'wheel']) row.addEventListener(ev, () => (range.held = true), { passive: true });
   row.addEventListener('scroll', () => row.isConnected && row.clientWidth && range.held && (range.left = row.scrollLeft), { passive: true });
   // Any day: the browser's own date picker.
-  const pick = el('input', { class: 'day-pick-input', type: 'date', 'aria-label': L({ zh: '選擇日期', en: 'Pick a date' }), value: current || today() });
+  const pick = el('input', { class: 'day-pick-input', type: 'date', 'aria-label': L({ zh: '選擇日期', en: 'Pick a date' }), value: clampDay(current || today(), bounds), ...(bounds ? { min: bounds.from, max: bounds.to } : {}) });
   pick.addEventListener('change', () => {
     if (!pick.value) return;
-    reach(pick.value, range);
-    pickDay(pick.value);
+    const d = clampDay(pick.value, bounds);
+    reach(d, range);
+    pickDay(d);
   });
   const cal = el('label', { class: 'q-chip day-pick', title: L({ zh: '選擇日期', en: 'Pick a date' }) }, [el('span', { class: 'day-pick-icon', 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2"/></svg>' }), pick]);
   return el('div', { class: 'day-strip-wrap' }, [row, cal]);
 }
+// The days each league can be asked for (Shared-Data's nightly
+// sports/bounds.json): read once a session; null until read (nothing locked).
+let allBounds = null;
+const boundsRead = (kit.packJson?.('sports/bounds.json', { ttl: 12 * 3_600_000 }) || Promise.reject(new Error('old kit')))
+  .then(d => {
+    allBounds = d?.leagues || null;
+    // The strips drawn before it: their ends now.
+    if (state.tab === 'home') renderHome();
+    else if (state.tab === 'matches') renderScores();
+  })
+  .catch(() => null);
+// Home's: every league the app has, the earliest kept day to the latest last one.
+const homeBounds = () => unionBounds(allBounds, Object.keys(LEAGUES));
+const leagueBounds = league => boundsOf(allBounds, league);
 // A league's game days this season (Taipei dates): Shared-Data's nightly
 // sports/<league>/days.json (small; the season across both year packs), a
 // league without one (CPBL) from its own season. Read once a session; null
@@ -1179,7 +1206,8 @@ function homeHead() {
               h.autoDay = false;
               renderHome();
             },
-{ only: days }
+            // Every league's days (one sport's: its leagues').
+            { only: days, bounds: sport ? unionBounds(allBounds, Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport)) : homeBounds() }
           )
   ]);
 }
@@ -1927,7 +1955,7 @@ async function pickScoresDay(d) {
   // links with it (the cards drawn once, with their 愛爾達・重播).
   const at = Date.parse(`${d}T12:00:00`);
   const month = watchMonthsOf([-1, 0, 1].map(k => ({ league: sc.league, start: new Date(at + k * 86_400_000).toISOString(), status: { state: 'post' } })));
-  if (sc.byDay instanceof Map && !sc.byDay.has(d) && l.espn && sc.mode === 'days') {
+  if (sc.byDay instanceof Map && !sc.byDay.has(d) && l.espn && sc.mode === 'days' && within(d, leagueBounds(sc.league))) {
     renderScores();
     // Its US days: the one before, the day, and the one after.
     const us = [-1, 0, 1].map(k => yyyymmdd(new Date(at + k * 86_400_000)));
@@ -2230,7 +2258,7 @@ function renderScores() {
     const league = sc.league;
     const season = leagueDays(league, () => state.tab === 'matches' && state.scores.league === league && renderScores());
     const only = new Set([...sc.days, ...(season || [])]);
-    strip = dateStrip(sc.date, pickScoresDay, { only, range: sc.range });
+    strip = dateStrip(sc.date, pickScoresDay, { only, range: sc.range, bounds: leagueBounds(league) });
     const order = { in: 0, pre: 1, post: 2 };
     const games = [...(sc.byDay.get(sc.date) || [])].sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
     prefetchVideos(games);

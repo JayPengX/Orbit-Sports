@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodsOf, parseEltaIndex, eltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -265,7 +265,7 @@ test("a finished game's video on ELTA.tv: its season by league (CPBL's by the ho
   assert.equal(eltaVodOf({ league: 'mlb' }), 2150);
   assert.equal(eltaVodOf({ league: 'cpbl' }, ['味全龍', '味全']), 2160);
   assert.equal(eltaVodOf({ league: 'cpbl' }, ['樂天桃猿']), null);
-  assert.equal(eltaVodOf({ league: 'uecl' }), null);
+  assert.equal(eltaVodOf({ league: 'uecl' }), null, 'no page known in code');
   assert.equal(eltaVodUrl(2150, '73061'), 'https://eltaott.tv/sports/play/1/2150/73061');
   assert.equal(eltaVodApp(2150, '73061'), 'eltatv://vod/sports/2150/73061');
   const episodes = [
@@ -416,4 +416,27 @@ test('a play-off series game ELTA has yet to name is on, its channel to come', (
   assert.deepEqual(broadcastsFor({ ...g2, series: null, timeTbd: false }, oct, { sides: mlbSides(g2) }), []);
   // Sides not known yet: not taken as on.
   assert.deepEqual(broadcastsFor({ ...g2, away: { name: 'TBD', abbr: 'TBD', id: '-1' } }, oct, { sides: mlbSides(g2) }), []);
+});
+
+test("ELTA.tv's season pages found by their titles, a game's by its date (nothing coded per year)", () => {
+  const html = ['<a href="https://eltaott.tv/sports/play/1/2385"> <img src="x.png" alt="2026-27 NBA美國職籃" title="2026-27 NBA美國職籃"> </a>',
+    '<a href="https://eltaott.tv/sports/play/1/2150"> <img class="lazy" src="x.jpg" title="2026 MLB 美國職棒大聯盟"> </a>',
+    '<a href="https://eltaott.tv/sports/play/1/9150"> <img class="lazy" src="x.jpg" title="2027 MLB 美國職棒大聯盟"> </a>',
+    '<a href="https://eltaott.tv/sports/play/1/2320"> <img title="2026-27 英超精華"> </a>',
+    '<a href="https://eltaott.tv/sports/play/1/2243"> <img title="2026-27 英格蘭超級足球聯賽"> </a>',
+    '<a href="https://eltaott.tv/sports/play/1/2159"> <img title="2026 中華職棒 統一獅主場"> </a>',
+    '<a href="https://eltaott.tv/sports/play/1/2414"> <img title="2026 中華職棒 季後挑戰賽"> </a>',
+    '<a href="https://eltaott.tv/sports/play/1/2297"> <img title="2026 中華職棒明星對抗賽"> </a>',
+    '<a href="https://eltaott.tv/sports/play/1/1902"> <img title="中華職棒戰術解析"> </a>'].join('\n');
+  const index = parseEltaIndex(html);
+  assert.equal(index.length, 9);
+  const pages = eltaPages(index);
+  assert.deepEqual(pages.map(p => p.v), [2385, 2150, 9150, 2243, 2159, 2414]);
+  assert.deepEqual(eltaVodsOf({ league: 'mlb', start: '2026-09-19T23:00Z' }, [], pages), [2150]);
+  assert.deepEqual(eltaVodsOf({ league: 'mlb', start: '2027-04-02T23:00Z' }, [], pages), [9150], "next season's own page");
+  assert.deepEqual(eltaVodsOf({ league: 'nba', start: '2027-05-02T00:00Z' }, [], pages), [2385]);
+  assert.deepEqual(eltaVodsOf({ league: 'nba', start: '2026-03-02T00:00Z' }, [], pages), [], "last season's page gone");
+  assert.deepEqual(eltaVodsOf({ league: 'epl', start: '2027-02-01T15:00Z' }, [], pages), [2243]);
+  assert.deepEqual(eltaVodsOf({ league: 'cpbl', start: '2026-10-11T10:00Z' }, ['統一7-ELEVEn獅'], pages), [2159, 2414], "the home club's, then every club's");
+  assert.deepEqual(eltaVodsOf({ league: 'cpbl', start: '2026-10-11T10:00Z' }, ['樂天桃猿'], pages), [2414]);
 });

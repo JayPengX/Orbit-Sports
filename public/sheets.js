@@ -18,7 +18,7 @@ import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, stintStops, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, POINTS, asItStands, settleScoring } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
-import { broadcastsOf, twSource, ELTA_VOD, guideWhen } from './lib/broadcast.mjs';
+import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { SEASON_GAMES, liveTable, roundCounted, roundOf } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
@@ -1439,7 +1439,7 @@ function replayLink(e) {
   if (broadcastsOf(e.league)[0]?.svc !== 'elta') return null;
   // Only where there'll likely be one (a season of videos, or its channel in
   // ELTA's list): a row that comes and goes would move the sheet.
-  if (!ELTA_VOD[e.league] && e.league !== 'cpbl' && !tvOf(e).some(b => b.exact)) return null;
+  if (!ELTA_VOD_LEAGUES.has(e.league) && !tvOf(e).some(b => b.exact)) return null;
   const key = `${e.league}:${e.id}:${e.sessionKey || ''}`;
   if (replayKnown.has(key)) {
     const r = replayKnown.get(key);

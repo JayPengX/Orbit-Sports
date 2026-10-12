@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson, packJson } from '#kit/quadra.mjs';
-import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodOf, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { watchOf as packOf, loadWatchMonth } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
@@ -55,6 +55,14 @@ function schedule(read, parse, ttl, keep = '') {
     return value;
   };
 }
+// ELTA.tv's season pages, found each night by their titles (Shared-Data's
+// sports/elta-pages.json): read once a session (a new season is a new page;
+// unread, the ones known in code).
+let pagesRead = null;
+const eltaPagesReady = () =>
+  (pagesRead ||= packJson('sports/elta-pages.json', { ttl: 12 * 3_600_000 })
+    .then(d => useEltaPages(d?.pages))
+    .catch(() => (pagesRead = null)));
 // ELTA's programs.
 export const eltaSchedule = schedule(() => proxyJson(ELTA_LIST, { ttl: 30 * 60_000 }), parseElta, 30 * 60_000, 'fx.tv.elta');
 // NBA.com's ELTA games, the season: the deploy's copy on this site (scripts/nba-elta.mjs).
@@ -195,16 +203,25 @@ export async function replayOf(e, now = Date.now()) {
   // Shared-Data's: the game's episodes on ELTA.tv, found for its season
   // (its month's file read for a game the recent pack has let go); else
   // the season's page, its newest 120, read here.
-  if (!replay) await loadWatchMonth(e, packJson, now);
+  await Promise.all([replay ? null : loadWatchMonth(e, packJson, now), eltaPagesReady()]);
   const kept = packOf(e)?.elta;
-  const vod = kept?.v || eltaVodOf(e, sides[0]);
-  if (!vod) return replay ? { channels } : null;
-  const episodes = kept?.eps?.length
-    ? kept.eps.map(([id, title]) => ({ id: String(id), title }))
-    : await proxyJson(eltaVodUrl(vod), { ttl: 30 * 60_000 })
-        .then(d => d?.episodes || [])
-        .catch(() => []);
-  const episode = e.kind === 'match' ? eltaEpisode(episodes, e, sides, { prefer: prefer() }) : eltaSessionEpisode(episodes, e, { prefer: prefer() });
+  // Its season's page (CPBL's: its home club's, then the playoffs' and warm-ups'), the first with its episode.
+  const vods = kept?.v ? [kept.v] : eltaVodsOf(e, sides[0]);
+  if (!vods.length) return replay ? { channels } : null;
+  let vod = vods[0];
+  let episode = null;
+  for (const v of vods) {
+    const episodes = kept?.eps?.length
+      ? kept.eps.map(([id, title]) => ({ id: String(id), title }))
+      : await proxyJson(eltaVodUrl(v), { ttl: 30 * 60_000 })
+          .then(d => d?.episodes || [])
+          .catch(() => []);
+    episode = e.kind === 'match' ? eltaEpisode(episodes, e, sides, { prefer: prefer() }) : eltaSessionEpisode(episodes, e, { prefer: prefer() });
+    if (episode) {
+      vod = v;
+      break;
+    }
+  }
   // Its video already up (the NBA's, 歐國聯's, the next day) plays the game
   // at once; else its channels' 回看 while they have it.
   if (!episode && replay) return { channels };

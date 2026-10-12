@@ -356,8 +356,10 @@ export function broadcastsFor(e, programs, { sides = [], others = [], prefer = '
 // Then the whole game is a video in its league's season on ELTA.tv
 // (/sports/play/1/<n>, in the app eltatv://vod/sports/<n>/<episode>, ELTA's own
 // appRedirect mapping), when ELTA puts it up: the next day for some leagues
-// (the NBA, 歐國聯), weeks later for others (英超, 歐冠). The seasons' numbers
-// as of October 2026 (2026 and 2026-27): keep them current.
+// (the NBA, 歐國聯), weeks later for others (英超, 歐冠). A new season is a new
+// page: the pages are found each night by their titles on ELTA.tv's sports
+// index (Shared-Data's sports/elta-pages.json, `eltaPages`), so nothing here
+// changes from year to year. ELTA_VOD: October 2026's, until that's read.
 export const ELTA_REPLAY_HOURS = 48;
 // How ELTA writes a game: football's home side first ("曼聯 VS 曼城" at Old
 // Trafford), and a night's game under its evening; MLB's and the NBA's the
@@ -369,10 +371,72 @@ export const ELTA_VOD = { mlb: 2150, nba: 2385, f1: 2079, epl: 2243, seriea: 230
 const ELTA_VOD_CPBL = [['統一', 2159], ['味全', 2160], ['富邦', 2161], ['台鋼', 2162]];
 export const eltaVodUrl = (vod, episode = '') => `https://eltaott.tv/sports/play/1/${vod}${episode ? `/${episode}` : ''}`;
 export const eltaVodApp = (vod, episode = '') => `eltatv://vod/sports/${vod}/${episode}`;
-// The season a game's video goes in, or null. `home`: the home side's names (CPBL's).
-export function eltaVodOf(e, home = []) {
-  if (e?.league === 'cpbl') return ELTA_VOD_CPBL.find(([club]) => home.some(n => String(n).includes(club)))?.[1] ?? null;
-  return ELTA_VOD[e?.league] ?? null;
+// A league's season pages by their titles on ELTA.tv ("2026 MLB 美國職棒大聯盟",
+// "2026-27 NBA美國職籃", "2026 中華職棒 統一獅主場", "2026 中華職棒 季後挑戰賽");
+// its highlights' and news' pages ("2026-27 英超精華") aren't these.
+const ELTA_TITLES = {
+  mlb: /MLB 美國職棒大聯盟$/,
+  nba: /NBA美國職籃$/,
+  f1: /F1一級方程式賽車$/,
+  epl: /英格蘭超級足球聯賽$/,
+  seriea: /義大利甲級足球聯賽$/,
+  bundesliga: /德國甲級足球聯賽$/,
+  ligue1: /法國甲級足球聯賽$/,
+  scotland: /蘇格蘭超級足球聯賽$/,
+  ucl: /歐洲冠軍足球聯賽$/,
+  uel: /歐霸足球聯賽$/,
+  uecl: /歐洲協會足球聯賽$/,
+  nationsleague: /歐洲國家足球聯賽$/,
+  cpbl: /^中華職棒(?!.*(明星|戰術))/
+};
+// The leagues ELTA keeps whole games of.
+export const ELTA_VOD_LEAGUES = new Set(Object.keys(ELTA_TITLES));
+// ELTA.tv's sports index (its page's HTML) → [[page, title]…].
+export function parseEltaIndex(html) {
+  const out = new Map();
+  for (const m of String(html || '').matchAll(/\/sports\/play\/1\/(\d+)"[^>]*>\s*<img[^>]*?title="([^"]+)"/g)) if (!out.has(m[1])) out.set(m[1], m[2].replace(/&amp;/g, '&').trim());
+  return [...out].map(([v, title]) => [Number(v), title]);
+}
+// Those pages as seasons: { v, league, from, to (ms), club? }. "2026": that
+// year (Taiwan's); "2026-27": July to July. CPBL's a club's home games
+// ("統一獅主場": its club), else every club's (the playoffs, the warm-ups).
+export function eltaPages(index) {
+  const out = [];
+  for (const [v, raw] of index || []) {
+    const m = String(raw).match(/^(\d{4})(?:-(\d{2}))?\s*(.+)$/);
+    if (!m) continue;
+    const name = m[3].trim();
+    const league = Object.keys(ELTA_TITLES).find(k => ELTA_TITLES[k].test(name));
+    if (!league) continue;
+    const y = Number(m[1]);
+    const [from, to] = m[2] ? [Date.UTC(y, 6, 1), Date.UTC(y + 1, 6, 1)] : [Date.UTC(y, 0, 1), Date.UTC(y + 1, 0, 1)];
+    const club = league === 'cpbl' ? name.match(/^中華職棒 (\S+?)主場$/)?.[1] || '' : '';
+    out.push({ v: Number(v), league, from: from - 8 * 3_600_000, to: to - 8 * 3_600_000, ...(league === 'cpbl' ? { club } : {}) });
+  }
+  return out;
+}
+// The pages read (Shared-Data's sports/elta-pages.json, as eltaPages): the
+// app's, set once read (tv.mjs).
+let knownPages = null;
+export const useEltaPages = index => (knownPages = index?.length ? eltaPages(index) : null);
+// The season pages a game's video can be in, the likeliest first. `home`:
+// the home side's names (CPBL's); `pages`: eltaPages' (null: not read yet,
+// the pages known in October 2026).
+export function eltaVodsOf(e, home = [], pages = knownPages) {
+  if (!pages) {
+    const v = e?.league === 'cpbl' ? ELTA_VOD_CPBL.find(([club]) => home.some(n => String(n).includes(club)))?.[1] : ELTA_VOD[e?.league];
+    return v ? [v] : [];
+  }
+  const t = Date.parse(e?.start || '');
+  const of = pages.filter(p => p.league === e?.league && (!Number.isFinite(t) || (t >= p.from && t < p.to)));
+  if (e?.league !== 'cpbl') return of.map(p => p.v);
+  // CPBL's: the home club's page, else the pages of every club's games.
+  const mine = of.filter(p => p.club && home.some(n => String(n).includes(p.club.slice(0, 2))));
+  return [...mine, ...of.filter(p => !p.club)].map(p => p.v);
+}
+// The season a game's video goes in, or null (the likeliest of eltaVodsOf).
+export function eltaVodOf(e, home = [], pages = knownPages) {
+  return eltaVodsOf(e, home, pages)[0] ?? null;
 }
 // Whether a game's channel can still play it again (回看).
 export const inReplay = (e, now = Date.now()) => now - Date.parse(e.start) < ELTA_REPLAY_HOURS * 3_600_000;
