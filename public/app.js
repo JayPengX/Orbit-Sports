@@ -528,6 +528,9 @@ const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).p
 // `current`: each league's current scoreboard (what's on now) instead of the day's dates.
 const rawDays = new Map();
 async function readDay(leagues, date, { current = false } = {}) {
+  // Only the leagues whose own kept days hold it (home's reach is every
+  // league's together: a day of UECL's last season isn't asked of NBA).
+  leagues = leagues.filter(k => within(date, leagueBounds(k)));
   const dates = espnDaysOf(date);
   const isToday = date === today();
   // A league that couldn't be read is counted, never taken for "no games".
