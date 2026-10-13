@@ -41,6 +41,59 @@ export function onPitch(rosters) {
     const on = played.filter(p => !p.subbedOut && !p.sentOff).map(p => (p.subbedIn ? { ...p, pos: posOf(p) } : p)).sort((a, b) => slot(a) - slot(b));
     const off = played.filter(p => p.subbedOut || p.sentOff);
     const bench = r.players.filter(p => !p.starter && !p.subbedIn);
-    return { team: r.team, formation: r.formation, on, off, bench };
+    // Each slot's last holder (a player sent off keeps his slot empty): the pitch's places.
+    const held = played.filter(p => !p.subbedOut).map(p => (p.subbedIn ? { ...p, pos: posOf(p) } : p));
+    return { team: r.team, formation: r.formation, on, off, bench, held };
   }).filter(s => s.on.length);
+}
+
+// Where each player stands, as a broadcast draws the line-ups: rows from his
+// own goal (the keeper, then the formation's lines: 4-2-3-1 is four, two,
+// three, one) and each row from his side's left to its right. ESPN's slots
+// say the line loosely (a 4-2-3-1's two holding midfielders come as LM and
+// RM), so the players go into the formation's rows by how deep each
+// position plays, then across by its side. held: onPitch's (sent off too,
+// so the shape stays), formation: "4-2-3-1".
+// Returns [{ p, x, y }]: x 0..1 from his side's left, y 0..1 from his own goal line to halfway.
+const DEPTH = { G: 0, GK: 0, SW: 0.8, CD: 1, CB: 1, D: 1, LB: 1, RB: 1, LWB: 1.6, RWB: 1.6, WB: 1.6, DM: 2, CM: 2.5, M: 2.5, LM: 2.6, RM: 2.6, AM: 3, LW: 3.5, RW: 3.5, F: 4, CF: 4, ST: 4, FW: 4 };
+const depthOf = pos => {
+  const a = String(pos || '').toUpperCase();
+  return DEPTH[a] ?? DEPTH[a.replace(/-[LR]$/, '')] ?? 2.5;
+};
+const sideOf = pos => {
+  const a = String(pos || '').toUpperCase();
+  if (/-L$/.test(a)) return -1;
+  if (/-R$/.test(a)) return 1;
+  if (/^L/.test(a)) return -2;
+  if (/^R/.test(a)) return 2;
+  return 0;
+};
+export function pitchSpots(held, formation) {
+  const keeper = held.find(p => depthOf(p.pos) === 0) || null;
+  const field = held.filter(p => p !== keeper).sort((a, b) => depthOf(a.pos) - depthOf(b.pos) || (a.place || 99) - (b.place || 99));
+  let counts = String(formation || '').split('-').map(Number).filter(n => n > 0);
+  // No formation, or one that doesn't add up: a row for each depth there is.
+  if (counts.reduce((a, b) => a + b, 0) !== field.length) {
+    counts = [];
+    let last = null;
+    for (const p of field) {
+      const d = Math.round(depthOf(p.pos));
+      if (d === last) counts[counts.length - 1]++;
+      else counts.push(1), (last = d);
+    }
+  }
+  const rows = [];
+  let at = 0;
+  for (const n of counts) rows.push(field.slice(at, (at += n)));
+  // The keeper clear of the goal line (his name under him), the lines from
+  // under a third of the way up the half to an eighth short of halfway:
+  // four lines a face and a name apart, the two sides' forwards kept apart
+  // (at 0.9 they met in the centre circle).
+  const out = keeper ? [{ p: keeper, x: 0.5, y: 0.1 }] : [];
+  rows.forEach((row, i) => {
+    const y = rows.length === 1 ? 0.55 : 0.28 + (0.6 * i) / (rows.length - 1);
+    row.sort((a, b) => sideOf(a.pos) - sideOf(b.pos) || (a.place || 99) - (b.place || 99));
+    row.forEach((p, j) => out.push({ p, x: 0.08 + (0.84 * (j + 0.5)) / row.length, y }));
+  });
+  return out;
 }

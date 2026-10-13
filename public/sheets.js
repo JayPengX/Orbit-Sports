@@ -8,7 +8,7 @@ import { splitName, otherName } from './lib/compname.mjs';
 import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
-import { onCourt, onPitch } from './lib/onfield.mjs';
+import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts } from './lib/moments.mjs';
@@ -866,13 +866,79 @@ function onFieldCard(d, e, nameOf) {
   }
   if (sport === 'soccer') {
     const xi = order(onPitch(d.rosters));
-    if (!xi.length) return null;
-    const right = p => el('small', {}, [posZh(p.pos, sport, L()), p.subbedIn && p.subAt ? el('span', { class: 'sub-on', text: ` ↑${p.subAt}` }) : null]);
-    const head = s => [nameOf(s.team), s.formation, s.on.length < 11 ? (en ? `${s.on.length} men` : `${s.on.length} 人`) : ''].filter(Boolean).join(' · ');
-    return card(en ? 'On the pitch' : '場上球員', el('div', { class: 'injuries' }, xi.map(s => el('div', {}, [el('p', { class: 'mini-h', text: head(s) }), el('ul', { class: 'inj-list lineup-list' }, s.on.map(p => row({ ...p, name: p.short || p.name, full: p.name }, right(p))))]))), { sub: en ? 'Live' : '即時' });
+    if (xi.length < 2) return null;
+    return card(en ? 'On the pitch' : '場上球員', el('div', {}, [pitchView(xi, d, e, nameOf), subsList(xi, nameOf, e.league)]), { sub: en ? 'Live' : '即時' });
   }
   return null;
 }
+// The pitch as a broadcast draws it: the away side in the top half
+// attacking down, the home side in the bottom half attacking up, each
+// player a shirt in his team's colour with his number, in his place in the
+// formation (lib/onfield.mjs pitchSpots), his name under it; one who came
+// on with a green ↑. A side's name and shape at its own end.
+function pitchView([away, home], d, e, nameOf) {
+  const en = L() === 'en';
+  const colourOf = id => {
+    const t = d.byId?.[id] || (id === String(e.home.id) ? e.home : e.away);
+    return { main: t?.color || null, alt: t?.alt || null };
+  };
+  const [ca, ch] = [colourOf(away.team), colourOf(home.team)];
+  // Two sides in one colour: the away side in its second.
+  const awayShirt = ca.main && ch.main && near(ca.main, ch.main) && ca.alt ? ca.alt : ca.main || '#2f6fdf';
+  const homeShirt = ch.main || '#d9443a';
+  const surname = p => {
+    const s = p.short || p.name || '';
+    return /^\S{1,3}\. /.test(s) ? s.replace(/^\S{1,3}\. /, '') : s;
+  };
+  // His face in a ring of his team's colour, his number on it; a sub on with a green ↑. A tap: his page.
+  const marker = (p, x, y, shirt) =>
+    el('button', { class: 'pm', type: 'button', style: `left:${(x * 100).toFixed(1)}%;top:${(y * 100).toFixed(1)}%;--shirt:${shirt}`, 'aria-label': `${p.name}${p.subbedIn ? (en ? ', came on' : '，替補上場') : ''}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [
+      el('span', { class: 'pm-face' }, [personPic(p, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(shirt)}`, text: p.jersey }) : null, p.subbedIn ? el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' }) : null]),
+      el('span', { class: 'pm-name', text: surname(p) })
+    ]);
+  const spots = [
+    // The away side's left is the screen's right, its goal at the top.
+    ...pitchSpots(away.held, away.formation).filter(s => !s.p.sentOff).map(s => marker(s.p, 1 - s.x, s.y / 2, awayShirt)),
+    ...pitchSpots(home.held, home.formation).filter(s => !s.p.sentOff).map(s => marker(s.p, s.x, 1 - s.y / 2, homeShirt))
+  ];
+  const label = s => el('p', { class: 'pitch-team' }, [el('strong', { text: nameOf(s.team) }), el('span', { class: 'num', text: [s.formation, s.on.length < 11 ? (en ? `${s.on.length} men` : `${s.on.length} 人`) : ''].filter(Boolean).join(' · ') })]);
+  return el('div', { class: 'pitch-wrap' }, [label(away), el('div', { class: 'pitch' }, [el('div', { class: 'pitch-lines', 'aria-hidden': 'true', html: PITCH_LINES }), ...spots]), label(home)]);
+}
+// The substitutions so far, each side's in order: the minute, who came on (green ↑) and who went off (red ↓); a red card too.
+function subsList(sides, nameOf, league) {
+  const en = L() === 'en';
+  const parts = sides
+    .map(s => {
+      const all = [...s.on, ...s.off];
+      const byId = new Map(all.map(p => [p.id, p]));
+      const minute = t => parseInt(t, 10) || 0;
+      const who = p => (p?.id ? el('button', { class: 'link', type: 'button', text: p.short || p.name, onclick: () => ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }) : p?.short || p?.name || '');
+      const rows = [
+        ...all.filter(p => p.subbedIn).map(p => ({ at: p.subAt, li: el('li', {}, [el('span', { class: 'num sub-at', text: p.subAt }), el('span', { class: 'sub-pair' }, [el('span', { class: 'nb' }, [el('b', { class: 'arrow-in', text: '↑ ' }), who(p)]), byId.get(p.inFor) ? el('span', { class: 'nb' }, [el('b', { class: 'arrow-out', text: '↓ ' }), who(byId.get(p.inFor))]) : null])]) })),
+        ...all.filter(p => p.sentOff).map(p => ({ at: p.sentAt, li: el('li', {}, [el('span', { class: 'num sub-at', text: p.sentAt }), el('span', { class: 'sub-pair' }, [el('span', { class: 'nb' }, [el('b', { class: 'card-red', 'aria-hidden': 'true' }), ' ', who(p), ` · ${en ? 'sent off' : '紅牌'}`])])]) }))
+      ].sort((a, b) => minute(a.at) - minute(b.at));
+      return rows.length ? el('div', {}, [el('p', { class: 'mini-h', text: nameOf(s.team) }), el('ul', { class: 'subs-list' }, rows.map(r => r.li))]) : null;
+    })
+    .filter(Boolean);
+  return parts.length ? el('div', { class: 'subs-block' }, [el('p', { class: 'subs-h', text: en ? 'Substitutions' : '換人' }), ...parts]) : null;
+}
+const hexRgb = c => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(c || ''));
+  return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null;
+};
+const near = (a, b) => {
+  const [x, y] = [hexRgb(a), hexRgb(b)];
+  return Boolean(x && y) && Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) < 90;
+};
+const inkOn = c => {
+  const x = hexRgb(c);
+  return x && (0.299 * x[0] + 0.587 * x[1] + 0.114 * x[2]) / 255 > 0.6 ? '#111' : '#fff';
+};
+// The pitch's lines: 68 wide, drawn 118 long (a real one is 105): a
+// broadcast's pitch is longer than life, so four lines a side fit with a
+// face and a name between each. The touchlines, halfway, the centre circle,
+// both boxes and six-yard boxes at their real sizes, in the theme's line colour.
+const PITCH_LINES = '<svg viewBox="0 0 68 118" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width=".5"><rect x="1" y="1" width="66" height="116"/><path d="M1 59h66"/><circle cx="34" cy="59" r="9.15"/><circle cx="34" cy="59" r=".6" fill="currentColor"/><path d="M13.84 1v16.5h40.32V1M24.84 1v5.5h18.32V1M13.84 117V100.5h40.32V117M24.84 117V111.5h18.32V117"/><path d="M26.7 17.5a9.15 9.15 0 0 0 14.6 0M26.7 100.5a9.15 9.15 0 0 1 14.6 0"/></svg>';
 
 // A few table columns worth comparing, by sport.
 function keyStats(league, places) {

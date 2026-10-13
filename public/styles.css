@@ -13,6 +13,10 @@
   --draw: #a16207;
   --loss: #dc2626;
   --away: #64748b;
+  /* The pitch (場上球員): quiet, of the page's own tones, a hint of grass. */
+  --pitch: #e4ece5;
+  --pitch-band: #dde6de;
+  --pitch-line: rgba(30, 70, 40, 0.22);
   font-family: var(--q-font);
 }
 @media (prefers-color-scheme: dark) {
@@ -27,6 +31,9 @@
     --draw: #fbbf24;
     --loss: #f87171;
     --away: #94a3b8;
+    --pitch: #18201a;
+    --pitch-band: #1b241d;
+    --pitch-line: rgba(255, 255, 255, 0.13);
   }
 }
 :root[data-theme='dark'] {
@@ -40,6 +47,9 @@
   --draw: #fbbf24;
   --loss: #f87171;
   --away: #94a3b8;
+  --pitch: #18201a;
+  --pitch-band: #1b241d;
+  --pitch-line: rgba(255, 255, 255, 0.13);
 }
 
 * { box-sizing: border-box; }
@@ -1758,3 +1768,28 @@ button.lp-person.tap:active { opacity: 0.6; }
 /* 場上球員 (a game on): a sub's minute on, a player sent off, fouls from the fourth. */
 .sub-on { color: var(--q-muted); font-weight: 600; }
 .sent-off, .foul-trouble { color: var(--loss); font-weight: 700; }
+/* 場上球員 (soccer): the pitch, as a broadcast draws the line-ups, in the page's own tones (light and dark). */
+.pitch-wrap { display: grid; gap: 6px; }
+.pitch-team { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0; font-size: 13px; }
+.pitch-team span { color: var(--q-muted); font-weight: 650; font-size: 12px; white-space: nowrap; }
+.pitch { position: relative; aspect-ratio: 68 / 118; border-radius: 12px; overflow: hidden; background: repeating-linear-gradient(to bottom, var(--pitch) 0 8.33%, var(--pitch-band) 8.33% 16.66%); }
+.pitch-lines { position: absolute; inset: 0; color: var(--pitch-line); }
+.pitch-lines svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pm { position: absolute; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 2px; width: 70px; padding: 0; border: 0; background: none; color: var(--q-text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pm-face { position: relative; width: 34px; height: 34px; border-radius: 50%; box-shadow: 0 0 0 2px var(--shirt), 0 1px 3px rgba(0, 0, 0, 0.25); background: var(--q-surface); }
+.pm-face .logo { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; object-position: top; font-size: 11px; }
+.pm-num { position: absolute; left: -7px; bottom: -4px; min-width: 17px; height: 15px; padding: 0 3px; border-radius: 8px; display: grid; place-items: center; font-size: 9.5px; font-weight: 800; line-height: 1; background: var(--shirt); box-shadow: 0 0 0 1.5px var(--q-surface); }
+.pm-name { max-width: 70px; font-size: 10.5px; font-weight: 700; line-height: 1.15; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.pm:active .pm-face { transform: scale(0.94); }
+.pm-sub { position: absolute; top: -5px; right: -7px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; font-size: 10px; font-weight: 900; line-height: 1; color: #fff; box-shadow: 0 0 0 1.5px var(--q-surface); }
+.pm-sub.on { background: #1fa34a; }
+.subs-block { margin-top: 12px; display: grid; gap: 6px; }
+.subs-h { margin: 0; font-size: 13px; font-weight: 750; }
+.subs-list { list-style: none; margin: 0; padding: 0; }
+.subs-list .link { color: inherit; font: inherit; padding: 0; }
+.subs-list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 4px 0; font-size: 13px; }
+.sub-at { color: var(--q-muted); font-size: 12px; }
+.sub-pair { display: flex; flex-wrap: wrap; column-gap: 12px; row-gap: 2px; }
+.arrow-in { color: #1fa34a; }
+.arrow-out { color: #d9443a; }
+.card-red { display: inline-block; width: 9px; height: 12px; border-radius: 2px; background: #d9443a; vertical-align: -1px; }

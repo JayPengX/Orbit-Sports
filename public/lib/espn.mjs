@@ -1081,7 +1081,8 @@ export function parseSummary(data, league) {
       subbedOut: Boolean(x.subbedOut),
       inFor: String(x.subbedInFor?.athlete?.id ?? ''),
       subAt: (x.plays || []).find(q => q.substitution)?.clock?.displayValue || '',
-      sentOff: (x.plays || []).some(q => q.redCard) || Number((x.stats || []).find(s => s.name === 'redCards')?.value) > 0
+      sentOff: (x.plays || []).some(q => q.redCard) || Number((x.stats || []).find(s => s.name === 'redCards')?.value) > 0,
+      sentAt: (x.plays || []).find(q => q.redCard)?.clock?.displayValue || ''
     }))
   }));
   const leaders = (data?.leaders || []).flatMap(t =>

@@ -38,3 +38,18 @@ test("soccer: a sub on the pitch takes the position of the one he replaced, not 
   const got = onPitch([{ team: '1', formation: '', players: [{ id: 'cb', pos: 'CD-L', place: 6, starter: true, subbedOut: true }, { id: 'sub', pos: 'SUB', place: 0, subbedIn: true, inFor: 'cb' }] }]);
   assert.equal(got[0].on[0].pos, 'CD-L');
 });
+
+import { pitchSpots } from '../public/lib/onfield.mjs';
+test("the pitch: a 4-2-3-1 as ESPN marks it (its holding pair as LM and RM) in the formation's rows, each from left to right", () => {
+  const xi = [['G', 1], ['RB', 2], ['LB', 3], ['LM', 4], ['CD-R', 5], ['CD-L', 6], ['AM-R', 7], ['RM', 8], ['F', 9], ['AM', 10], ['AM-L', 11]].map(([pos, place]) => ({ id: pos, pos, place }));
+  const spots = pitchSpots(xi, '4-2-3-1');
+  const row = y => spots.filter(s => s.y === y).sort((a, b) => a.x - b.x).map(s => s.p.pos);
+  const ys = [...new Set(spots.map(s => s.y))].sort((a, b) => a - b);
+  assert.deepEqual(ys.map(row), [['G'], ['LB', 'CD-L', 'CD-R', 'RB'], ['LM', 'RM'], ['AM-L', 'AM', 'AM-R'], ['F']]);
+});
+test('the pitch: a 3-5-2 with wing-backs, and a formation that no longer adds up (a man sent off taken out) in rows by depth', () => {
+  const xi = [['G', 1], ['CD-L', 2], ['CD', 3], ['CD-R', 4], ['LWB', 5], ['CM-L', 6], ['DM', 7], ['CM-R', 8], ['RWB', 9], ['CF-L', 10], ['CF-R', 11]].map(([pos, place]) => ({ id: pos, pos, place }));
+  const rows = s => [...new Set(s.map(x => x.y))].sort((a, b) => a - b).map(y => s.filter(x => x.y === y).sort((a, b) => a.x - b.x).map(x => x.p.pos));
+  assert.deepEqual(rows(pitchSpots(xi, '3-5-2')), [['G'], ['CD-L', 'CD', 'CD-R'], ['LWB', 'CM-L', 'DM', 'CM-R', 'RWB'], ['CF-L', 'CF-R']]);
+  assert.equal(pitchSpots(xi.slice(0, 10), '3-5-2').length, 10);
+});
