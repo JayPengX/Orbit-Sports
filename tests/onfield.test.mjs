@@ -53,3 +53,10 @@ test('the pitch: a 3-5-2 with wing-backs, and a formation that no longer adds up
   assert.deepEqual(rows(pitchSpots(xi, '3-5-2')), [['G'], ['CD-L', 'CD', 'CD-R'], ['LWB', 'CM-L', 'DM', 'CM-R', 'RWB'], ['CF-L', 'CF-R']]);
   assert.equal(pitchSpots(xi.slice(0, 10), '3-5-2').length, 10);
 });
+
+test('basketball: the starters sitting now, so all five are said', () => {
+  const rows = [{ id: 'a', on: true, starter: true, stats: [] }, { id: 'b', on: false, starter: true, stats: [] }, { id: 'c', on: true, starter: false, stats: [] }, { id: 'd', on: false, starter: false, stats: [] }];
+  const got = onCourt([{ team: '1', tables: [{ labels: [], rows }] }])[0];
+  assert.deepEqual(got.players.map(p => p.id), ['a', 'c']);
+  assert.deepEqual(got.resting.map(p => p.id), ['b']);
+});

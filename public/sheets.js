@@ -827,14 +827,15 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     .filter(Boolean)
     .filter(([, , v]) => v && (!Array.isArray(v) || v.length));
   const leadersBy = sides.map(s => (d?.leaders || []).filter(l => l.team === s.id && l.name).slice(0, 4));
-  return el('div', { class: 'stack' }, [
-    replayLink(e),
-    highlights(e),
+  const part = {
+    replay: replayLink(e),
+    highlights: highlights(e),
     // (A guest club from outside the league has no record or place to set beside the other's.)
-    e.home.guest || e.away.guest ? null : card(T('matchup'), compare),
-    winCard(d, e, line, wait),
-    onFieldCard(d, e, nameOf) || lineupCard(d?.lineups, e, nameOf),
-    leadersBy.some(x => x.length)
+    matchup: e.home.guest || e.away.guest ? null : card(T('matchup'), compare),
+    win: winCard(d, e, line, wait),
+    onField: onFieldCard(d, e, nameOf),
+    lineups: lineupCard(d?.lineups, e, nameOf),
+    leaders: leadersBy.some(x => x.length)
       ? card(
           T('leaders'),
           el(
@@ -849,8 +850,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
           )
         )
       : null,
-    d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
-    d?.injuries.some(i => i.list.length)
+    series: d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
+    injuries: d?.injuries.some(i => i.list.length)
       ? card(
           T('injuries'),
           el(
@@ -864,9 +865,20 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
           )
         )
       : null,
-    exactTv ? twCard(e.league, e) : null,
-    card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([, k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
-  ]);
+    tv: exactTv ? twCard(e.league, e) : null,
+    info: card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([, k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
+  };
+  // In the order the game's moment wants (the owner, 2026-10-13: the live
+  // page had grown): on, who's on now first, then the live chance, who's
+  // leading, the rest; to come, the matchup, the chance, who starts; over,
+  // the replay and highlights, who led, the chance's story, the rest.
+  const ORDER = {
+    in: ['onField', 'win', 'leaders', 'matchup', 'series', 'injuries', 'tv', 'info'],
+    pre: ['matchup', 'win', 'lineups', 'series', 'injuries', 'tv', 'info', 'leaders'],
+    post: ['replay', 'highlights', 'leaders', 'win', 'matchup', 'series', 'info', 'injuries']
+  };
+  const state = (d?.status || e.status).state;
+  return el('div', { class: 'stack' }, (ORDER[state] || ORDER.pre).map(k => part[k] || (k === 'onField' ? part.lineups : null)));
 }
 
 // Who starts (pregameLineups): MLB's probable pitchers and batting orders,
@@ -919,18 +931,23 @@ function onFieldCard(d, e, nameOf) {
     if (!five.length) return null;
     const shirt = shirtsOf(d, e);
     // Each side's five as a row of faces (no court: a basketball position
-    // is no place on the floor): the number; at the corner a green ↑ for one
-    // off the bench (soccer's sub on), 先 for a starter (the owner,
-    // 2026-10-13: the arrow means a sub, and a starter says so apart); his
-    // points, then rebounds and assists, fouls from the fourth in red.
+    // is no place on the floor): the number; a green ↑ at the corner for one
+    // off the bench (soccer's sub on), and under the name 先發 or 替補 in
+    // words (the owner, 2026-10-13: a corner mark for a starter went
+    // unseen); his points, then rebounds and assists, fouls from the fourth
+    // in red. Under the row, the side's starters sitting now.
     const tile = (p, colour) =>
       el('button', { class: 'five-tile', type: 'button', style: `--shirt:${colour}`, 'aria-label': `${p.full || p.name}${p.starter ? (en ? ', starter' : '，先發') : en ? ', off the bench' : '，替補'}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
-        el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, p.starter ? el('span', { class: 'pm-sub starter', 'aria-hidden': 'true', text: en ? 'S' : '先' }) : el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' })]),
+        el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, p.starter ? null : el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' })]),
         el('span', { class: 'pm-name', text: surnameOf(p) }),
+        // Said in words, not a mark to learn: 先發 or 替補 (the green ↑ on the face too).
+        el('span', { class: `five-role${p.starter ? ' starter' : ''}`, text: p.starter ? (en ? 'Starter' : '先發') : en ? 'Bench' : '替補' }),
         el('strong', { class: 'five-pts num', text: en ? `${p.line.pts || 0} PTS` : `${p.line.pts || 0} 分` }),
         el('small', { class: 'five-more num' }, [en ? `${p.line.reb || 0} R ${p.line.ast || 0} A` : `${p.line.reb || 0}板 ${p.line.ast || 0}助`, Number(p.line.pf) >= 4 ? el('b', { class: 'foul-trouble', text: en ? ` ${p.line.pf}PF` : ` ${p.line.pf}犯` }) : null])
       ]);
-    return card(en ? 'On the court' : '場上球員', el('div', { class: 'five-sides' }, five.map(s => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(s.team) }), el('div', { class: 'five-row' }, s.players.map(p => tile(p, shirt[s.team])))]))), { sub: en ? 'Live' : '即時' });
+    // The side's starters sitting now, by name (a tap opens each).
+    const resting = s => s.resting.length ? el('p', { class: 'five-resting' }, [el('span', { class: 'muted', text: en ? 'Starters sitting: ' : '先發休息：' }), ...joinNodes(s.resting.map(p => el('button', { class: 'link', type: 'button', text: surnameOf(p), onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) })), en ? ', ' : '、')]) : null;
+    return card(en ? 'On the court' : '場上球員', el('div', { class: 'five-sides' }, five.map(s => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(s.team) }), el('div', { class: 'five-row' }, s.players.map(p => tile(p, shirt[s.team]))), resting(s)]))), { sub: en ? 'Live' : '即時' });
   }
   if (sport === 'baseball' && d.field) return card(en ? 'On the field' : '場上球員', diamondView(d, e, nameOf), { sub: en ? 'Live' : '即時' });
   if (sport === 'soccer') {
@@ -969,7 +986,8 @@ function pitchView([away, home], d, e, nameOf) {
 // face at his position in his team's colour, the batter by the plate in
 // his; the bases with a runner lit, and under it the inning, the outs, the
 // batter and who's on. A face opens the player (ESPN's, found by name).
-const FIELD_SPOTS = { P: [50, 66], C: [50, 91], '1B': [77, 62], '2B': [61, 45], SS: [39, 45], '3B': [23, 62], LF: [20, 29], CF: [50, 16], RF: [80, 29] };
+const RUNNER_SPOTS = [[70, 66], [50, 47], [30, 66]];
+const FIELD_SPOTS = { P: [50, 66], C: [50, 91], '1B': [80, 53], '2B': [63, 44], SS: [37, 44], '3B': [20, 53], LF: [20, 29], CF: [50, 16], RF: [80, 29] };
 function diamondView(d, e, nameOf) {
   const en = L() === 'en';
   const f = d.field;
@@ -981,10 +999,10 @@ function diamondView(d, e, nameOf) {
     const r = rows.get(plain(full));
     return { id: r?.id || '', name: full, full, short: r?.name || '', headshot: r?.headshot || null };
   };
-  const marker = (full, [x, y], colour, label = '') => {
+  const marker = (full, [x, y], colour, label = '', cls = '') => {
     if (!full) return null;
     const p = who(full);
-    return el('button', { class: 'pm', type: 'button', style: `left:${x}%;top:${y}%;--shirt:${colour}`, 'aria-label': `${label ? `${label} ` : ''}${full}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: full, logo: p.headshot }) }, [
+    return el('button', { class: `pm${cls ? ` ${cls}` : ''}`, type: 'button', style: `left:${x}%;top:${y}%;--shirt:${colour}`, 'aria-label': `${label ? `${label} ` : ''}${full}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: full, logo: p.headshot }) }, [
       el('span', { class: 'pm-face' }, [personPic(p, e.league, 'pm-pic'), label ? el('span', { class: 'pm-num', style: `color:${inkOn(colour)}`, text: label }) : null]),
       el('span', { class: 'pm-name', text: surnameOf({ name: full, short: p.short || full.split(' ').slice(1).join(' ') || full }) })
     ]);
@@ -994,7 +1012,11 @@ function diamondView(d, e, nameOf) {
   const field = el('div', { class: 'diamond-field' }, [
     el('div', { class: 'pitch-lines', 'aria-hidden': 'true', html: diamondLines(lit) }),
     ...Object.entries(FIELD_SPOTS).map(([k, at]) => marker(f.defense[k], at, shirt[String(fieldSide.id)], posWord(k))),
-    marker(f.batter, [31, 86], shirt[String(batSide.id)], en ? 'AB' : '打')
+    marker(f.batter, [31, 86], shirt[String(batSide.id)], en ? 'AB' : '打'),
+    // Each runner on his base: a smaller face, his base on it, no name (the
+    // line under the field names him; a name here ran over the infielders'),
+    // the corner infielders a step off the bag; a tap opens him as any other.
+    ...f.runners.map((r, i) => marker(r, RUNNER_SPOTS[i], shirt[String(batSide.id)], en ? ['1B', '2B', '3B'][i] : ['一', '二', '三'][i], 'runner'))
   ]);
   const half = en ? `${f.top ? 'Top' : 'Bottom'} ${f.inning}` : `${f.inning} 局${f.top ? '上' : '下'}`;
   const bases = en ? ['1st', '2nd', '3rd'] : ['一壘', '二壘', '三壘'];

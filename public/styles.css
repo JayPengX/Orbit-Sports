@@ -1834,3 +1834,13 @@ button.lp-person.tap:active { opacity: 0.6; }
 .diamond-field .pm-num { min-width: 19px; font-size: 9px; }
 .diamond-at-bat { display: grid; gap: 2px; margin: 0; font-size: 13px; }
 .diamond-at-bat .muted { font-size: 12.5px; }
+/* A runner on his base: a smaller face in the batting side's colour. */
+.pm.runner .pm-face, .pm.runner .pm-face .logo { width: 24px; height: 24px; }
+.pm.runner .pm-name { display: none; }
+/* The five: 先發 or 替補 in words under the name; the starters sitting, under the row. */
+.five-role { padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700; line-height: 1.4; color: #1a8f41; background: rgba(31, 163, 74, 0.13); }
+.five-role.starter { color: var(--q-text); background: var(--q-sunken); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .five-role:not(.starter) { color: #4ade80; } }
+:root[data-theme='dark'] .five-role:not(.starter) { color: #4ade80; }
+.five-resting { margin: 6px 0 0; font-size: 12.5px; }
+.five-resting .link { padding: 0; font: inherit; font-weight: 650; }

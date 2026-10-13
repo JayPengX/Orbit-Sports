@@ -10,7 +10,8 @@
 //     replaced (the formation's slot), so the eleven keep the formation's order.
 
 // Basketball: each side's five, with the numbers that matter now (and
-// whether each started: the box score's own mark).
+// whether each started: the box score's own mark), and the side's starters
+// sitting now (`resting`), so all five starters are said.
 // players: parseSummary's [{ team, tables: [{ labels, rows }] }].
 export function onCourt(players) {
   return (players || []).map(p => {
@@ -18,7 +19,7 @@ export function onCourt(players) {
     const at = k => tb?.labels?.indexOf(k) ?? -1;
     const num = (r, k) => (at(k) >= 0 ? r.stats?.[at(k)] ?? '' : '');
     const list = (tb?.rows || []).filter(r => r.on).map(r => ({ ...r, line: { pts: num(r, 'PTS'), reb: num(r, 'REB'), ast: num(r, 'AST'), pf: num(r, 'PF'), min: num(r, 'MIN') } }));
-    return { team: p.team, players: list };
+    return { team: p.team, players: list, resting: (tb?.rows || []).filter(r => r.starter && !r.on) };
   }).filter(s => s.players.length);
 }
 
