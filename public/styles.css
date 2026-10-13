@@ -1842,5 +1842,9 @@ button.lp-person.tap:active { opacity: 0.6; }
 .five-role.starter { color: var(--q-text); background: var(--q-sunken); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .five-role:not(.starter) { color: #4ade80; } }
 :root[data-theme='dark'] .five-role:not(.starter) { color: #4ade80; }
-.five-resting { margin: 6px 0 0; font-size: 12.5px; }
-.five-resting .link { padding: 0; font: inherit; font-weight: 650; }
+.five-resting { display: grid; gap: 6px; margin-top: 8px; font-size: 12px; font-weight: 650; }
+.rest-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rest-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border: 0; border-radius: 999px; background: var(--q-sunken); color: var(--q-text); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rest-chip .logo, .rest-chip .logo-wrap { width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--shirt); }
+.rest-chip small { color: var(--q-muted); font-size: 11px; font-weight: 600; }
+.rest-chip:active { transform: scale(0.97); }

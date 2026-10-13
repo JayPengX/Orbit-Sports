@@ -158,12 +158,14 @@ export const withWatch = (row, e) => {
 
 // A team's (or a player's) picture: the logo (tried twice), else a
 // national side's flag, else the name's first letter.
-export function logo(url, name, cls = '') {
+// onWhite: drawn on a white disc in every theme (a face's team badge):
+// never the dark screen's version (the Rays' light mark vanished on it).
+export function logo(url, name, cls = '', { onWhite = false } = {}) {
   const fallback = () => {
     const flag = countryFlag(name);
     return flag ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: flag }) : el('span', { class: `logo logo-fallback ${cls}`, 'aria-hidden': 'true', text: (name || '?').trim().slice(0, 1) });
   };
-  return logoPicture(smallPhoto(freshHeadshot(url)), darkLogo(url), `logo ${cls}${PLATED.test(url || '') ? ' plate' : ''}`, fallback);
+  return logoPicture(smallPhoto(freshHeadshot(url)), onWhite ? null : darkLogo(url), `logo ${cls}${PLATED.test(url || '') ? ' plate' : ''}`, fallback);
 }
 // Logos drawn dark with no version for a dark screen (the London Lions' black
 // lion): on a light round plate there, so they don't vanish into the card.

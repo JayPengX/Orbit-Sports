@@ -946,7 +946,14 @@ function onFieldCard(d, e, nameOf) {
         el('small', { class: 'five-more num' }, [en ? `${p.line.reb || 0} R ${p.line.ast || 0} A` : `${p.line.reb || 0}板 ${p.line.ast || 0}助`, Number(p.line.pf) >= 4 ? el('b', { class: 'foul-trouble', text: en ? ` ${p.line.pf}PF` : ` ${p.line.pf}犯` }) : null])
       ]);
     // The side's starters sitting now, by name (a tap opens each).
-    const resting = s => s.resting.length ? el('p', { class: 'five-resting' }, [el('span', { class: 'muted', text: en ? 'Starters sitting: ' : '先發休息：' }), ...joinNodes(s.resting.map(p => el('button', { class: 'link', type: 'button', text: surnameOf(p), onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) })), en ? ', ' : '、')]) : null;
+    // Each a chip with his face (a tap opens him, on 本場) and his points.
+    const resting = s =>
+      s.resting.length
+        ? el('div', { class: 'five-resting' }, [
+            el('span', { class: 'muted', text: en ? 'Starters sitting' : '先發休息' }),
+            el('div', { class: 'rest-chips' }, s.resting.map(p => el('button', { class: 'rest-chip', type: 'button', style: `--shirt:${shirt[s.team]}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [personPic({ ...p, name: p.full || p.name }, e.league, 'rest-pic round'), el('span', { text: surnameOf(p) }), el('small', { class: 'num', text: en ? `${p.line.pts || 0} PTS` : `${p.line.pts || 0} 分` })])))
+          ])
+        : null;
     return card(en ? 'On the court' : '場上球員', el('div', { class: 'five-sides' }, five.map(s => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(s.team) }), el('div', { class: 'five-row' }, s.players.map(p => tile(p, shirt[s.team]))), resting(s)]))), { sub: en ? 'Live' : '即時' });
   }
   if (sport === 'baseball' && d.field) return card(en ? 'On the field' : '場上球員', diamondView(d, e, nameOf), { sub: en ? 'Live' : '即時' });
@@ -1630,7 +1637,7 @@ function playLine(league, p, side) {
   // line under it is the play's details alone (the team's name took its room).
   const badged = Boolean(p.pic && !own && side?.logo);
   const { main, sub } = playParts(feedText(LEAGUES[league]?.sport, p, L() === 'en', team), badged ? '' : team);
-  const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge') : null])) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
+  const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge', { onWhite: true }) : null])) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
   // A play with neither (本節結束, 比賽結束): the league's mark, so every row has its picture.
   return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(league)]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null])]);
 }

@@ -18,8 +18,9 @@ export function onCourt(players) {
     const tb = p.tables?.[0];
     const at = k => tb?.labels?.indexOf(k) ?? -1;
     const num = (r, k) => (at(k) >= 0 ? r.stats?.[at(k)] ?? '' : '');
-    const list = (tb?.rows || []).filter(r => r.on).map(r => ({ ...r, line: { pts: num(r, 'PTS'), reb: num(r, 'REB'), ast: num(r, 'AST'), pf: num(r, 'PF'), min: num(r, 'MIN') } }));
-    return { team: p.team, players: list, resting: (tb?.rows || []).filter(r => r.starter && !r.on) };
+    const lined = r => ({ ...r, line: { pts: num(r, 'PTS'), reb: num(r, 'REB'), ast: num(r, 'AST'), pf: num(r, 'PF'), min: num(r, 'MIN') } });
+    const list = (tb?.rows || []).filter(r => r.on).map(lined);
+    return { team: p.team, players: list, resting: (tb?.rows || []).filter(r => r.starter && !r.on).map(lined) };
   }).filter(s => s.players.length);
 }
 
