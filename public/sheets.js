@@ -194,6 +194,7 @@ export async function openMatch(e) {
   setTimeout(settle, 3_000);
   const paint = () => {
     if (!ready) return;
+
     if (!shown) {
       shown = true;
       sections.classList.add('fade-in');
@@ -211,7 +212,15 @@ export async function openMatch(e) {
     if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     else if (view === 'table') view = 'overview';
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
-    put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt), lineups }, e, table, { line, wait }));
+    const next = matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt), lineups }, e, table, { line, wait });
+    // The same view again (a live refresh): its cards changed inside the
+    // stack already there, so a card kept from the last drawing (the win
+    // chance chart, a finger on it) never leaves the page.
+    const was = content.firstElementChild;
+    // (A kept card comes as a stand-in, __keep: the card itself never put in the new stack.)
+    if (was?.classList.contains('stack') && next?.classList?.contains('stack') && was.dataset.view === view && content.childElementCount === 1) put(was, ...[...next.childNodes].map(n => n.__keep || n));
+    else put(content, next);
+    if (content.firstElementChild?.classList.contains('stack')) content.firstElementChild.dataset.view = view;
     for (const f of game.subs) f();
   };
   // The league's table: both sides' places, and the Table section.
@@ -1199,6 +1208,8 @@ function winCard(d, e, line, wait) {
   }
   if (real && waited.get(wait)) {
     real.classList.add('fade-in');
+    // Once: the same card is kept from one refresh to the next, and moved in again would fade again.
+    real.addEventListener('animationend', () => real.classList.remove('fade-in'), { once: true });
     waited.delete(wait);
   }
   return real;
@@ -1230,8 +1241,19 @@ function winChanceCard(odds, e) {
 // moment: each side's chance then, the period, and the moment if it's near
 // one (it snaps to it). A game on: the latest swing, just now. ESPN's, else
 // Polymarket's market on it (said under it).
+// Each game's chart as last drawn ('league|id'): the same card while its
+// points are the same (nothing redrawn under a reader), and the moment
+// picked from its list kept across a redraw with a new point.
+const wpKept = new Map();
 function winProbCard(line, e, timeline, events = []) {
   const pts = holdToEnd(line.points, timeline);
+  const keyOf = `${e.league}|${e.id}`;
+  const kept = wpKept.get(keyOf) || {};
+  const last = pts.at(-1) || {};
+  const sig = [pts.length, last.home, last.draw, last.t, e.status.state, L(), getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim(), (events || []).length].join('|');
+  // On the page already: a stand-in for it in the new drawing (paint puts the card itself back in its place).
+  const stay = c => (c.isConnected ? Object.assign(el('div', { hidden: true }), { __keep: c }) : c);
+  if (kept.card && kept.sig === sig) return stay(kept.card);
   const sport = LEAGUES[e.league]?.sport;
   const en = L() === 'en';
   const w = 320;
@@ -1332,13 +1354,18 @@ function winProbCard(line, e, timeline, events = []) {
     // The face to the player's page, the rest to the chart.
     el('div', { class: 'wp-mo' }, [
       el('span', { class: 'wp-mo-face' }, [face(m)]),
-      el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [
+      el('button', { type: 'button', class: 'wp-mo-go', onclick: () => ((state.picked = m.i), show(m.i, m), bringIn(plot)) }, [
         el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text' }, momentWords(m.text))]),
         gainChip(m)
       ])
     ])
   );
   show();
+  // The moment picked before this redraw, picked again (a point's place
+  // never moves as new ones come: they're added at the end).
+  const again = kept.picked != null ? moments.find(m => m.i === kept.picked) : null;
+  const state = { picked: again ? again.i : null };
+  if (again) show(again.i, again);
   const list = moments.length
     ? el('div', { class: 'wp-moments' }, [
         el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
@@ -1353,7 +1380,27 @@ function winProbCard(line, e, timeline, events = []) {
     why,
     list
   ]);
-  return card(T('winProb'), box);
+  // (A finger on the chart lets a picked moment go: it shows where the finger is, then the latest.)
+  plot.__impl = { xs, show, down: () => (state.picked = null) };
+  // The chart on the page already: changed in place, never replaced, so
+  // what's being looked at stays (the owner, 2026-10-13: it reset to the
+  // latest with every refresh). Its touch area, its frame and its card stay
+  // the same elements; the line, the dots, the labels and the list are the
+  // new ones; then the point under the finger (or the mouse), or the moment
+  // picked, is shown again on the new line.
+  if (kept.card?.isConnected && kept.plot) {
+    const old = kept.plot;
+    old.replaceChildren(...plot.childNodes);
+    old.__impl = plot.__impl;
+    kept.frame.firstChild.replaceWith(frame.firstChild);
+    put(kept.box, ...[...box.childNodes].map(n => (n === frame ? kept.frame : n)));
+    if (old.__at != null && old.__at < pts.length) show(old.__at);
+    wpKept.set(keyOf, { ...kept, sig, get picked() { return state.picked; } });
+    return stay(kept.card);
+  }
+  const made = card(T('winProb'), box);
+  wpKept.set(keyOf, { sig, card: made, box, frame, plot, get picked() { return state.picked; } });
+  return made;
 }
 
 // A team's game notes under its tables (baseball's, as MLB's own box score
@@ -1482,18 +1529,25 @@ function bringIn(plot) {
 // A chart's plot a finger (or a mouse) reads: show(i) for the point nearest
 // it while it's down, show() again once it lets go.
 function scrubPlot(xs, show, kids) {
+  // (Through plot.__impl: a chart updated in place swaps its points and its
+  // show, the element under the finger stays the same.)
+  const impl = () => plot.__impl || { xs, show };
   const pick = ev => {
+    const { xs: at, show: put_ } = impl();
     const r = plot.getBoundingClientRect();
     const f = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
     let lo = 0;
-    let hi = xs.length - 1;
+    let hi = at.length - 1;
     while (hi - lo > 1) {
       const mid = (lo + hi) >> 1;
-      if (xs[mid] <= f) lo = mid;
+      if (at[mid] <= f) lo = mid;
       else hi = mid;
     }
-    show(f - xs[lo] <= xs[hi] - f ? lo : hi);
+    // The point looked at (kept: a refresh shows it again on the new line).
+    plot.__at = f - at[lo] <= at[hi] - f ? lo : hi;
+    put_(plot.__at);
   };
+  const leave = () => ((plot.__at = null), impl().show());
   let held = false;
   const plot = el(
     'div',
@@ -1501,13 +1555,14 @@ function scrubPlot(xs, show, kids) {
       class: 'wp-plot',
       onpointerdown: ev => {
         held = true;
+        impl().down?.();
         plot.setPointerCapture?.(ev.pointerId);
         pick(ev);
       },
       onpointermove: ev => (held || ev.pointerType === 'mouse') && pick(ev),
-      onpointerup: () => ((held = false), show()),
-      onpointercancel: () => ((held = false), show()),
-      onpointerleave: ev => ev.pointerType === 'mouse' && !held && show()
+      onpointerup: () => ((held = false), leave()),
+      onpointercancel: () => ((held = false), leave()),
+      onpointerleave: ev => ev.pointerType === 'mouse' && !held && leave()
     },
     kids
   );

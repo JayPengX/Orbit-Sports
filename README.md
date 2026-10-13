@@ -190,6 +190,10 @@ Every sheet swipes down to close (the kit).
   | 排名 | The league's table with both sides marked, the result counted in at once (§Tables) |
 
 - **The win chance card.** One source per game, decided before it shows:
+  - **while it's on**, the chart takes each refresh in place: the same
+    chart under the finger, the new points on its line, the point held
+    (or hovered) and a moment picked from its list shown again on it; the
+    page's other cards change around it without lifting it out.
   - **a game to come**: each side's chance (and a draw's) as one split bar,
     from ESPN's prediction, else Polymarket's price, else a sportsbook's;
   - **a game on or over**: the chart (`lib/wpline.mjs`, `lib/moments.mjs`).
