@@ -198,7 +198,12 @@ export async function replayOf(e, now = Date.now()) {
   // A time ELTA's list covers (programs from before it: the list keeps only
   // part of its first day; its league's after it) and no program of it: ELTA didn't show it.
   const programs = eltaSchedule() || [];
-  if (!channels.length && programs.some(p => p.start <= Date.parse(e.start) - 3 * 3_600_000) && eltaListed(programs, e)) return null;
+  // (Shared-Data's archive first: a game it found on ELTA.tv is never said
+  // to be missing because the list didn't name it.)
+  if (!channels.length && programs.some(p => p.start <= Date.parse(e.start) - 3 * 3_600_000) && eltaListed(programs, e)) {
+    await loadWatchMonth(e, packJson, now);
+    if (!packOf(e)?.elta) return null;
+  }
   const sides = zhSides(e);
   // Shared-Data's: the game's episodes on ELTA.tv, found for its season
   // (its month's file read for a game the recent pack has let go); else

@@ -186,6 +186,13 @@ export function ageSpan(text) {
 }
 // Words of a video that isn't the game's highlights.
 const NOT_HIGHLIGHTS = /every play|reaction|preview|press conference|post-?match|interview|\bwomen'?s?\b|\bwfc\b|u-?\d{2}\b|sixes|simulation|recreation|efootball|\bfc ?2\d\b|\bpes\b|fantasy|top \d+|predict|best of|all goals from|\bmatchday \d+ \|/i;
+// A part of a game, not the game: an inning's, a quarter's or a period's
+// cut, its last outs (MLB's "FULL 5th INNING: … | 2026 NLCS Game 2 MLB
+// Highlights" names both sides, the game and highlights: it was picked over
+// the game's own, 2026-10-13).
+const PART_OF_GAME = /\b(\d+(st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|extra) (inning|quarter|period)s?\b|\binnings?\b|\bfull (top|bottom|bot)\b|\b(final|last) (\d+|three|two) outs?\b|\bfinal out\b/i;
+// (The leagues played in innings, quarters or periods, by key: this file is Shared-Data's too, which reads no league list.)
+const TIMED = new Set(['mlb', 'cpbl', 'npb', 'kbo', 'nba', 'wnba', 'nbl', 'nhl', 'nfl', 'ncaaf']);
 // How official a channel is for a game: 0 the league's, 1 a side's, 2 an
 // English rights holder's, 3 an NBA game's full-game channel;
 // null for anyone else.
@@ -215,6 +222,10 @@ export function pickHighlights(videos, e, now = Date.now()) {
     .filter(x => x.tier != null)
     .filter(({ v, title, tier }) => {
       if (NOT_HIGHLIGHTS.test(v.title) || /maxi sintesi/.test(title)) return false;
+      if (TIMED.has(e.league) && PART_OF_GAME.test(v.title)) return false;
+      // MLB's: the whole game's, said so ("Full Game Highlights", "Game
+      // Highlights"); before it's up, none (the search instead).
+      if (e.league === 'mlb' && !/full game|game highlights/.test(title)) return false;
       // Said to be highlights (résumé: in French); the league's own video of
       // the game (Ligue 1's "HAVRE AC - ANGERS SCO (0-0) | Week 4") by its sides and score.
       const called = /highlight|精華|resume/.test(title);
@@ -298,7 +309,8 @@ export async function loadWatchMonth(e, readPack, now = Date.now()) {
 export const watchOf = e => (e ? pack?.games?.[watchKey(e)] || (e.start ? months.get(watchMonthPath(e))?.[watchKey(e)] : null) || null : null);
 // Found ones kept on the device too (a game opened before the pack had it).
 // (v3: titles' days checked, so v2's another day's video is let go.)
-const KEPT = 'fx.highlights.v3';
+// (v4: v3's could hold an inning's cut picked for an MLB game, 2026-10-13.)
+const KEPT = 'fx.highlights.v4';
 function kept() {
   try {
     localStorage.removeItem('fx.highlights.v2');

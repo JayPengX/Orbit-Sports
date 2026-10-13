@@ -257,6 +257,12 @@ Two special cases:
   competition, ours opening its match), 資料 (profile, honours).
   - Last season's numbers are said to be until the new season's first
     game.
+- **近期比賽**: a game tapped opens as the home page opens it (its whole
+  record from that day's scoreboard: a playoff game with its round, its
+  series and the tap to the whole series). The games ESPN's log hasn't
+  caught up with (a day behind; MLB's postseason) are added at once from
+  the team's schedule, his line from each one's box score in the log's
+  columns (未上場 when he didn't play).
 - **本場**: opened from a game's page (any face, box score row, leader or
   line-up in it), the player's sheet opens on his numbers in that game,
   every column of his box score line, drawn again with each of the game

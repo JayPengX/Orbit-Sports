@@ -1802,8 +1802,13 @@ function replayLink(e) {
   // ELTA's list): a row that comes and goes would move the sheet.
   if (!ELTA_VOD_LEAGUES.has(e.league) && !tvOf(e).some(b => b.exact)) return null;
   const key = `${e.league}:${e.id}:${e.sessionKey || ''}`;
-  if (replayKnown.has(key)) {
-    const r = replayKnown.get(key);
+  // Known this session: a video found, for good; none found (or only the
+  // channels' 回看), for ten minutes, then looked for again (ELTA puts a
+  // game's video up hours later, and an installed app stays open for days:
+  // a game opened before it was up said "none" until the app was closed).
+  const known = replayKnown.get(key);
+  if (known && (known.r?.episode || Date.now() - known.at < 10 * 60_000)) {
+    const r = known.r;
     return r ? el('div', { class: 'replay-group' }, replayRows(e, r)) : null;
   }
   const en = L() === 'en';
@@ -1813,7 +1818,7 @@ function replayLink(e) {
   ]);
   replayOf(e)
     .then(r => {
-      replayKnown.set(key, r);
+      replayKnown.set(key, { r, at: Date.now() });
       if (!r) return out.remove();
       put(out, ...replayRows(e, r, logo));
     })
@@ -3577,6 +3582,36 @@ const resultPills = list => el('div', { class: 'form-pills' }, list.map(r => el(
 // Individual sports (races, tours, fights): the person is followed like a team.
 const individual = league => LEAGUES[league]?.kind !== 'match';
 const LOG_WORDS = { Started: '先發', Sub: '替補', Substitute: '替補', 'Did not play': '未上場', DNP: '未上場' };
+// A player's games newer than ESPN's log of them: the team's games over
+// since the log's newest (six hours' grace: a log's date is the game's
+// day), newest first, each with his line from its box score, in the log's
+// columns (a percentage worked out from its made-attempted, a column the
+// box score hasn't: –); a game he didn't play, 未上場.
+async function newerGames(league, id, teamId, log, scheduleOf) {
+  const newest = Date.parse(log.games[0]?.date || '') || 0;
+  const done = (await scheduleOf()).filter(x => x.status?.state === 'post' && !x.status.void && Date.parse(x.start) > newest + 6 * 3_600_000).reverse().slice(0, 5);
+  const lines = await Promise.all(done.map(x => summary(league, x.id).catch(() => null)));
+  return done.map((x, i) => {
+    const d = lines[i];
+    const home = String(x.home?.id) === String(teamId);
+    const [us, them] = home ? [x.home, x.away] : [x.away, x.home];
+    const [a, b] = [Number(us?.score), Number(them?.score)];
+    const result = us?.winner || a > b ? 'W' : them?.winner || b > a ? 'L' : a === b && Number.isFinite(a) ? 'D' : '';
+    // His row: the table sharing the most columns with the log's (a two-way player's batting or pitching).
+    const found = (d?.players || []).flatMap(p => p.tables.map(tb => ({ tb, row: tb.rows.find(r => r.id === String(id)) }))).filter(x => x.row && !x.row.dnp && x.row.stats?.some(v => v !== '' && v != null));
+    const best = found.sort((p, q) => q.tb.labels.filter(k => log.labels.includes(k)).length - p.tb.labels.filter(k => log.labels.includes(k)).length)[0];
+    const val = k => {
+      if (!best) return '';
+      const at = best.tb.labels.indexOf(k);
+      if (at >= 0) return String(best.row.stats[at] ?? '');
+      const made = { 'FG%': 'FG', '3P%': '3PT', 'FT%': 'FT' }[k];
+      const m = made && /^(\d+)-(\d+)$/.exec(String(best.row.stats[best.tb.labels.indexOf(made)] ?? ''));
+      return m ? (Number(m[2]) ? ((100 * Number(m[1])) / Number(m[2])).toFixed(1) : '0.0') : '–';
+    };
+    const stats = best ? log.labels.map(val) : log.labels.map((_, k) => (k ? '' : 'DNP'));
+    return { id: String(x.id), date: x.start, at: home ? 'vs' : '@', home, league, leagueName: '', pre: Boolean(x.preseason || /preseason/i.test(x.note || '')), team: { id: String(teamId), abbr: us?.abbr || '', logo: us?.logo || null }, opp: { id: String(them?.id ?? ''), name: them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: Number.isFinite(a) && Number.isFinite(b) ? `${a}-${b}` : '', stats };
+  });
+}
 
 // formula1.com's figures as tiles, in the app's words.
 // "P1（133 次）" reads as P1 with "133 次" under it: a tile is too narrow for both on a line.
@@ -3782,8 +3817,22 @@ export async function openPlayer(league, id, fallback = {}) {
       return { id: g.id, league: g.league, kind: 'match', start: g.date, status: { state: 'post', detail: '', short: '', completed: true, name: 'STATUS_FULL_TIME', clock: '', period: 0 }, home: { ...(home ? us : them), score: home ? ours : theirs }, away: { ...(home ? them : us), score: home ? theirs : ours } };
     };
     const opensMatch = g => Boolean(g.league && LEAGUES[g.league]?.espn && g.team.id && g.opp.id && /^\d+$/.test(g.id));
-    const logCard = log
-      ? card(
+    // A game opened as the home page opens it: its whole record from the
+    // team's schedule (a playoff game with its round and series, a tap to
+    // the whole series), else that day's scoreboard, else as the log has it.
+    let schedule = null;
+    const scheduleOf = () => (schedule ??= a.teamId ? teamSchedule(league, a.teamId).catch(() => []) : Promise.resolve([]));
+    // (The scoreboard's: the schedule's has the note, not the round,
+    // series and stage the header's line and its tap need.)
+    const openLogGame = async g => {
+      const listed = g.league === league ? (await scheduleOf()).find(x => String(x.id) === String(g.id)) : null;
+      const at = Date.parse(listed?.start || g.date || '');
+      const days = Number.isFinite(at) ? [-1, 0, 1].map(k => new Date(at + k * 86_400_000).toISOString().slice(0, 10).replaceAll('-', '')) : [];
+      const board = days.length ? (await scoreboard(g.league, days).catch(() => [])).find(x => String(x.id) === String(g.id)) : null;
+      ctx.openEvent(board || listed || matchOf(g));
+    };
+    const logCardOf = log =>
+      card(
           // Last season's (ESPN's until a player's first game of the new one: April's in October), said to be.
           Date.now() - (Date.parse(log.games[0]?.date || '') || Date.now()) > 45 * 86_400_000 ? W(`上季最後 ${log.games.length} 場`, `Last season's last ${log.games.length}`) : W(`近 ${log.games.length} 場`, `Last ${log.games.length} games`),
           el('div', { class: 'table-wrap' }, [
@@ -3793,7 +3842,7 @@ export async function openPlayer(league, id, fallback = {}) {
                 'tbody',
                 {},
                 log.games.map(g =>
-                  el('tr', opensMatch(g) ? { class: 'log-tap', onclick: () => ctx.openEvent(matchOf(g)) } : {}, [
+                  el('tr', opensMatch(g) ? { class: 'log-tap', onclick: () => openLogGame(g) } : {}, [
                     el('td', { class: 'left num', text: g.date ? localDate(Date.parse(g.date)).slice(5).replace('-', '/') : '' }),
                     el('td', { class: 'left' }, [
                       el('span', { class: 'opp-cell' }, [el('span', { class: 'muted opp-at', text: g.at === '@' ? '@' : 'vs' }), logo(g.opp.logo, g.opp.name, 'xs'), el('span', { class: 'opp-name', text: g.opp.abbr || g.opp.name })]),
@@ -3808,8 +3857,8 @@ export async function openPlayer(league, id, fallback = {}) {
             ])
           ]),
           { sub: oneComp && (oneComp.league || oneComp.leagueName) ? compOf(oneComp) : '' }
-        )
-      : null;
+        );
+    let logCard = log ? logCardOf(log) : null;
     const awardsCard = ov?.awards?.length
       ? card(W('榮譽', 'Honours'), el('ul', { class: 'award-list' }, ov.awards.map(w => el('li', {}, [el('strong', {}, [zhLater(w.name)]), w.count ? el('span', { class: 'award-count num', text: w.count.replace(/x$/i, '×') }) : null, w.seasons.length ? el('small', { class: 'muted', text: w.seasons.slice(0, 6).join(' · ') + (w.seasons.length > 6 ? ' …' : '') }) : null]))))
       : null;
@@ -3959,6 +4008,18 @@ export async function openPlayer(league, id, fallback = {}) {
       tabBody
     );
     paintTab();
+    // The games ESPN's log hasn't caught up with (it's a day behind, and
+    // MLB's leaves the postseason out): the team's games over since its
+    // newest, his line from each one's box score, at once.
+    if (log && a.teamId && !racing)
+      newerGames(league, id, a.teamId, log, scheduleOf).then(newer => {
+        if (!newer.length || !s.dialog.isConnected) return;
+        const fresh = logCardOf({ ...log, games: [...newer, ...log.games].slice(0, Math.max(log.games.length, 5)) });
+        const at = games.indexOf(logCard);
+        if (at >= 0) games[at] = fresh;
+        if (logCard.isConnected) logCard.replaceWith(fresh);
+        logCard = fresh;
+      });
   } catch {
     put(content, empty(T('failed')));
   }

@@ -159,3 +159,16 @@ test('two clubs of one city: New York City FC and Red Bull New York each by its 
   assert.ok(pickHighlights([v('NYCFC vs. FC Cincinnati | Full Match Highlights')], game(nycfc, cin), now));
   assert.equal(pickHighlights([v('New York City FC vs. FC Cincinnati | Full Match Highlights')], game(cin, rbny), now), null);
 });
+
+test("MLB: the whole game's highlights, never an inning's cut or its last outs (2026-10-13, Dodgers at Brewers); none before it's up", () => {
+  const nlcs = game('mlb', side('Los Angeles Dodgers', 4), side('Milwaukee Brewers', 7), { note: 'NLCS - Game 2', start: '2026-10-12T22:08Z' });
+  const at = Date.parse('2026-10-13T03:00Z');
+  const inning = v('i5', 'FULL 5th INNING: Dodgers take the lead back from the Brewers! 😳 | 2026 NLCS Game 2 MLB Highlights', 'MLB', MLB, '4h ago');
+  const outs = v('f3', 'FINAL 3 OUTS: Brewers are headed to Los Angeles with a 2-0 NLCS lead! | MLB Highlights', 'MLB', MLB, '2h ago');
+  const bottom = v('b8', 'FULL BOTTOM 8th: Brewers add on TWO HUGE INSURANCE RUNS vs. Dodgers! 😤 | MLB Highlights', 'MLB', MLB, '2h ago');
+  const full = v('full', 'DODGERS vs. BREWERS NLCS Game 2 Full Game Highlights (October 12) | 2026 MLB Postseason', 'MLB', MLB, '1h ago');
+  assert.equal(pickHighlights([inning, outs, bottom, full], nlcs, at).id, 'full');
+  assert.equal(pickHighlights([inning, outs, bottom], nlcs, at), null);
+  const regular = game('mlb', side('Los Angeles Dodgers', 4), side('Milwaukee Brewers', 7), { start: '2026-08-28T23:10Z' });
+  assert.equal(pickHighlights([v('r', 'Dodgers vs. Brewers Game Highlights (8/28/26) | MLB Highlights', 'MLB', MLB, '10h ago')], regular, Date.parse('2026-08-29T12:00Z')).id, 'r');
+});
