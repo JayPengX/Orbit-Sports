@@ -1175,6 +1175,10 @@ export function parseSummary(data, league) {
   const drives = ((data?.drives?.previous || []).concat(data?.drives?.current ? [data.drives.current] : []))
     .filter(x => x && (x.displayResult || x.result))
     .map(x => ({ team: String(x.team?.id ?? ''), result: x.displayResult || x.result || '', desc: x.description || '', scoring: Boolean(x.isScore), periodNum: x.start?.period?.number || 0, period: x.start?.period?.number ? `${x.start.period.number}` : '', clock: x.start?.clock?.displayValue || '', home: x.plays?.at(-1)?.homeScore ?? null, away: x.plays?.at(-1)?.awayScore ?? null }));
+  // Basketball's substitutions (who came on for whom, when): who on the court came on last (lib/onfield.mjs).
+  const subs = (data?.plays || [])
+    .filter(p => p.type?.text === 'Substitution' && p.participants?.length >= 2)
+    .map(p => ({ team: String(p.team?.id ?? ''), period: p.period?.number || 0, clock: p.clock?.displayValue || '', in: String(p.participants[0]?.athlete?.id ?? ''), out: String(p.participants[1]?.athlete?.id ?? '') }));
   const info = data?.gameInfo || {};
   return {
     league,
@@ -1187,6 +1191,7 @@ export function parseSummary(data, league) {
     details,
     players,
     plays,
+    subs,
     feed,
     drives,
     keyEvents,

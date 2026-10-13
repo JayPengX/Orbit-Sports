@@ -856,13 +856,21 @@ function onFieldCard(d, e, nameOf) {
   const sport = LEAGUES[e.league]?.sport;
   const sides = [e.away, e.home].map(t => String(t.id));
   const order = list => sides.map(id => list.find(x => x.team === id)).filter(Boolean);
-  const row = (p, right) => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey || '' }), p.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [personPic(p, e.league, 'xs round'), el('span', { text: p.name })]) : el('span', { class: 'roster-name' }, [personPic(p, e.league, 'xs round'), el('span', { text: p.name })]), right]);
   if (sport === 'basketball') {
-    const five = order(onCourt(d.players));
+    const five = order(onCourt(d.players, d.subs));
     if (!five.length) return null;
-    const line = l => [en ? `${l.pts} PTS` : `${l.pts} 分`, en ? `${l.reb} REB` : `${l.reb} 板`, en ? `${l.ast} AST` : `${l.ast} 助`].join(' ');
-    const right = p => el('small', { class: 'num' }, [line(p.line), Number(p.line.pf) >= 4 ? el('b', { class: 'foul-trouble', text: en ? ` · ${p.line.pf} PF` : ` · ${p.line.pf} 犯` }) : null]);
-    return card(en ? 'On the court' : '場上球員', el('div', { class: 'injuries' }, five.map(s => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(s.team) }), el('ul', { class: 'inj-list lineup-list' }, s.players.map(p => row(p, right(p))))]))), { sub: en ? 'Live' : '即時' });
+    const shirt = shirtsOf(d, e);
+    // Each side's five as a row of faces (no court: a basketball position
+    // is no place on the floor): the number, a green ↑ on one who just came
+    // on, his points, then rebounds and assists, fouls from the fourth in red.
+    const tile = (p, colour) =>
+      el('button', { class: 'five-tile', type: 'button', style: `--shirt:${colour}`, 'aria-label': `${p.full || p.name}${p.justIn ? (en ? ', just came on' : '，剛上場') : ''}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
+        el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, p.justIn ? el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' }) : null]),
+        el('span', { class: 'pm-name', text: surnameOf(p) }),
+        el('strong', { class: 'five-pts num', text: en ? `${p.line.pts || 0} PTS` : `${p.line.pts || 0} 分` }),
+        el('small', { class: 'five-more num' }, [en ? `${p.line.reb || 0} R ${p.line.ast || 0} A` : `${p.line.reb || 0}板 ${p.line.ast || 0}助`, Number(p.line.pf) >= 4 ? el('b', { class: 'foul-trouble', text: en ? ` ${p.line.pf}PF` : ` ${p.line.pf}犯` }) : null])
+      ]);
+    return card(en ? 'On the court' : '場上球員', el('div', { class: 'five-sides' }, five.map(s => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(s.team) }), el('div', { class: 'five-row' }, s.players.map(p => tile(p, shirt[s.team])))]))), { sub: en ? 'Live' : '即時' });
   }
   if (sport === 'soccer') {
     const xi = order(onPitch(d.rosters));
@@ -878,18 +886,9 @@ function onFieldCard(d, e, nameOf) {
 // on with a green ↑. A side's name and shape at its own end.
 function pitchView([away, home], d, e, nameOf) {
   const en = L() === 'en';
-  const colourOf = id => {
-    const t = d.byId?.[id] || (id === String(e.home.id) ? e.home : e.away);
-    return { main: t?.color || null, alt: t?.alt || null };
-  };
-  const [ca, ch] = [colourOf(away.team), colourOf(home.team)];
-  // Two sides in one colour: the away side in its second.
-  const awayShirt = ca.main && ch.main && near(ca.main, ch.main) && ca.alt ? ca.alt : ca.main || '#2f6fdf';
-  const homeShirt = ch.main || '#d9443a';
-  const surname = p => {
-    const s = p.short || p.name || '';
-    return /^\S{1,3}\. /.test(s) ? s.replace(/^\S{1,3}\. /, '') : s;
-  };
+  const shirt = shirtsOf(d, e);
+  const [awayShirt, homeShirt] = [shirt[away.team], shirt[home.team]];
+  const surname = surnameOf;
   // His face in a ring of his team's colour, his number on it; a sub on with a green ↑. A tap: his page.
   const marker = (p, x, y, shirt) =>
     el('button', { class: 'pm', type: 'button', style: `left:${(x * 100).toFixed(1)}%;top:${(y * 100).toFixed(1)}%;--shirt:${shirt}`, 'aria-label': `${p.name}${p.subbedIn ? (en ? ', came on' : '，替補上場') : ''}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [
@@ -922,6 +921,18 @@ function subsList(sides, nameOf, league) {
     .filter(Boolean);
   return parts.length ? el('div', { class: 'subs-block' }, [el('p', { class: 'subs-h', text: en ? 'Substitutions' : '換人' }), ...parts]) : null;
 }
+// Each side's colour for its players' rings: its own, the away side in its
+// second when the two are alike (two whites), a blue and a red when the feed has none.
+function shirtsOf(d, e) {
+  const [a, h] = [e.away, e.home].map(t => d?.byId?.[String(t.id)] || t);
+  const away = a?.color && h?.color && near(a.color, h.color) && a.alt ? a.alt : a?.color || '#2f6fdf';
+  return { [String(e.away.id)]: away, [String(e.home.id)]: h?.color || '#d9443a' };
+}
+// A name as a shirt says it: "O. Costa" → Costa ("João Marcelo" as it is).
+const surnameOf = p => {
+  const s = p.short || (p.full ? p.name : '') || p.name || '';
+  return /^\S{1,3}\. /.test(s) ? s.replace(/^\S{1,3}\. /, '') : s;
+};
 const hexRgb = c => {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(c || ''));
   return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null;

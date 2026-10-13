@@ -1345,7 +1345,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 
 /* A moment's words wrap only between its parts (no "2 分打 / 點"). */
 /* A player's name may take two lines rather than be cut ("Enrique Hernandez…"). */
-.player-hero .team-head-text h3 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.player-hero .team-head-text h3 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: normal; }
 
 /* 過程, the whole game: a header at each period, the chart's key moments marked, a run on a line of its own. */
 .plays li.period-head { display: block; padding: 7px 14px; font-size: 12.5px; font-weight: 750; color: var(--q-text-2); background: var(--q-sunken); }
@@ -1785,7 +1785,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .pm-face { position: relative; width: 30px; height: 30px; border-radius: 50%; box-shadow: 0 0 0 2px var(--shirt), 0 0 0 3px var(--ring-edge), 0 1px 3px rgba(0, 0, 0, 0.25); background: var(--q-surface); }
 .pm-face .logo { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; object-position: top; font-size: 11px; }
 .pm-num { position: absolute; left: -8px; top: -5px; min-width: 17px; height: 15px; padding: 0 3px; border-radius: 8px; display: grid; place-items: center; font-size: 9.5px; font-weight: 800; line-height: 1; background: var(--shirt); box-shadow: 0 0 0 1.5px var(--q-surface); }
-.pm-name { max-width: 70px; font-size: 10px; font-weight: 700; line-height: 1.15; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.pm-name { max-width: 70px; font-size: 10px; font-weight: 700; line-height: 1.15; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: normal; }
 .pm:active .pm-face { transform: scale(0.94); }
 .pm-sub { position: absolute; top: -5px; right: -7px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; font-size: 10px; font-weight: 900; line-height: 1; color: #fff; box-shadow: 0 0 0 1.5px var(--q-surface); }
 .pm-sub.on { background: #1fa34a; }
@@ -1799,3 +1799,13 @@ button.lp-person.tap:active { opacity: 0.6; }
 .arrow-in { color: #1fa34a; }
 .arrow-out { color: #d9443a; }
 .card-red { display: inline-block; width: 9px; height: 12px; border-radius: 2px; background: #d9443a; vertical-align: -1px; }
+/* 場上球員 (basketball): each side's five as a row of faces, their points under them. */
+.five-sides { display: grid; gap: 12px; }
+.five-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.five-tile { display: grid; justify-items: center; align-content: start; gap: 3px; padding: 4px 0; border: 0; background: none; color: var(--q-text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.five-tile .pm-face { width: 38px; height: 38px; margin-bottom: 2px; }
+.five-tile .pm-face .logo { width: 38px; height: 38px; }
+.five-tile:active .pm-face { transform: scale(0.94); }
+.five-tile .pm-name { font-size: 11px; }
+.five-pts { font-size: 13px; line-height: 1.1; }
+.five-more { color: var(--q-muted); font-size: 10.5px; font-weight: 600; white-space: nowrap; }

@@ -9,14 +9,19 @@
 //     subbed off or sent off. A sub stands in the place of the one he
 //     replaced (the formation's slot), so the eleven keep the formation's order.
 
-// Basketball: each side's five, with the numbers that matter now.
-// players: parseSummary's [{ team, tables: [{ labels, rows }] }].
-export function onCourt(players) {
+// Basketball: each side's five, with the numbers that matter now; those
+// who came on at the side's latest substitution (one stoppage: the same
+// period and clock) marked `justIn`, with whom they replaced.
+// players: parseSummary's [{ team, tables: [{ labels, rows }] }]; subs: its [{ team, period, clock, in, out }].
+export function onCourt(players, subs = []) {
   return (players || []).map(p => {
+    const mine = subs.filter(x => x.team === p.team);
+    const last = mine.at(-1);
+    const fresh = new Map(last ? mine.filter(x => x.period === last.period && x.clock === last.clock).map(x => [x.in, x]) : []);
     const tb = p.tables?.[0];
     const at = k => tb?.labels?.indexOf(k) ?? -1;
     const num = (r, k) => (at(k) >= 0 ? r.stats?.[at(k)] ?? '' : '');
-    const list = (tb?.rows || []).filter(r => r.on).map(r => ({ ...r, line: { pts: num(r, 'PTS'), reb: num(r, 'REB'), ast: num(r, 'AST'), pf: num(r, 'PF'), min: num(r, 'MIN') } }));
+    const list = (tb?.rows || []).filter(r => r.on).map(r => ({ ...r, justIn: fresh.has(r.id), at: fresh.get(r.id) ? { period: last.period, clock: last.clock } : null, line: { pts: num(r, 'PTS'), reb: num(r, 'REB'), ast: num(r, 'AST'), pf: num(r, 'PF'), min: num(r, 'MIN') } }));
     return { team: p.team, players: list };
   }).filter(s => s.players.length);
 }
