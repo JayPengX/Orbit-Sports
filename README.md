@@ -179,11 +179,12 @@ Every sheet swipes down to close (the kit).
   | --- | --- |
   | 概況 | The teams side by side; where, when, TV (each channel on its own line, each part whole); the win chance card; each side's leaders; the season series ("last meetings": wins, draws, one bar); injuries |
   | 數據 | Team stats: each side's own bar against the larger value, so averages and rates read right; which side did better, fewer for ERA, errors, fouls |
-  | 球員 | Box scores: faces, sortable columns (most, fewest, back to the box order; kept per game), totals under, baseball's game notes (打擊, 跑壘, 投球, 守備) |
-  | 過程 | Every play (basketball), at-bat (baseball), drive (American football), soccer's commentary; a header at each period; the chart's key moments marked; long games get a sticky bar, a filter (全部 / 得分 / 關鍵) and period chips |
+  | 球員 | Box scores: faces, sortable columns (most, fewest, back to the box order; kept per game), the columns' heads in short Chinese, totals under; CPBL's game notes (打擊, 跑壘, 投球, 守備; MLB's left off). Basketball leaves off a player who didn't play (陣容 lists him and why) |
+  | 過程 | Every play (basketball), at-bat (baseball; and each lineup change: 換投, 代打, 代跑, 守備調整), drive (American football), soccer's commentary; a header at each period; the chart's key moments marked; long games get a sticky bar, a filter (全部 / 得分 / 關鍵) and period chips |
   | 先發 | Who starts, before the game (`lib/lineups.mjs`): MLB's probable pitchers and batting orders (MLB's API), an NBA, WNBA or NHL side's starters once announced (ESPN's core rosters); read again each minute until it starts |
-  | 場上球員 | Who's on now, in a game on, in 先發's place (`lib/onfield.mjs`). Soccer: the pitch as a broadcast draws it, the away side in the top half; each player a face in his team's colour at his place in the formation (the formation's rows by how deep each position plays, then across by side), a sub with a green ↑ in the slot of the one he replaced, a man sent off leaving his slot empty; the substitutions under it (green ↑ on, red ↓ off, the minute) and red cards. Basketball: each five as a row of faces (no court: a position is no place on the floor), a green ↑ and 替補 for one off the bench, 先發 for a starter (in words), points, rebounds, assists, fouls from the fourth in red, and under the row the side's starters sitting now. MLB: the field, the side in it at its nine positions, the batter by the plate, each runner a smaller face on his base (a tap opens him), the inning, outs and who's on (MLB's own linescore). The pitch and field in the page's own tones (`--pitch`, `--dirt`), light and dark |
+  | 場上球員 | Who's on now, in a game on, in 先發's place (`lib/onfield.mjs`). Soccer: the pitch as a broadcast draws it, the away side in the top half; each player a face in his team's colour at his place in the formation (the formation's rows by how deep each position plays, then across by side), a sub with a green ↑ in the slot of the one he replaced, a man sent off leaving his slot empty; the substitutions under it (green ↑ on, red ↓ off, the minute) and red cards. Basketball: each five as a row of faces (no court: a position is no place on the floor), a green ↑ and 替補 for one off the bench, 先發 for a starter (in words), the name on one line (a suffix like Jr. left off), points, rebounds, assists, fouls from the fourth in red, and under the row the side's starters sitting now as a line of faces (each a tap). MLB: the field, the side in it at its nine positions, the batter by the plate, each runner a smaller face on his base (a tap opens him), the inning, outs and who's on (MLB's own linescore). The pitch and field in the page's own tones (`--pitch`, `--dirt`), light and dark |
   | 陣容 (soccer) | The line-ups; while the game is on, 場上 (the eleven now), 已下場 and the bench left, a formation's slots in Chinese |
+  | 陣容 (basketball) | From the box score: each side's 先發, 替補 and 未上場 with why (教練決定, 傷病, 未隨隊…) |
   | 傷兵 | ESPN's injury report (NBA, WNBA, NFL, NHL, MLB: the league's list, kept 10 minutes) |
   | Order | By the game's moment: on, 場上球員, the live chance, leaders, the matchup, the series, injuries, where to watch, the info; to come, the matchup, the chance, 先發, the rest; over, the replay and highlights, leaders, the chance's story, the rest |
   | 排名 | The league's table with both sides marked, the result counted in at once (§Tables) |
@@ -256,7 +257,8 @@ Two special cases:
   line-up in it), the player's sheet opens on his numbers in that game,
   every column of his box score line, drawn again with each of the game
   page's refreshes; where he is beside the title (● 場上, 先發, ↑ 上場 45',
-  ↓ 下場 69', 紅牌) and the score line under it.
+  ↓ 下場 69', 未上場 · 教練決定), a soccer player's cards as a label
+  (黃牌, 兩黃變紅, 紅牌) not a number, and the score line under it.
 - **A driver.**
   - formula1.com's figures, with the season place and points overlaid from
     the live table, because formula1.com updates a day after a race.

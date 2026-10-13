@@ -1007,7 +1007,7 @@ export function parseSummary(data, league) {
       name: st.name || st.type || st.text || '',
       labels: st.labels || st.names || [],
       longs: st.descriptions || [],
-      rows: (st.athletes || []).map(a => ({ id: String(a.athlete?.id ?? ''), name: a.athlete?.shortName || a.athlete?.displayName || '', full: a.athlete?.displayName || '', headshot: freshHeadshot(a.athlete?.headshot?.href) || null, pos: a.position?.abbreviation || '', jersey: a.athlete?.jersey || '', starter: Boolean(a.starter), on: a.active === true, stats: a.stats || [] })),
+      rows: (st.athletes || []).map(a => ({ id: String(a.athlete?.id ?? ''), name: a.athlete?.shortName || a.athlete?.displayName || '', full: a.athlete?.displayName || '', headshot: freshHeadshot(a.athlete?.headshot?.href) || null, pos: a.position?.abbreviation || '', jersey: a.athlete?.jersey || '', starter: Boolean(a.starter), on: a.active === true, dnp: Boolean(a.didNotPlay), reason: a.reason || '', stats: a.stats || [] })),
       totals: st.totals || []
     }))
   }));
@@ -1167,7 +1167,7 @@ export function parseSummary(data, league) {
     const cols = [['totalGoals', '進球', 'G'], ['goalAssists', '助攻', 'A'], ['totalShots', '射門', 'SH'], ['shotsOnTarget', '射正', 'SOT'], ['foulsCommitted', '犯規', 'FC'], ['foulsSuffered', '被犯規', 'FS'], ['offsides', '越位', 'OFF'], ['yellowCards', '黃牌', 'YC'], ['redCards', '紅牌', 'RC'], ['saves', '撲救', 'SV'], ['goalsConceded', '失球', 'GA']];
     for (const r of rosters) {
       const rows = r.players.filter(p => p.played).map(p => ({ id: p.id, name: p.short || p.name, full: p.name, headshot: p.headshot, pos: p.pos, starter: p.starter, stats: cols.map(([k]) => (/^(saves|goalsConceded)$/.test(k) && p.pos !== 'G' ? '' : p.stats[k] ?? '0')) }));
-      if (rows.length) players.push({ team: r.team, tables: [{ name: en ? 'Players' : '球員', labels: cols.map(c => (en ? c[2] : c[1])), rows, totals: [] }] });
+      if (rows.length) players.push({ team: r.team, tables: [{ name: en ? 'Players' : '球員', labels: cols.map(c => (en ? c[2] : c[1])), keys: cols.map(c => c[0]), rows, totals: [] }] });
     }
   }
   // Every play of the game (過程 shows it whole; the live strip its last few).

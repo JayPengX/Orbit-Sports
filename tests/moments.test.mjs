@@ -325,3 +325,23 @@ test('basketball: a run says what it did to the score: levelled, went ahead, clo
   assert.match(run(10, 30, 12, 2), /追近$/);
   assert.match(run(30, 20, 12, 2), /攻勢$/);
 });
+
+import { lineupZh, playText } from '../public/lib/moments.mjs';
+test("baseball's lineup changes said as such, never an at-bat's words (Kelly relieved Sulser read as a lineout)", () => {
+  const lc = text => ({ text, alt: 'Lineup Change', type: 'Play Result', who: 'K. Kelly' });
+  assert.equal(playText('baseball', lc('Kelly relieved Sulser'), false), '換投：Kelly 接替 Sulser');
+  assert.equal(lineupZh(lc('Martínez hit for Halpin')), '代打：Martínez 替 Halpin');
+  assert.equal(lineupZh(lc('Mullins ran for Vilade')), '代跑：Mullins 替 Vilade');
+  assert.equal(lineupZh(lc('Mullins in center field.')), '守備調整：Mullins 改守中外野');
+  assert.equal(lineupZh(lc('Hicks catching.')), '守備調整：Hicks 擔任捕手');
+  assert.equal(lineupZh(lc('Genao at second base.')), '守備調整：Genao 改守二壘');
+  assert.equal(lineupZh({ text: 'Lowe flied out to left.', alt: '' }), '');
+});
+
+test("baseball: a balk, a pickoff, caught stealing in Chinese; a lineup's word never a line drive", () => {
+  const at = text => playText('baseball', { text, alt: '', type: 'Play Result', who: 'A. Martinez' }, false);
+  assert.equal(at('Martínez to second on a balk.'), 'A. Martinez 投手犯規');
+  assert.equal(at('Martínez caught stealing second.'), 'A. Martinez 盜壘失敗');
+  assert.equal(at('Martínez picked off first.'), 'A. Martinez 牽制出局');
+  assert.equal(at('Martínez lined out to center.'), 'A. Martinez 平飛出局');
+});

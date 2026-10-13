@@ -54,12 +54,20 @@ const MLB_ZH = [
   [/passed ball/i, '捕逸'],
   [/error/i, '失誤'],
   [/fielder'?s choice/i, '野手選擇'],
+  [/caught stealing/i, '盜壘失敗'],
+  [/picked off|pickoff/i, '牽制出局'],
+  [/defensive indifference/i, '無防守盜壘'],
   [/stolen base|stole/i, '盜壘'],
+  [/balk/i, '投手犯規'],
+  [/catcher'?s interference/i, '捕手妨礙'],
   [/strike|struck out/i, '被三振'],
   [/ground/i, '滾地出局'],
-  [/line/i, '平飛出局'],
+  // (Only a line drive: "Lineup Change" read as one.)
+  [/\blined\b|line ?out|line drive/i, '平飛出局'],
   [/pop|foul out/i, '內野飛球出局'],
-  [/fly|flied/i, '高飛出局']
+  [/fly|flied/i, '高飛出局'],
+  // A runner moving up on no batted ball ("to second on a throw").
+  [/ to (second|third|home)\b| advanced/i, '推進']
 ];
 const NFL_ZH = [
   [/interception.*touchdown|pick six/i, '攔截回攻達陣'],
@@ -109,10 +117,27 @@ const named = text => /^(?:\([^)]*\)\s*)?([A-Z][\w.'’-]*(?:\s+[A-Z][\w.'’-]*
 // The first sentence, never cut at an initial ("E. Hernández homered").
 const sentence = text => String(text || '').replace(/^\([^)]*\)\s*/, '').split(/(?<=(?<!\b[A-Z])\.)\s/)[0].slice(0, 90);
 
+// Baseball's lineup changes (ESPN's "Lineup Change"): a pitcher replaced, a
+// pinch-hitter or -runner, a fielder moved; '' for any other play.
+const FIELD_ZH = { 'left field': '左外野', 'center field': '中外野', 'right field': '右外野', 'first base': '一壘', 'second base': '二壘', 'third base': '三壘', shortstop: '游擊', catching: '捕手', pitching: '投手', 'designated hitter': '指定打擊' };
+export function lineupZh(play) {
+  const t = String(play.text || '').trim().replace(/\.$/, '');
+  if (!/lineup change/i.test(play.alt || '') && !/ (relieved|hit for|ran for) /.test(t)) return '';
+  let m;
+  if ((m = /^(.+?) relieved (.+)$/.exec(t))) return `換投：${m[1]} 接替 ${m[2]}`;
+  if ((m = /^(.+?) hit for (.+)$/.exec(t))) return `代打：${m[1]} 替 ${m[2]}`;
+  if ((m = /^(.+?) ran for (.+)$/.exec(t))) return `代跑：${m[1]} 替 ${m[2]}`;
+  if ((m = /^(.+?) (?:in |to |at |playing )?(left field|center field|right field|first base|second base|third base|shortstop|catching|pitching|designated hitter)$/.exec(t))) return `守備調整：${m[1]} ${m[2] === 'catching' || m[2] === 'pitching' ? '擔任' : '改守'}${FIELD_ZH[m[2]]}`;
+  return '陣容調整';
+}
 export function playText(sport, play, en, team) {
   const who = play.who || named(play.text);
   if (en) return sentence(play.text) || play.type;
   if (sport === 'baseball') {
+    // A lineup change before any at-bat's words ("Kelly relieved Sulser" read
+    // as a lineout: "Lineup" has "line" in it).
+    const change = lineupZh(play);
+    if (change) return change;
     const what = firstOf(MLB_ZH, play.alt, play.text) || '關鍵打擊';
     return [who, what].filter(Boolean).join(' ') + (play.scoring && play.value ? ` · ${play.value} 分打點` : '');
   }
