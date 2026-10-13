@@ -112,7 +112,8 @@ export function posZh(abbr, sport, lang = 'zh') {
   const a = String(abbr || '').toUpperCase();
   if (lang === 'en' || !a) return abbr || '';
   const BY = {
-    soccer: { G: '門將', GK: '門將', D: '後衛', M: '中場', F: '前鋒' },
+    // (A formation's own slots too, as ESPN's line-ups have them: CD-L, AM-R…)
+    soccer: { G: '門將', GK: '門將', D: '後衛', M: '中場', F: '前鋒', CD: '中後衛', 'CD-L': '中後衛', 'CD-R': '中後衛', SW: '清道夫', LB: '左後衛', RB: '右後衛', LWB: '左翼衛', RWB: '右翼衛', DM: '後腰', 'DM-L': '後腰', 'DM-R': '後腰', CM: '中場', 'CM-L': '中場', 'CM-R': '中場', LM: '左中場', RM: '右中場', AM: '前腰', 'AM-L': '左前衛', 'AM-R': '右前衛', LW: '左邊鋒', RW: '右邊鋒', CF: '前鋒', 'CF-L': '前鋒', 'CF-R': '前鋒', ST: '前鋒' },
     basketball: { G: '後衛', F: '前鋒', C: '中鋒', PG: '控衛', SG: '得分後衛', SF: '小前鋒', PF: '大前鋒', 'G-F': '後衛／前鋒', 'F-C': '前鋒／中鋒', 'F-G': '前鋒／後衛', 'C-F': '中鋒／前鋒' },
     baseball: { P: '投手', SP: '先發投手', RP: '後援投手', C: '捕手', '1B': '一壘手', '2B': '二壘手', '3B': '三壘手', SS: '游擊手', LF: '左外野手', CF: '中外野手', RF: '右外野手', OF: '外野手', IF: '內野手', DH: '指定打擊', UT: '工具人', TWP: '二刀流' }
   };

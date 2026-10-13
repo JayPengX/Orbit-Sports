@@ -1755,3 +1755,6 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-lap-key i { width: 12px; height: 4px; border-radius: 2px; }
 .tm-lap-key strong { color: var(--q-text); font-weight: 800; }
 .tm-lap-at { text-align: center; font-size: 11.5px; }
+/* 場上球員 (a game on): a sub's minute on, a player sent off, fouls from the fourth. */
+.sub-on { color: var(--q-muted); font-weight: 600; }
+.sent-off, .foul-trouble { color: var(--loss); font-weight: 700; }

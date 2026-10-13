@@ -1006,7 +1006,7 @@ export function parseSummary(data, league) {
     tables: (p.statistics || []).map(st => ({
       name: st.name || st.type || st.text || '',
       labels: st.labels || st.names || [],
-      rows: (st.athletes || []).map(a => ({ id: String(a.athlete?.id ?? ''), name: a.athlete?.shortName || a.athlete?.displayName || '', full: a.athlete?.displayName || '', headshot: freshHeadshot(a.athlete?.headshot?.href) || null, pos: a.position?.abbreviation || '', starter: Boolean(a.starter), stats: a.stats || [] })),
+      rows: (st.athletes || []).map(a => ({ id: String(a.athlete?.id ?? ''), name: a.athlete?.shortName || a.athlete?.displayName || '', full: a.athlete?.displayName || '', headshot: freshHeadshot(a.athlete?.headshot?.href) || null, pos: a.position?.abbreviation || '', jersey: a.athlete?.jersey || '', starter: Boolean(a.starter), on: a.active === true, stats: a.stats || [] })),
       totals: st.totals || []
     }))
   }));
@@ -1074,7 +1074,15 @@ export function parseSummary(data, league) {
   const rosters = (data?.rosters || []).map(r => ({
     team: String(r.team?.id ?? ''),
     formation: r.formation || '',
-    players: (r.roster || []).map(x => ({ id: String(x.athlete?.id ?? ''), name: x.athlete?.displayName || '', short: x.athlete?.shortName || '', headshot: freshHeadshot(x.athlete?.headshot?.href) || null, jersey: x.jersey || '', pos: x.position?.abbreviation || '', starter: Boolean(x.starter), played: Boolean(x.starter || x.subbedIn), stats: Object.fromEntries((x.stats || []).map(s => [s.name, s.displayValue])) }))
+    players: (r.roster || []).map(x => ({ id: String(x.athlete?.id ?? ''), name: x.athlete?.displayName || '', short: x.athlete?.shortName || '', headshot: freshHeadshot(x.athlete?.headshot?.href) || null, jersey: x.jersey || '', pos: x.position?.abbreviation || '', starter: Boolean(x.starter), played: Boolean(x.starter || x.subbedIn), stats: Object.fromEntries((x.stats || []).map(s => [s.name, s.displayValue])),
+      // Who's on the pitch now (lib/onfield.mjs): the formation's slot, who came on for whom and when, who went off.
+      place: Number(x.formationPlace) || 0,
+      subbedIn: Boolean(x.subbedIn),
+      subbedOut: Boolean(x.subbedOut),
+      inFor: String(x.subbedInFor?.athlete?.id ?? ''),
+      subAt: (x.plays || []).find(q => q.substitution)?.clock?.displayValue || '',
+      sentOff: (x.plays || []).some(q => q.redCard) || Number((x.stats || []).find(s => s.name === 'redCards')?.value) > 0
+    }))
   }));
   const leaders = (data?.leaders || []).flatMap(t =>
     (t.leaders || []).map(l => ({ team: String(t.team?.id ?? ''), stat: l.displayName || l.name, id: String(l.leaders?.[0]?.athlete?.id ?? ''), name: l.leaders?.[0]?.athlete?.shortName || l.leaders?.[0]?.athlete?.displayName || '', full: l.leaders?.[0]?.athlete?.displayName || '', headshot: freshHeadshot(l.leaders?.[0]?.athlete?.headshot?.href) || null, value: l.leaders?.[0]?.displayValue || '' }))
