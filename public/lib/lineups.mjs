@@ -35,6 +35,17 @@ export const mlbLineupsUrl = date => `https://statsapi.mlb.com/api/v1/schedule?s
 const plain = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 // (No MLB picture: MLB's own is a big cropped headshot; the kit finds the same face the box score shows, by name.)
 const mlbPerson = p => (p?.id ? { id: '', mlb: String(p.id), name: p.fullName || '', headshot: null, pos: p.primaryPosition?.abbreviation || '' } : null);
+// MLB's people as ESPN's, by name (MLB names no ESPN id): each one's id
+// and face from the team's ESPN roster, so the row opens the player's page.
+// (A suffix one names and the other doesn't, "Bobby Witt" and "Bobby Witt Jr.", is the same man.)
+const bare = s => plain(s).replace(/[.,]/g, '').replace(/\s+(jr|sr|ii|iii|iv)$/, '');
+export function byRosterName(people, roster) {
+  const espn = new Map((Array.isArray(roster) ? roster : []).flatMap(g => (Array.isArray(g?.players) ? g.players : [g])).filter(Boolean).map(x => [bare(x.name), x]));
+  return people.map(p => {
+    const x = p && espn.get(bare(p.name));
+    return x ? { ...p, id: String(x.id || ''), headshot: x.headshot || p.headshot, pos: p.pos || x.pos || '' } : p;
+  });
+}
 // The game of an event (each side's English name): { pitchers: { away, home }, order: { away: [...], home: [...] } }, or null.
 export function mlbLineups(data, e) {
   const home = plain(e?.home?.en || e?.home?.name);

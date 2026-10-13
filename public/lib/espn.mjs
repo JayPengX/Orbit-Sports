@@ -16,7 +16,7 @@ import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine } from './mlb.mjs';
-import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups } from './lineups.mjs';
+import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
 import * as kit from '#kit/quadra.mjs';
@@ -1627,7 +1627,16 @@ export async function pregameLineups(e, now = Date.now()) {
   if (e.league === 'mlb') {
     if (ahead > 3 * 86_400_000) return null;
     const m = mlbLineups(await getJson(mlbLineupsUrl(mlbDate(Date.parse(e.start))), { ttl: 2 * 60_000 }), e);
-    return m && (m.pitchers.away || m.pitchers.home || m.order.away.length || m.order.home.length) ? { kind: 'mlb', ...m } : null;
+    if (!m || !(m.pitchers.away || m.pitchers.home || m.order.away.length || m.order.home.length)) return null;
+    // Each side's people matched to its ESPN roster by name, so each row opens the player.
+    const [away, home] = await Promise.all(
+      [['away', e.away], ['home', e.home]].map(async ([k, t]) => {
+        const r = t?.id ? await roster(e.league, t.id).catch(() => []) : [];
+        const [pitcher, ...order] = byRosterName([m.pitchers[k], ...m.order[k]], r);
+        return { pitcher, order };
+      })
+    );
+    return { kind: 'mlb', pitchers: { away: away.pitcher, home: home.pitcher }, order: { away: away.order, home: home.order } };
   }
   const far = CORE_LINEUPS[e.league];
   if (!far || ahead > far || !LEAGUES[e.league]?.espn || !e.home?.id || !e.away?.id) return null;
