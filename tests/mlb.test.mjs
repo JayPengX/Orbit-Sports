@@ -47,3 +47,15 @@ test("the field: the side in it (the home side in a top half), its nine by posit
   assert.equal(fieldOf({ ...ls, isTopInning: false }).fielding, 'away');
   assert.equal(fieldOf(null), null);
 });
+
+import { mlbLogLine, mlbGameAt } from '../public/lib/mlb.mjs';
+test("a player's game in his log's columns from MLB's own box score: a batter's 2B, 3B and SO, a pitcher's GS, CG, SHO", () => {
+  const ramirez = { person: { fullName: 'José Ramírez' }, stats: { batting: { atBats: 5, runs: 2, hits: 3, doubles: 1, triples: 0, homeRuns: 0, rbi: 1, baseOnBalls: 0, strikeOuts: 1 }, pitching: {} } };
+  const kelly = { person: { fullName: 'Kevin Kelly' }, stats: { batting: {}, pitching: { gamesStarted: 0, completeGames: 0, shutouts: 0, inningsPitched: '1.0', hits: 2, runs: 2, earnedRuns: 2, homeRuns: 0, baseOnBalls: 1, strikeOuts: 1 } } };
+  const box = { teams: { away: { players: { ID1: ramirez } }, home: { players: { ID2: kelly } } } };
+  assert.deepEqual(mlbLogLine(box, 'Jose Ramirez', ['AB', 'R', 'H', '2B', '3B', 'HR', 'RBI', 'BB', 'SO']), ['5', '2', '3', '1', '0', '0', '1', '0', '1']);
+  assert.deepEqual(mlbLogLine(box, 'Kevin Kelly', ['GS', 'CG', 'SHO', 'IP', 'H', 'R', 'ER', 'HR', 'BB', 'K']), ['0', '0', '0', '1.0', '2', '2', '2', '0', '1', '1']);
+  assert.equal(mlbLogLine(box, 'Nobody', ['AB']), null);
+  const games = [{ pk: 1, away: 'cleveland guardians', home: 'tampa bay rays', at: Date.parse('2026-10-12T17:00Z') }, { pk: 2, away: 'cleveland guardians', home: 'tampa bay rays', at: Date.parse('2026-10-12T23:00Z') }];
+  assert.equal(mlbGameAt(games, { start: '2026-10-12T23:05Z', away: { en: 'Cleveland Guardians' }, home: { en: 'Tampa Bay Rays' } }).pk, 2);
+});

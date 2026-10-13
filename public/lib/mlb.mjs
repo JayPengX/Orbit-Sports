@@ -84,6 +84,29 @@ const n = v => (v == null ? '0' : String(v));
 
 // side: 'home' | 'away' → { batting: { labels, rows }, pitching: { labels, rows } },
 // each row { name, full, mlbId, headshot, pos, starter, stats }.
+// A day's games of any state (a schedule read plain): { pk, away, home, at }.
+export const mlbDayGames = data => (data?.dates || []).flatMap(d => d.games || []).map(g => ({ pk: g.gamePk, away: plain(g.teams?.away?.team?.name), home: plain(g.teams?.home?.team?.name), at: Date.parse(g.gameDate || '') }));
+// An event's game among them: its two sides, the start nearest its (a doubleheader's two).
+export const mlbGameAt = (games, e) =>
+  games.filter(g => g.home === plain(e.home?.en || e.home?.name) && g.away === plain(e.away?.en || e.away?.name)).sort((a, b) => Math.abs(a.at - Date.parse(e.start)) - Math.abs(b.at - Date.parse(e.start)))[0] || null;
+// A player's line in a game, in a game log's columns (ESPN's: a batter's
+// AB R H 2B 3B HR RBI BB SO, a pitcher's GS CG SHO IP H R ER HR BB K), from
+// MLB's own box score: every column ESPN's box score hasn't (2B, 3B, GS…).
+// box: MLB's game boxscore; name: the player's full name. null: not in it.
+const LOG_KEYS = {
+  batting: { AB: 'atBats', R: 'runs', H: 'hits', '2B': 'doubles', '3B': 'triples', HR: 'homeRuns', RBI: 'rbi', BB: 'baseOnBalls', SO: 'strikeOuts', K: 'strikeOuts', SB: 'stolenBases', CS: 'caughtStealing', HBP: 'hitByPitch' },
+  pitching: { GS: 'gamesStarted', CG: 'completeGames', SHO: 'shutouts', IP: 'inningsPitched', H: 'hits', R: 'runs', ER: 'earnedRuns', HR: 'homeRuns', BB: 'baseOnBalls', K: 'strikeOuts', SO: 'strikeOuts', PC: 'numberOfPitches', W: 'wins', L: 'losses', SV: 'saves', HLD: 'holds' }
+};
+export function mlbLogLine(box, name, labels) {
+  const who = plain(name);
+  const p = ['away', 'home'].flatMap(s => Object.values(box?.teams?.[s]?.players || {})).find(x => plain(x.person?.fullName) === who);
+  if (!p) return null;
+  const kind = labels.includes('IP') ? 'pitching' : 'batting';
+  const st = p.stats?.[kind];
+  if (!st || !Object.keys(st).length) return null;
+  return labels.map(k => (LOG_KEYS[kind][k] && st[LOG_KEYS[kind][k]] != null ? String(st[LOG_KEYS[kind][k]]) : '–'));
+}
+
 export function mlbBoxTables(data, side) {
   const t = data?.teams?.[side];
   if (!t) return null;

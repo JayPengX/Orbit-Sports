@@ -15,7 +15,7 @@ import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Constructor,
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
-import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox } from './mlb.mjs';
+import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
@@ -1230,6 +1230,13 @@ export async function summary(league, id) {
 }
 // ESPN's box score of a game on now with no numbers in it: MLB's own, each
 // player kept as ESPN's (their page, their picture) where ESPN lists them.
+// A player's line in a finished MLB game, in his game log's columns (MLB's
+// own box score: ESPN's has no 2B, 3B, GS, CG, SHO), or null.
+export async function mlbGameLog(e, name, labels) {
+  const g = mlbGameAt(mlbDayGames(await getJson(mlbScheduleUrl(mlbDate(e.start)), { ttl: 10 * 60_000 })), e);
+  if (!g) return null;
+  return mlbLogLine(await getJson(mlbBoxUrl(g.pk), { ttl: 10 * 60_000 }), name, labels);
+}
 async function withMlbBox(sm, start) {
   if (!start || !sm.home || !sm.away) return sm;
   const g = mlbGameOf(await mlbGames(mlbDate(start)), sm);

@@ -5,7 +5,7 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups } from './lib/espn.mjs';
+import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -3587,10 +3587,12 @@ const LOG_WORDS = { Started: '先發', Sub: '替補', Substitute: '替補', 'Did
 // day), newest first, each with his line from its box score, in the log's
 // columns (a percentage worked out from its made-attempted, a column the
 // box score hasn't: –); a game he didn't play, 未上場.
-async function newerGames(league, id, teamId, log, scheduleOf) {
+async function newerGames(league, id, teamId, log, scheduleOf, name = '') {
   const newest = Date.parse(log.games[0]?.date || '') || 0;
   const done = (await scheduleOf()).filter(x => x.status?.state === 'post' && !x.status.void && Date.parse(x.start) > newest + 6 * 3_600_000).reverse().slice(0, 5);
   const lines = await Promise.all(done.map(x => summary(league, x.id).catch(() => null)));
+  // MLB: his line from MLB's own box score, every column of the log (ESPN's has no 2B, 3B, GS, CG, SHO).
+  const mlb = league === 'mlb' && name ? await Promise.all(done.map(x => mlbGameLog(x, name, log.labels).catch(() => null))) : [];
   return done.map((x, i) => {
     const d = lines[i];
     const home = String(x.home?.id) === String(teamId);
@@ -3602,13 +3604,14 @@ async function newerGames(league, id, teamId, log, scheduleOf) {
     const best = found.sort((p, q) => q.tb.labels.filter(k => log.labels.includes(k)).length - p.tb.labels.filter(k => log.labels.includes(k)).length)[0];
     const val = k => {
       if (!best) return '';
-      const at = best.tb.labels.indexOf(k);
+      // (A strikeout is SO in a log, K in a box score.)
+      const at = [k, { SO: 'K', K: 'SO' }[k]].map(x => best.tb.labels.indexOf(x)).find(n => n >= 0) ?? -1;
       if (at >= 0) return String(best.row.stats[at] ?? '');
       const made = { 'FG%': 'FG', '3P%': '3PT', 'FT%': 'FT' }[k];
       const m = made && /^(\d+)-(\d+)$/.exec(String(best.row.stats[best.tb.labels.indexOf(made)] ?? ''));
       return m ? (Number(m[2]) ? ((100 * Number(m[1])) / Number(m[2])).toFixed(1) : '0.0') : '–';
     };
-    const stats = best ? log.labels.map(val) : log.labels.map((_, k) => (k ? '' : 'DNP'));
+    const stats = mlb[i] || (best ? log.labels.map(val) : log.labels.map((_, k) => (k ? '' : 'DNP')));
     return { id: String(x.id), date: x.start, at: home ? 'vs' : '@', home, league, leagueName: '', pre: Boolean(x.preseason || /preseason/i.test(x.note || '')), team: { id: String(teamId), abbr: us?.abbr || '', logo: us?.logo || null }, opp: { id: String(them?.id ?? ''), name: them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: Number.isFinite(a) && Number.isFinite(b) ? `${a}-${b}` : '', stats };
   });
 }
@@ -4012,7 +4015,7 @@ export async function openPlayer(league, id, fallback = {}) {
     // MLB's leaves the postseason out): the team's games over since its
     // newest, his line from each one's box score, at once.
     if (log && a.teamId && !racing)
-      newerGames(league, id, a.teamId, log, scheduleOf).then(newer => {
+      newerGames(league, id, a.teamId, log, scheduleOf, a.name).then(newer => {
         if (!newer.length || !s.dialog.isConnected) return;
         const fresh = logCardOf({ ...log, games: [...newer, ...log.games].slice(0, Math.max(log.games.length, 5)) });
         const at = games.indexOf(logCard);
