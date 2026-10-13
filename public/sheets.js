@@ -76,6 +76,8 @@ const GUEST_FROM = { 'London Lions': ['英國職籃', 'British basketball'] };
 
 // ---- A match ----------------------------------------------------------------------------
 
+// The game page open now (openMatch), for a player opened from it.
+let openGame = null;
 export async function openMatch(e) {
   // (Reassigned as the live copy comes in.)
   const s = sheet(leagueName(e.league, L()), { league: e.league });
@@ -86,6 +88,12 @@ export async function openMatch(e) {
   let view = 'overview';
   let data = null;
   let table = null;
+  // The game open: a player opened from it (any face, row or name in it)
+  // has its numbers in this game too (openPlayer's 本場), told of each refresh.
+  const game = { dialog: s.dialog, subs: new Set() };
+  Object.defineProperties(game, { e: { get: () => e }, data: { get: () => data } });
+  openGame = game;
+  s.dialog.addEventListener('close', () => openGame === game && (openGame = null));
   // Each side's injuries from its roster (ESPN's game page leaves some out).
   let hurt = {};
   // Who starts, before the game (pregameLineups).
@@ -203,6 +211,7 @@ export async function openMatch(e) {
     else if (view === 'table') view = 'overview';
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
     put(content, matchSection(view, data && { ...data, injuries: mergeInjuries(data.injuries, hurt), lineups }, e, table, { line, wait }));
+    for (const f of game.subs) f();
   };
   // The league's table: both sides' places, and the Table section.
   if (hasStandings(e.league))
@@ -496,6 +505,57 @@ export function statValue(text) {
 }
 
 const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [typeof title === 'string' ? el('span', { text: title }) : el('span', {}, [title]), sub ? el('small', {}, [sub]) : null]), body]);
+
+// A basketball box score's columns where the general names say otherwise (PTS is a table's 積分).
+const BOX_ZH = { PTS: '得分', FG: '投籃', FT: '罰球', OREB: '進攻籃板', DREB: '防守籃板' };
+// A player's line in a game (parseSummary's box score: every sport's
+// tables, soccer's made from its line-ups): [{ team, table, row }], or null.
+function gameLine(d, id) {
+  const found = (d?.players || []).flatMap(p => p.tables.map(tb => ({ team: p.team, table: tb, row: tb.rows.find(r => r.id === String(id)) }))).filter(x => x.row);
+  return found.length ? found : null;
+}
+// 本場: the game (both sides, the score, where it is), whether he's on now,
+// and each of his tables as tiles: the box score's columns, his numbers.
+function gameCards(game, id, league) {
+  const d = game.data;
+  const e = game.e;
+  const lines = gameLine(d, id);
+  if (!lines) return [];
+  const en = L() === 'en';
+  const st = d?.status || e.status;
+  const sport = LEAGUES[league]?.sport;
+  const [away, home] = [d?.away || e.away, d?.home || e.home];
+  const team = lines[0].team;
+  const row = lines[0].row;
+  // Where he is: on the court (basketball's mark), on the pitch or off it (soccer's line-ups), else started or came off the bench.
+  const rp = sport === 'soccer' ? d?.rosters?.find(r => r.team === team)?.players.find(p => p.id === String(id)) : null;
+  const where =
+    st.state === 'in' && sport === 'basketball'
+      ? row.on ? [en ? 'On the court' : '場上', 'on'] : [en ? 'On the bench' : '板凳', '']
+      : rp?.sentOff
+        ? [`${en ? 'Sent off' : '紅牌'}${rp.sentAt ? ` ${rp.sentAt}` : ''}`, 'bad']
+        : rp?.subbedOut
+          ? [`↓ ${en ? 'Off' : '下場'}${rp.subAt ? ` ${rp.subAt}` : ''}`, 'out']
+          : rp?.subbedIn
+            ? [`↑ ${en ? 'On' : '上場'}${rp.subAt ? ` ${rp.subAt}` : ''}`, st.state === 'in' ? 'on' : '']
+            : row.starter
+              ? [en ? 'Started' : '先發', st.state === 'in' && sport === 'soccer' ? 'on' : '']
+              : [en ? 'Bench' : '替補', ''];
+  // One card: the score line (the two sides' marks and the score, the
+  // game's clock at the right, red while on), then his numbers; where he
+  // is (場上, 先發, ↓ 69') beside the title, not a card of its own.
+  const scoreRow = el('div', { class: 'pg-row' }, [
+    el('span', { class: 'pg-score' }, [logo(away?.logo, away?.name, 'xs'), el('strong', { class: 'num', text: st.state === 'pre' ? 'vs' : `${away?.score ?? ''} – ${home?.score ?? ''}` }), logo(home?.logo, home?.name, 'xs')]),
+    el('span', { class: `pg-status ${st.state}`, text: statusText({ ...e, status: st }) })
+  ]);
+  const title = text => el('span', { class: 'pg-title' }, [el('span', { text }), el('span', { class: `pg-where ${where[1]}`, text: where[0] })]);
+  return lines.map(({ table: tb, row: r }, i) =>
+    card(
+      title(lines.length > 1 ? boxTableName(tb.name) : en ? 'This game' : '本場數據'),
+      el('div', {}, [i === 0 ? scoreRow : null, el('div', { class: 'stat-grid dense' }, tb.labels.map((k, n) => [k, r.stats[n]]).filter(([, v]) => v !== '' && v != null).map(([k, v]) => tile((!en && sport === 'basketball' && BOX_ZH[k]) || statName(k, L()), String(v))))])
+    )
+  );
+}
 
 // ---- Injury report ------------------------------------------------------------------------
 //
@@ -857,15 +917,17 @@ function onFieldCard(d, e, nameOf) {
   const sides = [e.away, e.home].map(t => String(t.id));
   const order = list => sides.map(id => list.find(x => x.team === id)).filter(Boolean);
   if (sport === 'basketball') {
-    const five = order(onCourt(d.players, d.subs));
+    const five = order(onCourt(d.players));
     if (!five.length) return null;
     const shirt = shirtsOf(d, e);
     // Each side's five as a row of faces (no court: a basketball position
-    // is no place on the floor): the number, a green ↑ on one who just came
-    // on, his points, then rebounds and assists, fouls from the fourth in red.
+    // is no place on the floor): the number; at the corner a green ↑ for one
+    // off the bench (soccer's sub on), 先 for a starter (the owner,
+    // 2026-10-13: the arrow means a sub, and a starter says so apart); his
+    // points, then rebounds and assists, fouls from the fourth in red.
     const tile = (p, colour) =>
-      el('button', { class: 'five-tile', type: 'button', style: `--shirt:${colour}`, 'aria-label': `${p.full || p.name}${p.justIn ? (en ? ', just came on' : '，剛上場') : ''}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
-        el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, p.justIn ? el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' }) : null]),
+      el('button', { class: 'five-tile', type: 'button', style: `--shirt:${colour}`, 'aria-label': `${p.full || p.name}${p.starter ? (en ? ', starter' : '，先發') : en ? ', off the bench' : '，替補'}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
+        el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, p.starter ? el('span', { class: 'pm-sub starter', 'aria-hidden': 'true', text: en ? 'S' : '先' }) : el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' })]),
         el('span', { class: 'pm-name', text: surnameOf(p) }),
         el('strong', { class: 'five-pts num', text: en ? `${p.line.pts || 0} PTS` : `${p.line.pts || 0} 分` }),
         el('small', { class: 'five-more num' }, [en ? `${p.line.reb || 0} R ${p.line.ast || 0} A` : `${p.line.reb || 0}板 ${p.line.ast || 0}助`, Number(p.line.pf) >= 4 ? el('b', { class: 'foul-trouble', text: en ? ` ${p.line.pf}PF` : ` ${p.line.pf}犯` }) : null])
@@ -3437,6 +3499,8 @@ function freshStandings(league) {
 }
 export async function openPlayer(league, id, fallback = {}) {
   if (!id) return;
+  // Opened from a game's page: that game, if he's in its box score.
+  const game = openGame?.dialog.isConnected && openGame.e.league === league && gameLine(openGame.data, id) ? openGame : null;
   const s = sheet(leagueName(league, L()), { league });
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
@@ -3660,14 +3724,28 @@ export async function openPlayer(league, id, fallback = {}) {
       awardsCard,
       driver?.team ? el('button', { class: 'q-btn block with-mark', type: 'button', onclick: () => openConstructor({ id: '', name: driver.team, en: driver.team }) }, [constructorBadge(driver.team, 'sm'), el('span', { text: `${en ? driver.team : f1Constructor(driver.team).zh} ›` })]) : null
     ]);
-    const views = [['overview', W('概況', 'Overview'), overview], ['numbers', W('數據', 'Stats'), numbers], ['games', racing ? W('各站成績', 'Races') : W('近期比賽', 'Games'), games], ['bio', W('資料', 'Bio'), bio]].filter(v => v[2].length);
+    // 本場 first when opened from a game: his numbers in it, live (drawn
+    // again with each of the game page's refreshes while this one is open).
+    const views = [
+      game ? ['game', W('本場', 'This game'), () => gameCards(game, id, league)] : null,
+      ['overview', W('概況', 'Overview'), overview],
+      ['numbers', W('數據', 'Stats'), numbers],
+      ['games', racing ? W('各站成績', 'Races') : W('近期比賽', 'Games'), games],
+      ['bio', W('資料', 'Bio'), bio]
+    ].filter(v => v && (typeof v[2] === 'function' || v[2].length));
     let view = views[0]?.[0];
     const tabsBox = el('div');
     const tabBody = el('div', { class: 'team-tab' });
     const paintTab = () => {
       put(tabsBox, views.length > 1 ? segmented(views.map(([k, label]) => [k, label]), view, v => ((view = v), paintTab())) : null);
-      put(tabBody, ...(views.find(v => v[0] === view)?.[2] || []));
+      const v = views.find(x => x[0] === view)?.[2];
+      put(tabBody, ...((typeof v === 'function' ? v() : v) || []));
     };
+    if (game) {
+      const live = () => (s.dialog.isConnected ? view === 'game' && tabBody.isConnected && put(tabBody, ...gameCards(game, id, league)) : game.subs.delete(live));
+      game.subs.add(live);
+      s.dialog.addEventListener('close', () => game.subs.delete(live));
+    }
     put(
       content,
       el('div', { class: `team-head player-hero${heroColor ? ' tinted' : ''}`, style: heroColor ? `--hero:${heroColor}` : null }, [

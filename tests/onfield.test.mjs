@@ -53,16 +53,3 @@ test('the pitch: a 3-5-2 with wing-backs, and a formation that no longer adds up
   assert.deepEqual(rows(pitchSpots(xi, '3-5-2')), [['G'], ['CD-L', 'CD', 'CD-R'], ['LWB', 'CM-L', 'DM', 'CM-R', 'RWB'], ['CF-L', 'CF-R']]);
   assert.equal(pitchSpots(xi.slice(0, 10), '3-5-2').length, 10);
 });
-
-test("basketball: who came on at the side's latest stoppage is marked, an earlier sub isn't", () => {
-  const labels = ['MIN', 'PTS', 'REB', 'AST', 'PF'];
-  const rows = ['a', 'b', 'c'].map(id => ({ id, name: id, on: true, stats: ['1', '2', '3', '4', '1'] }));
-  const subs = [
-    { team: '1', period: 2, clock: '8:00', in: 'a', out: 'x' },
-    { team: '1', period: 3, clock: '6:40', in: 'b', out: 'y' },
-    { team: '1', period: 3, clock: '6:40', in: 'c', out: 'z' },
-    { team: '2', period: 4, clock: '1:00', in: 'a', out: 'q' }
-  ];
-  const got = onCourt([{ team: '1', tables: [{ labels, rows }] }], subs)[0].players;
-  assert.deepEqual(got.map(p => p.justIn), [false, true, true]);
-});
