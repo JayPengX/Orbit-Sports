@@ -85,13 +85,13 @@ export function pitchSpots(held, formation) {
   const rows = [];
   let at = 0;
   for (const n of counts) rows.push(field.slice(at, (at += n)));
-  // The keeper clear of the goal line (his name under him), the lines from
-  // under a third of the way up the half to an eighth short of halfway:
-  // four lines a face and a name apart, the two sides' forwards kept apart
-  // (at 0.9 they met in the centre circle).
-  const out = keeper ? [{ p: keeper, x: 0.5, y: 0.1 }] : [];
+  // The keeper clear of his goal line (his name under him); the lines from
+  // a quarter of the way up the half to a tenth short of halfway: four lines
+  // a face and a name apart (a 4-2-3-1's), the two sides' forwards still
+  // apart (measured at 375 px in WebKit, 2026-10-13).
+  const out = keeper ? [{ p: keeper, x: 0.5, y: 0.08 }] : [];
   rows.forEach((row, i) => {
-    const y = rows.length === 1 ? 0.55 : 0.28 + (0.6 * i) / (rows.length - 1);
+    const y = rows.length === 1 ? 0.55 : 0.27 + (0.63 * i) / (rows.length - 1);
     row.sort((a, b) => sideOf(a.pos) - sideOf(b.pos) || (a.place || 99) - (b.place || 99));
     row.forEach((p, j) => out.push({ p, x: 0.08 + (0.84 * (j + 0.5)) / row.length, y }));
   });

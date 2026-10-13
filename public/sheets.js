@@ -934,11 +934,12 @@ const inkOn = c => {
   const x = hexRgb(c);
   return x && (0.299 * x[0] + 0.587 * x[1] + 0.114 * x[2]) / 255 > 0.6 ? '#111' : '#fff';
 };
-// The pitch's lines: 68 wide, drawn 118 long (a real one is 105): a
+// The pitch's lines: 68 wide, drawn 128 long (a real one is 105): a
 // broadcast's pitch is longer than life, so four lines a side fit with a
-// face and a name between each. The touchlines, halfway, the centre circle,
-// both boxes and six-yard boxes at their real sizes, in the theme's line colour.
-const PITCH_LINES = '<svg viewBox="0 0 68 118" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width=".5"><rect x="1" y="1" width="66" height="116"/><path d="M1 59h66"/><circle cx="34" cy="59" r="9.15"/><circle cx="34" cy="59" r=".6" fill="currentColor"/><path d="M13.84 1v16.5h40.32V1M24.84 1v5.5h18.32V1M13.84 117V100.5h40.32V117M24.84 117V111.5h18.32V117"/><path d="M26.7 17.5a9.15 9.15 0 0 0 14.6 0M26.7 100.5a9.15 9.15 0 0 1 14.6 0"/></svg>';
+// face and a two-line name between each (a 4-2-3-1 against a 4-2-3-1, both
+// strikers at the centre). The touchlines, halfway, the centre circle, both
+// boxes and six-yard boxes at their real sizes, in the theme's line colour.
+const PITCH_LINES = '<svg viewBox="0 0 68 128" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width=".5"><rect x="1" y="1" width="66" height="126"/><path d="M1 64h66"/><circle cx="34" cy="64" r="9.15"/><circle cx="34" cy="64" r=".6" fill="currentColor"/><path d="M13.84 1v16.5h40.32V1M24.84 1v5.5h18.32V1M13.84 127V110.5h40.32V127M24.84 127V121.5h18.32V127"/><path d="M26.7 17.5a9.15 9.15 0 0 0 14.6 0M26.7 110.5a9.15 9.15 0 0 1 14.6 0"/></svg>';
 
 // A few table columns worth comparing, by sport.
 function keyStats(league, places) {
