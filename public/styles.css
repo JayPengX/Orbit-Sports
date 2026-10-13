@@ -19,6 +19,7 @@
   --pitch-line: rgba(30, 70, 40, 0.22);
   /* A face's ring edged in the page's opposite tone: a black or white shirt seen on either. */
   --ring-edge: rgba(0, 0, 0, 0.22);
+  --dirt: #e8dfcf;
   font-family: var(--q-font);
 }
 @media (prefers-color-scheme: dark) {
@@ -37,7 +38,10 @@
     --pitch-band: #1b241d;
     --pitch-line: rgba(255, 255, 255, 0.13);
     --ring-edge: rgba(255, 255, 255, 0.4);
+    --dirt: #2b261f;
+  --dirt: #2b261f;
   --ring-edge: rgba(255, 255, 255, 0.4);
+  --dirt: #2b261f;
   }
 }
 :root[data-theme='dark'] {
@@ -55,6 +59,7 @@
   --pitch-band: #1b241d;
   --pitch-line: rgba(255, 255, 255, 0.13);
   --ring-edge: rgba(255, 255, 255, 0.4);
+  --dirt: #2b261f;
 }
 
 * { box-sizing: border-box; }
@@ -1824,3 +1829,8 @@ button.lp-person.tap:active { opacity: 0.6; }
 :root[data-theme='dark'] .pg-where.on { color: #4ade80; }
 /* A starter's mark (basketball's five), apart from a sub's green ↑. */
 .pm-sub.starter { background: var(--q-text); color: var(--q-surface); font-size: 9px; }
+/* 場上球員 (baseball): the field, the nine at their positions, the batter by the plate. */
+.diamond-field { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: var(--q-sunken); }
+.diamond-field .pm-num { min-width: 19px; font-size: 9px; }
+.diamond-at-bat { display: grid; gap: 2px; margin: 0; font-size: 13px; }
+.diamond-at-bat .muted { font-size: 12.5px; }

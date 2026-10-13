@@ -33,3 +33,17 @@ test("ESPN's box score of dashes is empty; a date is MLB's (US Eastern)", () => 
   assert.ok(!emptyBox([{ team: '30', tables: [{ rows: [{ stats: ['1-4', '4'] }] }] }]));
   assert.equal(mlbDate('2026-10-06T03:00:00Z'), '2026-10-05');
 });
+
+import { fieldOf } from '../public/lib/mlb.mjs';
+test("the field: the side in it (the home side in a top half), its nine by position, the batter, who's on base", () => {
+  const ls = { currentInning: 6, isTopInning: true, outs: 1, defense: { pitcher: { fullName: 'Drew Rasmussen' }, catcher: { fullName: 'Nick Fortes' }, first: { fullName: 'Jonathan Aranda' }, shortstop: { fullName: 'Taylor Walls' } }, offense: { batter: { fullName: 'Chase DeLauter' }, battingOrder: 3, second: { fullName: 'Jo Adell' } } };
+  const f = fieldOf(ls);
+  assert.equal(f.fielding, 'home');
+  assert.equal(f.defense.P, 'Drew Rasmussen');
+  assert.equal(f.defense['1B'], 'Jonathan Aranda');
+  assert.equal(f.defense.CF, '');
+  assert.deepEqual(f.runners, ['', 'Jo Adell', '']);
+  assert.equal(f.batter, 'Chase DeLauter');
+  assert.equal(fieldOf({ ...ls, isTopInning: false }).fielding, 'away');
+  assert.equal(fieldOf(null), null);
+});

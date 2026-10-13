@@ -48,9 +48,30 @@ export function mlbLiveGames(data) {
           batterWho: person(batter),
           pitcherWho: person(pitcher),
           lastPlay: g.previousPlay?.result?.description || ''
-        }
+        },
+        field: fieldOf(ls)
       };
     });
+}
+
+// Who's on the field (場上球員's diamond): the side in the field, its nine
+// by position (full names, as MLB has them), the batter and his place in
+// the order, who's on each base, the inning and the outs.
+const POSITIONS = [['P', 'pitcher'], ['C', 'catcher'], ['1B', 'first'], ['2B', 'second'], ['3B', 'third'], ['SS', 'shortstop'], ['LF', 'left'], ['CF', 'center'], ['RF', 'right']];
+export function fieldOf(ls) {
+  if (!ls?.defense) return null;
+  const off = ls.offense || {};
+  const top = ls.isTopInning ?? ls.inningHalf !== 'Bottom';
+  return {
+    fielding: top ? 'home' : 'away',
+    inning: ls.currentInning || 0,
+    top,
+    outs: ls.outs ?? 0,
+    defense: Object.fromEntries(POSITIONS.map(([k, key]) => [k, ls.defense[key]?.fullName || ''])),
+    batter: off.batter?.fullName || '',
+    order: off.battingOrder || 0,
+    runners: [off.first, off.second, off.third].map(r => r?.fullName || '')
+  };
 }
 
 // The MLB game of an Orbit Sports event (each side's English name).

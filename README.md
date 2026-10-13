@@ -182,6 +182,8 @@ Every sheet swipes down to close (the kit).
   | 球員 | Box scores: faces, sortable columns (most, fewest, back to the box order; kept per game), totals under, baseball's game notes (打擊, 跑壘, 投球, 守備) |
   | 過程 | Every play (basketball), at-bat (baseball), drive (American football), soccer's commentary; a header at each period; the chart's key moments marked; long games get a sticky bar, a filter (全部 / 得分 / 關鍵) and period chips |
   | 先發 | Who starts, before the game (`lib/lineups.mjs`): MLB's probable pitchers and batting orders (MLB's API), an NBA, WNBA or NHL side's starters once announced (ESPN's core rosters); read again each minute until it starts |
+  | 場上球員 | Who's on now, in a game on, in 先發's place (`lib/onfield.mjs`). Soccer: the pitch as a broadcast draws it, the away side in the top half; each player a face in his team's colour at his place in the formation (the formation's rows by how deep each position plays, then across by side), a sub with a green ↑ in the slot of the one he replaced, a man sent off leaving his slot empty; the substitutions under it (green ↑ on, red ↓ off, the minute) and red cards. Basketball: each five as a row of faces (no court: a position is no place on the floor), a green ↑ for one off the bench, 先 for a starter, points, rebounds, assists, fouls from the fourth in red. MLB: the field, the side in it at its nine positions, the batter by the plate, the bases with a runner lit, the inning, outs and who's on (MLB's own linescore). The pitch and field in the page's own tones (`--pitch`, `--dirt`), light and dark |
+  | 陣容 (soccer) | The line-ups; while the game is on, 場上 (the eleven now), 已下場 and the bench left, a formation's slots in Chinese |
   | 傷兵 | ESPN's injury report (NBA, WNBA, NFL, NHL, MLB: the league's list, kept 10 minutes) |
   | 排名 | The league's table with both sides marked, the result counted in at once (§Tables) |
 
@@ -249,6 +251,11 @@ Two special cases:
   competition, ours opening its match), 資料 (profile, honours).
   - Last season's numbers are said to be until the new season's first
     game.
+- **本場**: opened from a game's page (any face, box score row, leader or
+  line-up in it), the player's sheet opens on his numbers in that game,
+  every column of his box score line, drawn again with each of the game
+  page's refreshes; where he is beside the title (● 場上, 先發, ↑ 上場 45',
+  ↓ 下場 69', 紅牌) and the score line under it.
 - **A driver.**
   - formula1.com's figures, with the season place and points overlaid from
     the live table, because formula1.com updates a day after a race.
@@ -521,7 +528,7 @@ language, then ESPN's teams and players.
 | Finished games, past days, tables, teams, squads, players | ESPN | Shared-Data's mirror, else the proxy |
 | Standings | ESPN; CPBL from Shared-Data's `cpbl/standings.json` | mirror / proxy |
 | Pre-game starters | ESPN core rosters; MLB's API | proxy (`lineup` tier) |
-| MLB live fill-in, postseason | statsapi.mlb.com | proxy |
+| MLB live fill-in, postseason, who's on the field | statsapi.mlb.com | proxy |
 | CPBL games and box scores | cpbl.com.tw (`asia-baseball.quadra`) | proxy |
 | F1 live, sessions, laps, circuits | F1's live timing and archive (`f1-live.quadra`) | proxy |
 | F1 results, qualifying, sprints | Jolpica | mirror / proxy |
@@ -607,6 +614,7 @@ public/
   lib/moments.mjs        a line's key moments and their plays
   lib/live.mjs           a live game's status, situation and details
   lib/lineups.mjs        starters before a game
+  lib/onfield.mjs        who's on now: the five, the eleven and their places on the pitch
   lib/mlb.mjs            MLB's own API for an empty ESPN feed
   lib/cpblbox.mjs        CPBL's own box score
   lib/stage.mjs          season stages and playoff rounds in Chinese

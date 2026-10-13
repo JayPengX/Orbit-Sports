@@ -1218,8 +1218,14 @@ export async function cpblGame(e) {
 export async function summary(league, id) {
   const l = LEAGUES[league];
   const data = await getJson(`${SITE}/${l.espn}/summary?event=${encodeURIComponent(id)}`, { ttl: LIVE_TTL });
-  const sm = parseSummary(data, league);
-  return league === 'mlb' && sm.status.state === 'in' && emptyBox(sm.players) ? withMlbBox(sm, data?.header?.competitions?.[0]?.date).catch(() => sm) : sm;
+  let sm = parseSummary(data, league);
+  if (league !== 'mlb' || sm.status.state !== 'in') return sm;
+  const start = data?.header?.competitions?.[0]?.date;
+  if (emptyBox(sm.players)) sm = await withMlbBox(sm, start).catch(() => sm);
+  // Who's on the field now (場上球員's diamond): MLB's own, from the day's
+  // schedule the scoreboard reads too (one read, kept as briefly).
+  const g = start && sm.home && sm.away ? mlbGameOf(await mlbGames(mlbDate(start)).catch(() => []), sm) : null;
+  return g?.field ? { ...sm, field: g.field } : sm;
 }
 // ESPN's box score of a game on now with no numbers in it: MLB's own, each
 // player kept as ESPN's (their page, their picture) where ESPN lists them.

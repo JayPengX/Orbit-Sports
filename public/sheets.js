@@ -934,6 +934,7 @@ function onFieldCard(d, e, nameOf) {
       ]);
     return card(en ? 'On the court' : '場上球員', el('div', { class: 'five-sides' }, five.map(s => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(s.team) }), el('div', { class: 'five-row' }, s.players.map(p => tile(p, shirt[s.team])))]))), { sub: en ? 'Live' : '即時' });
   }
+  if (sport === 'baseball' && d.field) return card(en ? 'On the field' : '場上球員', diamondView(d, e, nameOf), { sub: en ? 'Live' : '即時' });
   if (sport === 'soccer') {
     const xi = order(onPitch(d.rosters));
     if (xi.length < 2) return null;
@@ -965,6 +966,58 @@ function pitchView([away, home], d, e, nameOf) {
   const label = s => el('p', { class: 'pitch-team' }, [el('strong', { text: nameOf(s.team) }), el('span', { class: 'num', text: [s.formation, s.on.length < 11 ? (en ? `${s.on.length} men` : `${s.on.length} 人`) : ''].filter(Boolean).join(' · ') })]);
   return el('div', { class: 'pitch-wrap' }, [label(away), el('div', { class: 'pitch' }, [el('div', { class: 'pitch-lines', 'aria-hidden': 'true', html: PITCH_LINES }), ...spots]), label(home)]);
 }
+// Baseball's field as a broadcast draws it (MLB's own word on who's where,
+// espn.mjs summary's d.field): the side in the field, each of the nine a
+// face at his position in his team's colour, the batter by the plate in
+// his; the bases with a runner lit, and under it the inning, the outs, the
+// batter and who's on. A face opens the player (ESPN's, found by name).
+const FIELD_SPOTS = { P: [50, 66], C: [50, 91], '1B': [77, 62], '2B': [61, 45], SS: [39, 45], '3B': [23, 62], LF: [20, 29], CF: [50, 16], RF: [80, 29] };
+function diamondView(d, e, nameOf) {
+  const en = L() === 'en';
+  const f = d.field;
+  const shirt = shirtsOf(d, e);
+  const [fieldSide, batSide] = f.fielding === 'home' ? [e.home, e.away] : [e.away, e.home];
+  const plain = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const rows = new Map((d.players || []).flatMap(p => p.tables.flatMap(tb => tb.rows)).map(r => [plain(r.full || r.name), r]));
+  const who = full => {
+    const r = rows.get(plain(full));
+    return { id: r?.id || '', name: full, full, short: r?.name || '', headshot: r?.headshot || null };
+  };
+  const marker = (full, [x, y], colour, label = '') => {
+    if (!full) return null;
+    const p = who(full);
+    return el('button', { class: 'pm', type: 'button', style: `left:${x}%;top:${y}%;--shirt:${colour}`, 'aria-label': `${label ? `${label} ` : ''}${full}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: full, logo: p.headshot }) }, [
+      el('span', { class: 'pm-face' }, [personPic(p, e.league, 'pm-pic'), label ? el('span', { class: 'pm-num', style: `color:${inkOn(colour)}`, text: label }) : null]),
+      el('span', { class: 'pm-name', text: surnameOf({ name: full, short: p.short || full.split(' ').slice(1).join(' ') || full }) })
+    ]);
+  };
+  const posWord = k => (en ? k : posZh(k, 'baseball', 'zh').replace(/手$/, '').replace('外野', '外'));
+  const lit = f.runners.map(Boolean);
+  const field = el('div', { class: 'diamond-field' }, [
+    el('div', { class: 'pitch-lines', 'aria-hidden': 'true', html: diamondLines(lit) }),
+    ...Object.entries(FIELD_SPOTS).map(([k, at]) => marker(f.defense[k], at, shirt[String(fieldSide.id)], posWord(k))),
+    marker(f.batter, [31, 86], shirt[String(batSide.id)], en ? 'AB' : '打')
+  ]);
+  const half = en ? `${f.top ? 'Top' : 'Bottom'} ${f.inning}` : `${f.inning} 局${f.top ? '上' : '下'}`;
+  const bases = en ? ['1st', '2nd', '3rd'] : ['一壘', '二壘', '三壘'];
+  const on = f.runners.map((r, i) => (r ? `${bases[i]} ${surnameOf({ name: r, short: who(r).short || r })}` : '')).filter(Boolean);
+  return el('div', { class: 'pitch-wrap' }, [
+    el('p', { class: 'pitch-team' }, [el('strong', { text: `${nameOf(String(fieldSide.id))} ${en ? 'in the field' : '守備'}` }), el('span', { class: 'num', text: `${half} · ${en ? `${f.outs} out` : `${f.outs} 出局`}` })]),
+    field,
+    el('p', { class: 'diamond-at-bat' }, [
+      el('span', { text: `${nameOf(String(batSide.id))} ${en ? 'batting' : '進攻'}${f.batter ? ` · ${en ? '' : '打者 '}${who(f.batter).short || f.batter}${f.order ? (en ? ` (#${Math.floor(f.order / 100) || f.order})` : `（第 ${Math.floor(f.order / 100) || f.order} 棒）`) : ''}` : ''}` }),
+      el('span', { class: 'muted', text: on.length ? on.join(' · ') : en ? 'Bases empty' : '壘上無人' })
+    ])
+  ]);
+}
+// The field (100 × 100, home plate at the bottom): the outfield's fan, the
+// infield's dirt, the foul lines, the mound, and the bases (a runner's lit).
+const diamondLines = lit =>
+  `<svg viewBox="0 0 100 100" preserveAspectRatio="none" stroke="currentColor" stroke-width=".5"><path d="M50 86 L0 36 A70.7 70.7 0 0 1 100 36 Z" fill="var(--pitch)"/><path d="M50 90 L73 67 L50 44 L27 67 Z" fill="var(--dirt)" stroke="none"/><path d="M50 86 L0 36 M50 86 L100 36" fill="none"/><circle cx="50" cy="68" r="3" fill="var(--dirt)"/>${[
+    [69, 67],
+    [50, 48],
+    [31, 67]
+  ].map(([x, y], i) => `<rect x="${x - 2.2}" y="${y - 2.2}" width="4.4" height="4.4" transform="rotate(45 ${x} ${y})" fill="${lit[i] ? 'var(--accent)' : 'var(--q-surface)'}" stroke="${lit[i] ? 'var(--accent)' : 'currentColor'}"/>`).join('')}<path d="M48 85h4l0 2-2 2-2-2z" fill="var(--q-surface)"/></svg>`;
 // The substitutions so far, each side's in order: the minute, who came on (green ↑) and who went off (red ↓); a red card too.
 function subsList(sides, nameOf, league) {
   const en = L() === 'en';
