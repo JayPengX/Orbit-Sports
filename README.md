@@ -13,7 +13,7 @@ F1 has its own live board with F1's own timing.
 
 The family's rules are `Shared-Proxy/docs/TRUTH.md`, and they win over
 anything here. The data layers this app reads through (memory, device,
-Shared-Data's packs and mirror, the proxy's edge cache, the upstream) are
+the family's data in R2, the proxy's edge cache, games kept on demand, the upstream) are
 in Shared-Proxy's README §2.
 
 ## Contents
@@ -95,7 +95,7 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
 - **Team sports.**
   - The view opens on the game day nearest to now (a live day first), on
     the same date strip as 首頁, built from the league's season game days
-    (Shared-Data's pack).
+    (the family's data).
   - ‹ › read further: CPBL by months, a cup by months, others by weeks.
   - A football day says its matchweek (第 6 輪, 第 6–7 輪 across a
     postponed game) or a cup's league-phase matchday (第 2 比賽日).
@@ -204,15 +204,15 @@ Every sheet swipes down to close (the kit).
     reads any moment, snapping to a near one.
   - **Sources**: ESPN's own line, else Polymarket's market (`lib/winprob.mjs`,
     read each minute while on). A finished game's market line comes from
-    Shared-Data's `winprob` pack.
+    the `winprob` pack (the family's data).
 - **Highlights.** An ended game's highlights open in YouTube: the official
   video itself (league, club or an English rights holder whose videos play
   in Taiwan; the NBA's from GAMETIME HIGHLIGHTS), named for what it is, from
-  Shared-Data's `watch.json` or found on the device. Else YouTube's search,
+  `watch.json` (the family's data, built hourly) or found on the device. Else YouTube's search,
   said so. A video is the game's only by both sides, its score and number
   when the title gives them, and its day when the title says one (MLB's
   "(August 28)" is another meeting of the two sides). A game older than
-  `watch.json`'s ten days has its links in Shared-Data's season archive
+  `watch.json`'s ten days has its links in the season's archive (`sports/watch/…`)
   (`sports/watch/<league>/<month>.json`): its sheet reads that month once,
   the row the same size while it does (找這場的影片…). The lists read it
   before they draw, so their cards have 愛爾達・重播 at once, never a row
@@ -221,7 +221,7 @@ Every sheet swipes down to close (the kit).
   moment at most), 季後賽 with its bracket, a series' sheet with it.
 - **Watching again.** A finished game on ELTA shows where to watch it
   again: its whole video, else its channel's 回看 within 48 hours, else the
-  season's page. The video is the game's episode in Shared-Data's packs
+  season's page. The video is the game's episode in the family's data
   (any game of the season, months back too), else the newest 120 of its
   season's page read through the proxy. For MLS, it is Apple TV's own page
   of the game.
@@ -244,7 +244,7 @@ The page follows the leagues' own apps:
 
 Two special cases:
 - **CPBL**: the same page built from its own season (the record and table
-  counted from the results; the league's own table from Shared-Data).
+  counted from the results; the league's own table from the family's data).
 - **A club from a league not covered, met in one of the cups** (Benfica in
   歐霸): only its games in our competitions, its league named, no roster.
 
@@ -456,7 +456,7 @@ game).
   asked at boot (`tvReady()` in `boot`). Today's games are read while the
   sign-in is on its way (`early` in `boot`, not under a `#qh=` sign-in link).
 - **Apple TV**: every MLS game. Its 觀看 opens that game's own page in the
-  TV app, from Shared-Data's `watch.json` (`packOf(e).apple`, a week ahead
+  TV app, from `watch.json` (`packOf(e).apple`, a week ahead
   and ten days back), else the MLS channel.
 - **The featured game**: of a league's games at one time, the one ELTA puts
   on a main 體育台 with its commentators (the rest on MAX's English feed).
@@ -535,20 +535,21 @@ language, then ESPN's teams and players.
 
 | Data | Source | Read through |
 | --- | --- | --- |
-| A league's season (schedule, results) | ESPN, built nightly | Shared-Data `sports/<league>/<year>.json` (`packJson`) |
-| A league's game days | Shared-Data `sports/<league>/days.json` | packJson |
+| A league's season (schedule, results) | ESPN, built nightly by the proxy | `/data/sports/<league>/<year>.json` (`packJson`) |
+| A league's game days | `/data/sports/<league>/days.json` | packJson |
 | Today's and live scoreboards, summaries | ESPN site API | the sports proxy (`live` tier) |
-| Finished games, past days, tables, teams, squads, players | ESPN | Shared-Data's mirror, else the proxy |
-| Standings | ESPN; CPBL from Shared-Data's `cpbl/standings.json` | mirror / proxy |
+| Finished games, past days and months | ESPN | the proxy, which keeps each in R2 the first time anyone reads it |
+| Tables, teams, squads, players | ESPN | the proxy (its edge cache by tier) |
+| Standings | ESPN; CPBL from `/data/sports/cpbl/standings.json` | proxy / packJson |
 | Pre-game starters | ESPN core rosters; MLB's API | proxy (`lineup` tier) |
 | MLB live fill-in, postseason, who's on the field | statsapi.mlb.com | proxy |
 | CPBL games and box scores | cpbl.com.tw (`asia-baseball.quadra`) | proxy |
 | F1 live, sessions, laps, circuits | F1's live timing and archive (`f1-live.quadra`) | proxy |
-| F1 results, qualifying, sprints | Jolpica | mirror / proxy |
-| F1 drivers' and teams' pages | formula1.com (trimmed) | mirror / proxy |
-| Win probability (no ESPN line) | Polymarket | proxy (live), Shared-Data `winprob` (over) |
+| F1 results, qualifying, sprints | Jolpica | proxy |
+| F1 drivers' and teams' pages | formula1.com (trimmed) | proxy |
+| Win probability (no ESPN line) | Polymarket | proxy (live), `/data/winprob` (over) |
 | Where to watch | ELTA's list (proxy), NBA.com (`nba-elta.json`), Apple TV (`watch.json`) | — |
-| Highlights, ELTA's replays | YouTube, ELTA.tv | Shared-Data `watch.json` (ten days) and `watch/<league>/<month>.json` (the season), else looked up on the device |
+| Highlights, ELTA's replays | YouTube, ELTA.tv | `/data/sports/watch.json` (ten days, hourly) and `watch/<league>/<month>.json` (the season), else looked up on the device in a game's first hours |
 | Photos, logos, Chinese names | the kit (`photos.mjs`, `logos.mjs`, `names.mjs`) | — |
 | Translations (ESPN's English words) | Google translate | proxy, kept 30 days a line |
 
@@ -556,7 +557,7 @@ All reads go through the kit's `proxyJson` (`lib/espn.mjs getJson`):
 - reads made together are batched;
 - answers are remembered in memory and on the device;
 - failures are held a minute;
-- the mirror is consulted first.
+- a finished game comes from what the proxy keeps (R2).
 
 A Quadra Pass session is required.
 
@@ -676,12 +677,12 @@ node ../Shared-Proxy/tools/preview.mjs sports --serve --port 8125
 
 | If you change… | Also check |
 | --- | --- |
-| A league (`kit/catalog.mjs`, `broadcast.mjs`) | `leagues.mjs`, picks, 賽事 chips, Shared-Data's `sports.mjs`/`mirror.mjs`/`watch.mjs`, Quadra Play |
-| `lib/espn.mjs` parsers | Every tab and sheet; Shared-Data's mirror (its trims); tests |
+| A league (`kit/catalog.mjs`, `broadcast.mjs`) | `leagues.mjs`, picks, 賽事 chips, Shared-Proxy's `builders/` (`sports.js`, `watch.js`, `winprob.js`), Quadra Play |
+| `lib/espn.mjs` parsers | Every tab and sheet; tests |
 | `liveTable` / `title.mjs` | 賽事 排名, match sheet 排名, team/driver/constructor pages (`freshStandings`), the title line in every sport, `racesLeft` |
 | A session's status (`feedEnded`, `sessionStatus`) | Home cards, 轉播's badge and lists, the race weekend sheet, standings counting, notices |
 | `f1Row` | Every F1 list: live, results (official and archive), qualifying, practice |
 | `trimF1Live` (Shared-Proxy) | The board, 數據, track map, compare, stop window, standings at the flag, Quadra Play's settling |
-| `lib/highlights.mjs`, `broadcast.mjs`, `winprob.mjs` | Shared-Data loads them alone (`watch.mjs`, `winprob.mjs`): `broadcast.mjs` and `winprob.mjs` import nothing, `highlights.mjs` only `broadcast.mjs`; keep it so |
+| `lib/highlights.mjs`, `broadcast.mjs`, `winprob.mjs` | They're the kit's (`sports-*.mjs`, re-exported): the proxy's builders run them (`builders/watch.js`, `winprob.js`); they import nothing but each other; keep it so |
 | The row or card design | 375 px, light and dark, both languages, the longest names (TRUTH §10) |
 | A saved key's meaning | Bump its version and remove the old key (TRUTH §7) |
