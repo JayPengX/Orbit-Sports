@@ -7,6 +7,7 @@
 //   - MLB: MLB's own schedule, each side's probable pitcher days ahead and
 //     its batting order once the manager posts it (hours before).
 // Pure parsing here; the reads in espn.mjs (pregameLineups).
+import { personKey } from './mlb.mjs';
 
 
 // The leagues whose starters ESPN marks before a game, and how far ahead
@@ -37,12 +38,10 @@ const plain = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLo
 const mlbPerson = p => (p?.id ? { id: '', mlb: String(p.id), name: p.fullName || '', headshot: null, pos: p.primaryPosition?.abbreviation || '' } : null);
 // MLB's people as ESPN's, by name (MLB names no ESPN id): each one's id
 // and face from the team's ESPN roster, so the row opens the player's page.
-// (A suffix one names and the other doesn't, "Bobby Witt" and "Bobby Witt Jr.", is the same man.)
-const bare = s => plain(s).replace(/[.,]/g, '').replace(/\s+(jr|sr|ii|iii|iv)$/, '');
 export function byRosterName(people, roster) {
-  const espn = new Map((Array.isArray(roster) ? roster : []).flatMap(g => (Array.isArray(g?.players) ? g.players : [g])).filter(Boolean).map(x => [bare(x.name), x]));
+  const espn = new Map((Array.isArray(roster) ? roster : []).flatMap(g => (Array.isArray(g?.players) ? g.players : [g])).filter(Boolean).map(x => [personKey(x.name), x]));
   return people.map(p => {
-    const x = p && espn.get(bare(p.name));
+    const x = p && espn.get(personKey(p.name));
     return x ? { ...p, id: String(x.id || ''), headshot: x.headshot || p.headshot, pos: p.pos || x.pos || '' } : p;
   });
 }

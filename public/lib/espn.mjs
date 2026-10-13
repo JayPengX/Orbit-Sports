@@ -15,7 +15,7 @@ import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Constructor,
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
-import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine } from './mlb.mjs';
+import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
@@ -1185,14 +1185,13 @@ async function withMlbBox(sm, start) {
   const g = mlbGameOf(await mlbGames(mlbDate(start)), sm);
   if (!g) return sm;
   const box = await getJson(mlbBoxUrl(g.pk), { ttl: LIVE_TTL });
-  const plain = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const players = [];
   for (const side of [sm.away, sm.home]) {
     const tables = mlbBoxTables(box, side === sm.home ? 'home' : 'away');
     if (!tables) continue;
-    const espn = new Map(sm.players.filter(p => p.team === side.id).flatMap(p => p.tables.flatMap(tb => tb.rows)).map(r => [plain(r.full || r.name), r]));
+    const espn = new Map(sm.players.filter(p => p.team === side.id).flatMap(p => p.tables.flatMap(tb => tb.rows)).map(r => [personKey(r.full || r.name), r]));
     const rows = list => list.map(r => {
-      const mine = espn.get(plain(r.full));
+      const mine = espn.get(personKey(r.full));
       return { id: mine?.id || '', name: r.name, full: r.full, headshot: mine?.headshot || r.headshot, pos: r.pos || mine?.pos || '', starter: r.starter, stats: r.stats };
     });
     players.push({ team: side.id, tables: ['batting', 'pitching'].map(k => ({ name: k, labels: tables[k].labels, rows: rows(tables[k].rows), totals: [] })) });

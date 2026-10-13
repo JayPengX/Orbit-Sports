@@ -59,3 +59,10 @@ test("a player's game in his log's columns from MLB's own box score: a batter's 
   const games = [{ pk: 1, away: 'cleveland guardians', home: 'tampa bay rays', at: Date.parse('2026-10-12T17:00Z') }, { pk: 2, away: 'cleveland guardians', home: 'tampa bay rays', at: Date.parse('2026-10-12T23:00Z') }];
   assert.equal(mlbGameAt(games, { start: '2026-10-12T23:05Z', away: { en: 'Cleveland Guardians' }, home: { en: 'Tampa Bay Rays' } }).pk, 2);
 });
+
+test("A person's name as MLB's and ESPN's are compared: accents, case and a one-sided suffix aside", async () => {
+  const { personKey } = await import('../public/lib/mlb.mjs');
+  assert.equal(personKey('Bobby Witt'), personKey('Bobby Witt Jr.'));
+  assert.equal(personKey('Ronald Acuña Jr.'), personKey('Ronald Acuna'));
+  assert.notEqual(personKey('Vladimir Guerrero'), personKey('Vladimir Gutierrez'));
+});

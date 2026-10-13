@@ -10,6 +10,7 @@ import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod } from './lib/live.mjs';
+import { personKey } from './lib/mlb.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
@@ -1054,10 +1055,9 @@ function diamondView(d, e, nameOf) {
   const f = d.field;
   const shirt = shirtsOf(d, e);
   const [fieldSide, batSide] = f.fielding === 'home' ? [e.home, e.away] : [e.away, e.home];
-  const plain = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const rows = new Map((d.players || []).flatMap(p => p.tables.flatMap(tb => tb.rows)).map(r => [plain(r.full || r.name), r]));
+  const rows = new Map((d.players || []).flatMap(p => p.tables.flatMap(tb => tb.rows)).map(r => [personKey(r.full || r.name), r]));
   const who = full => {
-    const r = rows.get(plain(full));
+    const r = rows.get(personKey(full));
     return { id: r?.id || '', name: full, full, short: r?.name || '', headshot: r?.headshot || null };
   };
   const marker = (full, [x, y], colour, label = '', cls = '') => {

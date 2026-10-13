@@ -15,6 +15,9 @@ export const mlbBoxUrl = pk => `${MLB_API}/game/${pk}/boxscore`;
 
 // A team's name compared plainly ("Athletics", "Tampa Bay Rays"; accents and case aside).
 const plain = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+// A person's name as MLB's and ESPN's are compared: accents, case and a
+// suffix one names and the other doesn't aside ("Bobby Witt", "Bobby Witt Jr.").
+export const personKey = s => plain(s).replace(/[.,]/g, '').replace(/\s+(jr|sr|ii|iii|iv)$/, '');
 // "Yandy Díaz" → "Y. Díaz", as ESPN shows them.
 const shortName = full => {
   const [first, ...rest] = String(full || '').split(' ');
@@ -98,8 +101,8 @@ const LOG_KEYS = {
   pitching: { GS: 'gamesStarted', CG: 'completeGames', SHO: 'shutouts', IP: 'inningsPitched', H: 'hits', R: 'runs', ER: 'earnedRuns', HR: 'homeRuns', BB: 'baseOnBalls', K: 'strikeOuts', SO: 'strikeOuts', PC: 'numberOfPitches', W: 'wins', L: 'losses', SV: 'saves', HLD: 'holds' }
 };
 export function mlbLogLine(box, name, labels) {
-  const who = plain(name);
-  const p = ['away', 'home'].flatMap(s => Object.values(box?.teams?.[s]?.players || {})).find(x => plain(x.person?.fullName) === who);
+  const who = personKey(name);
+  const p = ['away', 'home'].flatMap(s => Object.values(box?.teams?.[s]?.players || {})).find(x => personKey(x.person?.fullName) === who);
   if (!p) return null;
   const kind = labels.includes('IP') ? 'pitching' : 'batting';
   const st = p.stats?.[kind];
