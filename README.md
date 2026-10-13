@@ -627,6 +627,7 @@ public/
 scripts/
   nba-elta.mjs           NBA.com's ELTA games (deploy only)
   stamp-version.mjs      ?v= on every file, version.json, modulepreload
+  label-audit.mjs        every ESPN stat label a page can show, and any with no Chinese
 tests/                   node:test, one file per lib (and consistency, weekend, appletv…)
 ```
 

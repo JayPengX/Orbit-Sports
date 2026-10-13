@@ -13,7 +13,7 @@ import { playPeriod } from './lib/live.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
-import { statName, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
+import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
@@ -506,8 +506,6 @@ export function statValue(text) {
 
 const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [typeof title === 'string' ? el('span', { text: title }) : el('span', {}, [title]), sub ? el('small', {}, [sub]) : null]), body]);
 
-// A basketball box score's columns where the general names say otherwise (PTS is a table's 積分).
-const BOX_ZH = { PTS: '得分', FG: '投籃', FT: '罰球', OREB: '進攻籃板', DREB: '防守籃板' };
 // A player's line in a game (parseSummary's box score: every sport's
 // tables, soccer's made from its line-ups): [{ team, table, row }], or null.
 function gameLine(d, id) {
@@ -552,7 +550,7 @@ function gameCards(game, id, league) {
   return lines.map(({ table: tb, row: r }, i) =>
     card(
       title(lines.length > 1 ? boxTableName(tb.name) : en ? 'This game' : '本場數據'),
-      el('div', {}, [i === 0 ? scoreRow : null, el('div', { class: 'stat-grid dense' }, tb.labels.map((k, n) => [k, r.stats[n]]).filter(([, v]) => v !== '' && v != null).map(([k, v]) => tile((!en && sport === 'basketball' && BOX_ZH[k]) || statName(k, L()), String(v))))])
+      el('div', {}, [i === 0 ? scoreRow : null, el('div', { class: 'stat-grid dense' }, tb.labels.map((k, n) => [k, r.stats[n]]).filter(([, v]) => v !== '' && v != null).map(([k, v]) => tile(statName(k, L(), { sport, long: tb.longs?.[tb.labels.indexOf(k)] }), String(v))))])
     )
   );
 }
@@ -638,7 +636,7 @@ function matchSection(view, d, e, table, lw = {}) {
           .map(tb =>
             card(
               [nameOf(p.team), boxTableName(tb.name)].filter(Boolean).join(' · '),
-              boxTable(tb, `${e.id}|${p.team}|${tb.name}`, r =>
+              boxTable(tb, `${e.id}|${p.team}|${tb.name}`, LEAGUES[e.league]?.sport, r =>
                       el('tr', {}, [
                         // Each player's face (live too: the box score's own, else the kit's way), name and
                         // position on one line (Safari dropped the position below, over the numbers).
@@ -845,7 +843,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
             leadersBy.map((list, i) =>
               el('div', {}, [
                 el('p', { class: 'mini-h', text: sides[i].short || sides[i].name }),
-                ...list.map(l => el('button', { class: 'leader', type: 'button', disabled: l.id ? null : true, onclick: () => l.id && ctx.openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) }, [personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'), el('span', { class: 'leader-text' }, [el('small', { text: statName(l.stat, L()) }), el('span', {}, [el('strong', { text: l.name }), el('b', { class: 'num', text: leaderValue(l.value, L()) })])])]))
+                ...list.map(l => el('button', { class: 'leader', type: 'button', disabled: l.id ? null : true, onclick: () => l.id && ctx.openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) }, [personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'), el('span', { class: 'leader-text' }, [el('small', { text: statName(l.stat, L(), { sport: LEAGUES[e.league]?.sport }) }), el('span', {}, [el('strong', { text: l.name }), el('b', { class: 'num', text: leaderValue(l.value, L()) })])])]))
               ])
             )
           )
@@ -1317,7 +1315,7 @@ function gameNotes(t, team) {
 // sections again on a live game's refresh and on coming back from a
 // player's page, and the sort stays as it was left.)
 const boxSorts = new Map();
-function boxTable(tb, key, rowOf) {
+function boxTable(tb, key, sport, rowOf) {
   const rows = tb.rows.map(r => [r, rowOf(r)]);
   const body = el('tbody', {}, rows.map(([, tr]) => tr));
   let { by, dir } = boxSorts.get(key) || { by: -1, dir: 0 };
@@ -1339,7 +1337,7 @@ function boxTable(tb, key, rowOf) {
   };
   const heads = tb.labels.map((l, i) =>
     el('th', { class: 'sortable', 'aria-sort': 'none' }, [
-      el('button', { type: 'button', class: 'sort-btn', text: l, onclick: () => {
+      el('button', { type: 'button', class: 'sort-btn', title: l, text: boxHead(l, L(), { sport, long: tb.longs?.[i], pitching: tb.name === 'pitching' }), onclick: () => {
         dir = by === i ? (dir === -1 ? 1 : dir === 1 ? 0 : -1) : -1;
         by = dir ? i : -1;
         boxSorts.set(key, { by, dir });
@@ -3658,7 +3656,7 @@ export async function openPlayer(league, id, fallback = {}) {
           Date.now() - (Date.parse(log.games[0]?.date || '') || Date.now()) > 45 * 86_400_000 ? W(`上季最後 ${log.games.length} 場`, `Last season's last ${log.games.length}`) : W(`近 ${log.games.length} 場`, `Last ${log.games.length} games`),
           el('div', { class: 'table-wrap' }, [
             el('table', { class: 'data game-log' }, [
-              el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: W('日期', 'Date') }), el('th', { class: 'left', text: W('對手', 'Opp') }), el('th', { class: 'left', text: W('結果', 'Result') }), ...log.labels.map(k => el('th', { class: 'num', title: k, text: sport === 'basketball' && k === 'PTS' && !en ? '得分' : statName(k, L()) }))])]),
+              el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: W('日期', 'Date') }), el('th', { class: 'left', text: W('對手', 'Opp') }), el('th', { class: 'left', text: W('結果', 'Result') }), ...log.labels.map(k => el('th', { class: 'num', title: k, text: statName(k, L(), { sport, long: log.longs?.[log.labels.indexOf(k)] }) }))])]),
               el(
                 'tbody',
                 {},
@@ -3720,7 +3718,7 @@ export async function openPlayer(league, id, fallback = {}) {
     // The key numbers in a strip under the hero (the season's first few).
     const keyNums = a.stats.list.slice(0, 4);
     const strip = keyNums.length
-      ? el('div', { class: 'team-strip' }, keyNums.map(x => el('div', { class: 'ts-cell' }, [el('strong', { class: 'num', text: x.value }), el('small', { text: statName(x.label, L()) })])))
+      ? el('div', { class: 'team-strip' }, keyNums.map(x => el('div', { class: 'ts-cell' }, [el('strong', { class: 'num', text: x.value }), el('small', { text: statName(x.label, L(), { sport, long: x.name }) })])))
       : null;
     // Tabs: 概況 (the latest, this season), 數據 (the numbers), 近期比賽 (the
     // game log), 資料 (profile, honours); only those with something in them.
@@ -3738,7 +3736,7 @@ export async function openPlayer(league, id, fallback = {}) {
         : null,
       nextRace ? nextRaceCard(nextRace, en) : null,
       mateCard,
-      !racing && a.stats.list.length ? card(seasonTitle(a.stats.title), el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(statName(x.label, L()), x.value, x.rank)))) : null
+      !racing && a.stats.list.length ? card(seasonTitle(a.stats.title), el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(statName(x.label, L(), { sport, long: x.name }), x.value, x.rank)))) : null
     ]);
     const numbers = keep([
       og.gp ? card(W('正賽', 'Grand Prix'), f1Tiles(og.gp, en)) : summaryTiles.length ? card(W('本季表現', 'This season'), el('div', { class: 'stat-grid' }, summaryTiles)) : null,
@@ -3749,14 +3747,14 @@ export async function openPlayer(league, id, fallback = {}) {
             ov.season.rows.length > 1
               ? el('div', { class: 'table-wrap' }, [
                   el('table', { class: 'data game-log' }, [
-                    el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...ov.season.rows[0].cells.map(c => el('th', { class: 'num', title: c.label, text: statName(c.label, L()) }))])]),
+                    el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...ov.season.rows[0].cells.map(c => el('th', { class: 'num', title: c.label, text: statName(c.label, L(), { sport, long: c.long }) }))])]),
                     el('tbody', {}, ov.season.rows.map(r => el('tr', {}, [el('th', { class: 'left split-name' }, [splitName(r.name, ov.season.rows, en) || zhLater(r.name)]), ...r.cells.map(c => el('td', { class: 'num', text: c.value }))])))
                   ])
                 ])
-              : el('div', { class: 'stat-grid dense' }, ov.season.rows[0].cells.map(c => tile(statName(c.label, L()), c.value)))
+              : el('div', { class: 'stat-grid dense' }, ov.season.rows[0].cells.map(c => tile(statName(c.label, L(), { sport, long: c.long }), c.value)))
           )
         : null,
-      ov?.rankings?.length ? card(T('rankings'), el('div', { class: 'stat-grid' }, ov.rankings.map(x => tile(statName(x.label, L()), x.value, x.rank)))) : null,
+      ov?.rankings?.length ? card(T('rankings'), el('div', { class: 'stat-grid' }, ov.rankings.map(x => tile(statName(x.label, L(), { sport, long: x.long }), x.value, x.rank)))) : null,
       og.career ? card(W('生涯數據', 'Career'), f1Tiles(og.career, en)) : null
     ]);
     const games = keep([

@@ -1006,6 +1006,7 @@ export function parseSummary(data, league) {
     tables: (p.statistics || []).map(st => ({
       name: st.name || st.type || st.text || '',
       labels: st.labels || st.names || [],
+      longs: st.descriptions || [],
       rows: (st.athletes || []).map(a => ({ id: String(a.athlete?.id ?? ''), name: a.athlete?.shortName || a.athlete?.displayName || '', full: a.athlete?.displayName || '', headshot: freshHeadshot(a.athlete?.headshot?.href) || null, pos: a.position?.abbreviation || '', jersey: a.athlete?.jersey || '', starter: Boolean(a.starter), on: a.active === true, stats: a.stats || [] })),
       totals: st.totals || []
     }))
@@ -1738,8 +1739,8 @@ export function driverSeason(groups, id) {
 // on them, honours and their last games.
 export function parseOverview(data) {
   const st = data?.statistics;
-  const season = st?.labels?.length && st.splits?.length ? { title: st.displayName || '', rows: st.splits.map(sp => ({ name: sp.displayName, cells: (sp.stats || []).map((v, i) => ({ label: st.labels[i], value: v })) })) } : null;
-  const rankings = (data?.seasonRankings?.categories || []).slice(0, 8).map(c => ({ label: c.shortDisplayName || c.displayName, value: c.displayValue, rank: c.rankDisplayValue || '' }));
+  const season = st?.labels?.length && st.splits?.length ? { title: st.displayName || '', rows: st.splits.map(sp => ({ name: sp.displayName, cells: (sp.stats || []).map((v, i) => ({ label: st.labels[i], long: st.displayNames?.[i] || '', value: v })) })) } : null;
+  const rankings = (data?.seasonRankings?.categories || []).slice(0, 8).map(c => ({ label: c.shortDisplayName || c.displayName, long: c.displayName || '', value: c.displayValue, rank: c.rankDisplayValue || '' }));
   // The latest word on them (an injury, a lineup), their honours, their last
   // games with each one's numbers, and ESPN's stories about them.
   const note = data?.rotowire?.headline ? { headline: data.rotowire.headline, story: data.rotowire.story || '', date: usDate(data.rotowire.published) } : null;
@@ -1793,7 +1794,7 @@ export function parseGameLog(log) {
       return { id: String(x.eventId), date: g.gameDate || '', at: g.atVs || 'vs', league: own, leagueName: g.leagueShortName || g.leagueName || '', team: { id: mine, abbr: g.team?.abbreviation || '', logo: logoOf(g.team) }, home: mine ? home : null, opp: { id: String(g.opponent?.id ?? ''), name: g.opponent?.displayName || '', abbr: g.opponent?.abbreviation || '', logo: logoOf(g.opponent) }, result: g.gameResult || '', score, stats: (x.stats || []).slice(0, n) };
     })
     .filter(Boolean);
-  return games.length ? { title: block.displayName || '', labels: block.labels.slice(0, n), games } : null;
+  return games.length ? { title: block.displayName || '', labels: block.labels.slice(0, n), longs: (block.displayNames || []).slice(0, n), games } : null;
 }
 // ESPN's season by its year, for a player's game log: a season across the
 // new year (the NBA's, NHL's) is named by its second (2026-27: 2027).

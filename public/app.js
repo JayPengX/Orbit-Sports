@@ -2601,12 +2601,12 @@ function personRow(f) {
   if (!got) return el('div', { class: 'tf-row' }, [head, el('small', { class: 'muted tf-wait', text: '…' })]);
   // Numbers as tiles: the season's, and the last game's under its result.
   // A tile's name: the Chinese when it's short, else the abbreviation (OPS, not 整體攻擊指數).
-  const tileName = label => {
-    const name = statName(label, locale);
+  const tileName = (label, long) => {
+    const name = statName(label, locale, { sport: LEAGUES[f.league]?.sport, long });
     return locale === 'en' || name.length <= 4 ? name : label;
   };
-  const tiles = list => el('div', { class: 'pf-stats' }, list.map(([v, label]) => el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: v }), el('small', { text: tileName(label) })])));
-  const season = (a?.stats.list || []).slice(0, 4).map(x => [x.value, x.label]);
+  const tiles = list => el('div', { class: 'pf-stats' }, list.map(([v, label, long]) => el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: v }), el('small', { text: tileName(label, long) })])));
+  const season = (a?.stats.list || []).slice(0, 4).map(x => [x.value, x.label, x.name]);
   // Their last game: the team's latest one over (a preseason or a cup game
   // too, today's if it's over) when it's newer than ESPN's game log (which
   // can still be last season's), their numbers from its box score.

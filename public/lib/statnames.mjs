@@ -28,10 +28,43 @@ const SHORT = {
   hr: '全壘打', r: '得分', h: '安打', sb: '盜壘', 'w-l': '勝-敗', k: '三振', so: '三振', ip: '投球局數', gp: '出賽',
   'plus/minus': '正負值', '+/-': '正負值', pts: '積分', w: '勝', l: '敗', d: '和', wins: '勝場', losses: '敗場'
 };
-export function statName(label, lang = 'zh') {
+// A label meaning another thing in one sport (SV: a soccer keeper's or a
+// hockey goalie's 撲救, a closer's 救援成功; FG: basketball's 投籃, American
+// football's 射門; PTS: a table's 積分, a basketball line's 得分).
+const BY_SPORT = {
+  baseball: { sv: '救援成功', g: '出賽', gs: '先發', er: '自責分', cg: '完投', sho: '完封', pc: '用球數', '#p': '用球數', 'pc-st': '用球-好球', 'h-ab': '安打-打數', hld: '中繼成功', bs: '救援失敗' },
+  basketball: { pts: '得分', fg: '投籃', ft: '罰球', '3pt': '三分球', oreb: '進攻籃板', dreb: '防守籃板', to: '失誤' },
+  football: { fg: '射門', pct: '射門命中率', xp: '加分踢', int: '抄截', td: '達陣', yds: '碼數', att: '次數', avg: '平均碼數', lng: '最長', long: '最長', rec: '接球', car: '衝球次數', cmp: '傳球完成', 'cmp%': '傳球成功率', 'c/att': '完成/出手', qbr: '四分衛評分', rtg: '傳球評分', sack: '擒殺', sacks: '擒殺', tot: '擒抱', solo: '單獨擒抱', tfl: '擒抱失碼', 'qb hts': '衝撞四分衛', pd: '傳球破壞', ff: '逼掉球', fr: '掉球回收', fum: '掉球', lost: '掉球失誤', lst: '掉球失誤', p: '棄踢', punts: '棄踢', tb: '回攻觸地', 'tb%': '回攻觸地率', in20: '棄踢進 20 碼', 'in 20': '棄踢進 20 碼', 'p 20': '棄踢進 20 碼', net: '棄踢淨碼數', lp: '最長棄踢', no: '回攻次數', tgts: '目標次數', fd: '首攻', kb: '封阻踢球', stf: '阻截', stfyds: '阻截碼數' },
+  hockey: { g: '進球', a: '助攻', pts: '積分', s: '射門', sv: '撲救', 'sv%': '撲救率', sa: '被射門', ga: '失球', pim: '受罰分鐘', pn: '犯規次數', bs: '阻擋射門', ht: '衝撞', tk: '抄截', gv: '失誤', fw: '爭球勝', fl: '爭球負', 'fo%': '爭球勝率', toi: '上場時間', 'toi/g': '場均上場時間', shft: '上場輪次', sm: '射偏', gwg: '致勝球', ppg: '以多打少進球', ppa: '以多打少助攻', shg: '以少打多進球', sha: '以少打多助攻', spct: '射門命中率', prod: '得點' }
+};
+// ESPN's long names (what a short label stands for), lower-cased, a trailing
+// period dropped: a short label not known above is said by its long name
+// (TACKL is "Tackles", 搶斷).
+const LONG = {
+  // Soccer
+  saves: '撲救', tackles: '搶斷',
+  // Basketball
+  'field goals made/attempted': '投籃', 'free throws made/attempted': '罰球', 'three point field goals made/attempted': '三分球',
+  // Baseball
+  'pitches seen': '用球數', 'complete games': '完投', 'games started': '先發', 'hits per at bats': '安打-打數', 'pitches thrown': '用球數', 'pitches thrown/strikes thrown': '用球-好球', shutouts: '完封', 'earned runs': '自責分',
+  // American football
+  'rushing attempts': '衝球次數', 'rushing yards': '衝球碼數', 'rushing touchdowns': '衝球達陣', 'yards per rush attempt': '每次衝球碼數', 'long rushing': '最長衝球', 'longest run': '最長衝球',
+  receptions: '接球', 'receiving yards': '接球碼數', 'receiving touchdowns': '接球達陣', 'yards per reception': '每次接球碼數', 'receiving targets': '目標次數', 'receiving first downs': '接球首攻',
+  'passing yards': '傳球碼數', 'passing touchdowns': '傳球達陣', 'adjusted qbr': '四分衛評分', completions: '傳球完成', 'completion percentage': '傳球成功率', 'passer rating': '傳球評分', 'completions/attempts': '完成/出手',
+  fumbles: '掉球', 'fumbles lost': '掉球失誤', 'total tackles': '擒抱', 'solo tackles': '單獨擒抱', sacks: '擒殺', 'forced fumbles': '逼掉球', 'fumbles recovered': '掉球回收', interceptions: '抄截', 'passes defended': '傳球破壞', stuffs: '阻截', 'stuff yards': '阻截碼數', 'kicks blocked': '封阻踢球', 'tackles for loss': '擒抱失碼', 'quarterback hits': '衝撞四分衛',
+  punts: '棄踢', 'gross average punt yards': '棄踢平均碼數', 'net average punt yards': '棄踢淨平均碼數', 'long punt': '最長棄踢', 'punts inside 20': '棄踢進 20 碼', 'punts inside 20 percentage': '棄踢進 20 碼率', touchbacks: '回攻觸地', 'touchback percentage': '回攻觸地率', 'punt returns': '棄踢回攻', 'kick returns': '開球回攻',
+  'field goals made/attempts': '射門', 'field goal percentage': '射門命中率', 'extra points made/attempts': '加分踢',
+  // Hockey
+  'total shots blocked': '阻擋射門', 'saves made at even strength': '平手撲救', 'total even strength time on ice': '平手上場時間', 'total faceoffs lost': '爭球負', 'percentage of faceoffs won': '爭球勝率', 'total faceoffs won': '爭球勝', 'total giveaways': '失誤', 'game-winning goals': '致勝球', 'total hits': '衝撞', 'penalty minutes': '受罰分鐘', 'total number of penalties': '犯規次數', 'power play assists': '以多打少助攻', 'saves made while in a power play': '以多打少撲救', 'total power play time on ice': '以多打少上場時間', production: '得點', 'total shots against': '被射門', 'short handed assists': '以少打多助攻', 'total shifts': '上場輪次', 'short handed goals': '以少打多進球', 'saves made while shorthanded': '以少打多撲救', 'total short handed time on ice': '以少打多上場時間', 'total missed shots': '射偏', 'total shootout saves': '自由球撲救', 'total shootout shots against': '被自由球射門', 'shooting percentage': '射門命中率', 'total saves': '撲救', 'percentage of shots saved': '撲救率', 'total takeaways': '抄截', 'total time on ice': '上場時間', 'time on ice per game': '場均上場時間', 'year to date goals': '本季進球'
+};
+// sport: LEAGUES' sport ('soccer', 'hockey'…), for a label that differs by
+// sport; long: ESPN's long name for it, said when the short one isn't known.
+export function statName(label, lang = 'zh', { sport = '', long = '' } = {}) {
   if (lang === 'en' || !label) return label;
   const key = String(label).toLowerCase().trim();
-  return ZH[key] || SHORT[key] || label;
+  const longKey = String(long || '').toLowerCase().trim().replace(/[./]+$/, '');
+  const said = BY_SPORT[sport]?.[key] || ZH[key] || SHORT[key] || LONG[longKey] || ZH[longKey] || SHORT[longKey];
+  return said || label;
 }
 // A stats card's title: "2026 season stats" → "2026 球季數據".
 export function statsTitle(title, lang = 'zh') {
@@ -298,4 +331,21 @@ export function teamStatRows(stats, sport, lang = 'zh') {
     })
     .filter(r => r.label)
     .slice(0, 30);
+}
+
+// A box score's column heads, short (the table stays narrow): the sport's
+// own words where a broadcast's would be, else the stat's name when it's
+// three characters or fewer, else ESPN's abbreviation.
+const BOX_HEAD = {
+  basketball: { MIN: '時間', PTS: '得分', FG: '投籃', '3PT': '三分', FT: '罰球', REB: '籃板', AST: '助攻', TO: '失誤', STL: '抄截', BLK: '阻攻', OREB: '前板', DREB: '後板', PF: '犯規' },
+  baseball: { 'H-AB': '安/打', AB: '打數', R: '得分', H: '安打', RBI: '打點', HR: '全壘打', BB: '保送', K: '三振', '#P': '用球', AVG: '打擊率', OBP: '上壘率', SLG: '長打率', IP: '局數', ER: '自責', 'PC-ST': '球/好', ERA: '防禦率', PC: '用球' }
+};
+export function boxHead(label, lang = 'zh', { sport = '', long = '', pitching = false } = {}) {
+  if (lang === 'en' || !label) return label;
+  // A pitcher's R and HR are the ones he gave up.
+  if (sport === 'baseball' && pitching && (label === 'R' || label === 'HR' || label === 'H')) return { R: '失分', HR: '被轟', H: '被安' }[label];
+  const own = BOX_HEAD[sport]?.[label];
+  if (own) return own;
+  const zh = statName(label, lang, { sport, long });
+  return zh !== label && zh.length <= 3 ? zh : label;
 }

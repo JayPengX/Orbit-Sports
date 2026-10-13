@@ -406,3 +406,17 @@ test("on air: under way, or its start come with ESPN still saying it's to come (
   assert.equal(onAir(g('pre', '2026-10-11T06:00:00Z'), now), false);
   assert.equal(onAir({ ...g('pre', '2026-10-11T10:00:00Z'), status: { state: 'pre', void: true } }, now), false);
 });
+
+import { statName } from '../public/lib/statnames.mjs';
+test("a stat's name by its sport, else by ESPN's long name (TACKL is Tackles, 搶斷); an unknown one as ESPN wrote it", () => {
+  assert.equal(statName('TACKL', 'zh', { sport: 'soccer', long: 'Tackles' }), '搶斷');
+  assert.equal(statName('SV', 'zh', { sport: 'soccer', long: 'Saves' }), '撲救');
+  assert.equal(statName('SV', 'zh', { sport: 'baseball', long: 'Saves' }), '救援成功');
+  assert.equal(statName('FG', 'zh', { sport: 'basketball' }), '投籃');
+  assert.equal(statName('FG', 'zh', { sport: 'football' }), '射門');
+  assert.equal(statName('PTS', 'zh', { sport: 'basketball' }), '得分');
+  assert.equal(statName('PTS', 'zh'), '積分');
+  assert.equal(statName('ESSV', 'zh', { sport: 'hockey', long: 'Saves made at even strength.' }), '平手撲救');
+  assert.equal(statName('XYZ', 'zh', { long: 'Something new' }), 'XYZ');
+  assert.equal(statName('TACKL', 'en', { long: 'Tackles' }), 'TACKL');
+});
