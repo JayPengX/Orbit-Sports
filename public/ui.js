@@ -567,9 +567,12 @@ export function sessionTag(e) {
 // ---- Sheets and sections ----------------------------------------------------------------
 
 export function sheet(title, { accent, league } = {}) {
-  const dialog = el('dialog', { class: 'q-sheet fx-sheet' });
+  // A game's, a team's, a player's (what loads once it's open): full height
+  // from the start, as iOS's, not rising to a spinner's and jumping up later.
+  const dialog = el('dialog', { class: `q-sheet fx-sheet${league ? ' fx-full' : ''}` });
   const body = el('div', { class: 'sheet-body' });
-  const close = () => dialog.close();
+  // Slides down as it closes (the kit's closeSheet; an older kit's just closes).
+  const close = () => (globalThis.quadraCloseSheet || (d => d.close()))(dialog);
   dialog.append(el('div', { class: 'q-sheet-head' }, [league ? el('h2', { class: 'sheet-lg' }, [leagueMark(league), el('span', { text: title })]) : el('h2', { text: title }), el('button', { class: 'q-close', type: 'button', text: '×', 'aria-label': ctx.t('close'), onclick: close })]), body);
   dialog.addEventListener('click', e => e.target === dialog && close());
   dialog.addEventListener('close', () => dialog.remove());

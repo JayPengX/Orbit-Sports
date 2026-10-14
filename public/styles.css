@@ -186,12 +186,12 @@ img { max-width: 100%; }
 
 /* ---- Sheets ---- */
 .fx-sheet { width: min(640px, calc(100vw - 16px)); }
-@media (max-width: 719px) { .fx-sheet { max-height: 94vh; max-height: 94dvh; } }
+@media (max-width: 719px) { .fx-sheet { max-height: 94vh; max-height: 94dvh; } .fx-full { height: 94vh; height: 94dvh; } }
 .sheet-body { padding-bottom: 8px; }
 .match-head { display: grid; gap: 12px; padding: 4px 0 2px; }
 .mh-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 8px; }
 .mh-side { display: grid; justify-items: center; gap: 4px; min-width: 0; text-align: center; }
-.mh-side strong { font-size: 15px; line-height: 1.25; max-width: 100%; overflow-wrap: break-word; }
+.mh-side strong { font-size: 15px; line-height: 1.25; max-width: 100%; white-space: nowrap; }
 .mh-side small { color: var(--q-muted); font-size: 12px; }
 .mh-side .q-chip { margin-top: 4px; }
 .mh-mid { display: grid; justify-items: center; gap: 4px; padding-top: 10px; min-width: 88px; }
@@ -403,8 +403,9 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .stack > .q-card + .q-card { margin-top: 0; }
 .fx-card .card-h { font-size: 14.5px; }
 .mini-h { font-size: 12.5px; font-weight: 800; color: var(--q-muted); text-transform: none; margin: 4px 0 6px; }
-.match-tabs .mh-team { display: grid; justify-items: center; gap: 4px; border: 0; background: none; padding: 0; min-width: 0; }
-.mh-team strong { font-size: 15px; line-height: 1.25; max-width: 100%; overflow-wrap: anywhere; }
+/* A side's logo over its name, a plain tap target (not a button's capsule). */
+.mh-team { display: grid; justify-items: center; gap: 4px; border: 0; background: none; padding: 0; min-width: 0; width: 100%; color: inherit; font: inherit; }
+.mh-team strong { font-size: 15px; line-height: 1.25; max-width: 100%; white-space: nowrap; }
 .mh-status { font-size: 12.5px; font-weight: 750; padding: 2px 10px; border-radius: 999px; background: var(--q-sunken); color: var(--q-text-2); white-space: nowrap; }
 .mh-status.in { background: var(--live-wash); color: var(--live); }
 .compare { display: grid; gap: 2px; }
