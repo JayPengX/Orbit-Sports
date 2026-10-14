@@ -1842,7 +1842,8 @@ button.lp-person.tap:active { opacity: 0.6; }
 .five-role.starter { color: var(--q-text); background: var(--q-sunken); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .five-role:not(.starter) { color: #4ade80; } }
 :root[data-theme='dark'] .five-role:not(.starter) { color: #4ade80; }
-.five-resting { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; font-weight: 650; white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+/* (Padded so each face's ring, drawn outside it, isn't clipped by the scrolling row.) */
+.five-resting { display: flex; align-items: center; gap: 6px; margin: 5px -3px 0; padding: 3px; font-size: 12px; font-weight: 650; white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
 .five-resting .muted { margin-right: 2px; }
 .rest-face { flex: none; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .rest-face .logo, .rest-face .logo-wrap { display: block; width: 26px; height: 26px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--shirt); }

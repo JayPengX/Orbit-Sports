@@ -4,7 +4,7 @@
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
 import { keptTiming } from './lib/f1.mjs';
-import { espnHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
+import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
 import { liveLabel, liveNote } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
@@ -190,7 +190,7 @@ export function personPic(p, league, cls = '') {
   // one found before, ESPN's by id (a guess), then a search by name; the
   // driver's badge, the flag or the initials meanwhile or when there's none.
   const stand = () => (league === 'f1' ? driverBadge(name, cls) : flag ? logoPicture(flag, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls));
-  return personPhoto(name, league, { urls: [p?.headshot, isFlag(p?.logo) ? null : p?.logo].map(freshHeadshot), guess: freshHeadshot(espnHeadshot(league, p?.id)), cls: `logo ${cls}`, fallback: stand });
+  return personPhoto(name, league, { urls: [p?.headshot, isFlag(p?.logo) ? null : p?.logo].map(freshHeadshot), guess: freshHeadshot(espnHeadshot(league, p?.id)), later: [espnCollegeHeadshot(league, p?.id)], cls: `logo ${cls}`, fallback: stand });
 }
 const initialsPic = (name, cls) =>
   el('span', {
