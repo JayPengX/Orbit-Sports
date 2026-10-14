@@ -846,8 +846,8 @@ function noticeChanges(events) {
 // it (the kit's keepStrips puts it back), never pulls it back to the chip.
 const centered = new Map();
 function centerChosen(box) {
-  const rows = [...box.querySelectorAll('.q-chips, .segmented')];
-  for (const chip of box.querySelectorAll('.q-chips [aria-pressed="true"], .segmented [aria-pressed="true"]')) {
+  const rows = [...box.querySelectorAll('.q-chips')];
+  for (const chip of box.querySelectorAll('.q-chips [aria-pressed="true"]')) {
     const row = chip.parentElement;
     // A date strip places itself (dateStrip).
     if (row.classList.contains('day-strip')) continue;
@@ -2085,14 +2085,13 @@ let clearSearch = () => {};
 function scoresShell() {
   const panel = $('panel-matches');
   if (scoresBody?.isConnected) return scoresBody;
-  const input = el('input', { class: 'fx-search-input', type: 'search', inputmode: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder') });
-  const clear = el('button', { class: 'fx-search-clear', type: 'button', 'aria-label': t('close'), text: '×', hidden: true });
+  const input = el('input', { type: 'search', inputmode: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder') });
+  const clear = el('button', { class: 'q-search-clear', type: 'button', 'aria-label': t('close'), text: '✕' });
   let timer = 0;
   // The European cups' clubs, ready before a search needs them.
   europeanClubs().catch(() => {});
   const go = () => {
     state.scores.q = input.value.trim();
-    clear.hidden = !input.value;
     clearTimeout(timer);
     // Asked once typing pauses, not at every letter (each would be a read of its own).
     timer = setTimeout(() => (state.scores.q ? runSearch(state.scores.q) : renderScores()), 450);
@@ -2105,12 +2104,11 @@ function scoresShell() {
   });
   clearSearch = () => {
     input.value = '';
-    clear.hidden = true;
     clearTimeout(timer);
     input.blur();
   };
   scoresBody = el('div', { class: 'scores-body' });
-  put(panel, el('div', { class: 'fx-search' }, [el('span', { class: 'fx-search-icon', 'aria-hidden': 'true', text: '🔍' }), input, clear]), scoresBody);
+  put(panel, el('label', { class: 'q-search fx-search' }, [input, clear]), scoresBody);
   return scoresBody;
 }
 

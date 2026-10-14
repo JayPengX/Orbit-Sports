@@ -578,11 +578,15 @@ export function sheet(title, { accent, league } = {}) {
   dialog.showModal();
   return { dialog, body, close };
 }
-export function segmented(options, current, onPick, cls = 'scroll') {
+// A choice of a few (four at most): the kit's segmented control, its thumb
+// sliding to the pick; of more, the kit's chips in a row that scrolls (as
+// iOS keeps a segmented control to a handful).
+export function segmented(options, current, onPick, cls = '') {
+  const few = options.length <= 4;
   return el(
     'div',
-    { class: `segmented ${cls}`, role: 'group' },
-    options.map(([key, label]) => el('button', { type: 'button', 'aria-pressed': String(key === current), text: label, onclick: () => onPick(key) }))
+    { class: `${few ? 'q-seg' : 'q-chips'} ${cls === 'scroll' ? '' : cls}`.trim(), role: 'group' },
+    options.map(([key, label]) => el('button', { type: 'button', ...(few ? {} : { class: 'q-chip' }), 'aria-pressed': String(key === current), text: label, onclick: () => onPick(key) }))
   );
 }
 export function section(title, content, { sub = '', action = null, cls = '' } = {}) {
