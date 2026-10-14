@@ -188,6 +188,15 @@ Every sheet swipes down to close (the kit).
   | 傷兵 | ESPN's injury report (NBA, WNBA, NFL, NHL, MLB: the league's list, kept 10 minutes) |
   | Order | By the game's moment: on, 場上球員, the live chance, leaders, the matchup, the series, injuries, where to watch, the info; to come, the matchup, the chance, 先發, the rest; over, the replay and highlights, leaders, the chance's story, the rest |
   | 排名 | The league's table with both sides marked, the result counted in at once (§Tables) |
+  | 比賽資訊 | 時間 (the start; for a game over, 結束 and the moment it ended: its last play's own clock, `endedAt`), the ground and city, where to watch, the round, weather, attendance, officials, the competition |
+
+- **Over the moment the rules say so** (`lib/espn.mjs overByRule`, every
+  scoreboard, game page and schedule): ESPN's copy can say "End of 4th"
+  for minutes after the horn. Basketball's last regulation period or an
+  overtime ended with the scores apart, American football's the same,
+  hockey's third period or an overtime ended apart, MLB's middle of the 9th
+  or later with the home side ahead, or an inning's end from the 9th apart:
+  final at once. Anything else waits for ESPN.
 
 - **The win chance card.** One source per game, decided before it shows:
   - **while it's on**, the chart takes each refresh in place: the same
