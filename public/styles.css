@@ -140,6 +140,8 @@ img { max-width: 100%; }
 .logo-flag { display: inline-grid; place-items: center; font-size: 1.15em; line-height: 1; background: none; }
 .driver-badge { display: inline-grid; place-items: center; border-radius: 50%; background: var(--team, #8a8f98); color: #fff; font-weight: 800; font-size: 11px; letter-spacing: 0.02em; }
 .sheet-lg { display: inline-flex; align-items: center; gap: 8px; }
+/* A league's sheet: its mark and name at the top left (from the head's empty first place), the ✕ at the right. */
+.q-sheet-head > h2.sheet-lg { grid-column: 1 / 3; justify-self: start; max-width: 100%; margin-left: 4px; }
 .sheet-lg .lg-mark { --s: 28px; }
 .event-sides { display: grid; gap: 5px; min-width: 0; }
 .side { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--q-text-2); }
