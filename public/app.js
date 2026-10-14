@@ -2097,11 +2097,6 @@ function scoresShell() {
     timer = setTimeout(() => (state.scores.q ? runSearch(state.scores.q) : renderScores()), 450);
   };
   input.addEventListener('input', go);
-  clear.addEventListener('click', () => {
-    input.value = '';
-    go();
-    input.focus();
-  });
   clearSearch = () => {
     input.value = '';
     clearTimeout(timer);
