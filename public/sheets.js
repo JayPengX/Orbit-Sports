@@ -864,7 +864,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   const exactTv = e.status.state !== 'post' && tvOf(e).some(b => b.exact);
   const info = [
     // (ELTA's slot for a game whose time isn't set: under it, on a line of its own.)
-    ['🕒', T('kickoff'), [el('span', { class: 'nb', text: `${dayLabel(localDate(when.getTime()), { long: true })} ${timeText(e)}` }), e.timeTbd && e.timeFrom === 'elta' ? el('small', { class: 'info-sub', text: L() === 'en' ? `ELTA's slot ${clock(e.start)}` : `愛爾達暫排 ${clock(e.start)}` }) : null].filter(Boolean)],
+    // A game over: when it ended, under the start (the last play's own clock; the owner, 2026-10-14).
+    ['🕒', T('kickoff'), [el('span', { class: 'nb', text: `${dayLabel(localDate(when.getTime()), { long: true })} ${timeText(e)}` }), e.timeTbd && e.timeFrom === 'elta' ? el('small', { class: 'info-sub', text: L() === 'en' ? `ELTA's slot ${clock(e.start)}` : `愛爾達暫排 ${clock(e.start)}` }) : null, d?.endedAt ? el('small', { class: 'info-sub nb', text: endedText(d.endedAt, e.start) }) : null].filter(Boolean)],
     // The ground, and its city on a line of its own (each said apart: a ground's name never broken by its city's).
     ['📍', T('venue'), d?.venue || e.venue || d?.city ? [d?.venue || e.venue ? zhLater(d?.venue || e.venue) : null, d?.city ? el('small', { class: 'muted venue-city' }, [zhLater(d.city)]) : null].filter(Boolean) : ''],
     // Each channel on a line of its own (two in a row ran onto a second line mid-name).
@@ -968,6 +969,12 @@ function lineupCard(l, e, nameOf) {
   );
 }
 
+// "結束 21:26" (another day's: "結束 10/15 01:02"); English "Ended 21:26".
+function endedText(at, start) {
+  const en = L() === 'en';
+  const day = localDate(Date.parse(at)) !== localDate(Date.parse(start)) ? `${dayLabel(localDate(Date.parse(at)))} ` : '';
+  return `${en ? 'Ended' : '結束'} ${day}${clock(at)}`;
+}
 // A game on: who's on the court or the pitch now (lib/onfield.mjs), in the
 // starting lineups' place and look, drawn again with each refresh (5 s).
 // Basketball: each five with their points, rebounds and assists (fouls

@@ -63,6 +63,35 @@ export function parseStatus(s) {
   };
 }
 
+// Over by the rules, before ESPN's copy says so (it called an NBA game
+// "End of 4th" for minutes after the horn; the owner, 2026-10-14: a result
+// counts the moment it's final). Only what the rules settle exactly:
+// basketball's last regulation period (or an overtime) ended with the
+// scores apart; American football's the same; hockey's third period (or an
+// overtime) ended apart; MLB's middle of the 9th or later with the home side
+// ahead (it doesn't bat), or the end of an inning from the 9th apart.
+const REGULATION = { basketball: 4, football: 4, hockey: 3 };
+export function overByRule(status, away, home, league) {
+  if (!status || status.state !== 'in' || status.void) return status;
+  const sport = LEAGUES[league]?.sport;
+  const a = Number(away?.score);
+  const h = Number(home?.score);
+  if (!Number.isFinite(a) || !Number.isFinite(h) || a === h) return status;
+  const n = status.period || 0;
+  const ended = /END_PERIOD|END_OF_PERIOD/.test(status.name || '') || /^end of/i.test(status.short || '');
+  let over = false;
+  if (REGULATION[sport]) {
+    // (College basketball plays two halves.)
+    const regulation = sport === 'basketball' && /half/i.test(`${status.detail} ${status.short}`) ? 2 : REGULATION[sport];
+    over = ended && n >= regulation;
+  } else if (sport === 'baseball' && league === 'mlb') {
+    const m = /^(mid|middle|end)\b\D*(\d+)/i.exec(status.short || status.detail || '');
+    const inning = Number(m?.[2]) || n;
+    over = Boolean(m) && inning >= 9 && (/^end/i.test(m[1]) || h > a);
+  }
+  return over ? { ...status, state: 'post', completed: true, detail: 'Final', short: 'Final', byRule: true } : status;
+}
+
 const logoOf = team => team?.logo || team?.logos?.[0]?.href || null;
 // ESPN's F1 headshots (headshots/f1/) stopped in 2021 (a newer driver has
 // none); its racing ones (headshots/rpm/) are this season's, every driver.
@@ -307,6 +336,7 @@ export function parseScoreboard(data, league) {
       const home = parseSide(comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0]);
       const away = parseSide(comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1]);
       if (!home || !away) continue;
+      base.status = overByRule(base.status, away, home, league);
       out.push({ ...base, home: withLogo(league, home), away: withLogo(league, away), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '', live: base.status.state === 'in' ? liveOf(comp, e.status || comp.status, LEAGUES[league]?.sport) : null });
     } else if (kind === 'field') {
       // A race weekend: its sessions, each one's field in finishing order.
@@ -1120,9 +1150,15 @@ export function parseSummary(data, league) {
     .filter(x => x && (x.displayResult || x.result))
     .map(x => ({ team: String(x.team?.id ?? ''), result: x.displayResult || x.result || '', desc: x.description || '', scoring: Boolean(x.isScore), periodNum: x.start?.period?.number || 0, period: x.start?.period?.number ? `${x.start.period.number}` : '', clock: x.start?.clock?.displayValue || '', home: x.plays?.at(-1)?.homeScore ?? null, away: x.plays?.at(-1)?.awayScore ?? null }));
   const info = data?.gameInfo || {};
+  // When it ended, to the second: the last play's clock on the wall (ESPN
+  // stamps every play; its 'End Game' is the horn), for a game over.
+  const walls = [...(data?.plays || []), ...(data?.keyEvents || [])].map(p => Date.parse(p?.wallclock || '')).filter(Number.isFinite);
+  const status = overByRule(parseStatus(header?.status), sides.find(s => s.homeAway === 'away') || sides[1], sides.find(s => s.homeAway === 'home') || sides[0], league);
+  const endedAt = status.state === 'post' && !status.void && walls.length ? new Date(Math.max(...walls)).toISOString() : null;
   return {
     league,
-    status: parseStatus(header?.status),
+    endedAt,
+    status,
     sides,
     home: sides.find(s => s.homeAway === 'home') || sides[0] || null,
     away: sides.find(s => s.homeAway === 'away') || sides[1] || null,
@@ -1559,7 +1595,7 @@ export function parseSchedule(data, league) {
     const lg = own || league;
     const home = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'home')));
     const away = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'away')));
-    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, ...startOf(e.date, comp), status: parseStatus(comp?.status), home, away, venue: comp?.venue?.fullName || '', note: comp?.notes?.[0]?.headline || '', ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
+    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, ...startOf(e.date, comp), status: overByRule(parseStatus(comp?.status), away, home, lg), home, away, venue: comp?.venue?.fullName || '', note: comp?.notes?.[0]?.headline || '', ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
   });
 }
 // A team's season: its results and the games to come. A soccer club's across
