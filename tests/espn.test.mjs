@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar } from '../public/lib/espn.mjs';
+import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar , parseSeasonAverages } from '../public/lib/espn.mjs';
 import { LEAGUES, SPORTS } from '../public/lib/leagues.mjs';
 
 const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url)));
@@ -398,4 +398,14 @@ test("a stat's name by its sport, else by ESPN's long name (TACKL is Tackles, �
   assert.equal(statName('ESSV', 'zh', { sport: 'hockey', long: 'Saves made at even strength.' }), '平手撲救');
   assert.equal(statName('XYZ', 'zh', { long: 'Something new' }), 'XYZ');
   assert.equal(statName('TACKL', 'en', { long: 'Tackles' }), 'TACKL');
+});
+
+test("A basketball side's averages before tip-off: per game, the season ESPN names, by points", () => {
+  const a = parseSeasonAverages(JSON.parse(readFileSync(new URL('./fixtures/espn-nba-athlete-stats.json', import.meta.url))));
+  assert.deepEqual(a.labels, ['MIN', 'PTS', 'REB', 'AST']);
+  assert.deepEqual(a.season, { name: '2025-26', type: 2 });
+  assert.equal(a.rows.length, 3);
+  assert.ok(a.rows.every(r => r.id && r.name && r.stats.every(v => /^\d+\.\d$/.test(v))));
+  assert.ok(Number(a.rows[0].stats[1]) >= Number(a.rows[1].stats[1]));
+  assert.equal(parseSeasonAverages({}), null);
 });

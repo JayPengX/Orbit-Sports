@@ -134,5 +134,34 @@ export function mlbBoxTables(data, side) {
   return { batting: { labels: BATTING, rows: batters }, pitching: { labels: PITCHING, rows: pitchers } };
 }
 
+// A game to come: each side's batting order and starting pitcher with their
+// season numbers (MLB's box score has them once the lineups are posted), for
+// 球員 before the first pitch: no game columns waiting to be filled.
+const SEASON_BATTING = ['AVG', 'HR', 'RBI', 'OBP', 'SLG'];
+const SEASON_PITCHING = ['ERA', 'W-L', 'IP', 'K', 'BB'];
+export function mlbSeasonTables(data, side) {
+  const t = data?.teams?.[side];
+  if (!t) return null;
+  const of = id => t.players?.[`ID${id}`];
+  const row = (p, stats) => ({ name: shortName(p.person?.fullName), full: p.person?.fullName || '', mlbId: String(p.person?.id ?? ''), headshot: null, pos: p.position?.abbreviation || '', stats });
+  const batters = (t.batters || [])
+    .map(of)
+    .filter(p => p?.battingOrder && Number(p.battingOrder) % 100 === 0)
+    .sort((a, b) => Number(a.battingOrder) - Number(b.battingOrder))
+    .map(p => {
+      const s = p.seasonStats?.batting || {};
+      return row(p, [s.avg || '', n(s.homeRuns), n(s.rbi), s.obp || '', s.slg || '']);
+    });
+  const pitchers = (t.pitchers || [])
+    .map(of)
+    .filter(Boolean)
+    .slice(0, 1)
+    .map(p => {
+      const s = p.seasonStats?.pitching || {};
+      return row(p, [s.era || '', `${n(s.wins)}-${n(s.losses)}`, s.inningsPitched || '', n(s.strikeOuts), n(s.baseOnBalls)]);
+    });
+  return { batting: { labels: SEASON_BATTING, rows: batters }, pitching: { labels: SEASON_PITCHING, rows: pitchers } };
+}
+
 // ESPN's box score as good as empty: no player with a number in it.
 export const emptyBox = players => !players.some(p => p.tables.some(tb => tb.rows.some(r => r.stats.some(v => /\d/.test(String(v))))));

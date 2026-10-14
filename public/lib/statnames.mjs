@@ -338,7 +338,7 @@ export function teamStatRows(stats, sport, lang = 'zh') {
 // three characters or fewer, else ESPN's abbreviation.
 const BOX_HEAD = {
   basketball: { MIN: '時間', PTS: '得分', FG: '投籃', '3PT': '三分', FT: '罰球', REB: '籃板', AST: '助攻', TO: '失誤', STL: '抄截', BLK: '阻攻', OREB: '前板', DREB: '後板', PF: '犯規' },
-  baseball: { 'H-AB': '安/打', AB: '打數', R: '得分', H: '安打', RBI: '打點', HR: '全壘打', BB: '保送', K: '三振', '#P': '用球', AVG: '打擊率', OBP: '上壘率', SLG: '長打率', IP: '局數', ER: '自責', 'PC-ST': '球/好', ERA: '防禦率', PC: '用球' }
+  baseball: { 'H-AB': '安/打', AB: '打數', R: '得分', H: '安打', RBI: '打點', HR: '全壘打', BB: '保送', K: '三振', '#P': '用球', AVG: '打擊率', OBP: '上壘率', SLG: '長打率', IP: '局數', ER: '自責', 'PC-ST': '球/好', ERA: '防禦率', PC: '用球', 'W-L': '勝-敗' }
 };
 export function boxHead(label, lang = 'zh', { sport = '', long = '', pitching = false } = {}) {
   if (lang === 'en' || !label) return label;

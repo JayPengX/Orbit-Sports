@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox, mlbDate } from '../public/lib/mlb.mjs';
+import { mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, emptyBox, mlbDate } from '../public/lib/mlb.mjs';
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 
@@ -65,4 +65,15 @@ test("A person's name as MLB's and ESPN's are compared: accents, case and a one-
   assert.equal(personKey('Bobby Witt'), personKey('Bobby Witt Jr.'));
   assert.equal(personKey('Ronald Acuña Jr.'), personKey('Ronald Acuna'));
   assert.notEqual(personKey('Vladimir Guerrero'), personKey('Vladimir Gutierrez'));
+});
+
+test('A game to come: each lineup with its season numbers, no game columns or totals waiting to fill', () => {
+  const t = mlbSeasonTables(fixture('mlbapi-boxscore.json'), 'home');
+  assert.deepEqual(t.batting.labels, ['AVG', 'HR', 'RBI', 'OBP', 'SLG']);
+  assert.equal(t.batting.rows.length, 9);
+  assert.ok(t.batting.rows.every(r => r.stats.length === 5 && /^\.\d{3}$|^\d\.\d{3}$/.test(r.stats[0])));
+  // The starting pitcher alone, his record as 勝-敗.
+  assert.equal(t.pitching.rows.length, 1);
+  assert.match(t.pitching.rows[0].stats[1], /^\d+-\d+$/);
+  assert.equal(mlbSeasonTables({ teams: {} }, 'home'), null);
 });

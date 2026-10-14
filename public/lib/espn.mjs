@@ -15,7 +15,7 @@ import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Constructor,
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
-import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey } from './mlb.mjs';
+import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
@@ -1199,6 +1199,12 @@ export async function summary(league, id) {
   const l = LEAGUES[league];
   const data = await getJson(`${SITE}/${l.espn}/summary?event=${encodeURIComponent(id)}`, { ttl: LIVE_TTL });
   let sm = parseSummary(data, league);
+  // A game to come: no box score (ESPN's holds season totals under a game's
+  // heads, its totals blank); MLB's season numbers for its lineups instead.
+  if (sm.status.state === 'pre') {
+    sm = { ...sm, players: [] };
+    return league === 'mlb' ? withMlbSeason(sm, data?.header?.competitions?.[0]?.date, data?.header?.season?.type).catch(() => sm) : sm;
+  }
   if (league !== 'mlb' || sm.status.state !== 'in') return sm;
   const start = data?.header?.competitions?.[0]?.date;
   if (emptyBox(sm.players)) sm = await withMlbBox(sm, start).catch(() => sm);
@@ -1206,6 +1212,29 @@ export async function summary(league, id) {
   // schedule the scoreboard reads too (one read, kept as briefly).
   const g = start && sm.home && sm.away ? mlbGameOf(await mlbGames(mlbDate(start)).catch(() => []), sm) : null;
   return g?.field ? { ...sm, field: g.field } : sm;
+}
+// A game to come's lineups with their season numbers (seasonPlayers: [{ team,
+// season, tables }]), each player kept as ESPN's where ESPN lists them.
+// (In the postseason MLB's season numbers are the postseason's: `type` 3 says so.)
+async function withMlbSeason(sm, start, type) {
+  if (!start || !sm.home || !sm.away) return sm;
+  const g = mlbGameOf(await mlbGames(mlbDate(start)), sm);
+  if (!g) return sm;
+  const box = await getJson(mlbBoxUrl(g.pk), { ttl: 2 * 60_000 });
+  const seasonPlayers = [];
+  for (const side of [sm.away, sm.home]) {
+    const tables = mlbSeasonTables(box, side === sm.home ? 'home' : 'away');
+    if (!tables) continue;
+    const people = (await roster('mlb', side.id).catch(() => [])).flatMap(g => g.players);
+    const espn = new Map(people.map(r => [personKey(r.name), r]));
+    const rows = list => list.map(r => {
+      const mine = espn.get(personKey(r.full));
+      return { id: mine?.id || '', name: r.name, full: r.full, headshot: mine?.headshot || r.headshot, pos: r.pos || mine?.pos || '', stats: r.stats };
+    });
+    const out = ['batting', 'pitching'].map(k => ({ name: k, labels: tables[k].labels, rows: rows(tables[k].rows), totals: [] })).filter(tb => tb.rows.length);
+    if (out.length) seasonPlayers.push({ team: side.id, season: { name: '', type: Number(type) || 2 }, tables: out });
+  }
+  return seasonPlayers.length ? { ...sm, seasonPlayers } : sm;
 }
 // ESPN's box score of a game on now with no numbers in it: MLB's own, each
 // player kept as ESPN's (their page, their picture) where ESPN lists them.
@@ -1647,6 +1676,24 @@ export function mergeInjuries(injuries = [], byTeam = {}) {
     for (const x of list || []) if (!t.list.some(y => (x.id && y.id === x.id) || y.name === x.name)) t.list.push(x);
   }
   return out;
+}
+// A basketball side's players with their per-game averages (時間, 得分, 籃板,
+// 助攻), in the season ESPN names (last season's until the new one's regular
+// season starts), by points: 球員 before tip-off. One read per team, kept 6 h.
+const AVERAGES = ['avgMinutes', 'avgPoints', 'avgRebounds', 'avgAssists'];
+export function parseSeasonAverages(data) {
+  const rows = (data?.results?.[0]?.leaders || [])
+    .map(l => {
+      const a = l?.athlete || {};
+      const s = Object.fromEntries((l?.statistics || []).flatMap(c => c?.stats || []).map(x => [x.name, x.displayValue]));
+      return { id: String(a.id ?? ''), name: a.shortName || a.displayName || '', full: a.displayName || '', headshot: freshHeadshot(a.headshot?.href) || null, pos: a.position?.abbreviation || '', stats: AVERAGES.map(k => s[k] ?? '') };
+    })
+    .filter(r => r.id && r.stats.some(v => v !== ''));
+  const season = data?.requestedSeason;
+  return rows.length ? { season: season?.displayName ? { name: season.displayName, type: season.type } : null, labels: ['MIN', 'PTS', 'REB', 'AST'], rows } : null;
+}
+export async function seasonAverages(league, id) {
+  return parseSeasonAverages(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}/athletes/statistics`, { ttl: 6 * 3_600_000 }));
 }
 export async function roster(league, id, home = '') {
   const path = home && LEAGUES[league].espn.startsWith('soccer/') ? `soccer/${home}` : LEAGUES[league].espn;
