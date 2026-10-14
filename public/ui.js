@@ -569,7 +569,7 @@ export function sessionTag(e) {
 export function sheet(title, { accent, league } = {}) {
   // A game's, a team's, a player's (what loads once it's open): full height
   // from the start, as iOS's, not rising to a spinner's and jumping up later.
-  const dialog = el('dialog', { class: `q-sheet fx-sheet${league ? ' fx-full' : ''}` });
+  const dialog = el('dialog', { class: `q-sheet fx-sheet${league ? ' fx-full q-full' : ''}` });
   const body = el('div', { class: 'sheet-body' });
   // Slides down as it closes (the kit's closeSheet; an older kit's just closes).
   const close = () => (globalThis.quadraCloseSheet || (d => d.close()))(dialog);

@@ -151,7 +151,7 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
 
 ## Sheets
 
-Every sheet swipes down to close and slides down on its ✕ or a tap outside (the kit). A game's, race's, team's, player's or constructor's opens at full height on a phone, so it doesn't jump up once it has loaded; a side's name in a game's header is one line, smaller if it must be.
+Every sheet swipes down to close and slides down on its ✕ or a tap outside (the kit). A game's, race's, team's, player's or constructor's opens at full height on a phone, meeting its sides (the kit's .q-full), so it doesn't jump up once it has loaded; a side's name in a game's header is one line, smaller if it must be.
 
 ### A match
 
