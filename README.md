@@ -471,8 +471,9 @@ game).
   asked at boot (`tvReady()` in `boot`). Today's games are read while the
   sign-in is on its way (`early` in `boot`, not under a `#qh=` sign-in link).
 - **Apple TV**: every MLS game. Its 觀看 opens that game's own page in the
-  TV app: `watch.json` (`packOf(e).apple`) for the games to come (each
-  club's next five, from its Apple TV page) and the last ten days; an
+  TV app: `watch.json` (`packOf(e).apple`) for every game on the
+  schedule to come (its club's Apple TV page, else Apple's search) and the
+  last ten days; an
   older game's from its month's file (`sports/watch/mls/<YYYY-MM>.json`,
   read when its sheet opens), kept for good. Only a game Apple's pages
   never listed (before 2026-10-15, older than each club's last 15) opens
