@@ -4373,6 +4373,19 @@ function raceBlock(race, g, league, many) {
   const nm = r => r.short || r.name;
   const line = (icon, main, sub = '', cls = '') => el('div', { class: `race-line ${cls}`.trim() }, [glyph(icon), el('span', { class: 'race-t' }, [el('span', { html: main }), sub ? el('small', { text: sub }) : null])]);
   const b = x => `<b>${String(x).replace(/[<>&]/g, '')}</b>`;
+  // Settled by the next game, as the results that do it (title.mjs next):
+  // "下一場納什維爾贏球，或邁阿密國際沒贏即可" (a lead of 13 "then",
+  // 14 now, read backwards).
+  const nextLine = t => {
+    const x = t.next;
+    if (!x) return '';
+    const mine = { '3': W('贏球', 'win'), '3,1': W('不輸', "don't lose") }[x.mine.join()];
+    const theirs = { '0': W('輸球', 'lose'), '1,0': W('沒贏', "don't win") }[x.theirs.join()];
+    if ((x.mine.length && !mine) || (x.theirs.length && !theirs)) return '';
+    const parts = [mine && `${nm(t.leader)}${L() === 'en' ? ' ' : ''}${mine}`, theirs && `${nm(x.rival)}${L() === 'en' ? ' ' : ''}${theirs}`].filter(Boolean);
+    // (The line above says what: 即可.)
+    return W(`下一場${parts.join('，或')}即可`, `Next game: done if ${parts.join(', or ')}`);
+  };
   const lines = [];
   const t = race.title;
   // A cup's league phase has no champion: its first place is said as that.
@@ -4402,7 +4415,7 @@ function raceBlock(race, g, league, many) {
       const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : W(`最快 ${b(t.soonest)} 場後`, `${b(t.soonest)} game(s) away at the earliest`);
       lines.push(line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} can ${what}, ${at}`), 
         // (What it takes at the soonest, as a lead: more than the next one can still win after it; the lead now beside it.)
-        t.gap > 0 ? W(`領先 ${t.gap} 分・屆時領先 ${t.leadAt} 分即${what}`, `${t.gap} pts ahead; a ${t.leadAt}-pt lead then does it`) : W(`與第二名同分・屆時領先 ${t.leadAt} 分即${what}`, `level on points; a ${t.leadAt}-pt lead then does it`)));
+        nextLine(t) || (t.gap > 0 ? W(`領先 ${t.gap} 分・${t.soonest} 場後對手最多再拿 ${t.leadAt - 1} 分，屆時領先 ${t.leadAt} 分以上即${what}`, `${t.gap} pts ahead; after ${t.soonest} the most the next can still win is ${t.leadAt - 1}, so a ${t.leadAt}-pt lead then does it`) : W(`與第二名同分・${t.soonest} 場後對手最多再拿 ${t.leadAt - 1} 分，屆時領先 ${t.leadAt} 分以上即${what}`, `level on points; after ${t.soonest} the most the next can still win is ${t.leadAt - 1}, so a ${t.leadAt}-pt lead then does it`))));
     }
   } else if (t.soonest != null) {
     const second = g.rows[1];

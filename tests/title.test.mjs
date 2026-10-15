@@ -165,3 +165,16 @@ test('a zone stays with its place when a fresh result reorders the table', () =>
   const out = liveTable(t, [g], 'soccer');
   assert.deepEqual(out[0].rows.map(r => [r.id, r.note, r.color]), [['B', 'Champions League', '#0f0'], ['A', 'Europa League', '#00f'], ['C', undefined, undefined]]);
 });
+
+test("a title the next game can settle says which results do it (Nashville 66, Miami 52, 5 to go: 14 ahead now, 13 'then' read backwards)", () => {
+  const rows = [row('NSH', { GP: '29', P: '66' }), row('MIA', { GP: '29', P: '52' }), row('NE', { GP: '29', P: '49' })];
+  const r = standingsRace({ rows }, 'soccer', { total: 34 });
+  assert.equal(r.title.soonest, 1);
+  assert.equal(r.title.leadAt, 13);
+  // Settled unless Miami win and Nashville don't: Nashville win, or Miami don't.
+  assert.deepEqual([r.title.next.rival.id, r.title.next.mine, r.title.next.theirs], ['MIA', [3], [1, 0]]);
+  // 12 ahead: A must do better than B (win and B not, or draw and B lose): no "this or that" to say, so the lead is said instead.
+  const close = standingsRace({ rows: [row('A', { GP: '29', P: '64' }), row('B', { GP: '29', P: '52' })] }, 'soccer', { total: 34 });
+  assert.equal(close.title.soonest, 1);
+  assert.equal(close.title.next, undefined);
+});

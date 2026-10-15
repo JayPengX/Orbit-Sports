@@ -216,6 +216,21 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
     for (let k = 1; k <= soonest; k++)
       after -= sport === 'racing' ? RACE_MAX[team ? 'team' : 'driver'].race + ((left.list?.length === left.races ? left.list[k - 1]?.sprint : k <= left.sprints) ? RACE_MAX[team ? 'team' : 'driver'].sprint : 0) : sport === 'soccer' ? 3 : 1;
   const title = { leader: lead, done: out[0].settled && out[0].best === 1, magic, soonest, gap: lo[0] - lo[ri], avail: hi[ri] - lo[ri], leadAt: Math.max(0, after) + 1, at: atName, round: sport === 'soccer' && soonest != null ? num(lead.stats.GP) + soonest : null, left: leadLeft };
+  // Football, settled at the soonest by the next game: which results do it,
+  // when it turns on one rival alone ("{leader} win, or {rival} don't";
+  // the lead it takes read backwards: 14 ahead, 13 then). Ties not counted
+  // (the tiebreak decides), each side's next game its own.
+  if (sport === 'soccer' && soonest === 1) {
+    const R = [3, 1, 0];
+    const ok = (j, r, q) => lo[0] + r > lo[j] + q + Math.max(0, more(rows[j]) - 3);
+    const who = rows.map((_, j) => j).filter(j => j > 0 && R.some(r => R.some(q => !ok(j, r, q))));
+    if (who.length === 1) {
+      const j = who[0];
+      const mine = R.filter(r => R.every(q => ok(j, r, q)));
+      const theirs = R.filter(q => R.every(r => ok(j, r, q)));
+      if ((mine.length || theirs.length) && R.every(r => R.every(q => ok(j, r, q) === (mine.includes(r) || theirs.includes(q))))) title.next = { rival: rows[j], mine, theirs };
+    }
+  }
   // A table not in order of what's counted (MLB's, by playoff seed), or a
   // season over: no places to work out, only the title.
   const ordered = lo.every((v, i) => i === 0 || v <= lo[i - 1]);
