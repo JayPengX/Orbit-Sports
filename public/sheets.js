@@ -1956,15 +1956,24 @@ function replayRows(e, r, logo = eltaLogo()) {
     alt ? row(alt, alt.audio === 'en' ? (en ? 'Channel replay, original audio' : '頻道回看（原音）') : en ? 'Channel replay, bilingual' : '頻道回看（雙語）', guideText(alt, en), en ? 'Channel' : '開頻道', ' alt', eltaLogo()) : null
   ].filter(Boolean);
 }
+// Apple TV's row: the game's own page (`apple.game`), else the channel's.
+const replayLinkRow = (apple, en) =>
+  el('div', { class: 'replay-group' }, [
+    watchLink(apple, { class: 'replay-link' }, [el('span', { class: 'replay-icon apple', 'aria-hidden': 'true', text: '\uF8FFtv' }), el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: apple.game ? (en ? 'Apple TV · MLS Season Pass' : 'Apple TV・MLS Season Pass') : en ? "On Apple TV's MLS channel" : '在 Apple TV 的 MLS 頻道' })]), el('span', { class: 'replay-go', text: en ? 'Watch' : '觀看' })])
+  ]);
 function replayLink(e) {
   if (e?.status?.state !== 'post' || e.status.void) return null;
   // Apple TV (MLS): every game whole, at its own page once Shared-Data has it, else the channel's.
   const apple = tvOf(e).find(b => b.svc === 'appletv');
   if (apple) {
     const en = L() === 'en';
-    return el('div', { class: 'replay-group' }, [
-      watchLink(apple, { class: 'replay-link' }, [el('span', { class: 'replay-icon apple', 'aria-hidden': 'true', text: '\uF8FFtv' }), el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: apple.game ? (en ? 'Apple TV · MLS Season Pass' : 'Apple TV・MLS Season Pass') : en ? "On Apple TV's MLS channel" : '在 Apple TV 的 MLS 頻道' })]), el('span', { class: 'replay-go', text: en ? 'Watch' : '觀看' })])
-    ]);
+    // An older game's page is in its month's file: read, then the row points at the game.
+    if (!apple.game && watchMonthWanted(e)) {
+      const wait = replayLinkRow(apple, en);
+      loadWatchMonth(e, packJson).then(() => wait.isConnected && tvOf(e).find(b => b.svc === 'appletv')?.game && wait.replaceWith(replayLink(e)));
+      return wait;
+    }
+    return replayLinkRow(apple, en);
   }
   if (broadcastsOf(e.league)[0]?.svc !== 'elta') return null;
   // Only where there'll likely be one (a season of videos, or its channel in
