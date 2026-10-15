@@ -1182,8 +1182,11 @@ function diamondView(d, e, nameOf) {
   const shirt = shirtsOf(d, e);
   const [fieldSide, batSide] = f.fielding === 'home' ? [e.home, e.away] : [e.away, e.home];
   const rows = new Map((d.players || []).flatMap(p => p.tables.flatMap(tb => tb.rows)).map(r => [personKey(r.full || r.name), r]));
+  // A pitcher just in (or a pinch runner) is on the field before he's in the
+  // box score: the whole active roster (陣容's, ESPN's ids) finds him.
+  const squad = new Map(Object.values(d.squads || {}).flatMap(sq => sq.all || []).filter(p => p.id).map(p => [personKey(p.name), p]));
   const who = full => {
-    const r = rows.get(personKey(full));
+    const r = rows.get(personKey(full))?.id ? rows.get(personKey(full)) : squad.get(personKey(full));
     return { id: r?.id || '', name: full, full, short: r?.name || '', headshot: r?.headshot || null };
   };
   const marker = (full, [x, y], colour, label = '', cls = '') => {
