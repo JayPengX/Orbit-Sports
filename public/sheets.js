@@ -1070,12 +1070,13 @@ function lineupCard(l, e, nameOf) {
   const side = (team, list, lead) => el('div', {}, [el('p', { class: 'mini-h', text: nameOf(team.id) }), el('ul', { class: 'inj-list lineup-list' }, list.map((p, i) => row(p, lead(p, i))))]);
   const sides = [e.away, e.home];
   if (l.kind === 'mlb') {
-    const pitchers = sides.map((t, i) => [t, [l.pitchers.away, l.pitchers.home][i]]).filter(([, p]) => p);
+    // Both sides, always: a side MLB hasn't named yet says so (待定), rather than leaving one pitcher alone.
+    const pitchers = sides.map((t, i) => [t, [l.pitchers.away, l.pitchers.home][i]]);
     const orders = sides.map((t, i) => [t, [l.order.away, l.order.home][i]]).filter(([, o]) => o.length);
     return card(
       en ? 'Starters' : '先發',
       el('div', { class: 'injuries' }, [
-        pitchers.length ? el('div', {}, [el('p', { class: 'mini-h', text: en ? 'Probable pitchers' : '預計先發投手' }), el('ul', { class: 'inj-list lineup-list' }, pitchers.map(([t, p]) => el('li', {}, [el('span', { class: 'jersey' }), who(p), el('small', { text: t.short || t.name })])))]) : null,
+        el('div', {}, [el('p', { class: 'mini-h', text: en ? 'Probable pitchers' : '預計先發投手' }), el('ul', { class: 'inj-list lineup-list no-num' }, pitchers.map(([t, p]) => el('li', {}, [p ? who(p) : el('span', { class: 'roster-name muted', text: en ? 'TBD' : '待定' }), el('small', { text: t.short || t.name })])))]),
         ...orders.map(([t, o]) => side(t, o, (p, i) => String(i + 1)))
       ]),
       { sub: orders.length ? (en ? 'Batting orders posted' : '打序已公布') : en ? 'Batting orders hours before' : '打序賽前數小時公布' }

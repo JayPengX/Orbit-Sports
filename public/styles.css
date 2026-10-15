@@ -1609,6 +1609,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 /* 先發陣容 (lineupCard): an injury list's rows, the side's words quiet, not an injury's red. */
 .inj-list.lineup-list small { color: var(--q-muted); font-weight: 600; }
 .inj-list.lineup-list li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 5px 0; }
+.inj-list.lineup-list.no-num li { grid-template-columns: minmax(0, 1fr) auto; }
 .inj-list.lineup-list .jersey { color: var(--q-muted); font-size: 12.5px; text-align: left; }
 .inj-list.lineup-list .roster-name { justify-content: flex-start; text-align: left; min-width: 0; }
 .inj-list.lineup-list .roster-name span { white-space: nowrap; }
