@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDate } from '../public/lib/mlb.mjs';
+import { mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, pitcherRole, emptyBox, mlbDate } from '../public/lib/mlb.mjs';
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 
@@ -88,4 +88,16 @@ test("陣容: a side's whole active roster from MLB's box score, each in his rol
   assert.ok([...sq.order, ...sq.pitched, ...sq.bullpen, ...sq.bench].every(p => all.has(p.mlbId)));
   assert.ok(sq.all.length >= 26 - 1 && sq.all.every(p => p.name && p.pos));
   assert.equal(mlbSquad({ teams: {} }, 'home'), null);
+});
+
+test("pitcherRole: a pitcher's role from his last games, not ESPN's season position", () => {
+  const log = gs => ({ labels: ['GS', 'IP'], games: gs.map(n => ({ stats: [String(n), '1.0'] })) });
+  // Sasaki, October 2026: "Starting Pitcher", five games out of the bullpen.
+  assert.equal(pitcherRole('Starting Pitcher', log([0, 0, 0, 0, 0])), 'Relief Pitcher');
+  assert.equal(pitcherRole('Relief Pitcher', log([0, 1, 0])), 'Starting Pitcher');
+  assert.equal(pitcherRole('Starting Pitcher', log([1])), 'Starting Pitcher');
+  // No log, or a batter's: as ESPN has it; a batter is never touched.
+  assert.equal(pitcherRole('Starting Pitcher', null), 'Starting Pitcher');
+  assert.equal(pitcherRole('Starting Pitcher', { labels: ['AB'], games: [{ stats: ['4'] }] }), 'Starting Pitcher');
+  assert.equal(pitcherRole('Shortstop', log([0])), 'Shortstop');
 });

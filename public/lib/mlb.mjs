@@ -184,3 +184,15 @@ export function mlbSquad(data, side) {
 
 // ESPN's box score as good as empty: no player with a number in it.
 export const emptyBox = players => !players.some(p => p.tables.some(tb => tb.rows.some(r => r.stats.some(v => /\d/.test(String(v))))));
+
+// A pitcher's role now, from his last games (a game log: labels with GS,
+// newest first): ESPN's position is the season's (Sasaki "Starting Pitcher"
+// all October while he pitched out of the bullpen). Started none of them: a
+// reliever; started one: a starter. Anyone else, or no log: as ESPN has it.
+export function pitcherRole(position, log) {
+  if (!/^(starting|relief) pitcher$/i.test(position || '')) return position || '';
+  const gs = log?.labels?.indexOf('GS') ?? -1;
+  const games = gs >= 0 ? log.games.filter(g => g.stats[gs] !== '' && g.stats[gs] != null) : [];
+  if (!games.length) return position;
+  return games.some(g => Number(g.stats[gs]) > 0) ? 'Starting Pitcher' : 'Relief Pitcher';
+}

@@ -59,14 +59,17 @@ const LONG = {
 };
 // sport: LEAGUES' sport ('soccer', 'hockey'…), for a label that differs by
 // sport; long: ESPN's long name for it, said when the short one isn't known.
-export function statName(label, lang = 'zh', { sport = '', long = '' } = {}) {
+// pitching: a pitcher's columns (any with IP), whose H, R and HR he gave up.
+export function statName(label, lang = 'zh', { sport = '', long = '', pitching = false } = {}) {
   if (lang === 'en' || !label) return label;
+  if (sport === 'baseball' && pitching && GAVE_UP[label]) return GAVE_UP[label];
   const key = String(label).toLowerCase().trim();
   const longKey = String(long || '').toLowerCase().trim().replace(/[./]+$/, '');
   const said = BY_SPORT[sport]?.[key] || ZH[key] || SHORT[key] || LONG[longKey] || ZH[longKey] || SHORT[longKey];
   return said || label;
 }
-// A stats card's title: "2026 season stats" → "2026 球季數據".
+const GAVE_UP = { H: '被安打', R: '失分', HR: '被全壘打' };
+// A stats card's title: "2026 season stats" → "2026 球季數據", "2026 Pitching" → "2026 投球數據".
 export function statsTitle(title, lang = 'zh') {
   if (lang === 'en' || !title) return title;
   return String(title)
@@ -75,6 +78,7 @@ export function statsTitle(title, lang = 'zh') {
     .replace(/\bseason stats\b/i, '球季數據')
     .replace(/\bseason overview\b/i, '球季總覽')
     .replace(/\bstats\b/i, '數據')
+    .replace(/^(\d{4} )?(pitching|batting|fielding)$/i, (_, y = '', k) => `${y}${{ pitching: '投球', batting: '打擊', fielding: '守備' }[k.toLowerCase()]}數據`)
     .replace(/\branking\b/i, '排名')
     .replace(/English Premier League|Premier League/, '英超')
     .replace(/LALIGA|LaLiga|Spanish LALIGA/, '西甲')

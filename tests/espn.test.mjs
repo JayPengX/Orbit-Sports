@@ -386,7 +386,7 @@ test("on air: under way, or its start come with ESPN still saying it's to come (
   assert.equal(onAir({ ...g('pre', '2026-10-11T10:00:00Z'), status: { state: 'pre', void: true } }, now), false);
 });
 
-import { statName } from '../public/lib/statnames.mjs';
+import { statName, statsTitle } from '../public/lib/statnames.mjs';
 test("a stat's name by its sport, else by ESPN's long name (TACKL is Tackles, 搶斷); an unknown one as ESPN wrote it", () => {
   assert.equal(statName('TACKL', 'zh', { sport: 'soccer', long: 'Tackles' }), '搶斷');
   assert.equal(statName('SV', 'zh', { sport: 'soccer', long: 'Saves' }), '撲救');
@@ -408,4 +408,15 @@ test("A basketball side's averages before tip-off: per game, the season ESPN nam
   assert.ok(a.rows.every(r => r.id && r.name && r.stats.every(v => /^\d+\.\d$/.test(v))));
   assert.ok(Number(a.rows[0].stats[1]) >= Number(a.rows[1].stats[1]));
   assert.equal(parseSeasonAverages({}), null);
+});
+
+test("statName: a pitcher's H, R and HR are the ones he gave up; ESPN's \"2026 Pitching\" in words", () => {
+  assert.equal(statName('H', 'zh', { sport: 'baseball', pitching: true }), '被安打');
+  assert.equal(statName('R', 'zh', { sport: 'baseball', pitching: true }), '失分');
+  assert.equal(statName('HR', 'zh', { sport: 'baseball', pitching: true }), '被全壘打');
+  assert.equal(statName('H', 'zh', { sport: 'baseball' }), '安打');
+  assert.equal(statName('H', 'en', { sport: 'baseball', pitching: true }), 'H');
+  assert.equal(statsTitle('2026 Pitching'), '2026 投球數據');
+  assert.equal(statsTitle('2026 Batting'), '2026 打擊數據');
+  assert.equal(statsTitle('2026 Pitching', 'en'), '2026 Pitching');
 });

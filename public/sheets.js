@@ -10,7 +10,7 @@ import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod } from './lib/live.mjs';
-import { personKey } from './lib/mlb.mjs';
+import { personKey, pitcherRole } from './lib/mlb.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
@@ -565,6 +565,8 @@ function gameCards(game, id, league) {
   const team = lines[0].team;
   const row = lines[0].row;
   // Where he is: on the court (basketball's mark), on the pitch or off it (soccer's line-ups), else started or came off the bench.
+  // A pitcher who pitched: started it or came out of the bullpen (never 替補).
+  const mound = sport === 'baseball' ? lines.find(l => l.table.labels.includes('IP'))?.row : null;
   const rp = sport === 'soccer' ? d?.rosters?.find(r => r.team === team)?.players.find(p => p.id === String(id)) : null;
   const where =
     row.dnp
@@ -577,9 +579,11 @@ function gameCards(game, id, league) {
           ? [`↓ ${en ? 'Off' : '下場'}${rp.subAt ? ` ${rp.subAt}` : ''}`, 'out']
           : rp?.subbedIn
             ? [`↑ ${en ? 'On' : '上場'}${rp.subAt ? ` ${rp.subAt}` : ''}`, st.state === 'in' ? 'on' : '']
-            : row.starter
-              ? [en ? 'Started' : '先發', st.state === 'in' && sport === 'soccer' ? 'on' : '']
-              : [en ? 'Bench' : '替補', ''];
+            : mound
+              ? mound.starter ? [en ? 'Starting pitcher' : '先發投手', ''] : [en ? 'Relief' : '後援', '']
+              : row.starter
+                ? [en ? 'Started' : '先發', st.state === 'in' && sport === 'soccer' ? 'on' : '']
+                : [en ? 'Bench' : '替補', ''];
   // One card: the score line (the two sides' marks and the score, the
   // game's clock at the right, red while on), then his numbers; where he
   // is (場上, 先發, ↓ 69') beside the title, not a card of its own.
@@ -601,7 +605,7 @@ function gameCards(game, id, league) {
   return lines.map(({ table: tb, row: r }, i) =>
     card(
       title(lines.length > 1 ? boxTableName(tb.name) : en ? 'This game' : '本場數據'),
-      el('div', {}, [i === 0 ? scoreRow : null, el('div', { class: 'stat-grid dense' }, tb.labels.map((k, n) => [k, r.stats[n], tb.keys?.[n]]).filter(([, v, key]) => v !== '' && v != null && key !== 'yellowCards' && key !== 'redCards').map(([k, v]) => tile(statName(k, L(), { sport, long: tb.longs?.[tb.labels.indexOf(k)] }), String(v))))])
+      el('div', {}, [i === 0 ? scoreRow : null, el('div', { class: 'stat-grid dense' }, tb.labels.map((k, n) => [k, r.stats[n], tb.keys?.[n]]).filter(([, v, key]) => v !== '' && v != null && key !== 'yellowCards' && key !== 'redCards').map(([k, v]) => tile(statName(k, L(), { sport, long: tb.longs?.[tb.labels.indexOf(k)], pitching: tb.labels.includes('IP') }), String(v))))])
     )
   );
 }
@@ -3866,13 +3870,15 @@ export async function openPlayer(league, id, fallback = {}) {
     ]);
     const en = L() === 'en';
     const W = (zh, eng) => (en ? eng : zh);
+    // A pitcher's role as he's used now (his last games), not the season's.
+    const position = sport === 'baseball' ? pitcherRole(a.position, ov?.log) : a.position;
     const driver = league === 'f1' ? f1Driver(a.name) : null;
     const champ = table ? driverSeason(table, id) : null;
     const name = driver && !en && driver.zh !== a.name ? `${driver.zh}` : a.name;
     const facts = [
-      [sport === 'racing' ? W('車隊', 'Team') : T('team'), withMark(driver?.team ? constructorBadge(driver.team, 'xs') : a.teamLogo ? logo(a.teamLogo, a.team, 'xs') : null, driver?.team && !en ? f1Constructor(driver.team).zh : a.team || driver?.team || '')],
+      [sport === 'racing' ? W('車隊', 'Team') : T('team'), withMark(driver?.team ? constructorBadge(driver.team, 'xs') : a.teamLogo ? logo(a.teamLogo, a.team, 'xs') : null, driver?.team && !en ? f1Constructor(driver.team).zh : (a.team && !en ? teamNameZh(LEAGUES[league]?.play || league, a.team, sport)?.short : '') || a.team || driver?.team || '')],
       [T('country'), withMark(countryFlag(a.country) ? el('span', { class: 'fact-flag', 'aria-hidden': 'true', text: countryFlag(a.country) }) : null, countryName(a.country, L()))],
-      [T('position'), zhLater(a.position)],
+      [T('position'), zhLater(position)],
       [T('age'), a.age ? String(a.age) : ''],
       [T('height'), metric(a.height, L())],
       [T('weight'), metric(a.weight, L())],
@@ -3967,7 +3973,7 @@ export async function openPlayer(league, id, fallback = {}) {
           Date.now() - (Date.parse(log.games[0]?.date || '') || Date.now()) > 45 * 86_400_000 ? W(`上季最後 ${log.games.length} 場`, `Last season's last ${log.games.length}`) : W(`近 ${log.games.length} 場`, `Last ${log.games.length} games`),
           el('div', { class: 'table-wrap' }, [
             el('table', { class: 'data game-log' }, [
-              el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: W('日期', 'Date') }), el('th', { class: 'left', text: W('對手', 'Opp') }), el('th', { class: 'left', text: W('結果', 'Result') }), ...log.labels.map(k => el('th', { class: 'num', title: k, text: statName(k, L(), { sport, long: log.longs?.[log.labels.indexOf(k)] }) }))])]),
+              el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: W('日期', 'Date') }), el('th', { class: 'left', text: W('對手', 'Opp') }), el('th', { class: 'left', text: W('結果', 'Result') }), ...log.labels.map(k => el('th', { class: 'num', title: k, text: statName(k, L(), { sport, long: log.longs?.[log.labels.indexOf(k)], pitching: log.labels.includes('IP') }) }))])]),
               el(
                 'tbody',
                 {},
@@ -4020,7 +4026,7 @@ export async function openPlayer(league, id, fallback = {}) {
           teamChip.replaceWith(tap);
         })
         .catch(() => {});
-    const sub = [a.jersey ? `#${a.jersey}` : '', zhLater(a.position), teamChip ? '' : teamShown || countryName(a.country, L())].filter(Boolean);
+    const sub = [a.jersey ? `#${a.jersey}` : '', zhLater(position), teamChip ? '' : teamShown || countryName(a.country, L())].filter(Boolean);
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : a.teamColor;
     const lastFive = weekends.length ? weekends.slice(0, 5).reverse().map(w => ({ name: w.e?.name || w.name, e: w.e, ...finishOf(w.me?.result, en) })) : raceRows.slice(0, 5).reverse().map(r => ({ ...r, text: `P${r.pos}` }));
@@ -4058,11 +4064,11 @@ export async function openPlayer(league, id, fallback = {}) {
             ov.season.rows.length > 1
               ? el('div', { class: 'table-wrap' }, [
                   el('table', { class: 'data game-log' }, [
-                    el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...ov.season.rows[0].cells.map(c => el('th', { class: 'num', title: c.label, text: statName(c.label, L(), { sport, long: c.long }) }))])]),
+                    el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...ov.season.rows[0].cells.map(c => el('th', { class: 'num', title: c.label, text: statName(c.label, L(), { sport, long: c.long, pitching: ov.season.rows[0].cells.some(x => x.label === 'IP') }) }))])]),
                     el('tbody', {}, ov.season.rows.map(r => el('tr', {}, [el('th', { class: 'left split-name' }, [splitName(r.name, ov.season.rows, en) || zhLater(r.name)]), ...r.cells.map(c => el('td', { class: 'num', text: c.value }))])))
                   ])
                 ])
-              : el('div', { class: 'stat-grid dense' }, ov.season.rows[0].cells.map(c => tile(statName(c.label, L(), { sport, long: c.long }), c.value)))
+              : el('div', { class: 'stat-grid dense' }, ov.season.rows[0].cells.map(c => tile(statName(c.label, L(), { sport, long: c.long, pitching: ov.season.rows[0].cells.some(x => x.label === 'IP') }), c.value)))
           )
         : null,
       ov?.rankings?.length ? card(T('rankings'), el('div', { class: 'stat-grid' }, ov.rankings.map(x => tile(statName(x.label, L(), { sport, long: x.long }), x.value, x.rank)))) : null,
