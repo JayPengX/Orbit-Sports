@@ -12,8 +12,24 @@ import { leagueLogo as kitLeagueLogo } from '#kit/logos.mjs';
 import { SPORTS as ALL_SPORTS, CATALOG } from '#kit/catalog.mjs';
 import { BROADCAST } from './broadcast.mjs';
 
+// Soccer in the order a Taiwan viewer would watch it (the owner's call,
+// 2026-10-15): the kick-off in Taiwan's evening first, then the level, a
+// kind kept together. The big four's leagues (英超 elite at 20:00–00:00 on a
+// weekend; 德甲 21:30; 義甲 from 18:30 to 02:45; 法甲 mostly 03:00), then
+// UEFA's cups (歐冠 elite but 03:00 midweek; 歐霸, 歐協聯 Thursdays), then
+// the rest: 英足總盃 (a weekend evening, now and then), 蘇超 (22:00, a
+// level down), 美職足 (Taiwan's morning, on Apple TV), 歐國聯 (internationals,
+// 02:45). A league not named keeps the catalogue's place after them.
+const SOCCER_WATCH = ['epl', 'bundesliga', 'seriea', 'ligue1', 'laliga', 'ucl', 'uel', 'uecl', 'facup', 'scotland', 'mls', 'worldcup', 'nationsleague'];
+const watchRank = k => (SOCCER_WATCH.includes(k) ? SOCCER_WATCH.indexOf(k) : SOCCER_WATCH.length);
+// The catalogue's order, soccer's own places filled in the watching order.
+const inOrder = entries => {
+  const soccer = entries.filter(([, l]) => l.sport === 'soccer').sort(([a], [b]) => watchRank(a) - watchRank(b));
+  return entries.map(x => (x[1].sport === 'soccer' ? soccer.shift() : x));
+};
+
 export const LEAGUES = Object.fromEntries(
-  Object.entries(CATALOG)
+  inOrder(Object.entries(CATALOG))
     .filter(([key]) => BROADCAST[key])
     .map(([key, l]) => {
       const league = { sport: l.sport, zh: l.zh, en: l.en, play: l.bet ?? null, kind: l.kind };
