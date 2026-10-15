@@ -9,7 +9,7 @@
 // What the person follows lives on the pass (this app's payload): leagues in
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
-import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson } from '#kit/quadra.mjs';
+import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, keepOffline, onlineOnly, netState } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kit from '#kit/quadra.mjs';
@@ -2961,7 +2961,8 @@ window.addEventListener('hashchange', () => {
 // seconds at most), so they don't open half-read and reshuffle.
 const BOOT_WAIT = 7000;
 async function homeReady(until) {
-  while (state.tab === 'home' && !state.home.settled && Date.now() < until) await new Promise(r => setTimeout(r, 150));
+  // (A connection the kit finds slow: the saved picks at once, not the rest of the wait for fresh ones.)
+  while (state.tab === 'home' && !state.home.settled && Date.now() < until && netState() === 'online') await new Promise(r => setTimeout(r, 150));
 }
 async function boot() {
   const until = Date.now() + BOOT_WAIT;
@@ -3014,4 +3015,7 @@ async function boot() {
 if (!gated) boot();
 setTimeout(() => ($('loading').hidden = true), BOOT_WAIT + 2000);
 
-if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('./sw.js').catch(() => {});
+// Opens without a connection: the kit registers the worker and has it keep every file loaded.
+keepOffline();
+// Every screen is live (an old copy would read as now): no connection, the kit's cover, not the saved copy.
+onlineOnly({ zh: '比分和賽程需要網路連線', en: 'Scores and schedules need a connection.' });

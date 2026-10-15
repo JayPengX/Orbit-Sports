@@ -16,6 +16,8 @@ anything here. The data layers this app reads through (memory, device,
 the family's data in R2, the proxy's edge cache, games kept on demand, the upstream) are
 in Shared-Proxy's README §2.
 
+**Without a connection** (the kit's `onlineOnly`): scores, schedules and live games are all live, so with no connection the app is covered (沒有網路連線, 比分和賽程需要網路連線, 重試) rather than showing a saved day's old scores as now; it comes back by itself. A slow connection opens on the saved day (the picks' wait cut short, `homeReady`) with the kit's 網路連線很慢.
+
 ## Contents
 
 - [Leagues](#leagues)
