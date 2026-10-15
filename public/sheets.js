@@ -168,6 +168,8 @@ export async function openMatch(e) {
       if (fresh) e = { ...e, ...fresh };
       if (LEAGUES[e.league].espn) data = await summary(e.league, e.id).catch(() => data);
       else if (e.league === 'cpbl') data = (await cpblGame(e).catch(() => null)) || data;
+      // Read while a finger took the sheet (or it's closing): drawn at the next beat, not under the drag.
+      if (document.querySelector('dialog.q-sheet.q-dragging, dialog.q-sheet.q-leaving')) return;
       paintHeader(data);
       paint();
       loadLine();
@@ -4517,6 +4519,15 @@ function zoneLegend(rows) {
 // went through or what's next, then each game, G1 first, each opening its match.
 // A match's stage and series ("國聯分區系列賽 G4 · 道奇 系列賽 3-1 獲勝"): a
 // playoff series or a two-legged tie opens the whole of it, as 季後賽 does.
+const warm = new Map();
+function warmSeries(e) {
+  const key = `${e.league}:${e.id}`;
+  const had = warm.get(key);
+  if (had && had.at > Date.now() - 60_000) return had;
+  const got = { at: Date.now(), p: ctx.seriesOf(e).catch(() => null) };
+  warm.set(key, got);
+  return got;
+}
 function stageLine(e) {
   const parts = [stageTag(e, L()) ? el('span', { class: 'stage-tag', text: stageTag(e, L()) }) : null, seriesText(e) ? el('small', { text: seriesText(e) }) : null, weekOf(e) ? el('small', { text: roundLabel(e.league, weekOf(e), weekOf(e), L()) }) : null];
   if (!e.round || !(e.series || e.round.leg) || !ctx.seriesOf) return el('div', { class: 'mh-stage' }, parts);
@@ -4526,9 +4537,12 @@ function stageLine(e) {
   if (shown.at(-1)?.tagName === 'SMALL') shown.at(-1).append(chev);
   else shown.push(chev);
   const btn = el('button', { class: 'mh-stage link', type: 'button', 'aria-label': L() === 'en' ? 'See the whole series' : '看整個系列賽' }, shown);
+  // Read while the page is looked at, so the tap opens it at once (it had
+  // waited on the bracket's first read: seconds). A redraw keeps the read.
+  const ready = warmSeries(e);
   btn.addEventListener('click', async () => {
     btn.disabled = true;
-    const got = await ctx.seriesOf(e).catch(() => null);
+    const got = await (ready.at > Date.now() - 60_000 ? ready.p : warmSeries(e).p);
     btn.disabled = false;
     if (got) openTie(got.tie, e.league, got.title);
     // Not in the bracket read (a season long gone): just the line, no more.
