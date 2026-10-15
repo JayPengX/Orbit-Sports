@@ -13,7 +13,7 @@ import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAff
 import { stripDays } from './lib/strip.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, onAir, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, onAir, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -2263,6 +2263,7 @@ function renderScores() {
   let list;
   let stages = null;
   loadBracket(sc.league);
+  warmTable(sc.league);
   // Every league with playoffs has the tab from the start (its shape while it's read).
   const po = brackets.get(sc.league);
   const rounds = po?.model?.rounds || [];
@@ -2731,15 +2732,28 @@ function racesLeft(league) {
 }
 // Last seasons' final tables ('<league>:<year>'), read once.
 const lastTables = new Map();
-function tableOf(league) {
-  const groups = tables.get(league);
-  if (groups === undefined) {
+// Read as soon as a league opens in 賽事 (not on the tap on 排名): the copy
+// this phone has shown at once, the fresh one in its place when it comes.
+// Read again after ten minutes, the table on screen kept till then.
+const tableAt = new Map();
+function warmTable(league) {
+  if (!hasStandings(league) || Date.now() - (tableAt.get(league) ?? -Infinity) < 10 * 60_000) return;
+  tableAt.set(league, Date.now());
+  const shown = () => state.tab === 'matches' && state.scores.league === league && state.scores.view === 'table' && renderScores();
+  if (!tables.has(league)) {
     tables.set(league, null);
-    standings(league)
-      .then(g => tables.set(league, g))
-      .catch(() => tables.set(league, []))
-      .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+    savedStandings(league)
+      .then(g => g?.length && tables.get(league) === null && (tables.set(league, g), shown()))
+      .catch(() => {});
   }
+  standings(league)
+    .then(g => tables.set(league, g))
+    .catch(() => !tables.get(league)?.length && tables.set(league, []))
+    .then(shown);
+}
+function tableOf(league) {
+  warmTable(league);
+  const groups = tables.get(league);
   if (!groups) return spinner();
   if (!groups.length) return empty(t('noStandings'));
   // Before this season's first counted game (a preseason's table is all
@@ -3014,6 +3028,8 @@ async function boot() {
   window.__bootStep?.(t('loadingPicks'), 0.94);
   await homeReady(until);
   $('loading').hidden = true;
+  // The followed leagues' tables, read once the day's games are in: 排名 opens at once.
+  setTimeout(() => followedLeagues().filter(hasStandings).slice(0, 6).forEach(warmTable), 2000);
 }
 if (!gated) boot();
 setTimeout(() => ($('loading').hidden = true), BOOT_WAIT + 2000);

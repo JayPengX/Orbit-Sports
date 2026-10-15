@@ -34,7 +34,7 @@ export const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
 // The kit's proxyJson: requests made together go as one batch, answers are
 // remembered in memory and on the device (a list younger than `ttl` is
 // never asked for again, even after the app was closed).
-export const getJson = (url, { ttl = 60_000, trim = '', mirror = true } = {}) => proxyJson(url, { ttl, trim, mirror });
+export const getJson = (url, { ttl = 60_000, trim = '', mirror = true, alone = false } = {}) => proxyJson(url, { ttl, trim, mirror, alone });
 // How long a live answer (scores, a game's summary) is kept before asking again.
 // A live read kept on the phone only to share one read between the parts that want it: the refresh speed is the admin panel's (kit dev), the proxy's cache the rest.
 export const LIVE_TTL = 2_000;
@@ -1438,16 +1438,29 @@ export function tierZones(groups) {
 }
 // A league's tables this season. The array carries the season's year.
 // `season`: a past season's (its year as ESPN numbers it), kept a day.
-export async function standings(league, { season = null } = {}) {
+// The regular season's table: ESPN's default counts pre-season games in
+// (the NBA's in October: Toronto 0-1 before a real game).
+const standingsUrl = (league, season = null) => {
   const l = LEAGUES[league];
-  if (l.asia) return asiaStandings(league, season);
-  // The regular season's table: ESPN's default counts pre-season games in
-  // (the NBA's in October: Toronto 0-1 before a real game).
   const query = [['baseball', 'basketball', 'football', 'hockey'].includes(l.sport) ? 'seasontype=2' : '', season ? `season=${season}` : ''].filter(Boolean).join('&');
-  const data = await getJson(`${STANDINGS}/${l.espn}/standings${query ? `?${query}` : ''}`, { ttl: season ? 86_400_000 : 10 * 60_000 });
-  const groups = withGaps(parseStandings(data, league), l.sport);
+  return `${STANDINGS}/${l.espn}/standings${query ? `?${query}` : ''}`;
+};
+const standingsOf = (data, league) => {
+  const groups = withGaps(parseStandings(data, league), LEAGUES[league].sport);
   groups.year = data?.season?.year ?? data?.children?.[0]?.standings?.season?.year ?? null;
   return groups;
+};
+export async function standings(league, { season = null } = {}) {
+  if (LEAGUES[league].asia) return asiaStandings(league, season);
+  // (On its own: a batch with the playoffs' game days waited on the slowest.)
+  return standingsOf(await getJson(standingsUrl(league, season), { ttl: season ? 86_400_000 : 10 * 60_000, alone: true }), league);
+}
+// The table as this phone last read it (any age), or null: shown at once
+// while the fresh one is read (a tap on 排名 waited seconds for it, 2026-10-15).
+export async function savedStandings(league) {
+  if (LEAGUES[league].asia) return null;
+  const saved = await kit.peekJson(standingsUrl(league)).catch(() => null);
+  return saved?.data ? standingsOf(saved.data, league) : null;
 }
 // CPBL's tables: the league's own (Shared-Data's nightly copy: the half on
 // now, the other half, the year), with the games finished since it was
