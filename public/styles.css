@@ -1286,7 +1286,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 /* A playoff series' sheet: the two sides and their wins, then each game. */
 .tie-head { display: grid; gap: 8px; padding: 4px 2px 14px; }
 .tie-head .mini-h { margin: 0; }
-.tie-side { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: 17px; color: var(--q-text-2, var(--q-muted)); }
+.tie-side { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: 17px; color: var(--q-text-2, var(--q-muted)); }
 .tie-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
 .tie-score { font-size: 22px; min-width: 1.4em; text-align: right; }
 .tie-side.win { color: var(--q-text); }
@@ -1800,7 +1800,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .subs-h { margin: 0; font-size: 13px; font-weight: 750; }
 .subs-list { list-style: none; margin: 0; padding: 0; }
 .subs-list .link { color: inherit; font: inherit; padding: 0; }
-.subs-list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 4px 0; font-size: 13px; }
+.subs-list li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; align-items: center; padding: 4px 0; font-size: 13px; }
 .sub-at { color: var(--q-muted); font-size: 12px; }
 .sub-pair { display: flex; flex-wrap: wrap; column-gap: 12px; row-gap: 2px; }
 .arrow-in { color: #1fa34a; }
@@ -1867,3 +1867,10 @@ button.lp-person.tap:active { opacity: 0.6; }
 .team-tag > .logo, .team-tag > picture { flex: none; }
 .team-tag .logo.xs { width: 1.25em; height: 1.25em; vertical-align: 0; }
 .team-tag > span:last-child { min-width: 0; }
+/* A team's name and logo as a tap to its page: looks as it did, darkens while pressed. */
+button.team-tag, button.team-tap { border: 0; background: none; padding: 0; margin: 0; color: inherit; font: inherit; font-weight: inherit; text-align: inherit; -webkit-tap-highlight-color: transparent; }
+button.team-tag:active, button.team-tap:active { opacity: 0.6; }
+.tie-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.h2h-side.home button.h2h-who { justify-self: end; }
+.sub-who { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; white-space: nowrap; }
+.sub-who .logo.xs { width: 20px; height: 20px; vertical-align: 0; flex: none; }

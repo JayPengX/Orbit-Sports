@@ -55,7 +55,7 @@ const weatherText = w => weatherZh(w, L());
 // between, and one bar split by them (a sentence wrapped its parts apart).
 function h2hView({ n, wins, draws }, e) {
   const en = L() === 'en';
-  const side = (x, cls) => el('div', { class: `h2h-side ${cls}` }, [el('div', { class: 'h2h-who' }, [logo(x.logo, x.name, 'sm'), el('span', { class: 'h2h-name', text: x.short || x.name })]), el('div', { class: 'h2h-score' }, [el('strong', { class: 'num h2h-n', text: String(wins[x.id] || 0) }), el('small', { text: en ? 'won' : '勝' })])]);
+  const side = (x, cls) => el('div', { class: `h2h-side ${cls}` }, [teamTap(x, e.league, 'h2h-who', [logo(x.logo, x.name, 'sm'), el('span', { class: 'h2h-name', text: x.short || x.name })]), el('div', { class: 'h2h-score' }, [el('strong', { class: 'num h2h-n', text: String(wins[x.id] || 0) }), el('small', { text: en ? 'won' : '勝' })])]);
   const share = k => `flex-grow:${k}`;
   const [a, h] = [wins[e.away.id] || 0, wins[e.home.id] || 0];
   return el('div', { class: 'h2h' }, [
@@ -333,7 +333,7 @@ function livePanel(e, sm = null) {
       const t = top(id);
       const name = sm.byId[id]?.short || sm.byId[id]?.name || '';
       const f = fouls ? (id === e.away.id ? fouls.away : fouls.home) : '';
-      return lpPerson(e.league, t && { id: t.id, name: t.name }, [t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, el('p', {}, [el('small', {}, [teamTag(sm.byId[id] || [e.away, e.home].find(t => t.id === id), `${name} · ${en ? 'top scorer' : '得分王'}`, e.league)]), el('strong', { text: t?.name || '–' }), t?.line ? el('small', { class: 'num lp-line', text: t.line }) : null, f !== '' ? el('small', { class: 'num', text: `${en ? 'Team fouls' : '全隊犯規'} ${f}` }) : null])]);
+      return lpPerson(e.league, t && { id: t.id, name: t.name }, [t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, el('p', {}, [el('small', {}, [teamTag(sm.byId[id] || [e.away, e.home].find(t => t.id === id), `${name} · ${en ? 'top scorer' : '得分王'}`, e.league, { tap: false })]), el('strong', { text: t?.name || '–' }), t?.line ? el('small', { class: 'num lp-line', text: t.line }) : null, f !== '' ? el('small', { class: 'num', text: `${en ? 'Team fouls' : '全隊犯規'} ${f}` }) : null])]);
     };
     rows.push(el('div', { class: 'lp-who lp-bb' }, [person(e.away.id), person(e.home.id)]));
     const last = sm.feed.slice(-4).reverse();
@@ -418,7 +418,7 @@ export function goalTimeline(e, events) {
           pic,
           el('span', { class: 'lg-text' }, [
             el('span', { class: 'lg-name' }, [document.createTextNode(x.kind === 'own' ? team.short || team.name : x.who || p.name || ''), red ? el('i', { class: 'lg-red', 'aria-hidden': 'true' }) : null]),
-            el('small', { class: 'lg-sub' }, [x.kind === 'own' ? el('span', { text: [x.who || p.name, tag].filter(Boolean).join(' · ') }) : teamTag(team, [team.short || team.name, tag].filter(Boolean).join(' · '), e.league)])
+            el('small', { class: 'lg-sub' }, [x.kind === 'own' ? el('span', { text: [x.who || p.name, tag].filter(Boolean).join(' · ') }) : teamTag(team, [team.short || team.name, tag].filter(Boolean).join(' · '), e.league, { tap: false })])
           ])
         ];
         return el('li', { class: `lg-${s}${red ? ' lg-card' : ''}` }, [
@@ -518,7 +518,7 @@ function linescore(sm, e) {
   // The sides by their Chinese names when they have them (a short one fits the column).
   const tag = x => (L() !== 'en' && x.en && x.short && x.short.length <= 5 ? x.short : x.abbr || x.short);
   // Each side's logo beside its name.
-  const row = x => el('tr', {}, [el('th', { class: 'ls-team' }, [el('span', { class: 'ls-who' }, [sideLogo(x, e.league, 'xs'), el('span', { text: tag(x) })])]), ...Array.from({ length: n }, (_, i) => el('td', { class: 'num', text: x.lines?.[i] ?? '' })), el('td', { class: 'num total', text: x.score })]);
+  const row = x => el('tr', {}, [el('th', { class: 'ls-team' }, [teamTap(x, e.league, 'ls-who', [sideLogo(x, e.league, 'xs'), el('span', { text: tag(x) })])]), ...Array.from({ length: n }, (_, i) => el('td', { class: 'num', text: x.lines?.[i] ?? '' })), el('td', { class: 'num total', text: x.score })]);
   return el('div', { class: 'table-wrap' }, [el('table', { class: 'linescore' }, [el('thead', {}, [el('tr', {}, [el('th'), ...head, el('th', { text: sport === 'baseball' ? 'R' : en ? 'T' : '總分' })])]), el('tbody', {}, [row(away), row(home)])])]);
 }
 
@@ -533,8 +533,17 @@ export function statValue(text) {
   return Number.isFinite(n) ? n : null;
 }
 
-// A team named anywhere: its logo beside the name (the side as the game's header has it, the summary's else).
-const teamTag = (t, text, league) => el('span', { class: 'team-tag' }, [t?.logo ? sideLogo(t, league, 'xs') : null, el('span', { text })]);
+// A team named anywhere: its logo beside the name (the side as the game's header has it, the summary's else);
+// a tap opens its page (tap: false inside another button, or beside a player's name where it'd be hit by mistake).
+const teamTag = (t, text, league, { tap = true } = {}) => {
+  const kids = [t?.logo ? sideLogo(t, league, 'xs') : null, el('span', { text })];
+  return tap && t?.id && !t.guest && !t.athlete && hasTeamPage(league)
+    ? el('button', { class: 'team-tag link', type: 'button', onclick: ev => (ev.stopPropagation(), ctx.openTeam(league, String(t.id), t)) }, kids)
+    : el('span', { class: 'team-tag' }, kids);
+};
+// A team's own logo and name as one tap to its page (a div where it has none).
+const teamTap = (t, league, cls, kids) =>
+  t?.id && !t.guest && !t.athlete && hasTeamPage(league) ? el('button', { class: `${cls} team-tap`, type: 'button', onclick: ev => (ev.stopPropagation(), ctx.openTeam(league, String(t.id), t)) }, kids) : el('div', { class: cls }, kids);
 const sideOf = (d, e, id) => [e.away, e.home].find(t => t && String(t.id) === String(id)) || d?.byId?.[id] || null;
 // The game's team by id, tagged: its short name (and anything after it, " · " between).
 const tagOf = (d, e) => (id, ...more) => teamTag(sideOf(d, e, id), [d?.byId?.[id]?.short || d?.byId?.[id]?.name || sideOf(d, e, id)?.short || sideOf(d, e, id)?.name || '', ...more].filter(Boolean).join(' · '), e.league);
@@ -1082,7 +1091,7 @@ function lineupCard(l, e, nameOf) {
     return card(
       en ? 'Starters' : '先發',
       el('div', { class: 'injuries' }, [
-        el('div', {}, [el('p', { class: 'mini-h', text: en ? 'Probable pitchers' : '預計先發投手' }), el('ul', { class: 'inj-list lineup-list no-num' }, pitchers.map(([t, p]) => el('li', {}, [p ? who(p) : el('span', { class: 'roster-name' }, [el('span', { class: 'logo xs round empty-face', 'aria-hidden': 'true' }), el('span', { class: 'muted', text: en ? 'TBD' : '待定' })]), el('small', {}, [teamTag(t, t.short || t.name, e.league)])])))]),
+        el('div', {}, [el('p', { class: 'mini-h', text: en ? 'Probable pitchers' : '預計先發投手' }), el('ul', { class: 'inj-list lineup-list no-num' }, pitchers.map(([t, p]) => el('li', {}, [p ? who(p) : el('span', { class: 'roster-name' }, [el('span', { class: 'logo xs round empty-face', 'aria-hidden': 'true' }), el('span', { class: 'muted', text: en ? 'TBD' : '待定' })]), el('small', {}, [teamTag(t, t.short || t.name, e.league, { tap: false })])])))]),
         ...orders.map(([t, o]) => side(t, o, (p, i) => String(i + 1)))
       ]),
       { sub: orders.length ? (en ? 'Batting orders posted' : '打序已公布') : en ? 'Batting orders hours before' : '打序賽前數小時公布' }
@@ -1245,7 +1254,9 @@ function subsList(sides, tag, league) {
       const all = [...s.on, ...s.off];
       const byId = new Map(all.map(p => [p.id, p]));
       const minute = t => parseInt(t, 10) || 0;
-      const who = p => (p?.id ? el('button', { class: 'link', type: 'button', text: p.short || p.name, onclick: () => ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }) : p?.short || p?.name || '');
+      // Each one with his face, a tap to his page.
+      const face = p => [personPic({ ...p, en: p.name }, league, 'xs round'), el('span', { text: p.short || p.name })];
+      const who = p => (p?.id ? el('button', { class: 'link sub-who', type: 'button', onclick: () => ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, face(p)) : p?.name ? el('span', { class: 'sub-who' }, face(p)) : '');
       const rows = [
         ...all.filter(p => p.subbedIn).map(p => ({ at: p.subAt, li: el('li', {}, [el('span', { class: 'num sub-at', text: p.subAt }), el('span', { class: 'sub-pair' }, [el('span', { class: 'nb' }, [el('b', { class: 'arrow-in', text: '↑ ' }), who(p)]), byId.get(p.inFor) ? el('span', { class: 'nb' }, [el('b', { class: 'arrow-out', text: '↓ ' }), who(byId.get(p.inFor))]) : null])]) })),
         ...all.filter(p => p.sentOff).map(p => ({ at: p.sentAt, li: el('li', {}, [el('span', { class: 'num sub-at', text: p.sentAt }), el('span', { class: 'sub-pair' }, [el('span', { class: 'nb' }, [el('b', { class: 'card-red', 'aria-hidden': 'true' }), ' ', who(p), ` · ${en ? 'sent off' : '紅牌'}`])])]) }))
@@ -1315,7 +1326,7 @@ export const groupShort = name => {
 };
 const placeCell = (p, grouped) => [T('placeN', { n: p.pos }), grouped && p.group ? groupShort(p.group) : ''];
 const cmpValue = v => (Array.isArray(v) ? el('strong', { class: 'cmp-val' }, [el('span', { class: 'num', text: v[0] }), v[1] ? el('small', { text: v[1] }) : null]) : el('strong', { class: 'cmp-val num', text: v }));
-const cmpTeam = (s, cls, league) => el('div', { class: `cmp-team ${cls}` }, [sideLogo(s, league, 'sm'), el('span', { text: s.short || s.name })]);
+const cmpTeam = (s, cls, league) => teamTap(s, league, `cmp-team ${cls}`, [sideLogo(s, league, 'sm'), el('span', { text: s.short || s.name })]);
 const formPills = games => el('div', { class: 'form-pills' }, games.slice(-5).map(g => el('span', { class: `pill ${g.result}`, title: `${g.opp} ${g.score}`, text: g.result })));
 
 // The game's win chance card: to come, each side's chance; on or over, the
@@ -4564,7 +4575,7 @@ export function openTie(t, league, roundTitle = '') {
   const won = t.winner && t.sides.find(x => String(x.id) === t.winner);
   const sideRow = x => {
     const id = String(x.id);
-    return el('div', { class: `tie-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}` }, [sideLogo(x, league, 'sm'), el('strong', { class: 'tie-name', text: x.short || x.name }), el('strong', { class: 'num tie-score', text: t.score?.[id] ?? '' })]);
+    return el('div', { class: `tie-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}` }, [teamTap(x, league, 'tie-who', [sideLogo(x, league, 'sm'), el('strong', { class: 'tie-name', text: x.short || x.name })]), el('strong', { class: 'num tie-score', text: t.score?.[id] ?? '' })]);
   };
   const said = won ? (en ? `${won.short || won.name} through` : `${won.short || won.name} 晉級`) : t.live ? (en ? 'On now' : '進行中') : t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : t.kind === 'series' ? (en ? 'Series' : '系列賽') : '';
   const label = (g, i) => [t.kind === 'series' ? (en ? `Game ${i + 1}` : `第 ${i + 1} 戰`) : t.kind === 'agg' ? (en ? `Leg ${i + 1}` : `第 ${i + 1} 回合`) : '', dayLabel(localDate(Date.parse(g.start)))].filter(Boolean).join(' · ');
