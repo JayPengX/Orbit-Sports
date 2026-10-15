@@ -1861,3 +1861,9 @@ button.lp-person.tap:active { opacity: 0.6; }
 
 /* The kit's segmented control and chips in a section: a little air around them. */
 .scores-body .q-seg, .q-section .q-seg, .sheet-body .q-seg, .sheet-body > .q-chips { margin-block: 12px; }
+
+/* A team named anywhere: its logo beside the name (teamTag). */
+.team-tag { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; vertical-align: middle; }
+.team-tag > .logo, .team-tag > picture { flex: none; }
+.team-tag .logo.xs { width: 1.25em; height: 1.25em; vertical-align: 0; }
+.team-tag > span:last-child { min-width: 0; }
