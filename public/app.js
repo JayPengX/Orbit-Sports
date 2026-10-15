@@ -1060,9 +1060,12 @@ function leagueDays(league, then) {
 }
 
 const ENDED_PICKS = { zh: '已結束的推薦', en: 'Picks that ended' };
-// ELTA's four 體育台 (its own commentators); MAX's channels carry the English feed.
+// ELTA's four 體育台; MAX's channels carry the English feed. Its pick is a
+// game there with its own commentators: a 體育台 can carry a game in 原音
+// too, not its pick (Brighton v Palace on 愛爾達2台 in 原音 while Leeds v
+// Man United had ELTA's commentary on 愛爾達1台, 2026-10-18).
 const MAIN_CHANNELS = new Set([101, 105, 110, 115]);
-const onMain = e => channelsOf(e).some(c => MAIN_CHANNELS.has(c.ch));
+const onMain = e => channelsOf(e).some(c => MAIN_CHANNELS.has(c.ch) && !['en', 'data'].includes(c.audio));
 // The broadcaster's pick: a game on a main channel while another of its
 // league, starting within the hour, is on TV only on MAX. (One game on
 // alone isn't a pick: there was nothing to choose from.)
@@ -1507,7 +1510,7 @@ function renderLive() {
 // games (channel to come). A showing reads short: the time, the league, the
 // two sides (or the event), one detail (the round or stage), and each
 // channel with its commentary.
-const AUDIO_SHORT = { en: { zh: '英', en: 'EN' }, dual: { zh: '雙語', en: 'Dual' }, venue: { zh: '中', en: 'ZH' }, local: { zh: '雙語', en: 'ZH×2' }, zh: { zh: '中', en: 'ZH' } };
+const AUDIO_SHORT = { en: { zh: '英', en: 'EN' }, dual: { zh: '雙語', en: 'Dual' }, venue: { zh: '中', en: 'ZH' }, local: { zh: '雙語', en: 'ZH×2' }, zh: { zh: '中', en: 'ZH' }, data: { zh: '數據', en: 'Data' } };
 const STAGE_WORD = /(熱身賽|例行賽|季後賽|外卡賽|分區系列賽|聯盟冠軍賽|世界大賽|總冠軍賽|準決賽|決賽|\d+強|第\d+輪|第\d+比賽日|排位賽|衝刺排位賽|衝刺賽|正賽|第\d節自由練習)/;
 function guideItems() {
   const shows = new Map();

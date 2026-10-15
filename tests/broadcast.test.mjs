@@ -440,3 +440,16 @@ test("ELTA.tv's season pages found by their titles, a game's by its date (nothin
   assert.deepEqual(eltaVodsOf({ league: 'cpbl', start: '2026-10-11T10:00Z' }, ['統一7-ELEVEn獅'], pages), [2159, 2414], "the home club's, then every club's");
   assert.deepEqual(eltaVodsOf({ league: 'cpbl', start: '2026-10-11T10:00Z' }, ['樂天桃猿'], pages), [2414]);
 });
+
+test('數據視角 is the game drawn from its data, no commentary: never the way to watch it, after the 體育台 with ELTA’s own', () => {
+  assert.deepEqual(eltaAudio('里茲聯 VS 曼聯 第7輪(數據視角) LIVE', 545), { audio: 'data', adFree: true });
+  assert.ok(!hasAudio({ audio: 'data' }, 'zh') && !hasAudio({ audio: 'data' }, 'en'));
+  // ELTA's list for 2026-10-18: Leeds v Man United on 愛爾達1台 (its commentary) and MAX6 (數據視角).
+  const p = (sn, ch, desc) => ({ program_sn: sn, channel_number: ch, start_time: 1792327800, end_time: 1792335900, game_type: '英超', game_type_en: 'Premier League', program_desc: desc });
+  const list = parseElta({ calendar: { '2026-10-18': [p(1, 101, '里茲聯 VS 曼聯 第7輪 LIVE'), p(2, 545, '里茲聯 VS 曼聯 第7輪(數據視角) LIVE')] } });
+  const game = { id: 'm1', league: 'epl', kind: 'match', start: '2026-10-18T13:00:00Z', status: { state: 'pre' }, home: { name: 'Leeds United' }, away: { name: 'Manchester United' } };
+  for (const prefer of ['en', 'zh']) {
+    const chs = broadcastsFor(game, list, { sides: [['里茲聯'], ['曼聯']], prefer }).filter(b => b.exact);
+    assert.deepEqual(chs.map(b => [b.ch, b.audio]), [[101, 'dual'], [545, 'data']], prefer);
+  }
+});
