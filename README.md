@@ -82,9 +82,9 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
 - **Nothing on TV that day.** It says why (past ELTA's list, only the
   NBA's and MLS's games are known) and links to 賽事.
 - **The small hours.** A day of picks is 05:00 to midnight. A game between
-  midnight and 5 is recommended only if it's worth staying up for (a
-  play-off, a final, a series game, or a followed team's); otherwise it
-  sits among the other picks.
+  midnight and 5 is never 今日推薦 (a followed team's or match's can be):
+  every one of the person's own leagues is among 其他推薦; of the other
+  leagues, only one worth staying up for (a play-off, a final, a series game).
 - **F1 cards.** A race weekend's cards show the top three live (F1's own
   feed every `f1Feed` seconds, filled in place). Practice is never among
   the picks.

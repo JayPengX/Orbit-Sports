@@ -511,11 +511,11 @@ function restoreDay() {
 
 // A day of picks is the hours Taiwan is awake, 05:00 to midnight: a game
 // starting between midnight and 5 (Europe's evenings, America's afternoons)
-// is while everyone sleeps, and isn't recommended on either day. Unless it's
-// worth staying up for (nightWorthy): a play-off, a final or a series game
-// (an MLB wild-card decider at 02:00), or a followed team's; that one counts
-// on its own day, at its hour. A big game of the small hours is only among
-// the other picks (nightOnly), never 今日推薦; a followed team's can be.
+// is while everyone sleeps, and is never 今日推薦 (nightOnly), only among
+// 其他推薦, on its own day at its hour. Every one of the person's own
+// leagues is there; of the others, only one worth staying up for
+// (nightWorthy: a play-off, a final or a series game, an MLB wild-card
+// decider at 02:00). A followed team's or match's can be 今日推薦.
 const AWAKE_FROM = 5;
 const nightWorthy = e => bigGame(e) || isFollowedEvent(e);
 // A race weekend's practice: in 賽事 and the race's sheet, never among 首頁's picks or days.
@@ -527,7 +527,8 @@ const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).p
 // A day's events of these leagues (races split into their sessions).
 // `current`: each league's current scoreboard (what's on now) instead of the day's dates.
 const rawDays = new Map();
-async function readDay(leagues, date, { current = false } = {}) {
+// `night`: every game of the small hours kept (the person's own leagues), not only the big ones.
+async function readDay(leagues, date, { current = false, night = false } = {}) {
   // Only the leagues whose own kept days hold it (home's reach is every
   // league's together: a day of UECL's last season isn't asked of NBA).
   leagues = leagues.filter(k => within(date, leagueBounds(k)));
@@ -560,7 +561,7 @@ async function readDay(leagues, date, { current = false } = {}) {
   // Results are the whole day's: a game in the small hours that's over (or
   // any of a past day's) counts for its day, it just wasn't one to wake up for.
   const past = date < today();
-  const out = raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || (inDay(Date.parse(e.start), date) && nightWorthy(e)) || ((past || e.status.state === 'post') && inDay(Date.parse(e.start), date)) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
+  const out = raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || (inDay(Date.parse(e.start), date) && (night || nightWorthy(e))) || ((past || e.status.state === 'post') && inDay(Date.parse(e.start), date)) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
   out.failed = failed;
   return out;
 }
@@ -588,7 +589,7 @@ async function loadDay(date) {
   const key = leaguesKey();
   let retry = false;
   try {
-    const events = await readDay(pickLeagues(), date);
+    const events = await readDay(pickLeagues(), date, { night: true });
     // Some leagues unread: what came is shown (with what was there of the
     // others), and the day is read again shortly.
     const kept = events.failed ? [...events, ...slot.events.filter(e => !events.some(x => x.league === e.league))] : events;
@@ -886,7 +887,7 @@ function pickCard(item, n) {
       el('small', { text: e.status.state === 'in' ? statusText(e) : e.status.state === 'pre' && !e.timeTbd ? untilText(shownStart(e)) : '' })
     ]),
     el('div', { class: 'pick-body' }, [
-      el('div', { class: 'pick-top' }, [leagueChip(e.league), tag ? el('span', { class: 'stage-tag', text: tag }) : null]),
+      el('div', { class: 'pick-top' }, [leagueChip(e.league, Boolean(tag)), tag ? el('span', { class: 'stage-tag', text: tag }) : null]),
       e.kind === 'match' ? el('div', { class: 'card-sides' }, [sideLine(e.away, e, false), sideLine(e.home, e, false)]) : el('div', { class: 'sess-head pick-title' }, [raceFlag(e), sessionTag(e), el('strong', { text: e.sessionKey || !e.session ? e.name : `${e.name} · ${e.session}` })]),
       series ? el('small', { class: 'series-line', text: series }) : null,
       liveLine(e),
@@ -1188,7 +1189,9 @@ function renderHome() {
   // Everything the picks lean on is in: the day read fresh, the tables,
   // the followed teams, and no search for other games or days going on.
   h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !h.tablesPending && ![...h.teams.values()].includes(null);
-  const shownMore = more.slice(0, h.shown);
+  // The best of the rest, listed by the clock (by score, a 02:45 sat above a 00:00).
+  const byStart = (x, y) => Date.parse(x.event.start) - Date.parse(y.event.start);
+  const shownMore = more.slice(0, h.shown).sort(byStart);
   // Today's picks (the 今日推薦 list, not 更多推薦 or the others when none are
   // yours), for their start notices: kept when the list settles, and the
   // Worker's list sent again when they change. Their finals are said for the
@@ -1222,7 +1225,7 @@ function renderHome() {
       : null,
     more.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${more.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null,
     endedPlan.length || endedMore.length
-      ? section(L(ENDED_PICKS), el('div', { class: 'ended-picks' }, [endedPlan.length ? el('div', { class: 'pick-list' }, endedPlan.map((x, i) => pickCard(x, i))) : null, endedMore.length ? el('div', { class: 'q-card list' }, endedMore.map(x => eventRow(x.event))) : null]))
+      ? section(L(ENDED_PICKS), el('div', { class: 'ended-picks' }, [endedPlan.length ? el('div', { class: 'pick-list' }, endedPlan.map((x, i) => pickCard(x, i))) : null, endedMore.length ? el('div', { class: 'q-card list' }, [...endedMore].sort(byStart).map(x => eventRow(x.event))) : null]))
       : null,
     teamRows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null
   );
