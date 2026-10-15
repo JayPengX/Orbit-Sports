@@ -1408,26 +1408,46 @@ function winProbCard(line, e, timeline, events = []) {
   const w = 320;
   const h = 90;
   const xs = lineXs(pts, timeline);
-  const up = p => p.home + (p.draw ?? 0) / 2;
-  const xy = i => `${(xs[i] * w).toFixed(1)},${(h - up(pts[i]) * h).toFixed(1)}`;
-  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${xy(i)}`).join(' ');
-  // Where the market stood still: a faint dashed stretch, read as no price.
+  // The chances stacked, each a band as tall as it (the owner's call,
+  // 2026-10-15: a draw's chance was lost in one line): the home side's on
+  // top, a draw's grey in the middle (soccer), the away side's below. A
+  // point's place: the middle of the draw (the two sides' edge without one).
+  const mid = p => p.home + (p.draw ?? 0) / 2;
+  const X = i => (xs[i] * w).toFixed(1);
+  // Where the market stood still: no price, so no telling how it went. Its
+  // bands go straight from the last price to the next (a price frozen to the
+  // final whistle read as the game's story, the result a sliver at the edge),
+  // faded there. Points at one place (the prices after the whistle, all at
+  // the end): the last of them.
   const quiet = quietRuns(pts);
+  const drawn = pts.map((p, i) => i).filter(i => (i === pts.length - 1 || xs[i + 1] !== xs[i]) && !quiet.some(([a, b]) => i > a && i <= b && i < pts.length - 1));
+  const edge = f => drawn.map(i => `${X(i)},${(f(pts[i]) * h).toFixed(1)}`);
+  // A finger's place on the bands: in a still stretch, on its straight way.
+  const midAt = i => {
+    const run = quiet.find(([a, b]) => i > a && i <= b && i < pts.length - 1);
+    if (!run) return mid(pts[i]);
+    const [a, j] = [run[0], Math.min(run[1] + 1, pts.length - 1)];
+    const k = xs[j] > xs[a] ? (xs[i] - xs[a]) / (xs[j] - xs[a]) : 1;
+    return mid(pts[a]) + (mid(pts[j]) - mid(pts[a])) * k;
+  };
+  const [e1, e2] = [edge(p => p.home), edge(p => p.home + (p.draw ?? 0))];
+  const [x0, x1] = [X(0), X(pts.length - 1)];
+  const homeArea = `M${x0},0 L${e1.join(' L')} L${x1},0 Z`;
+  const drawArea = pts.some(p => p.draw) ? `M${e1.join(' L')} L${[...e2].reverse().join(' L')} Z` : '';
+  const awayArea = `M${e2.join(' L')} L${x1},${h} L${x0},${h} Z`;
   const isQuiet = i => quiet.some(([a, b]) => i > a && i < b);
-  const traded = pts.map((p, i) => `${i && !quiet.some(([a, b]) => i > a && i <= b) ? 'L' : 'M'}${xy(i)}`).join(' ');
-  const gaps = quiet.map(([a, b]) => `M${xy(a)} L${xy(b)}`).join(' ');
+  const gaps = quiet.map(([a, b]) => `<rect x="${X(a)}" y="0" width="${(Number(X(b)) - Number(X(a))).toFixed(1)}" height="${h}" class="wp-quiet"/>`).join('');
   const marks = periodMarks(timeline, sport, pts, en);
   const grid = marks.filter(m => m.x > 0.01).map(m => `<line x1="${(m.x * w).toFixed(1)}" x2="${(m.x * w).toFixed(1)}" y1="0" y2="${h}" class="wp-grid"/>`).join('');
   const sideName = s => s.short || s.name;
-  // Each side in its own colour: the home side's chance above the middle in
-  // its colour, the away side's below in theirs (the app's colour, and a grey,
-  // where a team has none).
+  // Each side in its own colour: the home side's band on top in its colour,
+  // the away side's below in theirs (the app's colour, and a grey, where a
+  // team has none).
   // On the card as it's drawn now (light or dark).
   const tint = sideColors(e.home, e.away, getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff');
   const homeC = tint.home || 'var(--accent)';
   const awayC = tint.away || 'var(--q-text-2)';
   const sideC = s => (s === 'home' ? homeC : awayC);
-  const uid = `wp${Math.random().toString(36).slice(2, 8)}`;
   const side = { home: { id: e.home.id, name: sideName(e.home) }, away: { id: e.away.id, name: sideName(e.away) }, en };
   const moments = (pts.every(p => p.n) ? playMoments(pts, sport, side) : eventMoments(pts, events, sport, side, pts.map(p => p.t))).filter(m => !isQuiet(m.i));
   // When it was: the period (a stretch, its periods), the clock in the last two minutes, the score after it.
@@ -1484,16 +1504,16 @@ function winProbCard(line, e, timeline, events = []) {
     rule.hidden = dot.hidden = i == null;
     if (i == null) return;
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
-    dot.style.top = `${(1 - up(p)) * 100}%`;
+    dot.style.top = `${midAt(i) * 100}%`;
   };
   // Dotted on the line: the big swings and a lead taken or tied, never two crowding each other (the bigger kept; a lead taken first).
   const weight = m => (m.turned ? 1 : 0) + Math.abs(m.delta);
   const dotted = [];
   for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
-  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${(1 - up(pts[m.i])) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
-  // Above the middle the home side's colour, below it the away side's: the
-  // area and the line each cut at the middle (two clips of one shape).
-  const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true"><defs><clipPath id="${uid}t"><rect x="0" y="0" width="${w}" height="${h / 2}"/></clipPath><clipPath id="${uid}b"><rect x="0" y="${h / 2}" width="${w}" height="${h / 2}"/></clipPath></defs>${grid}<path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area" clip-path="url(#${uid}t)" style="fill:color-mix(in srgb, ${homeC} 30%, transparent)"/><path d="${path} L${w},${h / 2} L0,${h / 2} Z" class="wp-area" clip-path="url(#${uid}b)" style="fill:color-mix(in srgb, ${awayC} 30%, transparent)"/><line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="${quiet.length ? traded : path}" class="wp-line" clip-path="url(#${uid}t)" style="stroke:${homeC}"/><path d="${quiet.length ? traded : path}" class="wp-line" clip-path="url(#${uid}b)" style="stroke:${awayC}"/>${gaps ? `<path d="${gaps}" class="wp-gap"/>` : ''}</svg>`;
+  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${mid(pts[m.i]) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
+  // Each band in its side's colour (a draw's grey), the even line dashed across.
+  const band = (d, c, cls = '') => (d ? `<path d="${d}" class="wp-band${cls}" style="fill:${c}"/>` : '');
+  const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${band(homeArea, `color-mix(in srgb, ${homeC} 62%, transparent)`)}${band(drawArea, 'color-mix(in srgb, var(--q-muted) 38%, transparent)', ' draw')}${band(awayArea, `color-mix(in srgb, ${awayC} 62%, transparent)`)}${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/>${gaps}</svg>`;
   const plot = scrubPlot(xs, show, [el('div', { html: svg }), ...pins, rule, dot]);
   dot.style.background = 'var(--q-text)';
   // Whose half is whose: each side's logo beside the chart (never over the line).

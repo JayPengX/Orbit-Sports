@@ -538,7 +538,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .wp-rule { position: absolute; top: 0; bottom: 0; border-left: 1.5px solid var(--q-text-2); pointer-events: none; }
 .wp-dot { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--q-surface, #fff); transform: translate(-50%, -50%); pointer-events: none; }
 .wp-grid { stroke: var(--q-border); vector-effect: non-scaling-stroke; }
-.wp-gap { fill: none; stroke: var(--q-muted); stroke-width: 1.5; stroke-dasharray: 3 4; opacity: 0.7; vector-effect: non-scaling-stroke; }
+.wp-quiet { fill: var(--q-surface); opacity: 0.55; }
 /* An F1 race's safety car, virtual safety car and red flag: shaded, tagged at their start. */
 .rc-band { fill: color-mix(in srgb, #f5b400 16%, transparent); }
 .rc-band.vsc { fill: color-mix(in srgb, #f5b400 9%, transparent); }
