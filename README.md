@@ -162,6 +162,9 @@ Every sheet swipes down to close and slides down on its ✕ or a tap outside (th
   - The follow buttons for both sides, and 追蹤這場比賽 (this match alone,
     until it's over).
   - **觀看** at the top when the game is on or about to start.
+  - The line score: each side's logo and name, every regular inning,
+    period or half from the start (MLB's nine, the ones to come blank),
+    then the total.
   - A guest club from outside the league keeps the header even; its
     league side's follow sits under the score.
 - **The live panel** (a game on), redrawn every `sportsGame` seconds while
@@ -186,6 +189,7 @@ Every sheet swipes down to close and slides down on its ✕ or a tap outside (th
   | 先發 | Who starts, before the game (`lib/lineups.mjs`): MLB's probable pitchers and batting orders (MLB's API, each player matched to the team's ESPN roster by name so the row opens their page), an NBA, WNBA or NHL side's starters once announced (ESPN's core rosters); read again each minute until it starts |
   | 場上球員 | Who's on now, in a game on, in 先發's place (`lib/onfield.mjs`). Soccer: the pitch as a broadcast draws it, the away side in the top half; each player a face in his team's colour at his place in the formation (the formation's rows by how deep each position plays, then across by side), a sub with a green ↑ in the slot of the one he replaced, a man sent off leaving his slot empty; the substitutions under it (green ↑ on, red ↓ off, the minute) and red cards. Basketball: each five as a row of faces (no court: a position is no place on the floor), a green ↑ and 替補 for one off the bench, 先發 for a starter (in words), the name on one line (a suffix like Jr. left off), points, rebounds, assists, fouls from the fourth in red, and under the row the side's starters sitting now as a line of faces (each a tap). MLB: the field, the side in it at its nine positions, the batter by the plate, each runner a smaller face on his base (a tap opens him), the inning, outs and who's on (MLB's own linescore). The pitch and field in the page's own tones (`--pitch`, `--dirt`), light and dark |
   | 陣容 (soccer) | The line-ups; while the game is on, 場上 (the eleven now), 已下場 and the bench left, a formation's slots in Chinese |
+  | 陣容 (MLB) | Each side's whole active roster from MLB's box score (`mlbSquad`, every person matched to ESPN's roster by name): once the lineups are out 打序 (a substitute under his spot), 投手 used (先發, 後援), 牛棚 and 板凳; before them everyone by position (投手, 捕手, 內野手, 外野手), the probable starter 預計先發; 傷兵 with each one's list. ESPN's game page names only the nine |
   | 陣容 (basketball) | From the box score: each side's 先發, 替補 and 未上場 with why (教練決定, 傷病, 未隨隊…). Before tip-off, each side's roster: 先發 and 替補 once named, else by position (後衛, 前鋒, 中鋒); the hurt apart under 傷兵 with their status (每日觀察, 缺陣) |
   | 傷兵 | ESPN's injury report (NBA, WNBA, NFL, NHL, MLB: the league's list, kept 10 minutes) |
   | Order | By the game's moment: on, 場上球員, the live chance, leaders, the matchup, the series, injuries, where to watch, the info; to come, the matchup, the chance, 先發, the rest; over, the replay and highlights, leaders, the chance's story, the rest |

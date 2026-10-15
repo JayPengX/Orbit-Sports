@@ -15,7 +15,7 @@ import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Constructor,
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
-import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey } from './mlb.mjs';
+import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
@@ -1199,6 +1199,8 @@ export async function summary(league, id) {
   const l = LEAGUES[league];
   const data = await getJson(`${SITE}/${l.espn}/summary?event=${encodeURIComponent(id)}`, { ttl: LIVE_TTL });
   let sm = parseSummary(data, league);
+  // MLB's 陣容: each side's whole active roster and who's in what role (MLB's box score).
+  if (league === 'mlb') sm = await withMlbSquads(sm, data?.header?.competitions?.[0]?.date).catch(() => sm);
   // A game to come: no box score (ESPN's holds season totals under a game's
   // heads, its totals blank); MLB's season numbers for its lineups instead.
   if (sm.status.state === 'pre') {
@@ -1213,12 +1215,31 @@ export async function summary(league, id) {
   const g = start && sm.home && sm.away ? mlbGameOf(await mlbGames(mlbDate(start)).catch(() => []), sm) : null;
   return g?.field ? { ...sm, field: g.field } : sm;
 }
+// Each side's squad (mlbSquad) by its ESPN id, every person matched to the
+// team's ESPN roster by name (their page, their face): squads { id: squad }.
+// An event's game in MLB's schedule, whatever its state (mlbGames lists only those on now: a game to come had none).
+const mlbGameFor = async (sm, start) => mlbGameAt(mlbDayGames(await getJson(mlbScheduleUrl(mlbDate(start)), { ttl: 10 * 60_000 })), { ...sm, start });
+async function withMlbSquads(sm, start) {
+  if (!start || !sm.home || !sm.away) return sm;
+  const g = await mlbGameFor(sm, start);
+  if (!g) return sm;
+  const box = await getJson(mlbBoxUrl(g.pk), { ttl: sm.status.state === 'post' ? 10 * 60_000 : LIVE_TTL });
+  const squads = {};
+  for (const side of [sm.away, sm.home]) {
+    const sq = mlbSquad(box, side === sm.home ? 'home' : 'away');
+    if (!sq) continue;
+    const r = await roster('mlb', side.id).catch(() => []);
+    const mine = list => byRosterName(list, r);
+    squads[side.id] = { order: mine(sq.order), pitched: mine(sq.pitched), bullpen: mine(sq.bullpen), bench: mine(sq.bench), all: mine(sq.all) };
+  }
+  return Object.keys(squads).length ? { ...sm, squads } : sm;
+}
 // A game to come's lineups with their season numbers (seasonPlayers: [{ team,
 // season, tables }]), each player kept as ESPN's where ESPN lists them.
 // (In the postseason MLB's season numbers are the postseason's: `type` 3 says so.)
 async function withMlbSeason(sm, start, type) {
   if (!start || !sm.home || !sm.away) return sm;
-  const g = mlbGameOf(await mlbGames(mlbDate(start)), sm);
+  const g = await mlbGameFor(sm, start);
   if (!g) return sm;
   const box = await getJson(mlbBoxUrl(g.pk), { ttl: 2 * 60_000 });
   const seasonPlayers = [];

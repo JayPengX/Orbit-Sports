@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, emptyBox, mlbDate } from '../public/lib/mlb.mjs';
+import { mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDate } from '../public/lib/mlb.mjs';
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 
@@ -76,4 +76,16 @@ test('A game to come: each lineup with its season numbers, no game columns or to
   assert.equal(t.pitching.rows.length, 1);
   assert.match(t.pitching.rows[0].stats[1], /^\d+-\d+$/);
   assert.equal(mlbSeasonTables({ teams: {} }, 'home'), null);
+});
+
+test("陣容: a side's whole active roster from MLB's box score, each in his role", () => {
+  const sq = mlbSquad(fixture('mlbapi-boxscore.json'), 'home');
+  // The nine in order (a substitute under his spot), the starter first among the pitchers.
+  assert.deepEqual(sq.order.filter(p => !p.sub).map(p => p.slot), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.ok(sq.pitched[0].starter && sq.pitched.slice(1).every(p => !p.starter));
+  // Everyone once: the order, the pitchers, the bullpen and the bench within the whole roster.
+  const all = new Set(sq.all.map(p => p.mlbId));
+  assert.ok([...sq.order, ...sq.pitched, ...sq.bullpen, ...sq.bench].every(p => all.has(p.mlbId)));
+  assert.ok(sq.all.length >= 26 - 1 && sq.all.every(p => p.name && p.pos));
+  assert.equal(mlbSquad({ teams: {} }, 'home'), null);
 });

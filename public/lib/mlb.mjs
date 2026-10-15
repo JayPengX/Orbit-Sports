@@ -163,5 +163,24 @@ export function mlbSeasonTables(data, side) {
   return { batting: { labels: SEASON_BATTING, rows: batters }, pitching: { labels: SEASON_PITCHING, rows: pitchers } };
 }
 
+// A side's people for 陣容, from MLB's box score (it lists the whole active
+// roster, before the lineups too): the batting order (a substitute under his
+// spot), the pitchers used in order (the first the starter), the bullpen
+// and the bench left, and all of them. ESPN's game page names only the nine.
+export function mlbSquad(data, side) {
+  const t = data?.teams?.[side];
+  if (!t?.players) return null;
+  const of = id => t.players[`ID${id}`];
+  const person = p => ({ name: p.person?.fullName || '', mlbId: String(p.person?.id ?? ''), jersey: p.jerseyNumber || '', pos: p.position?.abbreviation || '', id: '', headshot: null });
+  const order = (t.batters || [])
+    .map(of)
+    .filter(p => p?.battingOrder)
+    .sort((a, b) => Number(a.battingOrder) - Number(b.battingOrder))
+    .map(p => ({ ...person(p), slot: Math.floor(Number(p.battingOrder) / 100), sub: Number(p.battingOrder) % 100 !== 0 }));
+  const pitched = (t.pitchers || []).map(of).filter(Boolean).map((p, i) => ({ ...person(p), starter: i === 0 }));
+  const all = Object.values(t.players).map(person).filter(p => p.name);
+  return all.length ? { order, pitched, bullpen: (t.bullpen || []).map(of).filter(Boolean).map(person), bench: (t.bench || []).map(of).filter(Boolean).map(person), all } : null;
+}
+
 // ESPN's box score as good as empty: no player with a number in it.
 export const emptyBox = players => !players.some(p => p.tables.some(tb => tb.rows.some(r => r.stats.some(v => /\d/.test(String(v))))));

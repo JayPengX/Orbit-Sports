@@ -237,6 +237,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .linescore { background: var(--q-surface); border: 1px solid transparent; border-radius: 12px; overflow: hidden; }
 .linescore th:first-child { text-align: left; }
 .linescore .total { font-weight: 800; }
+.linescore .ls-who { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .standings tr.mine > * { background: var(--accent-wash); }
 .rank-cell { color: var(--q-muted); width: 28px; }
 .team-link { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
