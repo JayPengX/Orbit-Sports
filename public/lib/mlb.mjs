@@ -61,15 +61,20 @@ export function mlbLiveGames(data) {
 // by position (full names, as MLB has them), the batter and his place in
 // the order, who's on each base, the inning and the outs.
 const POSITIONS = [['P', 'pitcher'], ['C', 'catcher'], ['1B', 'first'], ['2B', 'second'], ['3B', 'third'], ['SS', 'shortstop'], ['LF', 'left'], ['CF', 'center'], ['RF', 'right']];
+// Between halves (MLB's "Middle" and "End", the third out made) its
+// defense and batter are the next half's already: the next half's side,
+// inning and none out, never the last half's beside the other side's nine.
 export function fieldOf(ls) {
   if (!ls?.defense) return null;
   const off = ls.offense || {};
-  const top = ls.isTopInning ?? ls.inningHalf !== 'Bottom';
+  const was = ls.isTopInning ?? ls.inningHalf !== 'Bottom';
+  const turn = /^(middle|end)$/i.test(ls.inningState || '');
+  const top = turn ? !was : was;
   return {
     fielding: top ? 'home' : 'away',
-    inning: ls.currentInning || 0,
+    inning: (ls.currentInning || 0) + (turn && !was ? 1 : 0),
     top,
-    outs: ls.outs ?? 0,
+    outs: turn ? 0 : ls.outs ?? 0,
     defense: Object.fromEntries(POSITIONS.map(([k, key]) => [k, ls.defense[key]?.fullName || ''])),
     batter: off.batter?.fullName || '',
     order: off.battingOrder || 0,
@@ -195,4 +200,28 @@ export function pitcherRole(position, log) {
   const games = gs >= 0 ? log.games.filter(g => g.stats[gs] !== '' && g.stats[gs] != null) : [];
   if (!games.length) return position;
   return games.some(g => Number(g.stats[gs]) > 0) ? 'Starting Pitcher' : 'Relief Pitcher';
+}
+
+// A pitcher MLB has on the mound that ESPN's plays don't name yet (its
+// "Megill relieved Hall" comes a play or two later): the change put at the
+// end of 過程 in ESPN's own words, so 過程 and 場上球員 say the same. ESPN's
+// own line, when it comes, takes its place (the stand-in is only ever made
+// while ESPN names him nowhere).
+const lastWord = full => String(full || '').replace(/\s+(jr|sr|ii|iii|iv)\.?$/i, '').split(' ').slice(1).join(' ') || String(full || '');
+export function withPitchingChange(feed, field, sides) {
+  const p = field?.defense?.P;
+  const team = sides?.[field?.fielding];
+  if (!p || !team || !feed?.length) return feed;
+  // (The pitcher's part of the words: "… pitches to Will Smith" names a batter too.)
+  const pitcherIn = text => String(text || '').split(/ (?:pitches to|relieved) /)[0];
+  const named = text => personKey(pitcherIn(text)).includes(personKey(lastWord(p)));
+  // ESPN's pitchers for this side: "Full Name pitches to …" and "A relieved B", in its halves.
+  const theirs = feed.filter(x => (x.periodType === 'Top') === (field.fielding === 'home') && / (pitches to|relieved) /.test(x.text || ''));
+  if (!theirs.length || theirs.some(x => named(x.text))) return feed;
+  const was = theirs.at(-1).text;
+  const before = / relieved /.test(was) ? pitcherIn(was) : lastWord(pitcherIn(was));
+  const last = feed.at(-1);
+  const half = field.top ? 'Top' : 'Bottom';
+  const same = last.periodNum === field.inning && last.periodType === half;
+  return [...feed, { id: `mlb:${personKey(p)}`, text: `${lastWord(p)} relieved ${before.trim()}`, period: same ? last.period : `${field.inning}${[, 'st', 'nd', 'rd'][field.inning % 100 > 10 && field.inning % 100 < 14 ? 0 : field.inning % 10] || 'th'} Inning`, periodNum: field.inning, periodType: half, clock: '', team: String(team), home: last.home, away: last.away, scoring: false, kind: 'play-result', type: 'Play Result', alt: 'Lineup Change', value: 0 }];
 }

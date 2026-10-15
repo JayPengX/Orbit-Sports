@@ -101,3 +101,26 @@ test("pitcherRole: a pitcher's role from his last games, not ESPN's season posit
   assert.equal(pitcherRole('Starting Pitcher', { labels: ['AB'], games: [{ stats: ['4'] }] }), 'Starting Pitcher');
   assert.equal(pitcherRole('Shortstop', log([0])), 'Shortstop');
 });
+
+test('between halves, the field is the next half: its side, inning and none out', () => {
+  const ls = { currentInning: 8, isTopInning: false, inningState: 'End', outs: 3, defense: { pitcher: { fullName: 'Justin Wrobleski' } }, offense: { batter: { fullName: 'Garrett Mitchell' }, battingOrder: 1 } };
+  const f = fieldOf(ls);
+  assert.deepEqual([f.fielding, f.inning, f.top, f.outs], ['home', 9, true, 0]);
+  const mid = fieldOf({ ...ls, isTopInning: true, inningState: 'Middle' });
+  assert.deepEqual([mid.fielding, mid.inning, mid.top, mid.outs], ['away', 8, false, 0]);
+});
+
+import { withPitchingChange } from '../public/lib/mlb.mjs';
+test("a pitcher MLB has on the mound before ESPN's plays name him: the change at the end of 過程, once", () => {
+  const play = (text, half, n = 8) => ({ text, periodType: half, periodNum: n, period: `${n}th Inning`, home: 2, away: 5, kind: 'play-result' });
+  const feed = [play('Blake Snell pitches to Andrew Vaughn', 'Top', 7), play('Phillips relieved Snell', 'Top', 7), play('DL Hall pitches to Kyle Tucker', 'Bottom'), play('Will Smith flied out to right.', 'Bottom')];
+  const field = { fielding: 'home', inning: 9, top: true, defense: { P: 'Roki Sasaki' } };
+  const out = withPitchingChange(feed, field, { home: '19', away: '8' });
+  assert.equal(out.length, 5);
+  assert.deepEqual([out[4].text, out[4].team, out[4].periodNum, out[4].periodType, out[4].period, out[4].alt], ['Sasaki relieved Phillips', '19', 9, 'Top', '9th Inning', 'Lineup Change']);
+  // ESPN names him (or he's the one already pitching): left as it is.
+  assert.equal(withPitchingChange([...feed, play('Sasaki relieved Phillips', 'Top', 9)], field, { home: '19', away: '8' }).length, 5);
+  assert.equal(withPitchingChange(feed, { ...field, defense: { P: 'Tanner Phillips' } }, { home: '19', away: '8' }), feed);
+  // A batter of the same name isn't him.
+  assert.equal(withPitchingChange([...feed, play('Logan Webb pitches to Roki Sasaki', 'Top', 9)], field, { home: '19', away: '8' }).length, 6);
+});

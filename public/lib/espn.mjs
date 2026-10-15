@@ -15,7 +15,7 @@ import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Constructor,
 import { detectLocale } from './i18n.mjs';
 import { liveOf } from './live.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
-import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey } from './mlb.mjs';
+import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey, withPitchingChange } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
@@ -1213,7 +1213,7 @@ export async function summary(league, id) {
   // Who's on the field now (場上球員's diamond): MLB's own, from the day's
   // schedule the scoreboard reads too (one read, kept as briefly).
   const g = start && sm.home && sm.away ? mlbGameOf(await mlbGames(mlbDate(start)).catch(() => []), sm) : null;
-  return g?.field ? { ...sm, field: g.field } : sm;
+  return g?.field ? { ...sm, field: g.field, feed: withPitchingChange(sm.feed, g.field, { home: sm.home.id, away: sm.away.id }) } : sm;
 }
 // Each side's squad (mlbSquad) by its ESPN id, every person matched to the
 // team's ESPN roster by name (their page, their face): squads { id: squad }.
