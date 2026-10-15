@@ -605,7 +605,7 @@ the app.
   F1 board, the track's cars glide). Strips keep their scroll. Pictures
   seen before draw at once (`sw-images.js`).
 - **Updates**: a new deploy is put in place at once by the kit (version
-  stamped by `scripts/stamp-version.mjs`, `version.json`).
+  stamped by `scripts/stamp-version.mjs`, `version.json`; the kit modules its first screen imports are listed as modulepreload (the kit's `preload.mjs`)).
 
 ## What's kept on the device
 
@@ -660,7 +660,7 @@ public/
   lib/i18n.mjs           Traditional Chinese and English
 scripts/
   nba-elta.mjs           NBA.com's ELTA games (deploy only)
-  stamp-version.mjs      ?v= on every file, version.json, modulepreload
+  stamp-version.mjs      ?v= on every file, version.json, modulepreload (the kit's too)
   label-audit.mjs        every ESPN stat label a page can show, and any with no Chinese
 tests/                   node:test, one file per lib (and consistency, weekend, appletv…)
 ```
