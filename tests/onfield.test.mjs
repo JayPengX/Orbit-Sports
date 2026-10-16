@@ -73,3 +73,12 @@ test('parseSummary: a player whose last substitution brought him on came on, a s
   const rows = parseSummary(data, 'nba').players[0].tables[0].rows;
   assert.deepEqual(rows.map(r => [r.id, r.cameOn]), [['sga', true], ['mara', true], ['hart', false], ['caruso', false]]);
 });
+
+// ESPN's injury list catches up late (Durant listed day-to-day, a rest, and on the court): who has played is left off.
+test('withoutPlayed: the injured who have played this game are left off; the rest kept', async () => {
+  const { withoutPlayed } = await import('../public/lib/espn.mjs');
+  const injuries = [{ team: '10', list: [{ id: 'kd', name: 'Durant' }, { id: 'adams', name: 'Adams' }, { id: 'x', name: 'Benched' }] }];
+  const data = { players: [{ team: '10', tables: [{ rows: [{ id: 'kd', on: false, stats: ['14', '3-7'] }, { id: 'x', on: false, stats: ['0', '0-0'] }, { id: 'adams', dnp: true, stats: [] }] }] }], rosters: [] };
+  assert.deepEqual(withoutPlayed(injuries, data)[0].list.map(x => x.id), ['adams', 'x']);
+  assert.equal(withoutPlayed(injuries, { players: [], rosters: [] }), injuries);
+});

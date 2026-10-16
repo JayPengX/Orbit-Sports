@@ -1722,6 +1722,16 @@ export function mergeInjuries(injuries = [], byTeam = {}) {
   }
   return out;
 }
+// The injured who have played this game left off (the owner, 2026-10-16:
+// Durant listed day-to-day, a rest, on the court): ESPN's list catches up
+// only later. Played: a box score row with his numbers and no DNP, or a
+// soccer starter or sub who came on.
+export function withoutPlayed(injuries = [], data) {
+  const played = new Set();
+  for (const t of data?.players || []) for (const tb of t.tables || []) for (const r of tb.rows || []) if (r.id && !r.dnp && (r.on || (r.stats || []).some(v => v && v !== '0' && v !== '--' && v !== '0-0'))) played.add(r.id);
+  for (const r of data?.rosters || []) for (const p of r.players || []) if (p.id && p.played) played.add(p.id);
+  return played.size ? injuries.map(t => ({ ...t, list: t.list.filter(x => !played.has(x.id)) })) : injuries;
+}
 // A basketball side's players with their per-game averages (時間, 得分, 籃板,
 // 助攻), in the season ESPN names (last season's until the new one's regular
 // season starts), by points: 球員 before tip-off. One read per team, kept 6 h.
