@@ -4474,16 +4474,13 @@ function raceBlock(race, g, league, many) {
     // (The line above says what: 即可.)
     return W(`下一場${parts.join('，或')}即可`, `Next game: done if ${parts.join(', or ')}`);
   };
-  // What the soonest clinch takes, as points against the runner-up over
-  // that stretch (the owner, 2026-10-16: "1 場後對手最多再拿 125 分，屆時
-  // 領先 126 分以上" left the sum to the reader): 領先 102 分，美國站要比
-  // 第二名多拿 24 分. A lead already big enough says how much it can give.
+  // What the soonest clinch takes, as one number (the owner, 2026-10-16:
+  // the lead it takes then, over everyone: 領先 102 分，美國站後領先達
+  // 126 分即封王; a sum against the runner-up was wrong, a third can catch up).
   const leadLine = t => {
-    const need = t.leadAt - t.gap;
-    const span = sport === 'racing' ? (t.at ? [t.at, `at ${t.at}`] : t.soonest === 1 ? ['下一站', 'at the next race'] : [`接下來 ${t.soonest} 站`, `over the next ${t.soonest} races`]) : perRound && t.soonest === 1 ? ['這一輪', 'this round'] : [`接下來 ${t.soonest} ${perRound ? '輪' : '場'}`, `over the next ${t.soonest} ${perRound ? 'rounds' : 'games'}`];
+    const span = sport === 'racing' ? (t.at || (t.soonest === 1 ? W('下一站', 'the next race') : W(`${t.soonest} 站`, `${t.soonest} races`))) : perRound && t.soonest === 1 ? W('這一輪', 'this round') : W(`${t.soonest} ${perRound ? '輪' : '場'}`, `${t.soonest} ${perRound ? 'rounds' : 'games'}`);
     const now = t.gap > 0 ? W(`領先 ${t.gap} 分`, `${t.gap} pts ahead`) : W('與第二名同分', 'level on points');
-    const take = need > 0 ? W(`${span[0]}要比第二名多拿 ${need} 分`, `needs ${need} more than the runner-up ${span[1]}`) : need === 0 ? W(`${span[0]}得分不少於第二名即可`, `needs as many as the runner-up ${span[1]}`) : W(`${span[0]}就算比第二名少拿 ${-need} 分也行`, `can score up to ${-need} fewer than the runner-up ${span[1]}`);
-    return W(`${now}，${take}`, `${now}; ${take}`);
+    return W(`${now}，${span}後領先所有對手達 ${t.leadAt} 分即可`, `${now}; a ${t.leadAt}-pt lead over everyone after ${span} does it`);
   };
   const lines = [];
   const t = race.title;
