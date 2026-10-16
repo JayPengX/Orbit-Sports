@@ -1495,6 +1495,10 @@ function winProbCard(line, e, timeline, events = []) {
     why.hidden = !m;
     if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, momentWords(m.text, label)), gainChip(m));
   };
+  // Dotted on the line: the big swings and a lead taken or tied, never two crowding each other (the bigger kept; a lead taken first).
+  const weight = m => (m.turned ? 1 : 0) + Math.abs(m.delta);
+  const dotted = [];
+  for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
   const show = (j, picked) => {
     // A moment picked from the list: that one; a finger close to one: on it.
     const m = picked || (j != null ? near(j) : null);
@@ -1513,21 +1517,21 @@ function winProbCard(line, e, timeline, events = []) {
     at.textContent = i == null ? `${rest}${tally} · ${en ? 'Hold to look back' : '按住圖表查看'}` : `${stamp}${tally}`;
     at.classList.toggle('on', i != null);
     tell(i == null ? latest : m, i == null && latest ? (en ? 'Just now' : '剛剛') : '');
-    rule.hidden = dot.hidden = i == null;
+    // The rule wherever the finger is; the ring only round a moment it's on
+    // (the owner, 2026-10-16: a dot anywhere else looked like a moment with
+    // nothing in it).
+    rule.hidden = i == null;
+    dot.hidden = i == null || !dotted.includes(m);
     if (i == null) return;
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
     dot.style.top = `${midAt(i) * 100}%`;
   };
-  // Dotted on the line: the big swings and a lead taken or tied, never two crowding each other (the bigger kept; a lead taken first).
-  const weight = m => (m.turned ? 1 : 0) + Math.abs(m.delta);
-  const dotted = [];
-  for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
   const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${mid(pts[m.i]) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
   // Each band in its side's colour (a draw's grey), the even line dashed across.
   const band = (d, c, cls = '') => (d ? `<path d="${d}" class="wp-band${cls}" style="fill:${c}"/>` : '');
   const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${band(homeArea, `color-mix(in srgb, ${homeC} 62%, transparent)`)}${band(drawArea, 'color-mix(in srgb, var(--q-muted) 38%, transparent)', ' draw')}${band(awayArea, `color-mix(in srgb, ${awayC} 62%, transparent)`)}${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/>${gaps}</svg>`;
   const plot = scrubPlot(xs, show, [el('div', { html: svg }), ...pins, rule, dot]);
-  dot.style.background = 'var(--q-text)';
+  dot.classList.add('ring');
   // Whose half is whose: each side's logo beside the chart (never over the line).
   const frame = el('div', { class: 'wp-frame' }, [el('div', { class: 'wp-sides', 'aria-hidden': 'true' }, [sideLogo(e.home, e.league, 'xs'), sideLogo(e.away, e.league, 'xs')]), plot]);
   // The key moments, in the game's order: a tap puts the chart on that one (brought into view).
