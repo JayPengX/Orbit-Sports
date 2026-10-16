@@ -381,7 +381,16 @@ export function eventMoments(points, events, sport, side, times) {
     .map(ev => {
       const [i0, i1] = [at(ev.t - 60), at(ev.t + 300)];
       const delta = value(points[i1]) - value(points[i0]);
-      const i = Math.min(points.length - 1, at(ev.t) + 1);
+      // On the line's step: the first point after it with half the swing
+      // made (the prices move a minute or two after the goal), so the dot
+      // sits where the line jumps, not before it (the owner, 2026-10-16).
+      let i = Math.min(points.length - 1, at(ev.t) + 1);
+      for (let k = i; k <= i1; k++) {
+        if (Math.abs(value(points[k]) - value(points[i0])) >= Math.abs(delta) / 2) {
+          i = k;
+          break;
+        }
+      }
       const mover = ev.play.team ? (String(ev.play.team) === String(side.home.id) ? 'home' : 'away') : delta >= 0 ? 'home' : 'away';
       const icon = ev.kind === 'red' ? '🟥' : ev.kind === 'miss' ? '❌' : ICON[sport] || '•';
       const text = ev.kind === 'miss' ? (side.en ? `${ev.play.who || ''} misses a penalty`.trim() : `${ev.play.who || ''} 12 碼罰球未進`.trim()) : playText(sport, { ...ev.play, kind: ev.kind }, side.en, teamName(ev.play.team, side));

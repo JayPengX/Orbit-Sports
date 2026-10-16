@@ -1497,6 +1497,9 @@ function winProbCard(line, e, timeline, events = []) {
   };
   // Dotted on the line: the big swings and a lead taken or tied, never two crowding each other (the bigger kept; a lead taken first).
   const weight = m => (m.turned ? 1 : 0) + Math.abs(m.delta);
+  // A moment's dot on the edge of the band of the side it helped (the home
+  // side's above, the away side's below the draw), not in the draw's middle.
+  const pinY = m => (m.delta >= 0 ? pts[m.i].home : pts[m.i].home + (pts[m.i].draw ?? 0));
   const dotted = [];
   for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
   const show = (j, picked) => {
@@ -1524,9 +1527,9 @@ function winProbCard(line, e, timeline, events = []) {
     dot.hidden = i == null || !dotted.includes(m);
     if (i == null) return;
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
-    dot.style.top = `${midAt(i) * 100}%`;
+    dot.style.top = `${(dotted.includes(m) ? pinY(m) : midAt(i)) * 100}%`;
   };
-  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${mid(pts[m.i]) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
+  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
   // Each band in its side's colour (a draw's grey), the even line dashed across.
   const band = (d, c, cls = '') => (d ? `<path d="${d}" class="wp-band${cls}" style="fill:${c}"/>` : '');
   const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${band(homeArea, `color-mix(in srgb, ${homeC} 62%, transparent)`)}${band(drawArea, 'color-mix(in srgb, var(--q-muted) 38%, transparent)', ' draw')}${band(awayArea, `color-mix(in srgb, ${awayC} 62%, transparent)`)}${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/>${gaps}</svg>`;
