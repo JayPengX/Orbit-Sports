@@ -3469,7 +3469,8 @@ function fillField(s, e) {
     // The weekend's schedule under the session's results (not a long list on top of them).
     const schedule = sessions.length > 1 ? card(T('schedule'), weekendTimeline(sessions)) : null;
     let pick = e.sessionKey ? Math.max(0, sessions.findIndex(x => x.abbr === e.sessionKey)) : Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
-    const box = el('div');
+    // Its parts spaced as the sheet's (the owner, 2026-10-16: the sessions' chips sat on the card above).
+    const box = el('div', { class: 'stack race-box' });
     let liveTimer = () => {};
     // F1's race: each driver's chance to win (to come, on, over), read again each minute while it runs.
     const raceBox = el('div');

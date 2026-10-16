@@ -1881,3 +1881,6 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .h2h-side.home button.h2h-who { justify-self: end; }
 .sub-who { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; white-space: nowrap; }
 .sub-who .logo.xs { width: 20px; height: 20px; vertical-align: 0; flex: none; }
+/* A race weekend's session (its chips, its line, its replay): clear of the card above it. */
+.race-box { margin-top: 6px; }
+.race-box > .muted.small { margin: -4px 0 0; }
