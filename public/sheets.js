@@ -164,9 +164,12 @@ export async function openMatch(e) {
     if (busy || document.visibilityState !== 'visible' || !soon()) return;
     busy = true;
     try {
-      const fresh = (await scoreboard(e.league, LEAGUES[e.league].espn ? gameDays() : undefined).catch(() => [])).find(x => x.id === e.id);
+      // The day's list and the game's own page asked together: one request to the proxy, not two one after the other.
+      const espn = Boolean(LEAGUES[e.league].espn);
+      const [list, sm] = await Promise.all([scoreboard(e.league, espn ? gameDays() : undefined).catch(() => []), espn ? summary(e.league, e.id).catch(() => data) : null]);
+      const fresh = list.find(x => x.id === e.id);
       if (fresh) e = { ...e, ...fresh };
-      if (LEAGUES[e.league].espn) data = await summary(e.league, e.id).catch(() => data);
+      if (espn) data = sm;
       else if (e.league === 'cpbl') data = (await cpblGame(e).catch(() => null)) || data;
       // Read while a finger took the sheet (or it's closing): drawn at the next beat, not under the drag.
       if (document.querySelector('dialog.q-sheet.q-dragging, dialog.q-sheet.q-leaving')) return;

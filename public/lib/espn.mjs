@@ -461,19 +461,36 @@ export function settleSeries(list) {
   return out;
 }
 
+// The ESPN day page a game is on: ESPN dates its pages by the US Eastern
+// day (a 22:30 ET kick-off on 2:30Z the next day is on the day before's).
+// Each game read carries it (usDay), so a live refresh reads only the
+// pages with a game on, never the whole stretch again.
+const US_DAY = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+export function usDayOf(start) {
+  const t = Date.parse(start);
+  if (!Number.isFinite(t)) return '';
+  const p = Object.fromEntries(US_DAY.formatToParts(new Date(t)).map(x => [x.type, x.value]));
+  return `${p.year}${p.month}${p.day}`;
+}
+// A page over for good (a day two or more back, or a month before the one
+// two days back): kept on the phone `keep`, never asked again every few seconds.
+export function pastPage(d, now = Date.now()) {
+  const old = yyyymmdd(new Date(now - 2 * 86_400_000));
+  return /^\d{8}$/.test(d) ? d < old : /^\d{6}$/.test(d) && d < old.slice(0, 6);
+}
 // `keep`: how long a past day is kept on the phone (6 hours unless said).
 export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   const l = LEAGUES[league];
   if (l?.asia) return asiaEvents(league);
   const list = [].concat(dates || []);
   // Scores on now: read again after 10 seconds (the proxy's live copy).
-  // A day two or more back is over: kept on the phone 6 hours, not asked again every 10 seconds.
+  // A day or month over: kept on the phone 6 hours, not asked again every few seconds.
   const urlOf = d => `${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`;
-  const pages = list.length ? await Promise.all(list.map(d => getJson(urlOf(d), { ttl: /^\d{8}$/.test(d) && d < yyyymmdd(new Date(Date.now() - 2 * 86_400_000)) ? keep : LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
+  const pages = list.length ? await Promise.all(list.map(d => getJson(urlOf(d), { ttl: pastPage(String(d)) ? keep : LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
   // Not one page read: a failure, never "no games" (a day saved without the
   // league, or the league taken for out of season).
   if (!pages.some(Boolean)) throw new Error(`${league}: unread`);
-  const parsed = pages.map(p => (p ? parseScoreboard(p, league) : []));
+  const parsed = pages.map((p, i) => (p ? parseScoreboard(p, league).map(e => ({ ...e, usDay: /^\d{8}$/.test(String(list[i] ?? '')) ? String(list[i]) : usDayOf(e.start) })) : []));
   settleSeries(parsed.flat());
   const seen = new Set();
   const events = parsed.flat().filter(e => !seen.has(e.id) && seen.add(e.id));
@@ -1720,9 +1737,10 @@ export function parseSchedule(data, league) {
 export async function teamSchedule(league, id) {
   const base = `${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}/schedule`;
   if (clubPath(league) !== 'soccer/all') {
-    // In the playoffs ESPN gives only the playoff games: the regular season before them too.
+    // In the playoffs ESPN gives only the playoff games: the regular season
+    // before them too, over by then (kept a day: an MLB team's is 2.8 MB).
     const data = await getJson(base, { ttl: 3 * 60_000 });
-    const earlier = data?.requestedSeason?.type === 3 ? await getJson(`${base}?seasontype=2`, { ttl: 60 * 60_000 }).catch(() => null) : null;
+    const earlier = data?.requestedSeason?.type === 3 ? await getJson(`${base}?seasontype=2`, { ttl: 24 * 3_600_000 }).catch(() => null) : null;
     const seen = new Set();
     const games = [...parseSchedule(earlier, league), ...parseSchedule(data, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).map(freshGame);
     if (league === 'mlb') await loadPostseason(games);
@@ -2022,5 +2040,6 @@ export function parseLeagueInjuries(data) {
 export async function leagueInjuries(league) {
   const l = LEAGUES[league];
   if (!l?.espn || l.espn.startsWith('soccer/')) return {};
-  return parseLeagueInjuries(await getJson(`${SITE}/${l.espn}/injuries`, { ttl: 10 * 60_000 }));
+  // (Trimmed by the proxy to what's read here: MLB's 3.1 MB list is 0.14 MB.)
+  return parseLeagueInjuries(await getJson(`${SITE}/${l.espn}/injuries`, { ttl: 10 * 60_000, trim: 'espn-injuries' }));
 }

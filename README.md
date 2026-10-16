@@ -593,8 +593,12 @@ A Quadra Pass session is required.
 | `f1Board` (4 s) | An open F1 board |
 | `f1Laps` (15 s) | F1 laps |
 
-Today is read every 2 minutes in any case, and at once on coming back to
-the app.
+Today is read whole every 2 minutes in any case, and at once on coming back
+to the app; between, a live tick reads only the ESPN day pages its games on
+now (or due to start) are on (each game carries its page, `usDay`), over the
+games held, and 賽事 the same. Nothing under a full-height sheet is read or
+drawn again until it closes. A followed team's schedule is read every 10
+minutes (its game's live state comes from the scoreboards).
 
 **Staying still.**
 - **Opening**: a signed-in phone opens at once on the follows and the last

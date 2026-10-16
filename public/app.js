@@ -13,7 +13,7 @@ import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAff
 import { stripDays } from './lib/strip.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, onAir, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -528,23 +528,29 @@ const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).p
 // `current`: each league's current scoreboard (what's on now) instead of the day's dates.
 const rawDays = new Map();
 // `night`: every game of the small hours kept (the person's own leagues), not only the big ones.
-async function readDay(leagues, date, { current = false, night = false } = {}) {
+// `pages`: a live refresh's (livePages): only those leagues, and of a league
+// by its ESPN day pages only the pages its games on now are on.
+async function readDay(leagues, date, { current = false, night = false, pages = null } = {}) {
   // Only the leagues whose own kept days hold it (home's reach is every
   // league's together: a day of UECL's last season isn't asked of NBA).
-  leagues = leagues.filter(k => within(date, leagueBounds(k)));
+  leagues = leagues.filter(k => within(date, leagueBounds(k)) && (!pages || pages.has(k)));
   const dates = espnDaysOf(date);
   const isToday = date === today();
   // A league that couldn't be read is counted, never taken for "no games".
   let failed = 0;
+  const read = new Set();
   const miss = () => (failed++, []);
   const lists = await Promise.all(
     leagues.map(k => {
       const l = LEAGUES[k];
+      const only = pages?.get(k);
+      const got = list => (read.add(k), list);
       // A race weekend: what's on that day (ESPN's dated page lists the
       // events running then); the other sources' lists are the season's anyway.
-      if (l.kind !== 'match') return (isToday ? scoreboard(k) : l.espn ? scoreboard(k, dates) : seasonEvents(k)).catch(miss);
+      if (l.kind !== 'match') return (isToday ? scoreboard(k) : l.espn ? scoreboard(k, dates) : seasonEvents(k)).then(got, miss);
+      if (only && l.espn && !only.has('*')) return scoreboard(k, [...only]).then(got, miss);
       // Soccer by its dated pages even for what's on now: a cup's current page can be a round long past.
-      return scoreboard(k, l.espn && (!current || l.sport === 'soccer') ? dates : undefined).catch(miss);
+      return scoreboard(k, l.espn && (!current || l.sport === 'soccer') ? dates : undefined).then(got, miss);
     })
   );
   if (leagues.length && failed === leagues.length) throw new Error('unread');
@@ -556,24 +562,77 @@ async function readDay(leagues, date, { current = false, night = false } = {}) {
     .map(e => (e.at ? { ...e, start: e.at } : e));
   // Everything read, by the clock (直播 wants the small hours too).
   const kept = rawDays.get(date) || new Map();
-  for (const e of raw) kept.set(`${e.league}:${e.id}:${e.sessionKey || ''}`, e);
+  for (const e of raw) kept.set(dayKey(e), e);
   rawDays.set(date, kept);
   // Results are the whole day's: a game in the small hours that's over (or
   // any of a past day's) counts for its day, it just wasn't one to wake up for.
   const past = date < today();
   const out = raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || (inDay(Date.parse(e.start), date) && (night || nightWorthy(e))) || ((past || e.status.state === 'post') && inDay(Date.parse(e.start), date)) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
   out.failed = failed;
+  out.read = read;
   return out;
 }
+// What a live refresh reads of a day held: each league with a game on or due
+// to start, and the ESPN day pages those games are on ('*': the league's
+// whole read, as for a race series, an Asian league, or a game kept from
+// before its page was known).
+function livePages(events) {
+  const pages = new Map();
+  for (const e of events || []) {
+    if (!(e.status?.state === 'in' || dueToStart(e))) continue;
+    if (!pages.has(e.league)) pages.set(e.league, new Set());
+    pages.get(e.league).add(e.kind === 'match' && LEAGUES[e.league]?.espn && e.usDay ? e.usDay : '*');
+  }
+  return pages;
+}
+// A live refresh's games over the ones held: a game read takes its place; a
+// game on a page read and no longer there goes (as a whole read would drop
+// it); everything else (another league's, another page's, a league that
+// failed this time) stays as it was.
+const dayKey = e => `${e.league}:${e.id}:${e.sessionKey || ''}`;
+function overHeld(held, fresh, pages) {
+  const byKey = new Map(fresh.map(e => [dayKey(e), e]));
+  const reread = e => fresh.read?.has(e.league) && (pages.get(e.league)?.has('*') || pages.get(e.league)?.has(e.usDay));
+  const out = [];
+  for (const e of held || []) {
+    const k = dayKey(e);
+    if (byKey.has(k)) out.push(byKey.get(k)), byKey.delete(k);
+    else if (!reread(e)) out.push(e);
+  }
+  return Object.assign([...out, ...byKey.values()], { failed: fresh.failed, read: fresh.read });
+}
+// A full-height sheet open (a game's, a team's, a player's): what's under it
+// isn't read or drawn again every few seconds (nobody sees it); the day is
+// drawn and read again once the sheet closes.
+const sheetOver = () => document.querySelector('dialog.q-full[open]');
+const heldDays = new Set();
+document.addEventListener(
+  'close',
+  ev => {
+    if (!ev.target?.classList?.contains('q-full')) return;
+    setTimeout(() => {
+      if (sheetOver()) return;
+      const days = [...heldDays];
+      heldDays.clear();
+      days.forEach(repaintDay);
+      liveTick();
+    }, 0);
+  },
+  true
+);
 function repaintDay(date) {
   paintStatus();
   renderTabs();
+  if (sheetOver()) return void heldDays.add(date);
   if (state.tab === 'home' && state.home.date === date) renderHome();
   if (state.tab === 'live' && (date === today() || date === addDays(today(), 1))) renderLive();
 }
-async function loadDay(date) {
+// `live`: only the pages of the games on now or due to start (livePages),
+// over the day held; a whole read (fullAt) every two minutes in any case.
+async function loadDay(date, { live = false } = {}) {
   const slot = state.days.get(date) || { events: [], at: 0, loading: false };
   if (slot.loading) return;
+  if (live && !slot.fullAt) live = false;
   // A day outside every league's (nothing kept, or next season's before its
   // schedule's in): nothing asked of the proxy.
   await boundsRead;
@@ -589,15 +648,16 @@ async function loadDay(date) {
   const key = leaguesKey();
   let retry = false;
   try {
-    const events = await readDay(pickLeagues(), date, { night: true });
+    const pages = live ? livePages(slot.events) : null;
+    const events = live ? (pages.size ? overHeld(slot.events, await readDay(pickLeagues(), date, { night: true, pages }), pages) : Object.assign([...slot.events], { failed: 0 })) : await readDay(pickLeagues(), date, { night: true });
     // Some leagues unread: what came is shown (with what was there of the
     // others), and the day is read again shortly.
-    const kept = events.failed ? [...events, ...slot.events.filter(e => !events.some(x => x.league === e.league))] : events;
+    const kept = events.failed && !live ? [...events, ...slot.events.filter(e => !events.some(x => x.league === e.league))] : events;
     if (isToday) noticeChanges(kept);
     if (isToday) notePlayoffGames(kept);
     // The other days held (the nightly copies of the days to come): today's results on top.
     if (isToday) for (const [d, other] of state.days) if (d !== date && other.events?.length) other.events = settleSeries(other.events);
-    Object.assign(slot, { events: kept, at: Date.now(), stale: false, leagues: key, partial: events.failed || 0 });
+    Object.assign(slot, { events: kept, at: Date.now(), stale: false, leagues: key, partial: events.failed || 0 }, live ? {} : { fullAt: Date.now() });
     if (isToday && !events.failed) saveDay(date, slot);
     retry = events.failed > 0;
   } catch {
@@ -614,8 +674,8 @@ async function loadDay(date) {
   // The others (and the rest) again too, once they've been read for this day;
   // today's rest in any case (every league's games on now, for 直播's badge
   // and 首頁's live games), a moment after the first read.
-  if (slot.othersAt) loadOthers(date);
-  if (slot.restAt && (state.tab === 'live' || Date.now() - slot.restAt > 120_000)) loadRest(date);
+  if (slot.othersAt) loadOthers(date, live);
+  if (slot.restAt && (state.tab === 'live' || Date.now() - slot.restAt > 120_000)) loadRest(date, live && Date.now() - slot.restAt <= 120_000);
   else if (!slot.restAt && isToday && !slot.restLoading) setTimeout(() => !slot.restAt && loadRest(date), 2500);
   loadFollowedTeams();
   repaintDay(date);
@@ -624,17 +684,20 @@ async function loadDay(date) {
     pushTimer = setTimeout(syncPush, 1500);
   }
 }
-async function loadOthers(date) {
+// (`live`: only the pages of their games on now, over the ones held.)
+async function loadOthers(date, live = false) {
   const slot = state.days.get(date);
   if (!slot || slot.othersLoading) return;
+  const pages = live ? livePages(slot.others) : null;
+  if (live && !pages.size) return;
   slot.othersLoading = true;
   try {
-    slot.others = await readDay(otherLeagues().slice(0, 24), date);
+    slot.others = live ? overHeld(slot.others, await readDay(otherLeagues().slice(0, 24), date, { pages }), pages) : await readDay(otherLeagues().slice(0, 24), date);
   } catch {
     slot.others = slot.others || [];
   } finally {
     slot.othersLoading = false;
-    slot.othersAt = Date.now();
+    if (!live) slot.othersAt = Date.now();
   }
   repaintDay(date);
 }
@@ -645,17 +708,19 @@ function restLeagues() {
   const have = new Set([...pickLeagues(), ...otherLeagues().slice(0, 24)]);
   return Object.keys(LEAGUES).filter(k => !have.has(k));
 }
-async function loadRest(date) {
+async function loadRest(date, live = false) {
   const slot = state.days.get(date);
   if (!slot || slot.restLoading) return;
+  const pages = live ? livePages(slot.rest) : null;
+  if (live && !pages.size) return;
   slot.restLoading = true;
   try {
-    slot.rest = await readDay(restLeagues(), date, { current: true });
+    slot.rest = live ? overHeld(slot.rest, await readDay(restLeagues(), date, { current: true, pages }), pages) : await readDay(restLeagues(), date, { current: true });
   } catch {
     slot.rest = slot.rest || [];
   } finally {
     slot.restLoading = false;
-    slot.restAt = Date.now();
+    if (!live) slot.restAt = Date.now();
   }
   repaintDay(date);
 }
@@ -681,18 +746,18 @@ function loadTables() {
 }
 // Followed teams' schedules (their next and last games).
 // Read again while the app stays open (an iPhone keeps it for hours in the
-// background): every 10 minutes, every 2 while one of its games is on or
-// due to end. Until then a game's state comes from the live scoreboards
-// (freshGame), so a game over is never left 'on'.
+// background): every 10 minutes, a game on or not: its state and score come
+// from the live scoreboards read every few seconds (freshGame), so a game
+// over is never left 'on' (read every 2 minutes while one was on, each MLB
+// team's 0.3 to 2.8 MB, for nothing the scoreboards hadn't said).
 const teamsAt = new Map();
 const TEAM_MS = 10 * 60_000;
-const teamDue = list => (list || []).some(e => e.status?.state === 'in' || (e.status?.state === 'pre' && Date.parse(e.start) < Date.now()));
 async function loadFollowedTeams() {
   for (const f of followedTeams().slice(0, 12)) {
     const key = `${f.league}:${f.id}`;
     if (LEAGUES[f.league]?.kind !== 'match') continue;
     const had = state.home.teams.get(key);
-    if (state.home.teams.has(key) && (had === null || teamsAt.get(key) === 'loading' || Date.now() - (teamsAt.get(key) || 0) < (teamDue(had) ? 2 * 60_000 : TEAM_MS))) continue;
+    if (state.home.teams.has(key) && (had === null || teamsAt.get(key) === 'loading' || Date.now() - (teamsAt.get(key) || 0) < TEAM_MS)) continue;
     if (!had) state.home.teams.set(key, null);
     teamsAt.set(key, 'loading');
     // ESPN's team schedule; the other leagues' own season, the team's games.
@@ -771,15 +836,20 @@ function syncPush() {
 // A game's or a sprint's or race's final, for the Worker to send once ESPN
 // has it (it fills in the score or the podium, and who won: {result}), after
 // its usual length; a pick's says so (今日推薦賽果, its own switch).
+// A final not in yet past the game's usual length: checked a minute on,
+// rounded up to the next five minutes, so the list sent stays the same from
+// one refresh to the next (a minute on from each refresh sent it again every
+// few seconds once a game ran long).
+const soonest = now => Math.ceil((now + 60_000) / 300_000) * 300_000;
 function resultItem(e, now, pick = false) {
   const espn = LEAGUES[e.league].espn;
   const start = Date.parse(e.official || e.start);
   if (!espn || e.timeTbd || !(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) return null;
   const base = { body: [`{result}`, leagueName(e.league, locale), pick ? L(PICKED) : ''].filter(Boolean).join(' · '), tag: `end:${e.league}:${e.id}`, hash: 'home', kind: pick ? 'pickend' : 'end' };
   if (e.kind === 'match' && /^\d+$/.test(e.id))
-    return { ...base, at: Math.max(now + 60_000, Date.parse(e.start) + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), check: { espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } };
+    return { ...base, at: Math.max(soonest(now), Date.parse(e.start) + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), check: { espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } };
   if (e.kind === 'field' && ['SR', 'Race'].includes(e.sessionKey) && /^\d+$/.test(String(e.weekend)))
-    return { ...base, at: Math.max(now + 60_000, start + (e.sessionKey === 'Race' ? 100 : 40) * 60_000), title: `${e.name} ${e.session}`, check: { espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } };
+    return { ...base, at: Math.max(soonest(now), start + (e.sessionKey === 'Race' ? 100 : 40) * 60_000), title: `${e.name} ${e.session}`, check: { espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } };
   return null;
 }
 // Every one of today's picks (今日推薦), kept on the device for the day: a
@@ -1913,7 +1983,10 @@ async function loadScores({ quiet = false } = {}) {
   track([`league:${leagueKey(league)}`], 0.3);
   let events = [];
   try {
-    events = await fetchScores(sc);
+    // A live tick between whole reads (every two minutes): only the pages with a game on.
+    const live = quiet && sc.fullKey === key && Date.now() - sc.fullAt < 120_000 ? await liveScores(sc) : null;
+    events = live || (await fetchScores(sc));
+    if (!live) Object.assign(sc, { fullKey: key, fullAt: Date.now() });
   } catch {
     if (sc.loadingKey === key) sc.byDay = 'failed';
     // Asked again once the kit stops holding the failure (a minute), if it's still in view.
@@ -2041,6 +2114,26 @@ async function pickScoresDay(d) {
     if (state.scores !== sc || sc.date !== d) return;
   }
   renderScores();
+}
+// 賽事's live tick: an ESPN league's day pages its games on now (or due to
+// start) are on, read again over the games held; null when there's none (or
+// it isn't such a league), for a whole read. A cup's stretch is three month
+// pages (800 KB): one day's page instead.
+async function liveScores(sc) {
+  const l = LEAGUES[sc.league];
+  if (sc.mode !== 'days' || l.kind !== 'match' || !l.espn || l.asia || !Array.isArray(sc.all)) return null;
+  const pages = new Set(sc.all.filter(e => e.status.state === 'in' || dueToStart(e)).map(e => e.usDay || usDayOf(e.start)).filter(Boolean));
+  if (!pages.size) return null;
+  const fresh = await scoreboard(sc.league, [...pages]).catch(() => null);
+  // Unread this time: the games held, as they were.
+  if (!fresh) return sc.all;
+  const byId = new Map(fresh.map(e => [e.id, e]));
+  const out = [];
+  for (const e of sc.all) {
+    if (byId.has(e.id)) out.push(byId.get(e.id)), byId.delete(e.id);
+    else if (!pages.has(e.usDay)) out.push(e);
+  }
+  return [...out, ...byId.values()];
 }
 // Which events to read for the league as sc stands (sc.extra: how far).
 async function fetchScores(sc) {
@@ -2847,14 +2940,15 @@ async function reloadNow() {
 // and finish are noticed).
 // (Every dev('sportsList') seconds: the admin panel's 開發, 10 by default.)
 function liveTick() {
-  if (document.visibilityState !== 'visible' || !q.active) return;
+  if (document.visibilityState !== 'visible' || !q.active || sheetOver()) return;
   const day = state.days.get(today());
   // On now, or due to start (its kickoff passed or a minute away): watched as live.
   const live = dayAll(day).some(e => e.status.state === 'in' || dueToStart(e));
   const age = Date.now() - (day?.at || 0);
   const onScreen = (state.tab === 'home' && state.home.date === today()) || state.tab === 'live' || state.tab === 'following';
-  if (onScreen && live && age > kit.dev('sportsList') * 1000 - 2_000) loadDay(today());
-  else if (age > 120_000) loadDay(today());
+  // The whole day every two minutes; between, only the pages with a game on.
+  if (Date.now() - (day?.fullAt || 0) > 120_000) loadDay(today());
+  else if (onScreen && live && age > kit.dev('sportsList') * 1000 - 2_000) loadDay(today(), { live: true });
   if (state.tab === 'home' && state.home.date !== today() && Date.now() - (state.days.get(state.home.date)?.at || 0) > 10 * 60_000) loadDay(state.home.date);
   // 比分 too: a game on, or one due to start (it had waited for another game on to be read again).
   if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in' || dueToStart(e))) loadScores({ quiet: true });
