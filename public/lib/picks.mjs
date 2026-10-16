@@ -23,7 +23,10 @@ import { LEAGUES, TOP_LEAGUES } from './leagues.mjs';
 import { eventKeys, teamKey } from './foryou.mjs';
 
 // Minutes a match usually takes, by sport.
-export const DURATION = { soccer: 115, baseball: 185, basketball: 145, racing: 120 };
+// A game's length in minutes. Baseball's with the pitch clock (2023 on):
+// about 2 h 40, a playoff game nearer 3 h (the owner, 2026-10-16: 185 had
+// ALCS G4 at 08:00 clash with an NBA game at 10:30).
+export const DURATION = { soccer: 115, baseball: 170, basketball: 145, racing: 120 };
 const BIG_GAME = /final|semi|play-?off|postseason|wild ?card|series|championship|derby|決賽|季後/i;
 // A final, a play-off, a postseason or series game: worth staying up for.
 export const bigGame = e => ['post', 'final', 'playin'].includes(e?.stage?.key) || BIG_GAME.test(`${e?.note || ''} ${e?.name || ''}`);

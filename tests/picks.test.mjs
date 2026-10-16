@@ -141,3 +141,9 @@ test('scoreMatch: an open game over a walkover at the same time, though the broa
   assert.ok(pool.score > city.score, `${pool.score} > ${city.score}`);
   assert.ok(pool.reasons.includes('close'));
 });
+
+test('clash: a baseball game at 08:00 and a basketball game at 10:30 are both watchable (2026-10-17, ALCS G4 then Nuggets v Lakers)', () => {
+  const g = (league, start) => ({ id: league, league, kind: 'match', start, status: { state: 'pre' } });
+  assert.equal(clash(g('mlb', '2026-10-17T00:00:00Z'), g('nba', '2026-10-17T02:30:00Z')), false);
+  assert.equal(clash(g('mlb', '2026-10-17T00:00:00Z'), g('nba', '2026-10-17T01:30:00Z')), true);
+});
