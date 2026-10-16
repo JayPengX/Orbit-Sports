@@ -1608,10 +1608,11 @@ button.lp-person.tap:active { opacity: 0.6; }
 .replay-icon.apple { display: grid; place-items: center; background: #000; color: #fff; font: 700 15px/1 -apple-system, system-ui, sans-serif; letter-spacing: -0.02em; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
 /* 先發陣容 (lineupCard): an injury list's rows, the side's words quiet, not an injury's red. */
 .inj-list.lineup-list small { color: var(--q-muted); font-weight: 600; }
-.inj-list.lineup-list li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 5px 0; }
+/* Every face in the card in one column (the owner, 2026-10-16): the batting
+   order's number in a narrow lead, and the pitchers' rows the same lead, empty. */
+.inj-list.lineup-list li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 5px 0; }
 /* No one named yet: an empty head, a player's face in outline (待定). */
 .logo.empty-face { --q-face-blank: color-mix(in srgb, var(--q-muted) 55%, transparent); display: inline-block; flex: none; background: radial-gradient(circle at 50% 40%, var(--q-face-blank) 0 17%, transparent 18%), radial-gradient(ellipse 36% 26% at 50% 96%, var(--q-face-blank) 0 98%, transparent 100%), var(--q-sunken); }
-.inj-list.lineup-list.no-num li { grid-template-columns: minmax(0, 1fr) auto; }
 .inj-list.lineup-list .jersey { color: var(--q-muted); font-size: 12.5px; text-align: left; }
 .inj-list.lineup-list .roster-name { justify-content: flex-start; text-align: left; min-width: 0; }
 .inj-list.lineup-list .roster-name span { white-space: nowrap; }

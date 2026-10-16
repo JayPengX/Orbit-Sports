@@ -1091,7 +1091,7 @@ function lineupCard(l, e, nameOf) {
     return card(
       en ? 'Starters' : '先發',
       el('div', { class: 'injuries' }, [
-        el('div', {}, [el('p', { class: 'mini-h', text: en ? 'Probable pitchers' : '預計先發投手' }), el('ul', { class: 'inj-list lineup-list no-num' }, pitchers.map(([t, p]) => el('li', {}, [p ? who(p) : el('span', { class: 'roster-name' }, [el('span', { class: 'logo xs round empty-face', 'aria-hidden': 'true' }), el('span', { class: 'muted', text: en ? 'TBD' : '待定' })]), el('small', {}, [teamTag(t, t.short || t.name, e.league, { tap: false })])])))]),
+        el('div', {}, [el('p', { class: 'mini-h', text: en ? 'Probable pitchers' : '預計先發投手' }), el('ul', { class: 'inj-list lineup-list' }, pitchers.map(([t, p]) => el('li', {}, [el('span', { class: 'jersey', 'aria-hidden': 'true' }), p ? who(p) : el('span', { class: 'roster-name' }, [el('span', { class: 'logo xs round empty-face', 'aria-hidden': 'true' }), el('span', { class: 'muted', text: en ? 'TBD' : '待定' })]), el('small', {}, [teamTag(t, t.short || t.name, e.league, { tap: false })])])))]),
         ...orders.map(([t, o]) => side(t, o, (p, i) => String(i + 1)))
       ]),
       { sub: orders.length ? (en ? 'Batting orders posted' : '打序已公布') : en ? 'Batting orders hours before' : '打序賽前數小時公布' }
