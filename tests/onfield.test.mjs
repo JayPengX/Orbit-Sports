@@ -60,3 +60,16 @@ test('basketball: the starters sitting now, so all five are said', () => {
   assert.deepEqual(got.players.map(p => p.id), ['a', 'c']);
   assert.deepEqual(got.resting.map(p => p.id), ['b']);
 });
+
+// The green ↑ for every one who came on (the owner, 2026-10-16): a starter back from a rest too.
+test('parseSummary: a player whose last substitution brought him on came on, a starter too', async () => {
+  const { parseSummary } = await import('../public/lib/espn.mjs');
+  const a = (id, starter, active) => ({ athlete: { id, displayName: id }, starter, active, stats: [] });
+  const sub = (inn, out) => ({ type: { text: 'Substitution' }, participants: [{ athlete: { id: inn } }, { athlete: { id: out } }] });
+  const data = {
+    boxscore: { players: [{ team: { id: '25' }, statistics: [{ labels: [], athletes: [a('sga', true, true), a('mara', false, true), a('hart', true, true), a('caruso', true, false)] }] }] },
+    plays: [sub('mara', 'caruso'), sub('dort', 'sga'), sub('sga', 'dort')]
+  };
+  const rows = parseSummary(data, 'nba').players[0].tables[0].rows;
+  assert.deepEqual(rows.map(r => [r.id, r.cameOn]), [['sga', true], ['mara', true], ['hart', false], ['caruso', false]]);
+});

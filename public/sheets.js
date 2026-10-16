@@ -1130,14 +1130,14 @@ function onFieldCard(d, e, nameOf) {
     const shirt = shirtsOf(d, e);
     // Each side's five as a row of faces (no court: a basketball position
     // is no place on the floor): the number; a green ↑ at the corner for one
-    // off the bench (soccer's sub on), and under the name 先發 or 替補 in
+    // who came on (off the bench, or a starter back from a rest; soccer's sub on), and under the name 先發 or 替補 in
     // words (the owner, 2026-10-13: a corner mark for a starter went
     // unseen); his points, then rebounds and assists, fouls from the fourth
     // in red. Under the row, the side's starters sitting now.
     const tile = (p, colour) =>
       el('button', { class: 'five-tile', type: 'button', style: `--shirt:${colour}`, 'aria-label': `${p.full || p.name}${p.starter ? (en ? ', starter' : '，先發') : en ? ', off the bench' : '，替補'}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
-        el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, p.starter ? null : el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' })]),
-        el('span', { class: oneLineName(surnameOf(p)), text: surnameOf(p) }),
+        el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, p.starter && !p.cameOn ? null : el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' })]),
+        el('span', { class: 'pm-name one', text: surnameOf(p) }),
         // Said in words, not a mark to learn: 先發 or 替補 (the green ↑ on the face too).
         el('span', { class: `five-role${p.starter ? ' starter' : ''}`, text: p.starter ? (en ? 'Starter' : '先發') : en ? 'Bench' : '替補' }),
         el('strong', { class: 'five-pts num', text: en ? `${p.line.pts || 0} PTS` : `${p.line.pts || 0} 分` }),
@@ -1153,7 +1153,7 @@ function onFieldCard(d, e, nameOf) {
             ...s.resting.map(p => el('button', { class: 'rest-face', type: 'button', style: `--shirt:${shirt[s.team]}`, 'aria-label': `${p.full || p.name}, ${en ? `${p.line.pts || 0} points` : `${p.line.pts || 0} 分`}`, title: surnameOf(p), onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [personPic({ ...p, name: p.full || p.name }, e.league, 'rest-pic round')]))
           ])
         : null;
-    return card(en ? 'On the court' : '場上球員', el('div', { class: 'five-sides' }, five.map(s => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(s.team)]), el('div', { class: 'five-row' }, s.players.map(p => tile(p, shirt[s.team]))), resting(s)]))), { sub: en ? 'Live' : '即時' });
+    return card(en ? 'On the court' : '場上球員', el('div', { class: 'five-sides' }, five.map(s => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(s.team)]), fitFive(el('div', { class: 'five-row' }, s.players.map(p => tile(p, shirt[s.team])))), resting(s)]))), { sub: en ? 'Live' : '即時' });
   }
   if (sport === 'baseball' && d.field) return card(en ? 'On the field' : '場上球員', diamondView(d, e, nameOf), { sub: en ? 'Live' : '即時' });
   if (sport === 'soccer') {
@@ -2162,6 +2162,32 @@ const fitWatch = typeof ResizeObserver === 'function'
       }
     })
   : null;
+// A name wider than its place among the five, or the row wider than the
+// card (a narrow phone, two long names): that name, else the longest, a
+// half point smaller at a time, down to 7.5px.
+const fiveWatch = typeof ResizeObserver === 'function'
+  ? new ResizeObserver(list => {
+      for (const { target: row } of list) {
+        if (!row.isConnected) {
+          fiveWatch.unobserve(row);
+          continue;
+        }
+        const names = [...row.querySelectorAll('.pm-name')];
+        for (const n of names) n.style.fontSize = '';
+        const over = n => n.scrollWidth > n.parentElement.clientWidth + 0.5;
+        for (let i = 0; i < 40 && (row.scrollWidth > row.clientWidth + 0.5 || names.some(over)); i++) {
+          const n = names.filter(over)[0] || names.reduce((a, b) => (b.scrollWidth > a.scrollWidth ? b : a));
+          const size = parseFloat(getComputedStyle(n).fontSize) - 0.5;
+          if (size < 7.5) break;
+          n.style.fontSize = `${size}px`;
+        }
+      }
+    })
+  : null;
+function fitFive(row) {
+  fiveWatch?.observe(row);
+  return row;
+}
 function fitName(node, full, short) {
   node.dataset.full = full;
   node.dataset.short = short || full;

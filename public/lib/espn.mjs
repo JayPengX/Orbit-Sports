@@ -973,6 +973,17 @@ export function parseSummary(data, league) {
   const details = (box.teams || [])
     .map(t => ({ team: String(t.team?.id ?? ''), groups: (t.details || []).map(g => ({ name: g.name || '', items: (g.stats || []).filter(x => x.displayValue).map(x => ({ key: x.name || '', abbr: x.abbreviation || x.shortDisplayName || '', label: x.displayName || '', text: x.displayValue })) })).filter(g => g.items.length) }))
     .filter(t => t.groups.length);
+  // Who came on (basketball): each substitution names who enters first, who
+  // leaves second; a player's last one says whether he's on from the bench
+  // now, a starter back from a rest too (the owner, 2026-10-16: every one
+  // who came on gets the green ↑).
+  const cameOn = new Map();
+  for (const q of data?.plays || []) {
+    if (!/substitution/i.test(q.type?.text || '')) continue;
+    const [inn, out] = (q.participants || []).map(x => String(x.athlete?.id ?? ''));
+    if (inn) cameOn.set(inn, true);
+    if (out) cameOn.set(out, false);
+  }
   // Player tables per team: [{ team, tables: [{ name, labels, rows: [{ id, name, stats }] }] }].
   const players = (box.players || []).map(p => ({
     team: String(p.team?.id ?? ''),
@@ -980,7 +991,7 @@ export function parseSummary(data, league) {
       name: st.name || st.type || st.text || '',
       labels: st.labels || st.names || [],
       longs: st.descriptions || [],
-      rows: (st.athletes || []).map(a => ({ id: String(a.athlete?.id ?? ''), name: a.athlete?.shortName || a.athlete?.displayName || '', full: a.athlete?.displayName || '', headshot: freshHeadshot(a.athlete?.headshot?.href) || null, pos: a.position?.abbreviation || '', jersey: a.athlete?.jersey || '', starter: Boolean(a.starter), on: a.active === true, dnp: Boolean(a.didNotPlay), reason: a.reason || '', stats: a.stats || [] })),
+      rows: (st.athletes || []).map(a => ({ id: String(a.athlete?.id ?? ''), name: a.athlete?.shortName || a.athlete?.displayName || '', full: a.athlete?.displayName || '', headshot: freshHeadshot(a.athlete?.headshot?.href) || null, pos: a.position?.abbreviation || '', jersey: a.athlete?.jersey || '', starter: Boolean(a.starter), on: a.active === true, cameOn: cameOn.get(String(a.athlete?.id ?? '')) === true, dnp: Boolean(a.didNotPlay), reason: a.reason || '', stats: a.stats || [] })),
       totals: st.totals || []
     }))
   }));
