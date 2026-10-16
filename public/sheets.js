@@ -4480,7 +4480,8 @@ function raceBlock(race, g, league, many) {
   const leadLine = t => {
     const span = sport === 'racing' ? (t.at || (t.soonest === 1 ? W('下一站', 'the next race') : W(`${t.soonest} 站`, `${t.soonest} races`))) : perRound && t.soonest === 1 ? W('這一輪', 'this round') : W(`${t.soonest} ${perRound ? '輪' : '場'}`, `${t.soonest} ${perRound ? 'rounds' : 'games'}`);
     const now = t.gap > 0 ? W(`領先 ${t.gap} 分`, `${t.gap} pts ahead`) : W('與第二名同分', 'level on points');
-    return W(`${now}，${span}後領先所有對手達 ${t.leadAt} 分即可`, `${now}; a ${t.leadAt}-pt lead over everyone after ${span} does it`);
+    // (Short, on one line: the title above says what for; a lead is over everyone.)
+    return W(`${now}，${span}後需領先 ${t.leadAt} 分`, `${now}; needs ${t.leadAt} after ${span}`);
   };
   const lines = [];
   const t = race.title;
