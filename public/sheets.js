@@ -3659,7 +3659,14 @@ export async function openTeam(league, id, fallback = {}) {
       const [me, them] = x.home.id === String(id) ? [x.home, x.away] : [x.away, x.home];
       return me.winner ? 'W' : them.winner ? 'L' : Number(me.score) === Number(them.score) && me.score !== '' ? 'D' : Number(me.score) > Number(them.score) ? 'W' : 'L';
     };
-    const form = played.slice(-5).filter(x => x.home && x.away).map(resultOf);
+    // Its form in the league it's opened from, as the record and place beside
+    // it are (the owner, 2026-10-16: Man City's five league wins read as
+    // 勝勝勝勝敗 with a Champions League loss among them); 戰績 below keeps
+    // every competition. A club opened from a cup, or with under three
+    // league games yet: all of them.
+    const inLeague = played.filter(x => x.league === league);
+    const formFrom = !outside && inLeague.length >= 3 ? inLeague : played;
+    const form = formFrom.slice(-5).filter(x => x.home && x.away).map(resultOf);
     // Games played before the table's first are preseason ones, and so is ESPN's record then: said so.
     const pre = Boolean(groups?.length) && !groups.some(tableStarted) && played.length > 0;
     const record = [pre ? W('季前賽', 'Preseason') : '', (outside ? '' : info.record) || ownRecord(played, resultOf)].filter(Boolean).join(' ');
@@ -3740,7 +3747,7 @@ export async function openTeam(league, id, fallback = {}) {
           info.en && info.en !== info.name ? el('small', { class: 'muted', text: info.en }) : null,
           outside ? el('small', { class: 'muted team-home' }, [zhLater(home.name, 'en')]) : null,
           el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? el('span', { class: 'nowrap', text: W(`${leagueName(league, L())}${groups.length > 1 && place.group ? ` ${groupName(place.group, 'zh')} · ` : ''}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in ${groups.length > 1 && place.group ? groupName(place.group, 'en') : `the ${leagueName(league, L())}`}`) }) : !groups || groups.some(tableStarted) ? standingZh(info.standing, L()) : ''].filter(Boolean), ' · ')),
-          form.length ? el('div', { class: 'hero-form' }, [resultPills(form)]) : null
+          form.length ? el('div', { class: 'hero-form', 'aria-label': formFrom === inLeague ? W(`${leagueName(league, L())}近 ${form.length} 場`, `Last ${form.length} in the ${leagueName(league, L())}`) : W(`近 ${form.length} 場`, `Last ${form.length}`) }, [resultPills(form)]) : null
         ]),
         followBtn
       ]),
