@@ -93,9 +93,23 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
       if (w >= 0.5) reasons.push('topClash');
     } else if (Math.abs(a - h) < 0.12 && w >= 0.5) reasons.push('close');
   }
+  // How open it is, by the bookmakers' prices (e.fav: the favourite's
+  // chance): a game either side can win before one side's walkover, however
+  // high it stands (Brentford +140 v Liverpool over Man City -425 v Ipswich).
+  // A soccer game is open from about 40% (the draw takes its share), a game
+  // with no draw from about 50%.
+  if (Number.isFinite(e.fav) && e.fav > 0) {
+    const [even, sure] = LEAGUES[e.league]?.sport === 'soccer' ? [0.4, 0.8] : [0.5, 0.85];
+    const open = Math.min(1, Math.max(0, (sure - e.fav) / (sure - even)));
+    score += 0.3 * open;
+    if (open >= 0.75 && !reasons.includes('close') && !reasons.includes('topClash')) reasons.push('close');
+  }
   // The broadcaster's pick of the games then (its main channel, its commentators).
+  // Only a near tie's decider (the owner, 2026-10-16: 愛爾達1台 isn't
+  // always the better game; Man City v Ipswich there, Brentford v Liverpool
+  // on 2台).
   if (featured?.(e)) {
-    score += 0.2;
+    score += 0.1;
     reasons.push('featured');
   }
   if (bigGame(e)) {

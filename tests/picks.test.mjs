@@ -121,3 +121,23 @@ test("seven games in, the table counts for a share; the broadcaster's pick of th
   const top = { epl: { BHA: row(3, 7), SUN: row(2, 7) } };
   assert.ok(!scoreMatch(bha, { ...ctx, tables: top }).reasons.includes('topClash'));
 });
+
+// The bookmakers' prices say how open a game is (the owner, 2026-10-16): ESPN's 2026-10-17 odds.
+test('favChance: the favourite’s chance from both moneylines and the draw, else soccer’s line', async () => {
+  const { favChance } = await import('../public/lib/espn.mjs');
+  const ml = (h, a) => ({ home: { close: { odds: h } }, away: { close: { odds: a } } });
+  assert.equal(favChance({ odds: [{ details: 'MNC -425', moneyline: ml('-425', '+1000'), drawOdds: { moneyLine: 600 } }] }), 0.776);
+  assert.equal(favChance({ odds: [{ details: 'BRE +140' }] }), 0.417);
+  assert.equal(favChance({ odds: [{ details: 'ORL -2.5', moneyline: ml('-130', '+110') }] }), 0.543);
+  assert.equal(favChance({ odds: [{ details: 'ORL -2.5' }] }), null, 'a spread is no price');
+  assert.equal(favChance({}), null);
+});
+
+test('scoreMatch: an open game over a walkover at the same time, though the broadcaster put the walkover on its main channel', () => {
+  const tables = { 'epl': Object.fromEntries(Object.entries({ mci: 1, brn: 4, liv: 9, ips: 10 }).map(([k, pos]) => [k, { pos, n: 20, gp: 6 }])) };
+  const g = (id, home, away, fav) => ({ id, league: 'epl', kind: 'match', status: { state: 'pre' }, start: '2026-10-17T14:00:00Z', home: { id: home, name: home }, away: { id: away, name: away }, fav });
+  const city = scoreMatch(g('1', 'mci', 'ips', 0.773), { leagues: ['epl'], tables, featured: () => true });
+  const pool = scoreMatch(g('2', 'brn', 'liv', 0.399), { leagues: ['epl'], tables, featured: () => false });
+  assert.ok(pool.score > city.score, `${pool.score} > ${city.score}`);
+  assert.ok(pool.reasons.includes('close'));
+});

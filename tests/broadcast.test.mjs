@@ -453,3 +453,14 @@ test('數據視角 is the game drawn from its data, no commentary: never the way
     assert.deepEqual(chs.map(b => [b.ch, b.audio]), [[101, 'dual'], [545, 'data']], prefer);
   }
 });
+
+test('球員特寫視角 is another view (one player followed), its sound unsaid: never counted as commentary, after the real broadcasts', () => {
+  assert.deepEqual(eltaAudio('艾佛頓 VS 切爾西 第7輪(Joao Pedro球員特寫視角) LIVE', 549), { audio: 'cam', adFree: true });
+  assert.ok(!hasAudio({ audio: 'cam' }, 'zh') && !hasAudio({ audio: 'cam' }, 'en'));
+  // ELTA's list for 2026-10-17: 艾佛頓 v 切爾西 on 愛爾達2台, MAX9 and MAX10 (Joao Pedro's).
+  const p = (sn, ch, desc) => ({ program_sn: sn, channel_number: ch, start_time: 1792236000, end_time: 1792244100, game_type: '英超', game_type_en: 'Premier League', program_desc: desc });
+  const list = parseElta({ calendar: { '2026-10-17': [p(1, 105, '艾佛頓 VS 切爾西 第7輪 LIVE'), p(2, 548, '艾佛頓 VS 切爾西 第7輪 LIVE'), p(3, 549, '艾佛頓 VS 切爾西 第7輪(Joao Pedro球員特寫視角) LIVE')] } });
+  const game = { id: 'm2', league: 'epl', kind: 'match', start: '2026-10-17T11:30:00Z', status: { state: 'pre' }, home: { name: 'Everton' }, away: { name: 'Chelsea' } };
+  const chs = broadcastsFor(game, list, { sides: [['艾佛頓'], ['切爾西']], prefer: 'zh' }).filter(b => b.exact);
+  assert.deepEqual(chs.map(b => [b.ch, b.audio]), [[548, 'zh'], [105, 'dual'], [549, 'cam']]);
+});

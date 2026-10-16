@@ -301,6 +301,30 @@ export function knockoutRound(e, comp, league) {
 // Taiwan's next morning: placed there (20:00 New York, 08:00 here, the usual
 // hour) with its time shown as 待定 until ESPN or ELTA's list sets it.
 const ET_MIDNIGHT = /T0[45]:00(:00)?(\.000)?Z$/;
+// The favourite's chance from the bookmaker's prices ESPN shows before a
+// game (0..1, null without them): how open it is, for the picks (the owner,
+// 2026-10-16: Man City v Ipswich, City -425, picked over Brentford v
+// Liverpool, Brentford +140). Both sides' moneylines when given (the draw's
+// too), each side's chance their share; else soccer's line, the favourite's
+// own price ("MNC -425").
+const implied = ml => {
+  const m = Number(String(ml ?? '').replace(/^EVEN$/i, '+100'));
+  if (!Number.isFinite(m) || Math.abs(m) < 100) return null;
+  return m < 0 ? -m / (-m + 100) : 100 / (m + 100);
+};
+export function favChance(comp) {
+  const o = comp?.odds?.[0];
+  if (!o) return null;
+  const price = x => implied(x?.close?.odds ?? x?.open?.odds ?? x?.odds);
+  const [h, a] = [price(o.moneyline?.home) ?? implied(o.homeTeamOdds?.moneyLine), price(o.moneyline?.away) ?? implied(o.awayTeamOdds?.moneyLine)];
+  if (h != null && a != null) {
+    const d = implied(o.drawOdds?.moneyLine) ?? 0;
+    return Math.round((Math.max(h, a) / (h + a + d)) * 1000) / 1000;
+  }
+  const line = /\s([+-]\d{3,}|EVEN)$/i.exec(String(o.details || ''));
+  const f = line ? implied(line[1]) : null;
+  return f == null ? null : Math.round(f * 1000) / 1000;
+}
 export function startOf(date, comp) {
   if (comp?.timeValid !== false || !date) return { start: date };
   return { start: ET_MIDNIGHT.test(date) ? new Date(Date.parse(date) + 20 * 3_600_000).toISOString() : date, timeTbd: true };
@@ -337,7 +361,7 @@ export function parseScoreboard(data, league) {
       const away = parseSide(comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1]);
       if (!home || !away) continue;
       base.status = overByRule(base.status, away, home, league);
-      out.push({ ...base, home: withLogo(league, home), away: withLogo(league, away), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '', live: base.status.state === 'in' ? liveOf(comp, e.status || comp.status, LEAGUES[league]?.sport) : null });
+      out.push({ ...base, home: withLogo(league, home), away: withLogo(league, away), fav: favChance(comp), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '', live: base.status.state === 'in' ? liveOf(comp, e.status || comp.status, LEAGUES[league]?.sport) : null });
     } else if (kind === 'field') {
       // A race weekend: its sessions, each one's field in finishing order.
       const sessions = (e.competitions || []).map(m => ({
