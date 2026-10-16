@@ -1106,14 +1106,28 @@ export function parseSummary(data, league) {
   const timed = [...(data?.plays || []), ...(data?.drives?.previous || []).flatMap(drivePlays), ...drivePlays(data?.drives?.current), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
   const playOf = p => ({ id: String(p.id ?? ''), text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), ...whoOf(p), home: p.homeScore, away: p.awayScore, clock: p.clock?.displayValue || '' });
   // The plays that move a market (a game drawn from Polymarket's): the scores, a red card, a penalty missed.
-  // And soccer's play stopped (start-delay: ESPN logs one per side, an
-  // injury said in its words, a VAR check not at all): kept by
-  // eventMoments only where the prices swung (a goal or penalty looked at
-  // and waved off: Leeds v Palace, 52', 2026-09-20).
+  // Soccer's VAR decisions, from the commentary (the key events leave them
+  // out): a goal ruled out (deleted-after-review), a decision overturned
+  // (var---…), each with its player (Leeds v Palace 52', 2026-09-20:
+  // Mitchell's goal ruled out). One a check (the ruling the more telling).
+  const told = new Map(commentary.map(c => [c.id, c]));
+  const VAR = /^var---|^deleted-after-review$/;
+  const vars = [];
+  for (const p of (data?.commentary || []).map(c => c.play).filter(p => VAR.test(p?.type?.type || '') && Number.isFinite(wall(p)) && p.period?.number).sort((a, b) => wall(a) - wall(b))) {
+    const c = told.get(String(p.id ?? ''));
+    const ev = { t: wall(p), n: p.period.number, kind: 'var', play: { text: p.text || '', kind: p.type.type, type: p.type.text || '', team: c?.team || '', who: c?.who || p.participants?.[0]?.athlete?.displayName || '', pic: c?.pic || null, clock: p.clock?.displayValue || '' } };
+    const same = vars.find(v => Math.abs(v.t - ev.t) < 180);
+    if (!same) vars.push(ev);
+    else if (ev.play.kind === 'deleted-after-review') Object.assign(same, ev);
+  }
+  // And play stopped (start-delay: ESPN logs one per side, an injury said
+  // in its words): kept by eventMoments only where the prices swung, and
+  // never beside a VAR decision (that's what it was).
   const stops = new Set();
   const events = timed
-    .filter(p => p.scoringPlay || /red-card|penalty---(missed|saved)/.test(p.type?.type || '') || (p.type?.type === 'start-delay' && !stops.has(Math.round(wall(p) / 60)) && stops.add(Math.round(wall(p) / 60))))
+    .filter(p => p.scoringPlay || /red-card|penalty---(missed|saved)/.test(p.type?.type || '') || (p.type?.type === 'start-delay' && !vars.some(v => Math.abs(v.t - wall(p)) < 300) && !stops.has(Math.round(wall(p) / 60)) && stops.add(Math.round(wall(p) / 60))))
     .map(p => ({ t: wall(p), n: p.period.number, ...(/^(top|bottom)$/i.test(p.period.type || '') ? { half: p.period.type.toLowerCase() } : {}), kind: /red-card/.test(p.type?.type || '') ? 'red' : p.type?.type === 'start-delay' ? 'stop' : /penalty---/.test(p.type?.type || '') && !p.scoringPlay ? 'miss' : 'score', play: playOf(p) }))
+    .concat(vars)
     .sort((a, b) => a.t - b.t);
   const timeline = timed.map(p => ({ t: wall(p), n: p.period.number, half: /^(top|bottom)$/i.test(p.period.type || '') ? p.period.type.toLowerCase() : '', type: p.type?.type || '' })).sort((a, b) => a.t - b.t);
   // Each of ESPN's points takes its play's period (its wall clock can be off: a play logged late).

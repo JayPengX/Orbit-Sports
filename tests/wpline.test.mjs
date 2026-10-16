@@ -159,3 +159,18 @@ test("each side in its colour, readable on the card and told apart from the othe
   assert.deepEqual(sideColors({ color: '#08305d', alt: '#ffffff' }, { color: '#4c1d84', alt: '#ffffff' }), { home: '#08305d', away: '#4c1d84' });
   assert.deepEqual(sideColors({}, {}), { home: null, away: null });
 });
+
+test("a goal ruled out by VAR is told so, from the commentary (Leeds v Palace 52', Mitchell's), never the stoppage beside it", async () => {
+  const { eventMoments } = await import('../public/lib/moments.mjs');
+  const s = parseSummary(fixture('epl-var-summary.json'), 'epl');
+  const v = s.events.find(e => e.kind === 'var');
+  assert.equal(v.play.kind, 'deleted-after-review');
+  assert.match(v.play.who, /Mitchell/);
+  assert.ok(!s.events.some(e => e.kind === 'stop' && Math.abs(e.t - v.t) < 300), 'no stoppage beside it');
+  // The prices: Palace's goal lifts them, VAR takes it back.
+  const t0 = v.t - 600;
+  const pts = [0.6, 0.6, 0.6, 0.6, 0.6, 0.35, 0.45, 0.58, 0.6, 0.6].map((home, k) => ({ t: t0 + k * 120, home, draw: 0.25 }));
+  const [m] = eventMoments(pts, [v], 'soccer', { home: { id: '357', name: 'Leeds' }, away: { id: '384', name: 'Palace' }, en: false }, pts.map(p => p.t));
+  assert.match(m.text, /Mitchell 進球經 VAR 判定無效/);
+  assert.equal(m.i, 5, 'on the spike');
+});

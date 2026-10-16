@@ -382,13 +382,15 @@ export function eventMoments(points, events, sport, side, times) {
       const [i0, i1] = [at(ev.t - 60), at(ev.t + 300)];
       // Play stopped: what the prices did meanwhile, their furthest from
       // before (a check waved off comes back: a spike, not a step), there.
-      if (ev.kind === 'stop') {
+      // A VAR decision too: the goal's swing, then back when it's ruled out.
+      if (ev.kind === 'stop' || ev.kind === 'var') {
         let k = i0;
         for (let j = i0; j <= i1; j++) if (Math.abs(value(points[j]) - value(points[i0])) > Math.abs(value(points[k]) - value(points[i0]))) k = j;
         const delta = value(points[k]) - value(points[i0]);
-        const injury = /injury/i.test(ev.play.text || '');
-        const text = injury ? (side.en ? 'Play stopped for an injury' : '球員受傷，比賽暫停') : side.en ? 'Play stopped, no reason given (a VAR check?)' : '比賽中斷，原因未載明（可能是 VAR 檢查）';
-        return { i: k, delta, side: delta >= 0 ? 'home' : 'away', icon: '⏸', text, always: false };
+        const mover = ev.play.team ? (String(ev.play.team) === String(side.home.id) ? 'home' : 'away') : delta >= 0 ? 'home' : 'away';
+        if (ev.kind === 'var') return { i: k, delta, side: mover, icon: '📺', text: varText(ev.play, side.en), always: ev.play.kind === 'deleted-after-review', pic: ev.play.pic, team: ev.play.team };
+        const text = /injury/i.test(ev.play.text || '') ? (side.en ? 'Play stopped for an injury' : '球員受傷，比賽暫停') : side.en ? 'Play stopped' : '比賽暫停';
+        return { i: k, delta, side: mover, icon: '⏸', text, always: false };
       }
       const delta = value(points[i1]) - value(points[i0]);
       // On the line's step: the first point after it with half the swing
@@ -408,6 +410,16 @@ export function eventMoments(points, events, sport, side, times) {
     })
     .filter(m => m.always || Math.abs(m.delta) >= 0.08);
   return biggest(found);
+}
+
+// A VAR decision in words: a goal ruled out by its scorer; else what was
+// decided (ESPN's type: "VAR - Referee decision cancelled", "VAR - Penalty…").
+function varText(play, en) {
+  const who = play.who || '';
+  if (play.kind === 'deleted-after-review') return en ? `${who}'s goal ruled out by VAR`.trim() : `${who} 進球經 VAR 判定無效`.trim();
+  const t = `${play.kind} ${play.type}`.toLowerCase();
+  const what = /penalty/.test(t) ? (/cancel|no-penalty|no penalty/.test(t) ? ['penalty overturned', '取消 12 碼罰球'] : ['penalty given', '判 12 碼罰球']) : /red/.test(t) ? ['red card', '紅牌'] : /goal/.test(t) ? (/no-goal|no goal|cancel/.test(t) ? ['no goal', '進球無效'] : ['goal stands', '進球有效']) : /cancel/.test(t) ? ['decision overturned', '推翻裁判判決'] : ['check', '檢查'];
+  return en ? `VAR: ${what[0]}${who ? ` (${who})` : ''}` : `VAR ${what[1]}${who ? `（${who}）` : ''}`;
 }
 
 // The biggest few (a soccer game's goals and red cards first), in the game's order.
