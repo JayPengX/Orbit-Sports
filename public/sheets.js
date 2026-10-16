@@ -1493,7 +1493,11 @@ function winProbCard(line, e, timeline, events = []) {
   const face = m => (m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : el('span', { text: m.icon }));
   const tell = (m, label) => {
     why.hidden = !m;
-    if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, momentWords(m.text, label)), gainChip(m));
+    // The words on one line, the chance's move under them (the owner,
+    // 2026-10-16: beside them it pushed the words onto two lines); a little
+    // smaller only where it's still too long.
+    if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, [...momentWords(m.text, label), gainChip(m)]));
+    if (m) fitLine(why.querySelector('.mo-main'));
   };
   // Dotted on the line: the big swings and a lead taken or tied, never two crowding each other (the bigger kept; a lead taken first).
   const weight = m => (m.turned ? 1 : 0) + Math.abs(m.delta);
@@ -2202,6 +2206,30 @@ const fiveWatch = typeof ResizeObserver === 'function'
       }
     })
   : null;
+// A line of words that mustn't wrap: a half point smaller at a time until it
+// fits its box, down to 10px (fitted again when the box changes size).
+const lineWatch = typeof ResizeObserver === 'function'
+  ? new ResizeObserver(list => {
+      for (const { target: n } of list) {
+        if (!n.isConnected) {
+          lineWatch.unobserve(n);
+          continue;
+        }
+        n.style.fontSize = '';
+        for (let i = 0; i < 30 && n.scrollWidth > n.clientWidth + 0.5; i++) {
+          const size = parseFloat(getComputedStyle(n).fontSize) - 0.5;
+          if (size < 10) break;
+          n.style.fontSize = `${size}px`;
+        }
+      }
+    })
+  : null;
+function fitLine(n) {
+  if (!n) return n;
+  n.classList.add('one-line');
+  lineWatch?.observe(n);
+  return n;
+}
 function fitFive(row) {
   fiveWatch?.observe(row);
   return row;
