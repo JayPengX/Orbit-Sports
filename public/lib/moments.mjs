@@ -380,6 +380,16 @@ export function eventMoments(points, events, sport, side, times) {
     .filter(ev => ev.t >= times[0] && ev.t <= times.at(-1) + 300)
     .map(ev => {
       const [i0, i1] = [at(ev.t - 60), at(ev.t + 300)];
+      // Play stopped: what the prices did meanwhile, their furthest from
+      // before (a check waved off comes back: a spike, not a step), there.
+      if (ev.kind === 'stop') {
+        let k = i0;
+        for (let j = i0; j <= i1; j++) if (Math.abs(value(points[j]) - value(points[i0])) > Math.abs(value(points[k]) - value(points[i0]))) k = j;
+        const delta = value(points[k]) - value(points[i0]);
+        const injury = /injury/i.test(ev.play.text || '');
+        const text = injury ? (side.en ? 'Play stopped for an injury' : '球員受傷，比賽暫停') : side.en ? 'Play stopped, no reason given (a VAR check?)' : '比賽中斷，原因未載明（可能是 VAR 檢查）';
+        return { i: k, delta, side: delta >= 0 ? 'home' : 'away', icon: '⏸', text, always: false };
+      }
       const delta = value(points[i1]) - value(points[i0]);
       // On the line's step: the first point after it with half the swing
       // made (the prices move a minute or two after the goal), so the dot

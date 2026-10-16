@@ -172,7 +172,16 @@ export function periodMarks(timeline, sport, points, en) {
   const [t0, t1] = [points[0].t, points.at(-1).t];
   const g = gameTime(timeline);
   const x = t => (g(t) - g(t0)) / (g(t1) - g(t0) || 1);
-  if (timeline?.length) return spaced([...starts(timeline)].map(([n, t]) => ({ x: Math.max(0, x(t)), label: periodName(sport, n, en) })));
+  if (timeline?.length) {
+    const marks = [...starts(timeline)].map(([n, t]) => ({ x: Math.max(0, x(t)), label: periodName(sport, n, en) }));
+    // Soccer's minutes between (the owner, 2026-10-16: no minute to go by): 15', 30', 60', 75'.
+    if (sport === 'soccer') {
+      const half = starts(timeline);
+      for (const [n, from, ms] of [[1, 0, [15, 30]], [2, 45, [60, 75]]]) if (half.has(n)) for (const m of ms) marks.push({ x: x(half.get(n) + (m - from) * 60), label: `${m}'` });
+      marks.sort((a, b) => a.x - b.x);
+    }
+    return spaced(marks);
+  }
   // No plays: the clock's hours.
   const marks = [];
   for (let h = Math.ceil(t0 / 3600) * 3600; h <= t1; h += 3600) marks.push({ x: x(h), label: hhmm(h) });
@@ -199,7 +208,19 @@ export function stampAt(timeline, sport, t, en) {
     if (e.t > t) break;
     if (!at || rank(e) >= rank(at)) at = e;
   }
-  return at ? label(sport, at, en) : en ? 'Before the start' : '開賽前';
+  if (!at) return en ? 'Before the start' : '開賽前';
+  const minute = sport === 'soccer' && !/halftime|end-/.test(at.type || '') ? soccerMinute(timeline, at.n, t) : '';
+  return minute ? `${label(sport, at, en)} ${minute}` : label(sport, at, en);
+}
+// A soccer game's minute at t, as the broadcast counts it: from its half's
+// start (the second's from 45'), the added time past its end (45+2').
+const HALF_FROM = [0, 0, 45, 90, 105];
+const HALF_TO = [0, 45, 90, 105, 120];
+function soccerMinute(timeline, n, t) {
+  const start = starts(timeline).get(n);
+  if (start == null || !HALF_TO[n]) return '';
+  const m = HALF_FROM[n] + Math.floor(Math.max(0, t - start) / 60) + 1;
+  return m > HALF_TO[n] ? `${HALF_TO[n]}+${m - HALF_TO[n]}'` : `${m}'`;
 }
 
 export const pointStamp = (timeline, sport, p, en) => (p.n ? label(sport, p, en) : stampAt(timeline, sport, p.t, en));

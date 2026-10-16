@@ -1106,9 +1106,14 @@ export function parseSummary(data, league) {
   const timed = [...(data?.plays || []), ...(data?.drives?.previous || []).flatMap(drivePlays), ...drivePlays(data?.drives?.current), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
   const playOf = p => ({ id: String(p.id ?? ''), text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), ...whoOf(p), home: p.homeScore, away: p.awayScore, clock: p.clock?.displayValue || '' });
   // The plays that move a market (a game drawn from Polymarket's): the scores, a red card, a penalty missed.
+  // And soccer's play stopped (start-delay: ESPN logs one per side, an
+  // injury said in its words, a VAR check not at all): kept by
+  // eventMoments only where the prices swung (a goal or penalty looked at
+  // and waved off: Leeds v Palace, 52', 2026-09-20).
+  const stops = new Set();
   const events = timed
-    .filter(p => p.scoringPlay || /red-card|penalty---(missed|saved)/.test(p.type?.type || ''))
-    .map(p => ({ t: wall(p), n: p.period.number, ...(/^(top|bottom)$/i.test(p.period.type || '') ? { half: p.period.type.toLowerCase() } : {}), kind: /red-card/.test(p.type?.type || '') ? 'red' : /penalty---/.test(p.type?.type || '') && !p.scoringPlay ? 'miss' : 'score', play: playOf(p) }))
+    .filter(p => p.scoringPlay || /red-card|penalty---(missed|saved)/.test(p.type?.type || '') || (p.type?.type === 'start-delay' && !stops.has(Math.round(wall(p) / 60)) && stops.add(Math.round(wall(p) / 60))))
+    .map(p => ({ t: wall(p), n: p.period.number, ...(/^(top|bottom)$/i.test(p.period.type || '') ? { half: p.period.type.toLowerCase() } : {}), kind: /red-card/.test(p.type?.type || '') ? 'red' : p.type?.type === 'start-delay' ? 'stop' : /penalty---/.test(p.type?.type || '') && !p.scoringPlay ? 'miss' : 'score', play: playOf(p) }))
     .sort((a, b) => a.t - b.t);
   const timeline = timed.map(p => ({ t: wall(p), n: p.period.number, half: /^(top|bottom)$/i.test(p.period.type || '') ? p.period.type.toLowerCase() : '', type: p.type?.type || '' })).sort((a, b) => a.t - b.t);
   // Each of ESPN's points takes its play's period (its wall clock can be off: a play logged late).

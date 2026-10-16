@@ -6,15 +6,15 @@ import { lineXs, periodMarks, stampAt, pointStamp, periodName, holdToEnd, sideCo
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 
-test('soccer: halves marked and read, never the minute', () => {
+test('soccer: halves marked and read with the minute as the broadcast counts it (the owner, 2026-10-16)', () => {
   const s = parseSummary(fixture('epl-summary.json'), 'epl');
   const kick = Date.parse('2026-09-20T13:00:41Z') / 1000;
   const second = Date.parse('2026-09-20T14:01:14Z') / 1000;
   assert.equal(stampAt(s.timeline, 'soccer', kick - 60, false), '開賽前');
-  assert.equal(stampAt(s.timeline, 'soccer', kick + 10 * 60, false), '上半場');
-  assert.equal(stampAt(s.timeline, 'soccer', kick + 45 * 60, true), '1st half');
+  assert.equal(stampAt(s.timeline, 'soccer', kick + 10 * 60, false), "上半場 11'");
+  assert.equal(stampAt(s.timeline, 'soccer', kick + 45 * 60, true), "1st half 45+1'");
   assert.equal(stampAt(s.timeline, 'soccer', kick + 50 * 60, false), '中場休息');
-  assert.equal(stampAt(s.timeline, 'soccer', second + 22 * 60, true), '2nd half');
+  assert.equal(stampAt(s.timeline, 'soccer', second + 22 * 60, true), "2nd half 68'");
   assert.equal(stampAt(s.timeline, 'soccer', second + 60 * 60, true), 'Full time');
   const pts = Array.from({ length: 60 }, (_, i) => ({
     t: kick + i * 120,
@@ -22,7 +22,7 @@ test('soccer: halves marked and read, never the minute', () => {
   }));
   assert.deepEqual(
     periodMarks(s.timeline, 'soccer', pts, false).map(m => m.label),
-    ['上半', '下半']
+    ['上半', "15'", "30'", '下半', "60'", "75'"]
   );
 });
 
@@ -103,7 +103,8 @@ test('by game time: half time taken out, nothing after the final whistle, the ha
   const pts = Array.from({ length: 150 }, (_, i) => ({ t: kick + i * 120, home: 0.5 }));
   const marks = periodMarks(s.timeline, 'soccer', pts, false);
   assert.equal(marks[0].x, 0);
-  assert.ok(Math.abs(marks[1].x - 0.48) < 0.03, `下半 at ${marks[1].x}`);
+  const second = marks.find(m => m.label === '下半');
+  assert.ok(Math.abs(second.x - 0.48) < 0.03, `下半 at ${second.x}`);
   const xs = lineXs(pts, s.timeline);
   assert.equal(xs.at(-1), 1);
   assert.ok(xs.every((x, i) => !i || x >= xs[i - 1]));
