@@ -1809,11 +1809,9 @@ button.lp-person.tap:active { opacity: 0.6; }
 .card-red { display: inline-block; width: 9px; height: 12px; border-radius: 2px; background: #d9443a; vertical-align: -1px; }
 /* 場上球員 (basketball): each side's five as a row of faces, their points under them. */
 .five-sides { display: grid; gap: 12px; }
-/* Each of the five as wide as his own words (a long name, Gilgeous-Alexander,
-   takes the room a short one leaves: never cut, wrapped or over the next);
-   the row still too wide, fitFive makes the longest name smaller. */
-.five-row { display: grid; grid-template-columns: repeat(5, auto); justify-content: space-between; gap: 4px; }
-.five-row .five-tile { min-width: 54px; }
+/* The five evenly spaced; a long name said short (tileName: SGA), and one
+   still wider than its tile made smaller by fitFive, never cut or wrapped. */
+.five-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
 .five-tile { display: grid; justify-items: center; align-content: start; gap: 3px; padding: 4px 0; border: 0; background: none; color: var(--q-text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .five-tile .pm-face { width: 38px; height: 38px; margin-bottom: 2px; }
 .five-tile .pm-face .logo { width: 38px; height: 38px; }

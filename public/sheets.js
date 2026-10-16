@@ -1137,7 +1137,7 @@ function onFieldCard(d, e, nameOf) {
     const tile = (p, colour) =>
       el('button', { class: 'five-tile', type: 'button', style: `--shirt:${colour}`, 'aria-label': `${p.full || p.name}${p.starter ? (en ? ', starter' : '，先發') : en ? ', off the bench' : '，替補'}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
         el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, p.starter && !p.cameOn ? null : el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' })]),
-        el('span', { class: 'pm-name one', text: surnameOf(p) }),
+        el('span', { class: 'pm-name one', text: tileName(p) }),
         // Said in words, not a mark to learn: 先發 or 替補 (the green ↑ on the face too).
         el('span', { class: `five-role${p.starter ? ' starter' : ''}`, text: p.starter ? (en ? 'Starter' : '先發') : en ? 'Bench' : '替補' }),
         el('strong', { class: 'five-pts num', text: en ? `${p.line.pts || 0} PTS` : `${p.line.pts || 0} 分` }),
@@ -1212,7 +1212,7 @@ function diamondView(d, e, nameOf) {
     const p = who(full);
     return el('button', { class: `pm${cls ? ` ${cls}` : ''}`, type: 'button', style: `left:${x}%;top:${y}%;--shirt:${colour}`, 'aria-label': `${label ? `${label} ` : ''}${full}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: full, logo: p.headshot }) }, [
       el('span', { class: 'pm-face' }, [personPic(p, e.league, 'pm-pic'), label ? el('span', { class: 'pm-num', style: `color:${inkOn(colour)}`, text: label }) : null]),
-      el('span', { class: 'pm-name', text: surnameOf({ name: full, short: p.short || full.split(' ').slice(1).join(' ') || full }) })
+      el('span', { class: 'pm-name', text: tileName({ name: full, full, short: p.short || full.split(' ').slice(1).join(' ') || full }) })
     ]);
   };
   const posWord = k => (en ? k : posZh(k, 'baseball', 'zh').replace(/手$/, '').replace('外野', '外'));
@@ -1278,6 +1278,18 @@ function shirtsOf(d, e) {
 const surnameOf = p => {
   const s = p.short || (p.full ? p.name : '') || p.name || '';
   return (/^\S{1,3}\. /.test(s) ? s.replace(/^\S{1,3}\. /, '') : s).replace(/,?\s+(Jr\.?|Sr\.?|II|III|IV)$/i, '');
+};
+// The name in a tile, as broadcasts say a long one (the owner, 2026-10-16:
+// Gilgeous-Alexander took two tiles' room): a long double-barrelled surname
+// as the initials (Shai Gilgeous-Alexander SGA, Trent Alexander-Arnold TAA,
+// Kentavious Caldwell-Pope KCP); Antetokounmpo by his first name (Giannis,
+// Thanasis); otherwise the surname.
+const tileName = p => {
+  const sur = surnameOf(p);
+  const first = String(p.full || '').split(/\s+/)[0] || '';
+  if (/^Antetokounmpo$/i.test(sur) && first) return first;
+  if (sur.includes('-') && sur.length > 10 && first) return [first, ...sur.split('-')].map(w => w[0]).join('').toUpperCase();
+  return sur;
 };
 // A name on one line in a narrow tile: smaller as it's longer, never wrapped.
 const oneLineName = name => `pm-name one${name.length > 11 ? ' tight' : name.length > 8 ? ' snug' : ''}`;
@@ -2162,8 +2174,7 @@ const fitWatch = typeof ResizeObserver === 'function'
       }
     })
   : null;
-// A name wider than its place among the five, or the row wider than the
-// card (a narrow phone, two long names): that name, else the longest, a
+// A name wider than its place among the five (a narrow phone): that name a
 // half point smaller at a time, down to 7.5px.
 const fiveWatch = typeof ResizeObserver === 'function'
   ? new ResizeObserver(list => {
@@ -2175,8 +2186,8 @@ const fiveWatch = typeof ResizeObserver === 'function'
         const names = [...row.querySelectorAll('.pm-name')];
         for (const n of names) n.style.fontSize = '';
         const over = n => n.scrollWidth > n.parentElement.clientWidth + 0.5;
-        for (let i = 0; i < 40 && (row.scrollWidth > row.clientWidth + 0.5 || names.some(over)); i++) {
-          const n = names.filter(over)[0] || names.reduce((a, b) => (b.scrollWidth > a.scrollWidth ? b : a));
+        for (let i = 0; i < 40 && names.some(over); i++) {
+          const n = names.find(over);
           const size = parseFloat(getComputedStyle(n).fontSize) - 0.5;
           if (size < 7.5) break;
           n.style.fontSize = `${size}px`;
