@@ -2505,11 +2505,12 @@ const searchEspn = q => proxyJson(`https://site.api.espn.com/apis/search/v2?quer
 // and where), their leagues 賽事's. Nothing followed yet: popular teams of
 // the leagues on TV, a tap each.
 const TV_DAYS = 7;
+// (In English by the short name fans use: "Los Angeles Dodgers" was cut to "Los Angeles …" in its half-width card.)
 const SUGGEST = [
-  ['mlb', '19', 'Los Angeles Dodgers'], ['mlb', '10', 'New York Yankees'], ['cpbl', 'CTBC Brothers'], ['cpbl', 'Rakuten Monkeys'],
-  ['nba', '13', 'Los Angeles Lakers'], ['nba', '9', 'Golden State Warriors'], ['nba', '2', 'Boston Celtics'],
-  ['epl', '359', 'Arsenal'], ['epl', '382', 'Manchester City'], ['epl', '364', 'Liverpool'], ['mls', '20232', 'Inter Miami CF']
-].map(([league, id, name = id]) => ({ league, id, name }));
+  ['mlb', '19', 'Los Angeles Dodgers', 'Dodgers'], ['mlb', '10', 'New York Yankees', 'Yankees'], ['cpbl', 'CTBC Brothers'], ['cpbl', 'Rakuten Monkeys', null, 'Monkeys'],
+  ['nba', '13', 'Los Angeles Lakers', 'Lakers'], ['nba', '9', 'Golden State Warriors', 'Warriors'], ['nba', '2', 'Boston Celtics', 'Celtics'],
+  ['epl', '359', 'Arsenal'], ['epl', '382', 'Manchester City', 'Man City'], ['epl', '364', 'Liverpool'], ['mls', '20232', 'Inter Miami CF', 'Inter Miami']
+].map(([league, id, name, short]) => ({ league, id, name: name || id, short }));
 
 // F1's season (every weekend), read once for 追蹤.
 let f1Season = null;
@@ -2600,7 +2601,7 @@ function suggestCard(s) {
   const logoUrl = fallbackLogo(s.league, { id: s.id, name: s.name });
   return el('button', { class: `suggest${on ? ' on' : ''}`, type: 'button', onclick: () => toggleFollow(s.league, { id: s.id, name: s.name, en: s.name, logo: logoUrl }) }, [
     logo(logoUrl, s.name, 'sm'),
-    el('span', { class: 'suggest-name' }, [el('strong', { text: localSide(s.league, { name: s.name }).name }), el('small', { class: 'muted', text: leagueName(s.league, locale) })]),
+    el('span', { class: 'suggest-name' }, [el('strong', { text: locale === 'en' && s.short ? s.short : localSide(s.league, { name: s.name }).name }), el('small', { class: 'muted', text: leagueName(s.league, locale) })]),
     el('b', { class: 'suggest-add', text: on ? '✓' : '+' })
   ]);
 }
