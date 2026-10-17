@@ -384,9 +384,21 @@ export function eventMoments(points, events, sport, side, times) {
       // before (a check waved off comes back: a spike, not a step), there.
       // A VAR decision too: the goal's swing, then back when it's ruled out.
       if (ev.kind === 'stop' || ev.kind === 'var') {
-        let k = i0;
-        for (let j = i0; j <= i1; j++) if (Math.abs(value(points[j]) - value(points[i0])) > Math.abs(value(points[k]) - value(points[i0]))) k = j;
-        const delta = value(points[k]) - value(points[i0]);
+        // A stop's own move only: not a goal's, a card's or another
+        // decision's next to it (Liverpool's 1–1 at 64' and an injury stop
+        // the same minute: the stop took the goal's +27% as its own, +28%).
+        // Measured after the swing of any before it, up to any after it.
+        let [a, z] = [i0, i1];
+        if (ev.kind === 'stop')
+          for (const o of events) {
+            if (o === ev || o.kind === 'stop') continue;
+            if (o.t <= ev.t && o.t + 300 > ev.t - 60) a = Math.max(a, at(o.t + 300));
+            if (o.t > ev.t && o.t - 60 < ev.t + 300) z = Math.min(z, at(o.t - 60));
+          }
+        if (a >= z) return { i: i0, delta: 0, side: 'home', icon: '⏸', text: '', always: false };
+        let k = a;
+        for (let j = a; j <= z; j++) if (Math.abs(value(points[j]) - value(points[a])) > Math.abs(value(points[k]) - value(points[a]))) k = j;
+        const delta = value(points[k]) - value(points[a]);
         const mover = ev.play.team ? (String(ev.play.team) === String(side.home.id) ? 'home' : 'away') : delta >= 0 ? 'home' : 'away';
         if (ev.kind === 'var') return { i: k, delta, side: mover, icon: '📺', text: varText(ev.play, side.en), always: ev.play.kind === 'deleted-after-review', pic: ev.play.pic, team: ev.play.team };
         const text = /injury/i.test(ev.play.text || '') ? (side.en ? 'Play stopped for an injury' : '球員受傷，比賽暫停') : side.en ? 'Play stopped' : '比賽暫停';

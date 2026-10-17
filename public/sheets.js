@@ -1540,7 +1540,7 @@ function winProbCard(line, e, timeline, events = []) {
   // The player's face (the batter, the scorer), else the team's badge (a run), else the sport's sign.
   // A run's team badge to the team's page.
   const teamTap = x => (hasTeamPage(e.league) && x.id && !x.guest ? el('button', { class: 'wp-who team', type: 'button', 'aria-label': x.name || '', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, x.id, x)) }, [sideLogo(x, e.league, 'sm')]) : sideLogo(x, e.league, 'sm'));
-  const face = m => (m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : el('span', { text: m.icon }));
+  const face = m => (m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : momentGlyph(m.icon));
   const tell = (m, label) => {
     why.hidden = !m;
     // The words on one line, the chance's move under them (the owner,
@@ -1916,7 +1916,7 @@ function raceChanceCard(line, ss, feed = null) {
   const open = ss.status.state === 'in' ? bands.find(b => b.i1 >= last) : null;
   const tell = (m, label) => {
     why.hidden = !m;
-    if (m) put(why, el('span', { class: 'wp-why-icon' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('span', { class: 'wp-why-text' }, momentWords(m.band && m.driver ? `${m.icon} ${m.text}` : m.text, label)), gainChip(m));
+    if (m) put(why, el('span', { class: 'wp-why-icon' }, [m.band && !m.driver ? momentGlyph(m.icon) : face(m)]), el('span', { class: 'wp-why-text' }, momentWords(m.text, label)), gainChip(m));
   };
   const show = (j, picked) => {
     // A moment picked from the list: that one; a finger close to a stop or a lead (the closest): on it.
@@ -1943,7 +1943,7 @@ function raceChanceCard(line, ss, feed = null) {
   };
   const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${shade}${grid}${paths}</svg>` }), ...pins, rule]);
   const strip = tags.length ? el('div', { class: 'rc-band-tags', 'aria-hidden': 'true' }, tags) : null;
-  const rows = moments.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? el('span', { text: m.icon }) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text' }, momentWords(m.band && m.driver ? `${m.icon} ${m.text}` : m.text))]), gainChip(m)])]));
+  const rows = moments.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? momentGlyph(m.icon) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text' }, momentWords(m.text))]), gainChip(m)])]));
   show();
   const list = moments.length
     ? el('div', { class: 'wp-moments' }, [el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }), ...rows])
@@ -4008,6 +4008,24 @@ function nextRaceCard(e, en) {
         )
       : el('small', { class: 'muted num', text: whenText(race.start) })
   ]);
+}
+// A moment's sign where it has no face or badge, drawn (an emoji in the
+// list looked out of place: the owner, 2026-10-18): play stopped, VAR, a red
+// card or flag, a safety car, the chequered flag, out, a pit stop, a ball.
+const GLYPHS = {
+  '⏸': ['pause', '<rect x="7" y="5.5" width="3.6" height="13" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.4" y="5.5" width="3.6" height="13" rx="1.2" fill="currentColor" stroke="none"/>'],
+  '📺': ['var', '<rect x="3.5" y="5" width="17" height="11.5" rx="2.2"/><path d="M9 20h6M12 16.5V20"/>'],
+  '🟥': ['red', '<rect x="7" y="4" width="10" height="16" rx="2" fill="currentColor" stroke="none" transform="rotate(8 12 12)"/>'],
+  '🚨': ['sc', '<path d="M6 17a6 6 0 0 1 12 0"/><path d="M4 17h16v3H4z"/><path d="M12 5V3M5.5 7.5 4 6M18.5 7.5 20 6"/>'],
+  '🏁': ['finish', '<path d="M5 21V4"/><path d="M5 4h13v9H5"/><path d="M5 8.5h13M9.3 4v9M13.6 4v9" stroke-width="1.4"/>'],
+  '❌': ['out', '<circle cx="12" cy="12" r="8.5"/><path d="M9 9l6 6M15 9l-6 6"/>'],
+  '🔧': ['pit', '<path d="M14.5 4.5a4 4 0 0 0-4.9 5.2L4 15.3 6.7 18l5.6-5.6a4 4 0 0 0 5.2-4.9l-2.3 2.3-2.4-.6-.6-2.4z"/>']
+};
+function momentGlyph(icon) {
+  const [kind, draw] = GLYPHS[icon] || ['ball', '<circle cx="12" cy="12" r="8"/><path d="M12 8.2l3.4 2.5-1.3 4h-4.2l-1.3-4z" fill="currentColor" stroke="none"/>'];
+  const g = el('span', { class: `wp-glyph ${kind}`, 'aria-hidden': 'true' });
+  g.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${draw}</svg>`;
+  return g;
 }
 // A league's table with what's over that it hasn't counted yet (title.mjs
 // liveTable; F1: a race at F1's flag): every page with a table on it (a

@@ -177,3 +177,20 @@ test("a goal ruled out by VAR is told so, from the commentary (Leeds v Palace 52
   assert.match(m.text, /Mitchell 進球經 VAR 判定無效/);
   assert.equal(m.i, 5, 'on the spike');
 });
+
+test("a stoppage the minute of a goal isn't given the goal's swing (Brentford v Liverpool 64': Muñoz's 1–1, then an injury)", async () => {
+  const { eventMoments } = await import('../public/lib/moments.mjs');
+  // Every minute; the goal at minute 10 moves Liverpool (away) from 30% to 57%, the stop 20 s after it.
+  const t0 = 0;
+  const pts = Array.from({ length: 30 }, (_, k) => ({ t: t0 + k * 60, home: k < 11 ? 0.4 : 0.2, draw: k < 11 ? 0.3 : 0.25 }));
+  const goal = { t: 600, kind: 'goal', play: { team: '364', who: 'V. Muñoz', kind: 'goal' } };
+  const stop = { t: 620, kind: 'stop', play: { text: 'Delay in match because of an injury' } };
+  const side = { home: { id: '337', name: '布倫特福德' }, away: { id: '364', name: '利物浦' }, en: false };
+  const found = eventMoments(pts, [goal, stop], 'soccer', side, pts.map(p => p.t));
+  assert.equal(found.length, 1, 'the goal only');
+  assert.match(found[0].text, /Muñoz/);
+  // A stop on its own still tells what it did.
+  const moved = pts.map((p, k) => (k >= 22 ? { ...p, home: 0.05 } : p));
+  const alone = eventMoments(moved, [goal, { ...stop, t: 1260 }], 'soccer', side, moved.map(p => p.t));
+  assert.ok(alone.some(m => m.text === '球員受傷，比賽暫停'));
+});
