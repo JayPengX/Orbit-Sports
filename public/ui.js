@@ -213,8 +213,10 @@ export function leagueMark(key, cls = 'lg-mark') {
   return el('span', { class: `league-badge ${cls}` }, [logoPicture(leagueLogo(key), null, 'league-img', icon)]);
 }
 export const leagueChip = (key, short = false) => el('span', { class: 'league-tag' }, [leagueMark(key), el('span', { text: short ? shortLeague(key) : leagueName(key, ctx.locale) })]);
-// A row's narrow column: a league known by its letters by them alone (MLB, not MLB 美國職棒).
-const shortLeague = key => /^([A-Za-z0-9]+) [^\x00-\x7f]/.exec(leagueName(key, ctx.locale))?.[1] || leagueName(key, ctx.locale);
+// A row's narrow column: a league known by its letters by them alone (MLB, not MLB 美國職棒);
+// in English, by the letters fans use (Premier League and Bundesliga wrapped there).
+const SHORT_EN = { epl: 'EPL', bundesliga: 'Bundes.', seriea: 'Serie A', ligue1: 'Ligue 1', ucl: 'UCL', uel: 'UEL', uecl: 'UECL', facup: 'FA Cup', scotland: 'SPFL', nationsleague: 'UNL', f1: 'F1' };
+const shortLeague = key => (ctx.locale === 'en' && SHORT_EN[key]) || /^([A-Za-z0-9]+) [^\x00-\x7f]/.exec(leagueName(key, ctx.locale))?.[1] || leagueName(key, ctx.locale);
 // An event's competition: its league, or (a friendly, a cup Orbit Sports doesn't have) its own name.
 const compChip = e => (e.other ? el('span', { class: 'league-tag other' }, [el('span', { text: otherName(e.other, ctx.locale === 'en') })]) : leagueChip(e.league, true));
 

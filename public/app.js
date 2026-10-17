@@ -1461,6 +1461,20 @@ async function sportDays(sport) {
   return days;
 }
 
+// A sport's leagues in one line: 英超、歐冠、德甲、義甲 等 13 個聯賽; in
+// English (wider words) as many short names as fit 24 letters, then +N
+// ("Serie and 9 more" cut to "Serie a…" on a phone).
+function sportNames(all) {
+  if (locale !== 'en') return all.slice(0, 4).map(x => leagueName(x, locale).replace(/\s.*$/, '')).join('、') + (all.length > 4 ? ` 等 ${all.length} 個聯賽` : '');
+  const short = all.map(x => leagueName(x, 'en').replace(/ League$/, ''));
+  const shown = [];
+  for (const name of short) {
+    if (shown.length && [...shown, name].join(', ').length > 24) break;
+    shown.push(name);
+  }
+  return shown.join(', ') + (short.length > shown.length ? ` +${short.length - shown.length}` : '');
+}
+
 // First run: the sports, tapped in order of priority, drawn like 追蹤's
 // suggestions: each a card with its leagues' marks and names, + turning into
 // its place in the order once tapped; 完成 when there's one.
@@ -1476,7 +1490,7 @@ function sportPicker() {
         .map(([k, sp]) => {
           const i = mine.indexOf(k);
           const all = leaguesOf(k).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top));
-          const names = all.slice(0, 4).map(x => leagueName(x, locale).replace(/\s.*$/, '')).join(locale === 'en' ? ', ' : '、') + (all.length > 4 ? L({ zh: ` 等 ${all.length} 個聯賽`, en: ` and ${all.length - 4} more` }) : '');
+          const names = sportNames(all);
           return el('button', { class: `suggest sport-tile${i >= 0 ? ' on' : ''}`, type: 'button', 'aria-pressed': String(i >= 0), onclick: () => toggleSport(k) }, [
             el('span', { class: 'sport-marks' }, all.slice(0, 3).map(x => leagueMark(x))),
             el('span', { class: 'suggest-name' }, [el('strong', { text: L(sp) }), el('small', { class: 'muted', text: names })]),
