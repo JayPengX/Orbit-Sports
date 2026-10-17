@@ -16,6 +16,9 @@ test('soccer: halves marked and read with the minute as the broadcast counts it 
   assert.equal(stampAt(s.timeline, 'soccer', kick + 50 * 60, false), '中場休息');
   assert.equal(stampAt(s.timeline, 'soccer', second + 22 * 60, true), "2nd half 68'");
   assert.equal(stampAt(s.timeline, 'soccer', second + 60 * 60, true), 'Full time');
+  // After a stoppage (ESPN's end-delay), the minute still told, added time too (the owner, 2026-10-17).
+  assert.equal(stampAt(s.timeline, 'soccer', second + 25 * 60, true), "2nd half 71'");
+  assert.equal(stampAt(s.timeline, 'soccer', second + 47 * 60, true), "2nd half 90+3'");
   const pts = Array.from({ length: 60 }, (_, i) => ({
     t: kick + i * 120,
     home: 0.5

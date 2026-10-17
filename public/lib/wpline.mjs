@@ -209,7 +209,10 @@ export function stampAt(timeline, sport, t, en) {
     if (!at || rank(e) >= rank(at)) at = e;
   }
   if (!at) return en ? 'Before the start' : '開賽前';
-  const minute = sport === 'soccer' && !/halftime|end-/.test(at.type || '') ? soccerMinute(timeline, at.n, t) : '';
+  // No minute once a half's over (half time, full time); play stopped and
+  // restarted (ESPN's end-delay) still counts (the owner, 2026-10-17: after
+  // a stoppage the hover lost its minute, 45+2' and all).
+  const minute = sport === 'soccer' && at.type !== 'halftime' && !END.has(at.type) ? soccerMinute(timeline, at.n, t) : '';
   return minute ? `${label(sport, at, en)} ${minute}` : label(sport, at, en);
 }
 // A soccer game's minute at t, as the broadcast counts it: from its half's
