@@ -1280,7 +1280,9 @@ const diamondLines = lit =>
     [50, 48],
     [31, 67]
   ].map(([x, y], i) => `<rect x="${x - 2.2}" y="${y - 2.2}" width="4.4" height="4.4" transform="rotate(45 ${x} ${y})" fill="${lit[i] ? 'var(--accent)' : 'var(--q-surface)'}" stroke="${lit[i] ? 'var(--accent)' : 'currentColor'}"/>`).join('')}<path d="M48 85h4l0 2-2 2-2-2z" fill="var(--q-surface)"/></svg>`;
-// The substitutions so far, each side's in order: the minute, who came on (green ↑) and who went off (red ↓); a red card too.
+// The substitutions so far, each side's in order: the minute, then who came
+// on over who went off, each face with its mark (a green ↑, a red ↓, as on
+// the pitch); a red card the same way, its card on the face.
 function subsList(sides, tag, league) {
   const en = L() === 'en';
   const parts = sides
@@ -1288,12 +1290,18 @@ function subsList(sides, tag, league) {
       const all = [...s.on, ...s.off];
       const byId = new Map(all.map(p => [p.id, p]));
       const minute = t => parseInt(t, 10) || 0;
-      // Each one with his face, a tap to his page.
-      const face = p => [personPic({ ...p, en: p.name }, league, 'xs round'), el('span', { text: p.short || p.name })];
-      const who = p => (p?.id ? el('button', { class: 'link sub-who', type: 'button', onclick: () => ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, face(p)) : p?.name ? el('span', { class: 'sub-who' }, face(p)) : '');
+      // One person: his face with its mark, his name; a tap to his page.
+      const who = (p, kind, note = '') => {
+        if (!p?.name) return null;
+        const badge = kind === 'sent' ? el('span', { class: 'sub-badge sent', 'aria-hidden': 'true' }) : el('span', { class: `sub-badge ${kind}`, 'aria-hidden': 'true', text: kind === 'in' ? '↑' : '↓' });
+        const kids = [el('span', { class: 'sub-face' }, [personPic({ ...p, en: p.name }, league, 'xs round'), badge]), el('span', { class: 'sub-name', text: p.short || p.name }), note ? el('span', { class: 'sub-note', text: note }) : null];
+        const label = `${p.name}${kind === 'in' ? (en ? ', on' : '，上場') : kind === 'out' ? (en ? ', off' : '，下場') : en ? ', sent off' : '，紅牌'}`;
+        return p.id ? el('button', { class: `link sub-who ${kind}`, type: 'button', 'aria-label': label, onclick: () => ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, kids) : el('span', { class: `sub-who ${kind}`, 'aria-label': label }, kids);
+      };
+      const row = (at, people) => el('li', {}, [el('span', { class: 'num sub-at', text: at }), el('span', { class: 'sub-swap' }, people)]);
       const rows = [
-        ...all.filter(p => p.subbedIn).map(p => ({ at: p.subAt, li: el('li', {}, [el('span', { class: 'num sub-at', text: p.subAt }), el('span', { class: 'sub-pair' }, [el('span', { class: 'nb' }, [el('b', { class: 'arrow-in', text: '↑ ' }), who(p)]), byId.get(p.inFor) ? el('span', { class: 'nb' }, [el('b', { class: 'arrow-out', text: '↓ ' }), who(byId.get(p.inFor))]) : null])]) })),
-        ...all.filter(p => p.sentOff).map(p => ({ at: p.sentAt, li: el('li', {}, [el('span', { class: 'num sub-at', text: p.sentAt }), el('span', { class: 'sub-pair' }, [el('span', { class: 'nb' }, [el('b', { class: 'card-red', 'aria-hidden': 'true' }), ' ', who(p), ` · ${en ? 'sent off' : '紅牌'}`])])]) }))
+        ...all.filter(p => p.subbedIn).map(p => ({ at: p.subAt, li: row(p.subAt, [who(p, 'in'), who(byId.get(p.inFor), 'out')]) })),
+        ...all.filter(p => p.sentOff).map(p => ({ at: p.sentAt, li: row(p.sentAt, [who(p, 'sent', en ? 'Sent off' : '紅牌')]) }))
       ].sort((a, b) => minute(a.at) - minute(b.at));
       return rows.length ? el('div', {}, [el('p', { class: 'mini-h' }, [tag(s.team)]), el('ul', { class: 'subs-list' }, rows.map(r => r.li))]) : null;
     })
