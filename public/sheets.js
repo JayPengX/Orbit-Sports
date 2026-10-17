@@ -1516,7 +1516,7 @@ function winProbCard(line, e, timeline, events = []) {
   const momentAt = m => {
     const [a, b] = m.periods || [];
     // 第2–3節, 2–3局 (one word for both ends).
-    const when = a && b && b > a ? (en ? `${periodName(sport, a, en)}–${periodName(sport, b, en)}` : `${periodName(sport, a, en).replace(/[節局]$/, '')}–${periodName(sport, b, en).replace(/^第/, '')}`) : pointStamp(timeline, sport, pts[m.i], en);
+    const when = a && b && b > a ? (en ? `${periodName(sport, a, en)}–${periodName(sport, b, en)}` : `${periodName(sport, a, en).replace(/[節局]$/, '')}–${periodName(sport, b, en).replace(/^第/, '')}`) : pointStamp(timeline, sport, m.t != null ? { ...pts[m.i], t: m.t } : pts[m.i], en);
     const score = scoreAt(pts, m.i, events, e.home.id);
     return [when, lateClock(sport, pts[m.i]), score ? `${score[0]}–${score[1]}` : ''].filter(Boolean).join(' · ');
   };
@@ -1555,7 +1555,8 @@ function winProbCard(line, e, timeline, events = []) {
   // side's above, the away side's below the draw), not in the draw's middle.
   const pinY = m => (m.delta >= 0 ? pts[m.i].home : pts[m.i].home + (pts[m.i].draw ?? 0));
   const dotted = [];
-  for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
+  // (A soccer game's goals and red cards always: Ipswich–Man City's five goals moved a favourite's price little, and none had a dot.)
+  for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned || (m.always && sport === 'soccer')).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
   const show = (j, picked) => {
     // A moment picked from the list: that one; a finger close to one: on it.
     const m = picked || (j != null ? near(j) : null);

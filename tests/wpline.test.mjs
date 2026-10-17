@@ -230,6 +230,33 @@ test("a VAR check keeps to its own move, and says what it decided (Mac Allister'
   assert.ok(Math.abs(v.delta - 0.15) < 1e-9, 'its own move (30% to 45%), not the goal\'s');
 });
 
+test("a penalty given then taken away by VAR: the check is the spike's way back, Brentford's (Liverpool, 41')", async () => {
+  const { eventMoments } = await import('../public/lib/moments.mjs');
+  // Every minute: the penalty to Liverpool (away) drops Brentford from 30% to 12% at minute 9, VAR takes it away at minute 11 (back to 30%), Brentford score at minute 15.
+  const pts = Array.from({ length: 30 }, (_, k) => ({ t: k * 60, home: k >= 9 && k < 11 ? 0.12 : k < 16 ? 0.3 : 0.5, draw: 0.3 }));
+  const check = { t: 600, kind: 'var', play: { kind: 'var---referee-decision-cancelled', type: 'VAR - Referee decision cancelled', text: 'VAR Decision: No Penalty Liverpool.', team: '364', who: 'A. Mac Allister' } };
+  const goal = { t: 900, kind: 'score', play: { kind: 'goal---header', team: '337', who: 'K. Lewis-Potter' } };
+  const side = { home: { id: '337', name: '布倫特福德' }, away: { id: '364', name: '利物浦' }, en: false };
+  const v = eventMoments(pts, [check, goal], 'soccer', side, pts.map(p => p.t)).find(m => m.icon === '📺');
+  assert.ok(v, 'the spike explained');
+  assert.equal(v.side, 'home');
+  assert.ok(Math.abs(v.delta - 0.18) < 1e-9, 'from the top of the spike back down');
+});
+
+test("two goals two minutes apart: each its own swing, never the other's (Foden 19', Maeda 21')", async () => {
+  const { eventMoments } = await import('../public/lib/moments.mjs');
+  // Every minute: City (home) 70%; Foden at 19' (88% from 20'), Maeda at 21' (72% from 22').
+  const pts = Array.from({ length: 40 }, (_, k) => ({ t: k * 60, home: k < 20 ? 0.7 : k < 22 ? 0.88 : 0.72, draw: 0.18 }));
+  const foden = { t: 19 * 60 + 10, kind: 'score', play: { kind: 'goal', team: '382', who: 'P. Foden', home: 1, away: 0 } };
+  const maeda = { t: 21 * 60 + 45, kind: 'score', play: { kind: 'goal', team: '373', who: 'D. Maeda', home: 1, away: 1 } };
+  const side = { home: { id: '382', name: '曼城' }, away: { id: '373', name: '伊普斯維奇' }, en: false };
+  const [f, m] = eventMoments(pts, [foden, maeda], 'soccer', side, pts.map(p => p.t));
+  assert.ok(Math.abs(f.delta - 0.18) < 1e-9, "Foden's: City +18%");
+  assert.ok(Math.abs(m.delta + 0.16) < 1e-9, "Maeda's: Ipswich +16%");
+  assert.ok(f.i < m.i, 'each dot on its own step');
+  assert.equal(f.t, foden.t, 'said at its own minute');
+});
+
 test("過程 and the key moments say what VAR decided, in plain words (every phrasing ESPN used, 2026-10)", async () => {
   const { varDecision, soccerLineZh } = await import('../public/lib/moments.mjs');
   assert.equal(varDecision('VAR Decision: No Penalty Liverpool.', '利物浦', { long: true }), 'VAR：取消利物浦的 12 碼罰球');

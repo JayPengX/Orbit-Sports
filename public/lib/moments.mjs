@@ -389,10 +389,22 @@ export function eventMoments(points, events, sport, side, times) {
     else merged.push(ev);
   }
   events = merged;
+  // A goal's, a card's own swing: from a minute before it to five after, but
+  // not into another's (Foden's 1–0 at 19' and Maeda's 1–1 at 21': each took
+  // the other's in, Ipswich +1% on both, and neither was dotted). Another
+  // just before: from this one's own moment (its prices move a minute or
+  // two after); another just after: up to that one's moment.
+  const told = o => ['score', 'red', 'miss'].includes(o.kind) || (o.kind === 'var' && o.play.kind === 'deleted-after-review');
+  const span = ev => {
+    const t0 = Math.min(ev.t, from.get(ev) ?? Infinity);
+    const prev = events.filter(o => o !== ev && told(o) && o.t < t0 && t0 - o.t < 300).at(-1);
+    const next = events.find(o => o !== ev && told(o) && o.t > ev.t && o.t - ev.t < 300);
+    return [at(prev ? t0 : t0 - 60), at(next ? next.t : ev.t + 300)];
+  };
   const found = events
     .filter(ev => ev.t >= times[0] && ev.t <= times.at(-1) + 300)
     .map(ev => {
-      const [i0, i1] = [at(Math.min(ev.t, from.get(ev) ?? Infinity) - 60), at(ev.t + 300)];
+      const [i0, i1] = ev.kind === 'stop' || ev.kind === 'var' ? [at(Math.min(ev.t, from.get(ev) ?? Infinity) - 60), at(ev.t + 300)] : span(ev);
       // Play stopped: what the prices did meanwhile, their furthest from
       // before (a check waved off comes back: a spike, not a step), there.
       // A VAR decision too: the goal's swing, then back when it's ruled out.
@@ -417,10 +429,15 @@ export function eventMoments(points, events, sport, side, times) {
         // A check: who it helped, by where the prices settled (a penalty
         // taken from Liverpool helps Brentford, whoever ESPN names on it);
         // a goal ruled out, its spike (the goal's swing, then back).
+        // A check that undid what the referee gave (a penalty to Liverpool,
+        // its spike, then "No Penalty"): the decision's own move, from the
+        // spike's top back down (the net was nothing, and the spike went
+        // unexplained, the owner 2026-10-18). One that gave: up to the top.
         if (ev.kind === 'var') {
           const ruledOut = ev.play.kind === 'deleted-after-review';
-          const net = ruledOut ? delta : value(points[z]) - value(points[a]);
-          return { i: k, delta: net, side: net >= 0 ? 'home' : 'away', icon: '📺', text: varText(ev.play, side.en), always: ruledOut, pic: ev.play.pic, team: ev.play.team };
+          const [rise, back] = [value(points[k]) - value(points[a]), value(points[z]) - value(points[k])];
+          const net = ruledOut ? delta : Math.abs(back) >= Math.abs(rise) / 2 ? back : rise;
+          return { i: k, t: ev.t, delta: net, side: net >= 0 ? 'home' : 'away', icon: '📺', text: varText(ev.play, side.en), always: ruledOut, pic: ev.play.pic, team: ev.play.team };
         }
         const text = /injury/i.test(ev.play.text || '') ? (side.en ? 'Play stopped for an injury' : '球員受傷，比賽暫停') : side.en ? 'Play stopped' : '比賽暫停';
         return { i: k, delta, side: mover, icon: '⏸', text, always: false };
@@ -429,7 +446,7 @@ export function eventMoments(points, events, sport, side, times) {
       // On the line's step: the first point after it with half the swing
       // made (the prices move a minute or two after the goal), so the dot
       // sits where the line jumps, not before it (the owner, 2026-10-16).
-      let i = Math.min(points.length - 1, at(ev.t) + 1);
+      let i = Math.max(i0, Math.min(points.length - 1, at(ev.t) + 1, i1));
       for (let k = i; k <= i1; k++) {
         if (Math.abs(value(points[k]) - value(points[i0])) >= Math.abs(delta) / 2) {
           i = k;
@@ -439,7 +456,7 @@ export function eventMoments(points, events, sport, side, times) {
       const mover = ev.play.team ? (String(ev.play.team) === String(side.home.id) ? 'home' : 'away') : delta >= 0 ? 'home' : 'away';
       const icon = ev.kind === 'red' ? '🟥' : ev.kind === 'miss' ? '❌' : ICON[sport] || '•';
       const text = ev.kind === 'miss' ? (side.en ? `${ev.play.who || ''} misses a penalty`.trim() : `${ev.play.who || ''} 12 碼罰球未進`.trim()) : playText(sport, { ...ev.play, kind: ev.kind }, side.en, teamName(ev.play.team, side));
-      return { i, delta, side: mover, icon, text, always: sport === 'soccer' && ev.kind !== 'miss', pic: ev.play.pic, team: ev.play.team };
+      return { i, t: ev.t, delta, side: mover, icon, text, always: sport === 'soccer' && ev.kind !== 'miss', pic: ev.play.pic, team: ev.play.team };
     })
     .filter(m => m.always || Math.abs(m.delta) >= 0.08);
   return biggest(found);
