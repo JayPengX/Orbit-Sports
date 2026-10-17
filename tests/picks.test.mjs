@@ -147,3 +147,15 @@ test('clash: a baseball game at 08:00 and a basketball game at 10:30 are both wa
   assert.equal(clash(g('mlb', '2026-10-17T00:00:00Z'), g('nba', '2026-10-17T02:30:00Z')), false);
   assert.equal(clash(g('mlb', '2026-10-17T00:00:00Z'), g('nba', '2026-10-17T01:30:00Z')), true);
 });
+
+test('the day as it stood keeps a postponed pick and an ended one (they don’t vanish from 已結束的推薦)', () => {
+  const ctx = { leagues: ['mlb'], now: NOW };
+  const events = [
+    match('mlb', 'pp', 0, side('1', 'Rays'), side('2', 'Guardians'), { status: { state: 'post', void: true, name: 'STATUS_POSTPONED' } }),
+    match('mlb', 'f', 4, side('3', 'Mets'), side('4', 'Braves'), { status: { state: 'post', completed: true } })
+  ];
+  assert.equal(dayPlan(events, ctx).plan.length, 0, 'ahead: neither is a pick');
+  const { plan } = dayPlan(events, ctx, { asStood: true });
+  assert.deepEqual(plan.map(p => p.event.id), ['pp', 'f']);
+  assert.equal(plan[0].event.status.void, true, 'shown as it is now: postponed');
+});

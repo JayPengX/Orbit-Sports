@@ -883,7 +883,7 @@ const PICKED = { zh: '今日推薦', en: 'Today’s pick' };
 const startLine = (e, pick = false) => [leagueName(e.league, locale), pick ? L(PICKED) : ''].filter(Boolean).join(' · ');
 // Who won, for the final's notice: "Yankees 贏了", or a draw.
 function resultLine(e) {
-  if (e.status?.void) return L({ zh: '比賽取消', en: 'Canceled' });
+  if (e.status?.void) return /POSTPONED/.test(e.status.name || '') ? L({ zh: '比賽延期', en: 'Postponed' }) : L({ zh: '比賽取消', en: 'Canceled' });
   const [a, h] = [Number(e.away.score), Number(e.home.score)];
   if (!Number.isFinite(a) || !Number.isFinite(h)) return L({ zh: '比賽結束', en: 'Final' });
   if (a === h) return L({ zh: '平手', en: 'Draw' });
@@ -952,7 +952,7 @@ function pickCard(item, n) {
   const series = seriesText(e);
   return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => openEvent(e) }, [
     el('div', { class: 'pick-time' }, [
-      el('strong', { class: 'num', text: e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : timeText(e) }),
+      el('strong', { class: 'num', text: e.status.void ? t('postponed') : e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : timeText(e) }),
       // Under the time: what's on now, or how long until it starts (within the day); not 「第一場」, which was every first card's.
       el('small', { text: e.status.state === 'in' ? statusText(e) : e.status.state === 'pre' && !e.timeTbd ? untilText(shownStart(e)) : '' })
     ]),
@@ -963,7 +963,7 @@ function pickCard(item, n) {
       liveLine(e),
       e.league === 'f1' && e.status.state === 'in' ? f1Brief(e) : e.kind !== 'match' && e.status.state === 'in' && fieldNow(e) ? el('small', { class: 'live-line', text: fieldNow(e) }) : podium(e),
       reasons.length ? el('div', { class: 'why-row' }, reasons.map(r => el('span', { class: 'why', text: r }))) : null,
-      e.status.state === 'post' ? replayChips(e) : twChips(e.league, 2, e)
+      e.status.void ? null : e.status.state === 'post' ? replayChips(e) : twChips(e.league, 2, e)
     ])
   ]);
 }
@@ -1162,14 +1162,10 @@ function renderHome() {
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
   const rank = (list, also = 999, ctx = pctx, before = past) => {
-    const asBefore = l => (before ? l.map(e => ({ ...e, status: { ...e.status, state: 'pre' } })) : l);
-    const { plan, also: awake } = dayPlan(asBefore(list.filter(e => !nightOnly(e))), ctx, { n: 6, also });
+    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also, asStood: before });
     // The small hours' big games: with the rest, by their score.
-    const { also: night } = dayPlan(asBefore(list.filter(nightOnly)), ctx, { n: 0, also });
-    const rest = [...awake, ...night].sort((x, y) => y.score - x.score).slice(0, also);
-    const real = new Map(list.map(e => [`${e.league}:${e.id}`, e]));
-    const fix = items => items.map(x => ({ ...x, event: real.get(`${x.event.league}:${x.event.id}`) || x.event }));
-    return [fix(plan), fix(rest)];
+    const { also: night } = dayPlan(list.filter(nightOnly), ctx, { n: 0, also, asStood: before });
+    return [plan, [...awake, ...night].sort((x, y) => y.score - x.score).slice(0, also)];
   };
   // Only what's on TV in Taiwan is recommended (賽事 has every game), a game
   // over too: a result is among the picks only if it was on. Only where it
@@ -1219,8 +1215,9 @@ function renderHome() {
   const isToday = h.date === today() && !todayOver;
   // Today's picks that have ended (the picks only look ahead): the day
   // ranked as it stood before, as on a past day, and what of it was on
-  // show (the plan and the first of the rest) that's over now.
-  const ended = x => x.event.status.state === 'post' && !x.event.status.void;
+  // show (the plan and the first of the rest) that's over now, or called
+  // off (延期: still there, said so, not gone without a word).
+  const ended = x => x.event.status.state === 'post' || x.event.status.void;
   // (Theirs as it stood is also what their picks' finals are said for.)
   const ownWas = isToday ? rank(filtered(mine), 999, pctx, true) : [[], []];
   const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] }, true) : ownWas) : [[], []];

@@ -75,10 +75,12 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
   the lists below.
 - **今日推薦.** A no-clash plan of the best games (§Today's picks), each
   with its reasons. Then 更多推薦: the rest in order ("show more").
+- **已結束的推薦.** Today's picks as they stood that are over, with their
+  results, and any called off (延期 in place of the time; never just gone).
 - **Followed teams that play today**, with that game.
 - **When the day is over.** Today with every game over is shown as a past
-  day: its picks as they stood, with the results. A past day shows its
-  picks the same way.
+  day: its picks as they stood, with the results (a postponed one says
+  延期). A past day shows its picks the same way.
 - **Nothing on TV that day.** It says why (past ELTA's list, only the
   NBA's and MLS's games are known) and links to 賽事.
 - **The small hours.** A day of picks is 05:00 to midnight. A game between

@@ -181,15 +181,18 @@ export function clash(x, y) {
 }
 
 // events: the day's (any league); returns { plan: [...by start], also: [...by score] },
-// each { event, score, reasons }.
-export function dayPlan(events, ctx = {}, { n = 6, also = 6 } = {}) {
+// each { event, score, reasons }. asStood: the day ranked as it stood before
+// any of it was played, each game as it is now: an ended one and a postponed
+// one too (a pick called off stays among the picks that ended, never gone).
+export function dayPlan(events, ctx = {}, { n = 6, also = 6, asStood = false } = {}) {
   const now = ctx.now ?? Date.now();
   const seen = new Set();
+  const before = e => ({ ...e, status: { ...e.status, state: 'pre', void: false } });
   const scored = events
-    .filter(e => !e.status?.void && e.status?.state !== 'post' && !seen.has(`${e.league}:${e.id}`) && seen.add(`${e.league}:${e.id}`))
+    .filter(e => (asStood || (!e.status?.void && e.status?.state !== 'post')) && !seen.has(`${e.league}:${e.id}`) && seen.add(`${e.league}:${e.id}`))
     // A live one only while it still has time to go.
-    .filter(e => e.status?.state !== 'in' || window(e)[1] > now - 30 * 60_000)
-    .map(e => ({ event: e, ...scoreMatch(e, ctx) }))
+    .filter(e => asStood || e.status?.state !== 'in' || window(e)[1] > now - 30 * 60_000)
+    .map(e => ({ event: e, ...scoreMatch(asStood ? before(e) : e, ctx) }))
     .sort((x, y) => y.score - x.score);
   const plan = [];
   const rest = [];
