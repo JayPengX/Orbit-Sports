@@ -420,3 +420,13 @@ test("statName: a pitcher's H, R and HR are the ones he gave up; ESPN's \"2026 P
   assert.equal(statsTitle('2026 Batting'), '2026 打擊數據');
   assert.equal(statsTitle('2026 Pitching', 'en'), '2026 Pitching');
 });
+
+test('近況 is the five in the competition it is opened from: a cup game left out (Hull, Fulham 2026-10-17)', async () => {
+  const { leagueForm, resultFor } = await import('../public/lib/espn.mjs');
+  const g = (league, day, hs, as, home = '1', away = '2') => ({ league, start: `2026-09-${String(day).padStart(2, '0')}T14:00Z`, status: { state: 'post' }, home: { id: home, score: String(hs) }, away: { id: away, score: String(as) } });
+  const games = [g('eng.1', 1, 1, 0), g('eng.1', 5, 0, 0), g('eng.league_cup', 8, 0, 1), g('eng.1', 12, 2, 2), g('eng.1', 19, 1, 2), g('eng.1', 25, 2, 2), g('eng.1', 30, 0, 0, '3', '4')];
+  const form = leagueForm(games, '1', 'eng.1');
+  assert.deepEqual(form.map(x => resultFor(x, '1')), ['W', 'D', 'D', 'L', 'D']);
+  assert.equal(leagueForm(games, '1', 'eng.1', Date.parse('2026-09-20T00:00Z')).length, 4, 'only what came before the game');
+  assert.equal(leagueForm(games, '1', 'eng.league_cup'), null, 'under three there: the caller’s every-competition form');
+});

@@ -588,6 +588,24 @@ export async function seasonEvents(league, now = Date.now()) {
   return events.length ? events : scoreboard(league);
 }
 
+// ---- A team's form (近況) --------------------------------------------------------
+
+// A game's result for one side: 'W', 'D' or 'L'.
+export function resultFor(x, id) {
+  const [me, them] = x.home.id === String(id) ? [x.home, x.away] : [x.away, x.home];
+  return me.winner ? 'W' : them.winner ? 'L' : Number(me.score) === Number(them.score) && me.score !== '' ? 'D' : Number(me.score) > Number(them.score) ? 'W' : 'L';
+}
+// Its last five in the competition it's opened from (the owner, 2026-10-16:
+// Man City's five league wins read as 勝勝勝勝敗 with a Champions League loss
+// among them), wherever it's shown: the team card and 兩隊比較. games: any
+// list with the team's (its schedule, the league's season); before: a game's
+// start, only what came before it. Null under three games there yet: the
+// caller's every-competition form then.
+export function leagueForm(games, id, league, before = Infinity) {
+  const list = (games || []).filter(x => x.league === league && x.home && x.away && (x.home.id === String(id) || x.away.id === String(id)) && x.status?.state === 'post' && !x.status.void && Date.parse(x.start) < before);
+  return list.length >= 3 ? list.slice(-5) : null;
+}
+
 // ---- A football league's matchweek (第 N 輪) ----------------------------------------
 //
 // ESPN gives none: a match's week is one more than the most league games

@@ -13,7 +13,7 @@ import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAff
 import { stripDays } from './lib/strip.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -2608,7 +2608,8 @@ function teamCard(f) {
     el('button', { class: 'tf-team', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [
       logo(f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), f.name, 'tf-logo'),
       el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: sub })]),
-      played.length ? el('span', { class: 'form-pills' }, played.slice(-5).map(g => el('span', { class: `pill sm ${result(g)}`, text: word(result(g)) }))) : null
+      // Its form in the league named beside it, as on its page (leagueForm).
+      played.length ? el('span', { class: 'form-pills' }, (leagueForm(played, id, f.league) || played.slice(-5)).map(g => el('span', { class: `pill sm ${result(g)}`, text: word(result(g)) }))) : null
     ]),
     games === null ? el('small', { class: 'muted tf-wait', text: '…' }) : el('div', { class: 'tf-games' }, [line(next, L({ zh: '下一場', en: 'Next' })), line(last, L({ zh: '上一場', en: 'Last' }))]),
     next ? watchButton(next, 'wide') : null

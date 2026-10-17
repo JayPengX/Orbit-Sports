@@ -254,7 +254,10 @@ over, and for the race, each driver's chance to win.
 ### A team
 
 The page follows the leagues' own apps:
-- the hero (logo, name, record, place, form, follow);
+- the hero (logo, name, record, place, form, follow); the form (近況) is
+  the last five in the competition it's opened from (a cup game left out),
+  every competition's under three there yet. The same rule wherever a
+  team's form shows: 兩隊比較 in a game (before that game) and 追蹤's row;
 - a strip of its key numbers, and the next game as a card;
 - tabs: 賽程, 戰績, 陣容 (ESPN's leagues: ESPN's groups, else by
   position), 排名 (its part of the table, results counted in at once).

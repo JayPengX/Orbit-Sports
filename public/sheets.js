@@ -5,7 +5,7 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages } from './lib/espn.mjs';
+import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -106,6 +106,8 @@ export async function openMatch(e) {
   // prediction of its own.
   let line = null;
   let lineAt = 0;
+  // A soccer competition's season, for each side's form (loaded below).
+  let seasonGames = LEAGUES[e.league].espn && LEAGUES[e.league].sport === 'soccer' && e.kind === 'match' ? undefined : null;
   // What's still coming (the win chance cards wait in their shape, never a source standing in for another).
   const wait = { summary: !LEAGUES[e.league].espn, line: false };
   const loadLine = () => {
@@ -223,7 +225,7 @@ export async function openMatch(e) {
     if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     else if (view === 'table') view = 'overview';
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
-    const next = matchSection(view, data && { ...data, injuries: withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null }, e, table, { line, wait });
+    const next = matchSection(view, data && { ...data, injuries: withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames }, e, table, { line, wait });
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
     // chance chart, a finger on it) never leaves the page.
@@ -234,6 +236,16 @@ export async function openMatch(e) {
     if (content.firstElementChild?.classList.contains('stack')) content.firstElementChild.dataset.view = view;
     for (const f of game.subs) f();
   };
+  // A soccer competition's season (the pack 第 N 輪 already reads): each
+  // side's form in it for 兩隊比較. Null elsewhere (ESPN's last five are the
+  // league's own there); undefined while it's coming, the row held till then.
+  if (seasonGames === undefined)
+    seasonEvents(e.league)
+      .catch(() => null)
+      .then(list => {
+        seasonGames = list;
+        paint();
+      });
   // The league's table: both sides' places, and the Table section.
   if (hasStandings(e.league))
     standings(e.league)
@@ -983,7 +995,14 @@ function highlights(e, waited = false) {
 function overview(d, e, table, nameOf, { line = null, wait = { summary: true, line: true } } = {}) {
   const sides = [e.away, e.home];
   const places = sides.map(s => placeOf(table, s.id));
-  const forms = sides.map(s => d?.form.find(f => f.team === s.id)?.games || []);
+  // Each side's form in this game's competition, as on its team card opened
+  // from here (leagueForm): a soccer club's cup games left out once its
+  // season's in; ESPN's last five (every competition) under three there yet.
+  const forms = sides.map(s => {
+    const own = d?.seasonGames && leagueForm(d.seasonGames, s.id, e.league, Date.parse(e.start));
+    if (own) return own.map(x => ({ result: resultFor(x, s.id), opp: (x.home.id === String(s.id) ? x.away : x.home).short || '', score: `${x.away.score}-${x.home.score}` }));
+    return d?.seasonGames === undefined ? [] : d?.form.find(f => f.team === s.id)?.games || [];
+  });
   const sm = side => d?.byId?.[side.id] || side;
   const compareRows = [
     // The record: the feed's, else the table's wins and losses.
@@ -1342,7 +1361,8 @@ export const groupShort = name => {
 const placeCell = (p, grouped) => [T('placeN', { n: p.pos }), grouped && p.group ? groupShort(p.group) : ''];
 const cmpValue = v => (Array.isArray(v) ? el('strong', { class: 'cmp-val' }, [el('span', { class: 'num', text: v[0] }), v[1] ? el('small', { text: v[1] }) : null]) : el('strong', { class: 'cmp-val num', text: v }));
 const cmpTeam = (s, cls, league) => teamTap(s, league, `cmp-team ${cls}`, [sideLogo(s, league, 'sm'), el('span', { text: s.short || s.name })]);
-const formPills = games => el('div', { class: 'form-pills' }, games.slice(-5).map(g => el('span', { class: `pill ${g.result}`, title: `${g.opp} ${g.score}`, text: g.result })));
+// (勝和敗 in Chinese, as on the team card.)
+const formPills = games => el('div', { class: 'form-pills' }, games.slice(-5).map(g => el('span', { class: `pill ${g.result}`, title: `${g.opp} ${g.score}`, text: L() === 'en' ? g.result : { W: '勝', D: '和', L: '敗' }[g.result] || g.result })));
 
 // The game's win chance card: to come, each side's chance; on or over, the
 // chart. One source for a game, decided before it shows: ESPN's own, else
@@ -3659,17 +3679,12 @@ export async function openTeam(league, id, fallback = {}) {
     const place = placeOf(groups, id);
     // A club in several competitions: each game says which.
     const comps = new Set(sched.map(x => x.league)).size > 1;
-    const resultOf = x => {
-      const [me, them] = x.home.id === String(id) ? [x.home, x.away] : [x.away, x.home];
-      return me.winner ? 'W' : them.winner ? 'L' : Number(me.score) === Number(them.score) && me.score !== '' ? 'D' : Number(me.score) > Number(them.score) ? 'W' : 'L';
-    };
-    // Its form in the league it's opened from, as the record and place beside
-    // it are (the owner, 2026-10-16: Man City's five league wins read as
-    // 勝勝勝勝敗 with a Champions League loss among them); 戰績 below keeps
-    // every competition. A club opened from a cup, or with under three
-    // league games yet: all of them.
-    const inLeague = played.filter(x => x.league === league);
-    const formFrom = !outside && inLeague.length >= 3 ? inLeague : played;
+    const resultOf = x => resultFor(x, id);
+    // Its form in the competition it's opened from, as the record and place
+    // beside it are (leagueForm); 戰績 below keeps every competition. A club
+    // from outside our leagues, or with under three games there yet: all of them.
+    const inLeague = outside ? null : leagueForm(played, id, league);
+    const formFrom = inLeague || played;
     const form = formFrom.slice(-5).filter(x => x.home && x.away).map(resultOf);
     // Games played before the table's first are preseason ones, and so is ESPN's record then: said so.
     const pre = Boolean(groups?.length) && !groups.some(tableStarted) && played.length > 0;
