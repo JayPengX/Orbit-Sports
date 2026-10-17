@@ -430,3 +430,19 @@ test('近況 is the five in the competition it is opened from: a cup game left o
   assert.equal(leagueForm(games, '1', 'eng.1', Date.parse('2026-09-20T00:00Z')).length, 4, 'only what came before the game');
   assert.equal(leagueForm(games, '1', 'eng.league_cup'), null, 'under three there: the caller’s every-competition form');
 });
+
+test("a game brought to 'over' takes the newest record too, so the table counts it", async () => {
+  const { freshGame, noteLatest } = await import('../public/lib/espn.mjs');
+  const { liveTable } = await import('../public/lib/title.mjs');
+  // Liverpool at Brentford, 2026-10-17: held from while it was on (both 6 games in, records before it).
+  const side = (id, score, record, winner = false) => ({ id, name: id, score, record, winner });
+  const held = { id: '401879262', league: 'eng.1', kind: 'match', start: '2026-10-17T14:00Z', status: { state: 'in' }, away: side('364', '2', '2-3-1'), home: side('337', '1', '3-1-2') };
+  noteLatest([{ ...held, status: { state: 'post', completed: true }, away: side('364', '2', '3-3-1', true), home: side('337', '1', '3-1-3') }]);
+  const f = freshGame(held);
+  assert.equal(f.status.state, 'post');
+  assert.equal(f.away.record, '3-3-1');
+  const row = (id, GP, P) => ({ id, stats: { GP: String(GP), W: '0', D: '0', L: '0', P: String(P), GD: '0', F: '0', A: '0' } });
+  const table = liveTable([{ name: '', rows: [row('337', 6, 10), row('364', 6, 9)] }], [f], 'soccer');
+  assert.equal(table.fresh, 1);
+  assert.deepEqual(table[0].rows.map(r => [r.id, r.stats.GP, r.stats.P]), [['364', '7', '12'], ['337', '7', '10']]);
+});

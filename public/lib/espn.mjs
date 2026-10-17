@@ -397,7 +397,10 @@ export function freshGame(e) {
   const f = got.e;
   // Never backwards (a list cached longer saying 'on' after one said 'over').
   if ((STATE_ORDER[f.status.state] ?? 0) < (STATE_ORDER[e.status?.state] ?? 0)) return e;
-  const side = (mine, theirs) => (mine && theirs && String(mine.id) === String(theirs.id) ? { ...mine, score: theirs.score, winner: theirs.winner } : mine);
+  // The record too: a copy from before the whistle brought to 'over' kept
+  // its 6-game record, and the table (liveTable: a side whose record its
+  // table already has) took the game as counted, leaving it out.
+  const side = (mine, theirs) => (mine && theirs && String(mine.id) === String(theirs.id) ? { ...mine, score: theirs.score, winner: theirs.winner, record: theirs.record || mine.record } : mine);
   return { ...e, status: f.status, series: f.series || e.series, live: f.live ?? e.live, home: side(e.home, f.home), away: side(e.away, f.away) };
 }
 

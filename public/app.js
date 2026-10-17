@@ -2803,10 +2803,20 @@ const tables = new Map();
 ctx.recentOf = league => recentOf(league);
 function recentOf(league) {
   const since = Date.now() - 3 * 86_400_000;
-  const seen = new Set();
   const sc = state.scores;
   const lists = [...[...state.days.values()].map(dayAll), ...(sc.league === league && sc.byDay instanceof Map ? [...sc.byDay.values()] : [])];
-  return lists.flat().filter(e => e.league === league && Date.parse(e.start) > since && !seen.has(e.id) && seen.add(e.id));
+  // Each game once, its newest copy: the days held can each have one (past
+  // midnight yesterday's, still 90'+1', before today's, over), and the
+  // first found was taken.
+  const best = new Map();
+  const ORDER = { pre: 0, in: 1, post: 2 };
+  for (const e of lists.flat()) {
+    if (e.league !== league || !(Date.parse(e.start) > since)) continue;
+    const f = freshGame(e);
+    const had = best.get(f.id);
+    if (!had || (ORDER[f.status?.state] ?? 0) > (ORDER[had.status?.state] ?? 0)) best.set(f.id, f);
+  }
+  return [...best.values()];
 }
 // F1: the race weekends (and sprints) still to run, for the title's maths.
 let f1Rounds = null;
