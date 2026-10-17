@@ -174,7 +174,7 @@ test("a goal ruled out by VAR is told so, from the commentary (Leeds v Palace 52
   const t0 = v.t - 600;
   const pts = [0.6, 0.6, 0.6, 0.6, 0.6, 0.35, 0.45, 0.58, 0.6, 0.6].map((home, k) => ({ t: t0 + k * 120, home, draw: 0.25 }));
   const [m] = eventMoments(pts, [v], 'soccer', { home: { id: '357', name: 'Leeds' }, away: { id: '384', name: 'Palace' }, en: false }, pts.map(p => p.t));
-  assert.match(m.text, /Mitchell 進球經 VAR 判定無效/);
+  assert.match(m.text, /Mitchell 進球不算（VAR）/);
   assert.equal(m.i, 5, 'on the spike');
 });
 
@@ -225,6 +225,19 @@ test("a VAR check keeps to its own move, and says what it decided (Mac Allister'
   const big = pts.map((p, k) => (k >= 11 && k < 14 ? { ...p, home: 0.45 } : p));
   const both = eventMoments(big, [check, goal], 'soccer', side, big.map(p => p.t));
   const v = both.find(m => m.icon === '📺');
-  assert.match(v.text, /VAR 取消 12 碼罰球（A. Mac Allister）/);
+  assert.equal(v.text, "VAR：取消 12 碼罰球");
+  assert.equal(v.side, "home", "it helped Brentford, not Liverpool");
   assert.ok(Math.abs(v.delta - 0.15) < 1e-9, 'its own move (30% to 45%), not the goal\'s');
+});
+
+test("過程 and the key moments say what VAR decided, in plain words (every phrasing ESPN used, 2026-10)", async () => {
+  const { varDecision, soccerLineZh } = await import('../public/lib/moments.mjs');
+  assert.equal(varDecision('VAR Decision: No Penalty Liverpool.', '利物浦', { long: true }), 'VAR：取消利物浦的 12 碼罰球');
+  assert.equal(varDecision('VAR Decision: No Penalty Liverpool.'), 'VAR：取消 12 碼罰球');
+  assert.equal(varDecision('VAR Decision: Penalty Augsburg.', '奧格斯堡', { long: true }), 'VAR：改判奧格斯堡得到 12 碼罰球');
+  assert.equal(varDecision('VAR Decision: No Goal Manchester City 3-1 Ipswich Town.'), 'VAR：進球不算');
+  assert.equal(varDecision('VAR Decision: Goal Real Betis 3-1 Osasuna (Ante Budimir).', '', { long: true }), 'VAR：進球有效（A. Budimir）');
+  assert.equal(varDecision('VAR Decision: Card upgraded Yehor Yarmoliuk (Brentford).', '', { long: true }), 'VAR：Y. Yarmoliuk 改判紅牌');
+  assert.equal(varDecision('VAR Decision: Card Changed.'), 'VAR：改判出牌');
+  assert.equal(soccerLineZh({ text: 'VAR Decision: No Penalty Liverpool.', kind: 'var---referee-decision-cancelled' }, '利物浦'), 'VAR：取消利物浦的 12 碼罰球');
 });

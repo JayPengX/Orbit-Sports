@@ -22,30 +22,46 @@ function schedule(read, parse, ttl, keep = '') {
   let at = 0;
   let loading = false;
   let text = '';
+  // An older copy (past 12 hours): not shown first, but the answer when the
+  // read fails (an empty list hid every game of ELTA's leagues, EPL's whole
+  // day, until the app was opened again).
+  let old = null;
+  let fails = 0;
   if (keep)
     try {
       const saved = JSON.parse(globalThis.localStorage?.getItem(keep) || 'null');
       if (saved?.data && Date.now() - saved.at < KEEP_MS) {
         value = parse(saved.data);
         text = JSON.stringify(saved.data);
-      }
+      } else if (saved?.data) old = saved.data;
     } catch {}
-  return () => {
-    if (!loading && Date.now() - at > ttl) {
+  const get = () => {
+    // A failed read is tried again soon (20 s, then 40 s, … up to ttl), not after ttl.
+    const wait = fails ? Math.min(ttl, 20_000 * 2 ** (fails - 1)) : ttl;
+    if (!loading && Date.now() - at > wait) {
       loading = true;
       let moved = true;
       read()
         .then(data => {
           const fresh = JSON.stringify(data);
-          moved = fresh !== text || value === null;
+          moved = fresh !== text || value === null || get.failed;
           if (moved) value = parse(data);
           text = fresh;
+          fails = 0;
+          get.failed = false;
           if (keep)
             try {
               globalThis.localStorage?.setItem(keep, JSON.stringify({ at: Date.now(), data }));
             } catch {}
         })
-        .catch(() => (value = value || []))
+        .catch(() => {
+          fails += 1;
+          if (value === null && old) value = parse(old);
+          // Not read and nothing kept: known as not known (tvKnown false
+          // for every game), never as "nothing on".
+          get.failed = value === null || !value.length;
+          value = value || [];
+        })
         .finally(() => {
           loading = false;
           at = Date.now();
@@ -54,6 +70,8 @@ function schedule(read, parse, ttl, keep = '') {
     }
     return value;
   };
+  get.failed = false;
+  return get;
 }
 // ELTA.tv's season pages, found each night by their titles (Shared-Data's
 // sports/elta-pages.json): read once a session (a new season is a new page;
@@ -137,6 +155,9 @@ export const watchOf = e => tvOf(e).find(b => b.url && b.exact) || null;
 // Whether the lists that say what's on are in (ELTA's, NBA.com's): before
 // that no game can be said to be on, so nothing is recommended yet.
 export const tvReady = () => eltaSchedule() !== null && nbaSchedule() !== null;
+// ELTA's list couldn't be read (and none kept): which games are on isn't
+// known, so none is left out for not being on.
+export const tvUnread = () => eltaSchedule.failed;
 // The last day ELTA's list covers ('YYYY-MM-DD', Taiwan's), or null: past it
 // only the NBA's (NBA.com) and MLS's games can be known to be on.
 export const tvUntil = () => eltaDays(eltaSchedule() || [])?.to || null;

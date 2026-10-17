@@ -1597,7 +1597,7 @@ function winProbCard(line, e, timeline, events = []) {
     el('div', { class: 'wp-mo' }, [
       el('span', { class: 'wp-mo-face' }, [face(m)]),
       el('button', { type: 'button', class: 'wp-mo-go', onclick: () => ((state.picked = m.i), show(m.i, m), bringIn(plot)) }, [
-        el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text' }, momentWords(m.text))]),
+        el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text' }, oneLineWords(m.text))]),
         gainChip(m)
       ])
     ])
@@ -1719,6 +1719,12 @@ function boxTable(tb, key, sport, rowOf) {
 // A moment's words: the play on the first line, what came of it small on
 // the second ("E. Hernandez 全壘打" over "2 分打點 · 超前"), so neither
 // wraps at a stray ·. (A long play, an English sentence, takes two lines.)
+// A key moment's row: its words on one line, a little smaller where long
+// (VAR：取消 12 碼罰球 beside a face wrapped to two).
+const oneLineWords = text => {
+  const [main, sub] = momentWords(text);
+  return [fitLine(main), sub];
+};
 const momentWords = (text, label = '') => {
   const [main, ...rest] = String(text || '').split(' · ');
   return [el('span', { class: 'mo-main' }, [label ? el('b', { text: `${label} · ` }) : null, document.createTextNode(main)]), rest.length ? el('small', { class: 'mo-sub', text: rest.join(' · ') }) : null];
@@ -1943,7 +1949,7 @@ function raceChanceCard(line, ss, feed = null) {
   };
   const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${shade}${grid}${paths}</svg>` }), ...pins, rule]);
   const strip = tags.length ? el('div', { class: 'rc-band-tags', 'aria-hidden': 'true' }, tags) : null;
-  const rows = moments.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? momentGlyph(m.icon) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text' }, momentWords(m.text))]), gainChip(m)])]));
+  const rows = moments.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? momentGlyph(m.icon) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text' }, oneLineWords(m.text))]), gainChip(m)])]));
   show();
   const list = moments.length
     ? el('div', { class: 'wp-moments' }, [el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }), ...rows])
@@ -4063,6 +4069,14 @@ export async function openPlayer(league, id, fallback = {}) {
       // F1: formula1.com's figures and each weekend's grid, finish and sprint.
       league === 'f1' ? athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })).catch(() => null) : null
     ]);
+    // ESPN's player card can name a club record of its own ("RC STRASBOURG
+    // ALSACE I", id 133232, no badge) for a club's real side (Strasbourg):
+    // opened from a game, the side he played for in it is his team; else
+    // the name made readable ("RC Strasbourg Alsace").
+    const odd = !a.teamLogo && /^[^a-z]*[A-Z]{3}[^a-z]*$/.test(a.team || '');
+    const side = game && odd ? [game.e.home, game.e.away].find(x => x && String(x.id) === gameLine(game.data, id)?.[0]?.team) : null;
+    if (side) Object.assign(a, { team: side.name, teamId: String(side.id), teamLogo: side.logo || '', teamColor: side.color || a.teamColor });
+    else if (odd) a.team = a.team.replace(/\s+(I{1,3}|B|II)$/, '').toLowerCase().replace(/(^|[\s-])(\S)/g, (m, sp, c) => sp + c.toUpperCase()).replace(/\b(Rc|Fc|Ac|Sc|Ss|As|Us|Cf|Sv|Vfb|Vfl|Psv|Afc)\b/g, w => w.toUpperCase());
     const en = L() === 'en';
     const W = (zh, eng) => (en ? eng : zh);
     // A pitcher's role as he's used now (his last games), not the season's.
@@ -4206,7 +4220,7 @@ export async function openPlayer(league, id, fallback = {}) {
     const teamChip = driver?.team
       ? el('button', { class: 'hero-team', type: 'button', onclick: () => openConstructor({ id: '', name: driver.team, en: driver.team }) }, [constructorBadge(driver.team, 'xs'), el('span', { text: teamShown })])
       : team && teamShown
-        ? el('span', { class: 'hero-team' }, [a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null, el('span', { text: teamShown })])
+        ? el('span', { class: 'hero-team' }, [a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null, fitLine(el('span', { text: teamShown }))])
         : null;
     // A club from a league we don't cover says which league it is (few know Omonia Aradippou).
     if (teamChip && team)

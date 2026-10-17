@@ -28,7 +28,7 @@ import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
-import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
+import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
 import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
@@ -1180,7 +1180,8 @@ function renderHome() {
   // over too: a result is among the picks only if it was on. Only where it
   // can't be known (before the days ELTA's list reaches) is any result kept.
   // A match followed on its own shows whether or not it's on TV here: the person asked for it.
-  const shown = e => !practice(e) && (isFollowedGame(e) || onTv(e) || ((e.status.state === 'post' || past) && !tvKnown(e)));
+  // (ELTA's list unread: every game of theirs, not none; tvUnread.)
+  const shown = e => !practice(e) && (isFollowedGame(e) || onTv(e) || ((e.status.state === 'post' || past || tvUnread()) && !tvKnown(e)));
   const mine = slot.events.filter(shown);
   // Today with every one of its games over: shown as any day gone by (its
   // picks as they stood, the results in them, 今天 · 已結束的推薦 and how
@@ -1297,7 +1298,8 @@ function renderHome() {
     const games = filtered(mine)
       .filter(e => !seen.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && seen.add(`${e.league}:${e.id}:${e.sessionKey || ''}`))
       .sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
-    const title = L({ zh: `${dayLabel(h.date)}的比賽`, en: h.date === addDays(today(), -1) ? "Yesterday's games" : h.date === today() ? "Today's games" : `Games on ${dayLabel(h.date)}` });
+    // Said as the other days are (今日推薦, 明天 · 推薦) and today's ended games (已結束): 昨天 · 已結束.
+    const title = `${dayLabel(h.date)} · ${L(ENDED_GAMES)}`;
     if (!games.length) return section(title, el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: hasFollows ? t('noMineDay') : t('noFollowsYet') }), fullSchedule()]));
     return el('div', {}, [
       section(title, el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e))), { sub: t('gamesN', { n: games.length }) }),
@@ -1451,7 +1453,7 @@ async function sportDays(sport) {
   const days = new Set();
   days.failed = failed;
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
-    if (e.status?.void || practice(e) || !(onTv(e) || (e.status?.state === 'post' && !tvKnown(e)))) continue;
+    if (e.status?.void || practice(e) || !(onTv(e) || ((e.status?.state === 'post' || tvUnread()) && !tvKnown(e)))) continue;
     const ms = Date.parse(e.start);
     const d = localDate(ms);
     if (inPickDay(ms, d) && d >= from && d <= to) days.add(d);

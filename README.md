@@ -81,7 +81,7 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
   A game called off opens nothing anywhere (its card and row aren't
   buttons): its page would have only a 0-0.
 - **Followed teams that play today**, with that game.
-- **A day gone by (昨天的比賽).** Yesterday, any day before, and today once
+- **A day gone by (昨天 · 已結束).** Yesterday, any day before, and today once
   every game is over: no picks, the games of their own leagues (on TV here,
   under the sport chosen; not every league's) in one list by the clock,
   with the results (a postponed one says 延期). Ranked again on today's tables a day's picks

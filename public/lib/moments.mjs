@@ -414,7 +414,14 @@ export function eventMoments(points, events, sport, side, times) {
         for (let j = a; j <= z; j++) if (Math.abs(value(points[j]) - value(points[a])) > Math.abs(value(points[k]) - value(points[a]))) k = j;
         const delta = value(points[k]) - value(points[a]);
         const mover = ev.play.team ? (String(ev.play.team) === String(side.home.id) ? 'home' : 'away') : delta >= 0 ? 'home' : 'away';
-        if (ev.kind === 'var') return { i: k, delta, side: mover, icon: '📺', text: varText(ev.play, side.en), always: ev.play.kind === 'deleted-after-review', pic: ev.play.pic, team: ev.play.team };
+        // A check: who it helped, by where the prices settled (a penalty
+        // taken from Liverpool helps Brentford, whoever ESPN names on it);
+        // a goal ruled out, its spike (the goal's swing, then back).
+        if (ev.kind === 'var') {
+          const ruledOut = ev.play.kind === 'deleted-after-review';
+          const net = ruledOut ? delta : value(points[z]) - value(points[a]);
+          return { i: k, delta: net, side: net >= 0 ? 'home' : 'away', icon: '📺', text: varText(ev.play, side.en), always: ruledOut, pic: ev.play.pic, team: ev.play.team };
+        }
         const text = /injury/i.test(ev.play.text || '') ? (side.en ? 'Play stopped for an injury' : '球員受傷，比賽暫停') : side.en ? 'Play stopped' : '比賽暫停';
         return { i: k, delta, side: mover, icon: '⏸', text, always: false };
       }
@@ -442,11 +449,34 @@ export function eventMoments(points, events, sport, side, times) {
 // decided (ESPN's type: "VAR - Referee decision cancelled", "VAR - Penalty…").
 function varText(play, en) {
   const who = play.who || '';
-  if (play.kind === 'deleted-after-review') return en ? `${who}'s goal ruled out by VAR`.trim() : `${who} 進球經 VAR 判定無效`.trim();
-  // ESPN's type is the same for many ("Referee decision cancelled"); its words say which ("VAR Decision: No Penalty Liverpool").
-  const t = `${play.kind} ${play.type} ${play.text || ''}`.toLowerCase();
-  const what = /penalty/.test(t) ? (/cancel|no-penalty|no penalty/.test(t) ? ['penalty overturned', '取消 12 碼罰球'] : ['penalty given', '判 12 碼罰球']) : /red|card upgraded/.test(t) ? ['red card', '紅牌'] : /goal/.test(t) ? (/no-goal|no goal|cancel/.test(t) ? ['no goal', '進球無效'] : ['goal stands', '進球有效']) : /cancel/.test(t) ? ['decision overturned', '推翻裁判判決'] : ['check', '檢查'];
-  return en ? `VAR: ${what[0]}${who ? ` (${who})` : ''}` : `VAR ${what[1]}${who ? `（${who}）` : ''}`;
+  if (play.kind === 'deleted-after-review') return en ? `${who}'s goal ruled out by VAR`.trim() : `${who} 進球不算（VAR）`.trim();
+  if (en) return `VAR: ${String(play.text || play.type || 'check').replace(/^.*VAR Decision:\s*/i, '').replace(/\.$/, '')}`;
+  return varDecision(`${play.text || ''} ${play.type || ''}`, '');
+}
+// What a VAR check decided, said plainly (ESPN files most under "Referee
+// decision cancelled"; its words say which: "VAR Decision: No Penalty
+// Liverpool", "Penalty Augsburg", "No Goal …", "Goal … (Ante Budimir)",
+// "Card upgraded Yehor Yarmoliuk (Brentford)", "Card Changed"). 12 碼罰球 in
+// full (12 碼 alone said nothing, the owner 2026-10-18). `long`: 過程's row,
+// with the team.
+export function varDecision(text, team = '', { long = false } = {}) {
+  const d = String(text || '').replace(/^.*VAR Decision:\s*/i, '').trim();
+  const side = long && team ? team : '';
+  if (/^No Penalty/i.test(d)) return side ? `VAR：取消${side}的 12 碼罰球` : 'VAR：取消 12 碼罰球';
+  if (/^Penalty/i.test(d)) return side ? `VAR：改判${side}得到 12 碼罰球` : 'VAR：改判 12 碼罰球';
+  if (/^No Goal/i.test(d) || /goal overturned|ruled out|no-goal/i.test(d)) return 'VAR：進球不算';
+  if (/^Goal/i.test(d)) {
+    const by = /\(([^)]+)\)\s*\.?$/.exec(d)?.[1];
+    return `VAR：進球有效${long && by ? `（${shortName(by)}）` : ''}`;
+  }
+  if (/card upgraded/i.test(d)) {
+    const by = /upgraded ([^(]+?)\s*\(/i.exec(d)?.[1];
+    return `VAR：${long && by ? `${shortName(by)} ` : ''}改判紅牌`;
+  }
+  if (/card/i.test(d)) return 'VAR：改判出牌';
+  if (/penalty/i.test(d)) return /cancel|no penalty/i.test(d) ? 'VAR：取消 12 碼罰球' : 'VAR：改判 12 碼罰球';
+  if (/red/i.test(d)) return 'VAR：改判紅牌';
+  return /cancel/i.test(d) ? 'VAR：推翻原判' : 'VAR 檢視';
 }
 
 // The biggest few (a soccer game's goals and red cards first), in the game's order.
@@ -667,7 +697,7 @@ export function soccerLineZh(play, team = '') {
     const why = /for a bad foul/.test(t) ? '危險犯規' : /for hand ball/.test(t) ? '手球' : /for dissent/.test(t) ? '抗議判決' : /time wasting/.test(t) ? '拖延時間' : '';
     return line(`${who} ${/second yellow|yellow-red/.test(kind + lower) ? '兩黃變一紅' : /red/.test(kind) ? '紅牌' : '黃牌'}`, [why]);
   }
-  if (/VAR Decision/i.test(t)) return `VAR 判決：${/Goal/i.test(t) ? '進球' : /Penalty/i.test(t) ? '12 碼' : '檢視'}${/cancelled|no goal|overturned/i.test(t) ? '取消' : /confirmed|stands/i.test(t) ? '維持' : ''}`;
+  if (/VAR Decision/i.test(t)) return varDecision(t, team, { long: true });
   if (kind === 'halftime') return '上半場結束';
   if (/^(end|full)/.test(kind) || /^Match ends/.test(t)) return '全場結束';
   if (/^Second Half begins/.test(t)) return '下半場開始';
