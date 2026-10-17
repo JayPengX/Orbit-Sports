@@ -235,9 +235,20 @@ table.box th.sortable.on .sort-btn::after { content: '▼'; position: absolute; 
 table.box th.sortable[aria-sort='ascending'] .sort-btn::after { content: '▲'; }
 tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .linescore { background: var(--q-surface); border: 1px solid transparent; border-radius: 12px; overflow: hidden; }
-.linescore th:first-child { text-align: left; }
+/* The line score as a board: the names take the room, the numbers a narrow
+   even column each at the right, centred under their heads, the edges inset
+   as a card's (it had sat 7 px from the left, the halves spread across). */
+.linescore { table-layout: fixed; }
+.linescore th, .linescore td { width: 46px; padding: 9px 0; text-align: center; vertical-align: middle; }
+.linescore thead th { padding: 10px 0 7px; font-size: 11.5px; border-bottom: 1px solid var(--q-divider, var(--q-border)); }
+.linescore tr > :first-child { width: auto; padding-left: 14px; text-align: left; overflow: hidden; }
+.linescore tr > :last-child { width: 58px; padding-right: 12px; }
+.linescore tbody td { font-size: 15px; }
+.linescore.innings th, .linescore.innings td { width: 24px; }
+.linescore.innings tr > :first-child { width: auto; }
+.linescore.innings tr > :last-child { width: 42px; }
 .linescore .total { font-weight: 800; }
-.linescore .ls-who { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.linescore .ls-who { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; vertical-align: middle; line-height: 1.2; }
 .standings tr.mine > * { background: var(--accent-wash); }
 .rank-cell { color: var(--q-muted); width: 28px; }
 .team-link { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -542,7 +542,7 @@ function linescore(sm, e) {
   const tag = x => (L() !== 'en' && x.en && x.short && x.short.length <= 5 ? x.short : x.abbr || x.short);
   // Each side's logo beside its name.
   const row = x => el('tr', {}, [el('th', { class: 'ls-team' }, [teamTap(x, e.league, 'ls-who', [sideLogo(x, e.league, 'xs'), el('span', { text: tag(x) })])]), ...Array.from({ length: n }, (_, i) => el('td', { class: 'num', text: x.lines?.[i] ?? '' })), el('td', { class: 'num total', text: x.score })]);
-  return el('div', { class: 'table-wrap' }, [el('table', { class: 'linescore' }, [el('thead', {}, [el('tr', {}, [el('th'), ...head, el('th', { text: sport === 'baseball' ? 'R' : en ? 'T' : '總分' })])]), el('tbody', {}, [row(away), row(home)])])]);
+  return el('div', { class: 'table-wrap' }, [el('table', { class: `linescore${n > 5 ? ' innings' : ''}` }, [el('thead', {}, [el('tr', {}, [el('th'), ...head, el('th', { text: sport === 'baseball' ? 'R' : en ? 'T' : '總分' })])]), el('tbody', {}, [row(away), row(home)])])]);
 }
 
 // A stat's number: "12-25" (made-attempted) is its rate, "45%" and ".271" as they are.
