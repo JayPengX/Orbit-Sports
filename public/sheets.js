@@ -1298,10 +1298,14 @@ function subsList(sides, tag, league) {
 }
 // Each side's colour for its players' rings: its own, the away side in its
 // second when the two are alike (two whites), a blue and a red when the feed has none.
+// The win chance chart's colours (sideColors on the card as it's drawn now),
+// so a side's ring is the colour its line is (the owner, 2026-10-17:
+// Chelsea's ring navy on the pitch, its line white).
 function shirtsOf(d, e) {
   const [a, h] = [e.away, e.home].map(t => d?.byId?.[String(t.id)] || t);
-  const away = a?.color && h?.color && near(a.color, h.color) && a.alt ? a.alt : a?.color || '#2f6fdf';
-  return { [String(e.away.id)]: away, [String(e.home.id)]: h?.color || '#d9443a' };
+  const tint = sideColors(e.home, e.away, getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff');
+  const away = tint.away || (a?.color && h?.color && near(a.color, h.color) && a.alt ? a.alt : a?.color || '#2f6fdf');
+  return { [String(e.away.id)]: away, [String(e.home.id)]: tint.home || h?.color || '#d9443a' };
 }
 // A name as a shirt says it: "O. Costa" → Costa ("João Marcelo" as it is).
 // A suffix (Jr., Sr., II, III) left off: the face and number say who (McCullar Jr. ran onto a second line).
