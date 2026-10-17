@@ -401,14 +401,15 @@ export function eventMoments(points, events, sport, side, times) {
         // decision's next to it (Liverpool's 1–1 at 64' and an injury stop
         // the same minute: the stop took the goal's +27% as its own, +28%).
         // Measured after the swing of any before it, up to any after it.
+        // (A VAR check the same: "No Penalty Liverpool" at 41' took
+        // Lewis-Potter's goal at 44' as its own, Brentford +16%.)
         let [a, z] = [i0, i1];
-        if (ev.kind === 'stop')
-          for (const o of events) {
-            if (o === ev || o.kind === 'stop') continue;
+        for (const o of events) {
+            if (o === ev || o.kind === 'stop' || o.kind === 'var') continue;
             if (o.t <= ev.t && o.t + 300 > ev.t - 60) a = Math.max(a, at(o.t + 300));
             if (o.t > ev.t && o.t - 60 < ev.t + 300) z = Math.min(z, at(o.t - 60));
-          }
-        if (a >= z) return { i: i0, delta: 0, side: 'home', icon: '⏸', text: '', always: false };
+        }
+        if (a >= z) return { i: i0, delta: 0, side: 'home', icon: ev.kind === 'var' ? '📺' : '⏸', text: '', always: false };
         let k = a;
         for (let j = a; j <= z; j++) if (Math.abs(value(points[j]) - value(points[a])) > Math.abs(value(points[k]) - value(points[a]))) k = j;
         const delta = value(points[k]) - value(points[a]);
@@ -442,8 +443,9 @@ export function eventMoments(points, events, sport, side, times) {
 function varText(play, en) {
   const who = play.who || '';
   if (play.kind === 'deleted-after-review') return en ? `${who}'s goal ruled out by VAR`.trim() : `${who} 進球經 VAR 判定無效`.trim();
-  const t = `${play.kind} ${play.type}`.toLowerCase();
-  const what = /penalty/.test(t) ? (/cancel|no-penalty|no penalty/.test(t) ? ['penalty overturned', '取消 12 碼罰球'] : ['penalty given', '判 12 碼罰球']) : /red/.test(t) ? ['red card', '紅牌'] : /goal/.test(t) ? (/no-goal|no goal|cancel/.test(t) ? ['no goal', '進球無效'] : ['goal stands', '進球有效']) : /cancel/.test(t) ? ['decision overturned', '推翻裁判判決'] : ['check', '檢查'];
+  // ESPN's type is the same for many ("Referee decision cancelled"); its words say which ("VAR Decision: No Penalty Liverpool").
+  const t = `${play.kind} ${play.type} ${play.text || ''}`.toLowerCase();
+  const what = /penalty/.test(t) ? (/cancel|no-penalty|no penalty/.test(t) ? ['penalty overturned', '取消 12 碼罰球'] : ['penalty given', '判 12 碼罰球']) : /red|card upgraded/.test(t) ? ['red card', '紅牌'] : /goal/.test(t) ? (/no-goal|no goal|cancel/.test(t) ? ['no goal', '進球無效'] : ['goal stands', '進球有效']) : /cancel/.test(t) ? ['decision overturned', '推翻裁判判決'] : ['check', '檢查'];
   return en ? `VAR: ${what[0]}${who ? ` (${who})` : ''}` : `VAR ${what[1]}${who ? `（${who}）` : ''}`;
 }
 

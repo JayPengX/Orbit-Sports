@@ -75,14 +75,17 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
   the lists below.
 - **今日推薦.** A no-clash plan of the best games (§Today's picks), each
   with its reasons. Then 更多推薦: the rest in order ("show more").
-- **已結束的推薦.** Today's picks as they stood that are over, with their
-  results, and any called off (延期 in place of the time; never just gone).
+- **已結束.** Today's games of theirs that are over, by the clock, with
+  their results, and any called off (延期 in place of the time; never just
+  gone). Never ranked again: the tables move with each result.
   A game called off opens nothing anywhere (its card and row aren't
   buttons): its page would have only a 0-0.
 - **Followed teams that play today**, with that game.
-- **When the day is over.** Today with every game over is shown as a past
-  day: its picks as they stood, with the results (a postponed one says
-  延期). A past day shows its picks the same way.
+- **A day gone by (賽果).** Yesterday, any day before, and today once
+  every game is over: no picks, every game (theirs and the others on TV,
+  under the sport chosen) in one list by the clock, with the results (a
+  postponed one says 延期). Ranked again on today's tables a day's picks
+  changed (the owner, 2026-10-18).
 - **Nothing on TV that day.** It says why (past ELTA's list, only the
   NBA's and MLS's games are known) and links to 賽事.
 - **The small hours.** A day of picks is 05:00 to midnight. A game between

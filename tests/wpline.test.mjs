@@ -211,3 +211,20 @@ test("a VAR check that ends in a red card is one moment, the red card, its swing
   const out = { ...check, play: { ...check.play, kind: 'deleted-after-review' } };
   assert.equal(eventMoments(pts, [out], 'soccer', side, pts.map(p => p.t)).length, 1);
 });
+
+test("a VAR check keeps to its own move, and says what it decided (Mac Allister's penalty taken away at 41', Brentford's goal at 44')", async () => {
+  const { eventMoments } = await import('../public/lib/moments.mjs');
+  // Every minute: the penalty taken away nudges Brentford up 4 points at minute 10, the goal at minute 13 lifts them 20 more.
+  const pts = Array.from({ length: 30 }, (_, k) => ({ t: k * 60, home: k < 11 ? 0.3 : k < 14 ? 0.34 : 0.54, draw: 0.3 }));
+  const check = { t: 600, kind: 'var', play: { kind: 'var---referee-decision-cancelled', type: 'VAR - Referee decision cancelled', text: 'VAR Decision: No Penalty Liverpool.', team: '364', who: 'A. Mac Allister' } };
+  const goal = { t: 780, kind: 'score', play: { kind: 'goal---header', team: '337', who: 'K. Lewis-Potter' } };
+  const side = { home: { id: '337', name: '布倫特福德' }, away: { id: '364', name: '利物浦' }, en: false };
+  const found = eventMoments(pts, [check, goal], 'soccer', side, pts.map(p => p.t));
+  assert.equal(found.length, 1, 'the goal; the check moved it too little to tell');
+  assert.match(found[0].text, /Lewis-Potter/);
+  const big = pts.map((p, k) => (k >= 11 && k < 14 ? { ...p, home: 0.45 } : p));
+  const both = eventMoments(big, [check, goal], 'soccer', side, big.map(p => p.t));
+  const v = both.find(m => m.icon === '📺');
+  assert.match(v.text, /VAR 取消 12 碼罰球（A. Mac Allister）/);
+  assert.ok(Math.abs(v.delta - 0.15) < 1e-9, 'its own move (30% to 45%), not the goal\'s');
+});
