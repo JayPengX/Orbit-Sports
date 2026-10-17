@@ -466,7 +466,11 @@ function openFollowEditor() {
 
 // ---- Opening things ------------------------------------------------------------------------
 
+// A game called off (延期, 取消) opens nothing: its page has only a 0-0 and
+// the numbers from before (the owner, 2026-10-17: block it); its card and row
+// say 延期 and aren't buttons.
 function openEvent(e) {
+  if (e?.status?.void) return;
   track(eventKeys(e), 1);
   if (e.kind === 'match') return openMatch(e);
   return openFieldEvent(e);
@@ -950,7 +954,7 @@ function pickCard(item, n) {
   const reasons = item.reasons.slice(0, 2).map(r => REASON(r));
   const tag = stageOf(e).special ? (stageOf(e).round?.[locale === 'en' ? 'en' : 'zh'] || stageOf(e)[locale === 'en' ? 'en' : 'zh']) : '';
   const series = seriesText(e);
-  return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', onclick: () => openEvent(e) }, [
+  return el('button', { class: `pick-card${e.status.state === 'in' ? ' live' : ''}`, type: 'button', disabled: e.status.void ? true : null, onclick: () => openEvent(e) }, [
     el('div', { class: 'pick-time' }, [
       el('strong', { class: 'num', text: e.status.void ? t('postponed') : e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : timeText(e) }),
       // Under the time: what's on now, or how long until it starts (within the day); not 「第一場」, which was every first card's.
@@ -1599,7 +1603,7 @@ function guideRow(p, events, now) {
   const detail = guideDetail(p);
   return el('div', { class: `tvg-row${on ? ' on' : ''}` }, [
     el('b', { class: 'tvg-time num', text: on ? L({ zh: '播出中', en: 'Live' }) : clock(new Date(p.start).toISOString()) }),
-    el('button', { class: 'tvg-body', type: 'button', disabled: e ? null : true, onclick: () => e && openEvent(e) }, [
+    el('button', { class: 'tvg-body', type: 'button', disabled: e && !e.status?.void ? null : true, onclick: () => e && openEvent(e) }, [
       el('span', { class: 'tvg-head' }, [leagueMark(p.league, 'lg-mark xs'), el('strong', { class: 'tvg-title', text: guideTitle(p) })]),
       el('span', { class: 'tvg-chs' }, [
         detail ? el('small', { class: 'tvg-detail', text: detail }) : null,
@@ -2293,7 +2297,7 @@ function weekendCard(sessions) {
   // race; its sheet has the others a tap away. (Each line used to be its own
   // tap, so where the finger fell picked 一練, the sprint or qualifying.)
   const open = list.find(x => x.status.state === 'in') || list.find(x => x.status.state === 'pre') || race;
-  return el('button', { class: `q-card wk-card${live ? ' live' : ''}${done ? ' done' : ''}`, type: 'button', onclick: () => openEvent(open) }, [
+  return el('button', { class: `q-card wk-card${live ? ' live' : ''}${done ? ' done' : ''}`, type: 'button', disabled: open?.status?.void ? true : null, onclick: () => openEvent(open) }, [
     el('div', { class: 'wk-card-head' }, [raceFlag(e, 'big'), el('div', { class: 'wk-card-text' }, [el('strong', { class: 'wk-card-name', text: e.name }), e.venue ? el('small', { class: 'muted wk-card-line', text: e.venue }) : null, el('small', { class: 'muted wk-card-line num', text: days })])]),
     winner
       ? el('div', { class: 'wk-winner' }, [personPic(winner, e.league, 'sm round'), el('span', {}, [el('small', { class: 'muted', text: L({ zh: '冠軍', en: 'Winner' }) }), el('strong', { text: winner.short || winner.name })])])
@@ -2596,7 +2600,7 @@ function teamCard(f) {
         : g.status.state === 'in'
           ? el('span', { class: 'num tf-score live', text: `${t('live')} ${us(g)?.score ?? ''}–${opp?.score ?? ''}` })
           : withAgain(el('span', { class: `num result-pill ${result(g).toLowerCase()}`, text: `${word(result(g))} ${us(g)?.score ?? ''}–${opp?.score ?? ''}` }), g);
-    return el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(g) }, [
+    return el('button', { class: 'tf-game', type: 'button', disabled: g.status?.void ? true : null, onclick: () => openEvent(g) }, [
       el('small', { class: 'muted tf-k', text: label }),
       opp ? logo(opp.logo, opp.name, 'xs') : el('span'),
       el('span', { class: 'tf-opp', text: opp ? `${g.home && String(g.home.id) === id ? 'vs' : '@'} ${localSide(g.league, opp).name}` : L({ zh: '對手待定', en: 'Opponent to be decided' }) }),
@@ -2725,7 +2729,7 @@ function personRow(f) {
   const next = teamId ? (teamGames({ league: f.league, id: teamId }) || []).find(x => x.status.state === 'in' || (x.status.state === 'pre' && !x.status.void && Date.parse(x.start) > Date.now() - 3_600_000)) : null;
   const opp = next && [next.home, next.away].find(x => x && String(x.id) !== String(teamId));
   const nextLine = next
-    ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(next) }, [
+    ? el('button', { class: 'tf-game', type: 'button', disabled: next.status?.void ? true : null, onclick: () => openEvent(next) }, [
         el('small', { class: 'muted tf-k', text: L({ zh: '下一場', en: 'Next' }) }),
         opp ? logo(opp.logo, opp.name, 'xs') : el('span'),
         el('span', { class: 'tf-opp', text: opp ? `${String(next.home?.id) === String(teamId) ? 'vs' : '@'} ${localSide(next.league, opp).name}` : '' }),

@@ -3733,7 +3733,7 @@ export async function openTeam(league, id, fallback = {}) {
                   const them = x.home.id === String(id) ? x.away : x.home;
                   const at = x.home.id === String(id) ? 'vs' : '@';
                   const score = x.home.id === String(id) ? `${x.home.score}-${x.away.score}` : `${x.away.score}-${x.home.score}`;
-                  return el('button', { class: 'res-row', type: 'button', onclick: () => ctx.openEvent(x) }, [
+                  return el('button', { class: 'res-row', type: 'button', disabled: x.status?.void ? true : null, onclick: () => ctx.openEvent(x) }, [
                     el('span', { class: 'res-date num', text: localDate(Date.parse(x.start)).slice(5).replace('-', '/') }),
                     el('span', { class: 'res-opp' }, [el('small', { class: 'muted', text: at }), logo(them.logo, them.name, 'xs'), el('span', { class: 'res-name' }, [el('span', { text: them.short || them.name }), mixed ? el('small', { class: 'res-comp', text: x.other ? otherName(x.other, en) : leagueName(x.league, L()) }) : null])]),
                     el('span', { class: `result-pill ${r === 'W' ? 'w' : r === 'L' ? 'l' : 'd'}`, text: `${en ? r : { W: '勝', L: '敗', D: '和' }[r]} ${score}` })
