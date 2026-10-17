@@ -44,6 +44,22 @@ export const spinner = () => el('div', { class: 'center-spin' }, [el('div', { cl
 export const empty = text => el('p', { class: 'empty', text });
 export const $ = id => document.getElementById(id);
 
+// ---- Wide tables -----------------------------------------------------------------------
+// A box score wider than the phone (twelve columns of a player's game) fades at
+// its right edge while there's more that way: FS was the last column in view
+// and nothing said OFF, YC, RC… were past it. (The name column stays put, so
+// the left edge never fades.)
+function markTable(wrap) {
+  wrap.classList.toggle('more-right', wrap.scrollWidth - wrap.clientWidth > 2 && wrap.scrollLeft < wrap.scrollWidth - wrap.clientWidth - 2);
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('scroll', e => e.target?.classList?.contains('table-wrap') && markTable(e.target), true);
+  const marked = () => document.querySelectorAll('.table-wrap').forEach(markTable);
+  let queued = false;
+  new MutationObserver(() => queued || ((queued = true), requestAnimationFrame(() => ((queued = false), marked())))).observe(document.documentElement, { childList: true, subtree: true });
+  addEventListener('resize', marked);
+}
+
 // ---- Days and times (the viewer's own clock) ----------------------------------------
 
 export function localDate(ms) {

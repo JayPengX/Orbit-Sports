@@ -207,6 +207,7 @@ img { max-width: 100%; }
 
 /* (Its own stacking: the pinned column stays over the table's columns, never over a sheet's sticky title.) */
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; isolation: isolate; }
+.table-wrap.more-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { padding: 6px 7px; text-align: right; white-space: nowrap; }
 thead th { color: var(--q-muted); font-weight: 650; font-size: 12px; border-bottom: 1px solid var(--q-border); }
