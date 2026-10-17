@@ -1815,23 +1815,18 @@ button.lp-person.tap:active { opacity: 0.6; }
 .pm-sub.on { background: #1fa34a; }
 .subs-block { margin-top: 12px; display: grid; gap: 6px; }
 .subs-h { margin: 0; font-size: 13px; font-weight: 750; }
-.subs-list { list-style: none; margin: 0; padding: 0; }
-.subs-list .link { color: inherit; font: inherit; padding: 0; }
-.subs-list li { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: start; padding: 9px 0; border-top: 0.5px solid var(--q-divider); }
-.subs-list li:first-child { border-top: 0; padding-top: 2px; }
-.sub-at { padding-top: 7px; color: var(--q-muted); font-size: 13px; font-weight: 650; white-space: nowrap; }
-.sub-swap { display: grid; gap: 7px; min-width: 0; }
-.subs-list .sub-who { display: flex; align-items: center; gap: 10px; min-width: 0; text-align: left; white-space: nowrap; }
-.sub-face { position: relative; flex: none; display: grid; }
-.subs-list .sub-face .logo.xs { width: 28px; height: 28px; }
-.sub-who.out .sub-face .logo.xs { width: 24px; height: 24px; margin: 0 2px; }
-.sub-badge { position: absolute; right: -4px; bottom: -3px; display: grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; font-size: 9.5px; font-weight: 900; line-height: 1; color: #fff; box-shadow: 0 0 0 1.5px var(--q-surface); }
-.sub-badge.in { background: #1fa34a; }
-.sub-badge.out { background: #d9443a; }
-.sub-badge.sent { width: 9px; height: 12px; border-radius: 2px; background: #d9443a; }
-.sub-name { font-size: 15px; font-weight: 600; }
-.sub-who.out .sub-name { font-size: 14px; font-weight: 500; color: var(--q-muted); }
-.sub-note { font-size: 13px; font-weight: 650; color: #d9443a; }
+.subs-grid { display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); column-gap: 10px; row-gap: 8px; align-items: center; font-size: 13px; }
+.subs-grid .subs-team { grid-column: 1 / -1; margin: 6px 0 0; }
+.subs-grid .subs-team:first-child { margin-top: 0; }
+.subs-grid .link { color: inherit; font: inherit; padding: 0; }
+.sub-at { color: var(--q-muted); font-size: 12px; white-space: nowrap; }
+.sub-who { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.sub-who.sent { grid-column: 2 / -1; }
+.sub-who .logo.xs { width: 20px; height: 20px; flex: none; }
+.sub-arrow { width: 9px; font-size: 13px; font-weight: 800; line-height: 1; text-align: center; }
+.sub-arrow.in { color: #1fa34a; }
+.sub-arrow.out { color: #d9443a; }
+.card-red { display: inline-block; flex: none; width: 9px; height: 12px; border-radius: 2px; background: #d9443a; }
 /* 場上球員 (basketball): each side's five as a row of faces, their points under them. */
 .five-sides { display: grid; gap: 12px; }
 /* The five evenly spaced; a long name said short (tileName: SGA), and one
