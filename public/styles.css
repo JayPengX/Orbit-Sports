@@ -415,6 +415,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .mh-team { display: grid; justify-items: center; gap: 4px; border: 0; background: none; padding: 0; min-width: 0; width: 100%; color: inherit; font: inherit; }
 .mh-team strong { font-size: 15px; line-height: 1.25; max-width: 100%; white-space: nowrap; }
 .mh-status { font-size: 12.5px; font-weight: 750; padding: 2px 10px; border-radius: 999px; background: var(--q-sunken); color: var(--q-text-2); white-space: nowrap; }
+.mh-round { margin-top: 2px; font-size: 12.5px; font-weight: 650; color: var(--q-text-2); white-space: nowrap; }
 .mh-status.in { background: var(--live-wash); color: var(--live); }
 .compare { display: grid; gap: 2px; }
 .cmp-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 6px; }

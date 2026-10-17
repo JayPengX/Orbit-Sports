@@ -123,11 +123,15 @@ export async function openMatch(e) {
         paint();
       });
   };
+  let headSm = null;
   const paintHeader = sm => {
+    headSm = sm;
     const home = sm?.home || e.home;
     const away = sm?.away || e.away;
     const st = sm?.status || e.status;
     const guestGame = Boolean(e.home.guest || e.away.guest);
+    // (The league's rounds still coming: the header drawn again once they're in, not left without its round.)
+    const roundOnly = !stageTag(e, L()) && !seriesText(e) && Boolean(weekOf(e, () => headSm === sm && header.isConnected && paintHeader(sm)));
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
         el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
@@ -141,11 +145,15 @@ export async function openMatch(e) {
         side(away, e.away),
         el('div', { class: 'mh-mid' }, [
           st.state === 'pre' ? el('strong', { class: 'mh-time', text: timeText(e) }) : el('strong', { class: 'mh-score num', text: `${away.score ?? ''} - ${home.score ?? ''}` }),
-          el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText({ ...e, status: st }) })
+          el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText({ ...e, status: st }) }),
+          // A league's round alone (第 5 輪): under the status, in the room the
+          // sides' records and follows leave there, not a row of its own
+          // floating between the header and the line score (the owner, 2026-10-17).
+          roundOnly ? el('small', { class: 'mh-round', text: roundLabel(e.league, weekOf(e), weekOf(e), L()) }) : null
         ]),
         side(home, e.home)
       ]),
-      stageTag(e, L()) || seriesText(e) || weekOf(e) ? stageLine(e) : null,
+      !roundOnly && (stageTag(e, L()) || seriesText(e)) ? stageLine(e) : null,
       gameFollow(e, st, () => paintHeader(sm), guestGame && hasTeamPage(e.league) ? [away, home].filter((x, i) => !x.guest && ![e.away, e.home][i].guest) : []),
       // On now or about to start: one tap to watch it, at the top.
       watchButton({ ...e, status: st }, 'wide'),
