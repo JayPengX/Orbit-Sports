@@ -1207,7 +1207,8 @@ function pitchView([away, home], d, e, nameOf) {
   const marker = (p, x, y, shirt) =>
     el('button', { class: 'pm', type: 'button', style: `left:${(x * 100).toFixed(1)}%;top:${(y * 100).toFixed(1)}%;--shirt:${shirt}`, 'aria-label': `${p.name}${p.subbedIn ? (en ? ', came on' : '，替補上場') : ''}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [
       el('span', { class: 'pm-face' }, [personPic(p, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(shirt)}`, text: p.jersey }) : null, p.subbedIn ? el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' }) : null]),
-      el('span', { class: 'pm-name', text: surname(p) })
+      // One line, a long surname smaller (fitted to the marker below), never broken at its hyphen.
+      el('span', { class: oneLineName(surname(p)), text: surname(p) })
     ]);
   const spots = [
     // The away side's left is the screen's right, its goal at the top.
@@ -1215,7 +1216,9 @@ function pitchView([away, home], d, e, nameOf) {
     ...pitchSpots(home.held, home.formation).filter(s => !s.p.sentOff).map(s => marker(s.p, s.x, 1 - s.y / 2, homeShirt))
   ];
   const label = s => el('p', { class: 'pitch-team' }, [el('strong', {}, [tagOf(d, e)(s.team)]), el('span', { class: 'num', text: [s.formation, s.on.length < 11 ? (en ? `${s.on.length} men` : `${s.on.length} 人`) : ''].filter(Boolean).join(' · ') })]);
-  return el('div', { class: 'pitch-wrap' }, [label(away), el('div', { class: 'pitch' }, [el('div', { class: 'pitch-lines', 'aria-hidden': 'true', html: PITCH_LINES }), ...spots]), label(home)]);
+  const pitch = el('div', { class: 'pitch' }, [el('div', { class: 'pitch-lines', 'aria-hidden': 'true', html: PITCH_LINES }), ...spots]);
+  fiveWatch?.observe(pitch);
+  return el('div', { class: 'pitch-wrap' }, [label(away), pitch, label(home)]);
 }
 // Baseball's field as a broadcast draws it (MLB's own word on who's where,
 // espn.mjs summary's d.field): the side in the field, each of the nine a
@@ -1242,7 +1245,7 @@ function diamondView(d, e, nameOf) {
     const p = who(full);
     return el('button', { class: `pm${cls ? ` ${cls}` : ''}`, type: 'button', style: `left:${x}%;top:${y}%;--shirt:${colour}`, 'aria-label': `${label ? `${label} ` : ''}${full}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: full, logo: p.headshot }) }, [
       el('span', { class: 'pm-face' }, [personPic(p, e.league, 'pm-pic'), label ? el('span', { class: 'pm-num', style: `color:${inkOn(colour)}`, text: label }) : null]),
-      el('span', { class: 'pm-name', text: tileName({ name: full, full, short: p.short || full.split(' ').slice(1).join(' ') || full }) })
+      el('span', { class: oneLineName(tileName({ name: full, full, short: p.short || full.split(' ').slice(1).join(' ') || full })), text: tileName({ name: full, full, short: p.short || full.split(' ').slice(1).join(' ') || full }) })
     ]);
   };
   const posWord = k => (en ? k : posZh(k, 'baseball', 'zh').replace(/手$/, '').replace('外野', '外'));
@@ -1256,6 +1259,7 @@ function diamondView(d, e, nameOf) {
     // the corner infielders a step off the bag; a tap opens him as any other.
     ...f.runners.map((r, i) => marker(r, RUNNER_SPOTS[i], shirt[String(batSide.id)], en ? ['1B', '2B', '3B'][i] : ['一', '二', '三'][i], 'runner'))
   ]);
+  fiveWatch?.observe(field);
   const half = en ? `${f.top ? 'Top' : 'Bottom'} ${f.inning}` : `${f.inning} 局${f.top ? '上' : '下'}`;
   const bases = en ? ['1st', '2nd', '3rd'] : ['一壘', '二壘', '三壘'];
   const on = f.runners.map((r, i) => (r ? `${bases[i]} ${surnameOf({ name: r, short: who(r).short || r })}` : '')).filter(Boolean);
