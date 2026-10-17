@@ -2941,6 +2941,22 @@ async function reloadNow() {
 // shows them; today every 2 minutes in any case (so a followed team's start
 // and finish are noticed).
 // (Every dev('sportsList') seconds: the admin panel's 開發, 10 by default.)
+// A day held, its games as the newest copy read anywhere has them (freshGame):
+// true when one changed.
+function freshenHeld(slot) {
+  let changed = false;
+  for (const k of ['events', 'others', 'rest']) {
+    const list = slot[k];
+    if (!list?.length) continue;
+    const next = list.map(e => {
+      const f = freshGame(e);
+      if (f !== e && (f.status.state !== e.status.state || f.status.detail !== e.status.detail || f.home?.score !== e.home?.score || f.away?.score !== e.away?.score)) changed = true;
+      return f;
+    });
+    if (changed) slot[k] = Object.assign(next, { failed: list.failed, read: list.read });
+  }
+  return changed;
+}
 function liveTick() {
   if (document.visibilityState !== 'visible' || !q.active || sheetOver()) return;
   const day = state.days.get(today());
@@ -2951,7 +2967,20 @@ function liveTick() {
   // The whole day every two minutes; between, only the pages with a game on.
   if (Date.now() - (day?.fullAt || 0) > 120_000) loadDay(today());
   else if (onScreen && live && age > kit.dev('sportsList') * 1000 - 2_000) loadDay(today(), { live: true });
-  if (state.tab === 'home' && state.home.date !== today() && Date.now() - (state.days.get(state.home.date)?.at || 0) > 10 * 60_000) loadDay(state.home.date);
+  // 首頁 on another day: past midnight it still shows the evening's games,
+  // some still on (a 22:00 kick-off). Those are watched as today's are (the
+  // whole day every two minutes, between only their pages), and any newer
+  // copy read meanwhile (today's pages, the game's own sheet) taken at once:
+  // checked only every 10 minutes, a game over at 00:02 stayed 90'+1' there.
+  if (state.tab === 'home' && state.home.date !== today()) {
+    const held = state.days.get(state.home.date);
+    if (held && freshenHeld(held) && !sheetOver()) renderHome();
+    const on = dayAll(held).some(e => e.status.state === 'in' || dueToStart(e));
+    const since = Date.now() - (held?.at || 0);
+    if (on && Date.now() - (held?.fullAt || 0) > 120_000) loadDay(state.home.date);
+    else if (on && since > kit.dev('sportsList') * 1000 - 2_000) loadDay(state.home.date, { live: true });
+    else if (!on && since > 10 * 60_000) loadDay(state.home.date);
+  }
   // 比分 too: a game on, or one due to start (it had waited for another game on to be read again).
   if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in' || dueToStart(e))) loadScores({ quiet: true });
   paintStatus();
