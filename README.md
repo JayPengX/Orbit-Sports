@@ -81,10 +81,10 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
   A game called off opens nothing anywhere (its card and row aren't
   buttons): its page would have only a 0-0.
 - **Followed teams that play today**, with that game.
-- **A day gone by (賽果).** Yesterday, any day before, and today once
-  every game is over: no picks, every game (theirs and the others on TV,
-  under the sport chosen) in one list by the clock, with the results (a
-  postponed one says 延期). Ranked again on today's tables a day's picks
+- **A day gone by (昨天的比賽).** Yesterday, any day before, and today once
+  every game is over: no picks, the games of their own leagues (on TV here,
+  under the sport chosen; not every league's) in one list by the clock,
+  with the results (a postponed one says 延期). Ranked again on today's tables a day's picks
   changed (the owner, 2026-10-18).
 - **Nothing on TV that day.** It says why (past ELTA's list, only the
   NBA's and MLS's games are known) and links to 賽事.

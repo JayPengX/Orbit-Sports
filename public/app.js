@@ -1138,7 +1138,6 @@ function leagueDays(league, then) {
 }
 
 const ENDED_GAMES = { zh: '已結束', en: 'Ended' };
-const RESULTS = { zh: '賽果', en: 'Results' };
 // ELTA's four 體育台; MAX's channels carry the English feed. Its pick is a
 // game there with its own commentators: a 體育台 can carry a game in 原音
 // too, not its pick (Brighton v Palace on 愛爾達2台 in 原音 while Leeds v
@@ -1291,14 +1290,17 @@ function renderHome() {
     }
   }
   function pastDay() {
-    if (h.filter !== 'teams' && !slot.othersAt && !slot.othersLoading) loadOthers(h.date);
+    // Only theirs: the games of their own leagues (what the day showed
+    // them), not every league's (the others' ten German and Italian games
+    // were there too). Under the sport chosen; by the clock.
     const seen = new Set();
-    const games = filtered([...mine, ...(slot.others || []).filter(shown)])
+    const games = filtered(mine)
       .filter(e => !seen.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && seen.add(`${e.league}:${e.id}:${e.sessionKey || ''}`))
       .sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
-    if (!games.length) return slot.othersAt ? section(`${dayLabel(h.date)} · ${L(RESULTS)}`, el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: noTvText(h.date) }), fullSchedule()])) : spinner();
+    const title = L({ zh: `${dayLabel(h.date)}的比賽`, en: h.date === addDays(today(), -1) ? "Yesterday's games" : h.date === today() ? "Today's games" : `Games on ${dayLabel(h.date)}` });
+    if (!games.length) return section(title, el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: hasFollows ? t('noMineDay') : t('noFollowsYet') }), fullSchedule()]));
     return el('div', {}, [
-      section(`${dayLabel(h.date)} · ${L(RESULTS)}`, el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e))), { sub: t('gamesN', { n: games.length }) }),
+      section(title, el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e))), { sub: t('gamesN', { n: games.length }) }),
       games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null
     ]);
   }
