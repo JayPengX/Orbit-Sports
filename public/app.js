@@ -29,7 +29,7 @@ import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
+import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // New kit names through the module (a phone can still run an older kit).
@@ -958,7 +958,7 @@ function pickCard(item, n) {
     el('div', { class: 'pick-time' }, [
       el('strong', { class: 'num', text: e.status.void ? t('postponed') : e.status.state === 'in' ? '●' : e.status.state === 'post' ? t('final') : timeText(e) }),
       // Under the time: what's on now, or how long until it starts (within the day); not 「第一場」, which was every first card's.
-      el('small', { text: e.status.state === 'in' ? statusText(e) : e.status.state === 'pre' && !e.timeTbd ? untilText(shownStart(e)) : '' })
+      el('small', { text: e.status.state === 'in' ? statusText(e) : e.status.state === 'pre' && !e.timeTbd ? untilText(shownStart(e)) : '', ...halftimeTick(e) })
     ]),
     el('div', { class: 'pick-body' }, [
       el('div', { class: 'pick-top' }, [leagueChip(e.league, Boolean(tag)), tag ? el('span', { class: 'stage-tag', text: tag }) : null]),

@@ -25,7 +25,7 @@ import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mj
 import { SEASON_GAMES, liveTable, roundCounted, roundOf } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
+import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, halftimeTick, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -145,7 +145,7 @@ export async function openMatch(e) {
         side(away, e.away),
         el('div', { class: 'mh-mid' }, [
           st.state === 'pre' ? el('strong', { class: 'mh-time', text: timeText(e) }) : el('strong', { class: 'mh-score num', text: `${away.score ?? ''} - ${home.score ?? ''}` }),
-          el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText({ ...e, status: st }) }),
+          el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText({ ...e, status: st }), ...halftimeTick({ ...e, status: st }) }),
           // A league's round alone (第 5 輪): under the status, in the room the
           // sides' records and follows leave there, not a row of its own
           // floating between the header and the line score (the owner, 2026-10-17).
@@ -628,7 +628,7 @@ function gameCards(game, id, league) {
   // is (場上, 先發, ↓ 69') beside the title, not a card of its own.
   const scoreRow = el('div', { class: 'pg-row' }, [
     el('span', { class: 'pg-score' }, [logo(away?.logo, away?.name, 'xs'), el('strong', { class: 'num', text: st.state === 'pre' ? 'vs' : `${away?.score ?? ''} – ${home?.score ?? ''}` }), logo(home?.logo, home?.name, 'xs')]),
-    el('span', { class: `pg-status ${st.state}`, text: statusText({ ...e, status: st }) })
+    el('span', { class: `pg-status ${st.state}`, text: statusText({ ...e, status: st }), ...halftimeTick({ ...e, status: st }) })
   ]);
   // Soccer's cards: a label by the title, not a number among his stats (one
   // yellow, or two and off, or a straight red: never "2" of anything).

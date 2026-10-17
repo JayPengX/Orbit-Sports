@@ -9,7 +9,8 @@ import { liveLabel, liveNote } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
-import { freshHeadshot, SESSION_NAMES } from './lib/espn.mjs';
+import { freshHeadshot, SESSION_NAMES, espnSummary } from './lib/espn.mjs';
+import * as kit from '#kit/quadra.mjs';
 import { tvOf, channelsOf, watchOf, replayHint } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
 
@@ -219,9 +220,25 @@ const compChip = e => (e.other ? el('span', { class: 'league-tag other' }, [el('
 
 // ---- Events --------------------------------------------------------------------------
 
+// A game at half-time: its countdown's key, its break's end looked up once
+// (ESPN's summary, the kit's watchHalftime); null for any other moment.
+const atHalftime = e => e.kind === 'match' && e.status?.state === 'in' && !e.status.delayed && /HALFTIME/.test(e.status.name || '') && Boolean(LEAGUES[e.league]?.espn);
+export function halftimeKey(e) {
+  if (!atHalftime(e)) return null;
+  const key = `sports:${e.league}:${e.id}`;
+  kit.watchHalftime?.(key, { sport: LEAGUES[e.league].sport, league: e.league, read: () => espnSummary(e.league, e.id) });
+  return key;
+}
+// What a status's element carries to tick (中場休息 12:34), drawn with statusText's words.
+export const halftimeTick = (e, label = statusText(e)) => {
+  const key = halftimeKey(e);
+  return key && kit.halftimeAttrs ? kit.halftimeAttrs(key, label.replace(/\s+\d+:\d{2}$/, '')) : {};
+};
 export function statusText(e) {
   const { t } = ctx;
   const s = e.status;
+  const ht = halftimeKey(e);
+  if (ht) return [liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale), kit.halftimeClock?.(kit.halftimeEnd?.(ht))].filter(Boolean).join(' ');
   if (s.void) return t('postponed');
   // Waiting (rain, a late start): still on, not called off.
   if (s.delayed && s.state === 'pre') return t('delayed');
@@ -280,6 +297,9 @@ function statusEl(e, day = true) {
   if (e.status.state === 'pre' && !e.status.void && Date.parse(e.start) <= Date.now()) return el('span', { class: 'event-status in', text: ctx.locale === 'en' ? 'Starting' : '即將開賽' });
   // A game on now with its clock (第4節 8:58): the period, the clock under it (two lines drawn for it, never a wrap).
   const text = statusText(e);
+  // At half-time: 中場休息, its countdown under it, ticking (the line kept for it before the countdown is known).
+  const ht = halftimeKey(e);
+  if (ht && kit.halftimeAttrs) return el('span', { class: 'event-status in clocked' }, [el('span', { text: text.replace(/\s+\d+:\d{2}$/, '') }), el('small', { class: 'num', ...kit.halftimeAttrs(ht), text: /\d+:\d{2}$/.exec(text)?.[0] || '' })]);
   const clockAt = e.status.state === 'in' ? /^(.+?)\s+(\d{1,2}:\d{2}(?:\.\d)?)$/.exec(text) : null;
   if (clockAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: clockAt[1] }), el('small', { class: 'num', text: clockAt[2] })]);
   // A final with more to say (完賽（10 局）, 完賽（PK 大戰）): 完賽, and the rest under it (two lines drawn for it, never cut).

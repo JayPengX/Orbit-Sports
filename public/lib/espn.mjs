@@ -1284,9 +1284,11 @@ export async function cpblGame(e) {
   const box = await getJson(url, { ttl: e.status?.state === 'post' ? 10 * 60_000 : LIVE_TTL });
   return cpblSummary(box, e, detectLocale() === 'en');
 }
+// A game's summary as ESPN sends it (the same read summary() makes): when
+// its half ended, for 中場休息's countdown (the kit's watchHalftime).
+export const espnSummary = (league, id) => getJson(`${SITE}/${LEAGUES[league].espn}/summary?event=${encodeURIComponent(id)}`, { ttl: LIVE_TTL });
 export async function summary(league, id) {
-  const l = LEAGUES[league];
-  const data = await getJson(`${SITE}/${l.espn}/summary?event=${encodeURIComponent(id)}`, { ttl: LIVE_TTL });
+  const data = await espnSummary(league, id);
   let sm = parseSummary(data, league);
   // MLB's 陣容: each side's whole active roster and who's in what role (MLB's box score).
   if (league === 'mlb') sm = await withMlbSquads(sm, data?.header?.competitions?.[0]?.date).catch(() => sm);
