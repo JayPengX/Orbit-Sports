@@ -144,7 +144,7 @@ export async function openMatch(e) {
       el('div', { class: 'mh-row' }, [
         side(away, e.away),
         el('div', { class: 'mh-mid' }, [
-          st.state === 'pre' ? el('strong', { class: 'mh-time', text: timeText(e) }) : el('strong', { class: 'mh-score num', text: `${away.score ?? ''} - ${home.score ?? ''}` }),
+          st.state === 'pre' ? el('strong', { class: 'mh-time', text: timeText(e) }) : el('strong', { class: 'mh-score num', 'data-q-live': st.state === 'in' ? `mh:${e.league}:${e.id}` : null, text: `${away.score ?? ''} - ${home.score ?? ''}` }),
           el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText({ ...e, status: st }), ...halftimeTick({ ...e, status: st }) }),
           // A league's round alone (第 5 輪): under the status, in the room the
           // sides' records and follows leave there, not a row of its own
@@ -627,7 +627,7 @@ function gameCards(game, id, league) {
   // game's clock at the right, red while on), then his numbers; where he
   // is (場上, 先發, ↓ 69') beside the title, not a card of its own.
   const scoreRow = el('div', { class: 'pg-row' }, [
-    el('span', { class: 'pg-score' }, [logo(away?.logo, away?.name, 'xs'), el('strong', { class: 'num', text: st.state === 'pre' ? 'vs' : `${away?.score ?? ''} – ${home?.score ?? ''}` }), logo(home?.logo, home?.name, 'xs')]),
+    el('span', { class: 'pg-score' }, [logo(away?.logo, away?.name, 'xs'), el('strong', { class: 'num', 'data-q-live': st.state === 'in' ? `pg:${e.league}:${e.id}` : null, text: st.state === 'pre' ? 'vs' : `${away?.score ?? ''} – ${home?.score ?? ''}` }), logo(home?.logo, home?.name, 'xs')]),
     el('span', { class: `pg-status ${st.state}`, text: statusText({ ...e, status: st }), ...halftimeTick({ ...e, status: st }) })
   ]);
   // Soccer's cards: a label by the title, not a number among his stats (one

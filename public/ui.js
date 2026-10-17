@@ -313,7 +313,7 @@ export function sideLine(side, e, win) {
   return el('div', { class: `side${win ? ' win' : ''}` }, [
     sideLogo(side, e.league, 'sm'),
     el('span', { class: 'side-name', text: side.short || side.name }),
-    e.status.state !== 'pre' && !e.status.void ? el('strong', { class: 'side-score num', text: side.score === '' || side.score == null ? (e.status.state === 'in' ? '–' : '') : side.score }) : null
+    e.status.state !== 'pre' && !e.status.void ? el('strong', { class: 'side-score num', 'data-q-live': e.status.state === 'in' ? `sc:${e.league}:${e.id}:${side.id}` : null, text: side.score === '' || side.score == null ? (e.status.state === 'in' ? '–' : '') : side.score }) : null
   ]);
 }
 export function winners(e) {
