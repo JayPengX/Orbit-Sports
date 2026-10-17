@@ -4076,7 +4076,12 @@ export async function openPlayer(league, id, fallback = {}) {
     const odd = !a.teamLogo && /^[^a-z]*[A-Z]{3}[^a-z]*$/.test(a.team || '');
     const side = game && odd ? [game.e.home, game.e.away].find(x => x && String(x.id) === gameLine(game.data, id)?.[0]?.team) : null;
     if (side) Object.assign(a, { team: side.name, teamId: String(side.id), teamLogo: side.logo || '', teamColor: side.color || a.teamColor });
-    else if (odd) a.team = a.team.replace(/\s+(I{1,3}|B|II)$/, '').toLowerCase().replace(/(^|[\s-])(\S)/g, (m, sp, c) => sp + c.toUpperCase()).replace(/\b(Rc|Fc|Ac|Sc|Ss|As|Us|Cf|Sv|Vfb|Vfl|Psv|Afc)\b/g, w => w.toUpperCase());
+    else if (odd) {
+      a.team = a.team.replace(/\s+(I{1,3}|B|II)$/, '').toLowerCase().replace(/(^|[\s-])(\S)/g, (m, sp, c) => sp + c.toUpperCase()).replace(/\b(Rc|Fc|Ac|Sc|Ss|As|Us|Cf|Sv|Vfb|Vfl|Psv|Afc)\b/g, w => w.toUpperCase());
+      // Its club as the league names it (Strasbourg: 史特拉斯堡), where one of its words is.
+      const known = a.team.split(/\s+/).find(w => w.length > 3 && teamNameZh(LEAGUES[league]?.play || league, w, sport));
+      if (known) a.team = known;
+    }
     const en = L() === 'en';
     const W = (zh, eng) => (en ? eng : zh);
     // A pitcher's role as he's used now (his last games), not the season's.
@@ -4328,7 +4333,7 @@ export async function openPlayer(league, id, fallback = {}) {
       el('div', { class: `team-head player-hero${heroColor ? ' tinted' : ''}`, style: heroColor ? `--hero:${heroColor}` : null }, [
         pic,
         el('div', { class: 'team-head-text' }, [
-          // The name whole (two lines if it needs them); the number with the position under it.
+          // The name on one line, a little smaller where long (fitNumbers on .team-head h3); the number with the position under it.
           el('h3', { text: name }),
           name !== a.name ? el('small', { class: 'muted', text: a.name }) : null,
           teamChip,

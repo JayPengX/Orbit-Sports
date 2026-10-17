@@ -1909,3 +1909,6 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 
 /* A game called off: not a button (openEvent), still read as the others (no greyed text, no press). */
 :is(.event-row, .pick-card, .tf-game, .res-row, .wk-card, .tvg-body):disabled { color: inherit; opacity: 1; cursor: default; }
+
+/* A player's name on one line: smaller where long (app.js fitNumbers), never two (Samir El / Mourabet at 375). */
+.player-hero .team-head-text h3 { white-space: nowrap; }
