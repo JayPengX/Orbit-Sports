@@ -320,6 +320,9 @@ function statusEl(e, day = true) {
   if (ht && kit.halftimeAttrs) return el('span', { class: 'event-status in clocked' }, [el('span', { text: text.replace(/\s+\d+:\d{2}$/, '') }), el('small', { class: 'num', ...kit.halftimeAttrs(ht), text: /\d+:\d{2}$/.exec(text)?.[0] || '' })]);
   const clockAt = e.status.state === 'in' ? /^(.+?)\s+(\d{1,2}:\d{2}(?:\.\d)?)$/.exec(text) : null;
   if (clockAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: clockAt[1] }), el('small', { class: 'num', text: clockAt[2] })]);
+  // Paused mid-game (rain): the period, 暫停 under it (two lines drawn for it, never a wrap).
+  const pausedAt = e.status.state === 'in' && e.status.delayed ? new RegExp(`^(.+?) · (${ctx.t('paused')})$`).exec(text) : null;
+  if (pausedAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: pausedAt[1] }), el('small', { text: pausedAt[2] })]);
   // A final with more to say (完賽（10 局）, 完賽（PK 大戰）): 完賽, and the rest under it (two lines drawn for it, never cut).
   const ended = e.status.state === 'post' ? /^(.+?)（(.+)）$/.exec(text) : null;
   if (ended) return el('span', { class: 'event-status post ended' }, [el('span', { text: ended[1] }), el('small', { text: ended[2] })]);
