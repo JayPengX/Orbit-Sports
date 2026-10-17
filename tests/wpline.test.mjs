@@ -194,3 +194,20 @@ test("a stoppage the minute of a goal isn't given the goal's swing (Brentford v 
   const alone = eventMoments(moved, [goal, { ...stop, t: 1260 }], 'soccer', side, moved.map(p => p.t));
   assert.ok(alone.some(m => m.text === '球員受傷，比賽暫停'));
 });
+
+test("a VAR check that ends in a red card is one moment, the red card, its swing from the check on (Yarmoliuk, 45+8' and 45+10')", async () => {
+  const { eventMoments } = await import('../public/lib/moments.mjs');
+  // Every minute; the check at minute 10 starts Liverpool's (away) rise, the red at minute 12 finishes it.
+  const pts = Array.from({ length: 30 }, (_, k) => ({ t: k * 60, home: k < 11 ? 0.45 : k < 13 ? 0.3 : 0.2, draw: 0.28 }));
+  const check = { t: 600, kind: 'var', play: { kind: 'var---referee-decision-cancelled', type: 'VAR - Referee decision cancelled', team: '337', who: 'Y. Yarmoliuk' } };
+  const red = { t: 720, kind: 'red', play: { kind: 'red', team: '337', who: 'Y. Yarmoliuk' } };
+  const side = { home: { id: '337', name: '布倫特福德' }, away: { id: '364', name: '利物浦' }, en: false };
+  const found = eventMoments(pts, [check, red], 'soccer', side, pts.map(p => p.t));
+  assert.equal(found.length, 1);
+  assert.equal(found[0].icon, '🟥');
+  assert.match(found[0].text, /Yarmoliuk 紅牌/);
+  assert.ok(found[0].delta < -0.2, 'the whole swing, from the check');
+  // A goal ruled out by VAR stays (it is the result).
+  const out = { ...check, play: { ...check.play, kind: 'deleted-after-review' } };
+  assert.equal(eventMoments(pts, [out], 'soccer', side, pts.map(p => p.t)).length, 1);
+});

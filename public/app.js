@@ -867,6 +867,30 @@ function pickedToday() {
   } catch {}
   return new Set();
 }
+// A day's picks as they were shown before its games began (the person's own,
+// 全部): what the day is ranked as once played, on this phone. Ten days kept.
+const PINS_KEY = 'sports.dayPins.v1';
+const pickKey = e => `${e.league}:${e.id}`;
+function readPins() {
+  try {
+    return JSON.parse(localStorage.getItem(PINS_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+function pinOf(date) {
+  const p = readPins()[date];
+  return p?.leagues === leaguesKey() && p.keys?.length ? p.keys : null;
+}
+function pinDay(date, keys) {
+  const pins = readPins();
+  if (pins[date]?.leagues === leaguesKey() && pins[date].keys.join() === keys.join()) return;
+  pins[date] = { keys, leagues: leaguesKey() };
+  for (const d of Object.keys(pins).sort().slice(0, -10)) delete pins[d];
+  try {
+    localStorage.setItem(PINS_KEY, JSON.stringify(pins));
+  } catch {}
+}
 function notePicked(events) {
   const keys = pickedToday();
   const had = keys.size;
@@ -1166,10 +1190,21 @@ function renderHome() {
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
   const rank = (list, also = 999, ctx = pctx, before = past) => {
-    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also, asStood: before });
+    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before });
     // The small hours' big games: with the rest, by their score.
-    const { also: night } = dayPlan(list.filter(nightOnly), ctx, { n: 0, also, asStood: before });
-    return [plan, [...awake, ...night].sort((x, y) => y.score - x.score).slice(0, also)];
+    const { also: night } = dayPlan(list.filter(nightOnly), ctx, { n: 0, also: 999, asStood: before });
+    const rest = [...awake, ...night].sort((x, y) => y.score - x.score);
+    // A day played (or playing), the person's own picks: the ones shown
+    // before its games began, never ranked again on today's tables and
+    // habits (yesterday's Liverpool–Brentford gave way to Ipswich–Man City
+    // once City's win moved the table).
+    const pin = before && ctx === pctx && h.filter === 'all' ? pinOf(h.date) : null;
+    if (pin) {
+      const all = [...plan, ...rest];
+      const kept = pin.map(k => all.find(x => pickKey(x.event) === k)).filter(Boolean);
+      if (kept.length) return [kept.sort((x, y) => Date.parse(x.event.start) - Date.parse(y.event.start)), all.filter(x => !kept.includes(x)).sort((x, y) => y.score - x.score).slice(0, also)];
+    }
+    return [plan, rest.slice(0, also)];
   };
   // Only what's on TV in Taiwan is recommended (賽事 has every game), a game
   // over too: a result is among the picks only if it was on. Only where it
@@ -1263,6 +1298,8 @@ function renderHome() {
   // Everything the picks lean on is in: the day read fresh, the tables,
   // the followed teams, and no search for other games or days going on.
   h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !h.tablesPending && ![...h.teams.values()].includes(null);
+  // The picks as shown before any of them began: kept for the day (pinOf).
+  if (!past && !fallback && h.filter === 'all' && h.settled && planList.length && planList.every(x => x.event.status.state === 'pre' && !x.event.status.void)) pinDay(h.date, planList.map(x => pickKey(x.event)));
   // The best of the rest, listed by the clock (by score, a 02:45 sat above a 00:00).
   const byStart = (x, y) => Date.parse(x.event.start) - Date.parse(y.event.start);
   const shownMore = more.slice(0, h.shown).sort(byStart);

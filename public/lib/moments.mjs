@@ -376,10 +376,23 @@ export function eventMoments(points, events, sport, side, times) {
     while (k + 1 < points.length && times[k + 1] <= t) k++;
     return k;
   };
+  // A VAR check that ends in a card, a goal or a penalty is that one moment:
+  // the result told (紅牌), not the process (VAR 推翻裁判判決), its swing from
+  // the check on (Yarmoliuk's red at 45+10' and the VAR before it were two
+  // rows, one with no dot of its own). A goal ruled out is its own result.
+  const result = v => events.find(o => o !== v && ['red', 'score', 'miss'].includes(o.kind) && o.t >= v.t && o.t - v.t <= 360 && (!v.play.who || !o.play?.who || o.play.who === v.play.who || String(o.play.team) === String(v.play.team)));
+  const merged = [];
+  const from = new Map();
+  for (const ev of events) {
+    const r = ev.kind === 'var' && ev.play.kind !== 'deleted-after-review' ? result(ev) : null;
+    if (r) from.set(r, Math.min(from.get(r) ?? Infinity, ev.t));
+    else merged.push(ev);
+  }
+  events = merged;
   const found = events
     .filter(ev => ev.t >= times[0] && ev.t <= times.at(-1) + 300)
     .map(ev => {
-      const [i0, i1] = [at(ev.t - 60), at(ev.t + 300)];
+      const [i0, i1] = [at(Math.min(ev.t, from.get(ev) ?? Infinity) - 60), at(ev.t + 300)];
       // Play stopped: what the prices did meanwhile, their furthest from
       // before (a check waved off comes back: a spike, not a step), there.
       // A VAR decision too: the goal's swing, then back when it's ruled out.
