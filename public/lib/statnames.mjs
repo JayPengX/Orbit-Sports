@@ -178,6 +178,7 @@ export function seriesLineZh(text, name = x => x) {
   m = /^(\S+) (?:lead|leads) series (\d+-\d+)$/i.exec(t);
   if (m) return `${name(m[1])} 系列賽 ${m[2]} 領先`;
   m = /^series tied (\d+-\d+)$/i.exec(t);
+  if (m && m[1] === '0-0') return '系列賽即將開打';
   if (m) return `系列賽 ${m[1]} 平手`;
   m = /^series starts/i.exec(t);
   if (m) return '系列賽即將開打';

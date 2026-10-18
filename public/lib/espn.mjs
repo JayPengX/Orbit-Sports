@@ -928,7 +928,7 @@ export function cpblPlayoffs(events, seeds = null) {
       const lead = wa === wb ? null : wa > wb ? a : b;
       const done = Math.max(wa, wb) >= need;
       const score = `${Math.max(wa, wb)}-${Math.min(wa, wb)}`;
-      const summary = !lead ? `Series tied ${score}` : `${ab(lead)} ${done ? 'win' : 'lead'} series ${score}`;
+      const summary = !lead ? (wa + wb ? `Series tied ${score}` : 'Series starts') : `${ab(lead)} ${done ? 'win' : 'lead'} series ${score}`;
       return [x, { summary, completed: done, games: CPBL_BEST[x.kind], wins: { ...x.wins } }];
     })
   );
