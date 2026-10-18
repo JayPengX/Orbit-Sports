@@ -1246,10 +1246,14 @@ function renderHome() {
   if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e))), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
   const allLive = isToday ? onNow(dayAll(slot)).filter(onTv).length : 0;
   if (slot?.at) prefetchVideos(dayAll(slot));
-  // Today's picks first (each marked ★ 推薦), then the rest of theirs, ranked.
+  // The pick on now first, marked ★ 推薦, then the rest of theirs, ranked.
+  // One at most: the picks are a plan of games that don't clash (picks.mjs),
+  // so two picks on at once is never a recommendation (the owner,
+  // 2026-10-18); the best ranked of any that are.
   const pickedKeys = isToday ? pickedToday() : new Set();
-  const isPick = x => pickedKeys.has(`${x.event.league}:${x.event.id}`);
-  liveItems = [...liveItems.filter(isPick), ...liveItems.filter(x => !isPick(x))];
+  const onPick = liveItems.find(x => pickedKeys.has(`${x.event.league}:${x.event.id}`)) || null;
+  const isPick = x => x === onPick;
+  liveItems = onPick ? [onPick, ...liveItems.filter(x => x !== onPick)] : liveItems;
   const liveShown = liveItems.slice(0, liveMine ? 5 : 3);
   const liveKeys = new Set(liveShown.map(x => `${x.event.league}:${x.event.id}`));
   planList = planList.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
