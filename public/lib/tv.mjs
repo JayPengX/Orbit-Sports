@@ -8,6 +8,7 @@ import { teamNameZh } from '#kit/names.mjs';
 import { watchOf as packOf, loadWatchMonth } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
+import { taipeiDate as taipeiDay } from './days.mjs';
 
 let changed = () => {};
 export const onTvChange = fn => (changed = fn);
@@ -97,7 +98,6 @@ const nbaSchedule = schedule(
 // NBA.com's ELTA games after ELTA's own list ends, for its guide: the game
 // known, its channel not yet ({ league, start, end, teams, title, day, channels: [] }).
 const NBA_NAME = Object.fromEntries(Object.entries(NBA_ID).map(([name, id]) => [1610612700 + id, name]));
-const taipeiDay = ms => new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10);
 export function nbaAfterList() {
   const programs = eltaSchedule();
   const games = nbaSchedule();

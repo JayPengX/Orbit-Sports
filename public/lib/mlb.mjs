@@ -6,6 +6,8 @@
 //   mlbLiveGames(data)  a day's schedule (hydrated) → each game on now's live state
 //   mlbBoxTables(data)  a game's box score → ESPN's batting and pitching tables
 
+import { fold } from './text.mjs';
+
 export const MLB_API = 'https://statsapi.mlb.com/api/v1';
 
 // A day's games, as MLB files them (the US Eastern date).
@@ -13,11 +15,10 @@ export const mlbDate = t => new Intl.DateTimeFormat('en-CA', { timeZone: 'Americ
 export const mlbScheduleUrl = date => `${MLB_API}/schedule?sportId=1&date=${date}&hydrate=linescore,previousPlay`;
 export const mlbBoxUrl = pk => `${MLB_API}/game/${pk}/boxscore`;
 
-// A team's name compared plainly ("Athletics", "Tampa Bay Rays"; accents and case aside).
-const plain = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+// Teams' names compared plainly ("Athletics", "Tampa Bay Rays"; accents and case aside: text.mjs fold).
 // A person's name as MLB's and ESPN's are compared: accents, case and a
 // suffix one names and the other doesn't aside ("Bobby Witt", "Bobby Witt Jr.").
-export const personKey = s => plain(s).replace(/[.,]/g, '').replace(/\s+(jr|sr|ii|iii|iv)$/, '');
+export const personKey = s => fold(s).replace(/[.,]/g, '').replace(/\s+(jr|sr|ii|iii|iv)$/, '');
 // "Yandy Díaz" → "Y. Díaz", as ESPN shows them.
 const shortName = full => {
   const [first, ...rest] = String(full || '').split(' ');
@@ -39,8 +40,8 @@ export function mlbLiveGames(data) {
       const pitcher = ls.defense?.pitcher;
       return {
         pk: g.gamePk,
-        away: plain(g.teams?.away?.team?.name),
-        home: plain(g.teams?.home?.team?.name),
+        away: fold(g.teams?.away?.team?.name),
+        home: fold(g.teams?.home?.team?.name),
         live: {
           balls: ls.balls ?? 0,
           strikes: ls.strikes ?? 0,
@@ -83,7 +84,7 @@ export function fieldOf(ls) {
 }
 
 // The MLB game of an Orbit Sports event (each side's English name).
-export const mlbGameOf = (games, e) => games.find(g => g.home === plain(e.home?.en || e.home?.name) && g.away === plain(e.away?.en || e.away?.name)) || null;
+export const mlbGameOf = (games, e) => games.find(g => g.home === fold(e.home?.en || e.home?.name) && g.away === fold(e.away?.en || e.away?.name)) || null;
 
 // ESPN's table columns, filled from MLB's numbers: the game's line, then the season's.
 const BATTING = ['H-AB', 'AB', 'R', 'H', 'RBI', 'HR', 'BB', 'K', '#P', 'AVG', 'OBP', 'SLG'];
@@ -93,10 +94,10 @@ const n = v => (v == null ? '0' : String(v));
 // side: 'home' | 'away' → { batting: { labels, rows }, pitching: { labels, rows } },
 // each row { name, full, mlbId, headshot, pos, starter, stats }.
 // A day's games of any state (a schedule read plain): { pk, away, home, at }.
-export const mlbDayGames = data => (data?.dates || []).flatMap(d => d.games || []).map(g => ({ pk: g.gamePk, away: plain(g.teams?.away?.team?.name), home: plain(g.teams?.home?.team?.name), at: Date.parse(g.gameDate || '') }));
+export const mlbDayGames = data => (data?.dates || []).flatMap(d => d.games || []).map(g => ({ pk: g.gamePk, away: fold(g.teams?.away?.team?.name), home: fold(g.teams?.home?.team?.name), at: Date.parse(g.gameDate || '') }));
 // An event's game among them: its two sides, the start nearest its (a doubleheader's two).
 export const mlbGameAt = (games, e) =>
-  games.filter(g => g.home === plain(e.home?.en || e.home?.name) && g.away === plain(e.away?.en || e.away?.name)).sort((a, b) => Math.abs(a.at - Date.parse(e.start)) - Math.abs(b.at - Date.parse(e.start)))[0] || null;
+  games.filter(g => g.home === fold(e.home?.en || e.home?.name) && g.away === fold(e.away?.en || e.away?.name)).sort((a, b) => Math.abs(a.at - Date.parse(e.start)) - Math.abs(b.at - Date.parse(e.start)))[0] || null;
 // A player's line in a game, in a game log's columns (ESPN's: a batter's
 // AB R H 2B 3B HR RBI BB SO, a pitcher's GS CG SHO IP H R ER HR BB K), from
 // MLB's own box score: every column ESPN's box score hasn't (2B, 3B, GS…).

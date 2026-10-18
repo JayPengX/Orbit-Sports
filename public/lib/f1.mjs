@@ -5,6 +5,8 @@
 // and the sprint).
 import { getJson, feedEnded, feedStarted, feedOnAt } from './espn.mjs';
 import { f1Driver } from '#kit/logos.mjs';
+import { fold, surname } from './text.mjs';
+import { POINTS } from './title.mjs';
 
 const F1 = 'https://www.formula1.com/en';
 const JOLPICA = 'https://api.jolpi.ca/ergast/f1';
@@ -101,9 +103,8 @@ const mapRaces = (races, key) => new Map((races || []).map(r => [r.round, r[key]
 export async function jolpicaDriverId(name, year = new Date().getFullYear()) {
   const d = await getJson(`${JOLPICA}/${year}/drivers.json?limit=60`, { ttl: 12 * HOUR });
   const list = d?.MRData?.DriverTable?.Drivers || [];
-  const plain = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const n = plain(name);
-  return (list.find(x => n.endsWith(plain(x.familyName)) && n.includes(plain(x.givenName).split(' ')[0])) || list.find(x => n.endsWith(plain(x.familyName))))?.driverId || '';
+  const n = fold(name);
+  return (list.find(x => n.endsWith(fold(x.familyName)) && n.includes(fold(x.givenName).split(' ')[0])) || list.find(x => n.endsWith(fold(x.familyName))))?.driverId || '';
 }
 export const jolpicaConstructorId = name =>
   ({ 'Red Bull': 'red_bull', 'Racing Bulls': 'rb', RB: 'rb', 'Aston Martin': 'aston_martin', 'Kick Sauber': 'sauber', Sauber: 'sauber', Audi: 'audi', Haas: 'haas', Alpine: 'alpine', Williams: 'williams', McLaren: 'mclaren', Ferrari: 'ferrari', Mercedes: 'mercedes', Cadillac: 'cadillac' })[name] || String(name || '').toLowerCase().replace(/\s+/g, '_');
@@ -292,8 +293,6 @@ export const finishOrder = (abbr, start) => finishOrders.get(`${abbr}|${start}`)
 // called over, over, its field in that order (a car out takes no points:
 // its place is left empty): what the championship counts at once
 // (title.mjs liveTable), before ESPN's scoreboard and table have it.
-const plainName = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-const surname = s => plainName(s).split(' ').filter(w => !/^(jr|sr)\.?$/.test(w)).at(-1) || '';
 export function settleScoring(events = []) {
   return events.map(e => {
     if (!e?.sessions?.some(x => POINTS[x.abbr])) return e;
@@ -303,7 +302,7 @@ export function settleScoring(events = []) {
         if (!POINTS[x.abbr] || x.status?.state === 'post') return x;
         const order = finishOrder(x.abbr, x.start);
         if (!order?.length) return x;
-        const sideOf = name => (x.field || []).find(f => plainName(f.en || f.name) === plainName(name)) || (x.field || []).find(f => surname(f.en || f.name) === surname(name));
+        const sideOf = name => (x.field || []).find(f => fold(f.en || f.name) === fold(name)) || (x.field || []).find(f => surname(f.en || f.name) === surname(name));
         return { ...x, status: { ...x.status, state: 'post', completed: true }, field: order.map(o => (o.out ? { id: '', name: '', en: '' } : sideOf(o.name) || { id: '', name: o.name, en: o.name })) };
       })
     };
@@ -490,7 +489,8 @@ export function neutralLaps(control = [], lapNow = 0) {
 // ---- The championship as things stand (Orbit Sports' 數據, a race or a sprint on) ----
 
 // The points for each place (2026: no point for the fastest lap).
-export const POINTS = { Race: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1], SR: [8, 7, 6, 5, 4, 3, 2, 1] };
+// (title.mjs's, the championship's one table of them.)
+export { POINTS };
 // The points a car would take if the flag fell now: its place, or none out of it.
 export const pointsFor = (abbr, pos, out = false) => (out ? 0 : POINTS[abbr]?.[pos - 1] || 0);
 // The table as it stands: each row ({ key, pts, rank, … }) with the points

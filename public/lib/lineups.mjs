@@ -8,6 +8,7 @@
 //     its batting order once the manager posts it (hours before).
 // Pure parsing here; the reads in espn.mjs (pregameLineups).
 import { personKey } from './mlb.mjs';
+import { fold } from './text.mjs';
 
 
 // The leagues whose starters ESPN marks before a game, and how far ahead
@@ -33,7 +34,6 @@ export function withRoster(starters, roster) {
 
 // MLB: a day's games with lineups and probable pitchers.
 export const mlbLineupsUrl = date => `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=lineups,probablePitcher`;
-const plain = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 // (No MLB picture: MLB's own is a big cropped headshot; the kit finds the same face the box score shows, by name.)
 const mlbPerson = p => (p?.id ? { id: '', mlb: String(p.id), name: p.fullName || '', headshot: null, pos: p.primaryPosition?.abbreviation || '' } : null);
 // MLB's people as ESPN's, by name (MLB names no ESPN id): each one's id
@@ -47,9 +47,9 @@ export function byRosterName(people, roster) {
 }
 // The game of an event (each side's English name): { pitchers: { away, home }, order: { away: [...], home: [...] } }, or null.
 export function mlbLineups(data, e) {
-  const home = plain(e?.home?.en || e?.home?.name);
-  const away = plain(e?.away?.en || e?.away?.name);
-  const g = (data?.dates || []).flatMap(d => d.games || []).find(x => plain(x.teams?.home?.team?.name) === home && plain(x.teams?.away?.team?.name) === away);
+  const home = fold(e?.home?.en || e?.home?.name);
+  const away = fold(e?.away?.en || e?.away?.name);
+  const g = (data?.dates || []).flatMap(d => d.games || []).find(x => fold(x.teams?.home?.team?.name) === home && fold(x.teams?.away?.team?.name) === away);
   if (!g) return null;
   return {
     pitchers: { away: mlbPerson(g.teams.away.probablePitcher), home: mlbPerson(g.teams.home.probablePitcher) },

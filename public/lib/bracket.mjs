@@ -48,7 +48,8 @@ function finish(t) {
   return t;
 }
 
-const unknown = x => /^tbd$/i.test(String(x.en || x.abbr || x.name || x.short || '').trim()) || /^tbd$/i.test(String(x.short || '').trim()) || Number(x.id) <= 0;
+// A side not decided yet (ESPN's "TBD", its ids -1 and -2); none at all is not one.
+export const undecided = x => Boolean(x) && (/^tbd$/i.test(String(x.en || x.abbr || x.name || x.short || '').trim()) || /^tbd$/i.test(String(x.short || '').trim()) || Number(x.id) <= 0);
 // A game's half of the draw (美聯 / 國聯, 東區 / 西區), '' when it has none:
 // from its note ("NLDS - Game 4"), ESPN's series title being "Playoff Series".
 const halfOf = e => /^(美聯|國聯|東區|西區)/.exec(roundName(e?.note || '', 'zh'))?.[1] || /^(美聯|國聯|東區|西區)/.exec(roundName(e?.round?.title || '', 'zh'))?.[1] || '';
@@ -84,7 +85,7 @@ function pendingTies(rounds, slots) {
       const ties = [];
       // The games that say the most first (a nightly copy's "TBD v TBD" can
       // sit beside the live "TB v CLE/CHW" of the same tie).
-      const known = x => [x.home, x.away].filter(y => !unknown(y) || String(y.abbr || '').includes('/')).length;
+      const known = x => [x.home, x.away].filter(y => !undecided(y) || String(y.abbr || '').includes('/')).length;
       let mine = slots.filter(x => x.round === r.key && half(x.half) === h).sort((a, b) => known(b) - known(a));
       // A half with one tie in this round: its games are all that tie's, from the first.
       if (mine.length > 1 && (left.length || 1) <= ratio) {
@@ -93,7 +94,7 @@ function pendingTies(rounds, slots) {
       }
       for (const slot of mine) {
         const pair = [slot.home, slot.away].map(x => {
-          if (!unknown(x)) {
+          if (!undecided(x)) {
             const fed = left.find(t => t.winner === String(x.id));
             return fed ? take(fed) : { side: x };
           }
@@ -139,8 +140,8 @@ export function buildBracket(events, league, { shape: given = null } = {}) {
   const slots = new Map();
   for (const e of events || []) {
     if (!e?.round || e.kind !== 'match' || !e.home?.id || !e.away?.id || e.status?.void) continue;
-    if ([e.home, e.away].some(unknown)) {
-      const key = `${e.round.key}|${halfOf(e)}|${[e.home, e.away].map(x => (unknown(x) ? `?${x.abbr || ''}` : String(x.id))).sort().join('|')}`;
+    if ([e.home, e.away].some(undecided)) {
+      const key = `${e.round.key}|${halfOf(e)}|${[e.home, e.away].map(x => (undecided(x) ? `?${x.abbr || ''}` : String(x.id))).sort().join('|')}`;
       const had = slots.get(key);
       const pre = e.status?.state === 'pre' ? e : null;
       if (!had) slots.set(key, { round: e.round.key, half: halfOf(e), home: e.home, away: e.away, next: pre });

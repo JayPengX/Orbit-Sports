@@ -7,7 +7,7 @@
 //   playoffModel({ league, mode, events, groups, stages, season, now })
 //     -> { mode: 'live' | 'projected' | 'last', season, rounds: [{ key, title, dates, state, ties }] }
 //   a predicted tie: { projected: true, sides: [side | null, side | null], seeds: [n, n], labels: ['', '8/9 勝者'] }
-import { buildBracket } from './bracket.mjs';
+import { buildBracket, undecided } from './bracket.mjs';
 
 const R = (key, zh, en, n) => ({ key, zh, en, n });
 const CUP = [R('knockout-round-playoffs', '淘汰附加賽', 'Knockout playoffs', 8), R('round-of-16', '16 強', 'Round of 16', 8), R('quarterfinals', '八強', 'Quarterfinals', 4), R('semifinals', '準決賽', 'Semifinals', 2), R('final', '決賽', 'Final', 1)];
@@ -105,7 +105,6 @@ export const stageKey = label =>
     .replace(/^rd of/, 'round of')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
-const tbd = s => /^tbd$/i.test(String(s?.short || s?.abbr || s?.name || '').trim()) || Number(s?.id) <= 0;
 
 // `startsAfter`: the regular season's last day (ms), for a first round no calendar dates yet (about 3 days after it).
 export function playoffModel({ league, mode = 'live', events = [], groups = null, seeds = null, stages = [], season = '', startsAfter = 0, now = Date.now() }) {
@@ -129,7 +128,7 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
     r.dates = times.length ? { from: Math.min(...times), to: Math.max(...times) } : stage?.start ? { from: Date.parse(stage.start), to: Date.parse(stage.end) - 1 } : null;
     if (!r.dates && r === rounds[0] && startsAfter) r.dates = { from: startsAfter + 3 * 86_400_000, to: startsAfter + 3 * 86_400_000, about: true };
     const real = r.ties.filter(t => t && !t.projected);
-    const live = real.some(t => t.live) || games.some(e => e.status?.state === 'in' && !tbd(e.home) && !tbd(e.away));
+    const live = real.some(t => t.live) || games.some(e => e.status?.state === 'in' && !undecided(e.home) && !undecided(e.away));
     const done = real.length === r.ties.length && real.length > 0 && real.every(t => t.winner);
     r.state = live ? 'live' : done ? 'done' : real.length || (r.dates && r.dates.from <= now) ? 'on' : 'later';
   }
