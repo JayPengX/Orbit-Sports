@@ -120,10 +120,10 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
   (every league with playoffs, its shape drawn while read) · 數據領先
   (NBA, WNBA, MLB, football and F1: one stat at a time by its chips, the
   top hundred, 25 at a time, with face, team and number, level numbers
-  level in the list; `lib/leaders.mjs`). Basketball's 16 (場均得分, 籃板,
-  助攻, 抄截, 阻攻, 三分球, 投籃 / 三分 / 罰球命中率, 上場時間, 雙十, 大三元,
-  totals…) and baseball's 24 (打擊率, 全壘打, 打點, OPS, 上壘率, 長打率,
-  WAR…; 防禦率, WHIP, 三振, 救援, 中繼, 優質先發, 每九局三振…) ranked here
+  level in the list; `lib/leaders.mjs`). Basketball's 12 (場均得分, 籃板,
+  助攻, 抄截, 阻攻, 三分球, 投籃 / 三分 / 罰球命中率, 上場時間, 雙十, 大三元;
+  the season totals and 罰球進球 left off as noise) and baseball's 23
+  (打擊率, 全壘打, 打點, OPS, 上壘率, 長打率, WAR…; 壘打數 left off; 防禦率, WHIP, 三振, 救援, 中繼, 優質先發, 每九局三振…) ranked here
   from ESPN's list of every player's regular season (the proxy's
   `espn-athletes`, the address Play reads too), a rate only among those
   who qualify as the league counts it (the NBA's makes, 3.1 plate
@@ -218,7 +218,8 @@ Every sheet swipes down to close and slides down on its ✕ or a tap outside (th
   | 陣容 (MLB) | Each side's whole active roster from MLB's box score (`mlbSquad`, every person matched to ESPN's roster by name): once the lineups are out 打序 (a substitute under his spot), 投手 used (先發, 後援), 牛棚 and 板凳; before them everyone by position (投手, 捕手, 內野手, 外野手), the probable starter 預計先發; 傷兵 with each one's list. ESPN's game page names only the nine |
   | 陣容 (basketball) | From the box score: each side's 先發, 替補 and 未上場 with why (教練決定, 傷病, 未隨隊…). Before tip-off, each side's roster: 先發 and 替補 once named, else by position (後衛, 前鋒, 中鋒); the hurt apart under 傷兵 with their status (每日觀察, 缺陣) |
   | 傷兵 | ESPN's injury report (NBA, WNBA, NFL, NHL, MLB: the league's list, kept 10 minutes) |
-  | Order | By the game's moment: on, 場上球員, the live chance, leaders, the matchup, the series, injuries, where to watch, the info; to come, the matchup, the chance, 先發, the rest; over, the replay and highlights, leaders, the chance's story, the rest |
+  | 本季數據領先 | Each side's season leader in the stats both teams have (the first eight), away and home tiles under the team tags (`teamLeaders`) |
+  | Order | By the game's moment: on, 場上球員, the live chance, leaders, 本季數據領先, the matchup, the series, injuries, where to watch, the info; to come, the matchup, the chance, 先發, the rest; over, the replay and highlights, leaders, the chance's story, the rest |
   | 排名 | The league's table with both sides marked, the result counted in at once (§Tables) |
   | 比賽資訊 | 時間 (the start; for a game over, 結束 and the moment it ended: its last play's own clock, `endedAt`), the ground and city, where to watch, the round, weather, attendance, officials, the competition |
 
@@ -287,7 +288,9 @@ The page follows the leagues' own apps:
   position), 數據領先 (each stat's leader of its own, two to a row as a
   game's sheet has them: basketball's and baseball's from its players'
   season numbers, who qualify; football's FotMob's club page, its twelve
-  main stats, the club found among FotMob's by name), 排名
+  main stats, the club found among FotMob's by name), then 隊內排行: the
+  team's own list of each stat (its top 15) a stat at a time by chips, as
+  the league's view draws it), 排名
   (its part of the table, results counted in at once).
 
 Two special cases:
@@ -305,6 +308,9 @@ Two special cases:
   competition, ours opening its match), 資料 (profile, honours).
   - Last season's numbers are said to be until the new season's first
     game.
+  - 聯盟排名 in 概況: where he ranks in the league's 數據領先 (its top
+    eight, rank of how many; FotMob's rows matched by name), a stat already
+    in the season card left out.
 - **近期比賽**: a game tapped opens as the home page opens it (its whole
   record from that day's scoreboard: a playoff game with its round, its
   series and the tap to the whole series). The games ESPN's log hasn't

@@ -31,12 +31,8 @@ export const ATHLETE_STATS = {
     ['3p', 'offensive', 'threePointFieldGoalPct', '三分命中率', '3P%', 'pct', '3p'],
     ['ft', 'offensive', 'freeThrowPct', '罰球命中率', 'FT%', 'pct', 'ft'],
     ['min', 'general', 'avgMinutes', '上場時間', 'Minutes', 'pg', 'games'],
-    ['ftm', 'offensive', 'avgFreeThrowsMade', '罰球進球', 'Free throws', 'pg', 'games'],
     ['dd', 'general', 'doubleDouble', '雙十', 'Double-doubles', 'n'],
-    ['td', 'general', 'tripleDouble', '大三元', 'Triple-doubles', 'n'],
-    ['ptsAll', 'offensive', 'points', '總得分', 'Total points', 'n'],
-    ['rebAll', 'general', 'rebounds', '總籃板', 'Total rebounds', 'n'],
-    ['astAll', 'offensive', 'assists', '總助攻', 'Total assists', 'n']
+    ['td', 'general', 'tripleDouble', '大三元', 'Triple-doubles', 'n']
   ],
   baseball: [
     ['avg', 'batting', 'avg', '打擊率', 'Average', 'avg', 'pa'],
@@ -51,7 +47,6 @@ export const ATHLETE_STATS = {
     ['2b', 'batting', 'doubles', '二壘安打', 'Doubles', 'n'],
     ['3b', 'batting', 'triples', '三壘安打', 'Triples', 'n'],
     ['bb', 'batting', 'walks', '保送', 'Walks', 'n'],
-    ['tb', 'batting', 'totalBases', '壘打數', 'Total bases', 'n'],
     ['war', 'batting', 'WARBR', '野手 WAR', 'WAR (batting)', 'one'],
     ['era', 'pitching', 'ERA', '防禦率', 'ERA', 'era', 'ip', true],
     ['w', 'pitching', 'wins', '勝投', 'Wins', 'n'],
@@ -192,7 +187,22 @@ function rank(pages, sport, league, { top = LEAGUE_TOP, team = null } = {}) {
   return stats.length ? { season, stats } : null;
 }
 export const parseAthleteLeaders = (pages, sport, league) => rank(pages, sport, league);
-export const parseTeamAthletes = (pages, sport, league, team) => rank(pages, sport, league, { top: 3, team });
+// (A team's: its own fifteen a stat, the leader on its card, the rest in 隊內排行.)
+export const parseTeamAthletes = (pages, sport, league, team) => rank(pages, sport, league, { top: 15, team });
+
+// Where one player stands in a league's lists: [{ stat, rank, value, of }],
+// best place first (level on the number, level in the place). A footballer
+// from FotMob (no ESPN id) by his name.
+export function playerRanks(data, id, name = '') {
+  const fold = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+  const out = [];
+  for (const st of data?.stats || []) {
+    const i = st.list.findIndex(x => (x.id && String(x.id) === String(id)) || (!x.id && name && fold(x.full || x.name) === fold(name)));
+    if (i < 0) continue;
+    out.push({ stat: st, rank: st.list.findIndex(y => y.value === st.list[i].value) + 1, value: st.list[i].value, of: st.list.length });
+  }
+  return out.sort((a, b) => a.rank - b.rank);
+}
 
 // Football's from ESPN (site v2 statistics, or the proxy's trim: espn-leaders):
 // { season, stats: [{ key, zh, en, list: [{ id, name, full, headshot, team, value, games }] }] }, or null.

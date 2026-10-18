@@ -5,7 +5,7 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders } from './lib/espn.mjs';
+import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -21,7 +21,7 @@ import { raceControlParts } from './lib/racecontrol.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, stintStops, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, POINTS, asItStands, settleScoring } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
-import { hasLeaders } from './lib/leaders.mjs';
+import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { SEASON_GAMES, liveTable, roundCounted, roundOf } from './lib/title.mjs';
@@ -103,6 +103,8 @@ export async function openMatch(e) {
   let lineups = null;
   // A basketball game to come: each side's averages (球員) and roster (陣容), by team id.
   let squads = null;
+  // Each side's season leaders (數據領先, its own best in each stat), for 本季數據 head to head.
+  let seasonLead = null;
   // Polymarket's win probability where ESPN draws none (a game on: again each
   // minute); a game to come, its chance for each side now, where ESPN has no
   // prediction of its own.
@@ -235,7 +237,7 @@ export async function openMatch(e) {
     if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     else if (view === 'table') view = 'overview';
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
-    const next = matchSection(view, data && { ...data, injuries: withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames }, e, table, { line, wait });
+    const next = matchSection(view, data && { ...data, injuries: withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead }, e, table, { line, wait });
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
     // chance chart, a finger on it) never leaves the page.
@@ -309,6 +311,15 @@ export async function openMatch(e) {
   loadLineups();
   lineupTimer = setInterval(loadLineups, 60_000);
   s.dialog.addEventListener('close', stopLineups);
+  {
+    const l = LEAGUES[e.league];
+    if (e.kind === 'match' && l?.espn && l.sport !== 'racing' && hasLeaders(l.sport, l.espn) && e.away?.id && e.home?.id)
+      Promise.all([e.away, e.home].map(x => teamLeaders(e.league, x.id, { name: x.en || x.name, en: x.en, short: x.short }).catch(() => null))).then(([a, h]) => {
+        if (!a || !h) return;
+        seasonLead = { a, h };
+        paint();
+      });
+  }
   // A basketball game to come: each side's players with their averages and its roster.
   if (e.kind === 'match' && e.status.state === 'pre' && LEAGUES[e.league].sport === 'basketball' && LEAGUES[e.league].espn && e.away?.id && e.home?.id)
     Promise.all([e.away, e.home].map(x => Promise.all([seasonAverages(e.league, x.id).catch(() => null), roster(e.league, x.id).catch(() => []), leagueAverages(e.league).catch(() => new Map())]).then(([avg, list, all]) => [String(x.id), { avg: rosterAverages(avg, list.flatMap(g => g.players), all), roster: list.flatMap(g => g.players) }]))).then(got => {
@@ -1172,6 +1183,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
           )
         )
       : null,
+    season: seasonLeadCard(d?.seasonLead, e),
     series: d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
     injuries: d?.injuries.some(i => i.list.length)
       ? card(
@@ -1195,12 +1207,36 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // leading, the rest; to come, the matchup, the chance, who starts; over,
   // the replay and highlights, who led, the chance's story, the rest.
   const ORDER = {
-    in: ['onField', 'win', 'leaders', 'matchup', 'series', 'injuries', 'tv', 'info'],
-    pre: ['matchup', 'win', 'lineups', 'series', 'injuries', 'tv', 'info', 'leaders'],
-    post: ['replay', 'highlights', 'leaders', 'win', 'matchup', 'series', 'info', 'injuries']
+    in: ['onField', 'win', 'leaders', 'matchup', 'season', 'series', 'injuries', 'tv', 'info'],
+    pre: ['matchup', 'win', 'lineups', 'season', 'series', 'injuries', 'tv', 'info', 'leaders'],
+    post: ['replay', 'highlights', 'leaders', 'win', 'matchup', 'season', 'series', 'info', 'injuries']
   };
   const state = (d?.status || e.status).state;
   return el('div', { class: 'stack' }, (ORDER[state] || ORDER.pre).map(k => part[k] || (k === 'onField' ? part.lineups : null)));
+}
+
+// 本季數據領先, side by side: each stat both teams have, its leader on each
+// side (away left, as everywhere in the sheet), the first eight of them.
+function seasonLeadCard(lead, e) {
+  if (!lead) return null;
+  const sport = LEAGUES[e.league]?.sport;
+  const en = L() === 'en';
+  const both = lead.a.stats.filter(st => lead.h.stats.some(x => x.key === st.key)).slice(0, 8);
+  if (!both.length) return null;
+  const side = (st, x) =>
+    el('button', { class: 'leader', type: 'button', onclick: () => openLeader(e.league, x) }, [
+      personPic({ ...x, name: x.full || x.name }, e.league, 'sm round'),
+      el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitLine(el('strong', { class: 'one-line', text: x.name })), el('b', { class: 'num', text: x.value })])])
+    ]);
+  return card(
+    en ? 'Season leaders' : '本季數據領先',
+    el('div', { class: 'leader-cols' }, [
+      el('p', { class: 'mini-h' }, [teamTag(e.away, e.away.short || e.away.name, e.league)]),
+      el('p', { class: 'mini-h' }, [teamTag(e.home, e.home.short || e.home.name, e.league)]),
+      ...both.flatMap(st => [side(st, st.list[0]), side(st, lead.h.stats.find(x => x.key === st.key).list[0])])
+    ]),
+    { sub: leadersSeason(lead.a, sport, en) }
+  );
 }
 
 // Who starts (pregameLineups): MLB's probable pitchers and batting orders,
@@ -3861,6 +3897,7 @@ export async function openTeam(league, id, fallback = {}) {
     let view = upcoming.length > 1 ? 'schedule' : 'results';
     let rosterList = null;
     let leadersData;
+    let teamPick = null;
     const paint = () => {
       put(tabsBox, segmented(views, view, v => ((view = v), paint()), '', { seg: true }));
       if (view === 'schedule') put(body, upcoming.length > 1 ? el('div', { class: 'q-card list' }, upcoming.slice(1, 16).map(x => eventRow(x, { league: comps }))) : empty(W('目前沒有更多賽程。', 'Nothing more scheduled yet.')));
@@ -3913,7 +3950,18 @@ export async function openTeam(league, id, fallback = {}) {
             .catch(() => put(body, empty(T('failed'))));
           return;
         }
-        put(body, leadersData ? teamLeadersCard(leadersData, league) : empty(W('本季還沒有數據。', 'No numbers yet this season.')));
+        // Each stat's leader, then the team's own list of it (隊內排行: a stat at a time).
+        const ranked = leadersData?.stats.some(st => st.list.length > 1);
+        put(
+          body,
+          leadersData
+            ? el('div', { class: 'stack' }, [
+                teamLeadersCard(leadersData, league),
+                ranked ? el('p', { class: 'mini-h lb-head', text: W('隊內排行', 'Within the team') }) : null,
+                ranked ? leagueLeadersView({ ...leadersData, stats: leadersData.stats.filter(st => st.list.length > 1) }, league, { pick: teamPick, onPick: k => ((teamPick = k), paint()) }) : null
+              ])
+            : empty(W('本季還沒有數據。', 'No numbers yet this season.'))
+        );
       }
       if (view === 'table') {
         const g = (groups || []).find(x => x.rows.some(r => r.id === String(id)));
@@ -4561,6 +4609,28 @@ export async function openPlayer(league, id, fallback = {}) {
       tabBody
     );
     paintTab();
+    // 聯盟排名: where he stands in each of the league's 數據領先 lists (its
+    // top hundred), the best places first, put into 概況 once read.
+    if (!racing && hasLeaders(sport, LEAGUES[league]?.espn))
+      leagueLeaders(league)
+        .then(data => {
+          // (Not those the season's card above already ranks.)
+          const above = new Set((a.stats?.list || []).filter(x => x.rank).map(x => statName(x.label, L(), { sport, long: x.name })));
+          const ranks = playerRanks(data, id, a.name)
+            .filter(r => !above.has(leaderLabel(r.stat, sport, en)))
+            .slice(0, 8);
+          if (!ranks.length || !s.dialog.isConnected) return;
+          const rc = card(
+            W('聯盟排名', 'League ranks'),
+            el('div', { class: 'stat-grid' }, ranks.map(r => tile(leaderLabel(r.stat, sport, en), r.value, W(`第 ${r.rank} 名`, `#${r.rank}`)))),
+            { sub: W(`各項前 ${ranks[0].of >= 100 ? 100 : ranks[0].of} 名裡`, `Within each top ${ranks[0].of >= 100 ? 100 : ranks[0].of}`) }
+          );
+          const at = overview.findIndex(c => c?.dataset?.kind === 'season');
+          overview.splice(at >= 0 ? at + 1 : overview.length, 0, rc);
+          if (!views.some(v => v[0] === 'overview')) views.splice(game ? 1 : 0, 0, ['overview', W('概況', 'Overview'), overview]);
+          if (view === 'overview') paintTab();
+        })
+        .catch(() => {});
     // The games ESPN's log hasn't caught up with (it's a day behind, and
     // MLB's leaves the postseason out): the team's games over since its
     // newest, his line from each one's box score, at once.
