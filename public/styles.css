@@ -1969,3 +1969,12 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
   font-size: 14px;
   text-align: center;
 }
+
+/* Narrow phones (320/375): nothing cut, no word split. A live game with no score says so on its own line under the name; opponent and suggestion names wrap at spaces; a head-to-head name shrinks rather than break; a key moment's chip sits under its words. */
+.tf-game > .tf-score.live.no-score { grid-column: 3 / 5; grid-row: 2; justify-self: start; white-space: normal; text-align: left; line-height: 1.25; }
+.tf-opp { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; word-break: keep-all; line-height: 1.25; min-width: 0; }
+.suggest-name strong { white-space: normal; overflow: visible; text-overflow: clip; word-break: keep-all; overflow-wrap: break-word; line-height: 1.25; }
+.h2h-name { overflow-wrap: normal; word-break: keep-all; font-size: clamp(11px, 3.4vw, 13px); }
+.wp-mo-go { grid-template-columns: minmax(0, 1fr); justify-items: start; row-gap: 4px; }
+.wp-mo-go > .wp-gain { justify-self: start; }
+.wp-mo-text .mo-main.one-line { white-space: normal; overflow-wrap: break-word; word-break: keep-all; }
