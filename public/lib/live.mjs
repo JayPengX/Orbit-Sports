@@ -8,6 +8,8 @@
 // shows ("5局上", "第3節 5:32", "67'"); liveNote() the line under a game
 // ("1壞2好 2出局", "⚽ 67' Saka").
 
+import { closeGame } from './close.mjs';
+
 const name = a => a?.athlete?.shortName || a?.athlete?.displayName || a?.shortName || a?.displayName || '';
 
 const who = a => {
@@ -103,9 +105,13 @@ export function liveLabel(e, sport, lang = 'zh') {
 // The line under a game on now: the count and outs, the latest goal. Empty
 // when there's nothing to add.
 export function liveNote(e, sport, lang = 'zh') {
+  return [closeLabel(e, sport, lang), plainNote(e, sport, lang === 'en')].filter(Boolean).join(' · ');
+}
+// "Close" while a game on now is in its last stretch and the score is near (lib/close.mjs); else ''.
+export const closeLabel = (e, sport, lang = 'zh') => (closeGame(e, sport) ? (lang === 'en' ? 'Close' : '拉鋸') : '');
+function plainNote(e, sport, en) {
   const lv = e.live;
   if (!lv) return '';
-  const en = lang === 'en';
   if (sport === 'baseball' && lv.outs != null) {
     const count = en ? `${lv.balls}-${lv.strikes}, ${lv.outs} out` : `${lv.balls}壞${lv.strikes}好 ${lv.outs}出局`;
     return [count, lv.batter && lv.pitcher ? `${lv.batter} vs ${lv.pitcher}` : lv.batter].filter(Boolean).join(' · ');

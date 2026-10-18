@@ -5,7 +5,7 @@ import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
 import { keptTiming } from './lib/f1.mjs';
 import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
-import { liveLabel, liveNote } from './lib/live.mjs';
+import { liveLabel, liveNote, closeLabel } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
@@ -419,7 +419,7 @@ export function liveLine(e) {
     return el('div', { class: 'live-line base' }, [
       diamond(lv.bases, lv.outs),
       el('span', { class: 'live-text' }, [
-        el('span', { class: 'live-count num', text: en ? `${lv.balls ?? 0}-${lv.strikes ?? 0} · ${lv.outs ?? 0} out` : `${lv.balls ?? 0}壞${lv.strikes ?? 0}好 · ${lv.outs ?? 0}出局` }),
+        el('span', { class: 'live-count num', text: [closeLabel(e, sport, ctx.locale), en ? `${lv.balls ?? 0}-${lv.strikes ?? 0} · ${lv.outs ?? 0} out` : `${lv.balls ?? 0}壞${lv.strikes ?? 0}好 · ${lv.outs ?? 0}出局`].filter(Boolean).join(' · ') }),
         who ? el('span', { class: 'live-who' }, [faces.length ? el('span', { class: 'live-faces', 'aria-hidden': 'true' }, faces.map(p => personPic({ ...p, en: p.name }, e.league, 'xs round'))) : null, el('span', { class: 'live-names', text: who })]) : null
       ])
     ]);
@@ -452,7 +452,7 @@ export function liveLine(e) {
     return el('div', { class: 'live-line base hoop' }, [
       el('span', { class: 'live-faces', 'aria-hidden': 'true' }, both.map(p => personPic({ ...p, en: p.name }, e.league, 'xs round'))),
       el('span', { class: 'live-text' }, [
-        el('span', { class: 'live-count', text: en ? 'Top scorers' : '得分王' }),
+        el('span', { class: 'live-count', text: [note, en ? 'Top scorers' : '得分王'].filter(Boolean).join(' · ') }),
         el('span', { class: 'live-who' }, [el('span', { class: 'live-names num', text: both.map(p => `${last(p)} ${p.value}`).join(' · ') })])
       ])
     ]);
