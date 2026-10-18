@@ -1064,18 +1064,24 @@ export function parseSummary(data, league) {
   const know = a => a?.id && people.set(String(a.id), { short: a.shortName || a.displayName, name: a.displayName || a.shortName, headshot: freshHeadshot(a.headshot?.href) || null });
   for (const t of data?.boxscore?.players || []) for (const st of t.statistics || []) for (const a of st.athletes || []) know(a.athlete);
   for (const r of data?.rosters || []) for (const x of r.roster || []) know(x.athlete);
+  const picOf = x => ({ id: String(x.id), name: x.name || '', headshot: x.headshot || null });
   const whoOf = p => {
     // The batter; with none (a steal, a wild pitch) the runner, never the pitcher ESPN lists first.
     const ps = p.participants || [];
+    // Who helped (a player with a face, a tap to their page; the owner,
+    // 2026-10-18): a basket's assist (football's come from its commentary).
+    const helpers = ps[1]?.athlete?.id && /assists?\)/i.test(String(p.text || '')) ? [{ pic: picOf({ id: ps[1].athlete.id, ...(people.get(String(ps[1].athlete.id)) || { name: ps[1].athlete.displayName }) }), name: people.get(String(ps[1].athlete.id))?.short || ps[1].athlete.shortName || ps[1].athlete.displayName || '', role: 'assist' }] : [];
     const a = (ps.find(q => q.type === 'batter') || ps.find(q => /^on(first|second|third)$/i.test(q.type || '')) || ps.find(q => q.type !== 'pitcher') || ps[0])?.athlete;
     const known = people.get(String(a?.id ?? ''));
     const b = p.participants?.[1]?.athlete;
     const other = b ? people.get(String(b.id ?? ''))?.short || b.shortName || b.displayName || '' : '';
+    // (Who that is, for their face: an assist is a player too, a tap to their page.)
+    const otherPic = b?.id ? { id: String(b.id), name: people.get(String(b.id))?.name || b.displayName || '', headshot: people.get(String(b.id))?.headshot || null } : null;
     // Baseball: the pitcher too (a strikeout with the bases loaded is his moment).
     const pa = ps.find(q => q.type === 'pitcher')?.athlete;
     const pk = pa ? people.get(String(pa.id ?? '')) : null;
     const pitcher = pa ? { who: pk?.short || pa.shortName || pa.displayName || '', pic: pa.id ? { id: String(pa.id), name: pk?.name || pa.displayName || '', headshot: pk?.headshot || null } : null } : null;
-    return { who: known?.short || a?.shortName || a?.displayName || '', pic: a?.id ? { id: String(a.id), name: known?.name || a.displayName || '', headshot: known?.headshot || null } : null, ...(other ? { other } : {}), ...(pitcher?.who ? { pitcher } : {}) };
+    return { who: known?.short || a?.shortName || a?.displayName || '', pic: a?.id ? { id: String(a.id), name: known?.name || a.displayName || '', headshot: known?.headshot || null } : null, ...(other ? { other, ...(otherPic ? { otherPic } : {}) } : {}), ...(helpers.length ? { helpers } : {}), ...(pitcher?.who ? { pitcher } : {}) };
   };
   // A play's what and who, for 過程 (lib/moments.mjs's feedText says it in Chinese; the player's face beside it).
   const detailOf = p => ({ kind: p.type?.type || '', type: p.type?.text || '', alt: p.alternativeType?.text || '', value: Number(p.scoreValue) || 0, ...whoOf(p) });
@@ -1104,7 +1110,9 @@ export function parseSummary(data, league) {
       const k = byName.get(fold(a));
       // (A penalty scored too: Picault's at 89' wasn't marked, 2026-10-18.)
       const scoring = /^goal|own-goal|penalty---scored/.test(p.type.type);
-      return { id: String(p.id ?? ''), text: c.text || p.text || '', commentary: true, kind: p.type.type, type: p.type.text || '', clock: c.time?.displayValue || p.clock?.displayValue || '', periodNum: p.period?.number || 0, team: teamOf(p.team?.displayName), scoring, who: k?.short || a || '', pic: k ? { id: k.id, name: k.name, headshot: k.headshot } : null, ...(b ? { other: byName.get(fold(b))?.short || b } : {}), ...(scoring ? scoreIn(c.text || '') : {}) };
+      // A goal's assist by name ("Assisted by Luis Suárez"), for their face.
+      const helper = byName.get(fold(/Assisted by ([^.]+?)(?: with| following|\.|$)/.exec(c.text || '')?.[1] || ''));
+      return { ...(helper ? { helpers: [{ pic: { id: helper.id, name: helper.name, headshot: helper.headshot }, name: helper.short, role: 'assist' }] } : {}), id: String(p.id ?? ''), text: c.text || p.text || '', commentary: true, kind: p.type.type, type: p.type.text || '', clock: c.time?.displayValue || p.clock?.displayValue || '', periodNum: p.period?.number || 0, team: teamOf(p.team?.displayName), scoring, who: k?.short || a || '', pic: k ? { id: k.id, name: k.name, headshot: k.headshot } : null, ...(b ? { other: byName.get(fold(b))?.short || b } : {}), ...(scoring ? scoreIn(c.text || '') : {}) };
     })
     // A foul is two lines (the free kick won, then "Foul by"): one, the player fouled kept on it.
     .reduce((out, p) => {

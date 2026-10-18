@@ -12,7 +12,7 @@ import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { personKey, pitcherRole } from './lib/mlb.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors } from './lib/wpline.mjs';
-import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText } from './lib/moments.mjs';
+import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText, goalHowParts, basketEn } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
@@ -401,11 +401,14 @@ function livePanel(e, sm = null) {
       ])
     );
   }
-  if (lv.events?.length) rows.push(goalTimeline(e, lv.events));
-  // The scoring so far (baseball, American football, hockey), as a game over shows it.
-  if (sport !== 'soccer' && sport !== 'basketball') {
-    const told = storyRows(e, sm);
-    if (told) rows.push(told);
+  // Football: the game's own page's goals (each with how it went in) once it's read, else the scoreboard's.
+  const told = sport === 'soccer' ? storyRows(e, sm) : null;
+  if (told) rows.push(told);
+  else if (lv.events?.length) rows.push(goalTimeline(e, lv.events));
+  // Baseball's scoring so far, as a game over shows it.
+  if (sport === 'baseball') {
+    const scored = storyRows(e, sm);
+    if (scored) rows.push(scored);
   }
   if (lv.lastPlay) {
     // ESPN writes it in English: in Chinese once translated (kept 30 days per line).
@@ -452,7 +455,11 @@ export function goalTimeline(e, events) {
           pic,
           el('span', { class: 'lg-text' }, [
             el('span', { class: 'lg-name' }, [document.createTextNode(x.kind === 'own' ? team.short || team.name : x.who || p.name || ''), red ? el('i', { class: 'lg-red', 'aria-hidden': 'true' }) : null]),
-            el('small', { class: 'lg-sub' }, [x.kind === 'own' ? el('span', { text: [x.who || p.name, tag].filter(Boolean).join(' · ') }) : teamTag(team, [team.short || team.name, tag].filter(Boolean).join(' · '), e.league, { tap: false })])
+            // The team's badge and who set it up (the team's name when no one did); how it
+            // went in on its own line (the foot or the head, where from, the corner), each one line.
+            // (An assist by a player: their face and name, a tap to their page.)
+            x.helpers?.length ? helpersLine(e.league, x.helpers) : fitLine(el('small', { class: 'lg-sub' }, [x.kind === 'own' ? el('span', { text: [x.who || p.name, tag].filter(Boolean).join(' · ') }) : teamTag(team, x.how?.help || [team.short || team.name, x.how?.shot ? '' : tag].filter(Boolean).join(' · '), e.league, { tap: false })])),
+            x.how?.shot ? fitLine(el('small', { class: 'lg-how', text: x.how.shot })) : null
           ])
         ];
         return el('li', { class: `lg-${s}${red ? ' lg-card' : ''}` }, [
@@ -463,27 +470,49 @@ export function goalTimeline(e, events) {
       })
   );
 }
+// Who set it up, as every player shown is: a face and the name, a tap to
+// their page (the owner, 2026-10-18), then 助攻.
+function assistTag(league, pic, name) {
+  const en = L() === 'en';
+  const body = [personPic({ ...pic, en: pic.name }, league, 'xs round'), el('span', { text: en ? `assist ${name}` : `${name} 助攻` })];
+  const can = pic?.id && LEAGUES[league]?.espn && /^\d+$/.test(String(pic.id));
+  return can ? el('button', { class: 'lg-assist tap', type: 'button', 'aria-label': pic.name || name, onclick: ev => (ev.stopPropagation(), ctx.openPlayer(league, String(pic.id), { name: pic.name, logo: pic.headshot })) }, body) : el('span', { class: 'lg-assist' }, body);
+}
+// Who helped on a play (a goal's assist, a basket's), each a face and a name.
+const helpersLine = (league, helpers) => (helpers?.length ? fitLine(el('span', { class: 'lg-sub lg-help' }, helpers.slice(0, 2).map(h => assistTag(league, h.pic, h.name)))) : null);
 // How a game went, under its scoreboard, the same live and over (the
 // owner, 2026-10-18: a game on had its goals there, one over had nothing):
-// football's goals and red cards; baseball's, American football's and
-// hockey's scoring plays, each with its period, face, who and what, and the
-// score after it; basketball's top scorer on each side. From the game's own
-// page (sm); a game on gets its situation above it (livePanel).
+// football's goals and red cards, each with how it went in and who set it
+// up; baseball's scoring plays (the inning, the batter, what he did, the
+// RBIs); basketball's top scorer on each side and its deciding stretch;
+// each with the score after it. From the game's own page (sm); a game on
+// gets its situation above it (livePanel).
 export function storyRows(e, sm) {
   const sport = LEAGUES[e.league]?.sport;
   if (!sm) return null;
   const en = L() === 'en';
   if (sport === 'soccer') {
+    // Each goal's commentary line (the same minute and scorer) for how it went in.
+    const lines = (sm.commentary || []).filter(c => c.scoring);
+    const lineOf = k => lines.find(c => c.clock === k.clock && (!k.who || !c.who || c.who === k.who)) || lines.find(c => c.clock === k.clock);
     const events = (sm.keyEvents || [])
       .filter(k => k.scoring || /red-card/.test(k.type || ''))
-      .map(k => ({ kind: /red-card/.test(k.type) ? 'red' : /own-goal/.test(k.type) ? 'own' : /penalty/.test(k.type) ? 'pen' : 'goal', minute: k.clock, team: k.team, who: k.who, person: k.pic }));
+      .map(k => ({ kind: /red-card/.test(k.type) ? 'red' : /own-goal/.test(k.type) ? 'own' : /penalty/.test(k.type) ? 'pen' : 'goal', minute: k.clock, team: k.team, who: k.who, person: k.pic, how: k.scoring ? goalHowParts(lineOf(k)?.text || k.text, k.type, en) : null, helpers: k.scoring ? lineOf(k)?.helpers || k.helpers || null : null }));
     return events.length ? goalTimeline(e, events) : null;
   }
-  if (sport === 'basketball') return null;
-  const plays = (sm.plays || []).filter(p => p.team && p.home != null && p.away != null);
+  // Basketball, a game of a hundred baskets: its deciding stretch, if it had
+  // one (within 8 with two minutes left in the fourth or an overtime): each
+  // basket from there, how it went in (a three, a layup, a dunk, who
+  // assisted), the score after it.
+  const secs = c => {
+    const [m, x] = String(c || '').split(':');
+    return x == null ? Number(m) || 0 : Number(m) * 60 + (Number(x) || 0);
+  };
+  const plays = sport === 'basketball' ? clutchPlays(sm.feed || [], secs) : (sm.plays || []).filter(p => p.team && p.home != null && p.away != null);
   if (!plays.length) return null;
   const sideOf = p => (p.team === String(e.home.id) ? 'home' : 'away');
-  const when = p => (sport === 'baseball' ? (en ? `${/^bot/i.test(p.periodType) ? 'Bot' : 'Top'} ${p.periodNum}` : `${p.periodNum}局${/^bot/i.test(p.periodType) ? '下' : '上'}`) : [periodName(sport, p.periodNum, en), p.clock].filter(Boolean).join(' '));
+  // (A clock's period over its time, each on its line: the minute's column is narrow.)
+  const when = p => (sport === 'baseball' ? (en ? `${/^bot/i.test(p.periodType) ? 'Bot' : 'Top'} ${p.periodNum}` : `${p.periodNum}局${/^bot/i.test(p.periodType) ? '下' : '上'}`) : [periodName(sport, p.periodNum, en), p.clock].filter(Boolean));
   return el(
     'ol',
     { class: 'lp-goals lp-scoring' },
@@ -492,12 +521,16 @@ export function storyRows(e, sm) {
       const team = e[s2];
       const tname = team.short || team.name;
       // (Baseball as its key moments say it, short in both languages: who, what, the RBIs.)
-      const { main, sub } = sport === 'baseball' ? { main: playText(sport, { ...p, scoring: true }, en, tname), sub: '' } : playParts(feedText(sport, p, en, tname), '');
+      // (Baseball: the batter on the line, what he did and its RBIs under it, as its key moments: one line ran onto three.)
+      const hit = sport === 'baseball' ? playText(sport, { ...p, scoring: true }, en, tname) : '';
+      const { main, sub } = sport === 'baseball' ? (p.who && hit.startsWith(`${p.who} `) ? { main: p.who, sub: hit.slice(p.who.length + 1) } : { main: hit, sub: '' }) : sport === 'basketball' ? { main: en ? basketEn(p) : playParts(feedText(sport, p, en, tname), '').main, sub: '' } : playParts(feedText(sport, p, en, tname), '');
+      // Who helped (an assist): the player's face, a tap away (not their name in brackets).
+      const helper = helpersLine(e.league, p.helpers);
       const pic = p.pic ? personPic({ ...p.pic, en: p.pic.name }, e.league, 'sm round') : logo(team.logo, tname, 'sm');
-      const who = [pic, el('span', { class: 'lg-text' }, [el('span', { class: 'lg-name', text: main }), el('small', { class: 'lg-sub' }, [teamTag(team, [tname, sub].filter(Boolean).join(' · '), e.league, { tap: false })])])];
+      const who = [pic, el('span', { class: 'lg-text' }, [fitLine(el('span', { class: 'lg-name', text: main })), helper || fitLine(el('small', { class: 'lg-sub' }, [teamTag(team, sport === 'baseball' && sub ? sub : [tname, sub].filter(Boolean).join(' · '), e.league, { tap: false })]))])];
       const can = p.pic?.id && LEAGUES[e.league]?.espn && /^\d+$/.test(String(p.pic.id));
       return el('li', { class: `lg-${s2}` }, [
-        el('span', { class: 'lg-min num', text: when(p) }),
+        el('span', { class: 'lg-min num' }, [when(p)].flat().map(x => el('span', { text: x }))),
         can ? el('button', { class: 'lg-who tap', type: 'button', 'aria-label': p.pic.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, String(p.pic.id), { name: p.pic.name, logo: p.pic.headshot })) }, who) : el('span', { class: 'lg-who' }, who),
         el('span', { class: 'lg-score num' }, ['away', 'home'].flatMap((k, i) => [i ? document.createTextNode('–') : null, el('b', { class: k === s2 ? 'on' : '', text: String(p[k]) })]).filter(Boolean))
       ]);
@@ -508,9 +541,19 @@ export function storyRows(e, sm) {
 function storyPanel(e, sm) {
   if (e.status.state !== 'post') return null;
   const sport = LEAGUES[e.league]?.sport;
-  if (sport === 'basketball') return topScorers(e, sm) ? el('div', { class: 'live-panel' }, [topScorers(e, sm)]) : null;
-  const rows = storyRows(e, sm);
-  return rows ? el('div', { class: 'live-panel' }, [rows]) : null;
+  const parts = [sport === 'basketball' ? topScorers(e, sm) : null, storyRows(e, sm)].filter(Boolean);
+  return parts.length ? el('div', { class: 'live-panel' }, parts) : null;
+}
+// The baskets from two minutes left in the fourth (or an overtime) on, when
+// it was within 8 then; none in a game already decided.
+function clutchPlays(feed, secs) {
+  const scored = feed.filter(p => p.scoring && p.team && p.home != null && p.away != null);
+  const late = p => p.periodNum > 4 || (p.periodNum === 4 && secs(p.clock) <= 120);
+  const first = scored.findIndex(late);
+  if (first < 0) return [];
+  const before = scored[first - 1] || { home: 0, away: 0 };
+  if (Math.abs(Number(before.home) - Number(before.away)) > 8) return [];
+  return scored.slice(first).filter(late).slice(-10);
 }
 // A count as dots: balls of 4, strikes and outs of 3.
 const dots = (n, of, cls) => el('span', { class: `lp-dots ${cls}` }, Array.from({ length: of }, (_, i) => el('i', { class: i < n ? 'on' : '' })));
@@ -2061,10 +2104,14 @@ function playLine(league, p, side) {
   // A player's play: their face with their team's badge on it, so the small
   // line under it is the play's details alone (the team's name took its room).
   const badged = Boolean(p.pic && !own && side?.logo);
-  const { main, sub } = playParts(feedText(LEAGUES[league]?.sport, p, L() === 'en', team), badged ? '' : team);
+  const parts = playParts(feedText(LEAGUES[league]?.sport, p, L() === 'en', team), badged ? '' : team);
+  const { main } = parts;
+  // Who helped, as faces (a tap to their page): their names taken out of the small line.
+  const helpers = (p.helpers || []).filter(h => h.pic?.id);
+  const sub = helpers.length ? String(parts.sub || '').split(' · ').filter(x => !helpers.some(h => h.name && x.includes(h.name.split(' ').at(-1)))).join(' · ') : parts.sub;
   const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge', { onWhite: true }) : null])) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
   // A play with neither (本節結束, 比賽結束): the league's mark, so every row has its picture.
-  return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(league)]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null])]);
+  return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(league)]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null, helpers.length ? helpersLine(league, helpers) : null])]);
 }
 
 // Where to watch in Taiwan: a game's own channels (a schedule's: the

@@ -27,3 +27,15 @@ test('a penalty scored is a goal in 過程 (Picault, Atlanta–Inter Miami 89\',
   const row = s.commentary.find(p => p.kind === 'penalty---scored');
   assert.equal(row.scoring, true);
 });
+
+test('how a goal went in, as baseball names each hit (Atlanta–Inter Miami, 2026-10-17)', async () => {
+  const { goalHow } = await import('../public/lib/moments.mjs');
+  const messi = 'Goal! Atlanta United 0, Inter Miami CF 3. Lionel Messi (Inter Miami CF) left footed shot from the centre of the box to the bottom right corner. Assisted by Luis Suárez following a fast break.';
+  assert.equal(goalHow(messi, 'goal'), '禁區中路左腳 · 右下角 · L. Suárez 助攻');
+  assert.equal(goalHow(messi, 'goal', true), 'left foot, box centre · bottom right · assist L. Suárez');
+  const head = 'Goal! Atlanta United 0, Inter Miami CF 1. Germán Berterame (Inter Miami CF) header from very close range to the bottom right corner. Assisted by Luis Suárez.';
+  assert.equal(goalHow(head, 'goal---header'), '近距離頭球 · 右下角 · L. Suárez 助攻');
+  const pen = 'Goal! Atlanta United 1, Inter Miami CF 3. Fafà Picault (Atlanta United) converts the penalty with a right footed shot to the bottom right corner.';
+  assert.equal(goalHow(pen, 'penalty---scored'), '12 碼右腳 · 右下角');
+  assert.equal(goalHow('Own Goal by X, Chelsea. Arsenal 1, Chelsea 0.', 'own-goal'), '');
+});

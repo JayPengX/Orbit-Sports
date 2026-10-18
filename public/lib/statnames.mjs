@@ -60,8 +60,11 @@ const LONG = {
 // sport: LEAGUES' sport ('soccer', 'hockey'…), for a label that differs by
 // sport; long: ESPN's long name for it, said when the short one isn't known.
 // pitching: a pitcher's columns (any with IP), whose H, R and HR he gave up.
+// English as ESPN writes it, but short where its name runs past a leader's
+// column on a phone ("Defensive Interventions" took two lines).
+const EN_SHORT = { 'defensive interventions': 'Def. actions', 'effective clearances': 'Clearances', 'accurate long balls': 'Long balls', 'accurate crosses': 'Crosses' };
 export function statName(label, lang = 'zh', { sport = '', long = '', pitching = false } = {}) {
-  if (lang === 'en' || !label) return label;
+  if (lang === 'en' || !label) return (label && EN_SHORT[String(label).toLowerCase().trim()]) || label;
   if (sport === 'baseball' && pitching && GAVE_UP[label]) return GAVE_UP[label];
   const key = String(label).toLowerCase().trim();
   const longKey = String(long || '').toLowerCase().trim().replace(/[./]+$/, '');

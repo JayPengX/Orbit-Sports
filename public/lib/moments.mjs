@@ -137,6 +137,14 @@ export function lineupZh(play) {
   if ((m = /^(.+?) (?:in |to |at |playing )?(left field|center field|right field|first base|second base|third base|shortstop|catching|pitching|designated hitter)$/.exec(t))) return `守備調整：${m[1]} ${m[2] === 'catching' || m[2] === 'pitching' ? '擔任' : '改守'}${FIELD_ZH[m[2]]}`;
   return '陣容調整';
 }
+// A basket in English as short as the Chinese: who, then what (ESPN's
+// "Dillon Jones makes running layup (Labaron Philon Jr. assists)" ran past its row).
+export function basketEn(p) {
+  const t = String(p.text || '');
+  const ft = /free throw[^0-9]*(\d) of (\d)/i.exec(t);
+  const what = ft ? `free throw ${ft[1]}/${ft[2]}` : /three point/i.test(t) ? 'three' : /dunk/i.test(t) ? 'dunk' : /alley oop/i.test(t) ? 'alley-oop' : /layup/i.test(t) ? 'layup' : /hook/i.test(t) ? 'hook shot' : /tip/i.test(t) ? 'tip-in' : 'jumper';
+  return `${p.who} ${what}`;
+}
 export function playText(sport, play, en, team) {
   const who = play.who || named(play.text);
   // Baseball in English, as short as the Chinese: who, what, the RBIs (ESPN's
@@ -145,6 +153,7 @@ export function playText(sport, play, en, team) {
     const what = firstOf(MLB_EN, play.alt, play.text);
     if (what) return [who, what].filter(Boolean).join(' ') + (play.scoring && play.value ? ` · ${play.value} RBI` : '');
   }
+  if (en && sport === 'basketball' && who && /\bmakes\b|\bmade\b/i.test(play.text || '')) return basketEn({ ...play, who });
   if (en) return sentence(play.text) || play.type;
   if (sport === 'baseball') {
     // A lineup change before any at-bat's words ("Kelly relieved Sulser" read
@@ -841,6 +850,45 @@ export function soccerLineZh(play, team = '') {
   if (/^First Half begins/.test(t)) return '上半場開始';
   return '';
 }
+// How a goal went in, from its commentary line, short (the owner,
+// 2026-10-18: as baseball names each hit): the foot or the head, where from,
+// the corner, who set it up. 'L. Messi' left footed, centre of the box,
+// assisted: 禁區中路左腳 · 右下角 · L. Suárez 助攻 / left foot, centre of the box
+// · bottom right · assist L. Suárez (left foot, centre of the box first in
+// English). '' when the line says none of it.
+const FOOT_EN = [[/right footed/, 'right foot'], [/left footed/, 'left foot'], [/header/, 'header']];
+const FROM_EN = [
+  [/from very close range/, 'close range'], [/from the six yard box|from the centre of the six yard box/, 'six-yard box'], [/from the (left|right) side of the six yard box/, m => `six-yard box ${m[1]}`],
+  [/from the centre of the box/, 'box centre'], [/from the (left|right) side of the box/, m => `box ${m[1]}`], [/from outside the box/, 'outside the box'],
+  [/from more than (\d+) yards/, m => `${m[1]}+ yards`], [/from a difficult angle/, 'tight angle'], [/from a direct free kick/, 'free kick']
+];
+const CORNER = [[/to the (top|bottom) (left|right) corner/, (m, en) => (en ? `${m[1]} ${m[2]}` : `${m[2] === 'left' ? '左' : '右'}${m[1] === 'top' ? '上' : '下'}角`)], [/to the (?:high )?centre of the goal/, (m, en) => (en ? 'middle' : '球門中路')]];
+const SET_UP_EN = [[/with a cross/, 'cross'], [/with a through ball/, 'through ball'], [/with a headed pass/, 'headed pass'], [/following a corner/, 'from a corner'], [/following a set piece situation/, 'set piece'], [/following a fast break/, 'fast break']];
+export function goalHowParts(text, kind = '', en = false) {
+  const t = String(text || '');
+  const lower = t.toLowerCase();
+  const spot = /penalty/.test(kind) || /converts the penalty/.test(lower);
+  if (/own-goal|own goal/.test(kind + lower)) return { shot: '', help: '' };
+  const foot = pick(en ? FOOT_EN : FOOT, lower);
+  const from = spot ? '' : pick(en ? FROM_EN : FROM, lower);
+  let corner = '';
+  for (const [re, to] of CORNER) {
+    const m = re.exec(lower);
+    if (m) {
+      corner = to(m, en);
+      break;
+    }
+  }
+  const assist = /Assisted by ([^.]+?)(?: with| following|\.|$)/.exec(t)?.[1];
+  const setUp = pick(en ? SET_UP_EN : SET_UP, lower);
+  const where = en ? [foot, from].filter(Boolean).join(', ') : `${from}${foot === '頭球' && from ? '頭球' : foot}`;
+  const help = assist ? (en ? `assist ${shortName(assist)}` : `${shortName(assist)} 助攻`) : setUp ? (en ? setUp : `${setUp}後`) : '';
+  return { shot: [spot ? (en ? `penalty${foot ? `, ${foot}` : ''}` : `12 碼${foot}`) : where, corner].filter(Boolean).join(' · '), help };
+}
+export const goalHow = (text, kind = '', en = false) => {
+  const { shot, help } = goalHowParts(text, kind, en);
+  return [shot, help].filter(Boolean).join(' · ');
+};
 export function feedText(sport, play, en, team = '') {
   // A league's own words (CPBL's, Chinese already).
   if (play.zh) return play.zh;
