@@ -31,6 +31,7 @@ import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
+import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
 import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
@@ -675,8 +676,8 @@ async function loadDay(date, { live = false } = {}) {
   } finally {
     slot.loading = false;
   }
-  if (retry && (slot.retries = (slot.retries || 0) + 1) <= 4) setTimeout(() => loadDay(date), 4000 * slot.retries);
-  else if (!retry) slot.retries = 0;
+  // (A quick read of the live pages that worked says nothing of the whole day's.)
+  if (retry || !live) retryLater(`day:${date}`, retry, () => loadDay(date), () => dayWanted(date));
   // The follows changed while reading: read again for them.
   if (key !== leaguesKey()) return loadDay(date);
   // The others (and the rest) again too, once they've been read for this day;
@@ -712,7 +713,7 @@ async function loadOthers(date, live = false) {
     if (!live) slot.othersAt = Date.now();
   }
   // Some unread: read again shortly (a day of no follows has no day's read to retry with).
-  if (!live) retryLater(slot, 'othersRetries', slot.othersFailed > 0, () => loadOthers(date));
+  if (!live) retryLater(`others:${date}`, slot.othersFailed > 0, () => loadOthers(date), () => dayWanted(date));
   repaintDay(date);
 }
 // Every other league, for 直播: what's on now anywhere, not only in the
@@ -739,14 +740,19 @@ async function loadRest(date, live = false) {
     slot.restLoading = false;
     if (!live) slot.restAt = Date.now();
   }
-  if (!live) retryLater(slot, 'restRetries', slot.restFailed > 0, () => loadRest(date));
+  if (!live) retryLater(`rest:${date}`, slot.restFailed > 0, () => loadRest(date), () => dayWanted(date));
   repaintDay(date);
 }
-// A read with leagues unread, tried again shortly (4, 8, 12, 16 s), as loadDay's.
-function retryLater(slot, count, failed, again) {
-  if (!failed) return void (slot[count] = 0);
-  if ((slot[count] = (slot[count] || 0) + 1) <= 4) setTimeout(again, 4000 * slot[count]);
+// A read with something unread, tried again (lib/retry.mjs: backed off to
+// once a minute, for as long as it fails; not while the app is out of sight;
+// at once back on screen or online), or its retries ended once it's read.
+const retries = retrier();
+function retryLater(key, failed, again, wanted) {
+  if (failed) retries.later(key, again, wanted);
+  else retries.done(key);
 }
+// A day's retries run while it's on screen (首頁's day; 直播's today and tomorrow).
+const dayWanted = date => date === today() || date === addDays(today(), 1) || (state.tab === 'home' && state.home.date === date);
 let pushTimer = 0;
 // The followed leagues' tables, for the picks and 追蹤's places (they come in on their own).
 function loadTables() {
@@ -774,16 +780,16 @@ function loadTables() {
 // over is never left 'on' (read every 2 minutes while one was on, each MLB
 // team's 0.3 to 2.8 MB, for nothing the scoreboards hadn't said).
 const teamsAt = new Map();
-// The ones whose read failed, and when: their card says so (none held),
-// never a team with no games; read again 20 s on, not at every repaint.
-const teamsUnread = new Map();
+// The ones whose read failed: their card says so (none held), never a team
+// with no games; read again by retryLater's rule, not at every repaint.
+const teamsUnread = new Set();
 const TEAM_MS = 10 * 60_000;
 async function loadFollowedTeams() {
   for (const f of followedTeams().slice(0, 12)) {
     const key = `${f.league}:${f.id}`;
     if (LEAGUES[f.league]?.kind !== 'match') continue;
     const had = state.home.teams.get(key);
-    if (Date.now() - (teamsUnread.get(key) ?? -Infinity) < 20_000) continue;
+    if (retries.waiting(`team:${key}`)) continue;
     if (state.home.teams.has(key) && (had === null || teamsAt.get(key) === 'loading' || Date.now() - (teamsAt.get(key) || 0) < TEAM_MS)) continue;
     if (!had) state.home.teams.set(key, null);
     teamsAt.set(key, 'loading');
@@ -792,6 +798,7 @@ async function loadFollowedTeams() {
       .then(list => {
         teamsAt.set(key, Date.now());
         teamsUnread.delete(key);
+        retries.done(`team:${key}`);
         // Followed from one of our cups (Benfica in 歐霸): its games in our
         // competitions only, not its league's that ELTA doesn't show.
         // (Only the competitions Orbit Sports has: a friendly isn't one.)
@@ -805,10 +812,10 @@ async function loadFollowedTeams() {
       .catch(() => {
         teamsAt.delete(key);
         if (!had) state.home.teams.delete(key);
-        // Said so on 追蹤 now, and read again in 20 s (its render reads what's missing).
-        teamsUnread.set(key, Date.now());
+        // Said so on 追蹤 now, and read again shortly.
+        teamsUnread.add(key);
+        retryLater(`team:${key}`, true, loadFollowedTeams);
         if (state.tab === 'following') renderFollowing();
-        setTimeout(() => state.tab === 'following' && renderFollowing(), 20_500);
       });
   }
 }
@@ -2935,13 +2942,13 @@ function warmTable(league) {
       .catch(() => {});
   }
   // Unread (and none held): said so, never "no table" (tableSays), and read
-  // again in 20 s, not ten minutes.
+  // again shortly (while its league is open in 賽事), not in ten minutes.
+  const key = `table:${league}`;
   standings(league)
-    .then(g => tables.set(league, g))
+    .then(g => (tables.set(league, g), retries.done(key)))
     .catch(() => {
       if (!tables.get(league)?.length) tables.set(league, Object.assign([], { failed: true }));
-      tableAt.set(league, Date.now() - 10 * 60_000 + 20_000);
-      setTimeout(shown, 20_500);
+      retryLater(key, true, () => (tableAt.delete(league), warmTable(league)), () => state.tab === 'matches' && state.scores.league === league);
     })
     .then(shown);
 }
@@ -3096,6 +3103,8 @@ function freshenHeld(slot) {
 }
 function liveTick() {
   if (document.visibilityState !== 'visible' || !q.active || sheetOver()) return;
+  // Reads that failed, waiting while nobody looked: tried now they're on screen.
+  retries.kick();
   const day = state.days.get(today());
   // On now, or due to start (its kickoff passed or a minute away): watched as live.
   const live = dayAll(day).some(e => e.status.state === 'in' || dueToStart(e));
