@@ -29,7 +29,7 @@ import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted } from
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
-import { nearestDay } from './lib/days.mjs';
+import { nearestDay, dayReads } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
 import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
@@ -542,26 +542,24 @@ async function readDay(leagues, date, { current = false, night = false, pages = 
   leagues = leagues.filter(k => within(date, leagueBounds(k)) && (!pages || pages.has(k)));
   const dates = espnDaysOf(date);
   const isToday = date === today();
-  // A league that couldn't be read is counted, never taken for "no games".
-  let failed = 0;
-  const read = new Set();
-  const miss = () => (failed++, []);
-  const lists = await Promise.all(
+  // A league that couldn't be read is counted, never taken for "no games";
+  // one with a page unread too, its games shown (days.mjs dayReads).
+  const miss = () => null;
+  const results = await Promise.all(
     leagues.map(k => {
       const l = LEAGUES[k];
       const only = pages?.get(k);
-      // A league with a page unread (scoreboard's `unread`) counts as failed:
-      // what came is shown, the day isn't kept, and it's read again shortly.
-      const got = list => (list.unread?.length ? failed++ : read.add(k), list);
       // A race weekend: what's on that day (ESPN's dated page lists the
       // events running then); the other sources' lists are the season's anyway.
-      if (l.kind !== 'match') return (isToday ? scoreboard(k) : l.espn ? scoreboard(k, dates) : seasonEvents(k)).then(got, miss);
-      if (only && l.espn && !only.has('*')) return scoreboard(k, [...only]).then(got, miss);
+      if (l.kind !== 'match') return (isToday ? scoreboard(k) : l.espn ? scoreboard(k, dates) : seasonEvents(k)).catch(miss);
+      if (only && l.espn && !only.has('*')) return scoreboard(k, [...only]).catch(miss);
       // Soccer by its dated pages even for what's on now: a cup's current page can be a round long past.
-      return scoreboard(k, l.espn && (!current || l.sport === 'soccer') ? dates : undefined).then(got, miss);
+      return scoreboard(k, l.espn && (!current || l.sport === 'soccer') ? dates : undefined).catch(miss);
     })
   );
-  if (leagues.length && failed === leagues.length) throw new Error('unread');
+  const { read, failed, unread } = dayReads(leagues, results);
+  if (unread) throw new Error('unread');
+  const lists = results.map(list => list || []);
   const now = Date.now();
   const raw = lists
     .flat()

@@ -74,3 +74,16 @@ test('a season’s rounds unread are asked again later, never kept as "no rounds
     Date.now = realNow;
   }
 });
+
+test('a day’s leagues: one with a page unread is shown and read again, never the whole day lost', async () => {
+  const { dayReads } = await import('../public/lib/days.mjs');
+  const part = Object.assign([{ id: '1' }], { unread: ['20261002'] });
+  // The one league followed, a page of it unread: what came is shown (not a failed read), the day not kept.
+  assert.deepEqual(dayReads(['mlb'], [part]), { read: new Set(), failed: 1, unread: false });
+  // Nothing of any league: the whole read failed.
+  assert.equal(dayReads(['mlb', 'nba'], [null, null]).unread, true);
+  // One unread, one partly, one whole.
+  const r = dayReads(['mlb', 'nba', 'epl'], [null, part, []]);
+  assert.deepEqual([[...r.read], r.failed, r.unread], [['epl'], 2, false]);
+  assert.equal(dayReads([], []).unread, false);
+});
