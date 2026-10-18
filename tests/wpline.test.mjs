@@ -168,7 +168,31 @@ test("each side in its colour, readable on the card and told apart from the othe
   // Inter on a dark card: its blue lightened, never its white second colour; Genoa's navy and Fiorentina's purple both kept.
   assert.equal(sideColors({ color: '#00239c', alt: '#ffffff' }, { color: '#19161d', alt: '#ffdd30' }, '#1c1c1e').home, '#2959ff');
   assert.deepEqual(sideColors({ color: '#08305d', alt: '#ffffff' }, { color: '#4c1d84', alt: '#ffffff' }), { home: '#08305d', away: '#4c1d84' });
-  assert.deepEqual(sideColors({}, {}), { home: null, away: null });
+});
+
+test('two sides always in two colours told apart, never grey (Forest v Arsenal 2026-10-18: two reds, white seconds; Arsenal\u2019s band was grey like the draw)', async () => {
+  const { contrast } = await import('../public/lib/wpline.mjs');
+  const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+  const apart = (a, b) => Math.hypot(...hex(a).map((v, i) => v - hex(b)[i]));
+  const grey = c => {
+    const [r, g, b] = hex(c);
+    return Math.max(r, g, b) - Math.min(r, g, b) < 30;
+  };
+  const forest = { color: '#e53233', alt: '#ffffff' };
+  const arsenal = { color: '#ef0107', alt: '#ffffff' };
+  for (const bg of ['#ffffff', '#1c1c1e']) {
+    for (const [h, a] of [[forest, arsenal], [{}, {}], [forest, {}], [{}, arsenal], [{ color: '#000000', alt: '#ffffff' }, { color: '#ffffff' }], [{ color: 'nope' }, { alt: '#ef0107' }]]) {
+      const c = sideColors(h, a, bg);
+      const say = `${JSON.stringify([h, a])} on ${bg}: ${JSON.stringify(c)}`;
+      assert.ok(c.home && c.away, say);
+      assert.ok(apart(c.home, c.away) >= 90, say);
+      assert.ok(!grey(c.home) && !grey(c.away), say);
+      for (const x of [c.home, c.away]) assert.ok(contrast(hex(x), hex(bg)) >= 3, say);
+    }
+    // The home side keeps its red; Arsenal the spare blue. A side with a colour keeps it beside one with none.
+    assert.deepEqual(sideColors(forest, arsenal, bg), { home: '#e53233', away: '#2f6fdf' });
+    assert.equal(sideColors({}, arsenal, bg).away, '#ef0107');
+  }
 });
 
 test("a goal ruled out by VAR is told so, from the commentary (Leeds v Palace 52', Mitchell's), never the stoppage beside it", async () => {

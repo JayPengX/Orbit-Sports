@@ -267,7 +267,7 @@ const GAME_KEEP = 2 * 86_400_000;
 // A race weekend's sessions all share its key (the weekend's id).
 const gameKey = e => `${e.league}:${e.weekend || e.id}`;
 const keptGames = list => (list || []).filter(g => g && LEAGUES[g.league] && g.id && Date.parse(g.start) > Date.now() - GAME_KEEP);
-const slimSide = x => (x ? { id: String(x.id ?? ''), name: x.name, short: x.short, en: x.en, abbr: x.abbr, logo: x.logo, color: x.color } : x);
+const slimSide = x => (x ? { id: String(x.id ?? ''), name: x.name, short: x.short, en: x.en, abbr: x.abbr, logo: x.logo, color: x.color, alt: x.alt } : x);
 function isFollowedGame(e) {
   return Boolean(e) && state.prefs.games.some(g => gameKey(g) === gameKey(e));
 }
