@@ -57,6 +57,11 @@ export function liveOf(comp, status, sport) {
 
 const ord = n => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
 const QUARTERS = 4;
+// A basketball overtime by its period: OT, 2OT…; 延長賽, 延長2…
+const otName = (n, en) => {
+  const ot = n - QUARTERS;
+  return en ? (ot > 1 ? `${ot}OT` : 'OT') : ot > 1 ? `延長${ot}` : '延長賽';
+};
 
 // The short status of a game on now (or at a break): the period and clock,
 // in the viewer's language. e: a Orbit Sports match event.
@@ -71,6 +76,8 @@ export function liveLabel(e, sport, lang = 'zh') {
   if (/SHOOTOUT/.test(code)) return en ? 'Penalties' : 'PK 大戰';
   if (/END_PERIOD|END_OF_PERIOD/.test(code) || /^end of/i.test(s.short || '')) {
     if (sport === 'baseball') return en ? `End ${ord(n)}` : `${n}局結束`;
+    // An overtime over, still level: 延長賽結束, never 第5節結束 (the same words as while it's played).
+    if (sport === 'basketball' && n > QUARTERS) return en ? `End of ${otName(n, en)}` : `${otName(n, en)}結束`;
     return en ? `End of ${ord(n)}` : `第${n}節結束`;
   }
   if (sport === 'baseball') {
@@ -87,10 +94,7 @@ export function liveLabel(e, sport, lang = 'zh') {
     return m || (en ? 'Live' : '進行中');
   }
   if (sport === 'basketball' && n) {
-    if (n > QUARTERS) {
-      const ot = n - QUARTERS;
-      return `${en ? (ot > 1 ? `${ot}OT` : 'OT') : ot > 1 ? `延長${ot}` : '延長賽'} ${clock}`.trim();
-    }
+    if (n > QUARTERS) return `${otName(n, en)} ${clock}`.trim();
     return en ? `Q${n} ${clock}`.trim() : `第${n}節 ${clock}`.trim();
   }
   return s.short || s.detail || (en ? 'Live' : '進行中');

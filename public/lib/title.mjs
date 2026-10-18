@@ -18,6 +18,15 @@ const num = v => {
   return Number.isFinite(n) ? n : 0;
 };
 const has = v => v != null && v !== '';
+// A win percentage as a table writes it (".667", "1.000"; ".000" before a game).
+export const pctText = (w, l) => (w + l ? (w / (w + l)).toFixed(3).replace(/^0/, '') : '.000');
+// Games behind the leader (each { w, l }): "-" for the leader and for any
+// side not behind it (more wins and losses, a lower percentage). Every
+// table's GB (ESPN's where it leaves it out, CPBL's, a count of results).
+export function gbText(top, r) {
+  const gb = (top.w - r.w + (r.l - top.l)) / 2;
+  return gb > 0 ? String(gb) : '-';
+}
 // A season's games for each side, where it isn't each other side twice
 // (CPBL's table is a half-season's: 60; a European cup's league phase is 8
 // games each, not a round robin of its 36).
@@ -95,10 +104,7 @@ export function liveTable(groups, events, sport, { teamOf = null } = {}) {
         const [w, l] = hs > as ? [h, a] : [a, h];
         w.stats.W = String(num(w.stats.W) + 1);
         l.stats.L = String(num(l.stats.L) + 1);
-        for (const r of [w, l]) {
-          const p = num(r.stats.W) / Math.max(1, num(r.stats.W) + num(r.stats.L));
-          r.stats.PCT = p >= 1 ? '1.000' : p.toFixed(3).replace(/^0/, '');
-        }
+        for (const r of [w, l]) r.stats.PCT = pctText(num(r.stats.W), num(r.stats.L));
       }
     }
     h.fresh = a.fresh = e.status.state;
@@ -120,13 +126,12 @@ export function liveTable(groups, events, sport, { teamOf = null } = {}) {
     const top = g.rows[0];
     for (const [i, r] of g.rows.entries()) {
       if (sport === 'soccer') r.stats.GAP = i === 0 ? '-' : String(num(top.stats.P) - num(r.stats.P));
-      else {
-        const gb = (num(top.stats.W) - num(r.stats.W) + (num(r.stats.L) - num(top.stats.L))) / 2;
-        r.stats.GB = i === 0 || !(gb > 0) ? '-' : String(gb);
-      }
+      else r.stats.GB = gbText({ w: num(top.stats.W), l: num(top.stats.L) }, { w: num(r.stats.W), l: num(r.stats.L) });
     }
   }
   out.fresh = fresh;
+  // (The season's year with it, as the table it was made from.)
+  out.year = groups.year;
   return out;
 }
 

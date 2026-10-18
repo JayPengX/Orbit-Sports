@@ -5,7 +5,7 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders } from './lib/espn.mjs';
+import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, hasScore, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -18,16 +18,17 @@ import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, s
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
+import { fold, surname, esc } from './lib/text.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, stintStops, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, POINTS, asItStands, settleScoring } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
-import { SEASON_GAMES, liveTable, roundCounted, roundOf } from './lib/title.mjs';
+import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, halftimeTick, whenText, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
+import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, halftimeTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -148,7 +149,7 @@ export async function openMatch(e) {
       el('div', { class: 'mh-row' }, [
         side(away, e.away),
         el('div', { class: 'mh-mid' }, [
-          st.state === 'pre' ? el('strong', { class: 'mh-time', text: timeText(e) }) : el('strong', { class: 'mh-score num', 'data-q-live': st.state === 'in' ? `mh:${e.league}:${e.id}` : null, text: `${away.score ?? ''} - ${home.score ?? ''}` }),
+          st.state === 'pre' ? el('strong', { class: 'mh-time', text: timeText(e) }) : el('strong', { class: 'mh-score num', 'data-q-live': st.state === 'in' ? `mh:${e.league}:${e.id}` : null, text: `${scoreText(away.score)} - ${scoreText(home.score)}` }),
           el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText({ ...e, status: st }), ...halftimeTick({ ...e, status: st }) }),
           // A league's round alone (第 5 輪): under the status, in the room the
           // sides' records and follows leave there, not a row of its own
@@ -743,7 +744,7 @@ function gameCards(game, id, league) {
   // game's clock at the right, red while on), then his numbers; where he
   // is (場上, 先發, ↓ 69') beside the title, not a card of its own.
   const scoreRow = el('div', { class: 'pg-row' }, [
-    el('span', { class: 'pg-score' }, [logo(away?.logo, away?.name, 'xs'), el('strong', { class: 'num', 'data-q-live': st.state === 'in' ? `pg:${e.league}:${e.id}` : null, text: st.state === 'pre' ? 'vs' : `${away?.score ?? ''} – ${home?.score ?? ''}` }), logo(home?.logo, home?.name, 'xs')]),
+    el('span', { class: 'pg-score' }, [logo(away?.logo, away?.name, 'xs'), el('strong', { class: 'num', 'data-q-live': st.state === 'in' ? `pg:${e.league}:${e.id}` : null, text: st.state === 'pre' ? 'vs' : `${scoreText(away?.score)} – ${scoreText(home?.score)}` }), logo(home?.logo, home?.name, 'xs')]),
     el('span', { class: `pg-status ${st.state}`, text: statusText({ ...e, status: st }), ...halftimeTick({ ...e, status: st }) })
   ]);
   // Soccer's cards: a label by the title, not a number among his stats (one
@@ -1071,7 +1072,7 @@ function matchSection(view, d, e, table, lw = {}) {
     // This game over (or the day's others) before the official table has it: counted in at once, as 賽事's table does.
     const sport = LEAGUES[e.league]?.sport;
     const recent = [...(ctx.recentOf?.(e.league) || []).filter(x => x.id !== e.id), { ...e, status: d?.status || e.status, home: { ...e.home, ...(d?.home || {}) }, away: { ...e.away, ...(d?.away || {}) } }];
-    const groups = table?.length && sport !== 'racing' ? liveTable(official, recent, sport) : official;
+    const groups = table?.length && sport !== 'racing' ? tableNow(official, e.league, recent) : official;
     return standingsTables(groups, e.league, { mark: [e.home.id, e.away.id] });
   }
   return overview(d, e, table, nameOf, lw);
@@ -1120,7 +1121,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // season's in; ESPN's last five (every competition) under three there yet.
   const forms = sides.map(s => {
     const own = d?.seasonGames && leagueForm(d.seasonGames, s.id, e.league, Date.parse(e.start));
-    if (own) return own.map(x => ({ result: resultFor(x, s.id), opp: (x.home.id === String(s.id) ? x.away : x.home).short || '', score: `${x.away.score}-${x.home.score}` }));
+    if (own) return own.map(x => ({ result: resultFor(x, s.id), opp: sidesFor(x, s.id).them.short || '', score: `${x.away.score}-${x.home.score}` }));
     return d?.seasonGames === undefined ? [] : d?.form.find(f => f.team === s.id)?.games || [];
   });
   const sm = side => d?.byId?.[side.id] || side;
@@ -1595,8 +1596,8 @@ function winChanceCard(odds, e) {
 const wpKept = new Map();
 function winProbCard(line, e, timeline, events = []) {
   // (Over: the result, as the chances a point holds.)
-  const [hs, as] = [Number(e.home.score), Number(e.away.score)];
-  const final = e.status.state === 'post' && Number.isFinite(hs) && Number.isFinite(as) ? (hs > as ? { home: 1, draw: 0 } : hs < as ? { home: 0, draw: 0 } : { home: 0, draw: 1 }) : null;
+  const r = e.status.state === 'post' ? outcome(e.home, e.away) : '';
+  const final = r ? { W: { home: 1, draw: 0 }, L: { home: 0, draw: 0 }, D: { home: 0, draw: 1 } }[r] : null;
   const pts = holdToEnd(line.points, timeline, final);
   const keyOf = `${e.league}|${e.id}`;
   const kept = wpKept.get(keyOf) || {};
@@ -2360,7 +2361,6 @@ export function openFieldEvent(e) {
 // its page), then the number that matters (a time, a gap) over its tags.
 // `field`: the session's cars from ESPN (their ids, so the pictures match
 // the rest of the app's).
-const plainName = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 // A driver of the session's cars by their name (full, else the family name).
 // A season's numbers' title in Chinese, a league ESPN names in English too ("2025-26 Cypriot First Division 數據").
 const seasonTitle = title => {
@@ -2373,7 +2373,7 @@ const seasonDrivers = () =>
   (seasonDriverList ||= standings('f1')
     .then(groups => (groups || []).flatMap(g => g.rows || []).filter(r => r.athlete && r.id).map(r => ({ id: r.id, name: r.en || r.name, headshot: r.logo || null })))
     .catch(() => ((seasonDriverList = null), [])));
-const fieldDriver = (field = [], full, family = String(full || '').split(' ').slice(1).join(' ') || full) => field.find(x => plainName(x.name) === plainName(full)) || field.find(x => plainName(x.name).endsWith(plainName(family))) || null;
+const fieldDriver = (field = [], full, family = String(full || '').split(' ').slice(1).join(' ') || full) => field.find(x => fold(x.name) === fold(full)) || field.find(x => fold(x.name).endsWith(fold(family))) || null;
 // A driver's name whole where it fits, the surname where it doesn't (the
 // owner, 2026-10-11): each name drawn whole, measured once laid out (a
 // ResizeObserver: before the screen is painted, so it never flickers), and
@@ -2539,7 +2539,6 @@ function tyreIcon(compound) {
   letter.textContent = t[0];
   return svg;
 }
-const mmss = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
 // How long each part of a session runs (seconds), for the time bar: a practice, qualifying's three parts, the sprint's.
 const f1AllMsgs = new Set();
 const PART_S = { FP1: [3600], FP2: [3600], FP3: [3600], Qual: [1080, 900, 720], SS: [720, 600, 480], SQ: [720, 600, 480] };
@@ -3307,8 +3306,7 @@ function f1LiveTable(b, ss) {
     const [drivers, teams] = [groups?.[0]?.rows || [], groups?.[1]?.rows || []];
     if (!drivers.length) return put(box);
     const cars = b.cars.filter(c => c.name);
-    const sur = n => plainName(String(n).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1));
-    const carOf = r => cars.find(c => plainName(c.name) === plainName(r.en || r.name)) || cars.find(c => sur(c.name) === sur(r.en || r.name));
+    const carOf = r => cars.find(c => fold(c.name) === fold(r.en || r.name)) || cars.find(c => surname(c.name) === surname(r.en || r.name));
     if (over && counted(groups[0])) return put(box);
     const gain = c => pointsFor(ss.abbr, c.pos, c.retired || c.stopped);
     const dRows = asItStands(drivers.map(r => ({ ...r, key: r.id, pts: r.stats?.PTS, rank: r.stats?.RK })), new Map(drivers.map(r => [r.id, carOf(r) ? gain(carOf(r)) : 0])));
@@ -3655,7 +3653,7 @@ function fillField(s, e) {
   s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), // The place, then the day and the official start: two designed lines (the
       // titles' time isn't said: the broadcast card says when the channel's on air).
       // The day and time, then the place, on one line: the time always whole, a long place cut (two lines read as one wrapped).
-      el('p', { class: 'muted sess-line' }, [el('span', { class: 'sess-when num', text: whenText(shownStart(e)) }), e.venue ? el('span', { class: 'sess-where', text: e.venue }) : null]), weekendFollow(e), watchButton(e, 'wide')]));
+      el('p', { class: 'muted sess-line' }, [el('span', { class: 'sess-when num', text: whenOf(e) }), e.venue ? el('span', { class: 'sess-where', text: e.venue }) : null]), weekendFollow(e), watchButton(e, 'wide')]));
   // A race weekend's replay and highlights go with the session picked below
   // (they're that session's); anything else's here.
   if (e.kind !== 'field') {
@@ -3870,7 +3868,7 @@ export async function openTeam(league, id, fallback = {}) {
     // from outside our leagues, or with under three games there yet: all of them.
     const inLeague = outside ? null : leagueForm(played, id, league);
     const formFrom = inLeague || played;
-    const form = formFrom.slice(-5).filter(x => x.home && x.away).map(resultOf);
+    const form = formFrom.slice(-5).filter(x => x.home && x.away).map(resultOf).filter(Boolean);
     // Games played before the table's first are preseason ones, and so is ESPN's record then: said so.
     const pre = Boolean(groups?.length) && !groups.some(tableStarted) && played.length > 0;
     const record = [pre ? W('季前賽', 'Preseason') : '', (outside ? '' : info.record) || ownRecord(played, resultOf)].filter(Boolean).join(' ');
@@ -4093,15 +4091,12 @@ async function ownTeam(league, id, fallback) {
   const rows = [...table.values()]
     .map(r => {
       const pct = r.W + r.L ? r.W / (r.W + r.L) : 0;
-      return { id: r.id, name: r.name, short: r.short, en: r.en, logo: r.logo, stats: { W: String(r.W), L: String(r.L), PCT: pct.toFixed(3).replace(/^0/, '') }, key: pct };
+      return { id: r.id, name: r.name, short: r.short, en: r.en, logo: r.logo, stats: { W: String(r.W), L: String(r.L), PCT: pctText(r.W, r.L) }, key: pct };
     })
     .sort((x, y) => y.key - x.key);
   if (rows.length) {
     const top = rows[0];
-    for (const r of rows) {
-      const gb = (Number(top.stats.W) - Number(r.stats.W) + Number(r.stats.L) - Number(top.stats.L)) / 2;
-      r.stats.GB = gb === 0 ? '-' : String(gb);
-    }
+    for (const r of rows) r.stats.GB = gbText({ w: Number(top.stats.W), l: Number(top.stats.L) }, { w: Number(r.stats.W), l: Number(r.stats.L) });
   }
   // The league's own table where there's one (CPBL's), the count otherwise.
   const own = hasStandings(league) ? await standings(league).catch(() => null) : null;
@@ -4160,10 +4155,8 @@ async function newerGames(league, id, teamId, log, scheduleOf, name = '') {
   const mlb = league === 'mlb' && name ? await Promise.all(done.map(x => mlbGameLog(x, name, log.labels).catch(() => null))) : [];
   return done.map((x, i) => {
     const d = lines[i];
-    const home = String(x.home?.id) === String(teamId);
-    const [us, them] = home ? [x.home, x.away] : [x.away, x.home];
-    const [a, b] = [Number(us?.score), Number(them?.score)];
-    const result = us?.winner || a > b ? 'W' : them?.winner || b > a ? 'L' : a === b && Number.isFinite(a) ? 'D' : '';
+    const { home, us, them } = sidesFor(x, teamId);
+    const result = outcome(us, them);
     // His row: the table sharing the most columns with the log's (a two-way player's batting or pitching).
     const found = (d?.players || []).flatMap(p => p.tables.map(tb => ({ tb, row: tb.rows.find(r => r.id === String(id)) }))).filter(x => x.row && !x.row.dnp && x.row.stats?.some(v => v !== '' && v != null));
     const best = found.sort((p, q) => q.tb.labels.filter(k => log.labels.includes(k)).length - p.tb.labels.filter(k => log.labels.includes(k)).length)[0];
@@ -4177,7 +4170,7 @@ async function newerGames(league, id, teamId, log, scheduleOf, name = '') {
       return m ? (Number(m[2]) ? ((100 * Number(m[1])) / Number(m[2])).toFixed(1) : '0.0') : '–';
     };
     const stats = mlb[i] || (best ? log.labels.map(val) : log.labels.map((_, k) => (k ? '' : 'DNP')));
-    return { id: String(x.id), date: x.start, at: home ? 'vs' : '@', home, league, leagueName: '', pre: Boolean(x.preseason || /preseason/i.test(x.note || '')), team: { id: String(teamId), abbr: us?.abbr || '', logo: us?.logo || null }, opp: { id: String(them?.id ?? ''), name: them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: Number.isFinite(a) && Number.isFinite(b) ? `${a}-${b}` : '', stats };
+    return { id: String(x.id), date: x.start, at: home ? 'vs' : '@', home, league, leagueName: '', pre: Boolean(x.preseason || /preseason/i.test(x.note || '')), team: { id: String(teamId), abbr: us?.abbr || '', logo: us?.logo || null }, opp: { id: String(them?.id ?? ''), name: them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: sideScore(us, them), stats };
   });
 }
 
@@ -4263,7 +4256,7 @@ function nextRaceCard(e, en) {
           { class: 'next-race-sessions' },
           left.map(x => el('span', { class: `nr-sess${x === race ? ' main' : ''}`, onclick: ev => (ev.stopPropagation(), ctx.openEvent(x)) }, [sessionTag(x), el('small', { class: 'num', text: `${dayLabel(localDate(Date.parse(x.official || x.start)))} ${clock(shownStart(x))}` })]))
         )
-      : el('small', { class: 'muted num', text: whenText(race.start) })
+      : el('small', { class: 'muted num', text: whenOf(race) })
   ]);
 }
 // A moment's sign where it has no face or badge, drawn (an emoji in the
@@ -4291,15 +4284,13 @@ function momentGlyph(icon) {
 // page is updated a day after a race: 196 points, 5th, beside a table with
 // the race in).
 const freshSeason = (grid, champ) => (champ ? grid.map(([k, v]) => (k === 'Season Position' ? [k, String(champ.pos)] : k === 'Season Points' ? [k, String(champ.points)] : [k, v])) : grid);
+// The one rule for every table shown (賽事's 排名 too, app.js tableOf).
+export function tableNow(groups, league, recent = []) {
+  const sport = LEAGUES[league]?.sport;
+  return liveTable(groups, sport === 'racing' ? settleScoring(recent) : recent, sport, { teamOf: side => f1Driver(side.en || side.name).team });
+}
 function freshStandings(league) {
-  return standings(league).then(g => {
-    const sport = LEAGUES[league]?.sport;
-    if (!g?.length) return g;
-    const recent = ctx.recentOf?.(league) || [];
-    const out = liveTable(g, sport === 'racing' ? settleScoring(recent) : recent, sport, { teamOf: side => f1Driver(side.en || side.name).team });
-    if (out !== g) out.year = g.year;
-    return out;
-  });
+  return standings(league).then(g => (g?.length ? tableNow(g, league, ctx.recentOf?.(league) || []) : g));
 }
 export async function openPlayer(league, id, fallback = {}) {
   if (!id) return;
@@ -4821,7 +4812,8 @@ function raceBlock(race, g, league, many) {
   const sport = LEAGUES[league]?.sport;
   const nm = r => r.short || r.name;
   const line = (icon, main, sub = '', cls = '') => el('div', { class: `race-line ${cls}`.trim() }, [glyph(icon), el('span', { class: 'race-t' }, [el('span', { html: main }), sub ? el('small', { text: sub }) : null])]);
-  const b = x => `<b>${String(x).replace(/[<>&]/g, '')}</b>`;
+  // (Its words go in as HTML for the <b>: every name and word from a feed escaped, never read as markup, an & kept.)
+  const b = x => `<b>${esc(x)}</b>`;
   // Settled by the next game, as the results that do it (title.mjs next):
   // "納什維爾下一場贏球，或邁阿密國際下一場沒贏即可" (a lead of 13 "then",
   // 14 now, read backwards).
@@ -4884,7 +4876,7 @@ function raceBlock(race, g, league, many) {
     const second = g.rows[1];
     // (The lead as the title's own sums have it: a table's points column isn't named alike in every league, and the line went blank.)
     const gap = second ? (race.unit === 'wins' ? Number(second.stats.GB) : t.gap) : 0;
-    lines.push(line('clock', W(`${many ? top : '冠軍'}${when}才會確定`, `${many ? top : 'The title'}: ${when}`), !second ? '' : gap > 0 ? W(`${nm(t.leader)} 領先 ${gap}${unit}`, `${nm(t.leader)} lead by ${gap}`) : W(`${nm(t.leader)} 與 ${nm(second)} 同${race.unit === 'pts' ? '分' : '勝'}`, `${nm(t.leader)} level with ${nm(second)}`)));
+    lines.push(line('clock', W(`${many ? top : '冠軍'}${esc(when)}才會確定`, `${many ? top : 'The title'}: ${esc(when)}`), !second ? '' : gap > 0 ? W(`${nm(t.leader)} 領先 ${gap}${unit}`, `${nm(t.leader)} lead by ${gap}`) : W(`${nm(t.leader)} 與 ${nm(second)} 同${race.unit === 'pts' ? '分' : '勝'}`, `${nm(t.leader)} level with ${nm(second)}`)));
   }
   // The next places still open: F1's always (a championship's 2nd and 3rd
   // matter), a league's once its title is settled.
@@ -4893,7 +4885,7 @@ function raceBlock(race, g, league, many) {
   for (const p of race.places) {
     const names = p.rows.slice(0, 3).map(nm).join(W('、', ', ')) + (p.rows.length > 3 ? W(` 等 ${p.rows.length} ${team ? '隊' : '位'}`, ` +${p.rows.length - 3}`) : '');
     const span = p.to > p.pos ? `${p.pos}–${p.to}` : `${p.pos}`;
-    const fight = line('medal', W(`${b(`第 ${span} 名之爭`)} ${names}`, `${b(`Fight for P${span}`)} ${names}`), p.spread > 0 ? W(`前後相差 ${p.spread}${unit}`, `${p.spread}${unit} apart`) : W('同分', 'level on points'));
+    const fight = line('medal', W(`${b(`第 ${span} 名之爭`)} ${esc(names)}`, `${b(`Fight for P${span}`)} ${esc(names)}`), p.spread > 0 ? W(`前後相差 ${p.spread}${unit}`, `${p.spread}${unit} apart`) : W('同分', 'level on points'));
     fight.classList.add('fight');
     lines.push(fight);
   }
@@ -4903,7 +4895,7 @@ function raceBlock(race, g, league, many) {
     const who = z.sure.map(id => g.rows.find(r => r.id === id)).filter(Boolean);
     const names = who.slice(0, 4).map(nm).join(W('、', ', ')) + (who.length > 4 ? W(` 等 ${who.length} 隊`, ` +${who.length - 4}`) : '');
     const zn = zoneName(z.note);
-    const row = line('lock', z.bottom ? W(`${b(`確定${zn}`)} ${names}`, `${b(`Confirmed: ${zn}`)} ${names}`) : W(`${b(`確定${zn}`)} ${names}`, `${b(`Sure of ${zn}`)} ${names}`));
+    const row = line('lock', z.bottom ? W(`${b(`確定${zn}`)} ${esc(names)}`, `${b(`Confirmed: ${zn}`)} ${esc(names)}`) : W(`${b(`確定${zn}`)} ${esc(names)}`, `${b(`Sure of ${zn}`)} ${esc(names)}`));
     if (z.color) row.style.setProperty('--zone', z.color);
     row.classList.add('zone');
     lines.push(row);
@@ -4922,7 +4914,7 @@ function raceBlock(race, g, league, many) {
     const n = z.fight.rows.length;
     const head = z.bottom ? W(`避開${zn}`, `Avoiding ${zn}`) : W(`${zn}之爭`, `${zn[0].toUpperCase()}${zn.slice(1)} race`);
     const how = W(` ${n} 隊・${z.fight.spread > 0 ? `相差 ${z.fight.spread} 分` : '同分'}`, ` · ${n} teams, ${z.fight.spread > 0 ? `${z.fight.spread} pts apart` : 'level'}`);
-    const row = line('medal', `${b(head)}${how}`, '');
+    const row = line('medal', `${b(head)}${esc(how)}`, '');
     const small = row.querySelector('.race-t small') || row.querySelector('.race-t').appendChild(el('small'));
     // (Four names at most, the rest counted: one line; the head says how many.)
     const more = z.fight.rows.length > 4 ? z.fight.rows.length - 3 : 0;

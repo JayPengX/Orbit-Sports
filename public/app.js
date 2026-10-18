@@ -13,7 +13,7 @@ import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAff
 import { stripDays } from './lib/strip.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
@@ -24,15 +24,15 @@ import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from '
 import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
-import { liveTable, standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
+import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
-import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView } from './sheets.js';
+import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
+import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // New kit names through the module (a phone can still run an older kit).
 import * as kitNames from '#kit/names.mjs';
@@ -550,7 +550,9 @@ async function readDay(leagues, date, { current = false, night = false, pages = 
     leagues.map(k => {
       const l = LEAGUES[k];
       const only = pages?.get(k);
-      const got = list => (read.add(k), list);
+      // A league with a page unread (scoreboard's `unread`) counts as failed:
+      // what came is shown, the day isn't kept, and it's read again shortly.
+      const got = list => (list.unread?.length ? failed++ : read.add(k), list);
       // A race weekend: what's on that day (ESPN's dated page lists the
       // events running then); the other sources' lists are the season's anyway.
       if (l.kind !== 'match') return (isToday ? scoreboard(k) : l.espn ? scoreboard(k, dates) : seasonEvents(k)).then(got, miss);
@@ -894,13 +896,13 @@ const startLine = (e, pick = false) => [leagueName(e.league, locale), pick ? L(P
 // Who won, for the final's notice: "Yankees 贏了", or a draw.
 function resultLine(e) {
   if (e.status?.void) return /POSTPONED/.test(e.status.name || '') ? L({ zh: '比賽延期', en: 'Postponed' }) : L({ zh: '比賽取消', en: 'Canceled' });
-  const [a, h] = [Number(e.away.score), Number(e.home.score)];
-  if (!Number.isFinite(a) || !Number.isFinite(h)) return L({ zh: '比賽結束', en: 'Final' });
-  if (a === h) return L({ zh: '平手', en: 'Draw' });
-  const w = a > h ? e.away : e.home;
+  const r = outcome(e.home, e.away);
+  if (!r) return L({ zh: '比賽結束', en: 'Final' });
+  if (r === 'D') return L({ zh: '平手', en: 'Draw' });
+  const w = r === 'W' ? e.home : e.away;
   return locale === 'en' ? `${w.short || w.name} win` : `${w.short || w.name} 贏了`;
 }
-const matchLine = (e, score = false) => (score ? `${e.away.short || e.away.name} ${e.away.score} : ${e.home.score} ${e.home.short || e.home.name}` : `${e.away.short || e.away.name} vs ${e.home.short || e.home.name}`);
+const matchLine = (e, score = false) => (score ? `${e.away.short || e.away.name} ${scoreText(e.away.score)} : ${scoreText(e.home.score)} ${e.home.short || e.home.name}` : `${e.away.short || e.away.name} vs ${e.home.short || e.home.name}`);
 
 // A followed team's game starting or ending, or one of today's picks
 // ending: a notice.
@@ -2633,12 +2635,7 @@ function teamCard(f) {
   const id = String(f.id);
   const us = g => [g.home, g.away].find(x => String(x?.id) === id);
   const them = g => [g.home, g.away].find(x => x && String(x.id) !== id);
-  const result = g => {
-    const [a, b] = [us(g), them(g)];
-    if (!a || !b) return '';
-    if (a.winner || b.winner) return a.winner ? 'W' : 'L';
-    return Number(a.score) > Number(b.score) ? 'W' : Number(a.score) < Number(b.score) ? 'L' : 'D';
-  };
+  const result = g => (us(g) && them(g) ? outcome(us(g), them(g)) : '');
   const now = Date.now();
   const played = (games || []).filter(g => g.status.state === 'post' && !g.status.void && us(g) && them(g));
   const last = played.at(-1);
@@ -2651,10 +2648,10 @@ function teamCard(f) {
     const opp = x && !/^TBD$/i.test(x.name || '') ? x : null;
     const right =
       g.status.state === 'pre'
-        ? el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(g.start) }), whereTv(g)])
+        ? el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenOf(g) }), whereTv(g)])
         : g.status.state === 'in'
-          ? el('span', { class: 'num tf-score live', text: `${t('live')} ${us(g)?.score ?? ''}–${opp?.score ?? ''}` })
-          : withAgain(el('span', { class: `num result-pill ${result(g).toLowerCase()}`, text: `${word(result(g))} ${us(g)?.score ?? ''}–${opp?.score ?? ''}` }), g);
+          ? el('span', { class: 'num tf-score live', text: `${t('live')} ${scoreText(us(g)?.score)}–${scoreText(opp?.score)}` })
+          : withAgain(el('span', { class: `num result-pill ${result(g).toLowerCase()}`, text: `${word(result(g)) || ''} ${scoreText(us(g)?.score)}–${scoreText(opp?.score)}`.trim() }), g);
     return el('button', { class: 'tf-game', type: 'button', disabled: g.status?.void ? true : null, onclick: () => openEvent(g) }, [
       el('small', { class: 'muted tf-k', text: label }),
       opp ? logo(opp.logo, opp.name, 'xs') : el('span'),
@@ -2696,7 +2693,7 @@ function crewRow(f) {
         el('small', { class: 'muted tf-k', text: L({ zh: '下一站', en: 'Next' }) }),
         raceFlag(next),
         el('span', { class: 'tf-opp', text: [next.name, session.sessionKey ? sessionName({ abbr: session.sessionKey }, locale, true) : session.session].filter(Boolean).join(' · ') }),
-        el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(session.start) }), whereTv(session)])
+        el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenOf(session) }), whereTv(session)])
       ])
     : null;
   return el('div', { class: 'tf-row' }, [
@@ -2788,7 +2785,7 @@ function personRow(f) {
         el('small', { class: 'muted tf-k', text: L({ zh: '下一場', en: 'Next' }) }),
         opp ? logo(opp.logo, opp.name, 'xs') : el('span'),
         el('span', { class: 'tf-opp', text: opp ? `${String(next.home?.id) === String(teamId) ? 'vs' : '@'} ${localSide(next.league, opp).name}` : '' }),
-        next.status.state === 'in' ? el('span', { class: 'num tf-score live', text: t('live') }) : el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(next.start) }), whereTv(next)])
+        next.status.state === 'in' ? el('span', { class: 'num tf-score live', text: t('live') }) : el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenOf(next) }), whereTv(next)])
       ])
     : null;
   return el('div', { class: 'tf-row' }, [
@@ -2798,12 +2795,10 @@ function personRow(f) {
 }
 // A team's game over as a game-log line ({ at, opp, result, score, stats }),
 // the player's numbers from `box` when it's in.
+// (The score from the team's side, as the game log's lines are: 1-2 lost.)
 function teamGameLine(e, teamId, box) {
-  const home = String(e.home?.id) === String(teamId);
-  const [us, them] = home ? [e.home, e.away] : [e.away, e.home];
-  const [a, b] = [Number(us?.score), Number(them?.score)];
-  const result = us?.winner || a > b ? 'W' : them?.winner || b > a ? 'L' : a === b && Number.isFinite(a) ? 'D' : '';
-  return { at: home ? 'vs' : '@', opp: { name: them?.en || them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: `${Math.max(a, b)}-${Math.min(a, b)}`, stats: box?.stats || [] };
+  const { home, us, them } = sidesFor(e, teamId);
+  return { at: home ? 'vs' : '@', opp: { name: them?.en || them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result: outcome(us, them), score: sideScore(us, them), stats: box?.stats || [] };
 }
 // The player's line in a game's box score: { labels, stats } or { out: true }
 // (not in it); null while it's read. Read once a game.
@@ -2840,7 +2835,7 @@ function driverRow(f, a) {
     el('div', { class: 'tf-games' }, [
       champ ? el('div', { class: 'pf-stats' }, [el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: `P${champ.pos}` }), el('small', { text: L({ zh: '車手積分榜', en: 'Standings' }) })]), el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: champ.points }), el('small', { text: L({ zh: '積分', en: 'Points' }) })]), champ.gap && champ.pos > 1 ? el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: champ.gap }), el('small', { text: L({ zh: '落後', en: 'Behind' }) })]) : null]) : null,
       session
-        ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(session) }, [el('small', { class: 'muted tf-k', text: L({ zh: '下一節', en: 'Next' }) }), raceFlag(next), el('span', { class: 'tf-opp', text: [next.name, session.sessionKey ? sessionName({ abbr: session.sessionKey }, locale, true) : session.session].filter(Boolean).join(' · ') }), el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenText(session.start) }), whereTv(session)])])
+        ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(session) }, [el('small', { class: 'muted tf-k', text: L({ zh: '下一節', en: 'Next' }) }), raceFlag(next), el('span', { class: 'tf-opp', text: [next.name, session.sessionKey ? sessionName({ abbr: session.sessionKey }, locale, true) : session.session].filter(Boolean).join(' · ') }), el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenOf(session) }), whereTv(session)])])
         : null,
       last
         ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(splitWeekend(last, Date.now(), locale).find(x => x.sessionKey === 'Race') || last) }, [el('small', { class: 'muted tf-k', text: L({ zh: '上一站', en: 'Last' }) }), raceFlag(last), el('span', { class: 'tf-opp', text: last.name }), el('span', { class: 'num tf-score', text: at >= 0 ? `P${at + 1}` : '–' })])
@@ -2983,14 +2978,14 @@ function tableOf(league) {
   // The games the official table hasn't counted yet, in; then each table's race.
   const sport = LEAGUES[league].sport;
   // (F1: a sprint or race in the moment F1's feed calls it over, in its finishing order; ESPN's copy says so an hour or more later.)
-  const recent = sport === 'racing' ? settleScoring(recentOf(league)) : recentOf(league);
-  if (sport === 'racing') askFinishes(recentOf(league), () => state.tab === 'matches' && state.scores.league === league && renderScores());
-  const now = liveTable(groups, recent, sport, { teamOf: side => f1Driver(side.en || side.name).team });
+  const recent = recentOf(league);
+  if (sport === 'racing') askFinishes(recent, () => state.tab === 'matches' && state.scores.league === league && renderScores());
+  const now = tableNow(groups, league, recent);
   // The race on the finals alone (the owner, 2026-10-18): a game on now
   // counted as it stands (納什維爾 0:0 in the first half, a draw) made the
   // "next game" the one after it, and a win tonight that settles it went
   // unsaid. The game on is the next one, said as this one (raceBlock).
-  const settledNow = sport === 'racing' ? now : liveTable(groups, recent.filter(e => e.status?.state !== 'in'), sport);
+  const settledNow = sport === 'racing' ? now : tableNow(groups, league, recent.filter(e => e.status?.state !== 'in'));
   const races = settledNow.map(g => standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league), team: sport === 'racing' && !g.rows.some(r => r.athlete) }));
   return el('div', {}, [
     standingsTables(now, league, { races, many: sport !== 'racing' && now.length > 1 }),

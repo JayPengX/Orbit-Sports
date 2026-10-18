@@ -26,6 +26,8 @@ const { proxyJson } = kit;
 import { stageFrom, roundName } from './stage.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { groupZh } from './statnames.mjs';
+import { fold } from './text.mjs';
+import { pctText, gbText } from './title.mjs';
 
 export const SITE = 'https://site.api.espn.com/apis/site/v2/sports';
 export const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
@@ -42,7 +44,6 @@ export const getJson = (url, { ttl = 60_000, trim = '', mirror = true, alone = f
 export const LIVE_TTL = 2_000;
 
 export const yyyymmdd = date => date.toISOString().slice(0, 10).replaceAll('-', '');
-export const taipeiDate = t => new Date(new Date(t).getTime() + 8 * 3_600_000).toISOString().slice(0, 10);
 
 // ---- Parsing: statuses and sides --------------------------------------------------
 
@@ -168,7 +169,11 @@ const withLogo = (league, side) => localSide(league, side && !side.logo ? { ...s
 const SESSION_MS = 4 * 3_600_000;
 export function settleField(e, now = Date.now()) {
   if (!e?.sessions || e.sessionKey) return e;
-  const sessions = e.sessions.filter(x => x.start).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  // (Each session's state by the one rule, sessionStatus: F1's own feed calling it over counts here too.)
+  const sessions = e.sessions
+    .filter(x => x.start)
+    .map(x => ({ ...x, status: sessionStatus(x, now) }))
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   const live = sessions.find(x => x.status.state === 'in' && Date.parse(x.start) + SESSION_MS > now);
   const next = sessions.find(x => x.status.state === 'pre' && Date.parse(x.start) + SESSION_MS > now);
   const last = sessions.at(-1);
@@ -251,8 +256,11 @@ export function feedStatus(abbr, start, status) {
 // Due to start: its start a minute away or passed (up to 3 h), not yet said to be on.
 // On air: under way, or its start come and ESPN not yet saying so (an NBA
 // tip-off is minutes after the hour): one rule for the home's 直播中 and the 直播 tab.
-export const onAir = (x, now = Date.now()) => !x?.status?.void && (x?.status?.state === 'in' || (x?.status?.state === 'pre' && Date.parse(x.start) <= now && now - Date.parse(x.start) < 3 * 3_600_000));
-export const dueToStart = (x, now = Date.now()) => x?.status?.state === 'pre' && Date.parse(x.start) - now < 60_000 && now - Date.parse(x.start) < 3 * 3_600_000;
+// A game whose hour isn't set (待定, its start a stand-in) is neither until
+// ESPN says it's on: its start is a guess (ELTA's slot, timeFrom, is a time).
+const guessed = x => Boolean(x?.timeTbd && !x.timeFrom);
+export const onAir = (x, now = Date.now()) => !x?.status?.void && (x?.status?.state === 'in' || (x?.status?.state === 'pre' && !guessed(x) && Date.parse(x.start) <= now && now - Date.parse(x.start) < 3 * 3_600_000));
+export const dueToStart = (x, now = Date.now()) => x?.status?.state === 'pre' && !guessed(x) && Date.parse(x.start) - now < 60_000 && now - Date.parse(x.start) < 3 * 3_600_000;
 // A session's state, the one rule for every view of it (the home's cards,
 // the weekend's sheet): F1's own feed where it has said, and a session long
 // past its start over, whatever ESPN still says ("on", "to come").
@@ -494,13 +502,17 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
   // Not one page read: a failure, never "no games" (a day saved without the
   // league, or the league taken for out of season).
   if (!pages.some(Boolean)) throw new Error(`${league}: unread`);
+  // Some pages unread: what came, said so (`unread`, the pages), so a day
+  // missing a page's games is never kept as the whole day.
+  const unread = list.filter((d, i) => !pages[i]).map(String);
+  const said = events => (unread.length ? Object.assign(events, { unread }) : events);
   const parsed = pages.map((p, i) => (p ? parseScoreboard(p, league).map(e => ({ ...e, usDay: /^\d{8}$/.test(String(list[i] ?? '')) ? String(list[i]) : usDayOf(e.start) })) : []));
   settleSeries(parsed.flat());
   const seen = new Set();
   const events = parsed.flat().filter(e => !seen.has(e.id) && seen.add(e.id));
-  if (league !== 'mlb') return noteLatest(settleSeries(events)).map(fixTime);
+  if (league !== 'mlb') return said(noteLatest(settleSeries(events)).map(fixTime));
   const [live] = await Promise.all([withMlbLive(events), loadPostseason(events)]);
-  return noteLatest(byMlbPostseason(settleSeries(live))).map(fixTime);
+  return said(noteLatest(byMlbPostseason(settleSeries(live))).map(fixTime));
 }
 
 // ---- MLB's postseason over the copies ------------------------------------------------
@@ -594,10 +606,32 @@ export async function seasonEvents(league, now = Date.now()) {
 
 // ---- A team's form (近況) --------------------------------------------------------
 
-// A game's result for one side: 'W', 'D' or 'L'.
+// A score there is to say (a number; '' or none is no score yet: a dash
+// where it's shown, never a 0).
+export const hasScore = v => v != null && String(v).trim() !== '' && Number.isFinite(Number(v));
+// A result for one side against the other: 'W', 'L', 'D' (level), or ''
+// with no score to say it by. The feed's winner first (a shootout, a
+// forfeit), else the scores. Every result shown (a form pill, a team's
+// last game, a player's, a notice) is this one rule.
+export function outcome(us, them) {
+  if (us?.winner) return 'W';
+  if (them?.winner) return 'L';
+  if (!hasScore(us?.score) || !hasScore(them?.score)) return '';
+  const [a, b] = [Number(us.score), Number(them.score)];
+  return a > b ? 'W' : a < b ? 'L' : 'D';
+}
+// The score from one side's view ("1-2" lost, as a player's game log has
+// it, never ESPN's winner-first 2-1), '' without one.
+export const sideScore = (us, them) => (hasScore(us?.score) && hasScore(them?.score) ? `${String(us.score).trim()}-${String(them.score).trim()}` : '');
+// A game from one side ({ home, us, them }): `id` its team's.
+export const sidesFor = (x, id) => {
+  const home = String(x?.home?.id) === String(id);
+  return { home, us: home ? x?.home : x?.away, them: home ? x?.away : x?.home };
+};
+// A game's result for one side: 'W', 'D', 'L' ('' with no score).
 export function resultFor(x, id) {
-  const [me, them] = x.home.id === String(id) ? [x.home, x.away] : [x.away, x.home];
-  return me.winner ? 'W' : them.winner ? 'L' : Number(me.score) === Number(them.score) && me.score !== '' ? 'D' : Number(me.score) > Number(them.score) ? 'W' : 'L';
+  const { us, them } = sidesFor(x, id);
+  return outcome(us, them);
 }
 // Its last five in the competition it's opened from (the owner, 2026-10-16:
 // Man City's five league wins read as 勝勝勝勝敗 with a Champions League loss
@@ -698,29 +732,52 @@ export function seasonFrom(pages, at, july) {
   const events = (pages || []).filter(Boolean).flatMap(p => p.events || []);
   return events.some(x => Date.parse(x.date) >= july && Date.parse(x.date) < july + 60 * 86_400_000) ? july : Date.UTC(new Date(at).getUTCFullYear(), 0, 1);
 }
+// When that season ends: ESPN's own end for it, else a year after it began
+// (the next season's games on the same year page are never counted on).
+export function seasonTo(pages, at, from) {
+  for (const p of pages || []) {
+    const s = p?.leagues?.[0]?.season;
+    const [a, b] = [Date.parse(s?.startDate), Date.parse(s?.endDate)];
+    if (a <= at && at < b) return b;
+  }
+  const d = new Date(from);
+  return Date.UTC(d.getUTCFullYear() + 1, d.getUTCMonth(), d.getUTCDate());
+}
+// Every match's round in the season a moment `at` is in, from that season's
+// year pages (pure: weekOf reads them).
+export function seasonRounds(pages, league, at, july) {
+  const from = seasonFrom(pages, at, july);
+  const to = seasonTo(pages, at, from);
+  const events = (pages || []).filter(Boolean).flatMap(p => parseScoreboard(p, league)).filter(x => Date.parse(x.start) < to);
+  return LEAGUES[league]?.cup ? phaseRounds(events, from) : CALENDAR_ROUNDS.has(league) ? calendarRounds(events, from) : weeksFrom(events, from);
+}
 // The round of a football match, once its season's been read (null until
 // then; `onLoad` runs when it has): a league's matchweek (第 N 輪), a cup's
 // league-phase matchday (第 N 比賽日). A cup without a table (the FA Cup)
-// has its rounds by name.
+// has its rounds by name. Kept by season (a game of last season's opened
+// first had this season's counted on from it); a season that couldn't be
+// read is asked again a minute on, never kept as "no rounds".
 export function weekOf(e, onLoad) {
   const l = LEAGUES[e?.league];
   if (!l?.espn || l.sport !== 'soccer' || (l.cup && !l.standings) || e.kind !== 'match' || e.round) return null;
-  const memo = weekMemo.get(e.league);
+  const d = new Date(Date.parse(e.start) || Date.now());
+  const y = d.getUTCMonth() >= 6 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
+  const key = `${e.league}|${y}`;
+  const memo = weekMemo.get(key);
   if (memo instanceof Map) return memo.get(e.id) ?? null;
-  if (!memo) {
-    const d = new Date(Date.parse(e.start) || Date.now());
-    const y = d.getUTCMonth() >= 6 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
+  // (Unread: asked again after a minute, the kit's failure hold, not on every draw.)
+  if (typeof memo === 'number' && Date.now() - memo < 60_000) return null;
+  if (!memo || typeof memo === 'number') {
     const july = Date.UTC(y, 6, 1);
     const load = Promise.all([y, y + 1].map(yr => yearPage(e.league, yr).catch(() => null)))
       .then(pages => {
-        const from = seasonFrom(pages, d.getTime(), july);
-        const events = pages.filter(Boolean).flatMap(p => parseScoreboard(p, e.league));
-        weekMemo.set(e.league, l.cup ? phaseRounds(events, from) : CALENDAR_ROUNDS.has(e.league) ? calendarRounds(events, from) : weeksFrom(events, from));
+        if (!pages.some(Boolean)) throw new Error(`${e.league} ${y}: unread`);
+        weekMemo.set(key, seasonRounds(pages, e.league, d.getTime(), july));
       })
-      .catch(() => weekMemo.set(e.league, new Map()));
-    weekMemo.set(e.league, load);
+      .catch(() => weekMemo.set(key, Date.now()));
+    weekMemo.set(key, load);
   }
-  if (onLoad) weekMemo.get(e.league).then?.(() => onLoad());
+  if (onLoad) weekMemo.get(key)?.then?.(() => onLoad());
   return null;
 }
 // How a league counts its rounds: 'matchday' (第 N 比賽日: a cup's league
@@ -1092,15 +1149,15 @@ export function parseSummary(data, league) {
   // A football game's whole commentary (every shot, corner, foul and stoppage; key events are a third of it):
   // its players by name (it names them, no ids) for their faces, its team by name, the score after a goal.
   // (Its words write "Brighton and Hove Albion" for the header's "Brighton & Hove Albion".)
-  const fold = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s*&\s*/g, ' and ').toLowerCase().trim();
+  const nameKey = x => fold(String(x || '').replace(/\s*&\s*/g, ' and '));
   const byName = new Map();
-  for (const [id, x] of people) byName.set(fold(x.name), { id, ...x });
+  for (const [id, x] of people) byName.set(nameKey(x.name), { id, ...x });
   const comps = (header?.competitors || []).map(c => ({ id: String(c.team?.id ?? ''), home: c.homeAway === 'home', names: [c.team?.displayName, c.team?.shortDisplayName, c.team?.name].filter(Boolean) }));
-  const teamOf = name => comps.find(c => c.names.some(n => fold(n) === fold(name)))?.id || '';
+  const teamOf = name => comps.find(c => c.names.some(n => nameKey(n) === nameKey(name)))?.id || '';
   // "Goal! Chelsea 1, Brighton and Hove Albion 0.": each side's number after its name.
   const scoreIn = text => {
-    const said = fold(text);
-    const got = comps.map(c => c.names.map(n => new RegExp(`${fold(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} (\\d+)[,.]`).exec(said)).find(Boolean)?.[1]);
+    const said = nameKey(text);
+    const got = comps.map(c => c.names.map(n => new RegExp(`${nameKey(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} (\\d+)[,.]`).exec(said)).find(Boolean)?.[1]);
     return got.every(v => v != null) ? Object.fromEntries(comps.map((c, i) => [c.home ? 'home' : 'away', Number(got[i])])) : {};
   };
   const commentary = (data?.commentary || [])
@@ -1108,12 +1165,12 @@ export function parseSummary(data, league) {
     .map(c => {
       const p = c.play;
       const [a, b] = (p.participants || []).map(x => x.athlete?.displayName || '');
-      const k = byName.get(fold(a));
+      const k = byName.get(nameKey(a));
       // (A penalty scored too: Picault's at 89' wasn't marked, 2026-10-18.)
       const scoring = /^goal|own-goal|penalty---scored/.test(p.type.type);
       // A goal's assist by name ("Assisted by Luis Suárez"), for their face.
-      const helper = byName.get(fold(/Assisted by ([^.]+?)(?: with| following|\.|$)/.exec(c.text || '')?.[1] || ''));
-      return { ...(helper ? { helpers: [{ pic: { id: helper.id, name: helper.name, headshot: helper.headshot }, name: helper.short, role: 'assist' }] } : {}), id: String(p.id ?? ''), text: c.text || p.text || '', commentary: true, kind: p.type.type, type: p.type.text || '', clock: c.time?.displayValue || p.clock?.displayValue || '', periodNum: p.period?.number || 0, team: teamOf(p.team?.displayName), scoring, who: k?.short || a || '', pic: k ? { id: k.id, name: k.name, headshot: k.headshot } : null, ...(b ? { other: byName.get(fold(b))?.short || b } : {}), ...(scoring ? scoreIn(c.text || '') : {}) };
+      const helper = byName.get(nameKey(/Assisted by ([^.]+?)(?: with| following|\.|$)/.exec(c.text || '')?.[1] || ''));
+      return { ...(helper ? { helpers: [{ pic: { id: helper.id, name: helper.name, headshot: helper.headshot }, name: helper.short, role: 'assist' }] } : {}), id: String(p.id ?? ''), text: c.text || p.text || '', commentary: true, kind: p.type.type, type: p.type.text || '', clock: c.time?.displayValue || p.clock?.displayValue || '', periodNum: p.period?.number || 0, team: teamOf(p.team?.displayName), scoring, who: k?.short || a || '', pic: k ? { id: k.id, name: k.name, headshot: k.headshot } : null, ...(b ? { other: byName.get(nameKey(b))?.short || b } : {}), ...(scoring ? scoreIn(c.text || '') : {}) };
     })
     // A foul is two lines (the free kick won, then "Foul by"): one, the player fouled kept on it.
     .reduce((out, p) => {
@@ -1123,7 +1180,7 @@ export function parseSummary(data, league) {
       if (prev && prev.clock === p.clock && ((by && prev.wonBy) || (won && prev.foulLine))) {
         const foul = by ? p : prev;
         const fouled = by ? prev.wonBy : won;
-        out[out.length - 1] = { ...foul, fouled: byName.get(fold(fouled))?.short || fouled, foulLine: false, wonBy: '' };
+        out[out.length - 1] = { ...foul, fouled: byName.get(nameKey(fouled))?.short || fouled, foulLine: false, wonBy: '' };
         return out;
       }
       out.push(won ? { ...p, wonBy: won } : by ? { ...p, foulLine: true } : p);
@@ -1573,7 +1630,6 @@ export async function asiaStandings(league, season = null) {
   if (season && pack?.year && season !== pack.year) return [];
   return cpblTable(pack, events, detectLocale());
 }
-const pct = (w, l) => (w + l ? (w / (w + l)).toFixed(3).replace(/^0/, '') : '.000');
 const HALF = { first: ['上半季', 'First half'], second: ['下半季', 'Second half'], year: ['全年', 'Full season'] };
 export function cpblTable(pack, events = [], lang = 'zh') {
   const tables = pack?.tables?.length ? pack.tables : [];
@@ -1609,7 +1665,6 @@ export function cpblTable(pack, events = [], lang = 'zh') {
     return {
       name: lang === 'en' ? `${enName} ${pack.year || ''}`.trim() : `${pack.year ? `${pack.year} ` : ''}${zhName}`,
       rows: rows.map(r => {
-        const gb = (top.w - r.w + r.l - top.l) / 2;
         const zh = teamNameZh(play, r.en, 'baseball');
         return {
           id: r.en,
@@ -1619,7 +1674,7 @@ export function cpblTable(pack, events = [], lang = 'zh') {
           logo: teamBadge(play, r.en),
           note: '',
           color: '',
-          stats: { GP: String(r.gp), W: String(r.w), L: String(r.l), ...(r.t ? { T: String(r.t) } : {}), PCT: pct(r.w, r.l), GB: gb === 0 ? '-' : String(gb), STRK: r.streak || '', L10: r.last10 || '' }
+          stats: { GP: String(r.gp), W: String(r.w), L: String(r.l), ...(r.t ? { T: String(r.t) } : {}), PCT: pctText(r.w, r.l), GB: gbText(top, r), STRK: r.streak || '', L10: r.last10 || '' }
         };
       })
     };
@@ -1665,10 +1720,7 @@ export function withGaps(groups, sport) {
       if (w0 == null || l0 == null) return g;
       return {
         ...g,
-        rows: rows.map((r, i) => {
-          const gb = ((w0 - num(r.stats.W)) + (num(r.stats.L) - l0)) / 2;
-          return { ...r, stats: { ...r.stats, GB: i === 0 || !(gb > 0) ? '-' : String(gb) } };
-        })
+        rows: rows.map(r => ({ ...r, stats: { ...r.stats, GB: gbText({ w: w0, l: l0 }, { w: num(r.stats.W) ?? NaN, l: num(r.stats.L) ?? NaN }) } }))
       };
     }
     return g;

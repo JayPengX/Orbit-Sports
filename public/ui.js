@@ -9,10 +9,11 @@ import { liveLabel, liveNote } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
-import { freshHeadshot, SESSION_NAMES, espnSummary } from './lib/espn.mjs';
+import { freshHeadshot, SESSION_NAMES, espnSummary, onAir } from './lib/espn.mjs';
 import * as kit from '#kit/quadra.mjs';
 import { tvOf, channelsOf, watchOf, replayHint } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
+import { fold } from './lib/text.mjs';
 
 export const ctx = { t: k => k, locale: 'zh', state: null, openEvent: () => {}, openTeam: () => {}, openPlayer: () => {} };
 
@@ -80,10 +81,6 @@ export function dayLabel(date, { long = false } = {}) {
   if (long) return near ? `${near} · ${plain}（${wd}）` : `${plain}（${wd}）`;
   return near || `${plain} ${wd}`;
 }
-export const whenText = iso => {
-  const date = localDate(Date.parse(iso));
-  return date === today() ? clock(iso) : `${dayLabel(date)} ${clock(iso)}`;
-};
 export function toast(text, action = null, ms = 3200) {
   const box = el('div', { class: `toast${action ? ' with-action' : ''}` }, [el('span', { text }), action]);
   $('toasts').append(box);
@@ -267,7 +264,7 @@ export function statusText(e) {
     return label;
   }
   if (s.state === 'post') return s.short && !/^final$/i.test(s.short) ? finalText(s.short) : t('final');
-  return whenText(shownStart(e));
+  return whenOf(e);
 }
 // A finished game's ESPN status in Chinese: "Final/OT" 完賽（延長）, "Final/10"
 // 完賽（10 局）, "FT", "AET", "FT-Pens"…; anything else as ESPN wrote it.
@@ -307,12 +304,20 @@ function fieldStatus(text) {
 export const shownStart = e => e?.official || e?.start;
 // A game's hour: 待定 while it isn't set (a play-off's next game: its day is known, its time not yet).
 export const timeText = e => (e?.timeTbd ? (ctx.locale === 'en' ? 'TBD' : '待定') : clock(shownStart(e)));
+// When a game or session is, as every list says it (today its time, another
+// day's its day too): its official start (an F1 session's, not its titles' minutes
+// before) and 待定 while its hour isn't set, never the stand-in's clock.
+export const whenOf = e => {
+  const date = localDate(Date.parse(shownStart(e)));
+  return date === today() ? timeText(e) : `${dayLabel(date)} ${timeText(e)}`;
+};
 // A row's status: a game on another day shows its day above its time.
 function statusEl(e, day = true) {
   if (e.status.state === 'pre' && !e.status.void && localDate(Date.parse(e.start)) !== today())
     return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: timeText(e) })]) : el('span', { class: 'event-status pre', text: timeText(e) });
   // Its start come, ESPN not yet saying it's under way: about to start, said in the live colour.
-  if (e.status.state === 'pre' && !e.status.void && Date.parse(e.start) <= Date.now()) return el('span', { class: 'event-status in', text: ctx.locale === 'en' ? 'Starting' : '即將開賽' });
+  // (The one rule for it, onAir: not a game whose hour is only a stand-in, nor one hours past it.)
+  if (e.status.state === 'pre' && onAir(e)) return el('span', { class: 'event-status in', text: ctx.locale === 'en' ? 'Starting' : '即將開賽' });
   // A game on now with its clock (第4節 8:58): the period, the clock under it (two lines drawn for it, never a wrap).
   const text = statusText(e);
   // At half-time: 中場休息, its countdown under it, ticking (the line kept for it before the countdown is known).
@@ -330,11 +335,14 @@ function statusEl(e, day = true) {
 }
 // A side's picture: a person's photo (a driver), a team's badge.
 export const sideLogo = (side, league, cls = '') => (side && side.athlete ? personPic(side, league, `${cls} round`) : logo(side?.logo, side?.name, cls));
+// A side's score as shown: a dash while there's none (a game just begun,
+// a list that has only its state), never a made-up 0.
+export const scoreText = v => (v == null || String(v).trim() === '' ? '–' : String(v));
 export function sideLine(side, e, win) {
   return el('div', { class: `side${win ? ' win' : ''}` }, [
     sideLogo(side, e.league, 'sm'),
     el('span', { class: 'side-name', text: side.short || side.name }),
-    e.status.state !== 'pre' && !e.status.void ? el('strong', { class: 'side-score num', 'data-q-live': e.status.state === 'in' ? `sc:${e.league}:${e.id}:${side.id}` : null, text: side.score === '' || side.score == null ? (e.status.state === 'in' ? '–' : '') : side.score }) : null
+    e.status.state !== 'pre' && !e.status.void ? el('strong', { class: 'side-score num', 'data-q-live': e.status.state === 'in' ? `sc:${e.league}:${e.id}:${side.id}` : null, text: e.status.state === 'post' && (side.score === '' || side.score == null) ? '' : scoreText(side.score) }) : null
   ]);
 }
 export function winners(e) {
@@ -481,7 +489,8 @@ export const f1Live = { feed: null, key: '', failed: false };
 // A block's shape while its numbers are read: grey bars where they'll be,
 // so nothing moves when they come (`lines`: [width%…], `cls` the block's).
 export const skeleton = (lines, cls = '') => el('div', { class: `skel-block ${cls}`.trim(), 'aria-hidden': 'true' }, lines.map(w => el('i', { class: 'skel', style: `width:${w}%` })));
-const mmss = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
+// Seconds as a clock's minutes and seconds ("12:05").
+export const mmss = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
 // A card's brief of an F1 session on now, as baseball's shows the count:
 // the part (or lap) and the time left, then the top three with their
 // pictures and best lap (qualifying, practice) or gap (a race). A slot
@@ -515,7 +524,6 @@ export function fillF1Brief(box, e) {
   const left = Math.max(0, f.clock.left);
   const head = race && f.lap?.now ? (en ? `Lap ${f.lap.now}/${f.lap.of}` : `第 ${f.lap.now}/${f.lap.of} 圈`) : [quali && f.part ? `${e.sessionKey === 'Qual' ? 'Q' : 'SQ'}${f.part}` : '', `${en ? '' : '剩 '}${mmss(left)}${en ? ' left' : ''}`].filter(Boolean).join(' · ');
   const field = (e.sessions || []).find(x => x.abbr === e.sessionKey)?.field || [];
-  const plain = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   put(
     box,
     el('small', { class: 'f1-brief-head num', text: head }),
@@ -523,7 +531,7 @@ export function fillF1Brief(box, e) {
       'ol',
       { class: 'f1-brief-top' },
       f.cars.slice(0, 3).map((c, i) => {
-        const espn = field.find(x => plain(x.name) === plain(c.name)) || { name: c.name };
+        const espn = field.find(x => fold(x.name) === fold(c.name)) || { name: c.name };
         return el('li', {}, [
           el('span', { class: 'pos num', text: String(c.pos) }),
           personPic({ ...espn, en: c.name }, 'f1', 'xs round'),
