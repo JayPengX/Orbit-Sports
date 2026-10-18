@@ -49,7 +49,9 @@ couldn't be read is shown, never hidden.
   - A team page ranks its own players; a player page shows their league
     ranks; a match shows each side's season leaders.
 - **Win chance:** ESPN's line, else Polymarket's. A chart with key moments
-  while on or over; a split bar before.
+  while on or over; a split bar before. Each side in its colour, its
+  chance written in it (`wpline.mjs sideColors`: two alike, or none, and
+  one takes a spare colour); a draw grey.
 - **F1 live board:** F1's own timing (`f1-live`). Positions, tyres, gaps,
   race control in Chinese by rule (`lib/racecontrol.mjs`), track map,
   compare, stop window, championship as it stands.

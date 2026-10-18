@@ -11,7 +11,7 @@ import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { personKey, pitcherRole } from './lib/mlb.mjs';
-import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors } from './lib/wpline.mjs';
+import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors, readableOn } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText, goalHowParts, basketEn } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
@@ -855,12 +855,12 @@ function matchSection(view, d, e, table, lw = {}) {
   const tag = tagOf(d, e);
   if (view === 'stats' && d) {
     // Each side in its own colour (the win chance chart's: told apart from each other and the card), the leagues' own apps' way.
-    const tint = sideColors(e.home, e.away, getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff');
+    const tint = tintOf(e);
     return card(
       T('teamStats'),
       el(
         'div',
-        { class: 'stat-bars', style: [tint.away ? `--away:${tint.away}` : '', tint.home ? `--home:${tint.home}` : ''].filter(Boolean).join(';') || null },
+        { class: 'stat-bars', style: `--away:${tint.away};--home:${tint.home}` },
         [el('div', { class: 'sb-legend' }, [el('span', { class: 'away' }, [tag(e.away.id)]), el('span', { class: 'home' }, [tag(e.home.id)])])].concat(
           teamStatRows(d.teamStats, LEAGUES[e.league]?.sport, L()).flatMap((s, i, rows) => {
             const [a, h] = [statValue(s.away), statValue(s.home)];
@@ -927,7 +927,7 @@ function matchSection(view, d, e, table, lw = {}) {
     const list = sport === 'basketball' && d.feed.length ? d.feed : sport === 'baseball' && d.feed.some(p => p.kind === 'play-result') ? d.feed.filter(p => p.kind === 'play-result' || (p.scoring && p.kind !== 'play-result')) : sport === 'soccer' && d.commentary?.length ? d.commentary : d.keyEvents.length ? d.keyEvents : d.plays;
     // The chart's key moments, by play: a run told where it ended, a play by itself.
     const marks = new Map();
-    const tint = sideColors(e.home, e.away, getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff');
+    const tint = tintOf(e);
     const pts = d.winProb || [];
     if (pts.length && pts.every(p => p.n)) {
       const sides = { home: { id: e.home.id, name: sideShort(e.home.id) }, away: { id: e.away.id, name: sideShort(e.away.id) }, en };
@@ -1455,16 +1455,21 @@ function subsList(sides, tag, league) {
   });
   return cells.length ? el('div', { class: 'subs-block' }, [el('p', { class: 'subs-h', text: en ? 'Substitutions' : '換人' }), el('div', { class: 'subs-grid' }, cells)]) : null;
 }
-// Each side's colour for its players' rings: its own, the away side in its
-// second when the two are alike (two whites), a blue and a red when the feed has none.
-// The win chance chart's colours (sideColors on the card as it's drawn now),
-// so a side's ring is the colour its line is (the owner, 2026-10-17:
-// Chelsea's ring navy on the pitch, its line white).
+// The card's colour as it's drawn now (light or dark), and each side's
+// colour on it (sideColors: always two, told apart): the win chance chart's
+// bands and labels, the stat bars, the players' rings.
+const cardBg = () => getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff';
+function tintOf(e) {
+  return sideColors(e.home, e.away, cardBg());
+}
+// Each side's colour as text: its band's, darker (or lighter) to read at 4.5:1.
+const inkOf = c => readableOn(c, cardBg(), 4.5) || c;
+// Each side's colour for its players' rings: the win chance chart's, so a
+// side's ring is the colour its line is (the owner, 2026-10-17: Chelsea's
+// ring navy on the pitch, its line white).
 function shirtsOf(d, e) {
-  const [a, h] = [e.away, e.home].map(t => d?.byId?.[String(t.id)] || t);
-  const tint = sideColors(e.home, e.away, getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff');
-  const away = tint.away || (a?.color && h?.color && near(a.color, h.color) && a.alt ? a.alt : a?.color || '#2f6fdf');
-  return { [String(e.away.id)]: away, [String(e.home.id)]: tint.home || h?.color || '#d9443a' };
+  const tint = tintOf(e);
+  return { [String(e.away.id)]: tint.away, [String(e.home.id)]: tint.home };
 }
 // A name as a shirt says it: "O. Costa" → Costa ("João Marcelo" as it is).
 // A suffix (Jr., Sr., II, III) left off: the face and number say who (McCullar Jr. ran onto a second line).
@@ -1489,10 +1494,6 @@ const oneLineName = name => `pm-name one${name.length > 11 ? ' tight' : name.len
 const hexRgb = c => {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(c || ''));
   return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null;
-};
-const near = (a, b) => {
-  const [x, y] = [hexRgb(a), hexRgb(b)];
-  return Boolean(x && y) && Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) < 90;
 };
 const inkOn = c => {
   const x = hexRgb(c);
@@ -1570,6 +1571,12 @@ function winCard(d, e, line, wait) {
   return real;
 }
 
+// Each side's colour on a win chance card: its band's (--home, --away) and
+// its label's (--home-ink, --away-ink), so a chance reads as whose it is; a draw's grey.
+const sideVars = e => {
+  const tint = tintOf(e);
+  return `--home:${tint.home};--away:${tint.away};--home-ink:${inkOf(tint.home)};--away-ink:${inkOf(tint.away)}`;
+};
 // A game to come: each side's chance (and a draw's), one bar split by them;
 // ESPN's prediction, else Polymarket's price, else a sportsbook's odds.
 function winChanceCard(odds, e) {
@@ -1580,7 +1587,7 @@ function winChanceCard(odds, e) {
   const away = Math.max(0, 100 - home - (draw ?? 0));
   return card(
     T('winChance'),
-    el('div', { class: 'wp' }, [
+    el('div', { class: 'wp', style: sideVars(e) }, [
       // Each side with its small logo beside its name and chance.
       el('div', { class: 'wp-labels wc-labels' }, [el('span', { class: 'away' }, [logo(e.away.logo, e.away.name, 'xs'), document.createTextNode(`${e.away.short || e.away.name} ${away}%`)]), draw != null ? el('span', { class: 'draw', text: `${en ? 'Draw' : '和局'} ${draw}%` }) : null, el('span', { class: 'home' }, [document.createTextNode(`${e.home.short || e.home.name} ${home}%`), logo(e.home.logo, e.home.name, 'xs')])]),
       el('div', { class: 'wc-bar', 'aria-hidden': 'true' }, [el('span', { class: 'away', style: `flex:${away}` }), draw ? el('span', { class: 'draw', style: `flex:${draw}` }) : null, el('span', { class: 'home', style: `flex:${home}` })])
@@ -1608,7 +1615,7 @@ function winProbCard(line, e, timeline, events = []) {
   const keyOf = `${e.league}|${e.id}`;
   const kept = wpKept.get(keyOf) || {};
   const last = pts.at(-1) || {};
-  const sig = [pts.length, last.home, last.draw, last.t, e.status.state, L(), getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim(), (events || []).length].join('|');
+  const sig = [pts.length, last.home, last.draw, last.t, e.status.state, L(), cardBg(), (events || []).length].join('|');
   // On the page already: a stand-in for it in the new drawing (paint puts the card itself back in its place).
   const stay = c => (c.isConnected ? Object.assign(el('div', { hidden: true }), { __keep: c }) : c);
   if (kept.card && kept.sig === sig) return stay(kept.card);
@@ -1649,13 +1656,11 @@ function winProbCard(line, e, timeline, events = []) {
   const marks = periodMarks(timeline, sport, pts, en);
   const grid = marks.filter(m => m.x > 0.01).map(m => `<line x1="${(m.x * w).toFixed(1)}" x2="${(m.x * w).toFixed(1)}" y1="0" y2="${h}" class="wp-grid"/>`).join('');
   const sideName = s => s.short || s.name;
-  // Each side in its own colour: the home side's band on top in its colour,
-  // the away side's below in theirs (the app's colour, and a grey, where a
-  // team has none).
-  // On the card as it's drawn now (light or dark).
-  const tint = sideColors(e.home, e.away, getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff');
-  const homeC = tint.home || 'var(--accent)';
-  const awayC = tint.away || 'var(--q-text-2)';
+  // Each side in its own colour (sideColors: two reds, one takes a spare;
+  // none, spares), on the card as it's drawn now (light or dark): the home
+  // side's band on top, the away side's below, each label in its band's.
+  const tint = tintOf(e);
+  const [homeC, awayC] = [tint.home, tint.away];
   const sideC = s => (s === 'home' ? homeC : awayC);
   const side = { home: { id: e.home.id, name: sideName(e.home) }, away: { id: e.away.id, name: sideName(e.away) }, en };
   const moments = (pts.every(p => p.n) ? playMoments(pts, sport, side) : eventMoments(pts, events, sport, side, pts.map(p => p.t))).filter(m => !isQuiet(m.i));
@@ -1770,7 +1775,7 @@ function winProbCard(line, e, timeline, events = []) {
         ...rows
       ])
     : null;
-  const box = el('div', { class: 'wp' }, [
+  const box = el('div', { class: 'wp', style: sideVars(e) }, [
     el('div', { class: 'wp-labels wc-labels' }, [el('span', { class: 'away' }, [sideLogo(e.away, e.league, 'xs'), away]), draw, el('span', { class: 'home' }, [home, sideLogo(e.home, e.league, 'xs')])]),
     at,
     frame,
@@ -1791,6 +1796,8 @@ function winProbCard(line, e, timeline, events = []) {
     old.replaceChildren(...plot.childNodes);
     old.__impl = plot.__impl;
     kept.frame.firstChild.replaceWith(frame.firstChild);
+    // (The sides' colours too: the theme may have changed under it.)
+    kept.box.style.cssText = box.style.cssText;
     put(kept.box, ...[...box.childNodes].map(n => (n === frame ? kept.frame : n)));
     if (old.__at != null && old.__at < pts.length) show(old.__at);
     wpKept.set(keyOf, { ...kept, sig, get picked() { return state.picked; } });
