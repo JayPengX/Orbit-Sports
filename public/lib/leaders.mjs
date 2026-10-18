@@ -1,44 +1,89 @@
-// 數據領先 beyond a game: a league's leaders (each stat's top five) and a
-// team's (each stat's best of its own), from ESPN's season numbers, the
-// regular season's (MLB's postseason numbers are a handful of games).
-//   - a league's: basketball's and baseball's leaders list (site v3, top 10
-//     each, trimmed by the proxy: espn-leaders), football's top scorers and
-//     assists (site v2 statistics, 50 each, its clubs named);
-//   - a team's: basketball's and baseball's players with their season numbers
-//     (teams/<id>/athletes/statistics), each stat's best who qualifies;
-//     football's from the league's lists, its own players.
-// Each stat: [key in the league's list, key in a team's, zh, en, lower is better].
-export const LEADER_STATS = {
+// 數據領先 beyond a game: a league's leaders (each stat's top hundred) and a
+// team's (each stat's best of its own), the regular season's (MLB's
+// postseason numbers are a handful of games).
+//   - basketball and baseball: ESPN's list of every player's season
+//     (common v3 statistics/byathlete, a thousand a page, trimmed by the
+//     proxy: espn-athletes; the same address Play reads, so one copy in the
+//     proxy's cache), MLB's batters and pitchers two lists. Each stat ranked
+//     here, a rate only among those who qualify as the league counts it (an
+//     NBA shooter's makes, a batter's plate appearances, a pitcher's innings);
+//     a team's the same list, its own players;
+//   - football: FotMob's (below); ESPN's top scorers and assists (site v2
+//     statistics, its clubs named) when FotMob can't be read.
+import { espnHeadshot } from '#kit/photo-urls.mjs';
+import { f1Constructor } from '#kit/logos.mjs';
+
+// Each stat: [its key, ESPN's table, ESPN's name, zh, en, how it's written, who qualifies, lower is better].
+//   how: 'pg' per game (one place; 場均 said), 'pct' a percentage, 'n' a count,
+//        'avg' .316, 'era' 1.80, 'one' one place;
+//   who: 'games' (a fair share of the games), 'fg' | '3p' | 'ft' (the shots
+//        made the NBA asks, its 300, 82 and 125 a season), 'pa' (3.1 plate
+//        appearances a team game), 'ip' (an inning a team game), none: all.
+export const ATHLETE_STATS = {
   basketball: [
-    ['pointsPerGame', 'avgPoints', '得分', 'Points'],
-    ['reboundsPerGame', 'avgRebounds', '籃板', 'Rebounds'],
-    ['assistsPerGame', 'avgAssists', '助攻', 'Assists'],
-    ['stealsPerGame', 'avgSteals', '抄截', 'Steals'],
-    ['blocksPerGame', 'avgBlocks', '阻攻', 'Blocks'],
-    ['3PointsMadePerGame', 'avgThreePointFieldGoalsMade', '三分球', '3-pointers']
+    ['pts', 'offensive', 'avgPoints', '得分', 'Points', 'pg', 'games'],
+    ['reb', 'general', 'avgRebounds', '籃板', 'Rebounds', 'pg', 'games'],
+    ['ast', 'offensive', 'avgAssists', '助攻', 'Assists', 'pg', 'games'],
+    ['stl', 'defensive', 'avgSteals', '抄截', 'Steals', 'pg', 'games'],
+    ['blk', 'defensive', 'avgBlocks', '阻攻', 'Blocks', 'pg', 'games'],
+    ['3pm', 'offensive', 'avgThreePointFieldGoalsMade', '三分球', '3-pointers', 'pg', 'games'],
+    ['fg', 'offensive', 'fieldGoalPct', '投籃命中率', 'FG%', 'pct', 'fg'],
+    ['3p', 'offensive', 'threePointFieldGoalPct', '三分命中率', '3P%', 'pct', '3p'],
+    ['ft', 'offensive', 'freeThrowPct', '罰球命中率', 'FT%', 'pct', 'ft'],
+    ['min', 'general', 'avgMinutes', '上場時間', 'Minutes', 'pg', 'games'],
+    ['ftm', 'offensive', 'avgFreeThrowsMade', '罰球進球', 'Free throws', 'pg', 'games'],
+    ['dd', 'general', 'doubleDouble', '雙十', 'Double-doubles', 'n'],
+    ['td', 'general', 'tripleDouble', '大三元', 'Triple-doubles', 'n'],
+    ['ptsAll', 'offensive', 'points', '總得分', 'Total points', 'n'],
+    ['rebAll', 'general', 'rebounds', '總籃板', 'Total rebounds', 'n'],
+    ['astAll', 'offensive', 'assists', '總助攻', 'Total assists', 'n']
   ],
   baseball: [
-    ['avg', 'avg', '打擊率', 'Average'],
-    ['homeRuns', 'homeRuns', '全壘打', 'Home runs'],
-    ['RBIs', 'RBIs', '打點', 'RBI'],
-    ['stolenBases', 'stolenBases', '盜壘', 'Stolen bases'],
-    ['ERA', 'ERA', '防禦率', 'ERA', true],
-    ['wins', 'wins', '勝投', 'Wins'],
-    ['strikeouts', 'strikeouts', '三振', 'Strikeouts'],
-    ['saves', 'saves', '救援', 'Saves']
-  ],
-  soccer: [
-    ['goalsLeaders', 'goalsLeaders', '進球', 'Goals'],
-    ['assistsLeaders', 'assistsLeaders', '助攻', 'Assists']
+    ['avg', 'batting', 'avg', '打擊率', 'Average', 'avg', 'pa'],
+    ['hr', 'batting', 'homeRuns', '全壘打', 'Home runs', 'n'],
+    ['rbi', 'batting', 'RBIs', '打點', 'RBI', 'n'],
+    ['ops', 'batting', 'OPS', 'OPS', 'OPS', 'avg', 'pa'],
+    ['h', 'batting', 'hits', '安打', 'Hits', 'n'],
+    ['r', 'batting', 'runs', '得分', 'Runs', 'n'],
+    ['sb', 'batting', 'stolenBases', '盜壘', 'Stolen bases', 'n'],
+    ['obp', 'batting', 'onBasePct', '上壘率', 'On-base %', 'avg', 'pa'],
+    ['slg', 'batting', 'slugAvg', '長打率', 'Slugging', 'avg', 'pa'],
+    ['2b', 'batting', 'doubles', '二壘安打', 'Doubles', 'n'],
+    ['3b', 'batting', 'triples', '三壘安打', 'Triples', 'n'],
+    ['bb', 'batting', 'walks', '保送', 'Walks', 'n'],
+    ['tb', 'batting', 'totalBases', '壘打數', 'Total bases', 'n'],
+    ['war', 'batting', 'WARBR', '野手 WAR', 'WAR (batting)', 'one'],
+    ['era', 'pitching', 'ERA', '防禦率', 'ERA', 'era', 'ip', true],
+    ['w', 'pitching', 'wins', '勝投', 'Wins', 'n'],
+    ['k', 'pitching', 'strikeouts', '三振', 'Strikeouts', 'n'],
+    ['sv', 'pitching', 'saves', '救援', 'Saves', 'n'],
+    ['whip', 'pitching', 'WHIP', 'WHIP', 'WHIP', 'era', 'ip', true],
+    ['k9', 'pitching', 'strikeoutsPerNineInnings', '每九局三振', 'K/9', 'one', 'ip'],
+    ['ip', 'pitching', 'innings', '投球局數', 'Innings', 'one'],
+    ['qs', 'pitching', 'qualityStarts', '優質先發', 'Quality starts', 'n'],
+    ['hld', 'pitching', 'holds', '中繼成功', 'Holds', 'n'],
+    ['pwar', 'pitching', 'WARBR', '投手 WAR', 'WAR (pitching)', 'one']
   ]
 };
-// (Per game, said once under the stat's name.)
-export const PER_GAME = new Set(['basketball']);
-export const hasLeaders = (sport, espn) => Boolean(espn && LEADER_STATS[sport]);
+// Football's from ESPN (FotMob can't be read): [key, zh, en].
+const ESPN_SOCCER = [
+  ['goalsLeaders', '進球', 'Goals'],
+  ['assistsLeaders', '助攻', 'Assists']
+];
+export const LEADER_STATS = { basketball: ATHLETE_STATS.basketball, baseball: ATHLETE_STATS.baseball, soccer: ESPN_SOCCER };
+// How many a league's list ranks.
+export const LEAGUE_TOP = 100;
+// (Racing's from Jolpica: F1 alone.)
+export const hasLeaders = (sport, espn) => Boolean(espn && LEADER_STATS[sport] && (sport !== 'racing' || espn === 'racing/f1'));
 
 const SITE = 'https://site.api.espn.com/apis/site';
-export const leagueLeadersUrl = (sport, espn) => (sport === 'soccer' ? `${SITE}/v2/sports/${espn}/statistics` : `${SITE}/v3/sports/${espn}/leaders?limit=10&seasontype=2`);
-export const teamLeadersUrl = (espn, id) => `${SITE}/v2/sports/${espn}/teams/${encodeURIComponent(id)}/athletes/statistics?seasontype=2`;
+const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
+// (Play's address exactly: the proxy's one cached copy serves both.)
+export const athletesUrls = (sport, espn) => {
+  const all = `${COMMON}/${espn}/statistics/byathlete?limit=1000&isqualified=false&seasontype=2`;
+  return sport === 'baseball' ? [all, `${all}&category=pitching`] : [all];
+};
+export const leagueLeadersUrl = (sport, espn) => (sport === 'soccer' ? `${SITE}/v2/sports/${espn}/statistics` : athletesUrls(sport, espn)[0]);
 
 const shot = h => (typeof h === 'string' ? h : h?.href) || null;
 const person = a => ({ id: String(a?.id ?? ''), name: a?.shortName || a?.displayName || '', full: a?.displayName || a?.shortName || '', headshot: shot(a?.headshot) });
@@ -48,88 +93,116 @@ const seasonOf = data => {
   const name = /\d{4}(?:-\d{2})?/.exec(s?.displayName || '')?.[0] || (s?.year ? String(s.year) : '');
   return name ? { name } : null;
 };
-// A number as the stat writes it: an average .316 (no leading 0), ERA 1.80,
-// a count whole, basketball's per game to one place.
-const RATE3 = new Set(['avg', 'OPS', 'onBasePct', 'slugAvg']);
-export function statText(key, value, sport) {
+// A number as its stat writes it.
+export function statText(how, value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value ?? '');
-  if (RATE3.has(key)) return n.toFixed(3).replace(/^0\./, '.');
-  if (key === 'ERA' || key === 'WHIP') return n.toFixed(2);
-  if (sport === 'basketball') return n.toFixed(1);
+  if (how === 'avg') return n.toFixed(3).replace(/^0\./, '.');
+  if (how === 'era') return n.toFixed(2);
+  if (how === 'pct') return `${n.toFixed(1)}%`;
+  if (how === 'pg' || how === 'one') return n.toFixed(1);
   return String(Math.round(n));
 }
-
-// A league's list (ESPN's whole, or the proxy's trim of it): { season,
-// stats: [{ key, zh, en, list: [{ id, name, full, headshot, team, value, games }] }] }, or null.
-export function parseLeagueLeaders(data, sport) {
-  const want = LEADER_STATS[sport];
-  if (!want || !data) return null;
-  const cats = data.leaders?.categories || data.categories || data.stats || [];
-  const stats = want
-    .map(([key, , zh, en]) => {
-      const c = cats.find(x => x?.name === key);
-      const list = (c?.leaders || [])
-        .map(l => {
-          const a = l.athlete || {};
-          // Football's says "Matches: 6, Goals: 6": its number, and the games.
-          const games = /Matches:\s*(\d+)/.exec(l.displayValue || '')?.[1];
-          return { ...person(a), team: String(l.team?.id ?? a.team?.id ?? a.teamId ?? ''), value: l.value != null ? statText(key, l.value, sport) : '', games: games ? Number(games) : null };
-        })
-        .filter(x => x.id && x.name && x.value !== '');
-      return list.length ? { key, zh, en, list } : null;
-    })
-    .filter(Boolean);
-  return stats.length ? { season: seasonOf(data), stats } : null;
-}
-
-// A team's players' season numbers: each stat's best who qualifies (a
-// batter with his plate appearances, a pitcher with his innings, as ESPN
-// marks them; else a fair share of the team's games), the top three.
-const num = v => {
-  const n = Number(String(v ?? '').replace(/^\./, '0.'));
-  return Number.isFinite(n) ? n : null;
+// "Luka Doncic" → "L. Doncic", as ESPN shortens its names (one name stays whole).
+const shortName = n => {
+  const w = String(n || '').trim().split(/\s+/);
+  return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(' ')}` : w[0] || '';
 };
-export function parseTeamLeaders(data, sport) {
-  const want = LEADER_STATS[sport];
-  if (!want || sport === 'soccer' || !data?.results?.length) return null;
+// Innings as baseball writes them (180.1 is 180⅓).
+const innings = v => {
+  const n = Number(v) || 0;
+  const whole = Math.trunc(n);
+  return whole + Math.round((n - whole) * 10) / 3;
+};
+
+// ESPN's lists (each the whole, or the proxy's trim) as players: { id, name,
+// full, team, by: { batting: { avg: … }, … } }, and the season.
+function playersOf(pages) {
   const players = new Map();
-  for (const r of data.results) {
-    for (const l of r.leaders || []) {
-      const p = person(l.athlete);
-      if (!p.id) continue;
-      const st = Object.fromEntries((l.statistics || []).flatMap(c => c?.stats || []).map(x => [x.name, x.displayValue ?? String(x.value ?? '')]));
-      const had = players.get(p.id);
-      players.set(p.id, { ...p, by: { ...(had?.by || {}), [r.name]: st } });
+  let season = null;
+  for (const data of pages) {
+    if (!data?.athletes) continue;
+    season ||= seasonOf(data);
+    const names = Object.fromEntries((data.categories || []).map(c => [c.name, c.names || []]));
+    for (const x of data.athletes) {
+      const a = x.athlete || {};
+      const id = String(a.id ?? '');
+      if (!id) continue;
+      const p = players.get(id) || { id, name: a.shortName || shortName(a.displayName), full: a.displayName || '', team: String(a.teamId ?? ''), by: {} };
+      for (const c of x.categories || []) {
+        if (p.by[c.name] || !(c.values || []).some(v => v != null)) continue;
+        p.by[c.name] = Object.fromEntries((names[c.name] || []).map((k, i) => [k, c.values[i]]));
+      }
+      players.set(id, p);
     }
   }
-  const all = [...players.values()];
-  const teamGames = Math.max(0, ...all.flatMap(p => Object.values(p.by).map(st => num(st.teamGamesPlayed) || num(st.gamesPlayed) || 0)));
-  // Which of a player's tables a stat is in (a two-way player's ERA is his pitching's).
-  const PITCHING = new Set(['ERA', 'wins', 'strikeouts', 'saves']);
-  const tableOf = (p, key) => (sport === 'baseball' ? p.by[PITCHING.has(key) ? 'pitching' : 'batting'] : Object.values(p.by)[0]);
-  const rate = new Set(['avg', 'ERA']);
-  const qualifies = (st, key) => {
-    if (!st) return false;
-    if (sport === 'basketball') return (num(st.gamesPlayed) || 0) >= Math.max(1, teamGames * 0.4);
-    if (!rate.has(key)) return true;
-    if (st.isQualified != null) return st.isQualified === '1' || st.isQualified === 'true';
-    return key === 'avg' ? (num(st.atBats) || 0) >= teamGames * 2.5 : (num(st.innings) || 0) >= teamGames * 0.8;
+  return { season, players: [...players.values()] };
+}
+// Who counts for a rate, as the league counts it (`share`: of what it asks,
+// a team's page asking less of a squad's few).
+function qualifier(players, share = 1) {
+  const most = cat => Math.max(1, ...players.map(p => Number(p.by[cat]?.gamesPlayed) || 0));
+  const games = { general: most('general'), batting: most('batting'), pitching: most('batting') };
+  // (A season's 82 games: the NBA's makes asked over the games so far.)
+  const nba = n => (n / 82) * games.general * share;
+  return (p, who) => {
+    const g = p.by.general || {};
+    const o = p.by.offensive || {};
+    const b = p.by.batting || {};
+    const pi = p.by.pitching || {};
+    if (who === 'games') return (Number(g.gamesPlayed) || 0) >= games.general * 0.7 * share;
+    if (who === 'fg') return (Number(o.fieldGoalsMade) || 0) >= nba(300);
+    if (who === '3p') return (Number(o.threePointFieldGoalsMade) || 0) >= nba(82);
+    if (who === 'ft') return (Number(o.freeThrowsMade) || 0) >= nba(125);
+    if (who === 'pa') return (Number(b.atBats) || 0) + (Number(b.walks) || 0) >= games.batting * 3.1 * share;
+    if (who === 'ip') return innings(pi.innings) >= games.pitching * share;
+    return true;
   };
+}
+// Each stat's list, best first ({ id, name, full, headshot, team, value }),
+// `top` of them; `team`: one team's own.
+function rank(pages, sport, league, { top = LEAGUE_TOP, team = null } = {}) {
+  const want = ATHLETE_STATS[sport];
+  if (!want) return null;
+  const { season, players } = playersOf(pages);
+  if (!players.length) return null;
+  const counts = qualifier(players, team ? 0.6 : 1);
+  const mine = team ? players.filter(p => p.team === String(team)) : players;
   const stats = want
-    .map(([, key, zh, en, low]) => {
-      const list = all
-        .map(p => ({ p, st: tableOf(p, key) }))
-        .filter(({ st }) => qualifies(st, key) && num(st[key]) != null)
-        .map(({ p, st }) => ({ id: p.id, name: p.name, full: p.full, headshot: p.headshot, value: st[key], n: num(st[key]) }))
-        // (Nothing at all is no leader: a team's 0 saves.)
-        .filter(x => low || x.n > 0)
-        .sort((a, b) => (low ? a.n - b.n : b.n - a.n))
-        .slice(0, 3)
-        .map(({ n, ...x }) => x);
-      return list.length ? { key, zh, en, list } : null;
+    .map(([key, cat, name, zh, en, how, who, low]) => {
+      const list = mine
+        .map(p => ({ p, n: p.by[cat]?.[name] }))
+        .filter(({ p, n }) => n != null && Number.isFinite(Number(n)) && counts(p, who))
+        // (Nothing at all is no leader: a team's 0 saves; a rate needs its qualifier, not a count.)
+        .filter(({ n }) => low || Number(n) > 0)
+        .sort((x, y) => (low ? x.n - y.n : y.n - x.n))
+        .slice(0, top)
+        .map(({ p, n }) => ({ id: p.id, name: p.name, full: p.full, headshot: espnHeadshot(league, p.id), team: p.team, value: statText(how, n) }));
+      return list.length ? { key, zh, en, perGame: how === 'pg', list } : null;
     })
     .filter(Boolean);
+  return stats.length ? { season, stats } : null;
+}
+export const parseAthleteLeaders = (pages, sport, league) => rank(pages, sport, league);
+export const parseTeamAthletes = (pages, sport, league, team) => rank(pages, sport, league, { top: 3, team });
+
+// Football's from ESPN (site v2 statistics, or the proxy's trim: espn-leaders):
+// { season, stats: [{ key, zh, en, list: [{ id, name, full, headshot, team, value, games }] }] }, or null.
+export function parseLeagueLeaders(data, sport = 'soccer') {
+  if (sport !== 'soccer' || !data) return null;
+  const cats = data.leaders?.categories || data.categories || data.stats || [];
+  const stats = ESPN_SOCCER.map(([key, zh, en]) => {
+    const c = cats.find(x => x?.name === key);
+    const list = (c?.leaders || [])
+      .map(l => {
+        const a = l.athlete || {};
+        // ESPN says "Matches: 6, Goals: 6": its number, and the games.
+        const games = /Matches:\s*(\d+)/.exec(l.displayValue || '')?.[1];
+        return { ...person(a), team: String(l.team?.id ?? a.team?.id ?? a.teamId ?? ''), value: l.value != null ? statText('n', l.value) : '', games: games ? Number(games) : null };
+      })
+      .filter(x => x.id && x.name && x.value !== '');
+    return list.length ? { key, zh, en, list } : null;
+  }).filter(Boolean);
   return stats.length ? { season: seasonOf(data), stats } : null;
 }
 
@@ -138,6 +211,87 @@ export function teamFromLeague(league, teamId) {
   if (!league) return null;
   const stats = league.stats.map(s => ({ ...s, list: s.list.filter(x => x.team === String(teamId)).slice(0, 3) })).filter(s => s.list.length);
   return stats.length ? { season: league.season, stats } : null;
+}
+
+// ---- F1: the season's races counted (Jolpica) -------------------------------------
+//
+// ESPN's table has each round's points alone; Jolpica has every result (a
+// hundred a page, the proxy's trim: jolpica-results) and each pole sitter.
+// Each stat: [key, zh, en, how, lower is better].
+export const F1_STATS = [
+  ['pts', '積分', 'Points', 'n'],
+  ['wins', '分站冠軍', 'Wins', 'n'],
+  ['pod', '頒獎台', 'Podiums', 'n'],
+  ['pole', '竿位', 'Poles', 'n'],
+  ['top10', '前十完賽', 'Top-10 finishes', 'n'],
+  ['fl', '最快圈速', 'Fastest laps', 'n'],
+  ['avg', '平均完賽名次', 'Average finish', 'one', true],
+  ['gain', '名次推進', 'Places gained', 'n'],
+  ['laps', '完成圈數', 'Laps completed', 'n'],
+  ['dnf', '退賽', 'Retirements', 'n']
+];
+LEADER_STATS.racing = F1_STATS;
+const JOLPICA = 'https://api.jolpi.ca/ergast/f1';
+export const f1ResultsUrl = (offset = 0) => `${JOLPICA}/current/results.json?limit=100${offset ? `&offset=${offset}` : ''}`;
+export const f1PolesUrl = () => `${JOLPICA}/current/qualifying/1.json?limit=100`;
+// `pages`: the results' pages; `poles`: the pole sitters'; `drivers`: ESPN's
+// table's rows (each driver's id, to open him, and his face).
+export function parseF1Leaders(pages, poles, drivers = []) {
+  const by = new Map();
+  let season = '';
+  const races = new Set();
+  const fold = n => String(n || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
+  const one = d => {
+    const id = d?.driverId;
+    if (!id) return null;
+    if (!by.has(id)) {
+      const full = `${d.givenName || ''} ${d.familyName || ''}`.trim();
+      const row = drivers.find(r => fold(r.en || r.name) === fold(full)) || drivers.find(r => fold(r.en || r.name).endsWith(` ${fold(d.familyName)}`));
+      by.set(id, { id: row?.id || '', name: shortName(full), full, team: '', teamName: '', headshot: null, n: { pts: 0, wins: 0, pod: 0, pole: 0, top10: 0, fl: 0, gain: 0, laps: 0, dnf: 0 }, finishes: [] });
+    }
+    return by.get(id);
+  };
+  for (const page of pages) {
+    const t = page?.MRData?.RaceTable;
+    season ||= t?.season || '';
+    for (const race of t?.Races || []) {
+      races.add(race.round);
+      for (const x of race.Results || []) {
+        const p = one(x.Driver);
+        if (!p) continue;
+        if (x.Constructor?.name) p.teamName = x.Constructor.name;
+        const pos = /^\d+$/.test(x.positionText || '') ? Number(x.positionText) : null;
+        p.n.pts += Number(x.points) || 0;
+        p.n.laps += Number(x.laps) || 0;
+        if (pos === 1) p.n.wins++;
+        if (pos && pos <= 3) p.n.pod++;
+        if (pos && pos <= 10) p.n.top10++;
+        if (x.FastestLap?.rank === '1') p.n.fl++;
+        if (pos) {
+          p.finishes.push(pos);
+          const grid = Number(x.grid) || 0;
+          if (grid > 0) p.n.gain += grid - pos;
+        } else if (x.positionText === 'R') p.n.dnf++;
+      }
+    }
+  }
+  for (const race of poles?.MRData?.RaceTable?.Races || []) {
+    const p = one((race.Results || race.QualifyingResults || [])[0]?.Driver);
+    if (p) p.n.pole++;
+  }
+  const all = [...by.values()];
+  if (!all.length) return null;
+  // An average finish counts those classified in half the races at least.
+  const enough = Math.max(1, races.size / 2);
+  for (const p of all) p.n.avg = p.finishes.length >= enough ? p.finishes.reduce((a, b) => a + b, 0) / p.finishes.length : null;
+  const stats = F1_STATS.map(([key, zh, en, how, low]) => {
+    const list = all
+      .filter(p => p.n[key] != null && (low || p.n[key] > 0))
+      .sort((a, b) => (low ? a.n[key] - b.n[key] : b.n[key] - a.n[key]))
+      .map(p => ({ id: p.id, name: p.name, full: p.full, headshot: p.headshot, team: '', teamName: p.teamName, teamZh: p.teamName ? f1Constructor(p.teamName).zh : '', value: statText(how, p.n[key]) }));
+    return list.length ? { key, zh, en, list } : null;
+  }).filter(Boolean);
+  return stats.length ? { season: season ? { name: season } : null, stats } : null;
 }
 
 // ---- Football: FotMob's forty stats, as the leagues' own sites show them ----------------
@@ -186,11 +340,6 @@ const fotmobValue = (v, name, fractions) => {
 };
 // FotMob's per-90 stats (its header says so).
 const per90 = header => /per 90/i.test(header || '');
-// "Gianluigi Donnarumma" → "G. Donnarumma", as ESPN shortens its names (one name stays whole: Florentino).
-const shortName = n => {
-  const w = String(n || '').trim().split(/\s+/);
-  return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(' ')}` : w[0] || '';
-};
 const fotmobPerson = (x, name, fractions) => ({ id: '', fotmob: String(x.id ?? ''), name: shortName(x.name), full: x.name || '', headshot: x.id ? fotmobFace(x.id) : null, team: '', teamName: x.teamName || '', fotmobTeam: String(x.teamId ?? ''), value: fotmobValue(x.value, name, fractions), games: x.games ?? null });
 // FotMob's page as the proxy trims it (fotmob-page), from the page whole too.
 function fotmobTrimmed(data) {
@@ -222,10 +371,10 @@ export function parseFotmobPage(raw, { team = false } = {}) {
   const season = String(data.season || '').replace(/^(\d{4})\/(\d{2})(\d{2})$/, '$1-$3');
   return stats.length ? { season: season ? { name: season } : null, teams: data.teams || [], teamId: data.teamId ?? null, stats } : null;
 }
-// One stat's whole list (trimmed: its top ten).
+// One stat's whole list (trimmed: its top hundred).
 export function parseFotmobStat(raw, key) {
   const t = raw?.TopLists?.[0];
-  const data = t ? { decimals: t.StatDecimals, list: (t.StatList || []).slice(0, 10).map(x => ({ id: x.ParticiantId ?? x.ParticipantId, name: x.ParticipantName, teamId: x.TeamId, teamName: x.TeamName, value: x.StatValue, games: x.MatchesPlayed })) } : raw;
+  const data = t ? { decimals: t.StatDecimals, list: (t.StatList || []).slice(0, LEAGUE_TOP).map(x => ({ id: x.ParticiantId ?? x.ParticipantId, name: x.ParticipantName, teamId: x.TeamId, teamName: x.TeamName, value: x.StatValue, games: x.MatchesPlayed })) } : raw;
   return (data?.list || []).filter(x => x?.name).map(x => fotmobPerson(x, key, data.decimals));
 }
 // FotMob's club for an ESPN one (`words`: the kit's ways of naming a side):

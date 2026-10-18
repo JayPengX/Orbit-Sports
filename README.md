@@ -118,15 +118,25 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
   - 接下來 and 已結束 are shown one at a time.
 - **Views**: 賽程 · 排名 (every league with a table) · 季後賽 / 淘汰賽
   (every league with playoffs, its shape drawn while read) · 數據領先
-  (ESPN's NBA, MLB and football leagues: one stat at a time by its chips,
-  the top ten with face, team and number, level numbers level in the list;
-  the regular season's: `lib/leaders.mjs`, the proxy's `espn-leaders` trim).
-  Football's from FotMob, the stats the leagues' own sites show (進球, 助攻,
-  評分, 預期進球, 射門, 創造機會, 傳球, 過人, 搶斷, 攔截, 解圍, 零封, 撲救,
-  撲救率, 牌…, 23 in all, 每90分 where it counts so; its page's top three,
-  each stat's top ten read when its chip is chosen; the proxy's
-  `fotmob-page`, `fotmob-stat`); a player tapped is found in ESPN's search
-  by name and opened; ESPN's two lists (goals, assists) if FotMob fails.
+  (NBA, WNBA, MLB, football and F1: one stat at a time by its chips, the
+  top hundred, 25 at a time, with face, team and number, level numbers
+  level in the list; `lib/leaders.mjs`). Basketball's 16 (場均得分, 籃板,
+  助攻, 抄截, 阻攻, 三分球, 投籃 / 三分 / 罰球命中率, 上場時間, 雙十, 大三元,
+  totals…) and baseball's 24 (打擊率, 全壘打, 打點, OPS, 上壘率, 長打率,
+  WAR…; 防禦率, WHIP, 三振, 救援, 中繼, 優質先發, 每九局三振…) ranked here
+  from ESPN's list of every player's regular season (the proxy's
+  `espn-athletes`, the address Play reads too), a rate only among those
+  who qualify as the league counts it (the NBA's makes, 3.1 plate
+  appearances or an inning a team game). Football's from FotMob, the stats
+  the leagues' own sites show (進球, 助攻, 評分, 預期進球, 射門, 創造機會,
+  傳球, 過人, 搶斷, 攔截, 解圍, 零封, 撲救, 撲救率, 牌…, 23 in all, 每90分
+  where it counts so; its page's top three, each stat's top hundred read
+  when its chip is chosen; the proxy's `fotmob-page`, `fotmob-stat`); a
+  player tapped is found in ESPN's search by name and opened; ESPN's two
+  lists (goals, assists) if FotMob fails. F1's 10 counted from the
+  season's results (Jolpica, the proxy's `jolpica-results`): 積分, 分站冠軍,
+  頒獎台, 竿位, 前十完賽, 最快圈速, 平均完賽名次, 名次推進, 完成圈數, 退賽,
+  each driver matched to ESPN's table to open him.
 - **The league head**: its logo, where its season is, what's on now, the
   follow button, and where to watch it.
 - **Live refresh.** The open league's live games refresh every

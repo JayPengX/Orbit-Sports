@@ -21,7 +21,7 @@ import { raceControlParts } from './lib/racecontrol.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, stintStops, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, POINTS, asItStands, settleScoring } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
-import { hasLeaders, PER_GAME } from './lib/leaders.mjs';
+import { hasLeaders } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { SEASON_GAMES, liveTable, roundCounted, roundOf } from './lib/title.mjs';
@@ -765,22 +765,34 @@ const injTone = status => Object.entries(INJ_TONE).find(([k]) => String(status).
 // One player's line: status chip, what's wrong, when they're back.
 function injuryLine(x, league) {
   const en = L() === 'en';
-  const back = x.back ? (en ? `back ${dayLabel(localDate(Date.parse(x.back)))}` : `預計 ${dayLabel(localDate(Date.parse(x.back)))} 回歸`) : '';
-  return el('div', { class: 'inj-row' }, [
-    x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(league, x.id, { name: x.name, logo: x.headshot }) }, [personPic(x, league, 'xs round'), el('span', { text: x.name })]) : null,
-    el('span', { class: 'inj-meta' }, [
-      el('span', { class: `inj-status ${injTone(x.status)}`, text: injuryText(x.status) }),
-      x.what ? el('small', {}, [en ? x.what : zhLater(x.what)]) : null,
-      back ? el('small', { class: 'muted', text: back }) : null
-    ])
+  const back = x.back ? (en ? `back ${dayLabel(localDate(Date.parse(x.back)))}` : `${dayLabel(localDate(Date.parse(x.back)))} 回歸`) : '';
+  // One row a player: the face and name, what and when under it on one line, the status at the right.
+  const sub = [x.what ? (en ? x.what : zhLater(x.what)) : null, back || null].filter(Boolean);
+  return el('button', { class: 'inj-row', type: 'button', disabled: x.id ? null : true, onclick: () => x.id && ctx.openPlayer(league, x.id, { name: x.name, logo: x.headshot }) }, [
+    personPic(x, league, 'xs round'),
+    el('span', { class: 'inj-who' }, [fitLine(el('strong', { class: 'one-line', text: x.name })), sub.length ? fitLine(el('small', { class: 'one-line' }, joinNodes(sub, ' · '))) : null]),
+    el('span', { class: `inj-status ${injTone(x.status)}`, text: injuryText(x.status) })
   ]);
 }
-// A team's card: everyone on its report, the most serious first.
+// A team's card: the most serious first, three of them until 全部 is tapped
+// (a long report pushed the team's own tabs off the screen).
 const INJ_ORDER = ['bad', 'warn', 'good'];
+const INJ_SHOWN = 3;
 function teamInjuryCard(list, league) {
   if (!list?.length) return null;
   const sorted = [...list].sort((a, b) => INJ_ORDER.indexOf(injTone(a.status)) - INJ_ORDER.indexOf(injTone(b.status)));
-  return card(L() === 'en' ? 'Injury report' : '傷兵報告', el('div', { class: 'inj-report' }, sorted.map(x => injuryLine(x, league))), { sub: dayLabel(localDate(Math.max(...list.map(x => Date.parse(x.date) || 0)) || Date.now())) });
+  const box = el('div', { class: 'inj-report' }, sorted.slice(0, sorted.length > INJ_SHOWN + 1 ? INJ_SHOWN : sorted.length).map(x => injuryLine(x, league)));
+  const rest = sorted.length > INJ_SHOWN + 1 ? sorted.length - INJ_SHOWN : 0;
+  const more =
+    rest > 0
+      ? el('button', {
+          class: 'section-more inj-more',
+          type: 'button',
+          text: L() === 'en' ? `All ${sorted.length}` : `全部 ${sorted.length} 人`,
+          onclick: ev => (box.append(...sorted.slice(INJ_SHOWN).map(x => injuryLine(x, league))), ev.currentTarget.remove())
+        })
+      : null;
+  return card(L() === 'en' ? 'Injury report' : '傷兵報告', el('div', {}, [box, more]), { sub: dayLabel(localDate(Math.max(...list.map(x => Date.parse(x.date) || 0)) || Date.now())) });
 }
 
 // A side's row in the league's table: [place, row, group size]; none before the table's first game.
@@ -3844,11 +3856,13 @@ export async function openTeam(league, id, fallback = {}) {
     if (espn && !outside) views.push(['roster', W('陣容', 'Roster')]);
     if (!outside && hasLeaders(sport, LEAGUES[league]?.espn)) views.push(['leaders', W('數據領先', 'Leaders')]);
     if (place) views.push(['table', W('排名', 'Table')]);
+    // Five in one row of equal parts (as chips they crowded the edge): each two characters then (the card under says 數據領先).
+    if (views.length > 4) for (const v of views) v[1] = { schedule: W('賽程', 'Games'), leaders: W('數據', 'Stats') }[v[0]] || v[1];
     let view = upcoming.length > 1 ? 'schedule' : 'results';
     let rosterList = null;
     let leadersData;
     const paint = () => {
-      put(tabsBox, segmented(views, view, v => ((view = v), paint())));
+      put(tabsBox, segmented(views, view, v => ((view = v), paint()), '', { seg: true }));
       if (view === 'schedule') put(body, upcoming.length > 1 ? el('div', { class: 'q-card list' }, upcoming.slice(1, 16).map(x => eventRow(x, { league: comps }))) : empty(W('目前沒有更多賽程。', 'Nothing more scheduled yet.')));
       if (view === 'results')
         put(
@@ -3935,8 +3949,8 @@ export async function openTeam(league, id, fallback = {}) {
 // (one flow: the same faces, the same taps). A league's (`teamOf`: a team
 // by id, from its table): one stat at a time (its chips), the top ten, each
 // with his team.
-const leaderLabel = (st, sport, en) => (PER_GAME.has(sport) ? (en ? `${st.en} per game` : `場均${st.zh}`) : st.per90 ? (en ? `${st.en} /90` : `${st.zh}（每90分）`) : en ? st.en : st.zh);
-const leadersSeason = (data, sport, en) => (data?.season?.name ? `${data.season.name}${sport === 'soccer' ? '' : en ? ' regular season' : ' 例行賽'}` : '');
+const leaderLabel = (st, sport, en) => (st.perGame ? (en ? `${st.en} per game` : `場均${st.zh}`) : st.per90 ? (en ? `${st.en} /90` : `${st.zh}（每90分）`) : en ? st.en : st.zh);
+const leadersSeason = (data, sport, en) => (data?.season?.name ? `${data.season.name}${sport === 'soccer' || sport === 'racing' ? '' : en ? ' regular season' : ' 例行賽'}` : '');
 // A footballer from FotMob has no ESPN id: found by his name in ESPN's
 // search (the one in this league, else the first footballer), then opened.
 const openLeader = async (league, x) => {
@@ -3963,26 +3977,42 @@ export function teamLeadersCard(data, league) {
     { sub: leadersSeason(data, sport, en) }
   );
 }
+// (The first 25, then 25 more a tap, to the hundred.)
+const LB_STEP = 25;
 export function leagueLeadersView(data, league, { teamOf = () => null, pick = null, onPick = () => {}, full = null } = {}) {
   const sport = LEAGUES[league]?.sport;
   const en = L() === 'en';
   const chosen = data.stats.find(x => x.key === pick) || data.stats[0];
-  // (A football stat's whole top ten once read; its page's top three until then.)
+  // (A football stat's whole list once read; its page's top three until then.)
   const st = full?.length ? { ...chosen, list: full } : chosen;
   const chips = data.stats.length > 1 ? segmented(data.stats.map(x => [x.key, en ? x.en : x.zh]), st.key, onPick, 'scroll stage-filter') : null;
   // (Level on the number, level in the list: four on 3 assists are all 2nd.)
-  const list = st.list.slice(0, 10);
+  const list = st.list;
   const rankOf = i => list.findIndex(y => y.value === list[i].value) + 1;
-  const rows = list.map((x, i) => {
+  const row = (x, i) => {
     const t = teamOf(x.team, x);
     return el('button', { class: 'lb-row', type: 'button', onclick: () => openLeader(league, x) }, [
       el('span', { class: 'lb-rank num', text: String(rankOf(i)) }),
       personPic({ ...x, name: x.full || x.name }, league, 'sm round'),
-      el('span', { class: 'lb-name' }, [fitLine(el('strong', { class: 'one-line', text: x.full || x.name })), t ? fitLine(el('small', { class: 'one-line' }, [teamTag(t, t.short || t.name, league, { tap: false })])) : x.teamName ? fitLine(el('small', { class: 'one-line', text: x.teamName })) : null]),
+      el('span', { class: 'lb-name' }, [fitLine(el('strong', { class: 'one-line', text: x.full || x.name })), t ? fitLine(el('small', { class: 'one-line' }, [teamTag(t, t.short || t.name, league, { tap: false })])) : x.teamName ? fitLine(el('small', { class: 'one-line', text: !en && x.teamZh ? x.teamZh : x.teamName })) : null]),
       el('b', { class: 'lb-value num', text: x.value })
     ]);
-  });
-  return el('div', {}, [chips, card(leaderLabel(st, sport, en), el('div', { class: 'lb-list' }, rows), { sub: leadersSeason(data, sport, en) })]);
+  };
+  const box = el('div', { class: 'lb-list' }, list.slice(0, LB_STEP).map(row));
+  let shown = Math.min(LB_STEP, list.length);
+  const more = el('button', { class: 'section-more lb-more', type: 'button' });
+  const label = () => {
+    more.textContent = en ? `Show ${Math.min(LB_STEP, list.length - shown)} more` : `再看 ${Math.min(LB_STEP, list.length - shown)} 位`;
+    more.hidden = shown >= list.length;
+  };
+  more.onclick = () => {
+    box.append(...list.slice(shown, shown + LB_STEP).map((x, j) => row(x, shown + j)));
+    shown = Math.min(list.length, shown + LB_STEP);
+    label();
+  };
+  label();
+  const sub = [leadersSeason(data, sport, en), list.length > 10 ? (en ? `top ${list.length}` : `前 ${list.length} 名`) : ''].filter(Boolean).join(' · ');
+  return el('div', {}, [chips, card(leaderLabel(st, sport, en), el('div', {}, [box, more]), { sub })]);
 }
 
 // "8-4-2" from a list of results (wins, draws, losses; no draws: "8-4").

@@ -628,8 +628,9 @@ export function sheet(title, { accent, league } = {}) {
 // A choice of a few (four at most): the kit's segmented control, its thumb
 // sliding to the pick; of more, the kit's chips in a row that scrolls (as
 // iOS keeps a segmented control to a handful).
-export function segmented(options, current, onPick, cls = '') {
-  const few = options.length <= 4;
+// (`seg`: one row of equal parts whatever the count, up to the kit's seven: a team's five tabs.)
+export function segmented(options, current, onPick, cls = '', { seg = false } = {}) {
+  const few = options.length <= 4 || (seg && options.length <= 7);
   return el(
     'div',
     { class: `${few ? 'q-seg' : 'q-chips'} ${cls === 'scroll' ? '' : cls}`.trim(), role: 'group' },

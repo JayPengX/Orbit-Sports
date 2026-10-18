@@ -18,7 +18,7 @@ import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGU
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey, withPitchingChange } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { hasLeaders, leagueLeadersUrl, teamLeadersUrl, parseLeagueLeaders, parseTeamLeaders, teamFromLeague, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf } from './leaders.mjs';
+import { hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
 import * as kit from '#kit/quadra.mjs';
@@ -1846,7 +1846,9 @@ export async function seasonAverages(league, id) {
 // Football's from FotMob (its forty stats: lib/leaders.mjs), ESPN's two
 // lists when FotMob can't be read.
 const LEADERS_TTL = 6 * 3_600_000;
-const espnLeagueLeaders = l => getJson(leagueLeadersUrl(l.sport, l.espn), { ttl: LEADERS_TTL, trim: 'espn-leaders' }).then(d => parseLeagueLeaders(d, l.sport));
+const espnLeagueLeaders = l => getJson(leagueLeadersUrl('soccer', l.espn), { ttl: LEADERS_TTL, trim: 'espn-leaders' }).then(d => parseLeagueLeaders(d, 'soccer'));
+// Basketball's and baseball's: every player's season (one list, MLB's two), ranked here.
+const athletePages = l => Promise.all(athletesUrls(l.sport, l.espn).map(u => getJson(u, { ttl: LEADERS_TTL, trim: 'espn-athletes' })));
 const fotmobPage = league => (fotmobLeagueUrl(league) ? getJson(fotmobLeagueUrl(league), { ttl: LEADERS_TTL }).then(d => parseFotmobPage(d)) : Promise.resolve(null));
 export async function leagueLeaders(league) {
   const l = LEAGUES[league];
@@ -1854,17 +1856,33 @@ export async function leagueLeaders(league) {
   if (l.sport === 'soccer') {
     const own = await fotmobPage(league).catch(() => null);
     if (own) return own;
+    return espnLeagueLeaders(l);
   }
-  return espnLeagueLeaders(l);
+  if (l.sport === 'racing') return f1Leaders(league);
+  return parseAthleteLeaders(await athletePages(l), l.sport, league);
 }
-// One football stat's top ten (FotMob's whole list, trimmed).
+// F1's: every result this season (Jolpica, a hundred a page) and each pole,
+// each driver matched to ESPN's table (to open him).
+async function f1Leaders(league) {
+  const opts = { ttl: LEADERS_TTL, trim: 'jolpica-results' };
+  // (One after another: Jolpica allows four a second.)
+  const table = standings(league).catch(() => []);
+  const first = await getJson(f1ResultsUrl(), opts);
+  const total = Number(first?.MRData?.total) || 0;
+  const rest = [];
+  for (let i = 1; i < Math.min(10, Math.ceil(total / 100)); i++) rest.push(await getJson(f1ResultsUrl(i * 100), opts).catch(() => null));
+  const poles = await getJson(f1PolesUrl(), opts).catch(() => null);
+  const drivers = ((await table) || []).flatMap(g => g.rows || []).filter(r => r.athlete);
+  return parseF1Leaders([first, ...rest], poles, drivers);
+}
+// One football stat's top hundred (FotMob's whole list, trimmed).
 export async function leaderList(url, key) {
   return parseFotmobStat(await getJson(url, { ttl: LEADERS_TTL }), key);
 }
 // `side`: the team as ESPN names it (football's is found among FotMob's by name).
 export async function teamLeaders(league, id, side = {}) {
   const l = LEAGUES[league];
-  if (!hasLeaders(l?.sport, l?.espn)) return null;
+  if (!hasLeaders(l?.sport, l?.espn) || l.sport === 'racing') return null;
   if (l.sport === 'soccer') {
     const page = await fotmobPage(league).catch(() => null);
     const club = page && fotmobTeamOf(page.teams, side, sideWords(side));
@@ -1872,7 +1890,7 @@ export async function teamLeaders(league, id, side = {}) {
     if (own) return own;
     return teamFromLeague(await espnLeagueLeaders(l).catch(() => null), id);
   }
-  return parseTeamLeaders(await getJson(teamLeadersUrl(l.espn, id), { ttl: LEADERS_TTL }), l.sport);
+  return parseTeamAthletes(await athletePages(l), l.sport, league, id);
 }
 export async function roster(league, id, home = '') {
   const path = home && LEAGUES[league].espn.startsWith('soccer/') ? `soccer/${home}` : LEAGUES[league].espn;
