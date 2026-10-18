@@ -5,7 +5,7 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, teamLeaders } from './lib/espn.mjs';
+import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -311,7 +311,7 @@ export async function openMatch(e) {
   s.dialog.addEventListener('close', stopLineups);
   // A basketball game to come: each side's players with their averages and its roster.
   if (e.kind === 'match' && e.status.state === 'pre' && LEAGUES[e.league].sport === 'basketball' && LEAGUES[e.league].espn && e.away?.id && e.home?.id)
-    Promise.all([e.away, e.home].map(x => Promise.all([seasonAverages(e.league, x.id).catch(() => null), roster(e.league, x.id).catch(() => [])]).then(([avg, list]) => [String(x.id), { avg, roster: list.flatMap(g => g.players) }]))).then(got => {
+    Promise.all([e.away, e.home].map(x => Promise.all([seasonAverages(e.league, x.id).catch(() => null), roster(e.league, x.id).catch(() => []), leagueAverages(e.league).catch(() => new Map())]).then(([avg, list, all]) => [String(x.id), { avg: rosterAverages(avg, list.flatMap(g => g.players), all), roster: list.flatMap(g => g.players) }]))).then(got => {
       squads = Object.fromEntries(got);
       paint();
     });

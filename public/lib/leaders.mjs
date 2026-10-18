@@ -138,6 +138,14 @@ function playersOf(pages) {
   }
   return { season, players: [...players.values()] };
 }
+// Each player's per-game minutes, points, rebounds and assists from the
+// league's list (basketball): id -> ['32.1', '25.4', '7.2', '6.0'].
+export function athleteAverages(pages) {
+  const out = new Map();
+  const f = v => (v == null || !Number.isFinite(Number(v)) ? '' : Number(v).toFixed(1));
+  for (const p of playersOf(pages).players) out.set(p.id, [f(p.by.general?.avgMinutes), f(p.by.offensive?.avgPoints), f(p.by.general?.avgRebounds), f(p.by.offensive?.avgAssists)]);
+  return out;
+}
 // Who counts for a rate, as the league counts it (`share`: of what it asks,
 // a team's page asking less of a squad's few).
 function qualifier(players, share = 1) {

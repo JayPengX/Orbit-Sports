@@ -111,3 +111,17 @@ test("FotMob's clubs matched to the table's rows, Brighton and Hove Albion is Br
   const m = fotmobClubRows(teams, rows);
   assert.deepEqual([m.get('10204')?.name, m.get('8456')?.name, m.get('8602')?.name], ['布萊頓', '曼城', '狼隊']);
 });
+
+test('a game to come: this season\'s roster with the numbers ESPN has (the team\'s, a newcomer\'s from the league, a rookie\'s dashes)', async () => {
+  const { rosterAverages } = await import('../public/lib/espn.mjs');
+  const avg = { season: { name: '2025-26', type: 2 }, labels: ['MIN', 'PTS', 'REB', 'AST'], rows: [
+    { id: '1', name: 'L. James', full: 'LeBron James', stats: ['34.9', '24.4', '7.8', '8.2'] },
+    { id: '9', name: 'D. Gone', full: 'Gone Player', stats: ['30.0', '20.0', '5.0', '5.0'] }
+  ] };
+  const people = [{ id: '1', name: 'LeBron James' }, { id: '2', name: 'New Comer', pos: 'G' }, { id: '3', name: 'Rook Ie' }];
+  const out = rosterAverages(avg, people, new Map([['2', ['28.0', '15.5', '3.1', '4.0']]]));
+  assert.deepEqual(out.rows.map(r => [r.name, r.stats[1]]), [['L. James', '24.4'], ['N. Comer', '15.5'], ['R. Ie', '–']]);
+  assert.equal(out.season.name, '2025-26');
+  // No roster read: the team's list as it was.
+  assert.equal(rosterAverages(avg, [], new Map()), avg);
+});

@@ -18,7 +18,7 @@ import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGU
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey, withPitchingChange } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf } from './leaders.mjs';
+import { athleteAverages, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
 import * as kit from '#kit/quadra.mjs';
@@ -1840,6 +1840,30 @@ export function parseSeasonAverages(data) {
 }
 export async function seasonAverages(league, id) {
   return parseSeasonAverages(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}/athletes/statistics`, { ttl: 6 * 3_600_000 }));
+}
+// A game to come's players: this season's roster, each with the numbers
+// ESPN has (the team's list can still be last season's, its players gone:
+// the owner, 2026-10-18, saw last year's roster before a new season's game).
+// A player new to the team: his own from the league's list; none (a
+// rookie): dashes. -> { season, labels, rows } | null
+export function rosterAverages(avg, people, league = new Map()) {
+  if (!people?.length) return avg;
+  const mine = new Map((avg?.rows || []).map(r => [r.id, r]));
+  const rows = people.map(p => {
+    const id = String(p.id ?? '');
+    const had = mine.get(id);
+    const stats = had?.stats || league.get(id) || ['', '', '', ''];
+    return { id, name: had?.name || p.short || String(p.name || '').replace(/^(\S)\S*\s+(?=\S)/, '$1. '), full: p.name || had?.full || '', headshot: p.headshot || had?.headshot || null, pos: p.pos || had?.pos || '', stats: stats.map(v => (v === '' ? '–' : v)) };
+  });
+  // Most minutes first; those without numbers last.
+  const m = r => (r.stats[0] === '–' ? -1 : Number(r.stats[0]) || 0);
+  rows.sort((a, b) => m(b) - m(a));
+  return { season: avg?.season || null, labels: avg?.labels || ['MIN', 'PTS', 'REB', 'AST'], rows };
+}
+export async function leagueAverages(league) {
+  const l = LEAGUES[league];
+  if (l?.sport !== 'basketball' || !l.espn) return new Map();
+  return athleteAverages(await athletePages(l));
 }
 // 數據領先 for a league and for a team (lib/leaders.mjs), the regular
 // season's; each read kept 6 h (they change once a day).
