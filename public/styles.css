@@ -1950,3 +1950,9 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .lb-name .team-tag { display: inline-flex; align-items: center; gap: 4px; }
 .lb-value { color: var(--accent); font-size: 16px; font-weight: 700; }
 .lb-more { display: block; margin: 8px auto 0; }
+/* A CPBL game's box score unread (sheets.js): said under the overview. */
+.box-unread {
+  margin: 12px 4px 0;
+  font-size: 14px;
+  text-align: center;
+}

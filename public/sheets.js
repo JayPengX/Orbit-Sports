@@ -91,6 +91,8 @@ export async function openMatch(e) {
   s.body.append(header, sections, content);
   let view = 'overview';
   let data = null;
+  // A CPBL game begun whose box score (cpbl.com.tw, read through the proxy) failed: said, not left blank.
+  let boxUnread = false;
   let table = null;
   // The game open: a player opened from it (any face, row or name in it)
   // has its numbers in this game too (openPlayer's 本場), told of each refresh.
@@ -185,7 +187,11 @@ export async function openMatch(e) {
       const fresh = list.find(x => x.id === e.id);
       if (fresh) e = { ...e, ...fresh };
       if (espn) data = sm;
-      else if (e.league === 'cpbl') data = (await cpblGame(e).catch(() => null)) || data;
+      else if (e.league === 'cpbl') {
+        const sm = await cpblGame(e).catch(() => null);
+        boxUnread = !sm && !data;
+        data = sm || data;
+      }
       // Read while a finger took the sheet (or it's closing): drawn at the next beat, not under the drag.
       if (document.querySelector('dialog.q-sheet.q-dragging, dialog.q-sheet.q-leaving')) return;
       paintHeader(data);
@@ -247,6 +253,7 @@ export async function openMatch(e) {
     if (was?.classList.contains('stack') && next?.classList?.contains('stack') && was.dataset.view === view && content.childElementCount === 1) put(was, ...[...next.childNodes].map(n => n.__keep || n));
     else put(content, next);
     if (content.firstElementChild?.classList.contains('stack')) content.firstElementChild.dataset.view = view;
+    if (boxUnread && view === 'overview' && e.status.state !== 'pre') content.append(el('p', { class: 'muted box-unread', text: T('boxUnread') }));
     for (const f of game.subs) f();
   };
   // A soccer competition's season (the pack 第 N 輪 already reads): each
@@ -286,13 +293,12 @@ export async function openMatch(e) {
     // CPBL's box score, the league's own: the line score, 數據, 球員 and 過程.
     if (e.league === 'cpbl' && e.status.state !== 'pre')
       cpblGame(e)
+        .catch(() => null)
         .then(sm => {
-          if (!sm) return;
-          data = sm;
-          paintHeader(data);
+          boxUnread = !sm && !data;
+          if (sm) (data = sm), paintHeader(data);
           paint();
-        })
-        .catch(() => {});
+        });
     return;
   }
   // A game to come: who starts (lib/lineups.mjs), again each minute while
