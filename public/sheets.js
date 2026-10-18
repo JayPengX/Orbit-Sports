@@ -12,7 +12,7 @@ import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { personKey, pitcherRole } from './lib/mlb.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors } from './lib/wpline.mjs';
-import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts } from './lib/moments.mjs';
+import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
@@ -158,7 +158,7 @@ export async function openMatch(e) {
       // On now or about to start: one tap to watch it, at the top.
       watchButton({ ...e, status: st }, 'wide'),
       linescore(sm, e),
-      livePanel(e, sm)
+      livePanel(e, sm) || storyPanel(e, sm)
     );
   };
   paintHeader(null);
@@ -330,17 +330,10 @@ export async function openMatch(e) {
   loadLine();
 }
 
-// The situation of a game on now, by sport: the bases, count and outs, and
-// who bats against whom; the goals and red cards by minute; and the last play.
-function livePanel(e, sm = null) {
-  const lv = e.live || {};
-  if (e.status.state !== 'in') return null;
-  const sport = LEAGUES[e.league]?.sport;
+// Basketball: each side's top scorer (the face, then who and their line, the team fouls), live or over.
+function topScorers(e, sm) {
+  if (!sm?.players?.length) return null;
   const en = L() === 'en';
-  const rows = [];
-  // Basketball, from the box score as it stands (read every 15 seconds):
-  // each side's top scorer now, the team fouls, then the last plays.
-  if (sport === 'basketball' && sm) {
     const top = id => {
       const tb = sm.players.find(p => p.team === id)?.tables[0];
       const i = tb?.labels.indexOf('PTS') ?? -1;
@@ -358,7 +351,20 @@ function livePanel(e, sm = null) {
       const f = fouls ? (id === e.away.id ? fouls.away : fouls.home) : '';
       return lpPerson(e.league, t && { id: t.id, name: t.name }, [t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, el('p', {}, [el('small', {}, [teamTag(sm.byId[id] || [e.away, e.home].find(t => t.id === id), `${name} · ${en ? 'top scorer' : '得分王'}`, e.league, { tap: false })]), el('strong', { text: t?.name || '–' }), t?.line ? el('small', { class: 'num lp-line', text: t.line }) : null, f !== '' ? el('small', { class: 'num', text: `${en ? 'Team fouls' : '全隊犯規'} ${f}` }) : null])]);
     };
-    rows.push(el('div', { class: 'lp-who lp-bb' }, [person(e.away.id), person(e.home.id)]));
+  return el('div', { class: 'lp-who lp-bb' }, [person(e.away.id), person(e.home.id)]);
+}
+// The situation of a game on now, by sport: the bases, count and outs, and
+// who bats against whom; the goals and red cards by minute; and the last play.
+function livePanel(e, sm = null) {
+  const lv = e.live || {};
+  if (e.status.state !== 'in') return null;
+  const sport = LEAGUES[e.league]?.sport;
+  const en = L() === 'en';
+  const rows = [];
+  // Basketball, from the box score as it stands (read every 15 seconds):
+  // each side's top scorer now, the team fouls, then the last plays.
+  if (sport === 'basketball' && sm) {
+    rows.push(topScorers(e, sm));
     const last = sm.feed.slice(-4).reverse();
     if (last.length) {
       const nameOf = id => sm.byId[id]?.short || sm.byId[id]?.name || '';
@@ -396,6 +402,11 @@ function livePanel(e, sm = null) {
     );
   }
   if (lv.events?.length) rows.push(goalTimeline(e, lv.events));
+  // The scoring so far (baseball, American football, hockey), as a game over shows it.
+  if (sport !== 'soccer' && sport !== 'basketball') {
+    const told = storyRows(e, sm);
+    if (told) rows.push(told);
+  }
   if (lv.lastPlay) {
     // ESPN writes it in English: in Chinese once translated (kept 30 days per line).
     // A pitch ("Strike 2 Foul") in fixed words; anything else translated.
@@ -451,6 +462,55 @@ export function goalTimeline(e, events) {
         ]);
       })
   );
+}
+// How a game went, under its scoreboard, the same live and over (the
+// owner, 2026-10-18: a game on had its goals there, one over had nothing):
+// football's goals and red cards; baseball's, American football's and
+// hockey's scoring plays, each with its period, face, who and what, and the
+// score after it; basketball's top scorer on each side. From the game's own
+// page (sm); a game on gets its situation above it (livePanel).
+export function storyRows(e, sm) {
+  const sport = LEAGUES[e.league]?.sport;
+  if (!sm) return null;
+  const en = L() === 'en';
+  if (sport === 'soccer') {
+    const events = (sm.keyEvents || [])
+      .filter(k => k.scoring || /red-card/.test(k.type || ''))
+      .map(k => ({ kind: /red-card/.test(k.type) ? 'red' : /own-goal/.test(k.type) ? 'own' : /penalty/.test(k.type) ? 'pen' : 'goal', minute: k.clock, team: k.team, who: k.who, person: k.pic }));
+    return events.length ? goalTimeline(e, events) : null;
+  }
+  if (sport === 'basketball') return null;
+  const plays = (sm.plays || []).filter(p => p.team && p.home != null && p.away != null);
+  if (!plays.length) return null;
+  const sideOf = p => (p.team === String(e.home.id) ? 'home' : 'away');
+  const when = p => (sport === 'baseball' ? (en ? `${/^bot/i.test(p.periodType) ? 'Bot' : 'Top'} ${p.periodNum}` : `${p.periodNum}局${/^bot/i.test(p.periodType) ? '下' : '上'}`) : [periodName(sport, p.periodNum, en), p.clock].filter(Boolean).join(' '));
+  return el(
+    'ol',
+    { class: 'lp-goals lp-scoring' },
+    plays.map(p => {
+      const s2 = sideOf(p);
+      const team = e[s2];
+      const tname = team.short || team.name;
+      // (Baseball as its key moments say it, short in both languages: who, what, the RBIs.)
+      const { main, sub } = sport === 'baseball' ? { main: playText(sport, { ...p, scoring: true }, en, tname), sub: '' } : playParts(feedText(sport, p, en, tname), '');
+      const pic = p.pic ? personPic({ ...p.pic, en: p.pic.name }, e.league, 'sm round') : logo(team.logo, tname, 'sm');
+      const who = [pic, el('span', { class: 'lg-text' }, [el('span', { class: 'lg-name', text: main }), el('small', { class: 'lg-sub' }, [teamTag(team, [tname, sub].filter(Boolean).join(' · '), e.league, { tap: false })])])];
+      const can = p.pic?.id && LEAGUES[e.league]?.espn && /^\d+$/.test(String(p.pic.id));
+      return el('li', { class: `lg-${s2}` }, [
+        el('span', { class: 'lg-min num', text: when(p) }),
+        can ? el('button', { class: 'lg-who tap', type: 'button', 'aria-label': p.pic.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, String(p.pic.id), { name: p.pic.name, logo: p.pic.headshot })) }, who) : el('span', { class: 'lg-who' }, who),
+        el('span', { class: 'lg-score num' }, ['away', 'home'].flatMap((k, i) => [i ? document.createTextNode('–') : null, el('b', { class: k === s2 ? 'on' : '', text: String(p[k]) })]).filter(Boolean))
+      ]);
+    })
+  );
+}
+// A game over: the same panel a game on has, without its situation.
+function storyPanel(e, sm) {
+  if (e.status.state !== 'post') return null;
+  const sport = LEAGUES[e.league]?.sport;
+  if (sport === 'basketball') return topScorers(e, sm) ? el('div', { class: 'live-panel' }, [topScorers(e, sm)]) : null;
+  const rows = storyRows(e, sm);
+  return rows ? el('div', { class: 'live-panel' }, [rows]) : null;
 }
 // A count as dots: balls of 4, strikes and outs of 3.
 const dots = (n, of, cls) => el('span', { class: `lp-dots ${cls}` }, Array.from({ length: of }, (_, i) => el('i', { class: i < n ? 'on' : '' })));
