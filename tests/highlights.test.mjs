@@ -135,6 +135,14 @@ test("a game the recent pack has let go: its month of Shared-Data's season, read
   await loadWatchMonth(e, async () => (asked++, null), now);
   assert.equal(asked, 1);
   assert.deepEqual(watchOf(e), entry);
+  // Two days on and not in the recent pack (archived in an earlier run): its month read too.
+  const { setWatchPack } = await import('../public/lib/highlights.mjs');
+  const g4 = { ...game('mlb', side('Los Angeles Dodgers', 4), side('Milwaukee Brewers', 6), { start: '2026-10-10T00:00Z' }), id: '88' };
+  setWatchPack({ games: { 'mlb:88:': { hl: { id: 'x' } } } });
+  assert.equal(watchMonthWanted(g4, now), false, 'in the pack');
+  setWatchPack({ games: {} });
+  assert.equal(watchMonthWanted(g4, now), true, 'let go by the pack');
+  assert.equal(watchMonthWanted({ ...g4, start: '2026-10-11T23:00Z' }, now), false, 'under a day: still being looked for');
 });
 
 test("a side's own video posted days after the game is the return leg's, not this game's", () => {
