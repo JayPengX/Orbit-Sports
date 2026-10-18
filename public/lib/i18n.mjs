@@ -178,7 +178,7 @@ export const STRINGS = {
     heroTitleDay: "What to watch",
     findingDays: "Finding the days it plays…",
     noSportDays: 'No {sport} coming up',
-    heroTitleNew: "Welcome to Orbit Sports",
+    heroTitleNew: "Welcome",
     pickSports: "Pick sports",
     pickSportsHint: 'Tap in order of preference',
     editFollows: "My settings",
