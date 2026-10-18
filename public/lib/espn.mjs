@@ -404,6 +404,9 @@ export function freshGame(e) {
   const got = e && latest.get(`${e.league}:${e.id}`);
   if (!got || got.e === e) return e;
   const f = got.e;
+  // A game called off then put on again (postponed, moved to another day):
+  // the newer copy, with its new start.
+  if (e.status?.void && !f.status?.void && f.start) return { ...e, start: f.start, status: f.status, timeTbd: f.timeTbd };
   // Never backwards (a list cached longer saying 'on' after one said 'over').
   if ((STATE_ORDER[f.status.state] ?? 0) < (STATE_ORDER[e.status?.state] ?? 0)) return e;
   // The record too: a copy from before the whistle brought to 'over' kept
