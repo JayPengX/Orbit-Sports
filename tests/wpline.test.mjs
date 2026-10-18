@@ -44,7 +44,6 @@ test('other sports: the period alone; overtime', () => {
   ];
   assert.equal(stampAt(tl, 'basketball', 250, false), '第3節');
   assert.equal(stampAt(tl, 'basketball', 250, true), 'Q3');
-  assert.equal(stampAt(tl, 'hockey', 250, true), 'P3');
   assert.equal(periodName('basketball', 5, true), 'OT');
   assert.equal(periodName('basketball', 6, false), '延長2');
 });

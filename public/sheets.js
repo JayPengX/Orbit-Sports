@@ -630,7 +630,7 @@ function linescore(sm, e) {
   // Each column by its sport's name for it: a football game's halves (上半 / 下半, extra time, penalties), a period past regulation OT.
   const sport = LEAGUES[e.league]?.sport;
   const en = L() === 'en';
-  const regular = { basketball: 4, hockey: 3, football: 4 }[sport] || 0;
+  const regular = { basketball: 4 }[sport] || 0;
   // Every regular inning, period or half from the start, the ones to come blank (as a ballpark's board):
   // four innings played had spread across the whole card, a wide gap after the names.
   const n = Math.max(played, { baseball: 9, soccer: 2 }[sport] || regular);
@@ -881,8 +881,8 @@ function matchSection(view, d, e, table, lw = {}) {
     );
   }
   if (view === 'plays' && d) {
-    // The whole game: basketball every play, baseball every at-bat, American
-    // football every drive, soccer its events (goals, cards, changes). A
+    // The whole game: basketball every play, baseball every at-bat, soccer
+    // its events (goals, cards, changes). A
     // finished game reads in order like a story; one on, the latest first.
     // A header at each period; the scores stand out, and the chart's key
     // moments (a run where it ended, a lead taken, a big play) are marked.
@@ -891,22 +891,6 @@ function matchSection(view, d, e, table, lw = {}) {
     const side = id => d.byId[id] || (id === e.home.id ? e.home : id === e.away.id ? e.away : nameOf(id));
     const sideShort = id => side(id)?.short || side(id)?.name || '';
     const live = (d.status || e.status).state === 'in';
-    if (sport === 'football' && d.drives.length) {
-      const rows = [];
-      let at = 0;
-      for (const x of live ? [...d.drives].reverse() : d.drives) {
-        if (x.periodNum !== at) rows.push(el('li', { class: 'period-head', text: playPeriod(x, sport, L()) || (en ? `Q${x.periodNum}` : `第${x.periodNum}節`) }));
-        at = x.periodNum;
-        rows.push(
-          el('li', { class: x.scoring ? 'scoring' : '' }, [
-            el('span', { class: 'play-when' }, [el('span', { class: 'num', text: x.clock })]),
-            el('span', { class: 'play-text has-face' }, [side(x.team)?.logo ? logo(side(x.team).logo, sideShort(x.team), 'xs play-team') : el('span', { class: 'play-none' }, [leagueMark(e.league)]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: `${sideShort(x.team)} ${en ? x.result : DRIVE_ZH[x.result] || x.result}` }), x.desc ? el('small', { class: 'play-sub', text: en ? x.desc : driveZh(x.desc) }) : null])]),
-            x.home != null && x.away != null ? el('strong', { class: 'num', text: `${x.away}-${x.home}` }) : null
-          ])
-        );
-      }
-      return playsNav(el('ol', { class: 'plays' }, rows));
-    }
     // Football: the whole commentary (every shot, corner and foul), its key events where there's none.
     const list = sport === 'basketball' && d.feed.length ? d.feed : sport === 'baseball' && d.feed.some(p => p.kind === 'play-result') ? d.feed.filter(p => p.kind === 'play-result' || (p.scoring && p.kind !== 'play-result')) : sport === 'soccer' && d.commentary?.length ? d.commentary : d.keyEvents.length ? d.keyEvents : d.plays;
     // The chart's key moments, by play: a run told where it ended, a play by itself.
@@ -1512,7 +1496,7 @@ function winCard(d, e, line, wait) {
     if (real) real = winChanceCard(real, e);
   } else {
     real = d?.winProb.length > 3 ? winProbCard({ points: d.winProb }, e, d.timeline) : line?.points?.length > 3 ? winProbCard(line, e, d?.timeline, d?.events) : null;
-    coming = !real && ((!wait.summary && (market || ['baseball', 'basketball', 'football'].includes(sport))) || (market && wait.summary && !wait.line));
+    coming = !real && ((!wait.summary && (market || ['baseball', 'basketball'].includes(sport))) || (market && wait.summary && !wait.line));
   }
   if (coming) {
     waited.set(wait, true);
@@ -1882,9 +1866,6 @@ function playsNav(ol) {
   return el('div', { class: 'plays-wrap' }, [el('div', { class: 'plays-nav' }, [kinds.length > 1 ? filter : null, jumps]), ol]);
 }
 
-// An American football drive's end and its length, in Chinese.
-const DRIVE_ZH = { Touchdown: '達陣', 'Field Goal': '射門得分', 'Missed FG': '射門未進', Punt: '棄踢', Fumble: '掉球', Interception: '被攔截', Downs: '進攻失敗', 'End of Half': '半場結束', 'End of Game': '比賽結束', Safety: '安全分', 'Blocked FG': '射門被擋', 'Blocked Punt': '棄踢被擋' };
-const driveZh = text => String(text || '').replace(/(\d+) plays?/, '$1 次進攻').replace(/(-?\d+) yards?/, '$1 碼').replace(/, /g, '・');
 // A chart scrolled into view when a moment under it is picked (a long list leaves it off the screen).
 function bringIn(plot) {
   const r = plot.getBoundingClientRect();

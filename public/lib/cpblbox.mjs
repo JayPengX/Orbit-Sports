@@ -144,7 +144,7 @@ export function cpblSummary(box, e, en = false) {
     players,
     plays: feed.filter(p => p.scoring),
     feed,
-    drives: [],
+
     keyEvents: [],
     rosters: [],
     leaders: [],

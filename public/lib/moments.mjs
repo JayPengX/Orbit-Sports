@@ -76,26 +76,6 @@ const MLB_EN = [
   [/error/i, 'reaches on error'], [/fielder'?s choice/i, "fielder's choice"], [/caught stealing/i, 'caught stealing'], [/stolen base|stole/i, 'steals'],
   [/strike|struck out/i, 'strikes out'], [/ground/i, 'grounds out'], [/\blined\b|line ?out|line drive/i, 'lines out'], [/pop|foul out/i, 'pops out'], [/fly|flied/i, 'flies out']
 ];
-const NFL_ZH = [
-  [/interception.*touchdown|pick six/i, '攔截回攻達陣'],
-  [/fumble.*touchdown/i, '掉球回攻達陣'],
-  [/punt return.*touchdown|kickoff return.*touchdown/i, '回攻達陣'],
-  [/passing touchdown/i, '傳球達陣'],
-  [/rushing touchdown/i, '跑球達陣'],
-  [/touchdown/i, '達陣'],
-  [/interception/i, '攔截'],
-  [/fumble/i, '掉球'],
-  [/field goal good/i, '射門得分'],
-  [/field goal (missed|blocked)/i, '射門未進'],
-  [/safety/i, '安全分'],
-  [/two-point|2pt/i, '兩分轉換'],
-  [/sack/i, '被擒殺'],
-  [/kickoff|kicks/i, '開球回攻'],
-  [/punt/i, '棄踢'],
-  [/incomplet/i, '傳球未成'],
-  [/pass/i, '傳球推進'],
-  [/rush/i, '跑球推進']
-];
 // A thief by family name ("Ronald Holland II" → "Holland II"): the row stays one line.
 const initial = name => (name ? name.replace(/^\S+\s+(?=\S)/, '') : name);
 // A basketball play in a few words: made or missed and what, a free throw,
@@ -117,7 +97,7 @@ function basketballZh(play) {
   return `${shot}${made ? '命中' : '不進'}`;
 }
 
-const ICON = { baseball: '⚾', basketball: '🏀', football: '🏈', hockey: '🏒', soccer: '⚽' };
+const ICON = { baseball: '⚾', basketball: '🏀', soccer: '⚽' };
 const firstOf = (list, ...texts) => list.find(([re]) => texts.some(t => re.test(t || '')))?.[1];
 // The doer from the play's words where ESPN names nobody ("Rice homered to right").
 const named = text => /^(?:\([^)]*\)\s*)?([A-Z][\w.'’-]*(?:\s+[A-Z][\w.'’-]*){0,2})/.exec(text || '')?.[1] || '';
@@ -165,8 +145,6 @@ export function playText(sport, play, en, team) {
   }
   // A team's own (a team rebound, a shot clock violation): the side's name, never ESPN's English.
   if (sport === 'basketball') return [play.who || team || who, basketballZh(play)].filter(Boolean).join(' ');
-  // A flag's team isn't the drive's: the call alone.
-  if (sport === 'football') return /penalty/i.test(`${play.type} ${play.text}`) && !/touchdown|field goal good/i.test(play.type) ? '關鍵判罰' : [team, firstOf(NFL_ZH, play.type, play.text) || '關鍵進攻'].filter(Boolean).join(' ');
   if (sport === 'soccer') return [who, play.kind === 'red' ? '紅牌' : '進球'].filter(Boolean).join(' ');
   return [who, play.type].filter(Boolean).join(' ');
 }
@@ -175,19 +153,10 @@ export function playText(sport, play, en, team) {
 const sideOf = (delta, side) => (delta >= 0 ? side.home : side.away);
 const teamName = (id, side) => (String(id) === String(side.home.id) ? side.home.name : String(id) === String(side.away.id) ? side.away.name : '');
 
-// Where one play decides it (baseball, football, hockey): the biggest
-// single plays. Basketball, a high-scoring game where one three is just a
-// possession (and ESPN's line jumps on one, then jumps back): before the
+// Basketball, a high-scoring game where one three is just a possession (and ESPN's line jumps on one, then jumps back): before the
 // last two minutes only the runs (told by the points each side scored);
 // a possession is a moment only at the end (clutchMoments), where one
 // can decide it.
-const SINGLE = 0.07;
-// Baseball, football, hockey: a swing of BIG, and a SHARE of the game's
-// biggest, is a moment (a lead taken or a tie from SINGLE); MOST at most.
-// (Football's chance moves in smaller steps over more plays: its bar is lower.)
-const BIG = { football: 0.08 };
-const SHARE = 0.35;
-const MOST = 10;
 const RUN_PLAYS = 48;
 // Basketball: a drift of this much is a stretch (a run), RUNS at most.
 const STRETCH = 0.2;
@@ -195,29 +164,6 @@ const RUNS = 4;
 function swingMoments(points, sport, side) {
   const vals = points.map(value);
   const home = d => (d >= 0 ? 'home' : 'away');
-  if (sport !== 'basketball') {
-    const found = [];
-    for (let i = 1; i < points.length; i++) {
-      const delta = vals[i] - vals[i - 1];
-      // ESPN puts a score's swing on the kickoff after it: the score's.
-      let play = points[i].play;
-      if (/kickoff|kicks/i.test(`${play?.type} ${play?.text}`)) play = points.slice(Math.max(0, i - 3), i).reverse().find(p => p.play?.scoring)?.play || play;
-      // Not a play (a player reported eligible, a timeout, a quarter's end): the line just moved under it.
-      if (/reported in as eligible|timeout|two-minute warning|end (of )?(quarter|half|game|period)/i.test(`${play?.type} ${play?.text}`)) continue;
-      if (!(Math.abs(delta) >= SINGLE && play)) continue;
-      // A score that tied it or put a side ahead (anywhere in the game, not only at its end), said.
-      const was = lead(points.slice(0, i).reverse().find(q => lead(q.play) != null)?.play);
-      const now = lead(play);
-      const turned = play.scoring && was != null && now != null && now !== was ? (now === 0 ? 'tie' : 'lead') : '';
-      const said = turned ? (side.en ? (turned === 'tie' ? ' · ties it' : ' · takes the lead') : turned === 'tie' ? ' · 追平' : ' · 超前') : '';
-      found.push({ i, delta, side: home(delta), icon: ICON[sport] || '•', text: playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name) + said, pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id, src: play, turned });
-    }
-    if (sport !== 'baseball') return found;
-    // An inning's rally of small plays (a single, a bunt, a groundout, a
-    // single: no one play big enough) is one moment; its plays aren't.
-    const rallies = halfInnings(points, vals, side);
-    return [...rallies, ...found.filter(f => !rallies.some(r => f.i >= r.from && f.i <= r.i))];
-  }
   // The stretches it drifted over (a slow slide over a quarter or two): each told by the points each side scored over it.
   const stretches = swings(vals, STRETCH)
     .map(s => tighten(vals, s))
@@ -242,47 +188,6 @@ function swingMoments(points, sport, side) {
     .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta))
     .slice(0, RUNS)
     .sort((x, y) => x.i - y.i);
-}
-
-// Baseball: each half-inning that moved it a lot (RALLY) with no one play
-// doing most of it (two thirds), told by the runs scored in it: 教士 3局下
-// 攻下 2 分 (its dot on the last run).
-const RALLY = 0.12;
-function halfInnings(points, vals, side) {
-  const out = [];
-  let a = 1;
-  for (let i = 1; i <= points.length; i++) {
-    const p = points[i];
-    if (i < points.length && p.n === points[a].n && p.half === points[a].half) continue;
-    const b = i - 1;
-    const delta = vals[b] - vals[a - 1];
-    let most = 0;
-    for (let k = a; k <= b; k++) most = Math.max(most, Math.abs(vals[k] - vals[k - 1]));
-    const score = k => points.slice(0, k + 1).reverse().find(q => q.play?.home != null && q.play?.away != null)?.play;
-    const [s0, s1] = [score(a - 1), score(b)];
-    const who = delta >= 0 ? 'home' : 'away';
-    const runs = (Number(s1?.[who]) || 0) - (Number(s0?.[who]) || 0);
-    const last = [...Array(b - a + 1).keys()].map(k => a + k).reverse().find(k => points[k].play?.scoring);
-    if (Math.abs(delta) >= RALLY && most < (2 / 3) * Math.abs(delta) && runs > 0 && last != null) {
-      const team = sideOf(delta, side);
-      const when = side.en ? `${points[a].half === 'top' ? 'Top' : 'Bottom'} ${points[a].n}` : `${points[a].n}局${points[a].half === 'top' ? '上' : '下'}`;
-      // A tie or a lead taken by it, said (as the late plays' are).
-      const [l0, l1] = [lead(s0), lead(s1)];
-      const turned = l0 != null && l1 != null && l1 !== l0 ? (l1 === 0 ? 'tie' : 'lead') : '';
-      const said = turned ? (side.en ? (turned === 'tie' ? ' · ties it' : ' · takes the lead') : turned === 'tie' ? ' · 追平' : ' · 超前') : '';
-      // Its biggest hit named (Ohtani's 3-run homer in a 4-run 2nd, not just
-      // 道奇 2局下攻下 4 分: the owner, 2026-10-18), the inning's runs under it.
-      const hits = [...Array(b - a + 1).keys()].map(k => a + k).filter(k => points[k].play?.scoring && (points[k].play.who || named(points[k].play.text)));
-      const key = [...hits].sort((x, y) => (Number(points[y].play.value) || 0) - (Number(points[x].play.value) || 0) || Math.abs(vals[y] - vals[y - 1]) - Math.abs(vals[x] - vals[x - 1]))[0];
-      const total = side.en ? ` · ${runs}-run inning` : ` · 這局共 ${runs} 分`;
-      const text = key != null
-        ? `${rallyHits(points, hits, key, runs, side.en, team.name)}${total}`
-        : side.en ? `${team.name} score ${runs} · ${when}` : `${team.name} ${when}攻下 ${runs} 分`;
-      out.push({ i: last, from: a, delta, side: who, icon: ICON.baseball, text: text + said, pic: key != null ? points[key].play.pic : null, team: team.id, src: points[key ?? last].play, rally: true, turned });
-    }
-    a = i;
-  }
-  return out;
 }
 
 // Who did an inning's scoring: its one big hit (3 of 4 runs: that hit, its
@@ -419,21 +324,7 @@ export function playMoments(points, sport, side) {
     if (!same) found.push(m);
     else if (m.turned && !same.turned) Object.assign(same, { turned: m.turned, text: m.text, delta: Math.abs(m.delta) > Math.abs(same.delta) ? m.delta : same.delta, side: Math.abs(m.delta) > Math.abs(same.delta) ? m.side : same.side });
   }
-  if (sport === 'basketball') return found.sort((x, y) => x.i - y.i);
-  // The rest: no set number, a bar by the game. Every score that tied it or
-  // put a side ahead; and every other swing of 10% or more that's at least a
-  // third of the game's biggest (a blowout's small wobbles out, a seesaw's
-  // every turn in). Late plays meet the same bar as early ones (a walk in
-  // the 9th at +9% isn't kept over a +19% rally in the 3rd). MOST only so
-  // the list can't become a wall: the biggest kept, in the game's order.
-  const top = Math.max(0, ...found.map(m => Math.abs(m.delta)));
-  const bar = Math.max(BIG[sport] ?? 0.1, top * SHARE);
-  const weight = m => Math.abs(m.delta) + (m.turned ? 0.08 : 0);
-  return found
-    .filter(m => (m.turned && Math.abs(m.delta) >= SINGLE) || Math.abs(m.delta) >= bar)
-    .sort((x, y) => weight(y) - weight(x))
-    .slice(0, MOST)
-    .sort((x, y) => x.i - y.i);
+  return found.sort((x, y) => x.i - y.i);
 }
 
 // One stop in play: the plays on the same clock (a foul and its free
@@ -487,7 +378,7 @@ function clutchMoments(points, sport, side) {
     if (Math.abs(delta) < CLUTCH && !turned) continue;
     const tied = turned && before === 0;
     const text = playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name) + (turned ? (side.en ? (tied ? ' · ties it' : ' · takes the lead') : tied ? ' · 追平' : ' · 超前') : '');
-    out.push({ i: g.key, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON[sport] || '•', text, pic: sport === 'football' ? null : play.pic, team: play.team || sideOf(delta, side).id, clutch: true, src: play, turned: turned ? (tied ? 'tie' : 'lead') : '' });
+    out.push({ i: g.key, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON[sport] || '•', text, pic: play.pic, team: play.team || sideOf(delta, side).id, clutch: true, src: play, turned: turned ? (tied ? 'tie' : 'lead') : '' });
   }
   return [...out]
     .sort((a, b) => Number(Boolean(b.turned)) - Number(Boolean(a.turned)) || Math.abs(b.delta) - Math.abs(a.delta))
@@ -693,7 +584,7 @@ export function scoreAt(points, i, events = [], homeId = '') {
 }
 
 // The game clock where it tells: the last two minutes of the last period (or overtime) of a game with a clock.
-const LAST = { basketball: 4, football: 4, hockey: 3 };
+const LAST = { basketball: 4 };
 export function lateClock(sport, point) {
   const clock = point?.play?.clock;
   if (!LAST[sport] || !clock || !(point.n >= LAST[sport])) return '';
@@ -728,20 +619,6 @@ const SOCCER_KIND = [
   [/foul/, w => `${w} 犯規`],
   [/corner/, () => '角球'],
   [/shot|attempt/, w => `${w} 射門`]
-];
-const HOCKEY_ZH = [
-  [/^goal/i, '進球'],
-  [/penalty/i, '判罰'],
-  [/blocked/i, '封阻'],
-  [/missed/i, '射偏'],
-  [/shot/i, '射門'],
-  [/faceoff/i, '爭球'],
-  [/hit/i, '衝撞'],
-  [/giveaway/i, '失誤'],
-  [/takeaway/i, '抄截'],
-  [/period start/i, '本節開始'],
-  [/period end|end of period/i, '本節結束'],
-  [/stoppage/i, '比賽中斷']
 ];
 function basketballFeed(play, team) {
   const t = `${play.type} ${play.text}`;
@@ -906,7 +783,6 @@ export function feedText(sport, play, en, team = '') {
     return hit ? hit[1](who, team).trim() : [team, '比賽事件'].filter(Boolean).join(' ');
   }
   if (sport === 'basketball') return basketballFeed(play, team);
-  if (sport === 'hockey') return [who, firstOf(HOCKEY_ZH, play.type, play.text) || '比賽事件'].filter(Boolean).join(' ');
   // A scoring play's runs (a list of the scoring plays doesn't mark them scoring).
   return playText(sport, { ...play, scoring: play.scoring || play.value > 0 }, false, team);
 }

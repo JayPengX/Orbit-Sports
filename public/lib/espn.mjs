@@ -67,10 +67,9 @@ export function parseStatus(s) {
 // "End of 4th" for minutes after the horn; the owner, 2026-10-14: a result
 // counts the moment it's final). Only what the rules settle exactly:
 // basketball's last regulation period (or an overtime) ended with the
-// scores apart; American football's the same; hockey's third period (or an
-// overtime) ended apart; MLB's middle of the 9th or later with the home side
+// scores apart; MLB's middle of the 9th or later with the home side
 // ahead (it doesn't bat), or the end of an inning from the 9th apart.
-const REGULATION = { basketball: 4, football: 4, hockey: 3 };
+const REGULATION = { basketball: 4 };
 export function overByRule(status, away, home, league) {
   if (!status || status.state !== 'in' || status.void) return status;
   const sport = LEAGUES[league]?.sport;
@@ -1152,9 +1151,7 @@ export function parseSummary(data, league) {
   // ESPN's win probability, play by play: the home side's chance (and a draw's, where there can be one).
   // The game's plays by the wall clock (t in seconds): what the chart's marks and a finger on it go by.
   const wall = p => Date.parse(p?.wallclock || '') / 1000;
-  // A drive's plays (football) carry its team.
-  const drivePlays = d => (d?.plays || []).map(p => (p.team ? p : { ...p, team: d.team }));
-  const timed = [...(data?.plays || []), ...(data?.drives?.previous || []).flatMap(drivePlays), ...drivePlays(data?.drives?.current), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
+  const timed = [...(data?.plays || []), ...(data?.keyEvents || [])].filter(p => Number.isFinite(wall(p)) && p.period?.number);
   const playOf = p => ({ id: String(p.id ?? ''), text: p.text || '', type: p.type?.text || '', kind: p.type?.type || '', alt: p.alternativeType?.text || '', scoring: Boolean(p.scoringPlay), value: Number(p.scoreValue) || 0, team: String(p.team?.id ?? ''), ...whoOf(p), home: p.homeScore, away: p.awayScore, clock: p.clock?.displayValue || '' });
   // The plays that move a market (a game drawn from Polymarket's): the scores, a red card, a penalty missed.
   // Soccer's VAR decisions, from the commentary (the key events leave them
@@ -1250,10 +1247,6 @@ export function parseSummary(data, league) {
   }
   // Every play of the game (過程 shows it whole; the live strip its last few).
   const feed = (data?.plays || []).map(p => ({ id: String(p.id ?? ''), text: p.text || p.type?.text || '', period: p.period?.displayValue || (p.period?.number ? `${p.period.number}` : ''), periodNum: p.period?.number || 0, periodType: p.period?.type || '', clock: p.clock?.displayValue || '', team: String(p.team?.id ?? ''), home: p.homeScore, away: p.awayScore, scoring: Boolean(p.scoringPlay), ...detailOf(p) }));
-  // American football's drives, the whole game a line each: who, how it ended, its plays, yards and time.
-  const drives = ((data?.drives?.previous || []).concat(data?.drives?.current ? [data.drives.current] : []))
-    .filter(x => x && (x.displayResult || x.result))
-    .map(x => ({ team: String(x.team?.id ?? ''), result: x.displayResult || x.result || '', desc: x.description || '', scoring: Boolean(x.isScore), periodNum: x.start?.period?.number || 0, period: x.start?.period?.number ? `${x.start.period.number}` : '', clock: x.start?.clock?.displayValue || '', home: x.plays?.at(-1)?.homeScore ?? null, away: x.plays?.at(-1)?.awayScore ?? null }));
   const info = data?.gameInfo || {};
   // When it ended, to the second: the last play's clock on the wall (ESPN
   // stamps every play; its 'End Game' is the horn), for a game over.
@@ -1273,7 +1266,6 @@ export function parseSummary(data, league) {
     players,
     plays,
     feed,
-    drives,
     keyEvents,
     commentary,
     rosters,
@@ -1549,7 +1541,7 @@ export function tierZones(groups) {
 // (the NBA's in October: Toronto 0-1 before a real game).
 const standingsUrl = (league, season = null) => {
   const l = LEAGUES[league];
-  const query = [['baseball', 'basketball', 'football', 'hockey'].includes(l.sport) ? 'seasontype=2' : '', season ? `season=${season}` : ''].filter(Boolean).join('&');
+  const query = [['baseball', 'basketball'].includes(l.sport) ? 'seasontype=2' : '', season ? `season=${season}` : ''].filter(Boolean).join('&');
   return `${STANDINGS}/${l.espn}/standings${query ? `?${query}` : ''}`;
 };
 const standingsOf = (data, league) => {

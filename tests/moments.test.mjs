@@ -23,16 +23,6 @@ test("baseball: the plays that turned it (Yankees at Rays, 2026-10-05: Rice's ho
   assert.ok(en.some(m => m.text === 'B. Rice homers · 1 RBI · ties it'));
 });
 
-test('football: the walk-off field goal its biggest moment; a flag told as a call', () => {
-  const s = parseSummary(fixture('nfl-summary-moments.json'), 'nfl');
-  assert.ok(s.winProb.every(p => p.n));
-  const list = playMoments(s.winProb, 'football', { ...sideOf(s), en: false });
-  const top = [...list].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0];
-  assert.match(top.text, /射門得分 · 超前$/);
-  assert.equal(top.side, 'home');
-  assert.ok(list.filter(m => /判罰/.test(m.text)).every(m => m.text === '關鍵判罰'));
-});
-
 test('basketball: the runs, by the points each side scored', () => {
   const pts = [];
   let [h, a] = [0, 0];
@@ -276,7 +266,7 @@ test("baseball: an inning's rally of small plays is one moment; late plays compe
   assert.equal(list.filter(m => pts[m.i].n === 3 && pts[m.i].half === 'bottom').length, 1);
 });
 
-test('baseball, football: no set number of moments; a seesaw keeps every lead change, a blowout only its big swings', () => {
+test('baseball: no set number of moments; a seesaw keeps every lead change, a blowout only its big swings', () => {
   const pts = [];
   const add = (v, n, play = {}, half = 'bottom') => pts.push({ home: v, n, half, play: { text: 'x', type: 'Play Result', ...play } });
   add(0.42, 1, { home: 0, away: 0 });

@@ -128,11 +128,11 @@ export function playPeriod(p, sport, lang = 'zh') {
     return en ? `${half === 'top' ? 'Top ' : half === 'bot' ? 'Bot ' : ''}${ord(n)}` : `${n}局${half === 'top' ? '上' : half === 'bot' ? '下' : ''}`;
   }
   const halves = /half/i.test(dv);
-  const regular = halves ? 2 : sport === 'hockey' ? 3 : QUARTERS;
+  const regular = halves ? 2 : QUARTERS;
   if (n > regular) {
     const ot = n - regular;
     return en ? (ot > 1 ? `${ot}OT` : 'OT') : ot > 1 ? `延長${ot}` : '延長';
   }
   if (halves) return en ? `H${n}` : n === 1 ? '上半場' : '下半場';
-  return en ? `${sport === 'hockey' ? 'P' : 'Q'}${n}` : `第${n}節`;
+  return en ? `Q${n}` : `第${n}節`;
 }

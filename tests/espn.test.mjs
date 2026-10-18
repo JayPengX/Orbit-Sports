@@ -234,13 +234,11 @@ test("a player's latest injury report: status, what, when back, ESPN's word", ()
   assert.equal(parseAthlete({ athlete: { id: 1 } }).injury, null);
 });
 
-test("過程's whole game: every play kept (not the last 80), American football's drives", async () => {
+test("過程's whole game: every play kept (not the last 80)", async () => {
   const { readFileSync } = await import('node:fs');
   const load = f => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8'));
   const nba = load('nba-summary-feed.json');
   assert.equal(parseSummary(nba, 'nba').feed.length, (nba.plays || []).length);
-  const nfl = parseSummary({ ...load('nfl-summary-moments.json'), drives: { previous: [{ team: { id: '11' }, displayResult: 'Field Goal', description: '8 plays, 70 yards, 4:18', isScore: true, start: { period: { number: 1 }, clock: { displayValue: '10:39' } }, plays: [{ homeScore: 3, awayScore: 0 }] }] } }, 'nfl');
-  assert.deepEqual(nfl.drives, [{ team: '11', result: 'Field Goal', desc: '8 plays, 70 yards, 4:18', scoring: true, periodNum: 1, period: '1', clock: '10:39', home: 3, away: 0 }]);
 });
 
 test("a player's last games: each one's competition, the score from their side", async () => {
@@ -392,10 +390,8 @@ test("a stat's name by its sport, else by ESPN's long name (TACKL is Tackles, �
   assert.equal(statName('SV', 'zh', { sport: 'soccer', long: 'Saves' }), '撲救');
   assert.equal(statName('SV', 'zh', { sport: 'baseball', long: 'Saves' }), '救援成功');
   assert.equal(statName('FG', 'zh', { sport: 'basketball' }), '投籃');
-  assert.equal(statName('FG', 'zh', { sport: 'football' }), '射門');
   assert.equal(statName('PTS', 'zh', { sport: 'basketball' }), '得分');
   assert.equal(statName('PTS', 'zh'), '積分');
-  assert.equal(statName('ESSV', 'zh', { sport: 'hockey', long: 'Saves made at even strength.' }), '平手撲救');
   assert.equal(statName('XYZ', 'zh', { long: 'Something new' }), 'XYZ');
   assert.equal(statName('TACKL', 'en', { long: 'Tackles' }), 'TACKL');
 });

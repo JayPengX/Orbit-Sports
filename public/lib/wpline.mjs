@@ -13,7 +13,7 @@
 //   periodMarks(timeline, sport, points, en)  → [{ x, label }]
 //   pointStamp(timeline, sport, point, en)    → the period the point is in
 
-const REGULAR = { basketball: 4, football: 4, hockey: 3, soccer: 2, baseball: 9 };
+const REGULAR = { basketball: 4, soccer: 2, baseball: 9 };
 
 const byPlay = points => points.length > 0 && points.every(p => p.n);
 const byTime = points => points.length > 1 && points.every((p, i) => Number.isFinite(p.t) && (!i || p.t >= points[i - 1].t)) && points.at(-1).t > points[0].t;
@@ -149,7 +149,7 @@ export function periodName(sport, n, en) {
   if (sport === 'baseball') return en ? `${n}` : `${n}局`;
   if (sport === 'soccer') return en ? ['', '1H', '2H', 'ET', 'ET', 'Pens'][n] || 'ET' : ['', '上半', '下半', '延長', '延長', 'PK'][n] || '延長';
   if (n > reg) return en ? (n - reg > 1 ? `${n - reg}OT` : 'OT') : n - reg > 1 ? `延長${n - reg}` : '延長';
-  return en ? `${sport === 'hockey' ? 'P' : 'Q'}${n}` : `第${n}節`;
+  return en ? `Q${n}` : `第${n}節`;
 }
 
 const pad = n => String(n).padStart(2, '0');
