@@ -144,6 +144,15 @@ test("a market that stopped trading early (Coventry 0–3 Arsenal, its last pric
   // A line by plays (ESPN's) is left as it is.
   const plays = [{ n: 1, home: 0.5 }, { n: 2, home: 0.6 }];
   assert.equal(holdToEnd(plays, timeline), plays);
+  // Over, and the last price already on the side that won (0.89 → decided enough? no: held, greyed as quiet)…
+  assert.equal(holdToEnd(points, timeline, { home: 1, draw: 0 }).at(-1).held, true);
+  // …and 93% (Inter Miami 3–0 up at 60'): runs on to the result.
+  const decided = points.map(p => ({ ...p, home: 0.93, draw: 0.05 }));
+  const run = holdToEnd(decided, timeline, { home: 1, draw: 0 });
+  assert.deepEqual([run.at(-1).home, run.at(-1).draw, run.at(-1).settled], [1, 0, true]);
+  // (The side that won as the away side: its chance is what's left.)
+  const away = points.map(p => ({ ...p, home: 0.04, draw: 0.03 }));
+  assert.equal(holdToEnd(away, timeline, { home: 0, draw: 0 }).at(-1).settled, true);
 });
 
 test("each side in its colour, readable on the card and told apart from the other's", () => {

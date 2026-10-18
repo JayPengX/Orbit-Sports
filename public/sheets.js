@@ -1457,7 +1457,10 @@ function winChanceCard(odds, e) {
 // picked from its list kept across a redraw with a new point.
 const wpKept = new Map();
 function winProbCard(line, e, timeline, events = []) {
-  const pts = holdToEnd(line.points, timeline);
+  // (Over: the result, as the chances a point holds.)
+  const [hs, as] = [Number(e.home.score), Number(e.away.score)];
+  const final = e.status.state === 'post' && Number.isFinite(hs) && Number.isFinite(as) ? (hs > as ? { home: 1, draw: 0 } : hs < as ? { home: 0, draw: 0 } : { home: 0, draw: 1 }) : null;
+  const pts = holdToEnd(line.points, timeline, final);
   const keyOf = `${e.league}|${e.id}`;
   const kept = wpKept.get(keyOf) || {};
   const last = pts.at(-1) || {};
@@ -1522,7 +1525,8 @@ function winProbCard(line, e, timeline, events = []) {
   };
   // Whose chance it lifted, and by how much.
   const gain = m => `${side[m.delta >= 0 ? 'home' : 'away'].name} +${Math.round(Math.abs(m.delta) * 100)}%`;
-  const gainChip = m => el('span', { class: `wp-gain ${m.side}`, style: `--side:${sideC(m.delta >= 0 ? 'home' : 'away')}`, text: gain(m) });
+  // (None on a decided game's run to the result: no price there to move.)
+  const gainChip = m => pts[m.i]?.settled ? null : el('span', { class: `wp-gain ${m.side}`, style: `--side:${sideC(m.delta >= 0 ? 'home' : 'away')}`, text: gain(m) });
   // The key moment closest to a finger (within 2.5% of the chart), if any.
   const near = i => nearestMoment(listed, xs, i);
   // Away on the left, home on the right (as everywhere in the sheet), adding up to 100.
@@ -1557,7 +1561,9 @@ function winProbCard(line, e, timeline, events = []) {
   const pinY = m => (m.delta >= 0 ? pts[m.i].home : pts[m.i].home + (pts[m.i].draw ?? 0));
   const dotted = [];
   // (A soccer game's goals and red cards always: Ipswich–Man City's five goals moved a favourite's price little, and none had a dot.)
-  for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned || m.always).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
+  // (A goal always: Messi's 2–0 at 56' and 3–0 at 60' sat closer than the
+  // spacing, and the second went unlisted; only one on top of another goes.)
+  for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned || m.always).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= (m.always ? 0.012 : 0.04))) dotted.push(m);
   // The list is the dotted ones, in the game's order (the owner, 2026-10-18:
   // a moment listed with no dot read as one that didn't matter).
   const listed = [...dotted].sort((a, b) => a.i - b.i);
@@ -1912,7 +1918,8 @@ function raceChanceCard(line, ss, feed = null) {
     return personTap('f1', who, personPic(who || { name }, 'f1', 'sm round'));
   };
   const colorOf = k => f1Driver(line.drivers[k]).color;
-  const gainChip = m => el('span', { class: 'wp-gain', style: `color:${colorOf(m.k)};background:color-mix(in srgb, ${colorOf(m.k)} 16%, transparent)`, text: `${names[m.k]} ${m.delta >= 0 ? '+' : '−'}${Math.round(Math.abs(m.delta) * 100)}%` });
+  // (None on a decided game's run to the result: no price there to move.)
+  const gainChip = m => pts[m.i]?.settled ? null : el('span', { class: 'wp-gain', style: `color:${colorOf(m.k)};background:color-mix(in srgb, ${colorOf(m.k)} 16%, transparent)`, text: `${names[m.k]} ${m.delta >= 0 ? '+' : '−'}${Math.round(Math.abs(m.delta) * 100)}%` });
   const shade = bands.map(b => `<rect x="${(xs[b.i0] * w).toFixed(1)}" y="0" width="${Math.max(2, (xs[b.i1] - xs[b.i0]) * w).toFixed(1)}" height="${h}" class="rc-band ${b.kind}"/>`).join('');
   // Tagged in a strip above the chart (never over the lines), each at its band's start; one close after another (a virtual safety car turned real) just after it.
   let free = 0;

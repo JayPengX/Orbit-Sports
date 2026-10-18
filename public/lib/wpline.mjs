@@ -40,10 +40,29 @@ export function gameTime(timeline = []) {
 // game that's decided: Arsenal 3–0 up, its last price at 49'): its last
 // price held to the end, so the chart spans the whole game and the second
 // half isn't squeezed into its last few pixels.
-export function holdToEnd(points, timeline = []) {
+// A game over (`final`: the result as a point's chances, { home, draw })
+// whose market stopped once it was decided (its last price 90% or more on
+// the side that won: Inter Miami 3–0 up at 60', 93%) runs on to the result
+// instead: a decided game isn't a market gone quiet (it was greyed, and the
+// goals after it, Messi's second and a penalty at 89', went unlisted).
+const DECIDED = 0.9;
+export function holdToEnd(points, timeline = [], final = null) {
   if (byPlay(points) || !byTime(points)) return points;
   const end = timeline.find(e => END.has(e.type))?.t;
-  return end != null && end > points.at(-1).t + 60 ? [...points, { ...points.at(-1), t: end, held: true }] : points;
+  if (end == null || !(end > points.at(-1).t + 60)) return points;
+  const last = points.at(-1);
+  const won = final && (final.home === 1 ? last.home : final.draw === 1 ? last.draw ?? 0 : 1 - last.home - (last.draw ?? 0));
+  if (won >= DECIDED) {
+    // On the way, a point at each of the game's moments (each goal its own
+    // place on the line, not all on the result's), the chances eased there.
+    const to = { ...last, home: final.home, ...(last.draw != null ? { draw: final.draw ?? 0 } : {}), t: end, settled: true };
+    const mid = [...new Set(timeline.map(e => e.t).filter(t => t > last.t && t < end))].sort((a, b) => a - b).map(t => {
+      const k = (t - last.t) / (end - last.t);
+      return { ...last, home: last.home + (to.home - last.home) * k, ...(last.draw != null ? { draw: last.draw + (to.draw - last.draw) * k } : {}), t, settled: true };
+    });
+    return [...points, ...mid, to];
+  }
+  return [...points, { ...last, t: end, held: true }];
 }
 
 // Each side's colour on the chart, readable on the card it's drawn on
