@@ -28,6 +28,7 @@
     --accent: #fb923c;
     --accent-wash: rgba(251, 146, 60, 0.14);
     --accent-ink: #431407;
+    --on-accent: #431407;
     --live: #f87171;
     --live-wash: rgba(248, 113, 113, 0.14);
     --win: #34d399;
@@ -49,6 +50,7 @@
   --accent: #fb923c;
   --accent-wash: rgba(251, 146, 60, 0.14);
   --accent-ink: #431407;
+  --on-accent: #431407;
   --live: #f87171;
   --live-wash: rgba(248, 113, 113, 0.14);
   --win: #34d399;
@@ -1356,7 +1358,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .race-part { margin: 4px 0 12px; }
 /* The one follow button (sheets.js followButton): a small pill, the app's
    colour until followed, then quiet with a tick; the same on every page. */
-.follow-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font: inherit; font-size: 13.5px; font-weight: 750; white-space: nowrap; cursor: pointer; }
+.follow-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent, #fff); font: inherit; font-size: 13.5px; font-weight: 750; white-space: nowrap; cursor: pointer; }
 .follow-btn.on { background: var(--accent-wash); color: var(--accent); }
 .mh-side .follow-btn { margin-top: 8px; }
 /* A guest's side: the follow button's room kept, so the two sides stand level. */

@@ -1657,7 +1657,7 @@ function renderLive() {
     box,
     hero,
     !live.length && nextUp ? el('div', { class: 'q-card list' }, [liveRow(nextUp)]) : null,
-    !live.length && !nextUp && reading ? spinner() : null,
+    !live.length && !nextUp && reading && !gap ? spinner() : null,
     live.length ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, mineFirst(live).map(liveRow))) : null,
     mineBlock,
     later.length ? section(live.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null,
@@ -2560,7 +2560,7 @@ const searchEspn = q => proxyJson(`https://site.api.espn.com/apis/search/v2?quer
 const TV_DAYS = 7;
 // (In English by the short name fans use: "Los Angeles Dodgers" was cut to "Los Angeles …" in its half-width card.)
 const SUGGEST = [
-  ['mlb', '19', 'Los Angeles Dodgers', 'Dodgers'], ['mlb', '10', 'New York Yankees', 'Yankees'], ['cpbl', 'CTBC Brothers'], ['cpbl', 'Rakuten Monkeys', null, 'Monkeys'],
+  ['mlb', '19', 'Los Angeles Dodgers', 'Dodgers'], ['mlb', '10', 'New York Yankees', 'Yankees'], ['cpbl', 'CTBC Brothers', null, 'Brothers'], ['cpbl', 'Rakuten Monkeys', null, 'Monkeys'],
   ['nba', '13', 'Los Angeles Lakers', 'Lakers'], ['nba', '9', 'Golden State Warriors', 'Warriors'], ['nba', '2', 'Boston Celtics', 'Celtics'],
   ['epl', '359', 'Arsenal'], ['epl', '382', 'Manchester City', 'Man City'], ['epl', '364', 'Liverpool'], ['mls', '20232', 'Inter Miami CF', 'Inter Miami']
 ].map(([league, id, name, short]) => ({ league, id, name: name || id, short }));

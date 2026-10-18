@@ -256,7 +256,7 @@ export const STRINGS = {
     close: "Close",
     follow: "Follow",
     following: "Following",
-    followLeague: "Follow league",
+    followLeague: "Follow",
     overview: "Overview",
     stats: "Stats",
     players: "Players",
