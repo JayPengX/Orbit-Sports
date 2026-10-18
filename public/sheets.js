@@ -2550,7 +2550,7 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
   const timed = !race;
   const prefix = ss.abbr === 'Qual' ? 'Q' : 'SQ';
   // Over (F1's archive, or its feed's last word): the final order, no clock or flag.
-  const over = b.final || feedOver(b);
+  const over = feedOver(b);
   // Between parts: the one just run is over; a part not begun has no cut line yet (Q2's showed before Q2 began).
   const pause = quali && !over && feedBreak(b);
   const begun = !pause || (b.clock.left < ([0, 1080, 900, 720][b.part] || 0) - 2);
@@ -3051,7 +3051,7 @@ const f1PickerOpen = new Set();
 function f1LapCompare(b, ss) {
   const en = L() === 'en';
   const race = ss.abbr === 'Race' || ss.abbr === 'SR';
-  const over = Boolean(b.final || feedOver(b));
+  const over = feedOver(b);
   const box = el('div', { 'data-laps': ss.start });
   const draw = () => {
     const { laps, places, stops, live } = lapsFor(b, ss, over, () => box.isConnected && draw());
@@ -3301,7 +3301,7 @@ const f1TableAll = new Set();
 function f1LiveTable(b, ss) {
   const en = L() === 'en';
   const box = el('div', { 'data-table': ss.start });
-  const over = Boolean(b.final || feedOver(b));
+  const over = feedOver(b);
   const draw = groups => {
     const [drivers, teams] = [groups?.[0]?.rows || [], groups?.[1]?.rows || []];
     if (!drivers.length) return put(box);
@@ -3366,7 +3366,7 @@ function f1LiveTable(b, ss) {
 // (lapsFor) and its stints; live, again as the laps come.
 function f1PracticePace(b, ss) {
   const en = L() === 'en';
-  const over = Boolean(b.final || feedOver(b));
+  const over = feedOver(b);
   const box = el('div', { 'data-pace': ss.start });
   const draw = () => {
     const { laps } = lapsFor(b, ss, over, () => box.isConnected && draw());
@@ -3469,13 +3469,13 @@ function f1Stats(b, ss) {
     const gainer = [...cars].filter(c => c.grid && !c.retired && !c.stopped).sort((x, y) => y.grid - y.pos - (x.grid - x.pos))[0];
     if (gainer && gainer.grid > gainer.pos) tile(en ? 'Most places gained' : '進步最多', `▲${gainer.grid - gainer.pos}`, gainer, `P${gainer.grid}→P${gainer.pos}`);
     const running = cars.filter(c => !c.retired && !c.stopped).length;
-    tile(b.final || feedOver(b) ? (en ? 'Finished' : '完賽') : en ? 'Still running' : '仍在賽道', `${running} / ${cars.length}`, null, en ? `${cars.length - running} out` : `${cars.length - running} 位退賽`);
+    tile(feedOver(b) ? (en ? 'Finished' : '完賽') : en ? 'Still running' : '仍在賽道', `${running} / ${cars.length}`, null, en ? `${cars.length - running} out` : `${cars.length - running} 位退賽`);
   } else {
     const busiest = [...cars].sort((x, y) => y.laps - x.laps)[0];
     if (busiest?.laps) tile(en ? 'Most laps' : '跑最多圈', `${busiest.laps}${en ? ' laps' : ' 圈'}`, busiest);
   }
   // Each card by name; put in their order at the end.
-  const live = !(b.final || feedOver(b));
+  const live = !feedOver(b);
   const named = {};
   const add = (k, x) => (named[k] = x);
   if (live) add('weather', f1Weather(b));

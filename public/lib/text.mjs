@@ -1,13 +1,11 @@
 // Text helpers every part of the app shares (pure: the tests import them).
 
+import * as names from '#kit/names.mjs';
+
 // A name as it's compared: accents off, lower case, trimmed ("Pérez" and
-// "PEREZ " are one man). Every match by name goes through it.
-export const fold = s =>
-  String(s ?? '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .trim();
+// "PEREZ " are one man). Every match by name goes through it: the kit's
+// (which also reads ø, æ, ß…), or this plain one on an older kit.
+export const fold = names.fold ?? (s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim());
 
 // Feed text put into HTML (a line drawn with <b> in it): shown as written,
 // never read as markup ("Brighton & Hove Albion" keeps its &).

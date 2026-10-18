@@ -12,6 +12,7 @@
 //     statistics, its clubs named) when FotMob can't be read.
 import { espnHeadshot } from '#kit/photo-urls.mjs';
 import { f1Constructor } from '#kit/logos.mjs';
+import { fold } from './text.mjs';
 
 // Each stat: [its key, ESPN's table, ESPN's name, zh, en, how it's written, who qualifies, lower is better].
 //   how: 'pg' per game (one place; 場均 said), 'pct' a percentage, 'n' a count,
@@ -194,7 +195,6 @@ export const parseTeamAthletes = (pages, sport, league, team) => rank(pages, spo
 // best place first (level on the number, level in the place). A footballer
 // from FotMob (no ESPN id) by his name.
 export function playerRanks(data, id, name = '') {
-  const fold = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
   const out = [];
   for (const st of data?.stats || []) {
     const i = st.list.findIndex(x => (x.id && String(x.id) === String(id)) || (!x.id && name && fold(x.full || x.name) === fold(name)));
@@ -258,7 +258,6 @@ export function parseF1Leaders(pages, poles, drivers = []) {
   const by = new Map();
   let season = '';
   const races = new Set();
-  const fold = n => String(n || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
   const one = d => {
     const id = d?.driverId;
     if (!id) return null;
@@ -401,12 +400,12 @@ export function parseFotmobStat(raw, key) {
 // FotMob's club for an ESPN one (`words`: the kit's ways of naming a side):
 // the same name, else the one its names say most of.
 // (Brighton & Hove Albion is FotMob's Brighton and Hove Albion; marks and dots dropped.)
-const fold = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/ø/g, 'o').replace(/ß/g, 'ss').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+const clubKey = s => fold(String(s || '').replace(/&/g, ' and ')).replace(/[^a-z0-9]+/g, ' ').trim();
 export function fotmobTeamOf(teams, side, words = []) {
-  const names = [side?.en, side?.name, side?.short].filter(Boolean).map(fold);
-  const exact = teams.find(t => [t.name, t.shortName].map(fold).some(n => names.includes(n)));
+  const names = [side?.en, side?.name, side?.short].filter(Boolean).map(clubKey);
+  const exact = teams.find(t => [t.name, t.shortName].map(clubKey).some(n => names.includes(n)));
   if (exact) return exact;
-  const score = t => words.filter(w => w && !/[㐀-鿿]/.test(w) && [t.name, t.shortName].map(fold).some(n => n.includes(w))).length;
+  const score = t => words.filter(w => w && !/[㐀-鿿]/.test(w) && [t.name, t.shortName].map(clubKey).some(n => n.includes(w))).length;
   const best = teams.map(t => ({ t, n: score(t) })).sort((a, b) => b.n - a.n);
   return best[0]?.n > 0 && best[0].n > (best[1]?.n || 0) ? best[0].t : null;
 }

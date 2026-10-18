@@ -11,6 +11,7 @@
 // apps; their activity doesn't steer the picks here either.
 import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, keepOffline, onlineOnly, netState } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
+import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kit from '#kit/quadra.mjs';
 import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList } from './lib/espn.mjs';
@@ -2964,7 +2965,6 @@ function leadersOf(league) {
   const all = (tables.get(league) || []).flatMap(g => g.rows || []);
   const rows = new Map(all.map(r => [String(r.id), r]));
   // (A FotMob player's club by its name: the two write the clubs alike.)
-  const fold = n => String(n || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
   const byName = name => all.find(r => [r.name, r.en, r.short].some(n => n && fold(n) === fold(name))) || null;
   // FotMob's clubs matched to the table's rows once (Brighton and Hove Albion is Brighton & Hove Albion).
   const clubs = d.teams?.length ? fotmobClubRows(d.teams, all, r => sideWords({ name: r.en || r.name, en: r.en, short: r.short })) : new Map();

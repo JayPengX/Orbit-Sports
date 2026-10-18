@@ -8,7 +8,11 @@ import { teamNameZh } from '#kit/names.mjs';
 import { watchOf as packOf, loadWatchMonth } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { taipeiDate as taipeiDay } from './days.mjs';
+import * as quadra from '#kit/quadra.mjs';
+import { taipeiDate } from './days.mjs';
+
+// A time's day in Taiwan (a number: ms): the kit's, or days.mjs's on an older kit.
+const taipeiDay = quadra.taipeiDay ?? taipeiDate;
 
 let changed = () => {};
 export const onTvChange = fn => (changed = fn);

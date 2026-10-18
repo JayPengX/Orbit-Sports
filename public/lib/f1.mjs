@@ -7,6 +7,7 @@ import { getJson, feedEnded, feedStarted, feedOnAt } from './espn.mjs';
 import { f1Driver } from '#kit/logos.mjs';
 import { fold, surname } from './text.mjs';
 import { POINTS } from './title.mjs';
+import * as f1live from '#kit/f1live.mjs';
 
 const F1 = 'https://www.formula1.com/en';
 const JOLPICA = 'https://api.jolpi.ca/ergast/f1';
@@ -231,9 +232,11 @@ export async function espnQualifying(eventId, sessionId, field, prefix = 'Q') {
 // f1-live.js: ESPN's copy is minutes behind and its gaps stand still): the
 // part and the clock, the flag, the race's lap, race control's latest, and
 // each car. Null when the feed's session isn't this one (`abbr`, `start`).
-const LIVE = 'https://f1-live.quadra/now.json';
+// Which session a reading is, and whether it's over, are the kit's
+// (f1live.mjs, shared with Play); the copies below stand in on an older kit.
+const LIVE = f1live.F1_LIVE ?? 'https://f1-live.quadra/now.json';
 const FEED_KIND = { FP1: 'Practice', FP2: 'Practice', FP3: 'Practice', Qual: 'Qualifying', SS: 'Sprint Qualifying', SQ: 'Sprint Qualifying', SR: 'Sprint', Race: 'Race' };
-export function sameSession(feed, abbr, start) {
+function localSameSession(feed, abbr, start) {
   const s = feed?.session;
   if (!s?.start) return false;
   const [h, m] = String(s.gmt || '0:0').split(':').map(Number);
@@ -242,6 +245,7 @@ export function sameSession(feed, abbr, start) {
   const named = kind === 'Sprint' ? s.name === 'Sprint' : kind === 'Race' ? s.type === 'Race' && s.name !== 'Sprint' : kind === 'Sprint Qualifying' ? /sprint/i.test(s.name) && /qualifying|shootout/i.test(`${s.name} ${s.type}`) : s.type === kind && !/sprint/i.test(s.name);
   return named && Math.abs(at - Date.parse(start)) < 3 * 3_600_000;
 }
+export const sameSession = f1live.sameSession ?? localSameSession;
 // The last reading, kept on the device (a reload, a reopen or a sheet opened
 // from a card draws it at once, not after the read; a session just over
 // shows its last reading until the official numbers are in).
@@ -255,13 +259,17 @@ try {
 // A qualifying's parts each end with the chequered flag and "Finished": only
 // its last part's end is the session's (between Q1 and Q2 it said 完賽, with
 // a replay to watch and no live board).
-export const feedParts = feed => (/qualifying|shootout/i.test(`${feed?.session?.type || ''} ${feed?.session?.name || ''}`) ? Math.max(3, feed?.entries?.length || 0) : 1);
-export const feedOver = feed => {
+const localFeedParts = feed => (/qualifying|shootout/i.test(`${feed?.session?.type || ''} ${feed?.session?.name || ''}`) ? Math.max(3, feed?.entries?.length || 0) : 1);
+export const feedParts = f1live.feedParts ?? localFeedParts;
+// (Over too when the feed says it's final.)
+const localFeedOver = feed => {
+  if (feed?.final) return true;
   const status = feed?.session?.status || '';
   if (/^(Finalised|Ends)$/i.test(status)) return true;
   const said = /^Finished$/i.test(status) || /CHEQUERED FLAG|END OF SESSION/i.test(feed?.message?.text || '');
   return said && (feed?.part || 1) >= feedParts(feed);
 };
+export const feedOver = f1live.feedOver ?? localFeedOver;
 // Between a qualifying's parts: the last one over, the next not begun (its clock full and standing).
 export const feedBreak = feed => {
   if (feedParts(feed) < 2 || feedOver(feed) || feed?.clock?.running) return false;
