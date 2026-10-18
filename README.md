@@ -53,6 +53,7 @@ couldn't be read is shown, never hidden.
 - **F1 live board:** F1's own timing (`f1-live`). Positions, tyres, gaps,
   race control in Chinese by rule (`lib/racecontrol.mjs`), track map,
   compare, stop window, championship as it stands.
+- **拉鋸** (close game): a live game in its last stretch and within reach (NBA 4th or OT, MLB 8th–9th, soccer from the 80th).
 - **Tables count results at once** (`lib/title.mjs liveTable`,
   `liveRacing`, `freshStandings`), on every page with a table. The title
   line says the lead the leader takes at the soonest clinch.
