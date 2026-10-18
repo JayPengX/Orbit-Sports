@@ -1462,9 +1462,12 @@ button.lp-person.tap:active { opacity: 0.6; }
 .h2h-side.home .h2h-who { flex-direction: row-reverse; }
 .h2h-score { display: flex; align-items: baseline; gap: 4px; }
 .h2h-name { order: 3; text-align: right; }
+
 .h2h-side.home .h2h-n { order: 1; }
 .h2h-side.home small { order: 2; }
-.h2h-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; font-size: 14px; }
+/* A long name ("Bournemouth" at 375 px) fits at 13px, or takes a second line, never cut. */
+.h2h-name { min-width: 0; overflow-wrap: break-word; line-height: 1.2; font-weight: 650; font-size: 13px; }
+.h2h-side.away .h2h-name { text-align: left; }
 .h2h-n { font-size: 20px; font-weight: 800; line-height: 1; }
 .h2h small { color: var(--q-muted); font-size: 12px; }
 .h2h-draw { display: flex; align-items: baseline; gap: 4px; padding: 0 4px; align-self: end; color: var(--q-text-2); }
