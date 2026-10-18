@@ -178,3 +178,17 @@ test("a title the next game can settle says which results do it (Nashville 66, M
   assert.equal(close.title.soonest, 1);
   assert.equal(close.title.next, undefined);
 });
+
+test('MLS 2026-10-18: the race on the finals, so a win in the game on now is what settles it', () => {
+  const row = (id, P, GP, W, D, L) => ({ id, stats: { P: String(P), GP: String(GP), W: String(W), D: String(D), L: String(L), GD: '0', F: '0', A: '0' } });
+  const group = { name: 'East', rows: [row('nsh', 66, 29, 20, 6, 3), row('mia', 55, 30, 15, 10, 5), row('ne', 52, 30, 16, 4, 10), ...Array.from({ length: 12 }, (_, i) => row(`t${i}`, 30, 30, 8, 6, 16))] };
+  const live = { kind: 'match', start: '2026-10-18T02:30Z', status: { state: 'in' }, home: { id: 'sj', score: '0', record: '13-8-8' }, away: { id: 'nsh', score: '0', record: '20-6-3' } };
+  // The table as it stands has the 0:0 in (67, 30 played)…
+  const [now] = liveTable([group], [live], 'soccer');
+  assert.equal(now.rows[0].fresh, undefined); // (San Jose isn't in this group: nothing added.)
+  // …the race counts the finals only: Nashville must win the next (tonight's), or Miami not win.
+  const race = standingsRace(group, 'soccer', { total: 34 });
+  assert.equal(race.title.soonest, 1);
+  assert.deepEqual(race.title.next.mine, [3]);
+  assert.deepEqual(race.title.next.theirs, [1, 0]);
+});

@@ -2936,7 +2936,12 @@ function tableOf(league) {
   const recent = sport === 'racing' ? settleScoring(recentOf(league)) : recentOf(league);
   if (sport === 'racing') askFinishes(recentOf(league), () => state.tab === 'matches' && state.scores.league === league && renderScores());
   const now = liveTable(groups, recent, sport, { teamOf: side => f1Driver(side.en || side.name).team });
-  const races = now.map(g => standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league), team: sport === 'racing' && !g.rows.some(r => r.athlete) }));
+  // The race on the finals alone (the owner, 2026-10-18): a game on now
+  // counted as it stands (納什維爾 0:0 in the first half, a draw) made the
+  // "next game" the one after it, and a win tonight that settles it went
+  // unsaid. The game on is the next one, said as this one (raceBlock).
+  const settledNow = sport === 'racing' ? now : liveTable(groups, recent.filter(e => e.status?.state !== 'in'), sport);
+  const races = settledNow.map(g => standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league), team: sport === 'racing' && !g.rows.some(r => r.athlete) }));
   return el('div', {}, [
     standingsTables(now, league, { races, many: sport !== 'racing' && now.length > 1 }),
     el('p', { class: 'muted small table-note', text: t('gapHint') })
