@@ -2999,7 +2999,7 @@ function tableOf(league) {
   // zeros, its order meaningless): last season's final table, said so, as
   // the playoffs tab shows last season's bracket. Not once a game that
   // counts is on or over (opening night, before ESPN's table has it): this
-  // season's, with that game in (liveTable), never last season's carried on.
+  // season's (its finals in: liveTable), never last season's carried on.
   const begun = recentOf(league).some(e => COUNTS(e) && ['in', 'post'].includes(e.status?.state));
   if (!groups.some(tableStarted) && groups.year && !begun) {
     const key = `${league}:${groups.year - 1}`;

@@ -4817,6 +4817,8 @@ function raceBlock(race, g, league, many) {
   const W = (zh, eng) => (L() === 'en' ? eng : zh);
   const sport = LEAGUES[league]?.sport;
   const nm = r => r.short || r.name;
+  // A side playing now (its game isn't in the table till it's over: liveTable).
+  const onNow = id => (ctx.recentOf?.(league) || []).some(e => e.status?.state === 'in' && (e.home?.id === id || e.away?.id === id));
   const line = (icon, main, sub = '', cls = '') => el('div', { class: `race-line ${cls}`.trim() }, [glyph(icon), el('span', { class: 'race-t' }, [el('span', { html: main }), sub ? el('small', { text: sub }) : null])]);
   // (Its words go in as HTML for the <b>: every name and word from a feed escaped, never read as markup, an & kept.)
   const b = x => `<b>${esc(x)}</b>`;
@@ -4833,7 +4835,7 @@ function raceBlock(race, g, league, many) {
     // 邁阿密國際 3:1 won, its "next" is days later; one 下一場 for both read as that finished game).
     // (The line above says what for; one line: 納什維爾下一場贏，或邁阿密國際下一場沒贏.)
     // A side playing now: its next game is this one (這場).
-    const on = r => g.rows.find(y => y.id === r.id)?.fresh === 'in';
+    const on = r => onNow(r.id);
     const next = r => (on(r) ? W('這場', 'this game') : W('下一場', 'next'));
     const parts = [mine && W(`${nm(t.leader)}${next(t.leader)}${mine}`, `${nm(t.leader)} ${mine.replace(' next', '')} ${next(t.leader)}`), theirs && W(`${nm(x.rival)}${next(x.rival)}${theirs}`, `${nm(x.rival)} ${theirs}${on(x.rival) ? ' this game' : ''}`)].filter(Boolean);
     return parts.join(W('，或', ', or '));
@@ -4873,7 +4875,7 @@ function raceBlock(race, g, league, many) {
     if (race.unit === 'wins') lines.push(line('clock', W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`), when));
     else {
       const what = many ? W(`確定${top}`, 'clinch 1st') : W('封王', 'clinch the title');
-      const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : t.soonest === 1 && g.rows.find(y => y.id === t.leader.id)?.fresh === 'in' ? W('最快這場', 'this game') : W(`最快 ${b(t.soonest)} 場後`, `in ${b(t.soonest)} game${t.soonest === 1 ? '' : 's'}`);
+      const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : t.soonest === 1 && onNow(t.leader.id) ? W('最快這場', 'this game') : W(`最快 ${b(t.soonest)} 場後`, `in ${b(t.soonest)} game${t.soonest === 1 ? '' : 's'}`);
       lines.push(line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} could ${what} ${at}`), 
         // (What it takes at the soonest, as a lead: more than the next one can still win after it; the lead now beside it.)
         nextLine(t) || leadLine(t)));

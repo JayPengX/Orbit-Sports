@@ -2,8 +2,10 @@
 // and how soon the title can be won.
 //
 //   liveTable   ESPN's standings come in late (minutes to hours after a
-//               final whistle): the games the table hasn't counted yet,
-//               finished or on now, added to it, marked as not settled.
+//               final whistle): the finished games the table hasn't counted
+//               yet added to it, marked as not settled. Never a game still
+//               on (the owner, 2026-10-18: a 0:0 at 34' went in as a draw),
+//               at half-time, delayed or suspended: only a final (FINAL).
 //               A game is counted once only: by games played. A side's
 //               record on the scoreboard (ESPN's, the team's season so far)
 //               says how many games it will have played once this one is
@@ -34,24 +36,27 @@ export const SEASON_GAMES = { mlb: 162, nba: 82, wnba: 44, nbl: 29, mls: 34, nfl
 
 // A game the table counts (the regular season: not the preseason, play-in, playoffs or all-star game).
 export const COUNTS = e => !['pre', 'post', 'final', 'playin', 'allstar', 'off'].includes(e.stage?.key || '');
+// A game over and done (ESPN's final, or over by the rules: overByRule):
+// the only kind a table adds. Not on, at half-time, delayed, suspended or called off.
+export const FINAL = e => e.status?.state === 'post' && e.status.completed === true && !e.status.void && !e.status.delayed;
 const playedOf = (r, sport) => (sport === 'soccer' ? num(r.stats.GP) : num(r.stats.W) + num(r.stats.L) + num(r.stats.T));
 // "4-0-1", "90-72": the games in a record.
 const recordGames = rec => (/^\d+(-\d+)+$/.test(String(rec || '').trim()) ? String(rec).split('-').reduce((a, n) => a + Number(n), 0) : null);
 
 // groups: the standings ([{ name, rows: [{ id, stats }] }]); events: the
 // league's recent games (any state). → the groups, the uncounted games in,
-// re-ordered, their rows marked `fresh` ('in' on now, 'post' final, not yet
-// in the official table); `.fresh` on the array: how many games were added.
+// re-ordered, their rows marked `fresh` ('post': a final not yet in the
+// official table); `.fresh` on the array: how many games were added.
 export function liveTable(groups, events, sport, { teamOf = null } = {}) {
   if (sport === 'racing') return liveRacing(groups, events, teamOf);
   if (!groups?.length || !['soccer', 'baseball', 'basketball'].includes(sport)) return groups;
-  // Only what the table counts: the regular season (not pre-season, the
-  // play-ins, play-offs or an all-star game).
-  const games = (events || []).filter(e => e.kind === 'match' && !e.status?.void && (e.status?.state === 'in' || e.status?.state === 'post') && e.home?.id && e.away?.id && COUNTS(e));
+  // Only what the table counts: finals of the regular season (not pre-season,
+  // the play-ins, play-offs or an all-star game).
+  const games = (events || []).filter(e => e.kind === 'match' && FINAL(e) && e.home?.id && e.away?.id && COUNTS(e));
   games.sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
-  // Each side's record (as of its latest game here: ESPN's is the season so
-  // far, finals in) and its games in time order: a final is the record's
-  // games less the finals after it; a game on now, one more than the record.
+  // Each side's record (as of its latest final here: ESPN's is the season so
+  // far, finals in) and its finals in time order: a final is the record's
+  // games less the finals after it.
   const sides = new Map();
   for (const e of games)
     for (const s of [e.home, e.away]) {
@@ -63,8 +68,7 @@ export function liveTable(groups, events, sport, { teamOf = null } = {}) {
   const doneAfter = (e, side) => {
     const x = sides.get(side.id);
     if (x?.n == null) return null;
-    if (e.status.state === 'in') return x.n + 1;
-    return x.n - x.list.filter(g => g.status.state === 'post' && Date.parse(g.start) > Date.parse(e.start)).length;
+    return x.n - x.list.filter(g => Date.parse(g.start) > Date.parse(e.start)).length;
   };
   const out = groups.map(g => ({ ...g, rows: g.rows.map(r => ({ ...r, stats: { ...r.stats } })) }));
   const rowOf = id => {
@@ -99,7 +103,7 @@ export function liveTable(groups, events, sport, { teamOf = null } = {}) {
         r.stats.GD = gd > 0 ? `+${gd}` : String(gd);
       }
     } else {
-      // Level while on: no result yet, only marked.
+      // (A tie: no win or loss, only marked.)
       if (hs !== as) {
         const [w, l] = hs > as ? [h, a] : [a, h];
         w.stats.W = String(num(w.stats.W) + 1);
@@ -107,7 +111,7 @@ export function liveTable(groups, events, sport, { teamOf = null } = {}) {
         for (const r of [w, l]) r.stats.PCT = pctText(num(r.stats.W), num(r.stats.L));
       }
     }
-    h.fresh = a.fresh = e.status.state;
+    h.fresh = a.fresh = 'post';
     touched.add(gh).add(ga);
     fresh++;
   }

@@ -4,7 +4,7 @@ import { liveTable, titleRace, standingsRace } from '../public/lib/title.mjs';
 
 const row = (id, stats) => ({ id, name: id, stats });
 const soccerTable = () => [{ name: '', rows: [row('A', { GP: '30', W: '22', D: '4', L: '4', F: '60', A: '20', GD: '+40', P: '70' }), row('B', { GP: '30', W: '20', D: '6', L: '4', F: '55', A: '25', GD: '+30', P: '66' }), row('C', { GP: '30', W: '10', D: '5', L: '15', F: '30', A: '45', GD: '-15', P: '35' })] }];
-const game = (id, state, home, away, hs, as, hrec, arec, start = '2026-10-04T10:00Z') => ({ id, kind: 'match', start, status: { state }, home: { id: home, score: String(hs), record: hrec }, away: { id: away, score: String(as), record: arec } });
+const game = (id, state, home, away, hs, as, hrec, arec, start = '2026-10-04T10:00Z') => ({ id, kind: 'match', start, status: { state, completed: state === 'post' }, home: { id: home, score: String(hs), record: hrec }, away: { id: away, score: String(as), record: arec } });
 
 test('a final the table hasn’t counted is added, once; when the table catches up, nothing more', () => {
   // B beat C: B's record says 31 games now (21-6-4), C's 31; the table still has 30.
@@ -22,22 +22,31 @@ test('a final the table hasn’t counted is added, once; when the table catches 
   assert.equal(again[0].rows[1].stats.P, '69', 'not 72');
 });
 
-test('a game on now counts as it stands (provisional); the record not caught up yet adds nothing', () => {
-  const live = game('2', 'in', 'B', 'A', 1, 0, '20-6-4', '22-4-4');
-  const t = liveTable(soccerTable(), [live], 'soccer');
-  assert.deepEqual(t[0].rows.map(r => r.id), ['A', 'B', 'C'], '70 v 69');
-  assert.equal(t[0].rows[1].stats.P, '69');
-  assert.equal(t[0].rows[1].fresh, 'in');
-  // A final whose record still reads 30 games (ESPN not caught up): left alone.
-  assert.equal(liveTable(soccerTable(), [game('3', 'post', 'B', 'C', 2, 0, '20-6-4', '10-5-15')], 'soccer').fresh, 0);
+test('Forest v Arsenal 2026-10-18, 0:0 at 34\u2032: a game on is never in the table; the final is, once', () => {
+  const t = () => [{ name: '', rows: [row('ARS', { GP: '7', W: '5', D: '1', L: '1', F: '14', A: '5', GD: '+9', P: '16' }), row('NFO', { GP: '7', W: '1', D: '2', L: '4', F: '6', A: '12', GD: '-6', P: '5' })] }];
+  const at = (state, extra = {}) => ({ id: 'nfo-ars', kind: 'match', start: '2026-10-18T11:30Z', status: { state, completed: state === 'post', ...extra }, home: { id: 'NFO', score: '0', record: '1-2-4' }, away: { id: 'ARS', score: '0', record: '5-1-1' } });
+  // On (34'), half-time, delayed, suspended: nothing added, nothing marked.
+  for (const live of [at('in', { short: "34'" }), at('in', { name: 'STATUS_HALFTIME' }), at('in', { delayed: true }), at('in', { name: 'STATUS_SUSPENDED', delayed: true }), at('post', { completed: false, name: 'STATUS_SUSPENDED' }), at('post', { delayed: true })]) {
+    const out = liveTable(t(), [live], 'soccer');
+    assert.equal(out.fresh, 0, JSON.stringify(live.status));
+    assert.deepEqual(out[0].rows.map(r => [r.id, r.stats.GP, r.stats.P, r.fresh]), [['ARS', '7', '16', undefined], ['NFO', '7', '5', undefined]]);
+  }
+  // Full time, 0:0 (records now 1-3-4, 5-2-1): a point each, once.
+  const final = { ...at('post'), home: { id: 'NFO', score: '0', record: '1-3-4' }, away: { id: 'ARS', score: '0', record: '5-2-1' } };
+  const out = liveTable(t(), [final], 'soccer');
+  assert.equal(out.fresh, 1);
+  assert.deepEqual(out[0].rows.map(r => [r.id, r.stats.GP, r.stats.D, r.stats.P, r.fresh]), [['ARS', '8', '2', '17', 'post'], ['NFO', '8', '3', '6', 'post']]);
+  // A final whose record still reads 7 games (ESPN not caught up): left alone.
+  assert.equal(liveTable(t(), [at('post')], 'soccer').fresh, 0);
 });
 
-test('two games a side in the window (yesterday’s final, today’s on now) both count, in order', () => {
+test('two finals a side in the window (yesterday’s, today’s) both count, in order; one on now beside them adds nothing', () => {
   const t = [{ name: '', rows: [row('X', { W: '90', L: '70', PCT: '.563' }), row('Y', { W: '88', L: '72', PCT: '.550' })] }];
-  // Yesterday X beat Y (table hasn't it); today Y leads X. Records: X 91-70, Y 88-73 (finals in).
+  // Yesterday X beat Y, today Y beat X (the table has neither). Records on today's: X 91-71, Y 89-73 (finals in).
   const y1 = game('a', 'post', 'X', 'Y', 5, 3, '91-70', '88-73', '2026-10-03T10:00Z');
-  const y2 = game('b', 'in', 'Y', 'X', 4, 1, '88-73', '91-70', '2026-10-04T10:00Z');
-  const out = liveTable(t, [y2, y1], 'baseball');
+  const y2 = game('b', 'post', 'Y', 'X', 4, 1, '89-73', '91-71', '2026-10-04T10:00Z');
+  const on = game('c', 'in', 'X', 'Y', 2, 0, '91-71', '89-73', '2026-10-04T18:00Z');
+  const out = liveTable(t, [on, y2, y1], 'baseball');
   const [x, y] = ['X', 'Y'].map(id => out[0].rows.find(r => r.id === id));
   assert.deepEqual([x.stats.W, x.stats.L, y.stats.W, y.stats.L], ['91', '71', '89', '73']);
   assert.equal(out.fresh, 2);
@@ -183,9 +192,9 @@ test('MLS 2026-10-18: the race on the finals, so a win in the game on now is wha
   const row = (id, P, GP, W, D, L) => ({ id, stats: { P: String(P), GP: String(GP), W: String(W), D: String(D), L: String(L), GD: '0', F: '0', A: '0' } });
   const group = { name: 'East', rows: [row('nsh', 66, 29, 20, 6, 3), row('mia', 55, 30, 15, 10, 5), row('ne', 52, 30, 16, 4, 10), ...Array.from({ length: 12 }, (_, i) => row(`t${i}`, 30, 30, 8, 6, 16))] };
   const live = { kind: 'match', start: '2026-10-18T02:30Z', status: { state: 'in' }, home: { id: 'sj', score: '0', record: '13-8-8' }, away: { id: 'nsh', score: '0', record: '20-6-3' } };
-  // The table as it stands has the 0:0 in (67, 30 played)…
+  // The 0:0 on now isn't in the table…
   const [now] = liveTable([group], [live], 'soccer');
-  assert.equal(now.rows[0].fresh, undefined); // (San Jose isn't in this group: nothing added.)
+  assert.equal(now.rows[0].fresh, undefined);
   // …the race counts the finals only: Nashville must win the next (tonight's), or Miami not win.
   const race = standingsRace(group, 'soccer', { total: 34 });
   assert.equal(race.title.soonest, 1);

@@ -55,7 +55,8 @@ couldn't be read is shown, never hidden.
   compare, stop window, championship as it stands.
 - **拉鋸** (close game): a live game in its last stretch and within reach (NBA 4th or OT, MLB 8th–9th, soccer from the 80th).
 - **Tables count results at once** (`lib/title.mjs liveTable`,
-  `liveRacing`, `freshStandings`), on every page with a table. The title
+  `liveRacing`, `freshStandings`), on every page with a table: finals
+  only, never a game still on. The title
   line says the lead the leader takes at the soonest clinch.
 - **Playoffs** (`lib/playoffs.mjs`, `bracket.mjs`): real ties, predicted
   from the table while the season runs, or last season's.
