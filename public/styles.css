@@ -123,6 +123,8 @@ img { max-width: 100%; }
 .list > .event-row:first-child, .list > :first-child .event-row { border-top: 0; }
 @media (hover: hover) { .event-row:hover { background: var(--q-sunken); } }
 .event-meta { display: grid; gap: 3px; min-width: 0; }
+/* One of today's picks among the games on now: said on its row. */
+.pick-mark { justify-self: start; margin-top: 2px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: 12px; font-weight: 800; white-space: nowrap; }
 .event-status { font-size: 12.5px; font-weight: 700; color: var(--q-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .event-status.in { color: var(--live); }
 .event-status.in::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 5px; vertical-align: 2px; animation: pulse 1.4s ease-in-out infinite; }

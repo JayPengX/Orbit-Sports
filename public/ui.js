@@ -362,14 +362,17 @@ export const seriesText = e => {
   const now = ctx.locale === 'en' ? s : seriesLineZh(s, name) || s;
   return [len, now].filter(Boolean).join(' · ');
 };
-export function eventRow(e, { league = true, day = true } = {}) {
+// (`picked`: one of today's picks (今日推薦), said so on the row: in 正在進行
+// among the rest of theirs on now, which was a pick went unsaid.)
+const pickMark = () => el('span', { class: 'pick-mark', text: ctx.locale === 'en' ? '★ Pick' : '★ 推薦' });
+export function eventRow(e, { league = true, day = true, picked = false } = {}) {
   const mine = ctx.isFollowedEvent?.(e);
   const tag = stageTag(e, ctx.locale);
   if (e.kind === 'match') {
     const w = winners(e);
     const series = seriesText(e);
-    return el('button', { class: `event-row${e.status.state === 'in' ? ' live' : ''}${mine ? ' mine' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) }, [
-      el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
+    return el('button', { class: `event-row${e.status.state === 'in' ? ' live' : ''}${mine ? ' mine' : ''}${picked ? ' picked' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) }, [
+      el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null, picked ? pickMark() : null]),
       el('div', { class: 'event-sides' }, [
         tag ? el('span', { class: 'stage-tag', text: tag }) : null,
         sideLine(e.away, e, w.away),
@@ -386,8 +389,8 @@ export function eventRow(e, { league = true, day = true } = {}) {
   const sess = sessionTag(e);
   const said = sess ? '' : e.session;
   const sub = e.status.state === 'in' && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.venue;
-  return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) }, [
-    el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null]),
+  return el('button', { class: `event-row wide${e.status.state === 'in' ? ' live' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}${picked ? ' picked' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) }, [
+    el('div', { class: 'event-meta' }, [statusEl(e, day), league ? compChip(e) : null, picked ? pickMark() : null]),
     el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, el('strong', { text: e.name })]), e.league === 'f1' && e.status.state === 'in' ? f1Brief(e) : podium(e) || (sub ? el('small', { text: sub }) : null), tvLine(e)])
   ]);
 }
