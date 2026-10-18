@@ -6,7 +6,7 @@ import { liveTable, standingsRace, titleRace, roundOf, roundCounted, COUNTS, pct
 import { withGaps, cpblTable, driverSeason, seasonRounds, seasonTo, parseCalendar, monthsBetween, roundKind, roundLabel, zoneColor } from '../public/lib/espn.mjs';
 
 const row = (id, stats, extra = {}) => ({ id, name: id, stats, ...extra });
-const match = (id, state, home, away, hs, as, hrec, arec, extra = {}) => ({ id, kind: 'match', start: '2026-10-04T10:00Z', status: { state }, home: { id: home, score: String(hs), record: hrec }, away: { id: away, score: String(as), record: arec }, ...extra });
+const match = (id, state, home, away, hs, as, hrec, arec, extra = {}) => ({ id, kind: 'match', start: '2026-10-04T10:00Z', status: { state, completed: state === 'post' }, home: { id: home, score: String(hs), record: hrec }, away: { id: away, score: String(as), record: arec }, ...extra });
 
 test('a table with the results in keeps its season’s year (the page asks for last season’s by it)', () => {
   const groups = Object.assign([{ name: '', rows: [row('A', { W: '10', L: '5', PCT: '.667' }), row('B', { W: '8', L: '7', PCT: '.533' })] }], { year: 2026 });
@@ -35,7 +35,7 @@ test('liveTable leaves out what the table doesn’t count: called off, preseason
   assert.deepEqual(liveTable([], games, 'soccer'), []);
 });
 
-test('liveTable: a soccer draw is a point each, a goal difference keeps its sign; a basketball game level while on adds no result', () => {
+test('liveTable: a soccer draw is a point each, a goal difference keeps its sign; a basketball game on adds nothing', () => {
   const t = [{ name: '', rows: [row('A', { GP: '5', W: '3', D: '1', L: '1', F: '9', A: '5', GD: '+4', P: '10' }), row('B', { GP: '5', W: '0', D: '1', L: '4', F: '2', A: '8', GD: '-6', P: '1' })] }];
   const out = liveTable(t, [match('d', 'post', 'B', 'A', 1, 1, '0-2-4', '3-2-1')], 'soccer');
   const [a, b] = ['A', 'B'].map(id => out[0].rows.find(r => r.id === id));
@@ -43,7 +43,7 @@ test('liveTable: a soccer draw is a point each, a goal difference keeps its sign
   assert.deepEqual([b.stats.P, b.stats.GD, b.stats.A], ['2', '-6', '9']);
   const bb = [{ name: '', rows: [row('X', { W: '1', L: '0', PCT: '1.000' }), row('Y', { W: '0', L: '1', PCT: '.000' })] }];
   const on = liveTable(bb, [match('l', 'in', 'X', 'Y', 50, 50, '1-0', '0-1')], 'basketball');
-  assert.deepEqual([on[0].rows[0].stats.W, on[0].rows[0].stats.L, on[0].rows[0].fresh], ['1', '0', 'in']);
+  assert.deepEqual([on[0].rows[0].stats.W, on[0].rows[0].stats.L, on[0].rows[0].fresh, on.fresh], ['1', '0', undefined, 0]);
 });
 
 test('games behind and points behind: the leader "-", a missing number left blank', () => {

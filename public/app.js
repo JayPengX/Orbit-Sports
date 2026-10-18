@@ -267,7 +267,7 @@ const GAME_KEEP = 2 * 86_400_000;
 // A race weekend's sessions all share its key (the weekend's id).
 const gameKey = e => `${e.league}:${e.weekend || e.id}`;
 const keptGames = list => (list || []).filter(g => g && LEAGUES[g.league] && g.id && Date.parse(g.start) > Date.now() - GAME_KEEP);
-const slimSide = x => (x ? { id: String(x.id ?? ''), name: x.name, short: x.short, en: x.en, abbr: x.abbr, logo: x.logo, color: x.color } : x);
+const slimSide = x => (x ? { id: String(x.id ?? ''), name: x.name, short: x.short, en: x.en, abbr: x.abbr, logo: x.logo, color: x.color, alt: x.alt } : x);
 function isFollowedGame(e) {
   return Boolean(e) && state.prefs.games.some(g => gameKey(g) === gameKey(e));
 }
@@ -2999,7 +2999,7 @@ function tableOf(league) {
   // zeros, its order meaningless): last season's final table, said so, as
   // the playoffs tab shows last season's bracket. Not once a game that
   // counts is on or over (opening night, before ESPN's table has it): this
-  // season's, with that game in (liveTable), never last season's carried on.
+  // season's (its finals in: liveTable), never last season's carried on.
   const begun = recentOf(league).some(e => COUNTS(e) && ['in', 'post'].includes(e.status?.state));
   if (!groups.some(tableStarted) && groups.year && !begun) {
     const key = `${league}:${groups.year - 1}`;

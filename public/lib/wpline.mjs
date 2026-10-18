@@ -71,8 +71,11 @@ export function holdToEnd(points, timeline = [], final = null) {
 // one made readable: too close to the card (the Padres' brown, the Brewers'
 // navy on a dark card), lightened (on a dark card) or darkened (on a light
 // one) in its own hue until it stands out. The first pair, in that order, far enough apart wins (two
-// yellows aren't; brown and navy, made readable, are). Colours as
-// '#rrggbb'; null where a side has none.
+// yellows aren't; brown and navy, made readable, are). None apart (Forest
+// and Arsenal: two reds, white seconds) or a side with no colour: one keeps
+// its own and the other takes a spare one apart from it (the owner,
+// 2026-10-18: Arsenal's band came out grey, as grey as the draw's, and
+// nothing said whose was whose). Always two colours, as '#rrggbb'.
 const rgb = c => (/^#?[0-9a-f]{6}$/i.test(c || '') ? [0, 2, 4].map(i => parseInt(c.replace('#', '').slice(i, i + 2), 16)) : null);
 const hex = c => `#${c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
 // WCAG's relative luminance and contrast.
@@ -101,17 +104,20 @@ function fromHsl([h, s, l]) {
   const f = t => ((t = (t + 1) % 1), t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p);
   return [f(h + 1 / 3), f(h), f(h - 1 / 3)].map(v => v * 255);
 }
-export function readableOn(c, bg = '#ffffff') {
+// (need: 3 for a line or a band; 4.5 for text in that colour.)
+export function readableOn(c, bg = '#ffffff', need = READABLE) {
   const [col, back] = [rgb(c), rgb(bg) || [255, 255, 255]];
   if (!col) return null;
   const [h, sat, l] = toHsl(col);
   const step = lum(back) < 0.18 ? 0.025 : -0.025;
   for (let x = l; x >= 0 && x <= 1; x += step) {
     const c2 = fromHsl([h, sat, x]);
-    if (contrast(c2, back) >= READABLE) return hex(c2);
+    if (contrast(c2, back) >= need) return hex(c2);
   }
   return null;
 }
+// A side's spare colours, far from each other and from a draw's grey: a blue, a teal, a purple, an amber, a red.
+const SPARE = ['#2f6fdf', '#0f9d8a', '#8b5cf6', '#e08a00', '#d9443a'];
 export function sideColors(home, away, bg = '#ffffff') {
   // A colour readable as it is first (Newcastle's light blue before its black lightened), then made readable.
   const ok = c => rgb(c) && contrast(rgb(c), rgb(bg) || [255, 255, 255]) >= READABLE;
@@ -122,8 +128,15 @@ export function sideColors(home, away, bg = '#ffffff') {
     return sat >= 0.25 && l > 0.08 && l < 0.92;
   };
   const own = c => (ok(c) ? c : readableOn(c, bg));
+  // Never black, white or grey: a band in it reads as the draw's grey or as
+  // nothing (two reds with white seconds: the white, made readable on a
+  // light card, came out grey).
+  const neutral = c => {
+    const [, sat, l] = toHsl(rgb(c));
+    return sat < 0.12 || l <= 0.08 || l >= 0.92;
+  };
   // Its own colour as it is, then its hues (its own, then its second) made readable, then whatever's readable.
-  const tries = s => [...new Set([...[s?.color].filter(ok), ...[s?.color, s?.alt].filter(hued).map(own), ...[s?.color, s?.alt].filter(ok), ...[s?.color, s?.alt].map(c => readableOn(c, bg))].filter(Boolean).map(c => c.toLowerCase()))];
+  const tries = s => [...new Set([...[s?.color].filter(ok), ...[s?.color, s?.alt].filter(hued).map(own), ...[s?.color, s?.alt].filter(ok), ...[s?.color, s?.alt].map(c => readableOn(c, bg))].filter(c => c && !neutral(c)).map(c => c.toLowerCase()))];
   const [hs, as] = [tries(home), tries(away)];
   // Told apart: far apart, or two clear hues a good way round the wheel (Genoa's navy and Fiorentina's purple).
   const hueGap = (x, y) => {
@@ -131,8 +144,13 @@ export function sideColors(home, away, bg = '#ffffff') {
     const d = Math.abs(h1 - h2) * 360;
     return s1 >= 0.35 && s2 >= 0.35 ? Math.min(d, 360 - d) : 0;
   };
-  for (const h of hs) for (const a of as) if (apart(rgb(h), rgb(a)) >= 90 || hueGap(h, a) >= 40) return { home: h, away: a };
-  return { home: hs[0] || null, away: hs.length ? null : as[0] || null };
+  const far = (x, y) => apart(rgb(x), rgb(y)) >= 90 || hueGap(x, y) >= 40;
+  for (const h of hs) for (const a of as) if (far(h, a)) return { home: h, away: a };
+  const spare = other => SPARE.map(c => readableOn(c, bg)).find(c => c && (!other || far(c, other)));
+  if (hs[0]) return { home: hs[0], away: spare(hs[0]) };
+  if (as[0]) return { home: spare(as[0]), away: as[0] };
+  const first = spare(null);
+  return { home: first, away: spare(first) };
 }
 
 export function lineXs(points, timeline = []) {

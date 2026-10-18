@@ -49,13 +49,16 @@ couldn't be read is shown, never hidden.
   - A team page ranks its own players; a player page shows their league
     ranks; a match shows each side's season leaders.
 - **Win chance:** ESPN's line, else Polymarket's. A chart with key moments
-  while on or over; a split bar before.
+  while on or over; a split bar before. Each side in its colour, its
+  chance written in it (`wpline.mjs sideColors`: two alike, or none, and
+  one takes a spare colour); a draw grey.
 - **F1 live board:** F1's own timing (`f1-live`). Positions, tyres, gaps,
   race control in Chinese by rule (`lib/racecontrol.mjs`), track map,
   compare, stop window, championship as it stands.
 - **拉鋸** (close game): a live game in its last stretch and within reach (NBA 4th or OT, MLB 8th–9th, soccer from the 80th).
 - **Tables count results at once** (`lib/title.mjs liveTable`,
-  `liveRacing`, `freshStandings`), on every page with a table. The title
+  `liveRacing`, `freshStandings`), on every page with a table: finals
+  only, never a game still on. The title
   line says the lead the leader takes at the soonest clinch.
 - **Playoffs** (`lib/playoffs.mjs`, `bracket.mjs`): real ties, predicted
   from the table while the season runs, or last season's.
