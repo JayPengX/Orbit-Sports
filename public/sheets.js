@@ -1540,7 +1540,7 @@ function winProbCard(line, e, timeline, events = []) {
   // The player's face (the batter, the scorer), else the team's badge (a run), else the sport's sign.
   // A run's team badge to the team's page.
   const teamTap = x => (hasTeamPage(e.league) && x.id && !x.guest ? el('button', { class: 'wp-who team', type: 'button', 'aria-label': x.name || '', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, x.id, x)) }, [sideLogo(x, e.league, 'sm')]) : sideLogo(x, e.league, 'sm'));
-  const face = m => (m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : momentGlyph(m.icon));
+  const face = m => (m.pics?.length > 1 ? el('span', { class: 'wp-pair' }, m.pics.map(p => personTap(e.league, p, personPic(p, e.league, 'sm round')))) : m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : momentGlyph(m.icon));
   const tell = (m, label) => {
     why.hidden = !m;
     // The words on one line, the chance's move under them (the owner,

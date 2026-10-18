@@ -569,6 +569,13 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .wp-why-icon { flex: none; display: inline-flex; }
 .wp-why-icon .logo, .wp-mo-face .logo { width: 26px; height: 26px; }
 .wp-mo-face { display: inline-flex; align-items: center; justify-content: center; }
+/* Two players named (a homer and a single, back to back): both faces, the
+   second down and to the right over the first, in the one face's column. */
+.wp-pair { position: relative; display: inline-block; width: 28px; height: 40px; flex: none; }
+.wp-pair > * { position: absolute; }
+.wp-pair > :first-child { left: 0; top: 0; }
+.wp-pair > :last-child { right: 0; bottom: 0; border-radius: 50%; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 0 3px var(--q-surface); }
+.wp-pair .logo, .wp-why-icon .wp-pair .logo, .wp-mo-face .wp-pair .logo { width: 23px; height: 23px; }
 /* A moment's drawn sign (sheets.js momentGlyph): a round tile the size of a face. */
 .wp-glyph { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--q-fill, rgba(127,127,127,.18)); color: var(--q-text); flex: none; }
 .wp-why-icon .wp-glyph { width: 28px; height: 28px; }

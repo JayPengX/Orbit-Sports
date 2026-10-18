@@ -282,25 +282,29 @@ function halfInnings(points, vals, side) {
 // 2026-10-18) as that, its batters named; else its two hits, each said.
 const HOMER = /home run|homered|grand slam/i;
 const whoOf = p => p.who || named(p.text);
-function rallyHits(points, hits, key, runs, en, team) {
+// (`said` gets the hitters the words name, for their faces.)
+function rallyHits(points, hits, key, runs, en, team, said = []) {
   const top = points[key].play;
-  if (hits.length === 1 || (Number(top.value) || 0) * 2 > runs) return playText('baseball', top, en, team);
+  if (hits.length === 1 || (Number(top.value) || 0) * 2 > runs) return said.push(key), playText('baseball', top, en, team);
   const homers = hits.filter(k => HOMER.test(`${points[k].play.alt} ${points[k].play.text}`));
   // Back to back: two (or more) homers with no scoring play between them.
   const run = [];
   for (const k of homers) if (!run.length || hits.indexOf(k) === hits.indexOf(run.at(-1)) + 1) run.push(k);
   else if (run.length < 2) run.splice(0, run.length, k);
   if (run.length >= 2) {
+    said.push(...run.slice(0, 3));
     const names = run.slice(0, 3).map(k => whoOf(points[k].play));
     return en ? `${names.join(', ')} back-to-back homers` : `${names.join('、')} 背靠背全壘打`;
   }
   if (hits.length >= 3) {
     // Two named on the line (it fits a phone), how many drove runs in under it.
+    said.push(...hits.slice(0, 2));
     const names = hits.slice(0, 2).map(k => whoOf(points[k].play));
     return en ? `${names.join(', ')} and more · ${hits.length} RBI plays` : `${names.join('、')} 等串聯 · ${hits.length} 次打點`;
   }
   const two = [...hits].sort((x, y) => (Number(points[y].play.value) || 0) - (Number(points[x].play.value) || 0)).slice(0, 2).sort((x, y) => x - y);
   // The names on the line, what each did under it (both on one line overran its chip).
+  said.push(...two);
   const did = k => firstOf(en ? MLB_EN : MLB_ZH, points[k].play.alt, points[k].play.text) || (en ? 'scores' : '安打');
   return `${two.map(k => whoOf(points[k].play)).join(en ? ', ' : '、')} · ${two.map(did).join(en ? ', ' : '、')}`;
 }
@@ -332,7 +336,10 @@ function baseballMoments(points, side) {
       const when = side.en ? `${points[a].half === 'top' ? 'Top' : 'Bottom'} ${points[a].n}` : `${points[a].n}局${points[a].half === 'top' ? '上' : '下'}`;
       const hits = scored.filter(k => whoOf(points[k].play));
       const key = [...hits].sort((x, y) => (Number(points[y].play.value) || 0) - (Number(points[x].play.value) || 0) || Math.abs(vals[y] - vals[y - 1]) - Math.abs(vals[x] - vals[x - 1]))[0];
-      const told = key != null ? rallyHits(points, hits, key, runs, side.en, team.name) : '';
+      const named = [];
+      const told = key != null ? rallyHits(points, hits, key, runs, side.en, team.name, named) : '';
+      // Two (or three) players named: each one's face (the owner, 2026-10-18).
+      const faces = [...new Map(named.map(k => points[k].play.pic).filter(Boolean).map(p => [p.id || p.name || p, p])).values()];
       // The inning's runs when the words don't already say them all.
       const total = key != null && hits.length === 1 && (Number(points[key].play.value) || 0) >= runs ? '' : side.en ? ` · ${runs}-run inning` : ` · 這局共 ${runs} 分`;
       const [l0, l1] = [lead(s0), lead(s1)];
@@ -340,7 +347,7 @@ function baseballMoments(points, side) {
       const said = turned ? (side.en ? (turned === 'tie' ? ' · ties it' : ' · takes the lead') : turned === 'tie' ? ' · 追平' : ' · 超前') : '';
       const delta = vals[b] - vals[a - 1];
       const text = told ? told + total + said : (side.en ? `${team.name} score ${runs} · ${when}` : `${team.name} ${when}攻下 ${runs} 分`) + said;
-      out.push({ i: last, from: a, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON.baseball, text, pic: key != null ? points[key].play.pic : null, team: team.id, src: points[key ?? last].play, rally: true, always: true, turned });
+      out.push({ i: last, from: a, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON.baseball, text, pic: key != null ? points[key].play.pic : null, pics: faces.length > 1 ? faces.slice(0, 2) : null, team: team.id, src: points[key ?? last].play, rally: true, always: true, turned });
     }
     a = i;
   }

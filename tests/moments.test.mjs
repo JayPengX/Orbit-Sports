@@ -362,6 +362,7 @@ test("baseball: an inning's rally names its biggest hit, the inning's runs under
   const rally = playMoments(pts, 'baseball', side).find(m => m.rally);
   assert.equal(rally?.text, 'S. Ohtani 全壘打 · 3 分打點 · 這局共 4 分 · 超前');
   assert.equal(rally.pic, 'ohtani');
+  assert.equal(rally.pics, null);
   const en = playMoments(pts, 'baseball', { ...side, en: true }).find(m => m.rally);
   assert.match(en.text, /4-run inning/);
 });
@@ -371,13 +372,15 @@ test("baseball: back-to-back homers are named together, not one as if it were th
   const add = (v, n, half, play = {}) => pts.push({ home: v, n, half, play: { text: 'x', type: 'Play Result', ...play } });
   add(0.5, 1, 'top', { home: 0, away: 0 });
   add(0.5, 2, 'top', { home: 0, away: 0 });
-  add(0.58, 2, 'bottom', { home: 1, away: 0, scoring: true, value: 1, who: 'S. Ohtani', alt: 'Home Run' });
-  add(0.66, 2, 'bottom', { home: 2, away: 0, scoring: true, value: 1, who: 'M. Betts', alt: 'Home Run' });
+  add(0.58, 2, 'bottom', { home: 1, away: 0, scoring: true, value: 1, who: 'S. Ohtani', alt: 'Home Run', pic: 'ohtani' });
+  add(0.66, 2, 'bottom', { home: 2, away: 0, scoring: true, value: 1, who: 'M. Betts', alt: 'Home Run', pic: 'betts' });
   add(0.7, 2, 'bottom', { home: 2, away: 0 });
   add(0.7, 3, 'top', { home: 2, away: 0 });
   const side = { home: { id: 'h', name: '道奇' }, away: { id: 'a', name: '釀酒人' }, en: false };
   const rally = playMoments(pts, 'baseball', side).find(m => m.rally);
   assert.equal(rally?.text, 'S. Ohtani、M. Betts 背靠背全壘打 · 這局共 2 分 · 超前');
+  // Two named, two faces.
+  assert.deepEqual(rally.pics, ['ohtani', 'betts']);
 });
 
 test("baseball: an inning of small hits, none big, reads as the string of them", () => {
