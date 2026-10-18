@@ -87,3 +87,29 @@ test('a day’s leagues: one with a page unread is shown and read again, never t
   assert.deepEqual([[...r.read], r.failed, r.unread], [['epl'], 2, false]);
   assert.equal(dayReads([], []).unread, false);
 });
+
+test('a day whose reads failed is never said to have nothing on', async () => {
+  const { dayUnknown } = await import('../public/lib/days.mjs');
+  // Offline, nothing followed: the day's own read had no league to fail
+  // (partial 0), but the others' and ELTA's list did.
+  assert.equal(dayUnknown([{ partial: 0, othersFailed: 24 }], true), 'leagues');
+  // Every league read, ELTA's list not: which games are on isn't known.
+  assert.equal(dayUnknown([{ partial: 0, othersFailed: 0 }], true), 'tv');
+  // A followed league unread.
+  assert.equal(dayUnknown([{ partial: 2 }], false), 'leagues');
+  // Everything read: only now can a day have nothing on.
+  assert.equal(dayUnknown([{ partial: 0, othersFailed: 0, restFailed: 3 }], false), null);
+  // 轉播 counts the rest's (every league on now) and tomorrow's too; a day not held yet is still reading, not a gap.
+  assert.equal(dayUnknown([{ partial: 0, othersFailed: 0, restFailed: 3 }], false, { rest: true }), 'leagues');
+  assert.equal(dayUnknown([{ partial: 0 }, { partial: 1 }], false), 'leagues');
+  assert.equal(dayUnknown([{ partial: 0 }, undefined], false), null);
+});
+
+test('a league’s table unread is said so, never "this league has no table"', async () => {
+  const { tableSays } = await import('../public/lib/days.mjs');
+  assert.equal(tableSays(null), 'wait');
+  assert.equal(tableSays(undefined), 'wait');
+  assert.equal(tableSays(Object.assign([], { failed: true })), 'failed');
+  assert.equal(tableSays([]), 'none');
+  assert.equal(tableSays([{ rows: [] }]), 'table');
+});

@@ -29,7 +29,7 @@ import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted } from
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
-import { nearestDay, dayReads } from './lib/days.mjs';
+import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
 import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
@@ -667,8 +667,9 @@ async function loadDay(date, { live = false } = {}) {
     if (isToday && !events.failed) saveDay(date, slot);
     retry = events.failed > 0;
   } catch {
-    // Nothing read: the last copy stays, and it's tried again shortly.
-    Object.assign(slot, { at: slot.at || Date.now(), stale: false, leagues: key, partial: pickLeagues().length });
+    // Nothing read: the last copy stays, and it's tried again shortly
+    // (counted as unread, never as none: at least one).
+    Object.assign(slot, { at: slot.at || Date.now(), stale: false, leagues: key, partial: Math.max(1, pickLeagues().length) });
     retry = true;
   } finally {
     slot.loading = false;
@@ -698,13 +699,19 @@ async function loadOthers(date, live = false) {
   if (live && !pages.size) return;
   slot.othersLoading = true;
   try {
-    slot.others = live ? overHeld(slot.others, await readDay(otherLeagues().slice(0, 24), date, { pages }), pages) : await readDay(otherLeagues().slice(0, 24), date);
+    const got = live ? overHeld(slot.others, await readDay(otherLeagues().slice(0, 24), date, { pages }), pages) : await readDay(otherLeagues().slice(0, 24), date);
+    slot.others = got;
+    if (!live) slot.othersFailed = got.failed || 0;
   } catch {
     slot.others = slot.others || [];
+    // None of them read: unread, never "nothing else on" (dayUnknown).
+    if (!live) slot.othersFailed = Math.max(1, otherLeagues().slice(0, 24).length);
   } finally {
     slot.othersLoading = false;
     if (!live) slot.othersAt = Date.now();
   }
+  // Some unread: read again shortly (a day of no follows has no day's read to retry with).
+  if (!live) retryLater(slot, 'othersRetries', slot.othersFailed > 0, () => loadOthers(date));
   repaintDay(date);
 }
 // Every other league, for 直播: what's on now anywhere, not only in the
@@ -721,14 +728,23 @@ async function loadRest(date, live = false) {
   if (live && !pages.size) return;
   slot.restLoading = true;
   try {
-    slot.rest = live ? overHeld(slot.rest, await readDay(restLeagues(), date, { current: true, pages }), pages) : await readDay(restLeagues(), date, { current: true });
+    const got = live ? overHeld(slot.rest, await readDay(restLeagues(), date, { current: true, pages }), pages) : await readDay(restLeagues(), date, { current: true });
+    slot.rest = got;
+    if (!live) slot.restFailed = got.failed || 0;
   } catch {
     slot.rest = slot.rest || [];
+    if (!live) slot.restFailed = Math.max(1, restLeagues().length);
   } finally {
     slot.restLoading = false;
     if (!live) slot.restAt = Date.now();
   }
+  if (!live) retryLater(slot, 'restRetries', slot.restFailed > 0, () => loadRest(date));
   repaintDay(date);
+}
+// A read with leagues unread, tried again shortly (4, 8, 12, 16 s), as loadDay's.
+function retryLater(slot, count, failed, again) {
+  if (!failed) return void (slot[count] = 0);
+  if ((slot[count] = (slot[count] || 0) + 1) <= 4) setTimeout(again, 4000 * slot[count]);
 }
 let pushTimer = 0;
 // The followed leagues' tables, for the picks and 追蹤's places (they come in on their own).
@@ -757,12 +773,16 @@ function loadTables() {
 // over is never left 'on' (read every 2 minutes while one was on, each MLB
 // team's 0.3 to 2.8 MB, for nothing the scoreboards hadn't said).
 const teamsAt = new Map();
+// The ones whose read failed, and when: their card says so (none held),
+// never a team with no games; read again 20 s on, not at every repaint.
+const teamsUnread = new Map();
 const TEAM_MS = 10 * 60_000;
 async function loadFollowedTeams() {
   for (const f of followedTeams().slice(0, 12)) {
     const key = `${f.league}:${f.id}`;
     if (LEAGUES[f.league]?.kind !== 'match') continue;
     const had = state.home.teams.get(key);
+    if (Date.now() - (teamsUnread.get(key) ?? -Infinity) < 20_000) continue;
     if (state.home.teams.has(key) && (had === null || teamsAt.get(key) === 'loading' || Date.now() - (teamsAt.get(key) || 0) < TEAM_MS)) continue;
     if (!had) state.home.teams.set(key, null);
     teamsAt.set(key, 'loading');
@@ -770,6 +790,7 @@ async function loadFollowedTeams() {
     (hasTeams(f.league) ? teamSchedule(f.league, f.id) : seasonEvents(f.league).then(list => list.filter(e => e.home?.id === String(f.id) || e.away?.id === String(f.id)).sort((a, b) => a.start.localeCompare(b.start))))
       .then(list => {
         teamsAt.set(key, Date.now());
+        teamsUnread.delete(key);
         // Followed from one of our cups (Benfica in 歐霸): its games in our
         // competitions only, not its league's that ELTA doesn't show.
         // (Only the competitions Orbit Sports has: a friendly isn't one.)
@@ -783,6 +804,10 @@ async function loadFollowedTeams() {
       .catch(() => {
         teamsAt.delete(key);
         if (!had) state.home.teams.delete(key);
+        // Said so on 追蹤 now, and read again in 20 s (its render reads what's missing).
+        teamsUnread.set(key, Date.now());
+        if (state.tab === 'following') renderFollowing();
+        setTimeout(() => state.tab === 'following' && renderFollowing(), 20_500);
       });
   }
 }
@@ -811,7 +836,7 @@ function syncPush() {
   // Today's picks, each starting (its own kind of notice, 今日推薦開賽): one
   // a followed team's start notice already covers isn't said twice.
   for (const e of (state.todayPicks || []).map(freshGame)) {
-    const start = Date.parse(e.official || e.start);
+    const start = Date.parse(e.start); // (an F1 session's: its title time, the owner's call, 2026-10-18)
     if (e.status?.state === 'post' || e.status?.void || e.timeTbd || !(start > now - GRACE) || start > now + 86_400_000) continue;
     const key = `${e.league}:${e.id}`;
     if (items.some(x => x.tag === `start:${key}`)) continue;
@@ -830,7 +855,8 @@ function syncPush() {
   // the sprint's and the race's result (the Worker reads the podium off ESPN's day).
   for (const e of followedGames()) {
     if (e.kind !== 'field' || !['Qual', 'SR', 'Race'].includes(e.sessionKey) || e.status.state === 'post') continue;
-    const start = Date.parse(e.official || e.start);
+    // (The start notice at the title time, a few minutes before the official start: the owner's call, 2026-10-18.)
+    const start = Date.parse(e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     const title = `${e.name} ${e.session}`;
     if (start > now - GRACE) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: 'live', kind: 'start' });
@@ -1185,6 +1211,9 @@ function renderHome() {
   // (ELTA's list unread: every game of theirs, not none; tvUnread.)
   const shown = e => !practice(e) && (isFollowedGame(e) || onTv(e) || ((e.status.state === 'post' || past || tvUnread()) && !tvKnown(e)));
   const mine = slot.events.filter(shown);
+  // What the reads left unknown (the day's leagues, the others', ELTA's
+  // list): while any is, the day is never said to have nothing on.
+  const gap = dayUnknown([slot], tvUnread());
   // Today with every one of its games over: shown as any day gone by (its
   // picks as they stood, the results in them, 今天 · 已結束的推薦 and how
   // many, 更多推薦), not as a day still going with an ended corner.
@@ -1196,7 +1225,7 @@ function renderHome() {
   // next day they have games (only on a fresh read: a saved or half-read
   // day can't say there's none). 今天 on the strip still shows today's.
   const nothingToday = !planList.length && !mine.some(e => e.status.state === 'in' || e.status.state === 'post');
-  if ((nothingToday || todayOver) && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length && !slot.stale && !slot.loading) {
+  if ((nothingToday || todayOver) && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length && !slot.stale && !slot.loading && !gap) {
     h.autoDay = false;
     h.jumping = true;
     nextPickDay().then(d => {
@@ -1312,7 +1341,7 @@ function renderHome() {
       .sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
     // Said as the other days are (今日推薦, 明天 · 推薦) and today's ended games (已結束): 昨天 · 已結束.
     const title = `${dayLabel(h.date)} · ${L(ENDED_GAMES)}`;
-    if (!games.length) return section(title, el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: hasFollows ? t('noMineDay') : t('noFollowsYet') }), fullSchedule()]));
+    if (!games.length) return section(title, el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet') }), fullSchedule()]));
     return el('div', {}, [
       section(title, el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e))), { sub: t('gamesN', { n: games.length }) }),
       games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null
@@ -1327,11 +1356,11 @@ function renderHome() {
     // picks: ranked again on today's tables, yesterday's changed; the owner,
     // 2026-10-18). Theirs and the others on TV, under the sport chosen.
     past ? pastDay() : null,
-    !past && (fallback || finding) && !endedGames.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: slot.partial ? t('someUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : noTvText(h.date) }), !finding && !planList.length ? fullSchedule() : null]) : null,
+    !past && (fallback || finding) && !endedGames.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: gap === 'leagues' ? t('someUnread') : gap === 'tv' ? t('tvUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : gap ? t('notKnownYet') : noTvText(h.date) }), !finding && !planList.length ? fullSchedule() : null]) : null,
     !past && finding ? spinner() : null,
     past ? null : planList.length
       ? section(fallback ? t('othersPicks') : isToday ? t('todayPicks') : `${dayLabel(h.date)} · ${past ? L(ENDED_PICKS) : t('picksOn')}`, el('div', { class: 'pick-list' }, planList.map((x, i) => pickCard(x, i))), { sub: fallback ? '' : t('recsN', { n: planList.length }) })
-      : finding || fallback || liveBlock ? null : section(t('todayPicks'), el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: h.filter === 'all' ? noTvText(h.date) : t('noPicksMine') }), fullSchedule()])),
+      : finding || fallback || liveBlock ? null : section(t('todayPicks'), el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine') }), fullSchedule()])),
     !past && shownMore.length
       ? section(t('moreRecs'), el('div', { class: 'q-card list' }, shownMore.map(x => eventRow(x.event))), {
           action: null
@@ -1559,6 +1588,8 @@ function renderLive() {
   if (!next?.at && !next?.loading) loadDay(tomorrow);
   else if (next?.at && !next.othersAt && !next.othersLoading) loadOthers(tomorrow);
   const reading = !next?.at || !slot.othersAt || !next.othersAt;
+  // A league's games or ELTA's list unread: never "nothing on" (dayUnknown).
+  const gap = dayUnknown([slot, next], tvUnread(), { rest: true });
   // Drawn once everything's in (the other leagues, tomorrow's, every league
   // on now, the followed teams' schedules), or after 3 s with what there is:
   // drawn on each arrival, the rows reshuffled under the finger as games
@@ -1610,8 +1641,8 @@ function renderLive() {
     ? el('div', { class: 'home-hero' }, [el('div', {}, [el('p', { class: 'hero-kicker live-kicker', text: t('liveNow') }), el('h2', { class: 'hero-title', text: `${live.length} ${locale === 'en' ? 'live' : '場進行中'}` })])])
     : el('div', { class: 'home-hero live-idle' }, [
         el('div', {}, [
-          el('p', { class: 'hero-kicker', text: t('liveEmpty') }),
-          nextUp ? el('h2', { class: 'hero-title', text: L({ zh: `下一場 ${waitText}`, en: `Next one ${waitText}` }) }) : reading ? null : el('h2', { class: 'hero-title', text: L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })
+          el('p', { class: 'hero-kicker', text: gap ? t('liveUnread') : t('liveEmpty') }),
+          nextUp ? el('h2', { class: 'hero-title', text: L({ zh: `下一場 ${waitText}`, en: `Next one ${waitText}` }) }) : reading || gap ? null : el('h2', { class: 'hero-title', text: L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })
         ])
       ]);
   put(
@@ -2665,7 +2696,7 @@ function teamCard(f) {
       // Its form in the league named beside it, as on its page (leagueForm).
       played.length ? el('span', { class: 'form-pills' }, (leagueForm(played, id, f.league) || played.slice(-5)).map(g => el('span', { class: `pill sm ${result(g)}`, text: word(result(g)) }))) : null
     ]),
-    games === null ? el('small', { class: 'muted tf-wait', text: '…' }) : el('div', { class: 'tf-games' }, [line(next, L({ zh: '下一場', en: 'Next' })), line(last, L({ zh: '上一場', en: 'Last' }))]),
+    games === null ? el('small', { class: 'muted tf-wait', text: '…' }) : !games && teamsUnread.has(`${f.league}:${f.id}`) ? el('small', { class: 'muted tf-wait', text: t('failed') }) : el('div', { class: 'tf-games' }, [line(next, L({ zh: '下一場', en: 'Next' })), line(last, L({ zh: '上一場', en: 'Last' }))]),
     next ? watchButton(next, 'wide') : null
   ]);
 }
@@ -2902,9 +2933,15 @@ function warmTable(league) {
       .then(g => g?.length && tables.get(league) === null && (tables.set(league, g), shown()))
       .catch(() => {});
   }
+  // Unread (and none held): said so, never "no table" (tableSays), and read
+  // again in 20 s, not ten minutes.
   standings(league)
     .then(g => tables.set(league, g))
-    .catch(() => !tables.get(league)?.length && tables.set(league, []))
+    .catch(() => {
+      if (!tables.get(league)?.length) tables.set(league, Object.assign([], { failed: true }));
+      tableAt.set(league, Date.now() - 10 * 60_000 + 20_000);
+      setTimeout(shown, 20_500);
+    })
     .then(shown);
 }
 // 數據領先 of a league (sheets.js' leagueLeadersView): read once a session
@@ -2946,8 +2983,9 @@ const leaderLists = new Map();
 function tableOf(league) {
   warmTable(league);
   const groups = tables.get(league);
-  if (!groups) return spinner();
-  if (!groups.length) return empty(t('noStandings'));
+  const says = tableSays(groups);
+  if (says === 'wait') return spinner();
+  if (says !== 'table') return empty(t(says === 'failed' ? 'failed' : 'noStandings'));
   // Before this season's first counted game (a preseason's table is all
   // zeros, its order meaningless): last season's final table, said so, as
   // the playoffs tab shows last season's bracket. Not once a game that
