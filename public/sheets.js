@@ -4537,7 +4537,12 @@ const ZONE_ZH = [
   [/play-?offs?/i, '季後賽'],
   [/play-?in/i, '附加賽']
 ];
-export const zoneName = n => (L() === 'en' ? n : ZONE_ZH.find(([re]) => re.test(n))?.[1] || n);
+// And in English, as short (ESPN's "Qualifies for MLS Cup Playoffs - Wild Card Matches" is a wild card).
+const ZONE_EN = { 晉級八強: 'quarter-finals', 晉級16強: 'last 16', '淘汰附加賽（非種子）': 'play-offs (unseeded)', '淘汰附加賽（種子）': 'play-offs (seeded)', 淘汰附加賽: 'play-offs', 季後賽外卡: 'wild card', 季後賽首輪: 'playoffs', 降級或附加賽: 'relegation or play-off', 歐冠資格賽: 'UCL qualifying', 歐霸資格賽: 'UEL qualifying', 歐協聯資格賽: 'UECL qualifying', 歐冠: 'Champions League', 歐霸: 'Europa League', 歐協聯: 'Conference League', 降級附加賽: 'relegation play-off', 降級: 'relegation', 升級附加賽: 'promotion play-off', 升級: 'promotion', 淘汰: 'elimination', 季後賽: 'playoffs', 附加賽: 'play-in' };
+export const zoneName = n => {
+  const zh = ZONE_ZH.find(([re]) => re.test(n))?.[1];
+  return L() === 'en' ? ZONE_EN[zh] || n : zh || n;
+};
 function raceBlock(race, g, league, many) {
   if (!race) return null;
   const W = (zh, eng) => (L() === 'en' ? eng : zh);
@@ -4546,17 +4551,19 @@ function raceBlock(race, g, league, many) {
   const line = (icon, main, sub = '', cls = '') => el('div', { class: `race-line ${cls}`.trim() }, [glyph(icon), el('span', { class: 'race-t' }, [el('span', { html: main }), sub ? el('small', { text: sub }) : null])]);
   const b = x => `<b>${String(x).replace(/[<>&]/g, '')}</b>`;
   // Settled by the next game, as the results that do it (title.mjs next):
-  // "下一場納什維爾贏球，或邁阿密國際沒贏即可" (a lead of 13 "then",
+  // "納什維爾下一場贏球，或邁阿密國際下一場沒贏即可" (a lead of 13 "then",
   // 14 now, read backwards).
   const nextLine = t => {
     const x = t.next;
     if (!x) return '';
-    const mine = { '3': W('贏球', 'win'), '3,1': W('不輸', "don't lose") }[x.mine.join()];
-    const theirs = { '0': W('輸球', 'lose'), '1,0': W('沒贏', "don't win") }[x.theirs.join()];
+    const mine = { '3': W('贏', 'win next'), '3,1': W('不輸', "don't lose next") }[x.mine.join()];
+    const theirs = { '0': W('輸', 'lose'), '1,0': W('沒贏', "don't win") }[x.theirs.join()];
     if ((x.mine.length && !mine) || (x.theirs.length && !theirs)) return '';
-    const parts = [mine && `${nm(t.leader)}${L() === 'en' ? ' ' : ''}${mine}`, theirs && `${nm(x.rival)}${L() === 'en' ? ' ' : ''}${theirs}`].filter(Boolean);
-    // (The line above says what: 即可.)
-    return W(`下一場${parts.join('，或')}即可`, `Next game: done if ${parts.join(', or ')}`);
+    // Each side's own next game (the rival may have played this round already:
+    // 邁阿密國際 3:1 won, its "next" is days later; one 下一場 for both read as that finished game).
+    // (The line above says what for; one line: 納什維爾下一場贏，或邁阿密國際下一場沒贏.)
+    const parts = [mine && W(`${nm(t.leader)}下一場${mine}`, `${nm(t.leader)} ${mine}`), theirs && W(`${nm(x.rival)}下一場${theirs}`, `${nm(x.rival)} ${theirs}`)].filter(Boolean);
+    return parts.join(W('，或', ', or '));
   };
   // What the soonest clinch takes, as one number (the owner, 2026-10-16:
   // the lead it takes then, over everyone: 領先 102 分，美國站後領先達
@@ -4592,9 +4599,9 @@ function raceBlock(race, g, league, many) {
     // not), so say when at the soonest, and the lead against what's still to be won.
     if (race.unit === 'wins') lines.push(line('clock', W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`), when));
     else {
-      const what = many ? W(`確定${top}`, `clinch ${top}`) : W('封王', 'clinch the title');
-      const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : W(`最快 ${b(t.soonest)} 場後`, `${b(t.soonest)} game(s) away at the earliest`);
-      lines.push(line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} can ${what}, ${at}`), 
+      const what = many ? W(`確定${top}`, 'clinch 1st') : W('封王', 'clinch the title');
+      const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : W(`最快 ${b(t.soonest)} 場後`, `in ${b(t.soonest)} game${t.soonest === 1 ? '' : 's'}`);
+      lines.push(line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} could ${what} ${at}`), 
         // (What it takes at the soonest, as a lead: more than the next one can still win after it; the lead now beside it.)
         nextLine(t) || leadLine(t)));
     }
@@ -4609,7 +4616,7 @@ function raceBlock(race, g, league, many) {
   // The close fights still on (F1's, once the champion's decided).
   const team = !g.rows.some(r => r.athlete);
   for (const p of race.places) {
-    const names = p.rows.slice(0, 3).map(nm).join('、') + (p.rows.length > 3 ? W(` 等 ${p.rows.length} ${team ? '隊' : '位'}`, ` +${p.rows.length - 3}`) : '');
+    const names = p.rows.slice(0, 3).map(nm).join(W('、', ', ')) + (p.rows.length > 3 ? W(` 等 ${p.rows.length} ${team ? '隊' : '位'}`, ` +${p.rows.length - 3}`) : '');
     const span = p.to > p.pos ? `${p.pos}–${p.to}` : `${p.pos}`;
     const fight = line('medal', W(`${b(`第 ${span} 名之爭`)} ${names}`, `${b(`Fight for P${span}`)} ${names}`), p.spread > 0 ? W(`前後相差 ${p.spread}${unit}`, `${p.spread}${unit} apart`) : W('同分', 'level on points'));
     fight.classList.add('fight');
@@ -4619,7 +4626,7 @@ function raceBlock(race, g, league, many) {
   for (const z of race.zones) {
     if (!z.sure.length || z.sure.length === g.rows.length) continue;
     const who = z.sure.map(id => g.rows.find(r => r.id === id)).filter(Boolean);
-    const names = who.slice(0, 4).map(nm).join('、') + (who.length > 4 ? W(` 等 ${who.length} 隊`, ` +${who.length - 4}`) : '');
+    const names = who.slice(0, 4).map(nm).join(W('、', ', ')) + (who.length > 4 ? W(` 等 ${who.length} 隊`, ` +${who.length - 4}`) : '');
     const zn = zoneName(z.note);
     const row = line('lock', z.bottom ? W(`${b(`確定${zn}`)} ${names}`, `${b(`Confirmed: ${zn}`)} ${names}`) : W(`${b(`確定${zn}`)} ${names}`, `${b(`Sure of ${zn}`)} ${names}`));
     if (z.color) row.style.setProperty('--zone', z.color);
@@ -4638,11 +4645,14 @@ function raceBlock(race, g, league, many) {
     // (The name without its bracket, 淘汰附加賽 not 淘汰附加賽（非種子）: one line.)
     const zn = zoneName(z.note).replace(/（.*）|\s*\(.*\)/, '');
     const n = z.fight.rows.length;
-    const head = z.bottom ? W(`避開${zn}`, `Avoiding ${zn}`) : W(`${zn}之爭`, `Race for ${zn}`);
-    const how = W(` ${n} 隊・${z.fight.spread > 0 ? `相差 ${z.fight.spread} 分` : '同分'}`, ` ${n} teams, ${z.fight.spread > 0 ? `${z.fight.spread} pts apart` : 'level'}`);
+    const head = z.bottom ? W(`避開${zn}`, `Avoiding ${zn}`) : W(`${zn}之爭`, `${zn[0].toUpperCase()}${zn.slice(1)} race`);
+    const how = W(` ${n} 隊・${z.fight.spread > 0 ? `相差 ${z.fight.spread} 分` : '同分'}`, ` · ${n} teams, ${z.fight.spread > 0 ? `${z.fight.spread} pts apart` : 'level'}`);
     const row = line('medal', `${b(head)}${how}`, '');
     const small = row.querySelector('.race-t small') || row.querySelector('.race-t').appendChild(el('small'));
-    small.replaceChildren(...z.fight.rows.flatMap((r, k) => [k ? document.createTextNode('、') : null, el('span', { class: 'nm-one', text: nm(r) })].filter(Boolean)));
+    // (Four names at most, the rest counted: one line; the head says how many.)
+    const more = z.fight.rows.length > 4 ? z.fight.rows.length - 3 : 0;
+    const shownRows = more ? z.fight.rows.slice(0, 3) : z.fight.rows;
+    small.replaceChildren(...shownRows.flatMap((r, k) => [k ? document.createTextNode(W('、', ', ')) : null, el('span', { class: 'nm-one', text: nm(r) })].filter(Boolean)), ...(more ? [document.createTextNode(W(`，另 ${more} 隊`, ` +${more}`))] : []));
     if (z.color) row.style.setProperty('--zone', z.color);
     row.classList.add('zone', 'fight');
     lines.push(row);
@@ -4742,7 +4752,7 @@ function zoneLegend(rows) {
   const seen = new Map();
   for (const r of rows) if (r.note && r.color && !seen.has(r.note)) seen.set(r.note, r.color);
   if (!seen.size) return null;
-  return el('div', { class: 'zone-legend' }, [...seen].map(([note, color]) => el('span', { class: 'zone-key' }, [el('i', { style: `background:${color}`, 'aria-hidden': 'true' }), document.createTextNode(zoneName(note))])));
+  return el('div', { class: 'zone-legend' }, [...seen].map(([note, color]) => el('span', { class: 'zone-key' }, [el('i', { style: `background:${color}`, 'aria-hidden': 'true' }), document.createTextNode(zoneName(note).replace(/^[a-z]/, c => c.toUpperCase()))])));
 }
 
 // ---- A playoff series or a knockout tie: every game of it ---------------------------------
