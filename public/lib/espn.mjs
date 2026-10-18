@@ -1014,7 +1014,7 @@ export async function asiaEvents(league, extra = 0, now = Date.now()) {
     .filter(e => !seen.has(e.id) && seen.add(e.id))
     .sort((a, b) => a.start.localeCompare(b.start));
   const shown = league === 'cpbl' ? cpblPlayoffs(events, cpblSeeds(await cpblPack().catch(() => null))) : events;
-  return shown.some(e => e.status.state === 'in') ? withKambiLive(shown, league) : shown;
+  return shown.some(e => e.status.state === 'in') ? markNoScore(await withKambiLive(shown, league)) : shown;
 }
 
 // ---- A CPBL game on now: Kambi's live feed (the bookmaker's, through the
@@ -1044,6 +1044,9 @@ export function kambiInnings(data, path = '') {
       };
     });
 }
+// A game on now whose score no feed gave (the league's list has none, Kambi
+// didn't match): marked, so it says "score unavailable", not 進行中 over "–".
+export const markNoScore = events => events.map(e => (e.asia && e.status.state === 'in' && e.home.score === '' && e.away.score === '' ? { ...e, status: { ...e.status, noScore: true } } : e));
 export function applyKambiLive(events, live) {
   return events.map(e => {
     const [h, a] = [nickname(e.home.en), nickname(e.away.en)];

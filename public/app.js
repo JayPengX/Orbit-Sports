@@ -2689,7 +2689,7 @@ function teamCard(f) {
       g.status.state === 'pre'
         ? el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenOf(g) }), whereTv(g)])
         : g.status.state === 'in'
-          ? el('span', { class: 'num tf-score live', text: `${t('live')} ${scoreText(us(g)?.score)}–${scoreText(opp?.score)}` })
+          ? el('span', { class: 'num tf-score live', text: g.status?.noScore ? L({ zh: '比賽中・比分讀不到', en: 'Live · score unavailable' }) : `${t('live')} ${scoreText(us(g)?.score)}–${scoreText(opp?.score)}` })
           : withAgain(el('span', { class: `num result-pill ${result(g).toLowerCase()}`, text: `${word(result(g)) || ''} ${scoreText(us(g)?.score)}–${scoreText(opp?.score)}`.trim() }), g);
     return el('button', { class: 'tf-game', type: 'button', disabled: g.status?.void ? true : null, onclick: () => openEvent(g) }, [
       el('small', { class: 'muted tf-k', text: label }),

@@ -602,13 +602,15 @@ export function tvLine(e) {
     if (!r) return null;
     const again = el('span', { class: 'tv-again', text: r.apple ? (ctx.locale === 'en' ? 'Apple TV · replay' : 'Apple TV・重播') : ctx.locale === 'en' ? (r.replay ? ' · replay' : 'ELTA · replay') : r.replay ? '・回看' : '愛爾達・重播' });
     if (r.video) return el('small', { class: 'tv-line' }, [again]);
-    const ch = r.channels.slice(0, 2).flatMap((b, i) => [i ? document.createTextNode('、') : null, el('span', { class: 'tv-ch', text: name(b) })]);
-    return el('small', { class: 'tv-line' }, [...ch, again]);
+    const ch = r.channels.slice(0, 2).map(b => el('span', { class: 'tv-ch', text: name(b) }));
+    // A channel's 回看 / replay reads as part of that channel, not a chip of its own.
+    if (r.replay && ch.length) ch.at(-1).append(again);
+    return el('small', { class: 'tv-line' }, r.replay && ch.length ? ch : [...ch, again]);
   }
   const list = channelsOf(e);
   if (!list.length) return null;
-  const parts = list.slice(0, 2).flatMap((b, i) => [i ? document.createTextNode('、') : null, el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), audioTag(b)])]);
-  return el('small', { class: 'tv-line' }, [...parts, list.length > 2 ? document.createTextNode(` +${list.length - 2}`) : null]);
+  const parts = list.slice(0, 2).map(b => el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), audioTag(b)]));
+  return el('small', { class: 'tv-line' }, [...parts, list.length > 2 ? el('span', { class: 'tv-ch', text: `+${list.length - 2}` }) : null]);
 }
 // A race weekend's session as a badge (排位賽, 衝刺賽, 正賽…), coloured by kind, so the row says it at a glance.
 export function sessionTag(e) {
