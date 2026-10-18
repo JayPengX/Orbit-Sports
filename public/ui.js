@@ -78,7 +78,9 @@ export function dayLabel(date, { long = false } = {}) {
   const wd = d.toLocaleDateString(locales(), { weekday: 'short' });
   const plain = `${d.getMonth() + 1}/${d.getDate()}`;
   const near = date === today() ? t('today') : date === addDays(today(), 1) ? t('tomorrow') : date === addDays(today(), -1) ? t('yesterday') : '';
-  if (long) return near ? `${near} · ${plain}（${wd}）` : `${plain}（${wd}）`;
+  const loc = ctx.locale === "en";
+  const paren = loc ? ` (${wd})` : `（${wd}）`;
+  if (long) return near ? `${near} · ${plain}${paren}` : `${plain}${paren}`;
   return near || `${plain} ${wd}`;
 }
 export function toast(text, action = null, ms = 3200) {

@@ -28,6 +28,7 @@
     --accent: #fb923c;
     --accent-wash: rgba(251, 146, 60, 0.14);
     --accent-ink: #431407;
+    --on-accent: #431407;
     --live: #f87171;
     --live-wash: rgba(248, 113, 113, 0.14);
     --win: #34d399;
@@ -49,6 +50,7 @@
   --accent: #fb923c;
   --accent-wash: rgba(251, 146, 60, 0.14);
   --accent-ink: #431407;
+  --on-accent: #431407;
   --live: #f87171;
   --live-wash: rgba(248, 113, 113, 0.14);
   --win: #34d399;
@@ -427,7 +429,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .mini-h { font-size: 12.5px; font-weight: 800; color: var(--q-muted); text-transform: none; margin: 4px 0 6px; }
 /* A side's logo over its name, a plain tap target (not a button's capsule). */
 .mh-team { display: grid; justify-items: center; gap: 4px; border: 0; background: none; padding: 0; min-width: 0; width: 100%; color: inherit; font: inherit; }
-.mh-team strong { font-size: 15px; line-height: 1.25; max-width: 100%; white-space: nowrap; }
+.mh-team strong { font-size: 15px; line-height: 1.25; max-width: 100%; text-align: center; text-wrap: balance; overflow-wrap: break-word; }
 .mh-status { font-size: 12.5px; font-weight: 750; padding: 2px 10px; border-radius: 999px; background: var(--q-sunken); color: var(--q-text-2); white-space: nowrap; }
 .mh-round { margin-top: 2px; font-size: 12.5px; font-weight: 650; color: var(--q-text-2); white-space: nowrap; }
 .mh-status.in { background: var(--live-wash); color: var(--live); }
@@ -1356,7 +1358,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .race-part { margin: 4px 0 12px; }
 /* The one follow button (sheets.js followButton): a small pill, the app's
    colour until followed, then quiet with a tick; the same on every page. */
-.follow-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font: inherit; font-size: 13.5px; font-weight: 750; white-space: nowrap; cursor: pointer; }
+.follow-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent, #fff); font: inherit; font-size: 13.5px; font-weight: 750; white-space: nowrap; cursor: pointer; }
 .follow-btn.on { background: var(--accent-wash); color: var(--accent); }
 .mh-side .follow-btn { margin-top: 8px; }
 /* A guest's side: the follow button's room kept, so the two sides stand level. */
@@ -1948,3 +1950,9 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .lb-name .team-tag { display: inline-flex; align-items: center; gap: 4px; }
 .lb-value { color: var(--accent); font-size: 16px; font-weight: 700; }
 .lb-more { display: block; margin: 8px auto 0; }
+/* A CPBL game's box score unread (sheets.js): said under the overview. */
+.box-unread {
+  margin: 12px 4px 0;
+  font-size: 14px;
+  text-align: center;
+}
