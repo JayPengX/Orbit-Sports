@@ -5,7 +5,7 @@ import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
 import { keptTiming } from './lib/f1.mjs';
 import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
-import { liveLabel, liveNote, closeLabel } from './lib/live.mjs';
+import { liveLabel, liveNote, closeLabel, goalHead } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
@@ -437,7 +437,7 @@ export function liveLine(e) {
     return el('div', { class: 'live-line base goal' }, [
       el('span', { class: 'live-scorer', 'aria-hidden': 'true' }, [pic, own ? null : el('span', { class: 'scorer-ball', text: '⚽' })]),
       el('span', { class: 'live-text' }, [
-        el('span', { class: 'live-count' }, [el('span', { text: en ? 'Latest goal' : '最新進球' }), el('span', { class: 'num live-min', text: goal.minute })]),
+        el('span', { class: 'live-count' }, [...goalHead(e, ctx.locale).map(t => el('span', { text: t })), el('span', { class: 'num live-min', text: goal.minute })]),
         el('span', { class: 'live-who' }, [!own && side?.logo ? logo(side.logo, side.name, 'scorer-club') : null, el('span', { class: 'live-names', text: own ? `${goal.who} ${en ? 'own goal' : '烏龍球'}` : `${goal.who}${goal.kind === 'pen' ? (en ? ' (pen)' : '（點球）') : ''}` })])
       ])
     ]);

@@ -32,3 +32,11 @@ test('soccer: 80th minute on, a goal or none apart; never half-time; never witho
   assert.equal(closeGame({ ...g({ clock: "85'" }, '1', '1'), status: { state: 'post' } }, 'soccer'), false);
   assert.equal(closeGame(g({ clock: "85'", delayed: true }, '1', '1'), 'soccer'), false);
 });
+
+test('a soccer game with a goal keeps the tag on the goal line: 拉鋸 first, then 最新進球', async () => {
+  const { goalHead } = await import('../public/lib/live.mjs');
+  assert.deepEqual(goalHead(g({ clock: "82'" }, '1', '1')), ['拉鋸', '最新進球']);
+  assert.deepEqual(goalHead(g({ clock: "82'" }, '1', '1'), 'en'), ['Close', 'Latest goal']);
+  assert.deepEqual(goalHead(g({ clock: "70'" }, '1', '1')), ['最新進球']);
+  assert.deepEqual(goalHead(g({ clock: "85'" }, '3', '0')), ['最新進球']);
+});

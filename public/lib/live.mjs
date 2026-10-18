@@ -109,6 +109,8 @@ export function liveNote(e, sport, lang = 'zh') {
 }
 // "Close" while a game on now is in its last stretch and the score is near (lib/close.mjs); else ''.
 export const closeLabel = (e, sport, lang = 'zh') => (closeGame(e, sport) ? (lang === 'en' ? 'Close' : '拉鋸') : '');
+// A soccer game's goal line head: the close tag first when it applies (so a goal never hides it), then the label.
+export const goalHead = (e, lang = 'zh') => [closeLabel(e, 'soccer', lang), lang === 'en' ? 'Latest goal' : '最新進球'].filter(Boolean);
 function plainNote(e, sport, en) {
   const lv = e.live;
   if (!lv) return '';
