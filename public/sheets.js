@@ -1524,7 +1524,7 @@ function winProbCard(line, e, timeline, events = []) {
   const gain = m => `${side[m.delta >= 0 ? 'home' : 'away'].name} +${Math.round(Math.abs(m.delta) * 100)}%`;
   const gainChip = m => el('span', { class: `wp-gain ${m.side}`, style: `--side:${sideC(m.delta >= 0 ? 'home' : 'away')}`, text: gain(m) });
   // The key moment closest to a finger (within 2.5% of the chart), if any.
-  const near = i => nearestMoment(moments, xs, i);
+  const near = i => nearestMoment(listed, xs, i);
   // Away on the left, home on the right (as everywhere in the sheet), adding up to 100.
   const away = el('span', { class: 'away' });
   const draw = pts.some(p => p.draw != null) ? el('span', { class: 'draw' }) : null;
@@ -1536,7 +1536,7 @@ function winProbCard(line, e, timeline, events = []) {
   const live = e.status.state === 'in';
   const rest = e.status.state === 'post' ? (en ? 'Final' : '終場') : pointStamp(timeline, sport, pts.at(-1), en) || (en ? 'Now' : '目前');
   // A game on: a swing among its last few points is news.
-  const latest = live ? moments.find(m => pts.length - 1 - m.i <= Math.max(2, pts.length * 0.03)) : null;
+  const latestOf = () => (live ? listed.find(m => pts.length - 1 - m.i <= Math.max(2, pts.length * 0.03)) : null);
   // The player's face (the batter, the scorer), else the team's badge (a run), else the sport's sign.
   // A run's team badge to the team's page.
   const teamTap = x => (hasTeamPage(e.league) && x.id && !x.guest ? el('button', { class: 'wp-who team', type: 'button', 'aria-label': x.name || '', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, x.id, x)) }, [sideLogo(x, e.league, 'sm')]) : sideLogo(x, e.league, 'sm'));
@@ -1550,17 +1550,21 @@ function winProbCard(line, e, timeline, events = []) {
     if (m) fitLine(why.querySelector('.mo-main'));
   };
   // Dotted on the line: the big swings and a lead taken or tied, never two crowding each other (the bigger kept; a lead taken first).
-  const weight = m => (m.turned ? 1 : 0) + Math.abs(m.delta);
+  // (Baseball: a run scored over a pitch next to it.)
+  const weight = m => (m.always ? 2 : 0) + (m.rally ? 1 : 0) + (m.turned ? 1 : 0) + Math.abs(m.delta);
   // A moment's dot on the edge of the band of the side it helped (the home
   // side's above, the away side's below the draw), not in the draw's middle.
   const pinY = m => (m.delta >= 0 ? pts[m.i].home : pts[m.i].home + (pts[m.i].draw ?? 0));
   const dotted = [];
   // (A soccer game's goals and red cards always: Ipswich–Man City's five goals moved a favourite's price little, and none had a dot.)
-  for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned || (m.always && sport === 'soccer')).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
+  for (const m of moments.filter(m => Math.abs(m.delta) >= 0.12 || m.turned || m.always).sort((a, b) => weight(b) - weight(a))) if (dotted.every(d => Math.abs(xs[d.i] - xs[m.i]) >= 0.04)) dotted.push(m);
+  // The list is the dotted ones, in the game's order (the owner, 2026-10-18:
+  // a moment listed with no dot read as one that didn't matter).
+  const listed = [...dotted].sort((a, b) => a.i - b.i);
   const show = (j, picked) => {
     // A moment picked from the list: that one; a finger close to one: on it.
     const m = picked || (j != null ? near(j) : null);
-    rows.forEach((r, k) => r.classList.toggle('on', moments[k] === picked));
+    rows.forEach((r, k) => r.classList.toggle('on', listed[k] === picked));
     const i = m ? m.i : j;
     const p = pts[i ?? pts.length - 1];
     const [hh, dd] = [Math.round(p.home * 100), p.draw != null ? Math.round(p.draw * 100) : 0];
@@ -1574,6 +1578,7 @@ function winProbCard(line, e, timeline, events = []) {
     const stamp = [pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`, lateClock(sport, p)].filter(Boolean).join(' ');
     at.textContent = i == null ? `${rest}${tally} · ${en ? 'Hold to look back' : '按住圖表查看'}` : `${stamp}${tally}`;
     at.classList.toggle('on', i != null);
+    const latest = latestOf();
     tell(i == null ? latest : m, i == null && latest ? (en ? 'Just now' : '剛剛') : '');
     // The rule wherever the finger is; the ring only round a moment it's on
     // (the owner, 2026-10-16: a dot anywhere else looked like a moment with
@@ -1593,7 +1598,7 @@ function winProbCard(line, e, timeline, events = []) {
   // Whose half is whose: each side's logo beside the chart (never over the line).
   const frame = el('div', { class: 'wp-frame' }, [el('div', { class: 'wp-sides', 'aria-hidden': 'true' }, [sideLogo(e.home, e.league, 'xs'), sideLogo(e.away, e.league, 'xs')]), plot]);
   // The key moments, in the game's order: a tap puts the chart on that one (brought into view).
-  const rows = moments.map(m =>
+  const rows = listed.map(m =>
     // The face to the player's page, the rest to the chart.
     el('div', { class: 'wp-mo' }, [
       el('span', { class: 'wp-mo-face' }, [face(m)]),
@@ -1606,10 +1611,10 @@ function winProbCard(line, e, timeline, events = []) {
   show();
   // The moment picked before this redraw, picked again (a point's place
   // never moves as new ones come: they're added at the end).
-  const again = kept.picked != null ? moments.find(m => m.i === kept.picked) : null;
+  const again = kept.picked != null ? listed.find(m => m.i === kept.picked) : null;
   const state = { picked: again ? again.i : null };
   if (again) show(again.i, again);
-  const list = moments.length
+  const list = listed.length
     ? el('div', { class: 'wp-moments' }, [
         el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
         ...rows
@@ -1724,7 +1729,8 @@ function boxTable(tb, key, sport, rowOf) {
 // (VAR：取消 12 碼罰球 beside a face wrapped to two).
 const oneLineWords = text => {
   const [main, sub] = momentWords(text);
-  return [fitLine(main), sub];
+  // (The line under it too: an English one runs longer.)
+  return [fitLine(main), sub && fitLine(sub)];
 };
 const momentWords = (text, label = '') => {
   const [main, ...rest] = String(text || '').split(' · ');
@@ -1928,7 +1934,7 @@ function raceChanceCard(line, ss, feed = null) {
   const show = (j, picked) => {
     // A moment picked from the list: that one; a finger close to a stop or a lead (the closest): on it.
     const near = picked || (j != null ? nearestMoment(moments.filter(m => !m.band), xs, j) : null);
-    rows.forEach((r, k) => r.classList.toggle('on', moments[k] === picked));
+    rows.forEach((r, k) => r.classList.toggle('on', listed[k] === picked));
     const i = near ? near.i : j;
     const p = pts[i ?? last];
     chips.forEach((c, k) => (c.lastChild.textContent = `${Math.round(p.c[k] * 100)}%`));
@@ -1950,9 +1956,9 @@ function raceChanceCard(line, ss, feed = null) {
   };
   const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${shade}${grid}${paths}</svg>` }), ...pins, rule]);
   const strip = tags.length ? el('div', { class: 'rc-band-tags', 'aria-hidden': 'true' }, tags) : null;
-  const rows = moments.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? momentGlyph(m.icon) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text' }, oneLineWords(m.text))]), gainChip(m)])]));
+  const rows = listed.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? momentGlyph(m.icon) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text' }, oneLineWords(m.text))]), gainChip(m)])]));
   show();
-  const list = moments.length
+  const list = listed.length
     ? el('div', { class: 'wp-moments' }, [el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }), ...rows])
     : null;
   return card(T('winProb'), el('div', { class: 'wp' }, [el('div', { class: 'rc-chips' }, chips), at, strip, plot, axisRow(marks), why, list]));

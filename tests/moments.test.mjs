@@ -20,7 +20,7 @@ test("baseball: the plays that turned it (Yankees at Rays, 2026-10-05: Rice's ho
   assert.ok(zh.some(m => m.text === 'B. Rice 全壘打 · 1 分打點 · 追平' && m.side === 'away'));
   assert.ok(zh.every((m, i) => !i || m.i > zh[i - 1].i));
   const en = playMoments(s.winProb, 'baseball', { ...sideOf(s), en: true });
-  assert.ok(en.some(m => m.text === 'Rice homered to right (372 feet). · ties it'));
+  assert.ok(en.some(m => m.text === 'B. Rice homers · 1 RBI · ties it'));
 });
 
 test('football: the walk-off field goal its biggest moment; a flag told as a call', () => {
@@ -278,13 +278,13 @@ test("baseball: an inning's rally of small plays is one moment; late plays compe
 
 test('baseball, football: no set number of moments; a seesaw keeps every lead change, a blowout only its big swings', () => {
   const pts = [];
-  const add = (v, n, play = {}) => pts.push({ home: v, n, half: 'bottom', play: { text: 'x', type: 'Play Result', ...play } });
+  const add = (v, n, play = {}, half = 'bottom') => pts.push({ home: v, n, half, play: { text: 'x', type: 'Play Result', ...play } });
   add(0.42, 1, { home: 0, away: 0 });
   // Eight lead changes, each a run worth 8-9%: all kept, more than the old six.
   let [h, a] = [0, 0];
   for (let k = 0; k < 8; k++) {
     k % 2 ? (a += 2) : (h += 2);
-    add(k % 2 ? 0.42 : 0.51, k + 1, { home: h, away: a, scoring: true, value: 2 });
+    add(k % 2 ? 0.42 : 0.51, k + 1, { home: h, away: a, scoring: true, value: 2 }, k % 2 ? 'top' : 'bottom');
   }
   const seesaw = playMoments(pts, 'baseball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false });
   assert.equal(seesaw.filter(m => m.turned).length, 8);
@@ -344,4 +344,69 @@ test("baseball: a balk, a pickoff, caught stealing in Chinese; a lineup's word n
   assert.equal(at('Martínez caught stealing second.'), 'A. Martinez 盜壘失敗');
   assert.equal(at('Martínez picked off first.'), 'A. Martinez 牽制出局');
   assert.equal(at('Martínez lined out to center.'), 'A. Martinez 平飛出局');
+});
+
+// Brewers at Dodgers, 2026-10-18: a 4-run 2nd read 道奇 2局下攻下 4 分, never
+// saying Ohtani's homer drove in 3 of them.
+test("baseball: an inning's rally names its biggest hit, the inning's runs under it", () => {
+  const pts = [];
+  const add = (v, n, half, play = {}) => pts.push({ home: v, n, half, play: { text: 'x', type: 'Play Result', ...play } });
+  add(0.5, 1, 'top', { home: 0, away: 0 });
+  add(0.5, 2, 'top', { home: 0, away: 0 });
+  add(0.56, 2, 'bottom', { home: 1, away: 0, scoring: true, value: 1, who: 'M. Rojas', alt: 'Single' });
+  add(0.6, 2, 'bottom', { home: 1, away: 0 });
+  add(0.69, 2, 'bottom', { home: 4, away: 0, scoring: true, value: 3, who: 'S. Ohtani', alt: 'Home Run', pic: 'ohtani' });
+  add(0.74, 2, 'bottom', { home: 4, away: 0 });
+  add(0.74, 3, 'top', { home: 4, away: 0 });
+  const side = { home: { id: 'h', name: '道奇' }, away: { id: 'a', name: '釀酒人' }, en: false };
+  const rally = playMoments(pts, 'baseball', side).find(m => m.rally);
+  assert.equal(rally?.text, 'S. Ohtani 全壘打 · 3 分打點 · 這局共 4 分 · 超前');
+  assert.equal(rally.pic, 'ohtani');
+  const en = playMoments(pts, 'baseball', { ...side, en: true }).find(m => m.rally);
+  assert.match(en.text, /4-run inning/);
+});
+
+test("baseball: back-to-back homers are named together, not one as if it were the inning", () => {
+  const pts = [];
+  const add = (v, n, half, play = {}) => pts.push({ home: v, n, half, play: { text: 'x', type: 'Play Result', ...play } });
+  add(0.5, 1, 'top', { home: 0, away: 0 });
+  add(0.5, 2, 'top', { home: 0, away: 0 });
+  add(0.58, 2, 'bottom', { home: 1, away: 0, scoring: true, value: 1, who: 'S. Ohtani', alt: 'Home Run' });
+  add(0.66, 2, 'bottom', { home: 2, away: 0, scoring: true, value: 1, who: 'M. Betts', alt: 'Home Run' });
+  add(0.7, 2, 'bottom', { home: 2, away: 0 });
+  add(0.7, 3, 'top', { home: 2, away: 0 });
+  const side = { home: { id: 'h', name: '道奇' }, away: { id: 'a', name: '釀酒人' }, en: false };
+  const rally = playMoments(pts, 'baseball', side).find(m => m.rally);
+  assert.equal(rally?.text, 'S. Ohtani、M. Betts 背靠背全壘打 · 這局共 2 分 · 超前');
+});
+
+test("baseball: an inning of small hits, none big, reads as the string of them", () => {
+  const pts = [];
+  const add = (v, n, half, play = {}) => pts.push({ home: v, n, half, play: { text: 'x', type: 'Play Result', ...play } });
+  add(0.5, 1, 'top', { home: 0, away: 0 });
+  add(0.5, 2, 'top', { home: 0, away: 0 });
+  [['F. Freeman', 'Single'], ['T. Hernández', 'Double'], ['W. Smith', 'Single'], ['M. Muncy', 'Single']].forEach(([who, alt], k) => add(0.55 + k * 0.05, 2, 'bottom', { home: k + 1, away: 0, scoring: true, value: 1, who, alt }));
+  add(0.72, 2, 'bottom', { home: 4, away: 0 });
+  add(0.72, 3, 'top', { home: 4, away: 0 });
+  const side = { home: { id: 'h', name: '道奇' }, away: { id: 'a', name: '釀酒人' }, en: false };
+  const rally = playMoments(pts, 'baseball', side).find(m => m.rally);
+  assert.equal(rally?.text, 'F. Freeman、T. Hernández 等串聯 · 4 次打點 · 這局共 4 分 · 超前');
+});
+
+test('baseball: the pitching that held it, the pitcher credited, a few at most', () => {
+  const pts = [];
+  const add = (v, n, half, play = {}) => pts.push({ home: v, n, half, play: { text: 'x', type: 'Play Result', home: 0, away: 0, ...play } });
+  add(0.5, 1, 'top');
+  // Bases loaded in the 7th: the strikeout that ended it, Brewers (home) up 16%.
+  add(0.4, 7, 'top');
+  add(0.56, 7, 'top', { alt: 'Strikeout Swinging', who: 'S. Ohtani', pitcher: { who: 'J. Misiorowski', pic: 'miz' } });
+  // Small outs aren't moments.
+  for (let k = 0; k < 6; k++) add(0.56 + k * 0.01, 8, 'top', { alt: 'Groundout', who: 'X', pitcher: { who: 'A. Uribe' } });
+  const side = { home: { id: 'h', name: '釀酒人' }, away: { id: 'a', name: '道奇' }, en: false };
+  const list = playMoments(pts, 'baseball', side);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].text, 'J. Misiorowski 三振 S. Ohtani');
+  assert.equal(list[0].pic, 'miz');
+  assert.equal(list[0].team, 'h');
+  assert.equal(playMoments(pts, 'baseball', { ...side, en: true })[0].text, 'J. Misiorowski strikes out S. Ohtani');
 });

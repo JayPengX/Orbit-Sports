@@ -69,6 +69,13 @@ const MLB_ZH = [
   // A runner moving up on no batted ball ("to second on a throw").
   [/ to (second|third|home)\b| advanced/i, '推進']
 ];
+const MLB_EN = [
+  [/grand slam/i, 'grand slam'], [/home run|homered/i, 'homers'], [/triple/i, 'triples'], [/double play/i, 'double play'], [/double/i, 'doubles'],
+  [/single/i, 'singles'], [/sac(rifice)? fly/i, 'sac fly'], [/sac(rifice)? bunt/i, 'sac bunt'], [/intentional walk/i, 'walked on purpose'],
+  [/walk|base on balls/i, 'walks'], [/hit by pitch/i, 'hit by pitch'], [/wild pitch/i, 'wild pitch'], [/passed ball/i, 'passed ball'],
+  [/error/i, 'reaches on error'], [/fielder'?s choice/i, "fielder's choice"], [/caught stealing/i, 'caught stealing'], [/stolen base|stole/i, 'steals'],
+  [/strike|struck out/i, 'strikes out'], [/ground/i, 'grounds out'], [/\blined\b|line ?out|line drive/i, 'lines out'], [/pop|foul out/i, 'pops out'], [/fly|flied/i, 'flies out']
+];
 const NFL_ZH = [
   [/interception.*touchdown|pick six/i, '攔截回攻達陣'],
   [/fumble.*touchdown/i, '掉球回攻達陣'],
@@ -132,6 +139,12 @@ export function lineupZh(play) {
 }
 export function playText(sport, play, en, team) {
   const who = play.who || named(play.text);
+  // Baseball in English, as short as the Chinese: who, what, the RBIs (ESPN's
+  // sentence ran on: "DeLauter singled to right, Kwan scored, DeLauter out…").
+  if (en && sport === 'baseball' && !lineupZh(play)) {
+    const what = firstOf(MLB_EN, play.alt, play.text);
+    if (what) return [who, what].filter(Boolean).join(' ') + (play.scoring && play.value ? ` · ${play.value} RBI` : '');
+  }
   if (en) return sentence(play.text) || play.type;
   if (sport === 'baseball') {
     // A lineup change before any at-bat's words ("Kelly relieved Sulser" read
@@ -248,11 +261,110 @@ function halfInnings(points, vals, side) {
       const [l0, l1] = [lead(s0), lead(s1)];
       const turned = l0 != null && l1 != null && l1 !== l0 ? (l1 === 0 ? 'tie' : 'lead') : '';
       const said = turned ? (side.en ? (turned === 'tie' ? ' · ties it' : ' · takes the lead') : turned === 'tie' ? ' · 追平' : ' · 超前') : '';
-      out.push({ i: last, from: a, delta, side: who, icon: ICON.baseball, text: (side.en ? `${team.name} score ${runs} · ${when}` : `${team.name} ${when}攻下 ${runs} 分`) + said, team: team.id, src: points[last].play, rally: true, turned });
+      // Its biggest hit named (Ohtani's 3-run homer in a 4-run 2nd, not just
+      // 道奇 2局下攻下 4 分: the owner, 2026-10-18), the inning's runs under it.
+      const hits = [...Array(b - a + 1).keys()].map(k => a + k).filter(k => points[k].play?.scoring && (points[k].play.who || named(points[k].play.text)));
+      const key = [...hits].sort((x, y) => (Number(points[y].play.value) || 0) - (Number(points[x].play.value) || 0) || Math.abs(vals[y] - vals[y - 1]) - Math.abs(vals[x] - vals[x - 1]))[0];
+      const total = side.en ? ` · ${runs}-run inning` : ` · 這局共 ${runs} 分`;
+      const text = key != null
+        ? `${rallyHits(points, hits, key, runs, side.en, team.name)}${total}`
+        : side.en ? `${team.name} score ${runs} · ${when}` : `${team.name} ${when}攻下 ${runs} 分`;
+      out.push({ i: last, from: a, delta, side: who, icon: ICON.baseball, text: text + said, pic: key != null ? points[key].play.pic : null, team: team.id, src: points[key ?? last].play, rally: true, turned });
     }
     a = i;
   }
   return out;
+}
+
+// Who did an inning's scoring: its one big hit (3 of 4 runs: that hit, its
+// RBIs); else back-to-back homers named together (1 run each: no one of them
+// is the story); a string of small ones (no one hit much: the owner,
+// 2026-10-18) as that, its batters named; else its two hits, each said.
+const HOMER = /home run|homered|grand slam/i;
+const whoOf = p => p.who || named(p.text);
+function rallyHits(points, hits, key, runs, en, team) {
+  const top = points[key].play;
+  if (hits.length === 1 || (Number(top.value) || 0) * 2 > runs) return playText('baseball', top, en, team);
+  const homers = hits.filter(k => HOMER.test(`${points[k].play.alt} ${points[k].play.text}`));
+  // Back to back: two (or more) homers with no scoring play between them.
+  const run = [];
+  for (const k of homers) if (!run.length || hits.indexOf(k) === hits.indexOf(run.at(-1)) + 1) run.push(k);
+  else if (run.length < 2) run.splice(0, run.length, k);
+  if (run.length >= 2) {
+    const names = run.slice(0, 3).map(k => whoOf(points[k].play));
+    return en ? `${names.join(', ')} back-to-back homers` : `${names.join('、')} 背靠背全壘打`;
+  }
+  if (hits.length >= 3) {
+    // Two named on the line (it fits a phone), how many drove runs in under it.
+    const names = hits.slice(0, 2).map(k => whoOf(points[k].play));
+    return en ? `${names.join(', ')} and more · ${hits.length} RBI plays` : `${names.join('、')} 等串聯 · ${hits.length} 次打點`;
+  }
+  const two = [...hits].sort((x, y) => (Number(points[y].play.value) || 0) - (Number(points[x].play.value) || 0)).slice(0, 2).sort((x, y) => x - y);
+  // The names on the line, what each did under it (both on one line overran its chip).
+  const did = k => firstOf(en ? MLB_EN : MLB_ZH, points[k].play.alt, points[k].play.text) || (en ? 'scores' : '安打');
+  return `${two.map(k => whoOf(points[k].play)).join(en ? ', ' : '、')} · ${two.map(did).join(en ? ', ' : '、')}`;
+}
+
+// Baseball, a low-scoring game (the owner, 2026-10-18): its scoring, every
+// half-inning with runs one moment (its hitters named, the dot on the last
+// run), and the pitching that held it: the few outs that moved it most,
+// the pitcher's (a strikeout with the bases loaded). PITCHES at most, each
+// a swing of PITCH or more, so the list stays short.
+const PITCH = 0.1;
+const PITCHES = 3;
+function baseballMoments(points, side) {
+  const vals = points.map(value);
+  const out = [];
+  const score = k => points.slice(0, k + 1).reverse().find(q => q.play?.home != null && q.play?.away != null)?.play;
+  let a = 1;
+  for (let i = 1; i <= points.length; i++) {
+    if (i < points.length && points[i].n === points[a].n && points[i].half === points[a].half) continue;
+    const b = i - 1;
+    const [s0, s1] = [score(a - 1), score(b)];
+    const got = k => (Number(s1?.[k]) || 0) - (Number(s0?.[k]) || 0);
+    // The side at bat (top: the away side), else whichever scored (a line with no halves).
+    const bats = points[a].half ? (points[a].half === 'top' ? 'away' : 'home') : got('home') > 0 ? 'home' : 'away';
+    const runs = got(bats);
+    const scored = [...Array(b - a + 1).keys()].map(k => a + k).filter(k => points[k].play?.scoring);
+    if (runs > 0 && scored.length) {
+      const last = scored.at(-1);
+      const team = side[bats];
+      const when = side.en ? `${points[a].half === 'top' ? 'Top' : 'Bottom'} ${points[a].n}` : `${points[a].n}局${points[a].half === 'top' ? '上' : '下'}`;
+      const hits = scored.filter(k => whoOf(points[k].play));
+      const key = [...hits].sort((x, y) => (Number(points[y].play.value) || 0) - (Number(points[x].play.value) || 0) || Math.abs(vals[y] - vals[y - 1]) - Math.abs(vals[x] - vals[x - 1]))[0];
+      const told = key != null ? rallyHits(points, hits, key, runs, side.en, team.name) : '';
+      // The inning's runs when the words don't already say them all.
+      const total = key != null && hits.length === 1 && (Number(points[key].play.value) || 0) >= runs ? '' : side.en ? ` · ${runs}-run inning` : ` · 這局共 ${runs} 分`;
+      const [l0, l1] = [lead(s0), lead(s1)];
+      const turned = l0 != null && l1 != null && l1 !== l0 ? (l1 === 0 ? 'tie' : 'lead') : '';
+      const said = turned ? (side.en ? (turned === 'tie' ? ' · ties it' : ' · takes the lead') : turned === 'tie' ? ' · 追平' : ' · 超前') : '';
+      const delta = vals[b] - vals[a - 1];
+      const text = told ? told + total + said : (side.en ? `${team.name} score ${runs} · ${when}` : `${team.name} ${when}攻下 ${runs} 分`) + said;
+      out.push({ i: last, from: a, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON.baseball, text, pic: key != null ? points[key].play.pic : null, team: team.id, src: points[key ?? last].play, rally: true, always: true, turned });
+    }
+    a = i;
+  }
+  // The pitching: outs (no run on them) that moved it most towards the side in the field.
+  const outs = [];
+  for (let k = 1; k < points.length; k++) {
+    const play = points[k].play;
+    if (!play || play.scoring || !play.pitcher?.who) continue;
+    const field = points[k].half === 'bottom' ? 'away' : 'home';
+    const delta = vals[k] - vals[k - 1];
+    if ((field === 'home' ? delta : -delta) < PITCH) continue;
+    if (!/strike|struck out|out|double play|ground|fly|flied|pop|line/i.test(`${play.alt} ${play.text} ${play.type}`)) continue;
+    const batter = whoOf(play);
+    const text = side.en
+      ? /strike|struck out/i.test(`${play.alt} ${play.text}`)
+        ? `${play.pitcher.who} strikes out ${batter}`.trim()
+        : `${play.pitcher.who} retires ${batter} · ${firstOf(MLB_EN, play.alt, play.text) || 'out'}`
+      : /strike|struck out/i.test(`${play.alt} ${play.text}`)
+        ? `${play.pitcher.who} 三振 ${batter}`.trim()
+        : `${play.pitcher.who} 讓 ${batter} ${firstOf(MLB_ZH, play.alt, play.text) || '出局'}`;
+    outs.push({ i: k, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON.baseball, text, pic: play.pitcher.pic, team: side[field].id, src: play, pitch: true, always: true });
+  }
+  const pitches = outs.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta)).slice(0, PITCHES);
+  return [...out, ...pitches].sort((x, y) => x.i - y.i);
 }
 
 // A stretch where it really moved: from the last point still near its start
@@ -281,6 +393,7 @@ export function tighten(values, { from, to }) {
 
 export function playMoments(points, sport, side) {
   if (!points.length || !points.every(p => p.n)) return [];
+  if (sport === 'baseball') return baseballMoments(points, side);
   const found = swingMoments(points, sport, side);
   // The game's end, whole: every play there that moved it, tied it or put a side ahead.
   for (const m of clutchMoments(points, sport, side)) {

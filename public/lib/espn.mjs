@@ -1071,7 +1071,11 @@ export function parseSummary(data, league) {
     const known = people.get(String(a?.id ?? ''));
     const b = p.participants?.[1]?.athlete;
     const other = b ? people.get(String(b.id ?? ''))?.short || b.shortName || b.displayName || '' : '';
-    return { who: known?.short || a?.shortName || a?.displayName || '', pic: a?.id ? { id: String(a.id), name: known?.name || a.displayName || '', headshot: known?.headshot || null } : null, ...(other ? { other } : {}) };
+    // Baseball: the pitcher too (a strikeout with the bases loaded is his moment).
+    const pa = ps.find(q => q.type === 'pitcher')?.athlete;
+    const pk = pa ? people.get(String(pa.id ?? '')) : null;
+    const pitcher = pa ? { who: pk?.short || pa.shortName || pa.displayName || '', pic: pa.id ? { id: String(pa.id), name: pk?.name || pa.displayName || '', headshot: pk?.headshot || null } : null } : null;
+    return { who: known?.short || a?.shortName || a?.displayName || '', pic: a?.id ? { id: String(a.id), name: known?.name || a.displayName || '', headshot: known?.headshot || null } : null, ...(other ? { other } : {}), ...(pitcher?.who ? { pitcher } : {}) };
   };
   // A play's what and who, for 過程 (lib/moments.mjs's feedText says it in Chinese; the player's face beside it).
   const detailOf = p => ({ kind: p.type?.type || '', type: p.type?.text || '', alt: p.alternativeType?.text || '', value: Number(p.scoreValue) || 0, ...whoOf(p) });
