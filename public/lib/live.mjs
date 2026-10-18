@@ -83,6 +83,8 @@ export function liveLabel(e, sport, lang = 'zh') {
     return en ? `End of ${ord(n)}` : `第${n}節結束`;
   }
   if (sport === 'baseball') {
+    // On by the clock, no score in any feed: say so, never a bare 進行中 over "–" and "–".
+    if (s.noScore) return en ? 'Live · score unavailable' : '比賽中・比分讀不到';
     if (!n) return s.short || (en ? 'Live' : '進行中');
     const half = lv.half;
     // The inning alone when the feed doesn't say which half (CPBL's).

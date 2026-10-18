@@ -68,6 +68,21 @@ test("CPBL on now: the inning and score from Kambi's live feed, matched by nickn
   assert.deepEqual([g.home.score, g.away.score], [0, 0]);
 });
 
+test("CPBL on now with no score from any feed: says so, never 進行中 over blank scores; a real score is left alone", async () => {
+  const { markNoScore, applyKambiLive } = await import('../public/lib/espn.mjs');
+  const { liveLabel } = await import('../public/lib/live.mjs');
+  const side = (en, score) => ({ en, name: en, score });
+  const game = { kind: 'match', league: 'cpbl', asia: true, status: { state: 'in', short: '' }, home: side('CTBC Brothers', ''), away: side('Uni-President Lions', '') };
+  // Kambi has no such game (a Taiwan Series on another path): nothing matched, no score made up.
+  const [e] = markNoScore(applyKambiLive([game], []));
+  assert.equal(e.home.score, '');
+  assert.equal(liveLabel(e, 'baseball', 'en'), 'Live · score unavailable');
+  assert.equal(liveLabel(e, 'baseball', 'zh'), '比賽中・比分讀不到');
+  const scored = { ...game, home: side('CTBC Brothers', 0), away: side('Uni-President Lions', 2) };
+  assert.equal(markNoScore([scored])[0].status.noScore, undefined, '0 is a score');
+  assert.equal(markNoScore([{ ...game, status: { state: 'pre' } }])[0].status.noScore, undefined);
+});
+
 test("a play's period fits the plays list's time column, in the viewer's words", async () => {
   const { playPeriod } = await import('../public/lib/live.mjs');
   const q = n => ({ period: n > 4 ? 'OT' : '1st Quarter', periodNum: n });

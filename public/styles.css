@@ -461,7 +461,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .info-v { text-align: left; overflow-wrap: break-word; word-break: normal; font-weight: 600; min-width: 0; }
 .info-list.sessions .info-v { text-align: right; }
 /* Where a game is on: its channel under the sides, the ELTA guide, the watch links. */
-.tv-line { display: block; font-size: 12px; color: var(--q-muted); margin-top: 2px; line-height: 1.35; overflow-wrap: anywhere; }
+.tv-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 12px; color: var(--q-muted); margin-top: 2px; line-height: 1.35; }
 .tw-chip.exact { font-weight: 700; }
 .tw-exact { display: grid; gap: 8px; }
 .tw-watch { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--q-sunken); color: inherit; text-decoration: none; }
@@ -788,9 +788,11 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .search-row small { color: var(--q-muted); font-size: 12px; white-space: nowrap; }
 .league-badge.mid { --s: 26px; }
 .league-head { display: grid; gap: 10px; padding: 12px 14px; margin: 10px 0 0; }
-.lh-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.lh-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.lh-row > .follow-btn { margin-left: auto; }
 .league-badge.big { --s: 40px; }
-.lh-text { display: grid; gap: 3px; min-width: 0; }
+/* The name keeps one line: when the button can't share it, the button drops to its own row. */
+.lh-text { display: grid; gap: 3px; flex: 1 0 auto; max-width: 100%; }
 .lh-text strong { font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
 .lh-text small { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .lh-live { color: var(--live); font-size: 12px; font-weight: 750; }
@@ -1007,7 +1009,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .tf-team { display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; min-width: 0; }
 .logo.tf-logo { width: 36px; height: 36px; }
 .tf-name { display: grid; flex: 1; min-width: 0; }
-.tf-name strong { font-size: 15.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tf-name strong { font-size: 15.5px; line-height: 1.25; overflow-wrap: anywhere; }
 .tf-games { display: grid; gap: 4px; padding-left: 46px; }
 .tf-game { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr) auto; align-items: center; gap: 6px; text-align: left; font-size: 13.5px; min-height: 26px; }
 .tf-when { display: grid; justify-items: end; gap: 2px; text-align: right; }
@@ -1466,9 +1468,12 @@ button.lp-person.tap:active { opacity: 0.6; }
 .h2h-side.home .h2h-who { flex-direction: row-reverse; }
 .h2h-score { display: flex; align-items: baseline; gap: 4px; }
 .h2h-name { order: 3; text-align: right; }
+
 .h2h-side.home .h2h-n { order: 1; }
 .h2h-side.home small { order: 2; }
-.h2h-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; font-size: 14px; }
+/* A long name ("Bournemouth" at 375 px) fits at 13px, or takes a second line, never cut. */
+.h2h-name { min-width: 0; overflow-wrap: break-word; line-height: 1.2; font-weight: 650; font-size: 13px; }
+.h2h-side.away .h2h-name { text-align: left; }
 .h2h-n { font-size: 20px; font-weight: 800; line-height: 1; }
 .h2h small { color: var(--q-muted); font-size: 12px; }
 .h2h-draw { display: flex; align-items: baseline; gap: 4px; padding: 0 4px; align-self: end; color: var(--q-text-2); }
@@ -1964,3 +1969,12 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
   font-size: 14px;
   text-align: center;
 }
+
+/* Narrow phones (320/375): nothing cut, no word split. A live game with no score says so on its own line under the name; opponent and suggestion names wrap at spaces; a head-to-head name shrinks rather than break; a key moment's chip sits under its words. */
+.tf-game > .tf-score.live.no-score { grid-column: 3 / 5; grid-row: 2; justify-self: start; white-space: normal; text-align: left; line-height: 1.25; }
+.tf-opp { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; word-break: keep-all; line-height: 1.25; min-width: 0; }
+.suggest-name strong { white-space: normal; overflow: visible; text-overflow: clip; word-break: keep-all; overflow-wrap: break-word; line-height: 1.25; }
+.h2h-name { overflow-wrap: normal; word-break: keep-all; font-size: clamp(11px, 3.4vw, 13px); }
+.wp-mo-go { grid-template-columns: minmax(0, 1fr); justify-items: start; row-gap: 4px; }
+.wp-mo-go > .wp-gain { justify-self: start; }
+.wp-mo-text .mo-main.one-line { white-space: normal; overflow-wrap: break-word; word-break: keep-all; }
