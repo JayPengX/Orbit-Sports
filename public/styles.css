@@ -1978,3 +1978,13 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .wp-mo-go { grid-template-columns: minmax(0, 1fr); justify-items: start; row-gap: 4px; }
 .wp-mo-go > .wp-gain { justify-self: start; }
 .wp-mo-text .mo-main.one-line { white-space: normal; overflow-wrap: break-word; word-break: keep-all; }
+/* 320 px: a followed card's Next/Last rows use the card's full width (the 46 px
+   indent squeezed "Uni-President Lions" into "Uni-Presid / ent"), names break only
+   between words, and a suggestion's name keeps clear of its + . */
+@media (max-width: 360px) {
+  .tf-games { padding-left: 0; }
+  .tf-game { grid-template-columns: auto 20px minmax(0, 1fr) auto; }
+}
+.tf-opp, .suggest-name strong { overflow-wrap: normal; }
+.suggest { gap: 10px; }
+.suggest-add { min-width: 20px; text-align: center; }
