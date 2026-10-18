@@ -40,3 +40,23 @@ test("a team's leaders: each stat's best who qualifies (ESPN's mark for an avera
   assert.deepEqual(by['救援'], ['T. Scott 25'], "nobody's 0 is no leader");
   assert.equal(statText('pointsPerGame', 33.48, 'basketball'), '33.5');
 });
+
+test("football from FotMob: its stats in our order (per 90 said), short names in a team's grid, its page whole or trimmed alike; clubs matched to ESPN's by name", async () => {
+  const { parseFotmobPage, parseFotmobStat, fotmobTeamOf, SOCCER_STATS } = await import('../public/lib/leaders.mjs');
+  const top = (id, name, value, teamId = 8456, teamName = 'Manchester City') => ({ id, name, teamId, teamName, value });
+  const raw = {
+    details: { selectedSeason: '2026/2027' },
+    table: [{ data: { table: { all: [{ id: 8456, name: 'Manchester City', shortName: 'Man City' }, { id: 8586, name: 'Tottenham Hotspur', shortName: 'Tottenham' }] } } }],
+    stats: { players: { a: { header: 'Tackles per 90', participant: { stat: { name: 'total_tackle', fractions: 1 } }, fetchAllUrl: 'u2', topThree: [top(966027, 'Conor Gallagher', 4.3, 8586, 'Tottenham Hotspur')] }, b: { header: 'Top scorer', participant: { stat: { name: 'goals', fractions: 0 } }, fetchAllUrl: 'u1', topThree: [top(737066, 'Erling Haaland', 8)] }, c: { header: 'Save percentage', participant: { stat: { name: '_save_percentage', fractions: 1 } }, fetchAllUrl: 'u3', topThree: [top(1, 'James Trafford', 82.8)] } } }
+  };
+  const d = parseFotmobPage(raw);
+  assert.deepEqual(d.season, { name: '2026-27' });
+  assert.deepEqual(d.stats.map(s => [s.key, s.per90, s.list[0].name, s.list[0].full, s.list[0].value]), [['goals', false, 'E. Haaland', 'Erling Haaland', '8'], ['total_tackle', true, 'C. Gallagher', 'Conor Gallagher', '4.3'], ['_save_percentage', false, 'J. Trafford', 'James Trafford', '82.8%']]);
+  assert.match(d.stats[0].list[0].headshot, /playerimages\/737066\.png$/);
+  assert.ok(SOCCER_STATS.length >= 20, 'far more than goals and assists');
+  assert.equal(parseFotmobPage(raw, { team: true }).stats.some(s => s.key === '_save_percentage'), false, "a team's grid: its main ones");
+  const list = parseFotmobStat({ TopLists: [{ StatDecimals: 1, StatList: [{ ParticipantName: 'Conor Gallagher', ParticiantId: 966027, TeamName: 'Tottenham Hotspur', TeamId: 8586, StatValue: 4.3, MatchesPlayed: 4 }] }] }, 'total_tackle');
+  assert.deepEqual([list[0].full, list[0].teamName, list[0].value], ['Conor Gallagher', 'Tottenham Hotspur', '4.3']);
+  assert.equal(fotmobTeamOf(d.teams, { name: 'Tottenham Hotspur', short: 'Spurs' }).id, 8586);
+  assert.equal(fotmobTeamOf(d.teams, { name: 'Wolverhampton Wanderers' }, ['wolverhampton', 'wolves']), null, 'not in the league: none, never a guess');
+});

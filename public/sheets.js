@@ -20,6 +20,7 @@ import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, stintStops, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, POINTS, asItStands, settleScoring } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
+import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, PER_GAME } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
@@ -3893,7 +3894,7 @@ export async function openTeam(league, id, fallback = {}) {
       if (view === 'leaders') {
         if (leadersData === undefined) {
           put(body, spinner());
-          teamLeaders(league, id)
+          teamLeaders(league, id, { name: info.en || info.name, en: info.en, short: info.enShort })
             .then(d => ((leadersData = d), view === 'leaders' && paint()))
             .catch(() => put(body, empty(T('failed'))));
           return;
@@ -3934,9 +3935,18 @@ export async function openTeam(league, id, fallback = {}) {
 // (one flow: the same faces, the same taps). A league's (`teamOf`: a team
 // by id, from its table): one stat at a time (its chips), the top ten, each
 // with his team.
-const leaderLabel = (st, sport, en) => (PER_GAME.has(sport) ? (en ? `${st.en} per game` : `場均${st.zh}`) : en ? st.en : st.zh);
+const leaderLabel = (st, sport, en) => (PER_GAME.has(sport) ? (en ? `${st.en} per game` : `場均${st.zh}`) : st.per90 ? (en ? `${st.en} /90` : `${st.zh}（每90分）`) : en ? st.en : st.zh);
 const leadersSeason = (data, sport, en) => (data?.season?.name ? `${data.season.name}${sport === 'soccer' ? '' : en ? ' regular season' : ' 例行賽'}` : '');
-const openLeader = (league, x) => x.id && ctx.openPlayer(league, x.id, { name: x.full || x.name, logo: x.headshot });
+// A footballer from FotMob has no ESPN id: found by his name in ESPN's
+// search (the one in this league, else the first footballer), then opened.
+const openLeader = async (league, x) => {
+  if (x.id) return ctx.openPlayer(league, x.id, { name: x.full || x.name, logo: x.headshot });
+  const found = await proxyJson(`https://site.api.espn.com/apis/search/v2?query=${encodeURIComponent(x.full || x.name)}&limit=12`, { ttl: 24 * 3_600_000 })
+    .then(parseSearch)
+    .catch(() => null);
+  const p = found?.players.find(y => y.league === league) || found?.players.find(y => LEAGUES[y.league]?.sport === 'soccer') || found?.players[0];
+  if (p) ctx.openPlayer(p.league || league, p.id, { name: x.full || x.name, logo: x.headshot });
+};
 export function teamLeadersCard(data, league) {
   const sport = LEAGUES[league]?.sport;
   const en = L() === 'en';
@@ -3947,26 +3957,28 @@ export function teamLeadersCard(data, league) {
       { class: 'leader-cols' },
       data.stats.map(st => {
         const x = st.list[0];
-        return el('button', { class: 'leader', type: 'button', onclick: () => openLeader(league, x) }, [personPic({ ...x, name: x.full || x.name }, league, 'sm round'), el('span', { class: 'leader-text' }, [el('small', { text: leaderLabel(st, sport, en) }), el('span', {}, [el('strong', { text: x.name }), el('b', { class: 'num', text: x.value })])])]);
+        return el('button', { class: 'leader', type: 'button', onclick: () => openLeader(league, x) }, [personPic({ ...x, name: x.full || x.name }, league, 'sm round'), el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitLine(el('strong', { class: 'one-line', text: x.name })), el('b', { class: 'num', text: x.value })])])]);
       })
     ),
     { sub: leadersSeason(data, sport, en) }
   );
 }
-export function leagueLeadersView(data, league, { teamOf = () => null, pick = null, onPick = () => {} } = {}) {
+export function leagueLeadersView(data, league, { teamOf = () => null, pick = null, onPick = () => {}, full = null } = {}) {
   const sport = LEAGUES[league]?.sport;
   const en = L() === 'en';
-  const st = data.stats.find(x => x.key === pick) || data.stats[0];
+  const chosen = data.stats.find(x => x.key === pick) || data.stats[0];
+  // (A football stat's whole top ten once read; its page's top three until then.)
+  const st = full?.length ? { ...chosen, list: full } : chosen;
   const chips = data.stats.length > 1 ? segmented(data.stats.map(x => [x.key, en ? x.en : x.zh]), st.key, onPick, 'scroll stage-filter') : null;
   // (Level on the number, level in the list: four on 3 assists are all 2nd.)
   const list = st.list.slice(0, 10);
   const rankOf = i => list.findIndex(y => y.value === list[i].value) + 1;
   const rows = list.map((x, i) => {
-    const t = teamOf(x.team);
+    const t = teamOf(x.team, x);
     return el('button', { class: 'lb-row', type: 'button', onclick: () => openLeader(league, x) }, [
       el('span', { class: 'lb-rank num', text: String(rankOf(i)) }),
       personPic({ ...x, name: x.full || x.name }, league, 'sm round'),
-      el('span', { class: 'lb-name' }, [fitLine(el('strong', { class: 'one-line', text: x.full || x.name })), t ? fitLine(el('small', { class: 'one-line' }, [teamTag(t, t.short || t.name, league, { tap: false })])) : null]),
+      el('span', { class: 'lb-name' }, [fitLine(el('strong', { class: 'one-line', text: x.full || x.name })), t ? fitLine(el('small', { class: 'one-line' }, [teamTag(t, t.short || t.name, league, { tap: false })])) : x.teamName ? fitLine(el('small', { class: 'one-line', text: x.teamName })) : null]),
       el('b', { class: 'lb-value num', text: x.value })
     ]);
   });

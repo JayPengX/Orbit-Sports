@@ -121,6 +121,12 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
   (ESPN's NBA, MLB and football leagues: one stat at a time by its chips,
   the top ten with face, team and number, level numbers level in the list;
   the regular season's: `lib/leaders.mjs`, the proxy's `espn-leaders` trim).
+  Football's from FotMob, the stats the leagues' own sites show (進球, 助攻,
+  評分, 預期進球, 射門, 創造機會, 傳球, 過人, 搶斷, 攔截, 解圍, 零封, 撲救,
+  撲救率, 牌…, 23 in all, 每90分 where it counts so; its page's top three,
+  each stat's top ten read when its chip is chosen; the proxy's
+  `fotmob-page`, `fotmob-stat`); a player tapped is found in ESPN's search
+  by name and opened; ESPN's two lists (goals, assists) if FotMob fails.
 - **The league head**: its logo, where its season is, what's on now, the
   follow button, and where to watch it.
 - **Live refresh.** The open league's live games refresh every
@@ -270,7 +276,8 @@ The page follows the leagues' own apps:
 - tabs: 賽程, 戰績, 陣容 (ESPN's leagues: ESPN's groups, else by
   position), 數據領先 (each stat's leader of its own, two to a row as a
   game's sheet has them: basketball's and baseball's from its players'
-  season numbers, who qualify; football's from its league's lists), 排名
+  season numbers, who qualify; football's FotMob's club page, its twelve
+  main stats, the club found among FotMob's by name), 排名
   (its part of the table, results counted in at once).
 
 Two special cases:

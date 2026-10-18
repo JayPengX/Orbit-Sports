@@ -13,7 +13,7 @@ import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAff
 import { stripDays } from './lib/strip.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList } from './lib/espn.mjs';
 import { hasLeaders } from './lib/leaders.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
@@ -2930,9 +2930,23 @@ function leadersOf(league) {
   if (d === undefined) return spinner();
   if (!d) return empty(L({ zh: '本季還沒有數據。', en: 'No numbers yet this season.' }));
   warmTable(league);
-  const rows = new Map((tables.get(league) || []).flatMap(g => g.rows || []).map(r => [String(r.id), r]));
-  return leagueLeadersView(d, league, { teamOf: id => rows.get(String(id)) || null, pick: leaderPick.get(league), onPick: k => (leaderPick.set(league, k), renderScores()) });
+  const all = (tables.get(league) || []).flatMap(g => g.rows || []);
+  const rows = new Map(all.map(r => [String(r.id), r]));
+  // (A FotMob player's club by its name: the two write the clubs alike.)
+  const fold = n => String(n || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+  const byName = name => all.find(r => [r.name, r.en, r.short].some(n => n && fold(n) === fold(name))) || null;
+  const st = d.stats.find(x => x.key === leaderPick.get(league)) || d.stats[0];
+  // A football stat's top ten: read when its chip is chosen.
+  if (st.url && !leaderLists.has(st.url)) {
+    leaderLists.set(st.url, null);
+    leaderList(st.url, st.key)
+      .then(list => leaderLists.set(st.url, list))
+      .catch(() => leaderLists.delete(st.url))
+      .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+  }
+  return leagueLeadersView(d, league, { teamOf: (id, x) => rows.get(String(id)) || (x?.teamName ? byName(x.teamName) : null), pick: st.key, full: st.url ? leaderLists.get(st.url) : null, onPick: k => (leaderPick.set(league, k), renderScores()) });
 }
+const leaderLists = new Map();
 function tableOf(league) {
   warmTable(league);
   const groups = tables.get(league);

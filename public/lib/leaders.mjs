@@ -139,3 +139,103 @@ export function teamFromLeague(league, teamId) {
   const stats = league.stats.map(s => ({ ...s, list: s.list.filter(x => x.team === String(teamId)).slice(0, 3) })).filter(s => s.list.length);
   return stats.length ? { season: league.season, stats } : null;
 }
+
+// ---- Football: FotMob's forty stats, as the leagues' own sites show them ----------------
+//
+// ESPN has two (goals, assists); FotMob's league page lists each stat's top
+// three and where its whole list is (data.fotmob.com, one file a stat), its
+// team page each stat's top three of the club's own. Both through the proxy,
+// trimmed (fotmob-page, fotmob-stat). ESPN's two lists are what's left when
+// FotMob can't be read.
+export const FOTMOB_LEAGUE = { epl: 47, bundesliga: 54, seriea: 55, ligue1: 53, mls: 130, ucl: 42, uel: 73, uecl: 10216, facup: 132, scotland: 64, nationsleague: 9806 };
+export const fotmobLeagueUrl = league => (FOTMOB_LEAGUE[league] ? `https://www.fotmob.com/api/data/leagues?id=${FOTMOB_LEAGUE[league]}` : null);
+export const fotmobTeamUrl = id => `https://www.fotmob.com/api/data/teams?id=${encodeURIComponent(id)}`;
+export const fotmobFace = id => `https://images.fotmob.com/image_resources/playerimages/${id}.png`;
+// The stats shown, in order: [FotMob's name, zh, en, on a team's page too].
+// (Per 90 minutes where FotMob counts it so: said under the stat's name.)
+export const SOCCER_STATS = [
+  ['goals', '進球', 'Goals', true],
+  ['goal_assist', '助攻', 'Assists', true],
+  ['rating', '評分', 'Rating', true],
+  ['expected_goals', '預期進球', 'xG', true],
+  ['expected_assists', '預期助攻', 'xA'],
+  ['total_scoring_att', '射門', 'Shots', true],
+  ['ontarget_scoring_att', '射正', 'Shots on target'],
+  ['big_chance_created', '製造絕佳機會', 'Big chances created'],
+  ['total_att_assist', '創造機會', 'Chances created', true],
+  ['accurate_pass', '傳球成功', 'Accurate passes', true],
+  ['accurate_long_balls', '長傳成功', 'Accurate long balls'],
+  ['won_contest', '過人成功', 'Dribbles', true],
+  ['total_tackle', '搶斷', 'Tackles', true],
+  ['interception', '攔截', 'Interceptions', true],
+  ['effective_clearance', '解圍', 'Clearances'],
+  ['ball_recovery', '奪回球權', 'Recoveries'],
+  ['clean_sheet', '零封', 'Clean sheets', true],
+  ['saves', '撲救', 'Saves', true],
+  ['_save_percentage', '撲救率', 'Save %'],
+  ['_goals_prevented', '阻止失球', 'Goals prevented'],
+  ['mins_played', '出場時間', 'Minutes'],
+  ['yellow_card', '黃牌', 'Yellow cards'],
+  ['red_card', '紅牌', 'Red cards']
+];
+const fotmobValue = (v, name, fractions) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v ?? '');
+  const d = name === 'rating' ? 2 : Number.isInteger(n) ? 0 : Math.max(1, Math.min(2, fractions || 1));
+  return `${n.toFixed(d)}${/percentage/.test(name) ? '%' : ''}`;
+};
+// FotMob's per-90 stats (its header says so).
+const per90 = header => /per 90/i.test(header || '');
+// "Gianluigi Donnarumma" → "G. Donnarumma", as ESPN shortens its names (one name stays whole: Florentino).
+const shortName = n => {
+  const w = String(n || '').trim().split(/\s+/);
+  return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(' ')}` : w[0] || '';
+};
+const fotmobPerson = (x, name, fractions) => ({ id: '', fotmob: String(x.id ?? ''), name: shortName(x.name), full: x.name || '', headshot: x.id ? fotmobFace(x.id) : null, team: '', teamName: x.teamName || '', fotmobTeam: String(x.teamId ?? ''), value: fotmobValue(x.value, name, fractions), games: x.games ?? null });
+// FotMob's page as the proxy trims it (fotmob-page), from the page whole too.
+function fotmobTrimmed(data) {
+  if (!data || Array.isArray(data.stats)) return data;
+  const st = data.stats || {};
+  const list = Array.isArray(st.players) ? st.players : Object.values(st.players || {});
+  const tables = (data.table || []).flatMap(t => [t?.data?.table, ...(t?.data?.tables || []).map(x => x?.table)]).filter(Boolean);
+  const teams = new Map();
+  for (const t of tables) for (const r of t.all || []) if (r?.id != null) teams.set(r.id, { id: r.id, name: r.name, shortName: r.shortName });
+  return {
+    season: data.details?.selectedSeason || '',
+    teamId: st.teamId,
+    stats: list.map(x => ({ header: x.header, name: x.participant?.stat?.name || '', fractions: x.participant?.stat?.fractions ?? 0, url: x.fetchAllUrl || '', top: x.topThree || [] })),
+    teams: [...teams.values()]
+  };
+}
+// A league's or team's page: { season, teams, teamId, stats: [{ key, zh, en, per90, url, list }] }, or null.
+export function parseFotmobPage(raw, { team = false } = {}) {
+  const data = fotmobTrimmed(raw);
+  if (!data?.stats?.length) return null;
+  const by = new Map(data.stats.map(s => [s.name, s]));
+  const stats = SOCCER_STATS.filter(([, , , onTeam]) => !team || onTeam)
+    .map(([key, zh, en]) => {
+      const s = by.get(key);
+      const list = (s?.top || []).filter(x => x?.name && x.value != null).map(x => fotmobPerson(x, key, s.fractions));
+      return list.length ? { key, zh, en, per90: per90(s.header), url: s.url, list } : null;
+    })
+    .filter(Boolean);
+  const season = String(data.season || '').replace(/^(\d{4})\/(\d{2})(\d{2})$/, '$1-$3');
+  return stats.length ? { season: season ? { name: season } : null, teams: data.teams || [], teamId: data.teamId ?? null, stats } : null;
+}
+// One stat's whole list (trimmed: its top ten).
+export function parseFotmobStat(raw, key) {
+  const t = raw?.TopLists?.[0];
+  const data = t ? { decimals: t.StatDecimals, list: (t.StatList || []).slice(0, 10).map(x => ({ id: x.ParticiantId ?? x.ParticipantId, name: x.ParticipantName, teamId: x.TeamId, teamName: x.TeamName, value: x.StatValue, games: x.MatchesPlayed })) } : raw;
+  return (data?.list || []).filter(x => x?.name).map(x => fotmobPerson(x, key, data.decimals));
+}
+// FotMob's club for an ESPN one (`words`: the kit's ways of naming a side):
+// the same name, else the one its names say most of.
+const fold = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/ø/g, 'o').replace(/ß/g, 'ss');
+export function fotmobTeamOf(teams, side, words = []) {
+  const names = [side?.en, side?.name, side?.short].filter(Boolean).map(fold);
+  const exact = teams.find(t => [t.name, t.shortName].map(fold).some(n => names.includes(n)));
+  if (exact) return exact;
+  const score = t => words.filter(w => w && !/[㐀-鿿]/.test(w) && [t.name, t.shortName].map(fold).some(n => n.includes(w))).length;
+  const best = teams.map(t => ({ t, n: score(t) })).sort((a, b) => b.n - a.n);
+  return best[0]?.n > 0 && best[0].n > (best[1]?.n || 0) ? best[0].t : null;
+}
