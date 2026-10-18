@@ -3959,7 +3959,9 @@ const openLeader = async (league, x) => {
     .then(parseSearch)
     .catch(() => null);
   const p = found?.players.find(y => y.league === league) || found?.players.find(y => LEAGUES[y.league]?.sport === 'soccer') || found?.players[0];
-  if (p) ctx.openPlayer(p.league || league, p.id, { name: x.full || x.name, logo: x.headshot });
+  // (Under the league he was opened from: ESPN's search places a player by
+  // his last competition, a Nations League in an international break.)
+  if (p) ctx.openPlayer(league, p.id, { name: x.full || x.name, logo: x.headshot });
 };
 export function teamLeadersCard(data, league) {
   const sport = LEAGUES[league]?.sport;

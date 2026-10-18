@@ -133,9 +133,9 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
   where it counts so; its page's top three, each stat's top hundred read
   when its chip is chosen; the proxy's `fotmob-page`, `fotmob-stat`); a
   player tapped is found in ESPN's search by name and opened; ESPN's two
-  lists (goals, assists) if FotMob fails. F1's 10 counted from the
-  season's results (Jolpica, the proxy's `jolpica-results`): 積分, 分站冠軍,
-  頒獎台, 竿位, 前十完賽, 最快圈速, 平均完賽名次, 名次推進, 完成圈數, 退賽,
+  lists (goals, assists) if FotMob fails. F1's 9 counted from the
+  season's results (Jolpica, the proxy's `jolpica-results`): 分站冠軍,
+  頒獎台, 竿位, 前十完賽, 最快圈速, 平均完賽名次, 平均起跑位置, 名次推進, 退賽,
   each driver matched to ESPN's table to open him.
 - **The league head**: its logo, where its season is, what's on now, the
   follow button, and where to watch it.

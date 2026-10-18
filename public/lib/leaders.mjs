@@ -218,16 +218,16 @@ export function teamFromLeague(league, teamId) {
 // ESPN's table has each round's points alone; Jolpica has every result (a
 // hundred a page, the proxy's trim: jolpica-results) and each pole sitter.
 // Each stat: [key, zh, en, how, lower is better].
+// (No points: 排名 has them.)
 export const F1_STATS = [
-  ['pts', '積分', 'Points', 'n'],
   ['wins', '分站冠軍', 'Wins', 'n'],
   ['pod', '頒獎台', 'Podiums', 'n'],
   ['pole', '竿位', 'Poles', 'n'],
   ['top10', '前十完賽', 'Top-10 finishes', 'n'],
   ['fl', '最快圈速', 'Fastest laps', 'n'],
   ['avg', '平均完賽名次', 'Average finish', 'one', true],
+  ['grid', '平均起跑位置', 'Average grid', 'one', true],
   ['gain', '名次推進', 'Places gained', 'n'],
-  ['laps', '完成圈數', 'Laps completed', 'n'],
   ['dnf', '退賽', 'Retirements', 'n']
 ];
 LEADER_STATS.racing = F1_STATS;
@@ -247,7 +247,7 @@ export function parseF1Leaders(pages, poles, drivers = []) {
     if (!by.has(id)) {
       const full = `${d.givenName || ''} ${d.familyName || ''}`.trim();
       const row = drivers.find(r => fold(r.en || r.name) === fold(full)) || drivers.find(r => fold(r.en || r.name).endsWith(` ${fold(d.familyName)}`));
-      by.set(id, { id: row?.id || '', name: shortName(full), full, team: '', teamName: '', headshot: null, n: { pts: 0, wins: 0, pod: 0, pole: 0, top10: 0, fl: 0, gain: 0, laps: 0, dnf: 0 }, finishes: [] });
+      by.set(id, { id: row?.id || '', name: shortName(full), full, team: '', teamName: '', headshot: null, n: { wins: 0, pod: 0, pole: 0, top10: 0, fl: 0, gain: 0, dnf: 0 }, finishes: [], grids: [] });
     }
     return by.get(id);
   };
@@ -261,8 +261,7 @@ export function parseF1Leaders(pages, poles, drivers = []) {
         if (!p) continue;
         if (x.Constructor?.name) p.teamName = x.Constructor.name;
         const pos = /^\d+$/.test(x.positionText || '') ? Number(x.positionText) : null;
-        p.n.pts += Number(x.points) || 0;
-        p.n.laps += Number(x.laps) || 0;
+        if (Number(x.grid) > 0) p.grids.push(Number(x.grid));
         if (pos === 1) p.n.wins++;
         if (pos && pos <= 3) p.n.pod++;
         if (pos && pos <= 10) p.n.top10++;
@@ -283,7 +282,11 @@ export function parseF1Leaders(pages, poles, drivers = []) {
   if (!all.length) return null;
   // An average finish counts those classified in half the races at least.
   const enough = Math.max(1, races.size / 2);
-  for (const p of all) p.n.avg = p.finishes.length >= enough ? p.finishes.reduce((a, b) => a + b, 0) / p.finishes.length : null;
+  const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
+  for (const p of all) {
+    p.n.avg = p.finishes.length >= enough ? mean(p.finishes) : null;
+    p.n.grid = p.grids.length >= enough ? mean(p.grids) : null;
+  }
   const stats = F1_STATS.map(([key, zh, en, how, low]) => {
     const list = all
       .filter(p => p.n[key] != null && (low || p.n[key] > 0))
@@ -379,7 +382,8 @@ export function parseFotmobStat(raw, key) {
 }
 // FotMob's club for an ESPN one (`words`: the kit's ways of naming a side):
 // the same name, else the one its names say most of.
-const fold = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/ø/g, 'o').replace(/ß/g, 'ss');
+// (Brighton & Hove Albion is FotMob's Brighton and Hove Albion; marks and dots dropped.)
+const fold = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/ø/g, 'o').replace(/ß/g, 'ss').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
 export function fotmobTeamOf(teams, side, words = []) {
   const names = [side?.en, side?.name, side?.short].filter(Boolean).map(fold);
   const exact = teams.find(t => [t.name, t.shortName].map(fold).some(n => names.includes(n)));
@@ -387,4 +391,14 @@ export function fotmobTeamOf(teams, side, words = []) {
   const score = t => words.filter(w => w && !/[㐀-鿿]/.test(w) && [t.name, t.shortName].map(fold).some(n => n.includes(w))).length;
   const best = teams.map(t => ({ t, n: score(t) })).sort((a, b) => b.n - a.n);
   return best[0]?.n > 0 && best[0].n > (best[1]?.n || 0) ? best[0].t : null;
+}
+// The league table's row for each of FotMob's clubs (its id → the row), so a
+// leader's club is named and badged as everywhere else in the app.
+export function fotmobClubRows(teams = [], rows = [], wordsOf = () => []) {
+  const out = new Map();
+  for (const r of rows) {
+    const t = fotmobTeamOf(teams, { name: r.en || r.name, en: r.en, short: r.short }, wordsOf(r));
+    if (t && !out.has(String(t.id))) out.set(String(t.id), r);
+  }
+  return out;
 }

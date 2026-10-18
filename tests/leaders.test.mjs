@@ -92,13 +92,22 @@ test("F1's leaders from the season's results: wins, podiums, poles, top tens, fa
   const poles = { MRData: { RaceTable: { Races: [{ QualifyingResults: [{ Driver: { driverId: 'antonelli', givenName: 'Kimi', familyName: 'Antonelli' } }] }, { QualifyingResults: [{ Driver: { driverId: 'antonelli' } }] }] } } };
   const d = parseF1Leaders(pages, poles, [{ id: '5503', en: 'George Russell', athlete: true }]);
   const by = Object.fromEntries(d.stats.map(s => [s.key, s.list.map(x => `${x.name} ${x.value}`)]));
-  assert.deepEqual(by.pts, ['K. Antonelli 43', 'G. Russell 40', 'M. Verstappen 18']);
+  assert.equal(by.pts, undefined, '排名 has the points');
+  assert.deepEqual(by.grid, ['K. Antonelli 1.0', 'G. Russell 2.5', 'M. Verstappen 5.5']);
   assert.deepEqual(by.pod, ['G. Russell 2', 'K. Antonelli 2', 'M. Verstappen 1']);
   assert.deepEqual(by.pole, ['K. Antonelli 2']);
   assert.deepEqual(by.avg, ['K. Antonelli 1.5', 'G. Russell 2.0', 'M. Verstappen 2.0']);
   assert.deepEqual(by.gain, ['M. Verstappen 7', 'G. Russell 1']);
   assert.deepEqual(by.dnf, ['M. Verstappen 1']);
-  assert.equal(d.stats[0].list.find(x => x.full === 'George Russell').id, '5503');
+  assert.equal(d.stats.find(s => s.key === 'pod').list.find(x => x.full === 'George Russell').id, '5503');
   assert.equal(d.season.name, '2026');
   assert.ok(F1_STATS.length >= 8 && hasLeaders('racing', 'racing/f1') && !hasLeaders('racing', 'racing/irl'));
+});
+
+test("FotMob's clubs matched to the table's rows, Brighton and Hove Albion is Brighton & Hove Albion", async () => {
+  const { fotmobClubRows } = await import('../public/lib/leaders.mjs');
+  const rows = [{ id: '331', name: '布萊頓', en: 'Brighton & Hove Albion', short: 'Brighton' }, { id: '382', name: '曼城', en: 'Manchester City', short: 'Man City' }, { id: '380', name: '狼隊', en: 'Wolverhampton Wanderers', short: 'Wolves' }];
+  const teams = [{ id: 10204, name: 'Brighton and Hove Albion', shortName: 'Brighton' }, { id: 8456, name: 'Manchester City', shortName: 'Man City' }, { id: 8602, name: 'Wolverhampton Wanderers', shortName: 'Wolves' }];
+  const m = fotmobClubRows(teams, rows);
+  assert.deepEqual([m.get('10204')?.name, m.get('8456')?.name, m.get('8602')?.name], ['布萊頓', '曼城', '狼隊']);
 });
