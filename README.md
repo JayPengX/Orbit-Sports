@@ -117,7 +117,10 @@ it to the top, and at the top 首頁 goes back to today. At the top right are
   - One tap opens the session on now, else the next, else the race.
   - 接下來 and 已結束 are shown one at a time.
 - **Views**: 賽程 · 排名 (every league with a table) · 季後賽 / 淘汰賽
-  (every league with playoffs, its shape drawn while read).
+  (every league with playoffs, its shape drawn while read) · 數據領先
+  (ESPN's NBA, MLB and football leagues: one stat at a time by its chips,
+  the top ten with face, team and number, level numbers level in the list;
+  the regular season's: `lib/leaders.mjs`, the proxy's `espn-leaders` trim).
 - **The league head**: its logo, where its season is, what's on now, the
   follow button, and where to watch it.
 - **Live refresh.** The open league's live games refresh every
@@ -265,7 +268,10 @@ The page follows the leagues' own apps:
   team's form shows: 兩隊比較 in a game (before that game) and 追蹤's row;
 - a strip of its key numbers, and the next game as a card;
 - tabs: 賽程, 戰績, 陣容 (ESPN's leagues: ESPN's groups, else by
-  position), 排名 (its part of the table, results counted in at once).
+  position), 數據領先 (each stat's leader of its own, two to a row as a
+  game's sheet has them: basketball's and baseball's from its players'
+  season numbers, who qualify; football's from its league's lists), 排名
+  (its part of the table, results counted in at once).
 
 Two special cases:
 - **CPBL**: the same page built from its own season (the record and table

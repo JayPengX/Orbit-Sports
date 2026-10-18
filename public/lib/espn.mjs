@@ -18,6 +18,7 @@ import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGU
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey, withPitchingChange } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
+import { hasLeaders, leagueLeadersUrl, teamLeadersUrl, parseLeagueLeaders, parseTeamLeaders, teamFromLeague } from './leaders.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
 import * as kit from '#kit/quadra.mjs';
 const { proxyJson } = kit;
@@ -1838,6 +1839,19 @@ export function parseSeasonAverages(data) {
 }
 export async function seasonAverages(league, id) {
   return parseSeasonAverages(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}/athletes/statistics`, { ttl: 6 * 3_600_000 }));
+}
+// 數據領先 for a league and for a team (lib/leaders.mjs), the regular
+// season's; each read kept 6 h (they change once a day).
+export async function leagueLeaders(league) {
+  const l = LEAGUES[league];
+  if (!hasLeaders(l?.sport, l?.espn)) return null;
+  return parseLeagueLeaders(await getJson(leagueLeadersUrl(l.sport, l.espn), { ttl: 6 * 3_600_000, trim: 'espn-leaders' }), l.sport);
+}
+export async function teamLeaders(league, id) {
+  const l = LEAGUES[league];
+  if (!hasLeaders(l?.sport, l?.espn)) return null;
+  if (l.sport === 'soccer') return teamFromLeague(await leagueLeaders(league), id);
+  return parseTeamLeaders(await getJson(teamLeadersUrl(l.espn, id), { ttl: 6 * 3_600_000 }), l.sport);
 }
 export async function roster(league, id, home = '') {
   const path = home && LEAGUES[league].espn.startsWith('soccer/') ? `soccer/${home}` : LEAGUES[league].espn;

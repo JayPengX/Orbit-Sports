@@ -13,7 +13,8 @@ import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAff
 import { stripDays } from './lib/strip.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kit from '#kit/quadra.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders } from './lib/espn.mjs';
+import { hasLeaders } from './lib/leaders.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -30,7 +31,7 @@ import { stageOf } from './lib/stage.mjs';
 import { nearestDay } from './lib/days.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
 import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenText, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
-import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater } from './sheets.js';
+import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // New kit names through the module (a phone can still run an older kit).
 import * as kitNames from '#kit/names.mjs';
@@ -2418,7 +2419,9 @@ function renderScores() {
   const poFailed = reading && po?.failed && !po.loading;
   const knockView = sc.view === 'bracket' && hasBracket(sc.league) && (rounds.length > 0 || reading);
   const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
-  if (knockView) list = rounds.length ? playoffView(po.model, sc.league) : poFailed ? empty(t('failed')) : bracketShape();
+  const leadersView = !knockView && !tableView && sc.view === 'leaders' && hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn);
+  if (leadersView) list = leadersOf(sc.league);
+  else if (knockView) list = rounds.length ? playoffView(po.model, sc.league) : poFailed ? empty(t('failed')) : bracketShape();
   else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
@@ -2496,9 +2499,9 @@ function renderScores() {
     ]),
     twChips(sc.league, 3)
   ]);
-  const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : [])];
-  const views = viewList.length > 1 ? segmented(viewList, knockView ? 'bracket' : tableView ? 'table' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
-  const other = tableView || knockView;
+  const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : []), ...(hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn) ? [['leaders', L({ zh: '數據領先', en: 'Leaders' })]] : [])];
+  const views = viewList.length > 1 ? segmented(viewList, knockView ? 'bracket' : tableView ? 'table' : leadersView ? 'leaders' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
+  const other = tableView || knockView || leadersView;
   const parts = [sportChips, leagueChips, tools, views, other ? null : strip, other ? null : stages, list].filter(Boolean);
   if (scoresQuiet && box.childNodes.length === parts.length) return parts.forEach((n, i) => morph(box.childNodes[i], n));
   put(box, ...parts);
@@ -2909,6 +2912,26 @@ function warmTable(league) {
     .then(g => tables.set(league, g))
     .catch(() => !tables.get(league)?.length && tables.set(league, []))
     .then(shown);
+}
+// 數據領先 of a league (sheets.js' leagueLeadersView): read once a session
+// (kept 6 h on the device), each player's team named from its table.
+const leaders = new Map();
+const leaderPick = new Map();
+function leadersOf(league) {
+  if (!leaders.has(league)) {
+    leaders.set(league, undefined);
+    leagueLeaders(league)
+      .then(d => leaders.set(league, d))
+      .catch(() => leaders.delete(league))
+      .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+  }
+  if (!leaders.has(league)) return empty(t('failed'));
+  const d = leaders.get(league);
+  if (d === undefined) return spinner();
+  if (!d) return empty(L({ zh: '本季還沒有數據。', en: 'No numbers yet this season.' }));
+  warmTable(league);
+  const rows = new Map((tables.get(league) || []).flatMap(g => g.rows || []).map(r => [String(r.id), r]));
+  return leagueLeadersView(d, league, { teamOf: id => rows.get(String(id)) || null, pick: leaderPick.get(league), onPick: k => (leaderPick.set(league, k), renderScores()) });
 }
 function tableOf(league) {
   warmTable(league);

@@ -1931,3 +1931,14 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 
 /* A player's name on one line: smaller where long (app.js fitNumbers), never two (Samir El / Mourabet at 375). */
 .player-hero .team-head-text h3 { white-space: nowrap; }
+
+/* 數據領先 of a league: rank, face, name over team, the number. */
+.lb-list { display: grid; }
+.lb-row { display: grid; grid-template-columns: 1.4em auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px; width: 100%; padding: 8px 0; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; }
+.lb-row:first-child { border-top: 0; }
+.lb-rank { color: var(--q-muted); font-size: 13px; text-align: center; }
+.lb-name { display: grid; gap: 1px; min-width: 0; }
+.lb-name strong { font-size: 14.5px; }
+.lb-name small { color: var(--q-muted); font-size: 12px; }
+.lb-name .team-tag { display: inline-flex; align-items: center; gap: 4px; }
+.lb-value { color: var(--accent); font-size: 16px; font-weight: 700; }
