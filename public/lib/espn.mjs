@@ -1102,7 +1102,8 @@ export function parseSummary(data, league) {
       const p = c.play;
       const [a, b] = (p.participants || []).map(x => x.athlete?.displayName || '');
       const k = byName.get(fold(a));
-      const scoring = /^goal|own-goal/.test(p.type.type);
+      // (A penalty scored too: Picault's at 89' wasn't marked, 2026-10-18.)
+      const scoring = /^goal|own-goal|penalty---scored/.test(p.type.type);
       return { id: String(p.id ?? ''), text: c.text || p.text || '', commentary: true, kind: p.type.type, type: p.type.text || '', clock: c.time?.displayValue || p.clock?.displayValue || '', periodNum: p.period?.number || 0, team: teamOf(p.team?.displayName), scoring, who: k?.short || a || '', pic: k ? { id: k.id, name: k.name, headshot: k.headshot } : null, ...(b ? { other: byName.get(fold(b))?.short || b } : {}), ...(scoring ? scoreIn(c.text || '') : {}) };
     })
     // A foul is two lines (the free kick won, then "Foul by"): one, the player fouled kept on it.

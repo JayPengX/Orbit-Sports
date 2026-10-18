@@ -20,3 +20,10 @@ test("a football game's 過程 is its whole commentary: shots, corners, fouls, e
   const blocked = s.commentary.find(p => p.kind === 'shot-blocked');
   assert.match(feedText('soccer', blocked, false, '切爾西'), /頭球.*封阻/);
 });
+
+test('a penalty scored is a goal in 過程 (Picault, Atlanta–Inter Miami 89\', 2026-10-17): marked, with the score after it', () => {
+  const pen = { sequence: 1, text: 'Goal! Atlanta United 1, Inter Miami CF 3. Fafà Picault (Atlanta United) converts the penalty with a right footed shot.', time: { displayValue: "89'" }, play: { id: '9', type: { type: 'penalty---scored', text: 'Penalty - Scored' }, period: { number: 2 }, team: { displayName: 'Atlanta United' } } };
+  const s = parseSummary({ ...data, commentary: [...(data.commentary || []), pen] }, 'epl');
+  const row = s.commentary.find(p => p.kind === 'penalty---scored');
+  assert.equal(row.scoring, true);
+});
