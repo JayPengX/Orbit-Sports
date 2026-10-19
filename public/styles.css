@@ -1988,3 +1988,150 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .tf-opp, .suggest-name strong { overflow-wrap: normal; }
 .suggest { gap: 10px; }
 .suggest-add { min-width: 20px; text-align: center; }
+
+/* ==== Premium: the family's look (kit "Premium layer") in this app's orange ====
+   Page heads, a hero card for the best game, row cards of games with logo
+   tiles and tags, sport tiles. The game rows keep their markup (ui.js
+   eventRow); this block gives them the look. */
+:root { --hero-a: #9a3412; --hero-b: #ea580c; }
+.page { padding-top: 4px; }
+.ph { padding: 4px 0 16px; }
+.ph.with-trail { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.ph-text { min-width: 0; }
+.ph h1 { overflow-wrap: anywhere; }
+.ph-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin-bottom: 4px; padding: 0 14px 0 10px; border: 0; border-radius: 999px; background: var(--accent-wash); color: var(--accent); font: 600 14px/1 var(--q-font); }
+.ph-ico { display: grid; place-items: center; }
+.ph-ico svg { width: 18px; height: 18px; }
+.q-section { margin-top: 24px; }
+.q-section-head h2 { font-size: 20px; font-weight: 700; }
+.tab-panel > .q-section:first-child { margin-top: 0; }
+
+/* The hero card: the game to watch. */
+.hero-game { --q-hc-a: var(--hero-a); --q-hc-b: var(--hero-b); --q-hc-glow: #fdba74; gap: 12px; margin: 0 0 20px; cursor: pointer; }
+.hero-game .q-hc-sub { margin: -2px 0 0; }
+.hc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.hc-top .q-hc-eyebrow { min-width: 0; }
+.hc-ico svg { width: 16px; height: 16px; display: block; }
+.hc-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #fff;  animation: pulse 1.4s ease-in-out infinite; }
+.hc-status { flex: none; max-width: 55%; padding: 6px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); font: 700 13px/1 var(--q-font); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hc-side { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.hc-logo { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 15px; background: #fff; box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.25); overflow: hidden; }
+.hc-logo .logo-wrap { display: grid; place-items: center; }
+.hc-logo .logo { width: 34px; height: 34px; border-radius: 0; background: none; object-fit: contain; }
+.hc-logo .logo.round { width: 48px; height: 48px; border-radius: 0; object-fit: cover; }
+.hc-logo .logo-fallback { color: #444; background: none; font-size: 18px; }
+.hc-name { flex: 1; min-width: 0; font: 600 19px/24px var(--q-font); letter-spacing: -0.01em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.hc-score { flex: none; font: 700 36px/40px var(--q-font-rounded); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.hero-game:has(.hc-side.win) .hc-side:not(.win) { opacity: 0.68; }
+.hc-event { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hc-event .race-flag.big { width: 36px; height: 36px; }
+.hc-event .sess-tag { background: rgba(255, 255, 255, 0.2); color: #fff; }
+.hc-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.q-tag.on-hero { background: rgba(255, 255, 255, 0.18); color: #fff; }
+.q-tag.on-hero.strong { background: #fff; color: var(--hero-b); }
+.hero-game .q-hc-row { margin-top: 2px; }
+.hero-game .q-hc-btn { min-height: 42px; }
+.hero-game .q-hc-btn small { font-size: 12px; font-weight: 600; opacity: 0.7; }
+.hc-play svg { width: 14px; height: 14px; display: block; }
+@media (prefers-reduced-motion: reduce) { .hc-dot { animation: none; } }
+
+/* Lists of games as row cards. */
+.q-card.list { border-radius: 20px; }
+.event-row { grid-template-columns: 76px minmax(0, 1fr); gap: 12px; padding: 12px 14px; border-top: var(--q-hairline, 0.5px) solid var(--q-sep); }
+.event-row.mine::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+.event-row { position: relative; }
+.event-row.mine { box-shadow: none; }
+.event-meta { gap: 6px; align-content: center; }
+.event-status { justify-self: start; display: inline-grid; padding: 4px 8px; border-radius: 999px; background: var(--q-fill-3); white-space: nowrap; font: 700 12px/1.15 var(--q-font); color: var(--q-text-2); font-variant-numeric: tabular-nums; }
+.event-status small { font-size: 11px; font-weight: 600; opacity: 0.85; }
+.event-status.pre { background: none; padding: 0; font-size: 17px; font-weight: 700; color: var(--q-text); letter-spacing: -0.01em; }
+.event-status.pre.two { display: grid; gap: 1px; }
+.event-status.pre.two b { font-size: 17px; }
+.event-status.pre.two span { font-size: 12px; color: var(--q-muted); font-weight: 600; }
+.event-status.in { background: var(--live-wash); color: var(--live); }
+.event-status.in::before { display: none; }
+.event-status.in:not(.clocked) { grid-auto-flow: column; align-items: center; gap: 5px; }
+.event-status.in:not(.clocked)::before { display: block; content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin: 0; animation: pulse 1.4s ease-in-out infinite; }
+.event-status.post { color: var(--q-muted); }
+.event-status.post.ended small { color: var(--q-muted); }
+.event-row .side .logo:not(.round):not(.logo-fallback):not(.logo-flag) { width: 30px; height: 30px; padding: 3px; border-radius: 10px; background: var(--q-fill-4); object-fit: contain; }
+.event-row .side .logo-fallback, .event-row .side .logo-flag { width: 30px; height: 30px; border-radius: 10px; font-size: 14px; }
+.event-row .side .logo.round { width: 30px; height: 30px; }
+.event-row .side { gap: 10px; }
+.side-name { font-size: 15px; }
+.side-score { font: 700 19px/1 var(--q-font-rounded); min-width: 24px; }
+.stage-tag { border-radius: 999px; padding: 2px 9px; font-size: 11.5px; }
+.pick-mark { margin-top: 0; padding: 3px 8px; font-size: 11.5px; }
+.tv-line { gap: 6px; margin-top: 4px; }
+.tv-ch { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--q-fill-3); color: var(--q-text-2); font: 600 11.5px/1.2 var(--q-font); }
+.tv-ch .au-tag { margin: 0; padding: 0; background: none; font-size: 11px; vertical-align: 0; }
+.tv-ch .tv-again { font-weight: 600; }
+.why-row { margin-top: 2px; }
+.live-now .q-section-head h2 { display: inline-flex; align-items: center; gap: 8px; }
+.live-now .q-section-head h2::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: currentColor; animation: pulse 1.4s ease-in-out infinite; }
+.none-mine { border-radius: 20px; }
+
+/* Onboarding: sports as colour tiles. */
+.sport-picker { margin-top: 8px; }
+.sp-count { color: var(--q-muted); font: 600 14px/1 var(--q-font); }
+.sport-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.sport-card { --t: var(--accent); position: relative; display: grid; align-content: space-between; gap: 18px; min-height: 132px; padding: 14px; border: 0; border-radius: 22px; color: #fff; text-align: left; background: radial-gradient(120% 120% at 100% 0%, color-mix(in srgb, var(--t) 55%, #fff), transparent 60%), linear-gradient(150deg, color-mix(in srgb, var(--t) 70%, #000), var(--t)); box-shadow: 0 14px 28px -20px var(--t); }
+.sport-card .sc-marks { display: flex; }
+.sport-card .league-badge { --s: 34px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--t) 80%, #000); }
+.sport-card .league-badge + .league-badge { margin-left: -10px; }
+.sc-name { font: 700 20px/24px var(--q-font); letter-spacing: -0.01em; }
+.sc-badge { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: rgba(255, 255, 255, 0.24); font: 700 16px/1 var(--q-font-rounded); }
+.sport-card.on .sc-badge { background: #fff; color: var(--t); }
+.sport-card:not(.on) { filter: saturate(0.9); }
+.sp-done { margin-top: 16px; }
+.hero-game .q-hc-sub { text-wrap: balance; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --hero-a: #7c2d12; --hero-b: #c2410c; } :root:not([data-theme='light']) .hero-game { --q-hc-glow: #ea580c; } }
+:root[data-theme='dark'] { --hero-a: #7c2d12; --hero-b: #c2410c; }
+:root[data-theme='dark'] .hero-game { --q-hc-glow: #ea580c; }
+
+/* The other tabs. */
+.skel-hero { height: 232px; margin-bottom: 20px; border-radius: 22px; background: var(--q-fill-3); }
+.q-rowcard.guide-card { margin-top: 24px; }
+.day-head { margin: 16px 4px 8px; color: var(--q-label-2, var(--q-muted)); font: 600 13px/18px var(--q-font); letter-spacing: 0.02em; }
+.stack > div:first-child .day-head { margin-top: 0; }
+.stack { gap: 0; }
+.fx-search { margin: 0 0 12px; }
+.league-head { border-radius: 22px; padding: 14px 16px; margin-top: 12px; background: radial-gradient(140% 90% at 50% 0%, color-mix(in srgb, var(--accent) 14%, var(--q-surface)), var(--q-surface) 80%); }
+.lh-text strong { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.q-card.team-form-list { background: none; display: grid; gap: 12px; overflow: visible; border-radius: 0; }
+.team-form-list .tf-row { border: 0; border-radius: 22px; background: var(--q-surface); padding: 14px 16px; overflow: hidden; }
+.tf-team .tf-logo { width: 52px; height: 52px; padding: 7px; border-radius: 16px; background: var(--q-fill-4); object-fit: contain; }
+.tf-name strong { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.tf-game .logo { padding: 2px; border-radius: 8px; background: var(--q-fill-4); }
+.tf-game { border-radius: 14px; }
+.tf-score.live { color: var(--live); }
+.tf-row .watch-btn.wide { border-radius: 999px; }
+.followed-games { border-radius: 20px; }
+.follow-row .follow-team { padding-top: 12px; }
+
+/* 追蹤's suggestions: colour-washed tiles with the team's logo. */
+.suggest-grid { gap: 12px; margin: 0; }
+.suggest { --t: var(--accent); position: relative; display: grid; align-content: space-between; justify-items: start; gap: 14px; min-height: 124px; padding: 14px; border: 0; border-radius: 22px; background: radial-gradient(130% 80% at 0% 0%, color-mix(in srgb, var(--t) 22%, var(--q-surface)), var(--q-surface) 75%); }
+.suggest.on { background: radial-gradient(130% 80% at 0% 0%, color-mix(in srgb, var(--t) 36%, var(--q-surface)), var(--q-surface) 75%); box-shadow: inset 0 0 0 2px var(--t); }
+.suggest > .logo, .suggest > .logo-wrap { width: 48px; height: 48px; padding: 6px; border-radius: 15px; background: #fff; object-fit: contain; }
+.suggest > .logo-wrap { display: grid; place-items: center; padding: 0; }
+.suggest > .logo-wrap .logo { width: 36px; height: 36px; border-radius: 0; background: none; padding: 0; }
+.suggest-name { width: 100%; }
+.suggest-name strong { font-size: 16px; font-weight: 700; }
+.suggest-name small { font-size: 12.5px; }
+.suggest-add { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--t) 18%, transparent); color: var(--t); font-size: 18px; font-weight: 700; }
+.suggest.on .suggest-add { background: var(--t); color: #fff; }
+
+/* 轉播's guide rows. */
+.tvg-row { padding: 12px 14px; border-top: var(--q-hairline, 0.5px) solid var(--q-sep); }
+.tvg-ch { padding: 3px 9px; border-radius: 999px; font-size: 11.5px; background: var(--q-fill-3); }
+.tvg-watch { background: var(--accent); color: var(--accent-ink, #fff); padding: 8px 14px; }
+.tf-games, .tf-wait { padding-left: 0; }
+.event-status.pre.two { overflow: visible; text-overflow: clip; line-height: 1.25; }
+.event-status { max-width: 100%; }
+.tf-name .form-pills { display: flex; gap: 4px; margin-top: 5px; }
+.hc-tags { flex-wrap: nowrap; overflow: hidden; }
+.hc-tags .q-tag { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tf-team { align-items: flex-start; }
+@media (max-width: 359px) { .tf-team .tf-logo { width: 44px; height: 44px; } .live-faces { display: none; } }
+@media (max-width: 359px) { .event-row { grid-template-columns: 66px minmax(0, 1fr); gap: 8px; padding: 12px; } .event-row .side .logo:not(.round):not(.logo-fallback):not(.logo-flag), .event-row .side .logo-fallback, .event-row .side .logo.round { width: 26px; height: 26px; } .live-line .live-names { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
