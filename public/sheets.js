@@ -28,7 +28,7 @@ import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mj
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, halftimeTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, today } from './ui.js';
+import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, halftimeTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, today, sidesOf } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -54,6 +54,9 @@ function f1Later(text) {
 }
 const injuryText = s => (L() === 'en' ? s : injuryZh(s) || zhLater(s));
 const weatherText = w => weatherZh(w, L());
+// The game's sides in the order the cards show them (soccer home first, the rest away first).
+const homeFirst = e => String(sidesOf(e)[0]?.id) === String(e.home?.id);
+const inOrder = (e, [away, home]) => (homeFirst(e) ? [home, away] : [away, home]);
 // The last meetings at a glance: each side's logo, name and wins, the draws
 // between, and one bar split by them (a sentence wrapped its parts apart).
 function h2hView({ n, wins, draws }, e) {
@@ -62,8 +65,8 @@ function h2hView({ n, wins, draws }, e) {
   const share = k => `flex-grow:${k}`;
   const [a, h] = [wins[e.away.id] || 0, wins[e.home.id] || 0];
   return el('div', { class: 'h2h' }, [
-    el('div', { class: 'h2h-row' }, [side(e.away, 'away'), el('div', { class: 'h2h-draw' }, [el('strong', { class: 'num h2h-n', text: String(draws || 0) }), el('small', { text: en ? 'drawn' : '和局' })]), side(e.home, 'home')]),
-    n ? el('div', { class: 'h2h-bar', 'aria-hidden': 'true' }, [a ? el('i', { class: 'away', style: share(a) }) : null, draws ? el('i', { class: 'draw', style: share(draws) }) : null, h ? el('i', { class: 'home', style: share(h) }) : null]) : null
+    el('div', { class: 'h2h-row' }, [side(homeFirst(e) ? e.home : e.away, 'away'), el('div', { class: 'h2h-draw' }, [el('strong', { class: 'num h2h-n', text: String(draws || 0) }), el('small', { text: en ? 'drawn' : '和局' })]), side(homeFirst(e) ? e.away : e.home, 'home')]),
+    n ? el('div', { class: 'h2h-bar', 'aria-hidden': 'true' }, inOrder(e, [a ? el('i', { class: 'away', style: share(a) }) : null, h ? el('i', { class: 'home', style: share(h) }) : null]).flatMap((x, i) => (i === 0 ? [x, draws ? el('i', { class: 'draw', style: share(draws) }) : null] : [x]))) : null
   ]);
 }
 // A series' line in the reader's words (the sides by their names here).
@@ -149,19 +152,19 @@ export async function openMatch(e) {
     put(
       header,
       el('div', { class: 'mh-row' }, [
-        side(away, e.away),
+        homeFirst(e) ? side(home, e.home) : side(away, e.away),
         el('div', { class: 'mh-mid' }, [
-          st.state === 'pre' ? el('strong', { class: 'mh-time', text: timeText(e) }) : el('strong', { class: 'mh-score num', 'data-q-live': st.state === 'in' ? `mh:${e.league}:${e.id}` : null, text: `${scoreText(away.score)} - ${scoreText(home.score)}` }),
+          st.state === 'pre' ? el('strong', { class: 'mh-time', text: timeText(e) }) : el('strong', { class: 'mh-score num', 'data-q-live': st.state === 'in' ? `mh:${e.league}:${e.id}` : null, text: (homeFirst(e) ? [home, away] : [away, home]).map(x => scoreText(x.score)).join(' - ') }),
           el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText({ ...e, status: st }), ...halftimeTick({ ...e, status: st }) }),
           // A league's round alone (第 5 輪): under the status, in the room the
           // sides' records and follows leave there, not a row of its own
           // floating between the header and the line score (the owner, 2026-10-17).
           roundOnly ? el('small', { class: 'mh-round', text: roundLabel(e.league, weekOf(e), weekOf(e), L()) }) : null
         ]),
-        side(home, e.home)
+        homeFirst(e) ? side(away, e.away) : side(home, e.home)
       ]),
       !roundOnly && (stageTag(e, L()) || seriesText(e)) ? stageLine(e) : null,
-      gameFollow(e, st, () => paintHeader(sm), guestGame && hasTeamPage(e.league) ? [away, home].filter((x, i) => !x.guest && ![e.away, e.home][i].guest) : []),
+      gameFollow(e, st, () => paintHeader(sm), guestGame && hasTeamPage(e.league) ? inOrder(e, [away, home]).filter((x, i) => !x.guest && !inOrder(e, [e.away, e.home])[i].guest) : []),
       // On now or about to start: one tap to watch it, at the top.
       watchButton({ ...e, status: st }, 'wide'),
       linescore(sm, e),
@@ -371,7 +374,7 @@ function topScorers(e, sm) {
       const f = fouls ? (id === e.away.id ? fouls.away : fouls.home) : '';
       return lpPerson(e.league, t && { id: t.id, name: t.name }, [t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, el('p', {}, [el('small', {}, [teamTag(sm.byId[id] || [e.away, e.home].find(t => t.id === id), `${name} · ${en ? 'top scorer' : '得分王'}`, e.league, { tap: false })]), el('strong', { text: t?.name || '–' }), t?.line ? el('small', { class: 'num lp-line', text: t.line }) : null, f !== '' ? el('small', { class: 'num', text: `${en ? 'Team fouls' : '全隊犯規'} ${f}` }) : null])]);
     };
-  return el('div', { class: 'lp-who lp-bb' }, [person(e.away.id), person(e.home.id)]);
+  return el('div', { class: 'lp-who lp-bb' }, inOrder(e, [e.away, e.home]).map(t => person(t.id)));
 }
 // The situation of a game on now, by sport: the bases, count and outs, and
 // who bats against whom; the goals and red cards by minute; and the last play.
@@ -393,7 +396,7 @@ function livePanel(e, sm = null) {
         el(
           'ol',
           { class: 'lp-feed' },
-          last.map(p => el('li', { class: p.scoring ? 'scoring' : '' }, [el('span', { class: 'num play-when', text: p.clock }), playLine(e.league, p, sm.byId[p.team] || nameOf(p.team)), p.scoring ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null]))
+          last.map(p => el('li', { class: p.scoring ? 'scoring' : '' }, [el('span', { class: 'num play-when', text: p.clock }), playLine(e.league, p, sm.byId[p.team] || nameOf(p.team)), p.scoring ? el('strong', { class: 'num', text: inOrder(e, [p.away, p.home]).join('-') }) : null]))
         )
       );
     }
@@ -454,8 +457,8 @@ export function goalTimeline(e, events) {
   // name whole with the team (and PK, or the defender's own goal) under it,
   // and the score it made, the scoring side's number bold. A red card the same, no score.
   const score = { home: 0, away: 0 };
-  // (Away first, as the score above.)
-  const order = ['away', 'home'];
+  // (The cards' order, as the score above.)
+  const order = inOrder(e, ['away', 'home']);
   return el(
     'ol',
     { class: 'lp-goals' },
@@ -552,7 +555,7 @@ export function storyRows(e, sm) {
       return el('li', { class: `lg-${s2}` }, [
         el('span', { class: 'lg-min num' }, [when(p)].flat().map(x => el('span', { text: x }))),
         can ? el('button', { class: 'lg-who tap', type: 'button', 'aria-label': p.pic.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, String(p.pic.id), { name: p.pic.name, logo: p.pic.headshot })) }, who) : el('span', { class: 'lg-who' }, who),
-        el('span', { class: 'lg-score num' }, ['away', 'home'].flatMap((k, i) => [i ? document.createTextNode('–') : null, el('b', { class: k === s2 ? 'on' : '', text: String(p[k]) })]).filter(Boolean))
+        el('span', { class: 'lg-score num' }, inOrder(e, ['away', 'home']).flatMap((k, i) => [i ? document.createTextNode('–') : null, el('b', { class: k === s2 ? 'on' : '', text: String(p[k]) })]).filter(Boolean))
       ]);
     })
   );
@@ -665,7 +668,7 @@ function linescore(sm, e) {
   const tag = x => (L() !== 'en' && x.en && x.short && x.short.length <= 5 ? x.short : x.abbr || x.short);
   // Each side's logo beside its name.
   const row = x => el('tr', {}, [el('th', { class: 'ls-team' }, [teamTap(x, e.league, 'ls-who', [sideLogo(x, e.league, 'xs'), el('span', { text: tag(x) })])]), ...Array.from({ length: n }, (_, i) => el('td', { class: 'num', text: x.lines?.[i] ?? '' })), el('td', { class: 'num total', text: x.score })]);
-  return el('div', { class: 'table-wrap' }, [el('table', { class: `linescore${n > 5 ? ' innings' : ''}` }, [el('thead', {}, [el('tr', {}, [el('th'), ...head, el('th', { text: sport === 'baseball' ? 'R' : en ? 'T' : '總分' })])]), el('tbody', {}, [row(away), row(home)])])]);
+  return el('div', { class: 'table-wrap' }, [el('table', { class: `linescore${n > 5 ? ' innings' : ''}` }, [el('thead', {}, [el('tr', {}, [el('th'), ...head, el('th', { text: sport === 'baseball' ? 'R' : en ? 'T' : '總分' })])]), el('tbody', {}, inOrder(e, [away, home]).map(row))])]);
 }
 
 // A stat's number: "12-25" (made-attempted) is its rate, "45%" and ".271" as they are.
@@ -750,7 +753,7 @@ function gameCards(game, id, league) {
   // game's clock at the right, red while on), then his numbers; where he
   // is (場上, 先發, ↓ 69') beside the title, not a card of its own.
   const scoreRow = el('div', { class: 'pg-row' }, [
-    el('span', { class: 'pg-score' }, [logo(away?.logo, away?.name, 'xs'), el('strong', { class: 'num', 'data-q-live': st.state === 'in' ? `pg:${e.league}:${e.id}` : null, text: st.state === 'pre' ? 'vs' : `${scoreText(away?.score)} – ${scoreText(home?.score)}` }), logo(home?.logo, home?.name, 'xs')]),
+    el('span', { class: 'pg-score' }, (([l, rt]) => [logo(l?.logo, l?.name, 'xs'), el('strong', { class: 'num', 'data-q-live': st.state === 'in' ? `pg:${e.league}:${e.id}` : null, text: st.state === 'pre' ? 'vs' : `${scoreText(l?.score)} – ${scoreText(rt?.score)}` }), logo(rt?.logo, rt?.name, 'xs')])(inOrder(e, [away, home]))),
     el('span', { class: `pg-status ${st.state}`, text: statusText({ ...e, status: st }), ...halftimeTick({ ...e, status: st }) })
   ]);
   // Soccer's cards: a label by the title, not a number among his stats (one
@@ -861,7 +864,7 @@ function matchSection(view, d, e, table, lw = {}) {
       el(
         'div',
         { class: 'stat-bars', style: `--away:${tint.away};--home:${tint.home}` },
-        [el('div', { class: 'sb-legend' }, [el('span', { class: 'away' }, [tag(e.away.id)]), el('span', { class: 'home' }, [tag(e.home.id)])])].concat(
+        [el('div', { class: 'sb-legend' }, inOrder(e, [el('span', { class: 'away' }, [tag(e.away.id)]), el('span', { class: 'home' }, [tag(e.home.id)])]))].concat(
           teamStatRows(d.teamStats, LEAGUES[e.league]?.sport, L()).flatMap((s, i, rows) => {
             const [a, h] = [statValue(s.away), statValue(s.home)];
             const [aa, hh] = [Math.abs(a ?? 0), Math.abs(h ?? 0)];
@@ -872,8 +875,8 @@ function matchSection(view, d, e, table, lw = {}) {
             return [
               s.group && s.group !== rows[i - 1]?.group ? el('p', { class: 'mini-h sb-group', text: s.group }) : null,
               el('div', { class: 'stat-bar' }, [
-                el('div', { class: 'sb-top' }, [el('strong', { class: `num${better === 'away' ? ' lead' : ''}`, text: s.away }), el('span', { text: s.label }), el('strong', { class: `num${better === 'home' ? ' lead' : ''}`, text: s.home })]),
-                aa + hh > 0 ? el('div', { class: 'sb-track' }, [el('i', { class: 'away', style: `flex-grow:${share}` }), el('i', { class: 'home', style: `flex-grow:${100 - share}` })]) : null
+                el('div', { class: 'sb-top' }, (([x, y]) => [x, el('span', { text: s.label }), y])(inOrder(e, [el('strong', { class: `num${better === 'away' ? ' lead' : ''}`, text: s.away }), el('strong', { class: `num${better === 'home' ? ' lead' : ''}`, text: s.home })]))),
+                aa + hh > 0 ? el('div', { class: 'sb-track' }, inOrder(e, [el('i', { class: 'away', style: `flex-grow:${share}` }), el('i', { class: 'home', style: `flex-grow:${100 - share}` })])) : null
               ])
             ];
           })
@@ -896,7 +899,7 @@ function matchSection(view, d, e, table, lw = {}) {
     return el(
       'div',
       { class: 'stack' },
-      d.players.flatMap(p =>
+      inOrder(e, [e.away, e.home]).flatMap(t => d.players.filter(p => p.team === String(t.id))).concat(d.players.filter(p => ![e.away, e.home].some(t => String(t.id) === p.team))).flatMap(p =>
         p.tables
           // Basketball: a player who didn't play a minute (no numbers) is left off; 陣容 lists him and why.
           .map(tb => (LEAGUES[e.league]?.sport === 'basketball' ? { ...tb, rows: tb.rows.filter(r => !r.dnp && r.stats?.some(v => v !== '' && v != null)) } : tb))
@@ -959,7 +962,7 @@ function matchSection(view, d, e, table, lw = {}) {
         // The period over the clock, a designed two lines in a narrow column.
         clockless ? null : el('span', { class: 'play-when' }, [sport === 'soccer' && period ? el('small', { text: period }) : null, el('span', { class: 'num', text: p.clock })]),
         line,
-        p.home != null && p.away != null ? el('strong', { class: 'num', text: `${p.away}-${p.home}` }) : null
+        p.home != null && p.away != null ? el('strong', { class: 'num', text: inOrder(e, [p.away, p.home]).join('-') }) : null
       ]);
       rows.push(...(live ? [run, row] : [row, run]).filter(Boolean));
     }
@@ -978,8 +981,9 @@ function matchSection(view, d, e, table, lw = {}) {
     return el(
       'div',
       { class: 'lineups' },
-      [e.away, e.home]
-        .map((t, k) => {
+      inOrder(e, [e.away, e.home])
+        .map(t => {
+          const k = t === e.away ? 0 : 1;
           const sq = d.squads[String(t.id)];
           if (!sq) return null;
           const hurt = d.injuries?.find(x => x.team === String(t.id))?.list || [];
@@ -1015,8 +1019,9 @@ function matchSection(view, d, e, table, lw = {}) {
     return el(
       'div',
       { class: 'lineups' },
-      [e.away, e.home]
-        .map((t, k) => {
+      inOrder(e, [e.away, e.home])
+        .map(t => {
+          const k = t === e.away ? 0 : 1;
           const people = [...(d.courtSquads[String(t.id)]?.roster || [])].sort((a, b) => rank(a) - rank(b));
           if (!people.length) return null;
           const hurt = new Map((d.injuries?.find(x => x.team === String(t.id))?.list || []).map(x => [x.id || x.name, x]));
@@ -1039,7 +1044,7 @@ function matchSection(view, d, e, table, lw = {}) {
   if (view === 'lineups' && d && LEAGUES[e.league]?.sport === 'basketball') {
     const en = L() === 'en';
     const list = ps => el('ul', { class: 'roster-list' }, ps.map(r => el('li', {}, [el('span', { class: 'jersey num', text: r.jersey || '' }), el('button', { class: 'link roster-name', type: 'button', onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', { text: r.full || r.name })]), el('small', {}, [r.dnp ? dnpText(r.reason, en) : posZh(r.pos, 'basketball', L())])])));
-    const sides = [e.away, e.home].map(t => d.players.find(p => p.team === String(t.id))).filter(Boolean);
+    const sides = inOrder(e, [e.away, e.home]).map(t => d.players.find(p => p.team === String(t.id))).filter(Boolean);
     return el(
       'div',
       { class: 'lineups' },
@@ -1056,7 +1061,8 @@ function matchSection(view, d, e, table, lw = {}) {
     return el(
       'div',
       { class: 'lineups' },
-      d.rosters
+      [...d.rosters]
+        .sort((x, y) => inOrder(e, [e.away, e.home]).findIndex(t => String(t.id) === x.team) - inOrder(e, [e.away, e.home]).findIndex(t => String(t.id) === y.team))
         .filter(r => r.players.length)
         .map(r => {
           const sport = LEAGUES[e.league]?.sport;
@@ -1120,7 +1126,7 @@ function highlights(e, waited = false) {
 // The overview: the teams side by side, what the match is (where, when, TV),
 // the win probability, each side's leaders, the season series and injuries.
 function overview(d, e, table, nameOf, { line = null, wait = { summary: true, line: true } } = {}) {
-  const sides = [e.away, e.home];
+  const sides = inOrder(e, [e.away, e.home]);
   const places = sides.map(s => placeOf(table, s.id));
   // Each side's form in this game's competition, as on its team card opened
   // from here (leagueForm): a soccer club's cup games left out once its
@@ -1138,7 +1144,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     ...(places.every(Boolean) ? keyStats(e.league, places) : [])
   ].filter(Boolean);
   const compare = el('div', { class: 'compare' }, [
-    el('div', { class: 'cmp-head' }, [cmpTeam(e.away, 'away', e.league), el('span', { class: 'cmp-vs', text: 'vs' }), cmpTeam(e.home, 'home', e.league)]),
+    el('div', { class: 'cmp-head' }, sides.map((x, i) => cmpTeam(x, i ? 'home' : 'away', e.league)).flatMap((x, i) => (i ? [el('span', { class: 'cmp-vs', text: 'vs' }), x] : [x]))),
     ...compareRows.map(([label, a, h]) => el('div', { class: 'cmp-row' }, [cmpValue(a), el('span', { text: label }), cmpValue(h)])),
     forms.some(f => f.length)
       ? el('div', { class: 'cmp-row form' }, [formPills(forms[0]), el('span', { text: T('form') }), formPills(forms[1])])
@@ -1200,8 +1206,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
             { class: 'injuries' },
             d.injuries
               .filter(i => i.list.length)
-              // Away first, as everywhere in the sheet.
-              .sort((x, y) => (x.team === e.home.id) - (y.team === e.home.id))
+              // The cards' order (soccer home first, the rest away first).
+              .sort((x, y) => ((x.team === String(e.home.id)) - (y.team === String(e.home.id))) * (homeFirst(e) ? -1 : 1))
               .map(i => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(i.team)]), el('ul', { class: 'inj-list' }, i.list.slice(0, 12).map(x => el('li', {}, [x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, x.id, { name: x.name, logo: x.headshot }) }, [personPic(x, e.league, 'xs round'), el('span', { text: x.name })]) : el('span', { text: x.name }), el('small', {}, [/^rest$/i.test(x.detail) ? (L() === 'en' ? 'Rest' : '休息') : injuryText(x.status)])])))]))
           )
         )
@@ -1223,7 +1229,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
 }
 
 // 本季數據領先, side by side: each stat both teams have, its leader on each
-// side (away left, as everywhere in the sheet), the first eight of them.
+// side (in the cards' order), the first eight of them.
 function seasonLeadCard(lead, e) {
   if (!lead) return null;
   const sport = LEAGUES[e.league]?.sport;
@@ -1238,9 +1244,8 @@ function seasonLeadCard(lead, e) {
   return card(
     en ? 'Season leaders' : '本季數據領先',
     el('div', { class: 'leader-cols' }, [
-      el('p', { class: 'mini-h' }, [teamTag(e.away, e.away.short || e.away.name, e.league)]),
-      el('p', { class: 'mini-h' }, [teamTag(e.home, e.home.short || e.home.name, e.league)]),
-      ...both.flatMap(st => [side(st, st.list[0]), side(st, lead.h.stats.find(x => x.key === st.key).list[0])])
+      ...inOrder(e, [e.away, e.home]).map(t => el('p', { class: 'mini-h' }, [teamTag(t, t.short || t.name, e.league)])),
+      ...both.flatMap(st => inOrder(e, [side(st, st.list[0]), side(st, lead.h.stats.find(x => x.key === st.key).list[0])]))
     ]),
     { sub: leadersSeason(lead.a, sport, en) }
   );
@@ -1257,11 +1262,12 @@ function lineupCard(l, e, nameOf) {
   // Each row: its number (or place in the order), the face and name from the left, the position at the right.
   const row = (p, lead = '') => el('li', {}, [el('span', { class: 'jersey num', text: lead || '' }), who(p), el('small', { text: posZh(p.pos, sport, L()) })]);
   const side = (team, list, lead) => el('div', {}, [el('p', { class: 'mini-h' }, [teamTag(team, nameOf(team.id), e.league)]), el('ul', { class: 'inj-list lineup-list' }, list.map((p, i) => row(p, lead(p, i))))]);
-  const sides = [e.away, e.home];
+  const sides = inOrder(e, [e.away, e.home]);
+  const sideList = t => (t === e.away ? 0 : 1);
   if (l.kind === 'mlb') {
     // Both sides, always: a side MLB hasn't named yet says so (待定, under an empty face like a player's), rather than leaving one pitcher alone.
-    const pitchers = sides.map((t, i) => [t, [l.pitchers.away, l.pitchers.home][i]]);
-    const orders = sides.map((t, i) => [t, [l.order.away, l.order.home][i]]).filter(([, o]) => o.length);
+    const pitchers = sides.map(t => [t, [l.pitchers.away, l.pitchers.home][sideList(t)]]);
+    const orders = sides.map(t => [t, [l.order.away, l.order.home][sideList(t)]]).filter(([, o]) => o.length);
     return card(
       en ? 'Starters' : '先發',
       el('div', { class: 'injuries' }, [
@@ -1275,7 +1281,7 @@ function lineupCard(l, e, nameOf) {
     return card(en ? 'Starting lineups' : '先發陣容', el('p', { class: 'muted small', text: e.league === 'nhl' ? (en ? 'Starting goalies are named before the game.' : '先發門將賽前公布。') : en ? 'Named about 30 minutes before tip-off.' : '開賽前約 30 分鐘公布。' }));
   return card(
     en ? 'Starting lineups' : '先發陣容',
-    el('div', { class: 'injuries' }, sides.map((t, i) => [t, [l.away, l.home][i]]).filter(([, list]) => list.length).map(([t, list]) => side(t, list, p => p.jersey))),
+    el('div', { class: 'injuries' }, sides.map(t => [t, [l.away, l.home][sideList(t)]]).filter(([, list]) => list.length).map(([t, list]) => side(t, list, p => p.jersey))),
     { sub: en ? 'Announced' : '已公布' }
   );
 }
@@ -1296,7 +1302,7 @@ function onFieldCard(d, e, nameOf) {
   if (!d || (d.status || e.status).state !== 'in') return null;
   const en = L() === 'en';
   const sport = LEAGUES[e.league]?.sport;
-  const sides = [e.away, e.home].map(t => String(t.id));
+  const sides = inOrder(e, [e.away, e.home]).map(t => String(t.id));
   const order = list => sides.map(id => list.find(x => x.team === id)).filter(Boolean);
   if (sport === 'basketball') {
     const five = order(onCourt(d.players));
@@ -1589,8 +1595,12 @@ function winChanceCard(odds, e) {
     T('winChance'),
     el('div', { class: 'wp', style: sideVars(e) }, [
       // Each side with its small logo beside its name and chance.
-      el('div', { class: 'wp-labels wc-labels' }, [el('span', { class: 'away' }, [logo(e.away.logo, e.away.name, 'xs'), document.createTextNode(`${e.away.short || e.away.name} ${away}%`)]), draw != null ? el('span', { class: 'draw', text: `${en ? 'Draw' : '和局'} ${draw}%` }) : null, el('span', { class: 'home' }, [document.createTextNode(`${e.home.short || e.home.name} ${home}%`), logo(e.home.logo, e.home.name, 'xs')])]),
-      el('div', { class: 'wc-bar', 'aria-hidden': 'true' }, [el('span', { class: 'away', style: `flex:${away}` }), draw ? el('span', { class: 'draw', style: `flex:${draw}` }) : null, el('span', { class: 'home', style: `flex:${home}` })])
+      el('div', { class: 'wp-labels wc-labels' }, (() => {
+        const a = el('span', { class: 'away' }, homeFirst(e) ? [document.createTextNode(`${e.away.short || e.away.name} ${away}%`), logo(e.away.logo, e.away.name, 'xs')] : [logo(e.away.logo, e.away.name, 'xs'), document.createTextNode(`${e.away.short || e.away.name} ${away}%`)]);
+        const h = el('span', { class: 'home' }, homeFirst(e) ? [logo(e.home.logo, e.home.name, 'xs'), document.createTextNode(`${e.home.short || e.home.name} ${home}%`)] : [document.createTextNode(`${e.home.short || e.home.name} ${home}%`), logo(e.home.logo, e.home.name, 'xs')]);
+        return [...inOrder(e, [a, h]).flatMap((x, i) => (i ? [x] : [x, draw != null ? el('span', { class: 'draw', text: `${en ? 'Draw' : '和局'} ${draw}%` }) : null]))];
+      })()),
+      el('div', { class: 'wc-bar', 'aria-hidden': 'true' }, inOrder(e, [el('span', { class: 'away', style: `flex:${away}` }), el('span', { class: 'home', style: `flex:${home}` })]).flatMap((x, i) => (i ? [x] : [x, draw ? el('span', { class: 'draw', style: `flex:${draw}` }) : null])))
     ])
   );
 }
@@ -1670,7 +1680,7 @@ function winProbCard(line, e, timeline, events = []) {
     // 第2–3節, 2–3局 (one word for both ends).
     const when = a && b && b > a ? (en ? `${periodName(sport, a, en)}–${periodName(sport, b, en)}` : `${periodName(sport, a, en).replace(/[節局]$/, '')}–${periodName(sport, b, en).replace(/^第/, '')}`) : pointStamp(timeline, sport, m.t != null ? { ...pts[m.i], t: m.t } : pts[m.i], en);
     const score = scoreAt(pts, m.i, events, e.home.id);
-    return [when, lateClock(sport, pts[m.i]), score ? `${score[0]}–${score[1]}` : ''].filter(Boolean).join(' · ');
+    return [when, lateClock(sport, pts[m.i]), score ? inOrder(e, score).join('–') : ''].filter(Boolean).join(' · ');
   };
   // Whose chance it lifted, and by how much.
   const gain = m => `${side[m.delta >= 0 ? 'home' : 'away'].name} +${Math.round(Math.abs(m.delta) * 100)}%`;
@@ -1678,7 +1688,7 @@ function winProbCard(line, e, timeline, events = []) {
   const gainChip = m => pts[m.i]?.settled ? null : el('span', { class: `wp-gain ${m.side}`, style: `--side:${sideC(m.delta >= 0 ? 'home' : 'away')}`, text: gain(m) });
   // The key moment closest to a finger (within 2.5% of the chart), if any.
   const near = i => nearestMoment(listed, xs, i);
-  // Away on the left, home on the right (as everywhere in the sheet), adding up to 100.
+  // The sides in the cards' order, adding up to 100.
   const away = el('span', { class: 'away' });
   const draw = pts.some(p => p.draw != null) ? el('span', { class: 'draw' }) : null;
   const home = el('span', { class: 'home' });
@@ -1727,9 +1737,9 @@ function winProbCard(line, e, timeline, events = []) {
     away.textContent = `${sideName(e.away)} ${pct(Math.max(0, 100 - hh - dd))}`;
     if (draw) draw.textContent = `${en ? 'Draw' : '和局'} ${pct(dd)}`;
     home.textContent = `${sideName(e.home)} ${pct(hh)}`;
-    // Where the game was: the period and the score then (away–home, as the sides sit).
+    // Where the game was: the period and the score then (in the cards' order).
     const score = scoreAt(pts, i ?? pts.length - 1, events, e.home.id);
-    const tally = score ? ` · ${score[0]}–${score[1]}` : '';
+    const tally = score ? ` · ${inOrder(e, score).join('–')}` : '';
     const stamp = [pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`, lateClock(sport, p)].filter(Boolean).join(' ');
     at.textContent = i == null ? `${rest}${tally} · ${en ? 'Hold to look back' : '按住圖表查看'}` : `${stamp}${tally}`;
     at.classList.toggle('on', i != null);
@@ -1776,7 +1786,7 @@ function winProbCard(line, e, timeline, events = []) {
       ])
     : null;
   const box = el('div', { class: 'wp', style: sideVars(e) }, [
-    el('div', { class: 'wp-labels wc-labels' }, [el('span', { class: 'away' }, [sideLogo(e.away, e.league, 'xs'), away]), draw, el('span', { class: 'home' }, [home, sideLogo(e.home, e.league, 'xs')])]),
+    el('div', { class: 'wp-labels wc-labels' }, (([l, rt]) => [l, draw, rt])(inOrder(e, [el('span', { class: 'away' }, homeFirst(e) ? [away, sideLogo(e.away, e.league, 'xs')] : [sideLogo(e.away, e.league, 'xs'), away]), el('span', { class: 'home' }, homeFirst(e) ? [sideLogo(e.home, e.league, 'xs'), home] : [home, sideLogo(e.home, e.league, 'xs')])]))),
     at,
     frame,
     el('div', { class: 'wp-axis-in' }, [axisRow(marks)]),
