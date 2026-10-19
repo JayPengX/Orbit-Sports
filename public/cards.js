@@ -3,7 +3,7 @@
 // hero game, a finished game's score card, a sport's tile. Markup only: what
 // a game is (onAir, sessionStatus, picks, standings) is decided elsewhere.
 import * as kitUI from '#kit/ui.mjs';
-import { el, ctx, logo, personPic, statusText, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine } from './ui.js';
+import { el, ctx, sidesOf, logo, personPic, statusText, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine } from './ui.js';
 import { channelsOf, watchOf } from './lib/tv.mjs';
 import { leagueName } from './lib/leagues.mjs';
 import { stageTag } from './lib/stage.mjs';
@@ -49,9 +49,9 @@ export function heroGame(e, { eyebrow = '', picked = false, mine = false, onOpen
   );
   if (e.kind === 'match') {
     const w = winners(e);
-    for (const [side, win] of [[e.away, w.away], [e.home, w.home]])
+    for (const side of sidesOf(e))
       card.append(
-        el('div', { class: `hc-side${win ? ' win' : ''}` }, [
+        el('div', { class: `hc-side${(side === e.home ? w.home : w.away) ? ' win' : ''}` }, [
           el('span', { class: 'hc-logo' }, [sidePic({ ...side, league: e.league })]),
           el('strong', { class: 'hc-name', text: side.short || side.name }),
           live || post ? el('b', { class: 'hc-score num', 'data-q-live': live ? `sc:${e.league}:${e.id}:${side.id}` : null, text: scoreText(side.score) }) : null
@@ -90,7 +90,7 @@ export function scoreCard(e, onOpen) {
   return el('button', { class: 'score-card q-press', type: 'button', disabled: e.status?.void ? true : null, onclick: () => onOpen(e) }, [
     el('span', { class: 'sc-top' }, [leagueMark(e.league, 'lg-mark xs'), el('span', { text: leagueName(e.league, ctx.locale).replace(/\s.*$/, '') }), el('small', { text: statusText(e) })]),
     ...(e.kind === 'match'
-      ? [side(e.away, w.away), side(e.home, w.home)]
+      ? sidesOf(e).map(s => side(s, s === e.home ? w.home : w.away))
       : [el('span', { class: 'sc-event' }, [raceFlag(e), el('strong', { text: e.name })]), champ ? el('span', { class: 'sc-champ' }, [personPic(champ, e.league, 'sm round'), el('span', { text: champ.short || champ.name })]) : sessionTag(e)]),
     tvLine(e)
   ]);

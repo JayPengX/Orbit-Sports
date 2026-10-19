@@ -2,6 +2,7 @@
 // rows, sheets. `ctx` is filled by app.js (the text, the state and the
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
+import * as kitTeams from '#kit/play-teams.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
 import { keptTiming } from './lib/f1.mjs';
 import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
@@ -176,6 +177,8 @@ export const withWatch = (row, e) => {
 // national side's flag, else the name's first letter.
 // onWhite: drawn on a white disc in every theme (a face's team badge):
 // never the dark screen's version (the Rays' light mark vanished on it).
+// A game's two sides in the kit's order (soccer home first, the rest away first); a local copy for old cached kits.
+export const sidesOf = e => kitTeams.sidesInOrder?.({ home: e.home, away: e.away, sport: e.league }) ?? (LEAGUES[e.league]?.sport === 'soccer' ? [e.home, e.away] : [e.away, e.home]);
 export function logo(url, name, cls = '', { onWhite = false } = {}) {
   const fallback = () => {
     const flag = countryFlag(name);

@@ -34,7 +34,7 @@ import { stageOf } from './lib/stage.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
+import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // New kit names through the module (a phone can still run an older kit).
@@ -935,7 +935,10 @@ function resultLine(e) {
   const w = r === 'W' ? e.home : e.away;
   return locale === 'en' ? `${w.short || w.name} win` : `${w.short || w.name} 贏了`;
 }
-const matchLine = (e, score = false) => (score ? `${e.away.short || e.away.name} ${scoreText(e.away.score)} : ${scoreText(e.home.score)} ${e.home.short || e.home.name}` : `${e.away.short || e.away.name} vs ${e.home.short || e.home.name}`);
+const matchLine = (e, score = false) => {
+  const [a, b] = sidesOf(e);
+  return score ? `${a.short || a.name} ${scoreText(a.score)} : ${scoreText(b.score)} ${b.short || b.name}` : `${a.short || a.name} vs ${b.short || b.name}`;
+};
 
 // A followed team's game starting or ending, or one of today's picks
 // ending: a notice.
@@ -2574,7 +2577,7 @@ function renderFollowing() {
     : null;
   const manage = headAction(L({ zh: '管理', en: 'Manage' }), 'list', openFollowEditor);
   if (!teams.length && !people.length) {
-    put(box, pageHead(t('tab_following'), manage), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'suggest-grid' }, SUGGEST.map(suggestCard))));
+    put(box, pageHead(t('tab_following'), manage), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'q-rowcard' }, SUGGEST.map(suggestCard))));
     return;
   }
   put(
@@ -2589,14 +2592,12 @@ function renderFollowing() {
 function suggestCard(s) {
   const on = isFollowed(s.league, s.id);
   const logoUrl = fallbackLogo(s.league, { id: s.id, name: s.name });
-  const card = el('button', { class: `suggest${on ? ' on' : ''}`, type: 'button', onclick: () => toggleFollow(s.league, { id: s.id, name: s.name, en: s.name, logo: logoUrl }) }, [
-    // On its white tile in every theme: never the dark screen's mark (the Dodgers' and Yankees' are white).
-    logo(logoUrl, s.name, 'sm', { onWhite: true }),
-    el('span', { class: 'suggest-name' }, [el('strong', { text: locale === 'en' && s.short ? s.short : localSide(s.league, { name: s.name }).name }), el('small', { class: 'muted', text: leagueName(s.league, locale) })]),
+  // A row of the kit's list: the team's logo at 40px as the tile (white in every theme: the Dodgers' and Yankees' marks are white), name and league, + / ✓ trailing.
+  return el('button', { class: `q-ritem suggest${on ? ' on' : ''}`, type: 'button', onclick: () => toggleFollow(s.league, { id: s.id, name: s.name, en: s.name, logo: logoUrl }) }, [
+    el('span', { class: 'suggest-tile' }, [logo(logoUrl, s.name, 'sm', { onWhite: true })]),
+    el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: locale === 'en' && s.short ? s.short : localSide(s.league, { name: s.name }).name }), el('small', { text: leagueName(s.league, locale) })]),
     el('b', { class: 'suggest-add', text: on ? '✓' : '+' })
   ]);
-  card.style.setProperty('--t', SPORT_COLOR[LEAGUES[s.league]?.sport] || 'var(--accent)');
-  return card;
 }
 // A followed team at a glance: its place and form, its next game (when, where
 // it's on, 觀看 while it's on) and last result; its page on a tap.

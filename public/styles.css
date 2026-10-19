@@ -5,19 +5,19 @@
    tokens; the app's own colours below. */
 :root {
   color-scheme: light;
-  --accent: #c2410c;
-  --accent-wash: rgba(194, 65, 12, 0.1);
-  --accent-ink: #ffffff;
-  --q-accent: var(--accent);
-  --q-accent-ink: var(--accent-ink);
+  /* Kit colours: <html data-app="match"> sets --q-accent; win/loss/draw/live are the kit's meaning tokens. */
+  --accent: var(--q-accent);
+  --accent-wash: color-mix(in srgb, var(--q-accent) 14%, transparent);
+  --accent-ink: var(--q-accent-ink, #fff);
+  --on-accent: var(--accent-ink);
+  --live: var(--q-live, #dc2626);
+  --live-wash: color-mix(in srgb, var(--live) 14%, transparent);
+  --win: var(--q-win, #059669);
+  --draw: var(--q-draw, #a16207);
+  --loss: var(--q-loss, #dc2626);
   --hero-a: #9a3412;
   --hero-b: #ea580c;
   --hero-glow: #fdba74;
-  --live: #dc2626;
-  --live-wash: rgba(220, 38, 38, 0.1);
-  --win: #059669;
-  --draw: #a16207;
-  --loss: #dc2626;
   --away: #64748b;
   /* The pitch (場上球員): quiet, of the page's own tones, a hint of grass. */
   --pitch: #e4ece5;
@@ -31,18 +31,9 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --accent: #fb923c;
-    --accent-wash: rgba(251, 146, 60, 0.14);
-    --accent-ink: #431407;
-    --on-accent: #431407;
     --hero-a: #7c2d12;
     --hero-b: #c2410c;
     --hero-glow: #ea580c;
-    --live: #f87171;
-    --live-wash: rgba(248, 113, 113, 0.14);
-    --win: #34d399;
-    --draw: #fbbf24;
-    --loss: #f87171;
     --away: #94a3b8;
     --pitch: #18201a;
     --pitch-band: #1b241d;
@@ -53,18 +44,9 @@
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --accent: #fb923c;
-  --accent-wash: rgba(251, 146, 60, 0.14);
-  --accent-ink: #431407;
-  --on-accent: #431407;
   --hero-a: #7c2d12;
   --hero-b: #c2410c;
   --hero-glow: #ea580c;
-  --live: #f87171;
-  --live-wash: rgba(248, 113, 113, 0.14);
-  --win: #34d399;
-  --draw: #fbbf24;
-  --loss: #f87171;
   --away: #94a3b8;
   --pitch: #18201a;
   --pitch-band: #1b241d;
@@ -363,15 +345,10 @@ img { max-width: 100%; }
 .fg-row > :first-child { flex: 1; min-width: 0; }
 .fg-off { flex: none; width: 44px; padding: 0; border: 0; background: none; color: var(--accent); font-size: 20px; }
 /* Nothing followed: popular teams, colour-washed tiles, a tap each. */
-.suggest-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.suggest { --t: var(--accent); position: relative; display: grid; align-content: space-between; justify-items: start; gap: 14px; min-width: 0; min-height: 124px; padding: 14px; border: 0; border-radius: 22px; background: radial-gradient(130% 80% at 0% 0%, color-mix(in srgb, var(--t) 22%, var(--q-surface)), var(--q-surface) 75%); color: inherit; text-align: left; }
-.suggest.on { background: radial-gradient(130% 80% at 0% 0%, color-mix(in srgb, var(--t) 36%, var(--q-surface)), var(--q-surface) 75%); box-shadow: inset 0 0 0 2px var(--t); }
-.suggest > .logo { width: 48px; height: 48px; padding: 6px; border-radius: 15px; background: #fff; object-fit: contain; }
-.suggest-name { display: grid; width: 100%; min-width: 0; }
-.suggest-name strong { font: 700 16px/1.25 var(--q-font); word-break: keep-all; overflow-wrap: break-word; }
-.suggest-name small { color: var(--q-label-2); font-size: 12.5px; }
-.suggest-add { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--t) 18%, transparent); color: var(--t); font-size: 18px; font-weight: 700; }
-.suggest.on .suggest-add { background: var(--t); color: #fff; }
+.suggest-tile { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px var(--q-sep, rgba(0,0,0,.08)); }
+.suggest-tile .logo { width: 32px; height: 32px; border-radius: 0; background: none; object-fit: contain; }
+.suggest-add { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--wash-accent, rgba(0,0,0,.06)); color: var(--q-accent); font: var(--q-t-headline); font-weight: 700; }
+.suggest.on .suggest-add { background: var(--q-accent); color: var(--q-accent-ink, #fff); }
 
 /* Narrow phones: the time column and a followed card's rows give way first. */
 @media (max-width: 359px) {
