@@ -169,7 +169,8 @@ img { max-width: 100%; }
 .event-title strong { display: -webkit-box; overflow: hidden; font: 600 16px/1.3 var(--q-font); -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .event-title > small { display: -webkit-box; overflow: hidden; color: var(--q-label-2); font: var(--q-t-footnote); -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 /* The tags under the sides: league, stage, pick, channels (a channel's commentary inside its tag). */
-.ev-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+/* One row: a tag that does not fit is dropped whole, never wrapped. */
+.ev-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; min-width: 0; height: 22px; overflow: hidden; }
 .ev-tags > *, .tv-ch { flex: none; }
 .tv-line { display: contents; }
 .league-tag, .tv-ch { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 0 8px; border-radius: 999px; background: var(--q-fill-3); color: var(--q-label-2); font: 600 12px/1 var(--q-font); white-space: nowrap; }
@@ -277,7 +278,7 @@ img { max-width: 100%; }
 
 /* ==== 賽事: a league ==== */
 /* Every league on one rail (the search first), to the screen's edges. */
-.league-rail { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left))) 4px; padding: 2px max(16px, env(safe-area-inset-left)) 6px; scroll-padding-inline: 16px; }
+.q-chips.league-rail { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left))) 4px; padding: 2px max(16px, env(safe-area-inset-left)) 6px; scroll-padding-inline: 16px; }
 .league-rail .q-chip { padding-left: 6px; }
 .league-rail .q-chip .league-badge { --s: 24px; }
 .league-rail .search-chip { width: 44px; justify-content: center; padding: 0; }
