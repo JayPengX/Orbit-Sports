@@ -405,7 +405,6 @@ img { max-width: 100%; }
 .fx-sheet { width: min(640px, calc(100vw - 16px)); }
 @media (max-width: 719px) {
   .fx-sheet { max-height: 94vh; max-height: 94dvh; }
-  .fx-full { height: 94vh; height: 94dvh; }
 }
 .sheet-body { padding-bottom: 8px; }
 .match-head { display: grid; gap: 16px; padding: 8px 0 2px; }
@@ -1902,11 +1901,8 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 
 /* Home shelves (round 4): my leagues as logo tiles, my teams' places, a replay mark on a finished card. */
 .league-rail { --q-rail-w: 88px; }
-.league-tile { display: grid; justify-items: center; align-content: start; gap: 8px; min-width: 0; padding: 4px 0; border: 0; background: none; color: var(--q-label); font: inherit; }
-.league-tile .lt-name { max-width: 100%; color: var(--q-label-2); font: 600 13px/1.2 var(--q-font); text-align: center; overflow-wrap: anywhere; }
 .rank-pos { color: var(--q-label); font: 700 17px/1 var(--q-font-rounded); }
 .sc-play { display: inline-grid; width: 16px; height: 16px; margin-left: 4px; color: var(--q-accent); }
 .sc-play svg { width: 100%; height: 100%; }
 .sc-top small { margin-left: auto; }
 .q-section-head .section-more { margin-left: auto; }
-.league-tile .q-logo { background: #fff; }

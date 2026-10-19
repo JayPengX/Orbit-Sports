@@ -15,7 +15,7 @@ const en = () => ctx.locale === 'en';
 
 // The page's head: a title, an action at the right.
 export function pageHead(title, action = null) {
-  return el('header', { class: 'q-page-head sp-head' }, [el('div', { class: 'sp-head-text' }, [el('h1', { text: title })]), action]);
+  return el('header', { class: 'q-page-head sp-head' }, [el('div', { class: 'sp-head-text' }, [kitUI.navTitle?.(title) ?? el('h1', { text: title })]), action]);
 }
 // A head's action: a tinted capsule with its glyph (管理, 追蹤).
 export const headAction = (label, glyph, onclick, on = false) =>
@@ -105,9 +105,8 @@ export function sportTile({ key, name, marks, order, onclick }) {
   return b;
 }
 
-// 聯賽: a followed league as a tile (its logo 56px) for a rail; a tap opens it in 賽事.
+// 聯賽: a followed league as the kit's tile for a rail; a tap opens it in 賽事.
 export function leagueTile(key, onOpen) {
   const name = leagueName(key, ctx.locale).replace(/\s.*$/, '');
-  const mark = kitUI.logoTile?.(leagueLogo(key), { size: 56, alt: name, fallbackText: name }) ?? leagueMark(key, 'lg-mark big');
-  return el('button', { class: 'league-tile q-press', type: 'button', onclick: () => onOpen(key) }, [mark, el('span', { class: 'lt-name', text: name })]);
+  return kitUI.leagueTile?.({ logo: leagueLogo(key), name, onOpen: () => onOpen(key) }) ?? el('button', { class: 'q-press', type: 'button', text: name, onclick: () => onOpen(key) });
 }

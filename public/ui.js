@@ -44,7 +44,7 @@ export function put(node, ...kids) {
   for (const k of list) k === at ? (at = at.nextSibling) : node.insertBefore(k, at);
 }
 export const spinner = () => el('div', { class: 'center-spin' }, [el('div', { class: 'spinner' })]);
-export const empty = text => el('p', { class: 'empty', text });
+export const empty = text => kitUI.empty?.({ title: text }) ?? el('p', { class: 'empty', text });
 export const $ = id => document.getElementById(id);
 
 // ---- Wide tables -----------------------------------------------------------------------
@@ -625,19 +625,13 @@ export function sessionTag(e) {
 // ---- Sheets and sections ----------------------------------------------------------------
 
 export function sheet(title, { accent, league } = {}) {
-  // A game's, a team's, a player's (what loads once it's open): full height
-  // from the start, as iOS's, not rising to a spinner's and jumping up later.
-  const dialog = el('dialog', { class: `q-sheet fx-sheet${league ? ' fx-full q-full' : ''}` });
+  // The kit's sheet (a game's, a team's, a player's: large from the start, as iOS's, not rising to a spinner's and jumping up later).
   const body = el('div', { class: 'sheet-body' });
-  // Slides down as it closes (the kit's closeSheet; an older kit's just closes).
-  const close = () => (globalThis.quadraCloseSheet || (d => d.close()))(dialog);
-  dialog.append(el('div', { class: 'q-sheet-head' }, [league ? el('h2', { class: 'sheet-lg' }, [leagueMark(league), el('span', { text: title })]) : el('h2', { text: title }), el('button', { class: 'q-close', type: 'button', text: '×', 'aria-label': ctx.t('close'), onclick: close })]), body);
-  dialog.addEventListener('click', e => e.target === dialog && close());
-  dialog.addEventListener('close', () => dialog.remove());
-  if (accent) dialog.style.setProperty('--q-accent', accent);
-  document.body.append(dialog);
-  dialog.showModal();
-  return { dialog, body, close };
+  const head = league ? (() => { const f = document.createDocumentFragment(); f.append(leagueMark(league), el('span', { text: title })); return f; })() : title;
+  const s = kitUI.sheet({ title: head, body: [body], cls: `fx-sheet${league ? ' q-full' : ''}`, detent: league ? 'large' : '', label: title, closeLabel: ctx.t('close') });
+  if (league) s.head?.querySelector('h2')?.classList.add('sheet-lg');
+  if (accent) s.el.style.setProperty('--q-accent', accent);
+  return { dialog: s.el, body, close: s.close };
 }
 // A choice of a few (four at most): the kit's segmented control, its thumb
 // sliding to the pick; of more, the kit's chips in a row that scrolls (as

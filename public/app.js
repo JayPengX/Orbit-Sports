@@ -14,6 +14,7 @@ import { stripDays } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kit from '#kit/quadra.mjs';
+import * as kitUI from '#kit/ui.mjs';
 import { transition } from './lib/notice.mjs';
 import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
@@ -2314,7 +2315,7 @@ async function runSearch(query, again = false) {
       busy
         ? spinner()
         : found?.failed
-          ? el('div', { class: 'empty' }, [el('p', { class: 'muted', text: t('searchFailed') }), el('button', { class: 'q-btn small', type: 'button', text: t('retry'), onclick: () => runSearch(query) })])
+          ? (kitUI.empty?.({ title: t('searchFailed'), action: { label: t('retry'), onTap: () => runSearch(query) } }) ?? el('div', { class: 'empty' }, [el('p', { class: 'muted', text: t('searchFailed') }), el('button', { class: 'q-btn small', type: 'button', text: t('retry'), onclick: () => runSearch(query) })]))
           : !leagues.length && !found?.teams.length && !found?.players.length
             ? empty(t('noResults'))
             : null
