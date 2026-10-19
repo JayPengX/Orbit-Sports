@@ -9,53 +9,10 @@
 // ("1壞2好 2出局", "⚽ 67' Saka").
 
 import { closeGame } from './close.mjs';
+import { liveOf } from '#kit/sports-espn.mjs';
+export { liveOf };
 
 const name = a => a?.athlete?.shortName || a?.athlete?.displayName || a?.shortName || a?.displayName || '';
-
-const who = a => {
-  const x = a?.athlete || a;
-  const id = String(x?.id ?? a?.playerId ?? '');
-  if (!id && !x?.displayName) return null;
-  const shot = typeof x?.headshot === 'string' ? x.headshot : x?.headshot?.href || '';
-  return { id, name: x?.fullName || x?.displayName || '', ...(shot ? { headshot: shot } : {}) };
-};
-
-// comp: ESPN's competition; status: its status; sport: Orbit Sports' sport key.
-export function liveOf(comp, status, sport) {
-  const s = comp?.situation || {};
-  const live = { lastPlay: s.lastPlay?.text || '' };
-  if (sport === 'baseball' && (s.balls != null || s.outs != null)) {
-    Object.assign(live, {
-      balls: s.balls ?? 0,
-      strikes: s.strikes ?? 0,
-      outs: s.outs ?? 0,
-      bases: [Boolean(s.onFirst), Boolean(s.onSecond), Boolean(s.onThird)],
-      batter: name(s.batter),
-      pitcher: name(s.pitcher),
-      // Who they are, for their pictures: { id, name, headshot }.
-      batterWho: who(s.batter),
-      pitcherWho: who(s.pitcher)
-    });
-  }
-  if (sport === 'soccer') {
-    live.events = (comp?.details || [])
-      .filter(d => d.scoringPlay || d.redCard)
-      .map(d => ({ kind: d.redCard ? 'red' : d.ownGoal ? 'own' : d.penaltyKick ? 'pen' : 'goal', minute: d.clock?.displayValue || '', team: String(d.team?.id ?? ''), who: d.athletesInvolved?.[0]?.shortName || d.athletesInvolved?.[0]?.displayName || '', person: who(d.athletesInvolved?.[0]) }));
-  }
-  // Basketball: each side's points leader as it stands (the scoreboard's own), for the card.
-  if (sport === 'basketball') {
-    const lead = c => {
-      const l = (c?.leaders || []).find(x => x.name === 'points')?.leaders?.[0];
-      const p = l && who(l.athlete);
-      return p ? { ...p, short: l.athlete?.shortName || p.name, value: l.displayValue || '' } : null;
-    };
-    const side = h => lead((comp?.competitors || []).find(c => c.homeAway === h));
-    live.scorers = { away: side('away'), home: side('home') };
-  }
-  const prefix = /^(top|bot|bottom|mid|middle|end)\b/i.exec(status?.type?.shortDetail || status?.type?.detail || '')?.[1]?.toLowerCase() || '';
-  live.half = prefix.startsWith('top') ? 'top' : prefix.startsWith('bot') ? 'bot' : prefix.startsWith('mid') ? 'mid' : prefix === 'end' ? 'end' : '';
-  return live;
-}
 
 const ord = n => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
 const QUARTERS = 4;

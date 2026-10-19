@@ -2059,6 +2059,8 @@ function raceChanceCard(line, ss, feed = null) {
   }
   const names = line.drivers.map(n => driverShort(n, en));
   const moments = raceMoments(pts, names, bands, events, en, n => driverShort(n, en));
+  // (Every moment, a band's start too, in the order of the race: the list under the chart.)
+  const listed = [...moments].sort((a, b) => a.i - b.i);
   // The driver's face: the one a moment is about (a band, its cause).
   const face = m => {
     const name = m.band ? m.driver || '' : line.drivers[m.k];

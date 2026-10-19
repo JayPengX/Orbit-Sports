@@ -28,8 +28,9 @@ import { teamNameZh } from '#kit/names.mjs';
 import { groupZh } from './statnames.mjs';
 import { fold } from './text.mjs';
 import { pctText, gbText } from './title.mjs';
+import { SITE, yyyymmdd, parseStatus, overByRule, freshHeadshot, fallbackLogo, parseSeries, knockoutRound, favChance, usDayOf, startOf } from '#kit/sports-espn.mjs';
+export { SITE, yyyymmdd, parseStatus, overByRule, freshHeadshot, fallbackLogo, parseSeries, knockoutRound, favChance, startOf, usDayOf };
 
-export const SITE = 'https://site.api.espn.com/apis/site/v2/sports';
 export const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
 export const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
 
@@ -43,61 +44,9 @@ export const getJson = (url, { ttl = 60_000, trim = '', mirror = true, alone = f
 // A live read kept on the phone only to share one read between the parts that want it: the refresh speed is the admin panel's (kit dev), the proxy's cache the rest.
 export const LIVE_TTL = 2_000;
 
-export const yyyymmdd = date => date.toISOString().slice(0, 10).replaceAll('-', '');
-
 // ---- Parsing: statuses and sides --------------------------------------------------
 
-// Called off. A delay (rain, a late start) or a suspension isn't: the game
-// is still on, only waiting (Play keeps it live too).
-const VOID = /POSTPONED|CANCELED|CANCELLED|FORFEIT|ABANDONED/;
-const WAITING = /DELAYED|SUSPENDED|RAIN_DELAY/;
-export function parseStatus(s) {
-  const type = s?.type || {};
-  return {
-    state: type.state || 'pre',
-    detail: type.detail || type.description || '',
-    short: type.shortDetail || type.detail || '',
-    completed: Boolean(type.completed),
-    void: VOID.test(type.name || ''),
-    delayed: WAITING.test(type.name || '') || /\bdelay/i.test(type.shortDetail || type.detail || ''),
-    name: type.name || '',
-    clock: s?.displayClock || '',
-    period: s?.period || 0
-  };
-}
-
-// Over by the rules, before ESPN's copy says so (it called an NBA game
-// "End of 4th" for minutes after the horn; the owner, 2026-10-14: a result
-// counts the moment it's final). Only what the rules settle exactly:
-// basketball's last regulation period (or an overtime) ended with the
-// scores apart; MLB's middle of the 9th or later with the home side
-// ahead (it doesn't bat), or the end of an inning from the 9th apart.
-const REGULATION = { basketball: 4 };
-export function overByRule(status, away, home, league) {
-  if (!status || status.state !== 'in' || status.void) return status;
-  const sport = LEAGUES[league]?.sport;
-  const a = Number(away?.score);
-  const h = Number(home?.score);
-  if (!Number.isFinite(a) || !Number.isFinite(h) || a === h) return status;
-  const n = status.period || 0;
-  const ended = /END_PERIOD|END_OF_PERIOD/.test(status.name || '') || /^end of/i.test(status.short || '');
-  let over = false;
-  if (REGULATION[sport]) {
-    // (College basketball plays two halves.)
-    const regulation = sport === 'basketball' && /half/i.test(`${status.detail} ${status.short}`) ? 2 : REGULATION[sport];
-    over = ended && n >= regulation;
-  } else if (sport === 'baseball' && league === 'mlb') {
-    const m = /^(mid|middle|end)\b\D*(\d+)/i.exec(status.short || status.detail || '');
-    const inning = Number(m?.[2]) || n;
-    over = Boolean(m) && inning >= 9 && (/^end/i.test(m[1]) || h > a);
-  }
-  return over ? { ...status, state: 'post', completed: true, detail: 'Final', short: 'Final', byRule: true } : status;
-}
-
 const logoOf = team => team?.logo || team?.logos?.[0]?.href || null;
-// ESPN's F1 headshots (headshots/f1/) stopped in 2021 (a newer driver has
-// none); its racing ones (headshots/rpm/) are this season's, every driver.
-export const freshHeadshot = url => (typeof url === 'string' ? url.replace('/i/headshots/f1/players/', '/i/headshots/rpm/players/') : url);
 function parseSide(c) {
   if (!c) return null;
   const team = c.team || {};
@@ -128,18 +77,6 @@ function parseSide(c) {
 // athlete's) id or abbreviation. A guess, so the picture falls back to the
 // initial when it isn't there.
 const CDN = 'https://a.espncdn.com/i';
-const HEADSHOTS = { racing: 'rpm' };
-export function fallbackLogo(league, side) {
-  if (!side || side.logo) return side?.logo || null;
-  // The shared kit's (Quadra Play's) logo for the club.
-  const kit = teamLogo(LEAGUES[league]?.play || league, side.name);
-  // A side not decided yet (ESPN's "TBD", ids -1 and -2) has no logo.
-  if (kit || !/^\d+$/.test(String(side.id ?? '')) || league === 'nba') return kit;
-  const [sport] = (LEAGUES[league]?.espn || '').split('/');
-  if (side.athlete) return HEADSHOTS[sport] ? `${CDN}/headshots/${HEADSHOTS[sport]}/players/full/${side.id}.png` : null;
-  if (sport === 'soccer') return `${CDN}/teamlogos/soccer/500/${side.id}.png`;
-  return null;
-}
 // An NBA team's logo is always NBA.com's primary mark (the kit's): ESPN's
 // files are some clubs' alternates (the Celtics' shamrock). A club from
 // outside the league (a preseason guest: the London Lions) has the kit's
@@ -279,37 +216,6 @@ export function splitWeekend(e, now = Date.now(), lang = 'zh') {
   });
 }
 
-// A playoff series: its summary ("LAL lead series 2-1") and each side's wins.
-export function parseSeries(s) {
-  if (!s || s.type !== 'playoff') return null;
-  return { summary: s.summary || '', completed: Boolean(s.completed), games: s.totalCompetitions || 0, wins: Object.fromEntries((s.competitors || []).map(c => [String(c.id), c.wins ?? 0])) };
-}
-
-// A playoff or knockout game's round, for the bracket: `key` the round
-// (ESPN's RD16 / QTR / SEMI / FINAL for the US leagues' playoffs, PLAYIN
-// and PLAYIN2 for the NBA's play-in (its own season type, 5), the
-// season's stage for a cup: round-of-16, quarterfinals…), its name, the leg
-// and the sides the tie's over for (a cup's second leg says who went
-// through). Null for any other game (a cup's league phase or groups too).
-export function knockoutRound(e, comp, league) {
-  const slug = String(e?.season?.slug || '');
-  const note = comp?.notes?.[0]?.headline || '';
-  const cup = Boolean(LEAGUES[league]?.cup);
-  // The play-in's two steps: 7 v 8 and 9 v 10, then the 8th seed game.
-  if (/play-?in/i.test(`${slug} ${note}`)) return cup ? null : { key: /8th seed/i.test(note) ? 'PLAYIN2' : 'PLAYIN', title: note || 'Play-In', leg: 0, through: [] };
-  const post = e?.season?.type === 3 || /post-?season/i.test(slug);
-  if (!post && !(cup && slug && !/league-phase|group|regular|qualif|preliminary/i.test(slug))) return null;
-  const key = cup ? slug : comp?.type?.abbreviation || slug;
-  if (!key) return null;
-  const title = comp?.series?.title || (cup ? slug.replace(/-/g, ' ') : note.replace(/\s*-\s*(Game|Leg)\b.*$/i, '')) || key;
-  return { key, title, leg: Number(comp?.leg?.value) || 0, through: (comp?.series?.competitors || []).filter(c => c.winner).map(c => String(c.id)) };
-}
-// A game's start, and whether its time is set: a play-off's next game is
-// dated before its hour is (ESPN's timeValid false, the day's 00:00 in New
-// York, 12:00 in Taiwan). An American game of that day is played in
-// Taiwan's next morning: placed there (20:00 New York, 08:00 here, the usual
-// hour) with its time shown as 待定 until ESPN or ELTA's list sets it.
-const ET_MIDNIGHT = /T0[45]:00(:00)?(\.000)?Z$/;
 // The favourite's chance from the bookmaker's prices ESPN shows before a
 // game (0..1, null without them): how open it is, for the picks (the owner,
 // 2026-10-16: Man City v Ipswich, City -425, picked over Brentford v
@@ -321,23 +227,6 @@ const implied = ml => {
   if (!Number.isFinite(m) || Math.abs(m) < 100) return null;
   return m < 0 ? -m / (-m + 100) : 100 / (m + 100);
 };
-export function favChance(comp) {
-  const o = comp?.odds?.[0];
-  if (!o) return null;
-  const price = x => implied(x?.close?.odds ?? x?.open?.odds ?? x?.odds);
-  const [h, a] = [price(o.moneyline?.home) ?? implied(o.homeTeamOdds?.moneyLine), price(o.moneyline?.away) ?? implied(o.awayTeamOdds?.moneyLine)];
-  if (h != null && a != null) {
-    const d = implied(o.drawOdds?.moneyLine) ?? 0;
-    return Math.round((Math.max(h, a) / (h + a + d)) * 1000) / 1000;
-  }
-  const line = /\s([+-]\d{3,}|EVEN)$/i.exec(String(o.details || ''));
-  const f = line ? implied(line[1]) : null;
-  return f == null ? null : Math.round(f * 1000) / 1000;
-}
-export function startOf(date, comp) {
-  if (comp?.timeValid !== false || !date) return { start: date };
-  return { start: ET_MIDNIGHT.test(date) ? new Date(Date.parse(date) + 20 * 3_600_000).toISOString() : date, timeTbd: true };
-}
 // A game's time from another list (ELTA's, the app's): set from outside, ESPN's own stands once it has one.
 let timeFix = e => e;
 export const fixTimes = fn => (timeFix = fn);
@@ -476,17 +365,6 @@ export function settleSeries(list) {
   return out;
 }
 
-// The ESPN day page a game is on: ESPN dates its pages by the US Eastern
-// day (a 22:30 ET kick-off on 2:30Z the next day is on the day before's).
-// Each game read carries it (usDay), so a live refresh reads only the
-// pages with a game on, never the whole stretch again.
-const US_DAY = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
-export function usDayOf(start) {
-  const t = Date.parse(start);
-  if (!Number.isFinite(t)) return '';
-  const p = Object.fromEntries(US_DAY.formatToParts(new Date(t)).map(x => [x.type, x.value]));
-  return `${p.year}${p.month}${p.day}`;
-}
 // A page over for good (a day two or more back, or a month before the one
 // two days back): kept on the phone `keep`, never asked again every few seconds.
 export function pastPage(d, now = Date.now()) {
