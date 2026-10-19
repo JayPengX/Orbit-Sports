@@ -5,7 +5,7 @@
 import * as kitUI from '#kit/ui.mjs';
 import { el, ctx, sidesOf, logo, personPic, statusText, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine } from './ui.js';
 import { channelsOf, watchOf } from './lib/tv.mjs';
-import { leagueName, leagueLogo } from './lib/leagues.mjs';
+import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
 import { knownHighlights } from './lib/highlights.mjs';
 import { stageTag } from './lib/stage.mjs';
 
@@ -108,5 +108,15 @@ export function sportTile({ key, name, marks, order, onclick }) {
 // 聯賽: a followed league as the kit's tile for a rail; a tap opens it in 賽事.
 export function leagueTile(key, onOpen) {
   const name = leagueName(key, ctx.locale).replace(/\s.*$/, '');
-  return kitUI.leagueTile?.({ logo: leagueLogo(key), name, onOpen: () => onOpen(key) }) ?? el('button', { class: 'q-press', type: 'button', text: name, onclick: () => onOpen(key) });
+  const tile = kitUI.leagueTile?.({ logo: leagueLogo(key), name, onOpen: () => onOpen(key) });
+  if (!tile) return el('button', { class: 'q-press', type: 'button', text: name, onclick: () => onOpen(key) });
+  // The tile turns dark grey in dark mode: the league's dark-screen logo there.
+  const img = tile.querySelector('.q-logo img');
+  const dark = leagueLogoDark(key);
+  if (img && dark) {
+    const pic = el('picture', { class: 'q-logo-pic' });
+    img.replaceWith(pic);
+    pic.append(el('source', { srcset: dark, media: '(prefers-color-scheme: dark)' }), img);
+  }
+  return tile;
 }

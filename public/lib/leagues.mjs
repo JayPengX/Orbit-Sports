@@ -54,4 +54,16 @@ export const hasTeams = key => Boolean(LEAGUES[key]?.espn) && LEAGUES[key].kind 
 // A team page: ESPN's leagues, and CPBL's built from its own schedule.
 export const hasTeamPage = key => LEAGUES[key]?.kind === 'match';
 // The league's logo, from the shared kit (by Quadra Play's key), or null.
-export const leagueLogo = key => (LEAGUES[key] ? kitLeagueLogo(LEAGUES[key].play || key) : null);
+// The Premier League's is its lion, cut whole from ESPN's logo (the kit's
+// crop of it leaves the lion small).
+const isEpl = key => (LEAGUES[key]?.play || key) === 'epl';
+export const leagueLogo = key => (!LEAGUES[key] ? null : isEpl(key) ? new URL('../img/epl.png', import.meta.url).href : kitLeagueLogo(LEAGUES[key].play || key));
+// Its dark-screen version, for the kit's logo tile (dark grey in dark mode,
+// where the purple lion, Ligue 1 or the UEFA marks all but vanish): ESPN's
+// 500-dark logo, and for the Premier League the white lion (cut from ESPN's
+// dark logo, clear of its wordmark). Null where there's none.
+export function leagueLogoDark(key) {
+  if (isEpl(key)) return new URL('../img/epl-dark.png', import.meta.url).href;
+  const light = leagueLogo(key);
+  return light?.startsWith('https://a.espncdn.com/i/') ? light.replace('/500/', '/500-dark/') : null;
+}

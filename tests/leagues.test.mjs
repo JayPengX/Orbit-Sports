@@ -56,3 +56,12 @@ test("a cup's group in the reader's words", async () => {
   assert.equal(groupName('Group A'), 'A 組');
   assert.equal(stageTag({ group: 'Group C2', season: { type: 2 } }), 'C 級第 2 組');
 });
+
+test('dark-screen league logos: the white lion for the Premier League, ESPN 500-dark for the rest', async () => {
+  const { leagueLogoDark, LEAGUES } = await import('../public/lib/leagues.mjs');
+  const epl = Object.keys(LEAGUES).find(k => (LEAGUES[k].play || k) === 'epl');
+  assert.match(leagueLogoDark(epl), /img\/epl-dark\.png$/);
+  const espn = Object.keys(LEAGUES).filter(k => k !== epl && leagueLogoDark(k));
+  assert.ok(espn.length > 5);
+  for (const k of espn) assert.match(leagueLogoDark(k), /^https:\/\/a\.espncdn\.com\/i\/.*\/500-dark\//);
+});

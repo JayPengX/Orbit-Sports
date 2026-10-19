@@ -263,6 +263,8 @@ img { max-width: 100%; }
 .q-chips.league-rail { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left))) 4px; padding: 2px max(16px, env(safe-area-inset-left)) 6px; scroll-padding-inline: 16px; }
 .league-rail .q-chip { padding-left: 6px; }
 .league-rail .q-chip .league-badge { --s: 24px; }
+/* A league tile's logo with its dark-screen version (cards.js leagueTile): the picture adds no box. */
+.q-logo .q-logo-pic { display: contents; }
 .league-rail .search-chip { width: 44px; justify-content: center; padding: 0; }
 .search-chip svg { display: block; width: 18px; height: 18px; }
 .q-seg.views { margin: 12px 0 4px; }
