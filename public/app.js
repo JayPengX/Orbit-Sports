@@ -19,7 +19,7 @@ import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, ses
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
-import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
+import { eltaChannel, hasAudio, channelRank, broadcastsOf } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
 import { setWatchPack, prefetchHighlights, watchMonthWanted, watchMonthPath, loadWatchMonth } from './lib/highlights.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
@@ -34,12 +34,12 @@ import { stageOf } from './lib/stage.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
+import { tvName, ctx, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // New kit names through the module (a phone can still run an older kit).
 import * as kitNames from '#kit/names.mjs';
-import { icon, pageHead, headButton, heroGame, sportTile, channelTags, SPORT_COLOR } from './premium.js';
+import { icon, pageHead, headAction, heroGame, scoreCard, sportTile, SPORT_COLOR } from './cards.js';
 
 // Shared-Data's pack of recent games (set as the app starts, below), and the
 // background look-ups of what it hasn't got, after it's in.
@@ -631,7 +631,6 @@ document.addEventListener(
   true
 );
 function repaintDay(date) {
-  paintStatus();
   renderTabs();
   if (sheetOver()) return void heldDays.add(date);
   if (state.tab === 'home' && state.home.date === date) renderHome();
@@ -1294,30 +1293,22 @@ function renderHome() {
   planList = planList.filter(x => x !== heroItem);
   more = more.filter(x => keyOf(x.event) !== heroKey);
   const hero = heroItem ? heroGame(heroItem.event, { picked: isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }) : null;
+  // The rest on now: a row each with 觀看; every game on is 轉播's.
   const liveBlock = liveRest.length
-    ? section(t('liveNow'), el('div', { class: 'q-card list live-strip' }, [...liveRest.map(x => withWatch(eventRow(x.event, { picked: isPick(x) }), x.event)), allLive > liveShown.length ? el('button', { class: 'live-strip-more', type: 'button', text: `${L({ zh: `全部 ${allLive} 場直播`, en: `All ${allLive} live` })} ›`, onclick: () => showTab('live') }) : null]), { cls: 'live-now' })
-    : null;
-  // Followed teams that play today, with that game (the rest are on 追蹤).
-  const teamRows = isToday
-    ? state.prefs.follows.flatMap(f => {
-        const list = (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame);
-        const e = list.find(x => localDate(Date.parse(x.start)) === h.date);
-        if (!e) return [];
-        return el('div', { class: 'follow-row' }, [
-          el('button', { class: 'follow-team', type: 'button', onclick: () => (f.athlete ? openPlayer(f.league, f.id) : openTeam(f.league, f.id, f)) }, [f.athlete ? personPic(f, f.league, 'sm round') : logo(f.logo, f.name, 'sm'), el('span', { text: shownName(f) })]),
-          eventRow(e, { league: false })
-        ]);
+    ? section(t('liveNow'), el('div', { class: 'q-card list' }, liveRest.map(x => withWatch(eventRow(x.event, { picked: isPick(x) }), x.event))), {
+        cls: 'live-now',
+        action: allLive > liveShown.length ? moreButton(L({ zh: `全部 ${allLive}`, en: `All ${allLive}` }), () => showTab('live')) : null
       })
-    : [];
+    : null;
   const hasFollows = state.prefs.leagues.length > 0;
   // A first pick keeps the picker up for the next ones (in order), until 完成.
   if (!hasFollows && state.prefsLoaded) h.picking = true;
   // Everything the picks lean on is in: the day read fresh, the tables,
   // the followed teams, and no search for other games or days going on.
   h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !h.tablesPending && ![...h.teams.values()].includes(null);
-  // The best of the rest, listed by the clock (by score, a 02:45 sat above a 00:00).
+  // The best of the rest, by the clock (by score, a 02:45 sat above a 00:00): 稍後's 全部.
   const byStart = (x, y) => Date.parse(x.event.start) - Date.parse(y.event.start);
-  const shownMore = more.slice(0, h.shown).sort(byStart);
+  const moreAll = [...more].sort(byStart);
   // Today's picks (the 今日推薦 list, not 更多推薦 or the others when none are
   // yours), for their start notices: kept when the list settles, and the
   // Worker's list sent again when they change. Their finals are said for the
@@ -1334,6 +1325,8 @@ function renderHome() {
       pushTimer = setTimeout(syncPush, 1500);
     }
   }
+  // Nothing of theirs: a quiet card saying why, and the way to every game.
+  const note = (title, sub, go = true) => el('div', { class: 'home-note' }, [title ? el('strong', { text: title }) : null, sub ? el('p', { text: sub }) : null, go ? fullSchedule() : null]);
   function pastDay() {
     // Only theirs: the games of their own leagues (what the day showed
     // them), not every league's (the others' ten German and Italian games
@@ -1342,40 +1335,43 @@ function renderHome() {
     const games = filtered(mine)
       .filter(e => !seen.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && seen.add(`${e.league}:${e.id}:${e.sessionKey || ''}`))
       .sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
-    // Said as the other days are (今日推薦, 明天 · 推薦) and today's ended games (已結束): 昨天 · 已結束.
-    const title = `${dayLabel(h.date)} · ${L(ENDED_GAMES)}`;
-    if (!games.length) return section(title, el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet') }), fullSchedule()]));
-    return el('div', {}, [
-      section(title, el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e))), { sub: t('gamesN', { n: games.length }) }),
-      games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null
-    ]);
+    const title = L(ENDED_GAMES);
+    if (!games.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
+    return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e))), games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
   }
+  const laterTitle = fallback ? t('othersPicks') : isToday ? L({ zh: '稍後', en: 'Later' }) : L({ zh: '推薦', en: 'Picks' });
   put(
     box,
-    homeHead(hero),
-    h.picking ? sportPicker() : null,
-    liveBlock,
+    homeHead(),
+    h.picking ? sportPicker() : hero,
+    h.picking ? null : liveBlock,
     // A day gone by: its games, every one, by the clock, as they ended (no
     // picks: ranked again on today's tables, yesterday's changed; the owner,
     // 2026-10-18). Theirs and the others on TV, under the sport chosen.
     past ? pastDay() : null,
-    !past && (fallback || finding) && !endedGames.length ? el('div', { class: 'q-card pad none-mine' }, [el('strong', { text: gap === 'leagues' ? t('someUnread') : gap === 'tv' ? t('tvUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet') }), el('p', { class: 'muted small', text: finding ? t('findingOthers') : planList.length ? t('othersSub') : gap ? t('notKnownYet') : noTvText(h.date) }), !finding && !planList.length ? fullSchedule() : null]) : null,
+    !past && (fallback || finding) && !endedGames.length ? note(gap === 'leagues' ? t('someUnread') : gap === 'tv' ? t('tvUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet'), finding ? t('findingOthers') : planList.length ? t('othersSub') : gap ? t('notKnownYet') : noTvText(h.date), !finding && !planList.length) : null,
     !past && finding ? spinner() : null,
-    past ? null : planList.length
-      ? section(fallback ? t('othersPicks') : isToday ? L({ zh: '稍後', en: 'Later' }) : `${dayLabel(h.date)} · ${past ? L(ENDED_PICKS) : t('picksOn')}`, el('div', { class: 'q-card list' }, planList.map(planRow)))
-      : finding || fallback || liveBlock || hero ? null : section(t('todayPicks'), el('div', { class: 'q-card pad none-mine' }, [el('p', { class: 'muted small', text: gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine') }), fullSchedule()])),
-    !past && shownMore.length
-      ? section(t('moreRecs'), el('div', { class: 'q-card list' }, shownMore.map(x => eventRow(x.event))), {
-          action: null
-        })
-      : null,
-    !past && more.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${more.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null,
-    endedGames.length ? section(L(ENDED_GAMES), el('div', { class: 'q-card list' }, endedGames.map(e => eventRow(e))), { sub: t('gamesN', { n: endedGames.length }) }) : null,
-    teamRows.length ? section(t('yourTeams'), el('div', { class: 'q-card list' }, teamRows), { action: moreButton(t('seeAll'), () => showTab('following')) }) : null
+    past
+      ? null
+      : planList.length
+        ? section(laterTitle, el('div', { class: 'q-card list' }, planList.map(planRow)), { action: moreAll.length ? moreButton(t('seeAll'), () => openMore(moreAll)) : null })
+        : finding || fallback || liveBlock || hero || h.picking
+          ? null
+          : section(t('todayPicks'), note('', gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine'))),
+    // Nothing left to pick but more on: the rest straight on the page.
+    !past && !planList.length && moreAll.length && !finding ? section(t('moreRecs'), el('div', { class: 'q-card list' }, moreAll.slice(0, h.shown).map(x => eventRow(x.event)))) : null,
+    endedGames.length ? section(L(ENDED_GAMES), kitRail(endedGames.map(e => scoreCard(e, openEvent))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
   );
-  centerChosen(box);
+  paintDaySheet();
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
+}
+// Cards that scroll sideways (the kit's rail).
+const kitRail = cards => el('div', { class: 'q-rail score-rail' }, cards);
+// 稍後's 全部: the rest of the day worth a look, by the clock.
+function openMore(items) {
+  const s = sheet(t('moreRecs'));
+  put(s.body, el('div', { class: 'q-card list' }, items.map(x => eventRow(x.event))));
 }
 // Nothing on TV here that day: why (past ELTA's list, only the NBA's and
 // MLS's games are known), and the way to every game (賽事).
@@ -1387,50 +1383,54 @@ function noTvText(date) {
   }
   return t('noOthers');
 }
-const fullSchedule = () => el('button', { class: 'section-more none-go', type: 'button', text: `${L({ zh: '看完整賽程', en: 'Every game' })} ›`, onclick: () => showTab('matches') });
-function homeHead(hero = null) {
+const fullSchedule = () => el('button', { class: 'section-more', type: 'button', text: `${L({ zh: '看完整賽程', en: 'Every game' })} ›`, onclick: () => showTab('matches') });
+// 首頁's head: the day over the app's name (another day's name when one is
+// picked). The day is a button: the day sheet (any day, one sport).
+function homeHead() {
   const h = state.home;
-  // Still picking (a newcomer, until 完成): the welcome, and no sport filter yet.
-  const hasFollows = state.prefs.leagues.length > 0 && !h.picking;
+  const dt = new Date(`${h.date}T12:00:00`);
+  const date = dt.toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { month: 'long', day: 'numeric', weekday: locale === 'en' ? 'short' : 'long' });
+  const isToday = h.date === today();
+  const shown = SPORTS[h.filter] ? L(SPORTS[h.filter]) : h.filter === 'teams' ? t('f_teams') : '';
+  // Still picking (a newcomer, until 完成): the day, nothing to choose yet.
+  const over =
+    !state.prefs.leagues.length || h.picking
+      ? date
+      : el('button', { class: `q-over over-btn${!isToday || shown ? ' tint' : ''}`, type: 'button', 'aria-haspopup': 'dialog', onclick: openDaySheet }, [el('span', { text: [date, shown].filter(Boolean).join(' · ') }), el('span', { class: 'over-chev', 'aria-hidden': 'true' })]);
+  return pageHead(over, isToday ? 'Orbit Sports' : dayLabel(h.date).replace(/^(\d+\/\d+) (.+)$/, '$2'));
+}
+// The day sheet: what to show (every game, the followed teams', one sport)
+// and the day (the strip of days that have games, 📅 for any), 今天 to go back.
+let daySheet = null;
+function openDaySheet() {
+  daySheet = sheet(L({ zh: '選擇日期', en: 'Pick a day' }));
+  daySheet.dialog.addEventListener('close', () => (daySheet = null));
+  stripRange.recenter = true;
+  paintDaySheet();
+}
+function paintDaySheet() {
+  if (!daySheet) return;
+  const h = state.home;
   const sport = SPORTS[h.filter] ? h.filter : null;
   const days = sport ? h.sportDays.get(sport) : null;
-  // A list, not a wrapper: the date strip stays where it is in the page (put).
-  const dt = new Date(`${h.date}T12:00:00`);
-  const over = dt.toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { month: 'long', day: 'numeric', weekday: locale === 'en' ? 'short' : 'long' });
-  return [
-    pageHead(over, dayLabel(h.date).replace(/^(\d+\/\d+) (.+)$/, '$2'), hasFollows ? headButton(t('editFollows'), 'list', openFollowEditor) : null),
-    hero,
-    h.picking && !hasFollows ? null : hasFollows ? sportChips() : null,
+  const pick = d => {
+    h.date = d;
+    h.shown = 20;
+    h.autoDay = false;
+    daySheet?.close();
+    renderHome();
+  };
+  const filters = [['all', t('f_all')], ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...followedSports().filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
+  put(
+    daySheet.body,
+    filters.length > 2 ? el('div', { class: 'q-chips day-filters' }, filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => ((stripRange.recenter = true), pickFilter(k)) }))) : null,
     // One sport: only the days it plays (read first, then shown).
-    h.picking && !hasFollows
-      ? null
-      : sport && !days
+    sport && !days
       ? el('div', { class: 'day-strip-wait' }, [el('div', { class: 'spinner small' }), el('span', { class: 'muted small', text: t('findingDays') })])
       : sport && !days.size
         ? el('p', { class: 'muted small no-days', text: t('noSportDays', { sport: L(SPORTS[sport]) }) })
-        : dateStrip(
-            h.date,
-            d => {
-              h.date = d;
-              h.shown = 20;
-              h.autoDay = false;
-              renderHome();
-            },
-            // Every league's days (one sport's: its leagues').
-            { only: days, bounds: sport ? unionBounds(allBounds, Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport)) : homeBounds() }
-          )
-  ];
-}
-// Every followed sport as a filter, whether it plays today or not: picking
-// one keeps the date strip to the days it plays and goes to the nearest.
-function sportChips() {
-  const h = state.home;
-  const filters = [['all', t('f_all')], ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...followedSports().filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
-  if (filters.length < 3) return null;
-  return el(
-    'div',
-    { class: 'q-chips small filter-chips' },
-    filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => ((stripRange.recenter = true), pickFilter(k)) }))
+        : dateStrip(h.date, pick, { only: days, bounds: sport ? unionBounds(allBounds, Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport)) : homeBounds() }),
+    h.date !== today() ? el('button', { class: 'q-btn block day-today', type: 'button', text: L({ zh: '回到今天', en: 'Back to today' }), onclick: () => pick(today()) }) : null
   );
 }
 // A sport's days read (again): one with a league unread is read again (15
@@ -1543,8 +1543,10 @@ function dayAll(slot) {
   return [...(slot?.events || []), ...(slot?.others || []), ...(slot?.rest || [])].filter(e => !seen.has(`${e.league}:${e.id}`) && seen.add(`${e.league}:${e.id}`));
 }
 const liveGate = { drawn: false, since: 0, timer: 0 };
+const liveHead = () => pageHead(L({ zh: '愛爾達 · Apple TV', en: 'ELTA · Apple TV' }), t('tab_live'));
 const liveShape = () =>
   el('div', { class: 'live-shape', 'aria-hidden': 'true' }, [
+    liveHead(),
     el('div', { class: 'skel-hero' }),
     el('div', { class: 'q-card list' }, Array.from({ length: 4 }, () => el('div', { class: 'event-row skel-row' }, [skeleton([30, 70, 60])])))
   ]);
@@ -1553,7 +1555,7 @@ function renderLive() {
   const slot = state.days.get(today());
   if (!slot?.at || !tvReady()) {
     if (!slot?.loading && !slot?.at) loadDay(today());
-    put(box, spinner());
+    put(box, liveHead(), spinner());
     return;
   }
   loadFollowedTeams();
@@ -1595,8 +1597,6 @@ function renderLive() {
   const ahead = all;
   const window = (live.length ? 3 : 24) * 3_600_000;
   const soon = ahead.filter(e => e.status.state === 'pre' && !e.status.void && !onAir(e, now) && Date.parse(e.start) - now < window && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
-  // Finished in the last few hours (by start: a game's end isn't known), latest first.
-  const ended = all.filter(e => e.status.state === 'post' && !e.status.void && Date.parse(e.start) > now - 8 * 3_600_000).sort((a, b) => b.start.localeCompare(a.start));
   const mineFirst = list => [...list].sort((a, b) => isFollowedEvent(b) - isFollowedEvent(a));
   // A game on now: its row, and 觀看 beside it (straight into ELTA.tv's or Apple TV's app).
   const liveRow = e => withWatch(eventRow(e), e);
@@ -1616,7 +1616,7 @@ function renderLive() {
     byDay.get(d).push(e);
   }
   const mineBlock = byDay.size
-    ? section(L({ zh: '你的轉播', en: 'Yours on TV' }), el('div', { class: 'stack' }, [...byDay].map(([d, list]) => el('div', {}, [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list' }, list.map(e => eventRow(e)))]))), {
+    ? section(L({ zh: '你的轉播', en: 'Yours on TV' }), el('div', { class: 'by-day' }, [...byDay].map(([d, list]) => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { day: false })))]).flat()), {
         action: el('span', { class: 'q-tag tint', text: L({ zh: `${TV_DAYS} 天`, en: `${TV_DAYS} days` }) })
       })
     : null;
@@ -1627,17 +1627,16 @@ function renderLive() {
   const liveSorted = mineFirst(live);
   const heroEvent = liveSorted[0] || nextUp || null;
   const hero = heroEvent ? heroGame(heroEvent, { mine: isFollowedEvent(heroEvent), picked: pickedToday().has(`${heroEvent.league}:${heroEvent.id}`), eyebrow: live.length ? '' : L({ zh: `下一場 · ${waitText}`, en: `Next · ${waitText}` }), onOpen: openEvent }) : null;
-  const head = pageHead(live.length ? L({ zh: '轉播 · 正在進行', en: 'On TV · live' }) : gap ? t('liveUnread') : t('liveEmpty'), live.length ? L({ zh: `${live.length} 場進行中`, en: `${live.length} live` }) : nextUp ? L({ zh: '接下來', en: 'Up next' }) : reading || gap ? t('tab_live') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }));
+  const guide = guideItems().some(p => p.end > now) ? moreButton(L({ zh: '節目表', en: 'TV guide' }), () => openGuide(all)) : null;
   put(
     box,
-    head,
+    liveHead(),
     hero,
-    !live.length && !nextUp && reading && !gap ? spinner() : null,
-    liveSorted.length > 1 ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list live-strip' }, liveSorted.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
+    !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) }), guide])) : null,
+    liveSorted.length > 1 ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, liveSorted.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
     mineBlock,
-    later.length ? section(live.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null,
-    ended.length ? section(L({ zh: '剛結束', en: 'Just ended' }), el('div', { class: 'q-card list' }, mineFirst(ended).slice(0, 8).map(e => eventRow(e)))) : null,
-    tvGuide(all)
+    later.length ? section(live.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e))), { action: guide }) : null,
+    !later.length && hero && guide ? el('div', { class: 'q-rowcard guide-link' }, [el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => openGuide(all) }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '愛爾達節目表', en: 'ELTA TV guide' }) })])])]) : null
   );
 }
 // ---- 愛爾達's guide -------------------------------------------------------------------------
@@ -1679,18 +1678,6 @@ function guideRow(p, events, now) {
       ])
     ]),
     on && p.channels[0] ? watchLink(eltaChannel(p.channels[0].ch), { class: 'tvg-watch', text: L({ zh: '觀看', en: 'Watch' }) }) : null
-  ]);
-}
-// At the foot of 轉播: ELTA's whole guide, channel by channel, a tap away
-// (its next hours are the games above; listed again here they were the
-// same games three times on one page).
-function tvGuide(events) {
-  if (!guideItems().some(p => p.end > Date.now())) return null;
-  return el('div', { class: 'q-rowcard guide-card' }, [
-    el('button', { class: 'q-ritem chevron q-press', type: 'button', onclick: () => openGuide(events) }, [
-      el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }),
-      el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '愛爾達完整轉播表', en: "ELTA's full TV guide" }) }), el('small', { text: L({ zh: '每一台、接下來兩週', en: 'Every channel, the next two weeks' }) })])
-    ])
   ]);
 }
 // The whole guide, a day at a time.
@@ -2246,48 +2233,51 @@ async function fetchScores(sc) {
   return events;
 }
 
-// The search box stays put (it keeps its focus and caret while typing); the
-// rest of the page is drawn under it.
-let scoresBody = null;
+// 賽事's search: a sheet with the field at its top (it keeps its focus and
+// caret while typing), the results drawn under it.
+let searchOut = null;
 let clearSearch = () => {};
-function scoresShell() {
-  const panel = $('panel-matches');
-  if (scoresBody?.isConnected) return scoresBody;
+function openSearch() {
+  const s = sheet(L({ zh: '搜尋', en: 'Search' }));
   const input = el('input', { type: 'search', inputmode: 'search', enterkeyhint: 'search', autocomplete: 'off', placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder') });
-  const clear = el('button', { class: 'q-search-clear', type: 'button', 'aria-label': t('close'), text: '✕' });
+  const clear = el('button', { class: 'q-search-clear', type: 'button', 'aria-label': t('close'), text: '✕', onclick: () => ((input.value = ''), input.dispatchEvent(new Event('input')), input.focus()) });
   let timer = 0;
   // The European cups' clubs, ready before a search needs them.
   europeanClubs().catch(() => {});
-  const go = () => {
+  searchOut = el('div', { class: 'search-out' });
+  input.addEventListener('input', () => {
     state.scores.q = input.value.trim();
     clearTimeout(timer);
     // Asked once typing pauses, not at every letter (each would be a read of its own).
-    timer = setTimeout(() => (state.scores.q ? runSearch(state.scores.q) : renderScores()), 450);
-  };
-  input.addEventListener('input', go);
-  clearSearch = () => {
-    input.value = '';
+    timer = setTimeout(() => (state.scores.q ? runSearch(state.scores.q) : put(searchOut)), 450);
+  });
+  clearSearch = () => s.close();
+  s.dialog.addEventListener('close', () => {
     clearTimeout(timer);
-    input.blur();
-  };
-  scoresBody = el('div', { class: 'scores-body' });
-  put(panel, pageHead(L({ zh: `${shownSports().length} 項運動 · ${Object.keys(LEAGUES).filter(isActive).length} 個聯賽`, en: `${shownSports().length} sports · ${Object.keys(LEAGUES).filter(isActive).length} leagues` }), t('tab_matches')), el('label', { class: 'q-search fx-search' }, [input, clear]), scoresBody);
-  return scoresBody;
+    state.scores.q = '';
+    searchOut = null;
+    clearSearch = () => {};
+  });
+  put(s.body, el('label', { class: 'q-search fx-search' }, [input, clear]), searchOut);
+  setTimeout(() => input.focus(), 50);
 }
 
 // Search: leagues by name, then ESPN's teams and players (a Chinese query is
 // read in English first: "洋基" finds the Yankees).
 let searchSeq = 0;
+// A found league, team or player: its picture on a white tile, the name, where it plays.
+const findRow = (pic, title, sub, onclick) => el('button', { class: 'q-ritem chevron find-row', type: 'button', onclick }, [el('span', { class: 'pic-tile' }, [pic]), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: title }), el('small', { text: sub })])]);
 async function runSearch(query, again = false) {
-  const box = scoresShell();
+  const box = searchOut;
+  if (!box) return;
   const seq = ++searchSeq;
   const leagues = findLeagues(query);
   const paint = (found, busy) =>
     put(
       box,
-      leagues.length ? section(t('leagues'), el('div', { class: 'q-card list' }, leagues.slice(0, 8).map(k => el('button', { class: 'search-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k, 'lg-mark mid'), el('span', { text: leagueName(k, locale) }), el('small', { text: L(SPORTS[LEAGUES[k].sport]) })])))) : null,
-      found?.teams.length ? section(t('teamsFound'), el('div', { class: 'q-card list' }, found.teams.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openTeam(x.league, x.id, x) }, [logo(x.logo, x.name, 'sm'), el('span', { text: localSide(x.league, { name: x.name }).name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
-      found?.players.length ? section(t('playersFound'), el('div', { class: 'q-card list' }, found.players.slice(0, 10).map(x => el('button', { class: 'search-row', type: 'button', onclick: () => openPlayer(x.league, x.id) }, [personPic(x, x.league, 'sm round'), el('span', { text: x.name }), el('small', { text: leagueName(x.league, locale) })])))) : null,
+      leagues.length ? section(t('leagues'), el('div', { class: 'q-rowcard' }, leagues.slice(0, 8).map(k => findRow(leagueMark(k, 'lg-mark mid'), leagueName(k, locale), L(SPORTS[LEAGUES[k].sport]), () => openScores(k))))) : null,
+      found?.teams.length ? section(t('teamsFound'), el('div', { class: 'q-rowcard' }, found.teams.slice(0, 10).map(x => findRow(logo(x.logo, x.name, 'sm'), localSide(x.league, { name: x.name }).name, leagueName(x.league, locale), () => openTeam(x.league, x.id, x))))) : null,
+      found?.players.length ? section(t('playersFound'), el('div', { class: 'q-rowcard' }, found.players.slice(0, 10).map(x => findRow(personPic(x, x.league, 'sm round'), x.name, leagueName(x.league, locale), () => openPlayer(x.league, x.id))))) : null,
       busy
         ? spinner()
         : found?.failed
@@ -2335,6 +2325,7 @@ async function runSearch(query, again = false) {
     if (seq !== searchSeq || state.scores.q !== query) return;
     if (homes) found.players = found.players.map((x, i) => (homes[i] ? { ...x, league: homes[i] } : x));
   }
+  if (!box.isConnected) return;
   paint(found, false);
   if (found.failed && !again) setTimeout(() => seq === searchSeq && state.scores.q === query && runSearch(query, true), 16_000);
 }
@@ -2386,7 +2377,6 @@ function weekendCard(sessions) {
 
 function renderScores() {
   const sc = state.scores;
-  if (sc.q) return runSearch(sc.q);
   // A sport or league with nothing on now: the first one that has.
   if (activeSet && !isActive(sc.league)) {
     const sport = isActiveSport(sc.sport) ? sc.sport : shownSports()[0];
@@ -2396,34 +2386,18 @@ function renderScores() {
       return loadScores();
     }
   }
-  const box = scoresShell();
-  const mineSports = followedSports();
-  const sports = shownSports().sort((a, b) => mineSports.includes(b) - mineSports.includes(a) || mineSports.indexOf(a) - mineSports.indexOf(b));
-  const sportChips = el(
-    'div',
-    { class: 'q-chips sport-chips' },
-    sports.map(key =>
-      el('button', {
-        class: 'q-chip',
-        type: 'button',
-        'aria-pressed': String(sc.sport === key),
-        text: L(SPORTS[key]),
-        onclick: () => {
-          const first = followedLeagues().find(k => LEAGUES[k].sport === key && isActive(k)) || shownLeaguesOf(key).find(k => LEAGUES[k].top) || shownLeaguesOf(key)[0];
-          state.scores = { ...sc, sport: key, league: first, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(first) ? sc.view : 'games' };
-          loadScores();
-        }
-      })
-    )
-  );
+  const box = $('panel-matches');
   const mine = new Set(state.prefs.leagues);
-  const leagueChips = el(
-    'div',
-    { class: 'q-chips small' },
-    shownLeaguesOf(sc.sport)
-      .sort((a, b) => mine.has(b) - mine.has(a))
-      .map(k => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), leagueName(k, locale)]))
-  );
+  // Every league on one rail, theirs first (in their order), then by sport;
+  // the search first of all.
+  const sportOrder = shownSports().sort((a, b) => followedSports().includes(b) - followedSports().includes(a));
+  const rail = [...state.prefs.leagues.filter(isActive), ...sportOrder.flatMap(sp => shownLeaguesOf(sp).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top)).filter(k => !mine.has(k)))];
+  const leagueChips = el('div', { class: 'q-chips league-rail' }, [
+    el('button', { class: 'q-chip search-chip', type: 'button', 'aria-label': L({ zh: '搜尋', en: 'Search' }), html: icon('search') || '⌕', onclick: openSearch }),
+    ...rail.map(k =>
+      el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), locale === 'en' ? leagueName(k, locale) : leagueName(k, locale).replace(/\s.*$/, '')])
+    )
+  ]);
   let strip = null;
   let list;
   let stages = null;
@@ -2502,24 +2476,24 @@ function renderScores() {
     const wk = weeks.length ? roundLabel(sc.league, weeks[0], weeks.at(-1), locale) : '';
     list = el('div', {}, [el('p', { class: 'day-head', text: [dayLabel(sc.date, { long: true }), wk, t('gamesN', { n: shown.length })].filter(Boolean).join(' · ') }), shown.length ? el('div', { class: 'q-card list' }, shown.map(e => eventRow(e, { league: false, day: false }))) : empty(t('noGames'))]);
   }
-  // The league: its logo and name, where its season is, what's on now,
-  // following it, and where to watch it in Taiwan.
+  // The league as the page's head: its sport, its stage, what's on now and
+  // where it's on in Taiwan over its name; following it at the right.
   const all = sc.all || [];
   const liveN = all.filter(e => e.status.state === 'in').length;
   const nextUp = all.filter(e => e.status.state !== 'post').sort((a, b) => a.start.localeCompare(b.start))[0];
   const stage = nextUp && stageOf(nextUp).special ? stageOf(nextUp)[locale === 'en' ? 'en' : 'zh'] : '';
-  const tools = el('div', { class: 'q-card league-head' }, [
-    el('div', { class: 'lh-row' }, [
-      leagueMark(sc.league, 'lg-mark big'),
-      el('div', { class: 'lh-text' }, [el('strong', { text: leagueName(sc.league, locale) }), stage || liveN ? el('small', {}, [stage ? el('span', { class: 'stage-tag', text: stage }) : null, liveN ? el('span', { class: 'lh-live', text: `● ${t('liveN', { n: liveN })}` }) : null]) : null]),
-      followButton(() => mine.has(sc.league), () => (toggleLeague(sc.league), renderScores()), t('followLeague'))
-    ]),
-    twChips(sc.league, 3)
+  const tv = broadcastsOf(sc.league)[0];
+  const over = el('p', { class: 'q-over league-over' }, [
+    el('span', { text: [L(SPORTS[LEAGUES[sc.league].sport]), stage, tv ? tvName(tv) : ''].filter(Boolean).join(' · ') }),
+    liveN ? el('span', { class: 'over-live', text: t('liveN', { n: liveN }) }) : null
   ]);
+  const name = leagueName(sc.league, locale);
+  const head = pageHead(over, name, followButton(() => mine.has(sc.league), () => (toggleLeague(sc.league), renderScores()), t('followLeague')));
+  if (name.length > (locale === 'en' ? 14 : 7)) head.classList.add('long');
   const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : []), ...(hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn) ? [['leaders', L({ zh: '數據領先', en: 'Leaders' })]] : [])];
   const views = viewList.length > 1 ? segmented(viewList, knockView ? 'bracket' : tableView ? 'table' : leadersView ? 'leaders' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
   const other = tableView || knockView || leadersView;
-  const parts = [sportChips, leagueChips, tools, views, other ? null : strip, other ? null : stages, list].filter(Boolean);
+  const parts = [head, leagueChips, views, other ? null : strip, other ? null : stages, list].filter(Boolean);
   if (scoresQuiet && box.childNodes.length === parts.length) return parts.forEach((n, i) => morph(box.childNodes[i], n));
   put(box, ...parts);
   centerChosen(box);
@@ -2580,6 +2554,12 @@ function withAgain(pill, e) {
   const text = r.video ? (en ? 'ELTA · replay' : '愛爾達・重播') : `${r.channels[0].short[en ? 'en' : 'zh']}${en ? ' · replay' : '・回看'}`;
   return el('span', { class: 'tf-when' }, [pill, el('span', { class: 'tf-tv', text })]);
 }
+// A game's when on a followed card: its weekday within the week ahead (週四 03:00), else as every list says it.
+const soonOf = e => {
+  const d = localDate(Date.parse(shownStart(e)));
+  const n = dayOffset(d);
+  return n > 1 && n < 7 ? `${new Date(`${d}T12:00:00`).toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { weekday: 'short' })} ${timeText(e)}` : whenOf(e);
+};
 // Where a game is on: its channel and commentary, else whether it's known to be on nowhere.
 function whereTv(e) {
   const b = channelsOf(e)[0];
@@ -2599,27 +2579,22 @@ function renderFollowing() {
   const games = followedGames().sort((a, b) => (b.status.state === 'in') - (a.status.state === 'in') || (a.status.state === 'post') - (b.status.state === 'post') || a.start.localeCompare(b.start));
   const gamesBlock = games.length
     ? section(
-        L({ zh: '追蹤的比賽', en: 'Matches you follow' }),
+        L({ zh: '比賽', en: 'Matches' }),
         el('div', { class: 'q-card list followed-games' }, games.map(e => el('div', { class: 'fg-row' }, [withWatch(eventRow(e), e), el('button', { class: 'fg-off', type: 'button', 'aria-label': L({ zh: '取消追蹤這場', en: 'Unfollow this match' }), text: '★', onclick: () => toggleFollowGame(e) })]))),
         { sub: gamesNote(games) }
       )
     : null;
+  const manage = headAction(L({ zh: '管理', en: 'Manage' }), 'list', openFollowEditor);
   if (!teams.length && !people.length) {
-    put(
-      box,
-      pageHead(L({ zh: '球隊與選手', en: 'Teams and players' }), t('tab_following'), headButton(L({ zh: '管理', en: 'Manage' }), 'list', openFollowEditor)),
-      gamesBlock,
-      section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'suggest-grid' }, SUGGEST.map(suggestCard)))
-    );
+    put(box, pageHead('', t('tab_following'), manage), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'suggest-grid' }, SUGGEST.map(suggestCard))));
     return;
   }
   put(
     box,
-    pageHead([L({ zh: `${teams.length} 隊`, en: `${teams.length} teams` }), people.length ? L({ zh: `${people.length} 位選手`, en: `${people.length} players` }) : '', L({ zh: `${p.leagues.length} 個聯賽`, en: `${p.leagues.length} leagues` })].filter(Boolean).join(' · '), t('tab_following'), headButton(L({ zh: '管理', en: 'Manage' }), 'list', openFollowEditor)),
+    pageHead([L({ zh: `${teams.length} 隊`, en: `${teams.length} teams` }), people.length ? L({ zh: `${people.length} 位選手`, en: `${people.length} players` }) : '', L({ zh: `${p.leagues.length} 個聯賽`, en: `${p.leagues.length} leagues` })].filter(Boolean).join(' · '), t('tab_following'), manage),
     gamesBlock,
-    teams.length ? section(t('yourTeams'), el('div', { class: 'q-card list team-form-list' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamCard(f))))) : null,
-    people.length ? section(t('yourPlayers'), el('div', { class: 'q-card list team-form-list' }, people.map(personRow))) : null,
-    tvLink()
+    teams.length ? section(L({ zh: '球隊', en: 'Teams' }), el('div', { class: 'team-cards' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamCard(f))))) : null,
+    people.length ? section(L({ zh: '選手', en: 'Players' }), el('div', { class: 'team-cards' }, people.map(personRow))) : null
   );
 }
 // A popular team, followed with a tap.
@@ -2634,15 +2609,6 @@ function suggestCard(s) {
   card.style.setProperty('--t', SPORT_COLOR[LEAGUES[s.league]?.sport] || 'var(--accent)');
   return card;
 }
-// At the foot of 追蹤: all of their games on TV this week are on 轉播.
-const tvLink = () =>
-  el('div', { class: 'q-rowcard guide-card' }, [
-    el('button', { class: 'q-ritem chevron q-press', type: 'button', onclick: () => showTab('live') }, [
-      el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }),
-      el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '你的轉播', en: 'Yours on TV' }) }), el('small', { text: L({ zh: `接下來 ${TV_DAYS} 天`, en: `The next ${TV_DAYS} days` }) })])
-    ])
-  ]);
-
 // A followed team at a glance: its place and form, its next game (when, where
 // it's on, 觀看 while it's on) and last result; its page on a tap.
 function teamCard(f) {
@@ -2663,7 +2629,7 @@ function teamCard(f) {
     const opp = x && !/^TBD$/i.test(x.name || '') ? x : null;
     const right =
       g.status.state === 'pre'
-        ? el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenOf(g) }), whereTv(g)])
+        ? el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: soonOf(g) }), whereTv(g)])
         : g.status.state === 'in'
           ? el('span', { class: `num tf-score live${g.status?.noScore ? ' no-score' : ''}`, text: g.status?.noScore ? L({ zh: '比賽中・比分讀不到', en: 'Live · score unavailable' }) : `${t('live')} ${scoreText(us(g)?.score)}–${scoreText(opp?.score)}` })
           : withAgain(el('span', { class: `num result-pill ${result(g).toLowerCase()}`, text: `${word(result(g)) || ''} ${scoreText(us(g)?.score)}–${scoreText(opp?.score)}`.trim() }), g);
@@ -2711,7 +2677,7 @@ function crewRow(f) {
         el('small', { class: 'muted tf-k', text: L({ zh: '下一站', en: 'Next' }) }),
         raceFlag(next),
         el('span', { class: 'tf-opp', text: [next.name, session.sessionKey ? sessionName({ abbr: session.sessionKey }, locale, true) : session.session].filter(Boolean).join(' · ') }),
-        el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenOf(session) }), whereTv(session)])
+        el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: soonOf(session) }), whereTv(session)])
       ])
     : null;
   return el('div', { class: 'tf-row' }, [
@@ -2803,7 +2769,7 @@ function personRow(f) {
         el('small', { class: 'muted tf-k', text: L({ zh: '下一場', en: 'Next' }) }),
         opp ? logo(opp.logo, opp.name, 'xs') : el('span'),
         el('span', { class: 'tf-opp', text: opp ? `${String(next.home?.id) === String(teamId) ? 'vs' : '@'} ${localSide(next.league, opp).name}` : '' }),
-        next.status.state === 'in' ? el('span', { class: 'num tf-score live', text: t('live') }) : el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenOf(next) }), whereTv(next)])
+        next.status.state === 'in' ? el('span', { class: 'num tf-score live', text: t('live') }) : el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: soonOf(next) }), whereTv(next)])
       ])
     : null;
   return el('div', { class: 'tf-row' }, [
@@ -2853,7 +2819,7 @@ function driverRow(f, a) {
     el('div', { class: 'tf-games' }, [
       champ ? el('div', { class: 'pf-stats' }, [el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: `P${champ.pos}` }), el('small', { text: L({ zh: '車手積分榜', en: 'Standings' }) })]), el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: champ.points }), el('small', { text: L({ zh: '積分', en: 'Points' }) })]), champ.gap && champ.pos > 1 ? el('span', { class: 'pf-stat' }, [el('b', { class: 'num', text: champ.gap }), el('small', { text: L({ zh: '落後', en: 'Behind' }) })]) : null]) : null,
       session
-        ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(session) }, [el('small', { class: 'muted tf-k', text: L({ zh: '下一節', en: 'Next' }) }), raceFlag(next), el('span', { class: 'tf-opp', text: [next.name, session.sessionKey ? sessionName({ abbr: session.sessionKey }, locale, true) : session.session].filter(Boolean).join(' · ') }), el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: whenOf(session) }), whereTv(session)])])
+        ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(session) }, [el('small', { class: 'muted tf-k', text: L({ zh: '下一節', en: 'Next' }) }), raceFlag(next), el('span', { class: 'tf-opp', text: [next.name, session.sessionKey ? sessionName({ abbr: session.sessionKey }, locale, true) : session.session].filter(Boolean).join(' · ') }), el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: soonOf(session) }), whereTv(session)])])
         : null,
       last
         ? el('button', { class: 'tf-game', type: 'button', onclick: () => openEvent(splitWeekend(last, Date.now(), locale).find(x => x.sessionKey === 'Race') || last) }, [el('small', { class: 'muted tf-k', text: L({ zh: '上一站', en: 'Last' }) }), raceFlag(last), el('span', { class: 'tf-opp', text: last.name }), el('span', { class: 'num tf-score', text: at >= 0 ? `P${at + 1}` : '–' })])
@@ -3057,7 +3023,6 @@ async function reloadNow() {
     await Promise.allSettled([loadDay(state.tab === 'home' ? state.home.date : today()), state.tab === 'matches' ? loadScores() : null]);
   } finally {
     actions.refresh.disabled = false;
-    paintStatus();
   }
 }
 
@@ -3110,7 +3075,6 @@ function liveTick() {
   }
   // 比分 too: a game on, or one due to start (it had waited for another game on to be read again).
   if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in' || dueToStart(e))) loadScores({ quiet: true });
-  paintStatus();
   renderTabs();
 }
 kit.everyDev('sportsList', liveTick);
@@ -3144,10 +3108,6 @@ const repaintOpen = () => {
 };
 onTvChange(repaintOpen);
 
-function paintStatus() {
-  const at = state.days.get(today())?.at;
-  $('status').textContent = at ? t('updated', { time: clock(new Date(at).toISOString()) }) : '';
-}
 new MutationObserver(() => fitNumbers([...document.querySelectorAll('.mh-score, .team-head h3, .mh-team strong')])).observe(document.body, { childList: true, subtree: true });
 
 // An F1 session on now: F1's own live timing every 10 seconds, its cards'
