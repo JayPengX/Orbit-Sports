@@ -203,7 +203,7 @@ img { max-width: 100%; }
 
 /* ==== 首頁: what to watch today ==== */
 /* The hero: the one game, on the app's colour. */
-.hero-game { --q-hc-a: var(--hero-a); --q-hc-b: var(--hero-b); --q-hc-glow: var(--hero-glow); gap: 12px; cursor: pointer; }
+.q-hero-card.hero-game { --q-hc-a: var(--hero-a); --q-hc-b: var(--hero-b); --q-hc-glow: var(--hero-glow); gap: 12px; cursor: pointer; }
 .hc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .hc-top .q-hc-eyebrow { min-width: 0; }
 .hc-ico svg, .hc-play svg { display: block; width: 16px; height: 16px; }
