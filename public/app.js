@@ -2627,7 +2627,8 @@ function suggestCard(s) {
   const on = isFollowed(s.league, s.id);
   const logoUrl = fallbackLogo(s.league, { id: s.id, name: s.name });
   const card = el('button', { class: `suggest${on ? ' on' : ''}`, type: 'button', onclick: () => toggleFollow(s.league, { id: s.id, name: s.name, en: s.name, logo: logoUrl }) }, [
-    logo(logoUrl, s.name, 'sm'),
+    // On its white tile in every theme: never the dark screen's mark (the Dodgers' and Yankees' are white).
+    logo(logoUrl, s.name, 'sm', { onWhite: true }),
     el('span', { class: 'suggest-name' }, [el('strong', { text: locale === 'en' && s.short ? s.short : localSide(s.league, { name: s.name }).name }), el('small', { class: 'muted', text: leagueName(s.league, locale) })]),
     el('b', { class: 'suggest-add', text: on ? '✓' : '+' })
   ]);
