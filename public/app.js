@@ -992,10 +992,10 @@ function untilText(start) {
   return locale === 'en' ? `in ${h} h` : `${h} 小時後`;
 }
 // A pick on 稍後: its game's row, and why it was picked as tags under it.
-function planRow(item) {
-  const row = eventRow(item.event);
-  const why = item.reasons.slice(0, 2).map(r => REASON(r));
-  if (why.length) row.querySelector('.event-sides, .event-title')?.append(el('div', { class: 'q-tags why-row' }, why.map(r => el('span', { class: 'q-tag tint', text: r }))));
+function planRow(item, opts = {}) {
+  const row = eventRow(item.event, opts);
+  const why = item.reasons.slice(0, 2).map(r => el('span', { class: 'q-tag tint', text: REASON(r) }));
+  if (why.length) (row.querySelector('.ev-tags') || row.querySelector('.event-sides, .event-title')?.appendChild(el('div', { class: 'ev-tags' })))?.prepend(...why);
   return row;
 }
 
@@ -1325,6 +1325,8 @@ function renderHome() {
       pushTimer = setTimeout(syncPush, 1500);
     }
   }
+  // Another day's rows: their time alone (the head says the day).
+  const rowDay = { day: h.date === today() };
   // Nothing of theirs: a quiet card saying why, and the way to every game.
   const note = (title, sub, go = true) => el('div', { class: 'home-note' }, [title ? el('strong', { text: title }) : null, sub ? el('p', { text: sub }) : null, go ? fullSchedule() : null]);
   function pastDay() {
@@ -1337,7 +1339,7 @@ function renderHome() {
       .sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
     const title = L(ENDED_GAMES);
     if (!games.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
-    return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e))), games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
+    return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))), games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
   }
   const laterTitle = fallback ? t('othersPicks') : isToday ? L({ zh: '稍後', en: 'Later' }) : L({ zh: '推薦', en: 'Picks' });
   put(
@@ -1354,12 +1356,12 @@ function renderHome() {
     past
       ? null
       : planList.length
-        ? section(laterTitle, el('div', { class: 'q-card list' }, planList.map(planRow)), { action: moreAll.length ? moreButton(t('seeAll'), () => openMore(moreAll)) : null })
+        ? section(laterTitle, el('div', { class: 'q-card list' }, planList.map(x => planRow(x, rowDay))), { action: moreAll.length ? moreButton(t('seeAll'), () => openMore(moreAll, rowDay)) : null })
         : finding || fallback || liveBlock || hero || h.picking
           ? null
           : section(t('todayPicks'), note('', gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine'))),
     // Nothing left to pick but more on: the rest straight on the page.
-    !past && !planList.length && moreAll.length && !finding ? section(t('moreRecs'), el('div', { class: 'q-card list' }, moreAll.slice(0, h.shown).map(x => eventRow(x.event)))) : null,
+    !past && !planList.length && moreAll.length && !finding ? section(t('moreRecs'), el('div', { class: 'q-card list' }, moreAll.slice(0, h.shown).map(x => eventRow(x.event, rowDay)))) : null,
     endedGames.length ? section(L(ENDED_GAMES), kitRail(endedGames.map(e => scoreCard(e, openEvent))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
   );
   paintDaySheet();
@@ -1369,9 +1371,9 @@ function renderHome() {
 // Cards that scroll sideways (the kit's rail).
 const kitRail = cards => el('div', { class: 'q-rail score-rail' }, cards);
 // 稍後's 全部: the rest of the day worth a look, by the clock.
-function openMore(items) {
+function openMore(items, opts) {
   const s = sheet(t('moreRecs'));
-  put(s.body, el('div', { class: 'q-card list' }, items.map(x => eventRow(x.event))));
+  put(s.body, el('div', { class: 'q-card list' }, items.map(x => eventRow(x.event, opts))));
 }
 // Nothing on TV here that day: why (past ELTA's list, only the NBA's and
 // MLS's games are known), and the way to every game (賽事).
@@ -1384,7 +1386,7 @@ function noTvText(date) {
   return t('noOthers');
 }
 const fullSchedule = () => el('button', { class: 'section-more', type: 'button', text: `${L({ zh: '看完整賽程', en: 'Every game' })} ›`, onclick: () => showTab('matches') });
-// 首頁's head: the day over the app's name (another day's name when one is
+// 首頁's head: the day over the app's name (明天 · 10月20日 when another is
 // picked). The day is a button: the day sheet (any day, one sport).
 function homeHead() {
   const h = state.home;
@@ -1392,12 +1394,14 @@ function homeHead() {
   const date = dt.toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { month: 'long', day: 'numeric', weekday: locale === 'en' ? 'short' : 'long' });
   const isToday = h.date === today();
   const shown = SPORTS[h.filter] ? L(SPORTS[h.filter]) : h.filter === 'teams' ? t('f_teams') : '';
+  const near = h.date === addDays(today(), 1) ? t('tomorrow') : h.date === addDays(today(), -1) ? t('yesterday') : '';
   // Still picking (a newcomer, until 完成): the day, nothing to choose yet.
   const over =
     !state.prefs.leagues.length || h.picking
       ? date
-      : el('button', { class: `q-over over-btn${!isToday || shown ? ' tint' : ''}`, type: 'button', 'aria-haspopup': 'dialog', onclick: openDaySheet }, [el('span', { text: [date, shown].filter(Boolean).join(' · ') }), el('span', { class: 'over-chev', 'aria-hidden': 'true' })]);
-  return pageHead(over, isToday ? 'Orbit Sports' : dayLabel(h.date).replace(/^(\d+\/\d+) (.+)$/, '$2'));
+      : el('button', { class: `q-over over-btn${!isToday || shown ? ' tint' : ''}`, type: 'button', 'aria-haspopup': 'dialog', onclick: openDaySheet }, [el('span', { text: [near, date, shown].filter(Boolean).join(' · ') }), el('span', { class: 'over-chev', 'aria-hidden': 'true' })]);
+  // The app's name is the title whatever the day (the app bar's brand is hidden on a phone).
+  return pageHead(over, 'Orbit Sports');
 }
 // The day sheet: what to show (every game, the followed teams', one sport)
 // and the day (the strip of days that have games, 📅 for any), 今天 to go back.
@@ -2554,6 +2558,8 @@ function withAgain(pill, e) {
   const text = r.video ? (en ? 'ELTA · replay' : '愛爾達・重播') : `${r.channels[0].short[en ? 'en' : 'zh']}${en ? ' · replay' : '・回看'}`;
   return el('span', { class: 'tf-when' }, [pill, el('span', { class: 'tf-tv', text })]);
 }
+// An opponent on a followed card: in English by the name fans use (Brewers, not Milwaukee Brewers).
+const oppName = (league, side) => (locale === 'en' ? side.short || side.name : localSide(league, side).name);
 // A game's when on a followed card: its weekday within the week ahead (週四 03:00), else as every list says it.
 const soonOf = e => {
   const d = localDate(Date.parse(shownStart(e)));
@@ -2636,7 +2642,7 @@ function teamCard(f) {
     return el('button', { class: 'tf-game', type: 'button', disabled: g.status?.void ? true : null, onclick: () => openEvent(g) }, [
       el('small', { class: 'muted tf-k', text: label }),
       opp ? logo(opp.logo, opp.name, 'xs') : el('span'),
-      el('span', { class: 'tf-opp', text: opp ? `${g.home && String(g.home.id) === id ? 'vs' : '@'} ${localSide(g.league, opp).name}` : L({ zh: '對手待定', en: 'Opponent to be decided' }) }),
+      el('span', { class: 'tf-opp', text: opp ? `${g.home && String(g.home.id) === id ? 'vs' : '@'} ${oppName(g.league, opp)}` : L({ zh: '對手待定', en: 'Opponent to be decided' }) }),
       right
     ]);
   };
@@ -2768,7 +2774,7 @@ function personRow(f) {
     ? el('button', { class: 'tf-game', type: 'button', disabled: next.status?.void ? true : null, onclick: () => openEvent(next) }, [
         el('small', { class: 'muted tf-k', text: L({ zh: '下一場', en: 'Next' }) }),
         opp ? logo(opp.logo, opp.name, 'xs') : el('span'),
-        el('span', { class: 'tf-opp', text: opp ? `${String(next.home?.id) === String(teamId) ? 'vs' : '@'} ${localSide(next.league, opp).name}` : '' }),
+        el('span', { class: 'tf-opp', text: opp ? `${String(next.home?.id) === String(teamId) ? 'vs' : '@'} ${oppName(next.league, opp)}` : '' }),
         next.status.state === 'in' ? el('span', { class: 'num tf-score live', text: t('live') }) : el('span', { class: 'tf-when' }, [el('small', { class: 'num', text: soonOf(next) }), whereTv(next)])
       ])
     : null;

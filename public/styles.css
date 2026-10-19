@@ -286,6 +286,7 @@ img { max-width: 100%; }
 .over-live { display: inline-flex; align-items: center; gap: 5px; color: var(--live); }
 .over-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.4s ease-in-out infinite; }
 .q-seg.views { margin: 12px 0 4px; }
+.q-seg.views > button { padding-inline: 4px; font-size: 14px; }
 .by-day > .day-head:first-child { margin-top: 0; }
 .day-head { margin: 16px 4px 8px; color: var(--q-label-2); font: 600 13px/18px var(--q-font); letter-spacing: 0.02em; }
 .stage-filter { margin: 8px 0 0; }
