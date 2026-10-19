@@ -12,13 +12,9 @@ import { stageTag } from './lib/stage.mjs';
 export const icon = name => kitUI.icons?.[name] || '';
 const en = () => ctx.locale === 'en';
 
-// The page's one head: a small line over the large title, an action at the
-// right. `over` may be a node (首頁's day, a button).
-export function pageHead(over, title, action = null) {
-  return el('header', { class: 'q-page-head sp-head' }, [
-    el('div', { class: 'sp-head-text' }, [typeof over === 'string' ? (over ? el('p', { class: 'q-over', text: over }) : null) : over, el('h1', { text: title })]),
-    action
-  ]);
+// The page's head: a title, an action at the right.
+export function pageHead(title, action = null) {
+  return el('header', { class: 'q-page-head sp-head' }, [el('div', { class: 'sp-head-text' }, [el('h1', { text: title })]), action]);
 }
 // A head's action: a tinted capsule with its glyph (管理, 追蹤).
 export const headAction = (label, glyph, onclick, on = false) =>

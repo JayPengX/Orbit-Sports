@@ -150,7 +150,7 @@ test('the text: every key in both languages, every {placeholder} in both, every 
   const used = [...src.matchAll(/\b(?:t|T|ctx\.t)\(\s*'([A-Za-z_0-9]+)'/g)].map(m => m[1]);
   for (const k of used) assert.ok(k in STRINGS.zh, `t('${k}') has no text`);
   const t = makeT('en');
-  assert.equal(t('liveN', { n: 3 }), STRINGS.en.liveN.replace('{n}', '3'));
+  assert.equal(t('gamesN', { n: 3 }), STRINGS.en.gamesN.replace('{n}', '3'));
   assert.equal(t('noSuchKey'), 'noSuchKey');
   assert.equal(makeT('fr')('tab_home'), STRINGS.zh.tab_home, 'another language: Chinese');
 });

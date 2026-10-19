@@ -104,9 +104,9 @@ img { max-width: 100%; }
 .sp-head > .follow-btn, .head-act { flex: none; margin-bottom: 6px; }
 .head-act { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px 0 10px; border: 0; border-radius: 999px; background: var(--accent-wash); color: var(--accent); font: 600 15px/1 var(--q-font); }
 .head-act-ico svg { display: block; width: 18px; height: 18px; }
-/* 首頁's day: a button in the head's small line. */
-.over-btn { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; }
-.over-btn.tint { color: var(--accent); }
+/* 首頁's day: a chip at the top (opens the day sheet). */
+.day-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; margin: 4px 0 12px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--q-sunken); color: var(--q-text-2); font: 600 15px/1 var(--q-font); cursor: pointer; }
+.day-chip.tint { background: var(--accent-wash); color: var(--accent); }
 .over-chev { width: 7px; height: 7px; margin-top: -3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
 .q-section { margin-top: 28px; }
 .q-section-head h2 { font-size: 20px; line-height: 25px; }
@@ -282,9 +282,6 @@ img { max-width: 100%; }
 .league-rail .q-chip .league-badge { --s: 24px; }
 .league-rail .search-chip { width: 44px; justify-content: center; padding: 0; }
 .search-chip svg { display: block; width: 18px; height: 18px; }
-.league-over { display: flex; flex-wrap: wrap; gap: 0 8px; }
-.over-live { display: inline-flex; align-items: center; gap: 5px; color: var(--live); }
-.over-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.4s ease-in-out infinite; }
 .q-seg.views { margin: 12px 0 4px; }
 .q-seg.views > button { padding-inline: 4px; font-size: 14px; }
 .by-day > .day-head:first-child { margin-top: 0; }
