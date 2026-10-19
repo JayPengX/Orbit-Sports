@@ -1665,6 +1665,7 @@ function renderLive() {
   const guide = guideItems().some(p => p.end > now) ? moreButton(L({ zh: '節目表', en: 'TV guide' }), () => openGuide(all)) : null;
   put(
     box,
+    pageHead(t('tab_live')),
     hero,
     !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) }), guide])) : null,
     liveSorted.length > 1 ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, liveSorted.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
