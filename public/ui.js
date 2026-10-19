@@ -12,6 +12,7 @@ import { otherName } from './lib/compname.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES, espnSummary, onAir } from './lib/espn.mjs';
 import * as kit from '#kit/quadra.mjs';
+import * as kitUI from '#kit/ui.mjs';
 import { tvOf, channelsOf, watchOf, replayHint } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
 import { fold } from './lib/text.mjs';
@@ -651,6 +652,9 @@ export function segmented(options, current, onPick, cls = '', { seg = false } = 
   );
 }
 export function section(title, content, { sub = '', action = null, cls = '' } = {}) {
-  return el('section', { class: `q-section ${cls}` }, [el('div', { class: 'q-section-head' }, [el('h2', { text: title }), action]), sub ? el('p', { class: 'section-sub', text: sub }) : null, content]);
+  // The kit's head (its h2 and chevron more); an old kit keeps the plain one.
+  const head = kitUI.sectionHead?.(title) ?? el('div', { class: 'q-section-head' }, [el('h2', { text: title })]);
+  if (action) head.append(action);
+  return el('section', { class: `q-section ${cls}` }, [head, sub ? el('p', { class: 'section-sub', text: sub }) : null, content]);
 }
 export const moreButton = (label, onclick) => el('button', { class: 'section-more', type: 'button', text: label, onclick });

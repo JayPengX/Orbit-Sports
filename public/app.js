@@ -39,7 +39,7 @@ import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer,
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 // New kit names through the module (a phone can still run an older kit).
 import * as kitNames from '#kit/names.mjs';
-import { icon, pageHead, headAction, heroGame, scoreCard, sportTile, SPORT_COLOR } from './cards.js';
+import { icon, pageHead, headAction, heroGame, scoreCard, sportTile, leagueTile, SPORT_COLOR } from './cards.js';
 
 // Shared-Data's pack of recent games (set as the app starts, below), and the
 // background look-ups of what it hasn't got, after it's in.
@@ -1298,7 +1298,7 @@ function renderHome() {
   const hero = heroItem ? heroGame(heroItem.event, { picked: isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }) : null;
   // The rest on now: a row each with 觀看; every game on is 轉播's.
   const liveBlock = liveRest.length
-    ? section(t('liveNow'), el('div', { class: 'q-card list' }, liveRest.map(x => withWatch(eventRow(x.event, { picked: isPick(x) }), x.event))), {
+    ? section(t('liveNow'), kitRail(liveRest.map(x => scoreCard(x.event, openEvent))), {
         cls: 'live-now',
         action: allLive > liveShown.length ? moreButton(L({ zh: `全部 ${allLive}`, en: `All ${allLive}` }), () => showTab('live')) : null
       })
@@ -1344,6 +1344,38 @@ function renderHome() {
     if (!games.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
     return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))), games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
   }
+  // Shelves under the picks (each game once: the hero and 正在進行 first, then
+  // 我的球隊, the picks, 今晚, the ended): my teams' games still to come, the
+  // rest of the day's picks, my leagues, my teams' places in them.
+  const seenKeys = new Set([heroKey, ...liveRest.map(x => keyOf(x.event))]);
+  // (A followed team's next game from its own schedule, whatever day is open, and the open day's.)
+  const nextOf = f => (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame).filter(e => e.status?.state === 'pre' && !e.status.void && Date.parse(e.start) > now).sort((x, y) => Date.parse(x.start) - Date.parse(y.start))[0];
+  const nextKeys = new Set();
+  const mineNext = past || h.picking || !hasFollows
+    ? []
+    : [...filtered(mine).filter(e => isFollowedEvent(e) && !e.status.void && e.status.state === 'pre'), ...followedTeams().map(nextOf).filter(Boolean)]
+        .filter(e => !seenKeys.has(keyOf(e)) && !nextKeys.has(keyOf(e)) && nextKeys.add(keyOf(e)))
+        .sort((x, y) => Date.parse(x.start) - Date.parse(y.start))
+        .slice(0, 12);
+  mineNext.forEach(e => seenKeys.add(keyOf(e)));
+  const planShown = planList.filter(x => !seenKeys.has(keyOf(x.event)));
+  planShown.forEach(x => seenKeys.add(keyOf(x.event)));
+  const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, 12);
+  const leaguesShelf = past || h.picking || !hasFollows ? null : section(L({ zh: '我的聯賽', en: 'My leagues' }), el('div', { class: 'q-rail league-rail' }, state.prefs.leagues.map(k => leagueTile(k, lk => openScores(lk)))));
+  const placeRows = past || h.picking ? [] : followedTeams().filter(f => state.home.tables[f.league]?.[f.id]?.pos && !f.athlete).slice(0, 6);
+  const placesShelf = placeRows.length
+    ? section(
+        L({ zh: '我的球隊排名', en: 'My teams in the table' }),
+        el('div', { class: 'q-rowcard' }, placeRows.map(f => {
+          const r = state.home.tables[f.league][f.id];
+          return el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [
+            el('span', { class: 'suggest-tile' }, [logo(f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), f.name, 'sm', { onWhite: true })]),
+            el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: shownName(f) }), el('small', { text: [leagueName(f.league, locale).replace(/\s.*$/, ''), r.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : ''].filter(Boolean).join(' · ') })]),
+            el('b', { class: 'q-ritem-value rank-pos num', text: L({ zh: `第 ${r.pos} 名`, en: `#${r.pos}` }) })
+          ]);
+        }))
+      )
+    : null;
   const laterTitle = fallback ? t('othersPicks') : isToday ? L({ zh: '稍後', en: 'Later' }) : L({ zh: '推薦', en: 'Picks' });
   put(
     box,
@@ -1358,13 +1390,15 @@ function renderHome() {
     !past && finding ? spinner() : null,
     past
       ? null
-      : planList.length
-        ? section(laterTitle, el('div', { class: 'q-card list' }, planList.map(x => planRow(x, rowDay))), { action: moreAll.length ? moreButton(t('seeAll'), () => openMore(moreAll, rowDay)) : null })
-        : finding || fallback || liveBlock || hero || h.picking
+      : planShown.length
+        ? section(laterTitle, el('div', { class: 'q-card list' }, planShown.map(x => planRow(x, rowDay))), { action: !restShown.length && moreAll.length ? moreButton(t('seeAll'), () => openMore(moreAll, rowDay)) : null })
+        : finding || fallback || liveBlock || hero || h.picking || mineNext.length || restShown.length
           ? null
           : section(t('todayPicks'), note('', gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine'))),
-    // Nothing left to pick but more on: the rest straight on the page.
-    !past && !planList.length && moreAll.length && !finding ? section(t('moreRecs'), el('div', { class: 'q-card list' }, moreAll.slice(0, h.shown).map(x => eventRow(x.event, rowDay)))) : null,
+    mineNext.length ? section(L({ zh: '我的球隊', en: 'My teams' }), kitRail(mineNext.map(e => scoreCard(e, openEvent)))) : null,
+    !past && restShown.length ? section(planList.length ? (isToday ? L({ zh: '今晚', en: 'Tonight' }) : L({ zh: '更多賽事', en: 'More games' })) : t('moreRecs'), kitRail(restShown.map(x => scoreCard(x.event, openEvent))), { action: moreAll.length > restShown.length ? moreButton(t('seeAll'), () => openMore(moreAll, rowDay)) : null }) : null,
+    leaguesShelf,
+    placesShelf,
     endedGames.length ? section(L(ENDED_GAMES), kitRail(endedGames.map(e => scoreCard(e, openEvent))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
   );
   paintDaySheet();

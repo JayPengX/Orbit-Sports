@@ -5,7 +5,8 @@
 import * as kitUI from '#kit/ui.mjs';
 import { el, ctx, sidesOf, logo, personPic, statusText, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine } from './ui.js';
 import { channelsOf, watchOf } from './lib/tv.mjs';
-import { leagueName } from './lib/leagues.mjs';
+import { leagueName, leagueLogo } from './lib/leagues.mjs';
+import { knownHighlights } from './lib/highlights.mjs';
 import { stageTag } from './lib/stage.mjs';
 
 // An icon from the kit (empty on a phone still running an old kit).
@@ -85,10 +86,10 @@ export function heroGame(e, { eyebrow = '', picked = false, mine = false, onOpen
 // their scores (the winner's strong), where it can be watched again.
 export function scoreCard(e, onOpen) {
   const w = e.kind === 'match' ? winners(e) : null;
-  const side = (s, win) => el('span', { class: `sc-side${win ? ' win' : ''}` }, [s.athlete ? personPic(s, e.league, 'sm round') : logo(s.logo, s.name, 'sm'), el('span', { class: 'sc-name', text: s.short || s.name }), el('b', { class: 'num', text: e.status.void ? '' : scoreText(s.score) })]);
+  const side = (s, win) => el('span', { class: `sc-side${win ? ' win' : ''}` }, [s.athlete ? personPic(s, e.league, 'sm round') : logo(s.logo, s.name, 'sm'), el('span', { class: 'sc-name', text: s.short || s.name }), el('b', { class: 'num', text: e.status.void || e.status.state === 'pre' ? '' : scoreText(s.score) })]);
   const champ = e.kind !== 'match' ? (e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1))?.field?.[0] : null;
   return el('button', { class: 'score-card q-press', type: 'button', disabled: e.status?.void ? true : null, onclick: () => onOpen(e) }, [
-    el('span', { class: 'sc-top' }, [leagueMark(e.league, 'lg-mark xs'), el('span', { text: leagueName(e.league, ctx.locale).replace(/\s.*$/, '') }), el('small', { text: statusText(e) })]),
+    el('span', { class: 'sc-top' }, [leagueMark(e.league, 'lg-mark xs'), el('span', { text: leagueName(e.league, ctx.locale).replace(/\s.*$/, '') }), el('small', { text: statusText(e) }), e.status?.state === 'post' && knownHighlights(e) ? el('i', { class: 'sc-play', 'aria-hidden': 'true', html: icon('play') }) : null]),
     ...(e.kind === 'match'
       ? sidesOf(e).map(s => side(s, s === e.home ? w.home : w.away))
       : [el('span', { class: 'sc-event' }, [raceFlag(e), el('strong', { text: e.name })]), champ ? el('span', { class: 'sc-champ' }, [personPic(champ, e.league, 'sm round'), el('span', { text: champ.short || champ.name })]) : sessionTag(e)]),
@@ -102,4 +103,11 @@ export function sportTile({ key, name, marks, order, onclick }) {
   const b = el('button', { class: `sport-card q-press${order ? ' on' : ''}`, type: 'button', 'aria-pressed': String(Boolean(order)), onclick }, [el('span', { class: 'sc-marks' }, marks), el('strong', { class: 'sc-label', text: name }), el('b', { class: 'sc-badge num', text: order ? String(order) : '+' })]);
   b.style.setProperty('--t', SPORT_COLOR[key] || 'var(--q-accent)');
   return b;
+}
+
+// 聯賽: a followed league as a tile (its logo 56px) for a rail; a tap opens it in 賽事.
+export function leagueTile(key, onOpen) {
+  const name = leagueName(key, ctx.locale).replace(/\s.*$/, '');
+  const mark = kitUI.logoTile?.(leagueLogo(key), { size: 56, alt: name, fallbackText: name }) ?? leagueMark(key, 'lg-mark big');
+  return el('button', { class: 'league-tile q-press', type: 'button', onclick: () => onOpen(key) }, [mark, el('span', { class: 'lt-name', text: name })]);
 }
