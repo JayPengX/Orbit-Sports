@@ -35,13 +35,54 @@ export function el(tag, props = {}, children = []) {
 // replaceChildren, skipping the null and false left by conditional pieces.
 // A child drawn again as the same node (the date strip) stays where it is,
 // never taken out and put back: that lost its scroll and closed an open picker.
+// A picture drawn again the same (a logo, a headshot) is the one already on
+// screen, moved over (keepPictures): a new <img>, even of a file the phone
+// holds, is blank a frame or more while it decodes, and every live refresh
+// (the game sheet's every few seconds, the lists' scores) flashed every logo.
 export function put(node, ...kids) {
   const list = kids.flat().filter(k => k != null && k !== false).map(k => (typeof k === 'string' ? document.createTextNode(k) : k));
   const keep = new Set(list.filter(k => k.parentNode === node));
+  keepPictures(node, list, keep);
   if (!keep.size) return node.replaceChildren(...list);
   for (const c of [...node.childNodes]) if (!keep.has(c)) c.remove();
   let at = node.firstChild;
   for (const k of list) k === at ? (at = at.nextSibling) : node.insertBefore(k, at);
+}
+// A picture's place: its <picture> (with the dark-screen <source>) or the <img> alone.
+const pictureOf = img => (img.parentNode?.tagName === 'PICTURE' ? img.parentNode : img);
+// What makes two pictures the same: the files and the img's class (never its
+// style: a new one fades in by it).
+const pictureKey = img => {
+  const pic = pictureOf(img);
+  const sources = pic === img ? '' : [...pic.querySelectorAll('source')].map(x => `${x.getAttribute('srcset')} ${x.getAttribute('media')}`).join('|');
+  return `${img.getAttribute('src')}#${sources}#${img.className}#${pic === img ? '' : pic.className}`;
+};
+function keepPictures(node, list, keep) {
+  if (!node.firstChild || !list.length) return;
+  // The ones on screen now that have drawn, in the children going away.
+  const shown = new Map();
+  for (const c of node.children) {
+    if (keep.has(c)) continue;
+    for (const img of c.tagName === 'IMG' ? [c] : c.querySelectorAll('img')) {
+      if (!img.complete || !img.naturalWidth || !img.getAttribute('src')) continue;
+      const k = pictureKey(img);
+      shown.has(k) ? shown.get(k).push(img) : shown.set(k, [img]);
+    }
+  }
+  if (!shown.size) return;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (c.nodeType !== 1 || keep.has(c)) continue;
+    for (const img of c.tagName === 'IMG' ? [c] : [...c.querySelectorAll('img')]) {
+      const was = shown.get(pictureKey(img))?.shift();
+      if (!was) continue;
+      const [from, to] = [pictureOf(img), pictureOf(was)];
+      if (from === c) list[i] = to;
+      else from.replaceWith(to);
+      // (The new one's alt and title: a name can change language.)
+      for (const a of ['alt', 'title']) img.hasAttribute(a) ? was.setAttribute(a, img.getAttribute(a)) : was.removeAttribute(a);
+    }
+  }
 }
 export const spinner = () => el('div', { class: 'center-spin' }, [el('div', { class: 'spinner' })]);
 export const empty = text => kitUI.empty?.({ title: text }) ?? el('p', { class: 'empty', text });
