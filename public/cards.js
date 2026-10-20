@@ -7,6 +7,7 @@ import { el, ctx, sidesOf, logo, personPic, statusText, timeText, seriesText, sc
 import { channelsOf, watchOf } from './lib/tv.mjs';
 import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
 import { knownHighlights } from './lib/highlights.mjs';
+import { onAir } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 
 // An icon from the kit.
@@ -39,12 +40,15 @@ const sidePic = side => (side?.athlete ? personPic(side, side.league, 'hc-pic ro
 export function heroGame(e, { eyebrow = '', picked = false, mine = false, onOpen } = {}) {
   const live = e.status?.state === 'in';
   const post = e.status?.state === 'post';
-  const card = el('div', { class: `q-hero-card q-press hero-game${live ? ' is-live' : ''}`, role: 'button', tabindex: '0', onclick: () => onOpen(e) });
+  // Past its hour and not under way yet (the broadcast's intro): on air, about
+  // to start, as its row says (onAir), never 下一場 at its start time.
+  const starting = !live && e.status?.state === 'pre' && onAir(e);
+  const card = el('div', { class: `q-hero-card q-press hero-game${live || starting ? ' is-live' : ''}`, role: 'button', tabindex: '0', onclick: () => onOpen(e) });
   card.addEventListener('keydown', ev => (ev.key === 'Enter' || ev.key === ' ') && (ev.preventDefault(), onOpen(e)));
-  const status = live || post || e.status?.void ? statusText(e) : timeText(e);
+  const status = starting ? (en() ? 'Starting' : '即將開賽') : live || post || e.status?.void ? statusText(e) : timeText(e);
   card.append(
     el('div', { class: 'hc-top' }, [
-      el('span', { class: 'q-hc-eyebrow' }, [live ? el('i', { class: 'hc-dot', 'aria-hidden': 'true' }) : el('span', { class: 'hc-ico', html: icon(post ? 'check' : 'clock') }), el('span', { text: eyebrow || (live ? (en() ? 'Live now' : '正在進行') : post ? (en() ? 'Final' : '已結束') : en() ? 'Up next' : '下一場') })]),
+      el('span', { class: 'q-hc-eyebrow' }, [live || starting ? el('i', { class: 'hc-dot', 'aria-hidden': 'true' }) : el('span', { class: 'hc-ico', html: icon(post ? 'check' : 'clock') }), el('span', { text: eyebrow || (live ? (en() ? 'Live now' : '正在進行') : starting ? (en() ? 'On air' : '轉播中') : post ? (en() ? 'Final' : '已結束') : en() ? 'Up next' : '下一場') })]),
       el('span', { class: 'hc-status num', text: status })
     ])
   );

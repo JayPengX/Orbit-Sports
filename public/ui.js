@@ -379,7 +379,7 @@ function statusEl(e, day = true) {
     return day ? el('span', { class: 'event-status pre two' }, [el('span', { text: dayLabel(localDate(Date.parse(e.start))) }), el('b', { text: timeText(e) })]) : el('span', { class: 'event-status pre', text: timeText(e) });
   // Its start come, ESPN not yet saying it's under way: about to start, said in the live colour.
   // (The one rule for it, onAir: not a game whose hour is only a stand-in, nor one hours past it.)
-  if (e.status.state === 'pre' && onAir(e)) return el('span', { class: 'event-status in', text: ctx.locale === 'en' ? 'Starting' : '即將開賽' });
+  if (e.status.state === 'pre' && onAir(e)) return el('span', { class: 'event-status in starting', text: ctx.locale === 'en' ? 'Starting' : '即將開賽' });
   // A game on now with its clock (第4節 8:58): the period, the clock under it (two lines drawn for it, never a wrap).
   const text = statusText(e);
   // At half-time: 中場休息, its countdown under it, ticking (the line kept for it before the countdown is known).
