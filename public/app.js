@@ -108,6 +108,7 @@ const state = {
   wallet: null,
   // The days read so far: date -> { events, at, loading }.
   days: new Map(),
+  live: { date: null },
   home: { date: today(), filter: 'all', shown: 20, teams: new Map(), tables: {}, sportDays: new Map(), autoDay: true, tablesPending: 0, settled: false },
   scores: { sport: 'soccer', league: 'epl', date: null, byDay: null, days: [], extra: 0, loading: false, mode: 'days', stage: 'all', view: 'games' },
 };
@@ -629,7 +630,7 @@ function repaintDay(date) {
   renderTabs();
   if (sheetOver()) return void heldDays.add(date);
   if (state.tab === 'home' && state.home.date === date) renderHome();
-  if (state.tab === 'live' && (date === today() || date === addDays(today(), 1))) renderLive();
+  if (state.tab === 'live' && (date === today() || date === addDays(today(), 1) || date === state.live.date)) renderLive();
 }
 // `live`: only the pages of the games on now or due to start (livePages),
 // over the day held; a whole read (fullAt) every two minutes in any case.
@@ -748,7 +749,7 @@ function retryLater(key, failed, again, wanted) {
   else retries.done(key);
 }
 // A day's retries run while it's on screen (首頁's day; 直播's today and tomorrow).
-const dayWanted = date => date === today() || date === addDays(today(), 1) || (state.tab === 'home' && state.home.date === date);
+const dayWanted = date => date === today() || date === addDays(today(), 1) || (state.tab === 'home' && state.home.date === date) || (state.tab === 'live' && liveDay() === date);
 let pushTimer = 0;
 // The followed leagues' tables, for the picks and 追蹤's places (they come in on their own).
 function loadTables() {
@@ -1027,7 +1028,7 @@ function dayChip(d, current, onPick) {
 // three hands). `range.recenter`: the next draw brings the day to the middle.
 // `bounds`: the days that can be asked for (lib/bounds.mjs): the strip and
 // 📅 stop there.
-function dateStrip(current, onPick, { only = null, range = stripRange, bounds = null } = {}) {
+function dateStrip(current, onPick, { only = null, range = stripRange, bounds = null, follow = false } = {}) {
   if (current && !only) reach(current, range);
   const days = stripDays(current, { only, range, base: today() }).filter(d => d === current || within(d, bounds));
   const s = (range.strip ??= makeStrip());
@@ -1047,9 +1048,10 @@ function dateStrip(current, onPick, { only = null, range = stripRange, bounds = 
   }
   for (const chip of s.row.children) chip.setAttribute('aria-pressed', String(chip.dataset.day === current));
   // A day chosen elsewhere (📅, the next game day): brought into view; one
-  // tapped on the strip is in view already and stays where it is.
+  // tapped on the strip is in view already and stays where it is (`follow`,
+  // 首頁's and 轉播's bar: every new day to the middle, a swipe's too).
   if (current !== s.current) {
-    if (s.current !== undefined && !s.tapped) s.reveal ??= 'center';
+    if (s.current !== undefined && (!s.tapped || follow)) s.reveal ??= 'center';
     s.current = current;
   }
   s.tapped = false;
@@ -1173,7 +1175,7 @@ function renderHome() {
   const unread = !slot?.at || (slot.leagues !== leaguesKey() && !slot.stale);
   if (unread || !tvReady()) {
     if (unread && !slot?.loading) loadDay(h.date);
-    put(box, homeHead(), spinner());
+    put(box, homeBar(), homeFilters(), spinner());
     centerChosen(box);
     return;
   }
@@ -1383,7 +1385,8 @@ function renderHome() {
   const laterTitle = fallback ? t('othersPicks') : isToday ? L({ zh: '稍後', en: 'Later' }) : L({ zh: '推薦', en: 'Picks' });
   put(
     box,
-    homeHead(),
+    homeBar(),
+    homeFilters(),
     h.picking ? sportPicker() : hero,
     h.picking ? null : liveBlock,
     // A day gone by: its games, every one, by the clock, as they ended (no
@@ -1406,7 +1409,6 @@ function renderHome() {
     placesShelf,
     endedGames.length ? section(L(ENDED_GAMES), kitRail(endedGames.map(e => scoreCard(e, openEvent))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
   );
-  paintDaySheet();
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
 }
@@ -1428,51 +1430,107 @@ function noTvText(date) {
   return t('noOthers');
 }
 const fullSchedule = () => el('button', { class: 'section-more', type: 'button', text: `${L({ zh: '看完整賽程', en: 'Every game' })} ›`, onclick: () => showTab('matches') });
-// 首頁's day: a chip at the top (明天 · 10月20日 when another is picked). It is a
-// button: the day sheet (any day, one sport). Nothing while still picking.
-function homeHead() {
+// 首頁's day: the date strip at the top, always on screen (it sticks under
+// the status bar while the page scrolls), today in the middle; a swipe
+// across the page goes a day either way (daySwipe). Under it, what to show
+// (every game, the followed teams', one sport: then only the days it plays).
+// Nothing while still picking sports.
+const homeBarEl = el('div', { class: 'day-bar' });
+function pickHomeDay(d) {
   const h = state.home;
-  if (!state.prefs.leagues.length || h.picking) return null;
-  const dt = new Date(`${h.date}T12:00:00`);
-  const date = dt.toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { month: 'long', day: 'numeric', weekday: locale === 'en' ? 'short' : 'long' });
-  const shown = SPORTS[h.filter] ? L(SPORTS[h.filter]) : h.filter === 'teams' ? t('f_teams') : '';
-  const near = h.date === addDays(today(), 1) ? t('tomorrow') : h.date === addDays(today(), -1) ? t('yesterday') : '';
-  const tint = h.date !== today() || shown;
-  return el('button', { class: `day-chip q-press${tint ? ' tint' : ''}`, type: 'button', 'aria-haspopup': 'dialog', onclick: openDaySheet }, [el('span', { text: [near, date, shown].filter(Boolean).join(' · ') }), el('span', { class: 'over-chev', 'aria-hidden': 'true' })]);
+  if (d === h.date) return;
+  h.date = d;
+  h.shown = 20;
+  h.autoDay = false;
+  toPageTop();
+  renderHome();
 }
-// The day sheet: what to show (every game, the followed teams', one sport)
-// and the day (the strip of days that have games, 📅 for any), 今天 to go back.
-let daySheet = null;
-function openDaySheet() {
-  daySheet = sheet(L({ zh: '選擇日期', en: 'Pick a day' }));
-  daySheet.dialog.addEventListener('close', () => (daySheet = null));
-  stripRange.recenter = true;
-  paintDaySheet();
-}
-function paintDaySheet() {
-  if (!daySheet) return;
+function homeBar() {
   const h = state.home;
+  if (h.picking) return null;
   const sport = SPORTS[h.filter] ? h.filter : null;
   const days = sport ? h.sportDays.get(sport) : null;
-  const pick = d => {
-    h.date = d;
-    h.shown = 20;
-    h.autoDay = false;
-    daySheet?.close();
-    renderHome();
-  };
+  const strip = dateStrip(h.date, pickHomeDay, { follow: true, only: days?.size ? days : null, bounds: sport ? unionBounds(allBounds, Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport)) : homeBounds() });
+  put(homeBarEl, strip);
+  return homeBarEl;
+}
+function homeFilters() {
+  const h = state.home;
+  if (h.picking || !state.prefs.leagues.length) return null;
   const filters = [['all', t('f_all')], ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...followedSports().filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
-  put(
-    daySheet.body,
-    filters.length > 2 ? el('div', { class: 'q-chips day-filters' }, filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => ((stripRange.recenter = true), pickFilter(k)) }))) : null,
-    // One sport: only the days it plays (read first, then shown).
-    sport && !days
-      ? el('div', { class: 'day-strip-wait' }, [el('div', { class: 'spinner small' }), el('span', { class: 'muted small', text: t('findingDays') })])
-      : sport && !days.size
-        ? el('p', { class: 'muted small no-days', text: t('noSportDays', { sport: L(SPORTS[sport]) }) })
-        : dateStrip(h.date, pick, { only: days, bounds: sport ? unionBounds(allBounds, Object.keys(LEAGUES).filter(k => LEAGUES[k].sport === sport)) : homeBounds() }),
-    h.date !== today() ? el('button', { class: 'q-btn block day-today', type: 'button', text: L({ zh: '回到今天', en: 'Back to today' }), onclick: () => pick(today()) }) : null
+  if (filters.length < 3) return null;
+  return el('div', { class: 'q-chips day-filters' }, filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => h.filter !== k && ((stripRange.recenter = true), pickFilter(k)) })));
+}
+// A day changed from below the top: the page starts at its top (the strip stays in view).
+function toPageTop() {
+  if (window.scrollY > 0) window.scrollTo({ top: 0 });
+}
+// The strip sticks under the status bar: there it takes the page's colour
+// behind it (.stuck), at rest it has none (the account button shows above).
+const stuckBars = () => {
+  for (const bar of document.querySelectorAll('.day-bar')) if (bar.isConnected && bar.offsetParent) bar.classList.toggle('stuck', bar.getBoundingClientRect().top <= parseFloat(getComputedStyle(bar).top) + 0.5 && window.scrollY > 0);
+};
+window.addEventListener('scroll', stuckBars, { passive: true });
+// A swipe across a page (not across a row that scrolls sideways): the next
+// or the day before, the page following the finger, the new day sliding in.
+function daySwipe(panel, step) {
+  let start = null;
+  const sideways = (node, stop) => {
+    for (let n = node; n && n !== stop; n = n.parentElement) {
+      if (n.matches?.('input, select, textarea, .day-bar, [data-noswipe]')) return true;
+      if (n.scrollWidth > n.clientWidth + 2 && /auto|scroll/.test(getComputedStyle(n).overflowX)) return true;
+    }
+    return false;
+  };
+  const settle = () => {
+    panel.classList.remove('swiping');
+    panel.style.removeProperty('--swipe');
+  };
+  panel.addEventListener(
+    'touchstart',
+    ev => {
+      start = ev.touches.length === 1 && !document.querySelector('dialog[open]') && !sideways(ev.target, panel) ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY, at: Date.now(), lock: null } : null;
+    },
+    { passive: true }
   );
+  panel.addEventListener(
+    'touchmove',
+    ev => {
+      if (!start) return;
+      const dx = ev.touches[0].clientX - start.x;
+      const dy = ev.touches[0].clientY - start.y;
+      if (start.lock == null && Math.hypot(dx, dy) > 10) start.lock = Math.abs(dx) > Math.abs(dy) * 1.3 ? 'x' : 'y';
+      if (start.lock !== 'x') return;
+      ev.preventDefault();
+      panel.classList.add('swiping');
+      panel.style.setProperty('--swipe', `${Math.round(dx * 0.45)}px`);
+    },
+    { passive: false }
+  );
+  const end = ev => {
+    const s = start;
+    start = null;
+    if (!s || s.lock !== 'x') return settle();
+    const dx = (ev.changedTouches?.[0]?.clientX ?? s.x) - s.x;
+    const fast = Math.abs(dx) > 30 && Date.now() - s.at < 250;
+    const dir = Math.abs(dx) > 70 || fast ? (dx < 0 ? 1 : -1) : 0;
+    settle();
+    if (!dir || !step(dir)) return;
+    panel.classList.remove('day-in-next', 'day-in-prev');
+    void panel.offsetWidth;
+    panel.classList.add(dir > 0 ? 'day-in-next' : 'day-in-prev');
+    clearTimeout(panel.swipeTimer);
+    panel.swipeTimer = setTimeout(() => panel.classList.remove('day-in-next', 'day-in-prev'), 320);
+  };
+  panel.addEventListener('touchend', end, { passive: true });
+  panel.addEventListener('touchcancel', () => ((start = null), settle()), { passive: true });
+}
+// The day a strip shows next to `date`, `dir` days on (among its chips: a
+// sport's game days, the bounds), or null at an end.
+function stripStep(range, date, dir) {
+  const days = [...(range.strip?.row.children || [])].map(c => c.dataset.day);
+  const i = days.indexOf(date);
+  return i < 0 ? null : days[i + dir] || null;
 }
 // A sport's days read (again): one with a league unread is read again (15
 // seconds on), keeping the days it had (a day never drops off the strip
@@ -1592,12 +1650,29 @@ const liveShape = () =>
     el('div', { class: 'skel-hero' }),
     el('div', { class: 'q-card list' }, Array.from({ length: 4 }, () => el('div', { class: 'event-row skel-row' }, [skeleton([30, 70, 60])])))
   ]);
+// 轉播's days: yesterday's (replays) to two weeks on (ELTA's list), a strip like 首頁's.
+const liveRange = { from: -1, to: 13 };
+const liveBarEl = el('div', { class: 'day-bar' });
+// (null: today, whichever day that is now.)
+const liveDay = () => state.live.date || today();
+function pickLiveDay(d) {
+  if (d === liveDay()) return;
+  state.live.date = d === today() ? null : d;
+  toPageTop();
+  renderLive();
+}
+function liveBar() {
+  const d = liveDay();
+  put(liveBarEl, dateStrip(d, pickLiveDay, { range: liveRange, bounds: homeBounds(), follow: true }));
+  return liveBarEl;
+}
 function renderLive() {
   const box = $('panel-live');
+  if (liveDay() !== today()) return renderLiveDay(liveDay());
   const slot = state.days.get(today());
   if (!slot?.at || !tvReady()) {
     if (!slot?.loading && !slot?.at) loadDay(today());
-    put(box, spinner());
+    put(box, liveBar(), liveShape());
     return;
   }
   loadFollowedTeams();
@@ -1630,7 +1705,7 @@ function renderLive() {
     if (!ready && now - liveGate.since < 3_000) {
       clearTimeout(liveGate.timer);
       liveGate.timer = setTimeout(() => state.tab === 'live' && renderLive(), liveGate.since + 3_000 - now);
-      if (!box.querySelector('.live-shape')) put(box, liveShape());
+      if (!box.querySelector('.live-shape')) put(box, liveBar(), liveShape());
       return;
     }
     liveGate.drawn = true;
@@ -1672,13 +1747,50 @@ function renderLive() {
   const guide = guideItems().some(p => p.end > now) ? moreButton(L({ zh: '節目表', en: 'TV guide' }), () => openGuide(all)) : null;
   put(
     box,
-    pageHead(t('tab_live')),
+    liveBar(),
     hero,
     !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) }), guide])) : null,
     liveSorted.length > 1 ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, liveSorted.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
     mineBlock,
     later.length ? section(live.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e))), { action: guide }) : null,
     !later.length && hero && guide ? el('div', { class: 'q-rowcard guide-link' }, [el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => openGuide(all) }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '愛爾達節目表', en: 'ELTA TV guide' }) })])])]) : null
+  );
+}
+// Another day on 轉播: everything on TV here that day by the clock (the
+// small hours too), its best game first: a followed team's, else the one
+// the picks rank highest. A day gone by shows its results and replays.
+function renderLiveDay(d) {
+  const box = $('panel-live');
+  const slot = state.days.get(d);
+  // Drawn once the day's leagues, the others' and ELTA's list are in (never filled in under the finger).
+  if (!slot?.at || !slot.othersAt || !tvReady()) {
+    if (!slot?.at && !slot?.loading) loadDay(d);
+    else if (slot?.at && !slot.othersAt && !slot.othersLoading) loadOthers(d);
+    if (!box.querySelector('.live-shape')) put(box, liveBar(), liveShape());
+    else put(box, liveBar(), box.querySelector('.live-shape'));
+    return;
+  }
+  const now = Date.now();
+  const past = d < today();
+  const seen = new Set();
+  const list = [...dayAll(slot), ...(rawDays.get(d)?.values() || [])]
+    .map(freshGame)
+    .filter(e => inDay(Date.parse(e.start), d) && !practice(e) && !seen.has(dayKey(e)) && seen.add(dayKey(e)))
+    .filter(e => onTv(e) || isFollowedGame(e) || ((e.status.state === 'post' || past) && !tvKnown(e)))
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const c = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(list) };
+  const ranked = list.filter(e => !e.status.void).map(e => ({ e, mine: isFollowedEvent(e), score: scoreMatch(e, c).score })).sort((x, y) => y.mine - x.mine || y.score - x.score);
+  const top = ranked[0]?.e || null;
+  const hero = top ? heroGame(top, { mine: isFollowedEvent(top), eyebrow: top.status.state === 'pre' ? dayLabel(d, { long: true }) : '', onOpen: openEvent }) : null;
+  const rest = list.filter(e => e !== top);
+  const gap = dayUnknown([slot], tvUnread());
+  const guide = !past && guideItems().some(p => p.end > now) ? moreButton(L({ zh: '節目表', en: 'TV guide' }), () => openGuide(list)) : null;
+  put(
+    box,
+    liveBar(),
+    hero,
+    !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null, guide]) : null,
+    rest.length ? section(L({ zh: '當天轉播', en: 'On TV that day' }), el('div', { class: 'q-card list' }, rest.map(e => eventRow(e, { day: false }))), { action: guide || el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null
   );
 }
 // ---- 愛爾達's guide -------------------------------------------------------------------------
@@ -3062,10 +3174,23 @@ function showTab(tab) {
 }
 function tabAgain(tab) {
   if (tab === 'home' && state.home.date !== today()) {
-    state.home.date = today();
-    renderHome();
+    stripRange.recenter = true;
+    pickHomeDay(today());
+  }
+  if (tab === 'live' && liveDay() !== today()) {
+    liveRange.recenter = true;
+    pickLiveDay(today());
   }
 }
+// A swipe on 首頁 or 轉播: the day before or after.
+daySwipe($('panel-home'), dir => {
+  const d = !state.home.picking && stripStep(stripRange, state.home.date, dir);
+  return Boolean(d && (pickHomeDay(d), true));
+});
+daySwipe($('panel-live'), dir => {
+  const d = stripStep(liveRange, liveDay(), dir);
+  return Boolean(d && (pickLiveDay(d), true));
+});
 // The refresh button: today (or the day on screen) and the open league again.
 async function reloadNow() {
   actions.refresh.disabled = true;
@@ -3233,7 +3358,9 @@ window.addEventListener('hashchange', () => {
   const hash = location.hash.slice(1);
   if (!TABS.includes(hash) && hash !== 'scores' && hash !== 'standings') return;
   const tab = firstTab();
+  if (tab === 'live') state.live.date = null;
   if (tab !== state.tab) showTab(tab);
+  else if (tab === 'live') renderLive();
   else if (hash === 'standings' && tab === 'matches') renderScores();
 });
 // The loading screen stays up on the picks until they're settled, so they

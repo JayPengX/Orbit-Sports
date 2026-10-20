@@ -25,12 +25,14 @@ couldn't be read is shown, never hidden.
 ## How it works
 
 - **Tabs, one question each:**
-  - **首頁:** what to watch. Date strip, 正在進行, 今日推薦 (a no-clash plan),
+  - **首頁:** what to watch. A date strip that sticks at the top (swipe
+    the page for the next or last day), 正在進行, 今日推薦 (a no-clash plan),
     已結束, followed teams today.
   - **賽事:** a league. Sport and league chips, game days, then 賽程, 排名,
     季後賽, 數據領先.
-  - **轉播:** when and where. On now with 觀看, yours in the next 7 days, the
-    next 24 h, ELTA's whole guide.
+  - **轉播:** when and where. The same date strip (yesterday to two weeks
+    on). Today: on now with 觀看, yours in the next 7 days, the next 24 h,
+    ELTA's whole guide; another day: its best game, then all it has on TV.
   - **追蹤:** how yours are doing. Teams, players, matches, drivers.
 - **Sheets** (full height):
   - **A match:** header and line score, a live panel, then sections drawn
