@@ -771,7 +771,6 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .mh-stage small { text-wrap: balance; }
 .mh-stage.link:disabled { opacity: .6; }
 .mh-chev { font-size: 15px; line-height: 1; font-weight: 700; color: var(--q-muted); }
-.tw-chips { display: flex; gap: 5px; overflow: hidden; }
 .tw-chip { flex: none; font-size: 11px; font-weight: 650; color: var(--q-text-2); background: var(--q-sunken); border-radius: 6px; padding: 2px 7px; white-space: nowrap; }
 .tw-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .tw-list .tw-chip { font-size: 12.5px; padding: 4px 10px; }

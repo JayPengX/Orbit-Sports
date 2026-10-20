@@ -11,9 +11,8 @@
 //             lines (each period's score) }
 //   status  { state: 'pre' | 'in' | 'post', detail, short, completed, void }
 import { cpblBoxUrl, cpblSummary } from './cpblbox.mjs';
-import { teamBadge, teamLogo, raceName, countryName, countryCode, f1Constructor, NBA_ID } from '#kit/logos.mjs';
+import { teamBadge, teamLogo, f1Constructor, NBA_ID } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
-import { liveOf } from './live.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey, withPitchingChange } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
@@ -23,12 +22,12 @@ import { sideWords } from '#kit/sports-highlights.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
 import { proxyJson, packJson, peekJson } from '#kit/quadra.mjs';
 import { mlbPostseason, mlbPostseasonUrl, mlbGameFor as postGameFor, mlbGone } from '#kit/postseason.mjs';
-import { stageFrom, roundName } from './stage.mjs';
+import { roundName } from './stage.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { groupZh } from './statnames.mjs';
 import { fold } from './text.mjs';
 import { pctText, gbText } from './title.mjs';
-import { SITE, yyyymmdd, parseStatus, overByRule, freshHeadshot, fallbackLogo, parseSeries, knockoutRound, favChance, usDayOf, startOf } from '#kit/sports-espn.mjs';
+import { SITE, yyyymmdd, parseStatus, overByRule, freshHeadshot, fallbackLogo, parseSeries, knockoutRound, favChance, usDayOf, startOf, localSide as kitLocalSide, withLogo as kitWithLogo, parseScoreboard as kitParseScoreboard } from '#kit/sports-espn.mjs';
 export { SITE, yyyymmdd, parseStatus, overByRule, freshHeadshot, fallbackLogo, parseSeries, knockoutRound, favChance, startOf, usDayOf };
 
 export const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
@@ -73,31 +72,15 @@ function parseSide(c) {
 
 // ---- Scoreboards -------------------------------------------------------------------
 
-// A logo where the feed left one out: ESPN's CDN by the team's (or the
-// athlete's) id or abbreviation. A guess, so the picture falls back to the
-// initial when it isn't there.
-const CDN = 'https://a.espncdn.com/i';
 // An NBA team's logo is always NBA.com's primary mark (the kit's): ESPN's
 // files are some clubs' alternates (the Celtics' shamrock). A club from
 // outside the league (a preseason guest: the London Lions) has the kit's
 // own (NBA_GUESTS), else its initial.
 // A guest (no NBA.com mark) is marked so: no team page, nothing to follow.
 const nbaLogo = (league, side) => (league === 'nba' && side && !side.athlete ? { ...side, logo: teamLogo('nba', side.en || side.name), ...(NBA_ID[side.en || side.name] ? {} : { guest: true }) } : side);
-// A team as shown: its logo (an NBA team's, above), and its name in the
-// reader's language: Chinese from the kit's names (lib/names.mjs) when it has
-// the team, the English kept as `en` (Play's ids and the matching use it).
-// People (players, drivers) keep their names.
-export function localSide(league, raw, lang = detectLocale()) {
-  const side = nbaLogo(league, raw);
-  if (!side || lang === 'en' || side.athlete) return side;
-  const en = side.en || side.name;
-  const zh = teamNameZh(LEAGUES[league]?.play || league, en, LEAGUES[league]?.sport);
-  if (zh) return { ...side, en, name: zh.full, short: zh.short };
-  // A national side (England, Czechia): its country's name.
-  const nation = countryName(en, lang);
-  return nation && nation !== en ? { ...side, en, name: nation, short: nation } : side;
-}
-const withLogo = (league, side) => localSide(league, side && !side.logo ? { ...side, logo: fallbackLogo(league, side) } : side);
+// The kit's localSide / withLogo / parseScoreboard (kit/sports-espn.mjs), in the reader's language.
+export const localSide = (league, raw, lang = detectLocale()) => kitLocalSide(league, raw, lang);
+const withLogo = (league, side) => kitWithLogo(league, side, detectLocale());
 
 // A race weekend or a tournament, as of `now`: over once its last session
 // has had its time (the feed can keep a weekend "in progress" for days), and
@@ -216,66 +199,11 @@ export function splitWeekend(e, now = Date.now(), lang = 'zh') {
   });
 }
 
-// The favourite's chance from the bookmaker's prices ESPN shows before a
-// game (0..1, null without them): how open it is, for the picks (the owner,
-// 2026-10-16: Man City v Ipswich, City -425, picked over Brentford v
-// Liverpool, Brentford +140). Both sides' moneylines when given (the draw's
-// too), each side's chance their share; else soccer's line, the favourite's
-// own price ("MNC -425").
-const implied = ml => {
-  const m = Number(String(ml ?? '').replace(/^EVEN$/i, '+100'));
-  if (!Number.isFinite(m) || Math.abs(m) < 100) return null;
-  return m < 0 ? -m / (-m + 100) : 100 / (m + 100);
-};
 // A game's time from another list (ELTA's, the app's): set from outside, ESPN's own stands once it has one.
 let timeFix = e => e;
 export const fixTimes = fn => (timeFix = fn);
 export const fixTime = (e, _, list = []) => (e?.timeTbd && !e.timeFrom ? timeFix(e, list) : e);
-export function parseScoreboard(data, league) {
-  const kind = LEAGUES[league]?.kind || 'match';
-  const out = [];
-  for (const e of data?.events || []) {
-    const comp = e.competitions?.[0];
-    const base = {
-      id: String(e.id),
-      league,
-      kind,
-      // An F1 race by its short name ("新加坡站"), not the sponsor's.
-      name: league === 'f1' ? raceName(e.name, detectLocale()) : e.name || '',
-      enName: e.name || '',
-      short: e.shortName || '',
-      ...startOf(e.date, comp),
-      end: e.endDate || null,
-      status: parseStatus(e.status || comp?.status),
-      venue: comp?.venue?.fullName || e.venue?.fullName || e.circuit?.fullName || '',
-      tv: [...new Set((comp?.broadcasts || []).flatMap(b => b.names || []))].join(' · '),
-      note: comp?.notes?.[0]?.headline || '',
-      series: parseSeries(comp?.series),
-      round: knockoutRound(e, comp, league),
-      stage: stageFrom({ seasonType: e.season?.type, seasonSlug: e.season?.slug, typeAbbr: comp?.type?.abbreviation, note: comp?.notes?.[0]?.headline || '', name: e.name, cup: LEAGUES[league]?.cup })
-    };
-    if (kind === 'match' && comp) {
-      const home = parseSide(comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0]);
-      const away = parseSide(comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1]);
-      if (!home || !away) continue;
-      base.status = overByRule(base.status, away, home, league);
-      out.push({ ...base, home: withLogo(league, home), away: withLogo(league, away), fav: favChance(comp), neutral: Boolean(comp.neutralSite), situation: comp.situation?.lastPlay?.text || '', live: base.status.state === 'in' ? liveOf(comp, e.status || comp.status, LEAGUES[league]?.sport) : null });
-    } else if (kind === 'field') {
-      // A race weekend: its sessions, each one's field in finishing order.
-      const sessions = (e.competitions || []).map(m => ({
-        id: String(m.id),
-        name: m.type?.text || m.type?.abbreviation || '',
-        abbr: m.type?.abbreviation || '',
-        start: m.date,
-        status: parseStatus(m.status),
-        field: [...(m.competitors || [])].sort((a, b) => (a.order ?? 999) - (b.order ?? 999)).map(c => withLogo(league, parseSide(c)))
-      }));
-      // Where it's raced: the circuit's country ('SG'), for its flag.
-      out.push({ ...base, sessions, country: countryCode(e.circuit?.address?.country) });
-    }
-  }
-  return out;
-}
+export const parseScoreboard = (data, league) => kitParseScoreboard(data, league, { lang: detectLocale() });
 
 // The newest copy of each game read from a live list (a scoreboard, a
 // match's summary): a team's schedule is kept for minutes (the proxy longer),
@@ -1853,7 +1781,7 @@ export async function roster(league, id, home = '') {
   return parseRoster(await getJson(`${SITE}/${path}/teams/${encodeURIComponent(id)}/roster`, { ttl: 60 * 60_000 }));
 }
 // Who starts a game to come (lib/lineups.mjs): MLB's probable pitchers and
-// batting orders ({ kind: 'mlb', pitchers, order }); an NBA, WNBA or NHL
+// batting orders ({ kind: 'mlb', pitchers, order }); an NBA
 // side's starters once announced ({ kind: 'core', away, home, pending: none
 // yet }), asked only near the start; else null.
 export async function pregameLineups(e, now = Date.now()) {
@@ -1991,8 +1919,8 @@ export function parseGameLog(log) {
   return games.length ? { title: block.displayName || '', labels: block.labels.slice(0, n), longs: (block.displayNames || []).slice(0, n), games } : null;
 }
 // ESPN's season by its year, for a player's game log: a season across the
-// new year (the NBA's, NHL's) is named by its second (2026-27: 2027).
-const LOG_SEASON = { nba: 'split', wnba: 'year', nhl: 'split', mlb: 'year', nfl: 'year', ncaaf: 'year' };
+// new year (the NBA's) is named by its second (2026-27: 2027).
+const LOG_SEASON = { nba: 'split', mlb: 'year' };
 export const logSeason = (league, now = Date.now()) => {
   const d = new Date(now);
   const kind = LOG_SEASON[league];
@@ -2052,8 +1980,8 @@ export function normalizeTeamName(name) {
 
 // ---- Injury report (ESPN's) ----------------------------------------------------------------
 //
-// A league's whole injury report in one read ({ teamId: [player] }): NBA,
-// WNBA, NFL, NHL and MLB have one; the rest answer none. Live (ten minutes):
+// A league's whole injury report in one read ({ teamId: [player] }): the
+// NBA and MLB have one; the rest answer none. Live (ten minutes):
 // statuses change on game day.
 export function parseLeagueInjuries(data) {
   const out = {};

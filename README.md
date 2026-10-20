@@ -5,7 +5,7 @@ Apple TV, with scores, schedules, match details, standings, teams and
 players; a day planned around what you follow; one tap to watch. F1 has
 its own live board from F1's timing. Signs in with the Quadra Pass.
 
-Live: https://jaypengx.github.io/Orbit-Sports/ (was Quadra Fixtures)
+Live: https://jaypengx.github.io/Orbit-Sports/
 
 ## Leagues
 
@@ -81,7 +81,7 @@ couldn't be read is shown, never hidden.
   today whole every 2 minutes. Values change in place (`morph`), never a
   redraw.
 - **Offline:** covered (`onlineOnly`); never old scores as now.
-- **Saved:** the Pass payload `{ v: 3, sports, leagues, follows }` (copied
+- **Saved:** the Pass payload `{ v: 4, leagues, follows, games, audio, t }` (copied
   to the wallet for Play's recommendations); on the phone `fx.day.v4`,
   `fx.active.v2`, `fx.f1live.v2`, `fx.f1ended`.
 
@@ -106,16 +106,18 @@ couldn't be read is shown, never hidden.
 | --- | --- |
 | `app.js` | The tabs, follows, days, picks, notices, live ticks |
 | `sheets.js` | Every sheet: match, race weekend, team, player, constructor, tables, series |
-| `ui.js`, `styles.css` | DOM helpers, rows; the look |
-| `lib/espn.mjs` | Every read and parser; `sessionStatus`, `overByRule` |
+| `ui.js`, `cards.js`, `styles.css` | DOM helpers, rows; the tabs' cards and tiles; the look |
+| `lib/espn.mjs` | Every read and parser (the scoreboard parser is the kit's `sports-espn.mjs`); `sessionStatus` |
 | `lib/f1.mjs`, `racecontrol.mjs` | F1 data and the board's maths; race control in Chinese |
 | `lib/title.mjs`, `playoffs.mjs`, `bracket.mjs` | Live tables and title race; playoffs |
 | `lib/leaders.mjs` | 數據領先: stats, ranks, team and player |
 | `lib/picks.mjs`, `foryou.mjs` | Today's picks; affinity (shared with Play) |
-| `lib/broadcast.mjs`, `tv.mjs`, `highlights.mjs` | Where to watch; channels; videos |
+| `lib/broadcast.mjs`, `tv.mjs`, `highlights.mjs` | Where to watch (the kit's, shared with the proxy); channels; videos |
 | `lib/winprob.mjs`, `wpline.mjs`, `moments.mjs` | Win chance line and key moments |
 | `lib/live.mjs`, `lineups.mjs`, `onfield.mjs`, `mlb.mjs`, `cpblbox.mjs` | Live state; starters; who's on; MLB and CPBL fill-ins |
-| `lib/leagues.mjs`, `search.mjs`, `statnames.mjs`, `stage.mjs`, `i18n.mjs` | Leagues; search; Chinese names for stats and stages; text |
+| `lib/leagues.mjs`, `search.mjs`, `statnames.mjs`, `stage.mjs`, `compname.mjs`, `i18n.mjs`, `text.mjs` | Leagues; search; Chinese names for stats, stages and competitions; text |
+| `lib/days.mjs`, `bounds.mjs`, `strip.mjs`, `retry.mjs` | Days on the viewer's clock; the days a league has; the date strip; failed reads tried again |
+| `lib/close.mjs`, `notice.mjs` | 拉鋸; what a change of state is for a notice |
 
 ## Run and test
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { calendarRounds, phaseRounds, roundLabel, cpblTable, seasonFrom } from '../public/lib/espn.mjs';
-import { parseSearch, placeInCups, placeTeams, placePlayers } from '../public/lib/search.mjs';
+import { parseSearch, placeTeams, placePlayers } from '../public/lib/search.mjs';
 
 const m = (id, start, h, a, extra = {}) => ({ id, kind: 'match', start, status: {}, home: { id: h }, away: { id: a }, ...extra });
 
@@ -67,7 +67,7 @@ test("search: a club or player of a league we don't have, placed in its European
   const found = parseSearch(data);
   assert.deepEqual(found.teams.map(x => [x.id, x.league, x.slug]), [['1929', null, 'por.1'], ['9999', null, 'cyp.1']], "the women's side isn't kept");
   const cups = new Map([['1929', 'uel']]);
-  const placed = await placeInCups(found, cups, async (slug, id) => (id === '220819' ? '1929' : '42'));
+  const placed = { teams: placeTeams(found.teams, cups), players: await placePlayers(found.players, cups, async (slug, id) => (id === '220819' ? '1929' : '42')) };
   assert.deepEqual(placed.teams.map(x => [x.name, x.league]), [['Benfica', 'uel']]);
   assert.deepEqual(placed.players.map(x => [x.name, x.league]), [['Vangelis Pavlidis', 'uel']]);
 });

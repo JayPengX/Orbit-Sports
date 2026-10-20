@@ -9,11 +9,11 @@ import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } fr
 import { liveLabel, liveNote, closeLabel, goalHead } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
-import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
+import { AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES, espnSummary, onAir } from './lib/espn.mjs';
 import { watchHalftime, halftimeAttrs, halftimeClock, halftimeEnd } from '#kit/quadra.mjs';
 import * as kitUI from '#kit/ui.mjs';
-import { tvOf, channelsOf, watchOf, replayHint } from './lib/tv.mjs';
+import { channelsOf, watchOf, replayHint } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
 import { fold } from './lib/text.mjs';
 
@@ -609,27 +609,8 @@ export function fieldNow(e) {
   return lead ? `${e.session ? `${e.session} · ` : ''}${en ? 'Leader' : '領先'} ${lead.short || lead.name}` : '';
 }
 
-// Where to watch it in Taiwan: small chips (the first few). A league's list,
-// or a game's own (`e`: the exact ELTA channel when a schedule has it, and no
-// ELTA when ELTA doesn't carry that game).
+// A channel's name in the reader's language, with its note.
 export const tvName = b => `${ctx.locale === 'en' ? b.en : b.zh}${b.note ? `（${ctx.locale === 'en' ? b.note.en : b.note.zh}）` : ''}`;
-export function twChips(league, n = 3, e = null) {
-  const list = e ? tvOf(e) : broadcastsOf(league);
-  if (!list.length) return null;
-  // A game's own channels by their short names ("愛爾達MAX8台": "ELTA.tv 體育MAX8台" twice ran out of the card), the rest as +N.
-  const name = b => (e && b.short ? b.short[ctx.locale === 'en' ? 'en' : 'zh'] : tvName(b));
-  const more = list.length - n;
-  return el('div', { class: 'tw-chips' }, [...list.slice(0, n).map(b => el('span', { class: `tw-chip${b.exact ? ' exact' : ''}`, text: name(b) })), more > 0 ? el('span', { class: 'tw-chip', text: `+${more}` }) : null].filter(Boolean));
-}
-// A finished game's chips, as a game to come has its channels': where it
-// can be watched again (愛爾達1台・回看 for 48 hours, then 愛爾達・重播), or null.
-export function replayChips(e, n = 2) {
-  const r = replayHint(e);
-  if (!r) return null;
-  const en = ctx.locale === 'en';
-  const list = r.video ? [en ? 'ELTA · replay' : '愛爾達・重播'] : r.channels.slice(0, n).map(b => `${b.short[en ? 'en' : 'zh']}${en ? ' · replay' : '・回看'}`);
-  return el('div', { class: 'tw-chips' }, list.map(text => el('span', { class: 'tw-chip exact', text })));
-}
 // A row's 📺 line: the channels a game is on, when a schedule says (not a guess from the league).
 // Each with its commentary (英文原音, 中文, 雙語), the person's kind marked:
 // the best for them first (their commentary, then a MAX channel without ads).

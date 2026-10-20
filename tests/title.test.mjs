@@ -1,10 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { liveTable, titleRace, standingsRace } from '../public/lib/title.mjs';
+import { liveTable, standingsRace } from '../public/lib/title.mjs';
 
 const row = (id, stats) => ({ id, name: id, stats });
 const soccerTable = () => [{ name: '', rows: [row('A', { GP: '30', W: '22', D: '4', L: '4', F: '60', A: '20', GD: '+40', P: '70' }), row('B', { GP: '30', W: '20', D: '6', L: '4', F: '55', A: '25', GD: '+30', P: '66' }), row('C', { GP: '30', W: '10', D: '5', L: '15', F: '30', A: '45', GD: '-15', P: '35' })] }];
 const game = (id, state, home, away, hs, as, hrec, arec, start = '2026-10-04T10:00Z') => ({ id, kind: 'match', start, status: { state, completed: state === 'post' }, home: { id: home, score: String(hs), record: hrec }, away: { id: away, score: String(as), record: arec } });
+
+// The title alone: won, magic, soonest.
+const titleRace = (group, sport, opts) => {
+  const r = standingsRace(group, sport, opts);
+  return r && { ...r.title, unit: r.unit, out: r.rows.filter(x => x.best > 1).map(x => x.id) };
+};
 
 test('a final the table hasn’t counted is added, once; when the table catches up, nothing more', () => {
   // B beat C: B's record says 31 games now (21-6-4), C's 31; the table still has 30.

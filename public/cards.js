@@ -22,7 +22,7 @@ export const headAction = (label, glyph, onclick, on = false) =>
   el('button', { class: `head-act q-press${on ? ' on' : ''}`, type: 'button', 'aria-pressed': String(on), onclick }, [el('span', { class: 'head-act-ico', 'aria-hidden': 'true', html: icon(glyph) }), el('span', { text: label })]);
 
 // A sport's colour: tiles and the hero's ground.
-export const SPORT_COLOR = { soccer: '#16a34a', baseball: '#dc2626', basketball: '#ea580c', football: '#7c3aed', hockey: '#0891b2', racing: '#4f46e5' };
+const SPORT_COLOR = { soccer: '#16a34a', baseball: '#dc2626', basketball: '#ea580c', racing: '#4f46e5' };
 
 // A game's TV channels as tags on the hero (the first two).
 function channelTags(e, n = 2) {

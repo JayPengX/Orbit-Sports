@@ -1,9 +1,11 @@
-// Every stat label a player's page and a game's box score can show (ESPN's, a few players of two teams in each league), and any with no Chinese: node scripts/label-audit.mjs (2026-10-13: 111, now 0).
+// Every stat label a player's page and a game's box score can show (ESPN's, a few players of two teams in each of the app's leagues), and any with no Chinese: node scripts/label-audit.mjs
 import { statName } from '../public/lib/statnames.mjs';
-const LEAGUES = { nba: 'basketball/nba', wnba: 'basketball/wnba', mlb: 'baseball/mlb', nhl: 'hockey/nhl', nfl: 'football/nfl', epl: 'soccer/eng.1', laliga: 'soccer/esp.1', mls: 'soccer/usa.1', ucl: 'soccer/uefa.champions' };
+import { LEAGUES as APP } from '../public/lib/leagues.mjs';
+const MATCH = Object.entries(APP).filter(([, l]) => l.espn && l.kind === 'match');
+const LEAGUES = Object.fromEntries(MATCH.map(([k, l]) => [k, l.espn]));
 const j = async u => { try { const r = await fetch(u); return r.ok ? r.json() : null; } catch { return null; } };
 const missing = new Map();
-const SPORT = { nba: 'basketball', wnba: 'basketball', mlb: 'baseball', nhl: 'hockey', nfl: 'football', epl: 'soccer', laliga: 'soccer', mls: 'soccer', ucl: 'soccer' };
+const SPORT = Object.fromEntries(MATCH.map(([k, l]) => [k, l.sport]));
 const note = (league, where, label, long) => {
   if (!label) return;
   const zh = statName(label, 'zh', { sport: SPORT[league], long });

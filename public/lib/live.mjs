@@ -12,8 +12,6 @@ import { closeGame } from './close.mjs';
 import { liveOf } from '#kit/sports-espn.mjs';
 export { liveOf };
 
-const name = a => a?.athlete?.shortName || a?.athlete?.displayName || a?.shortName || a?.displayName || '';
-
 const ord = n => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
 const QUARTERS = 4;
 // A basketball overtime by its period: OT, 2OT…; 延長賽, 延長2…

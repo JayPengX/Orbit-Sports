@@ -5,7 +5,7 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, hasScore, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders } from './lib/espn.mjs';
+import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -16,10 +16,9 @@ import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, f
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
-import { namedZh } from './lib/f1names.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, stintStops, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, POINTS, asItStands, settleScoring } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, settleScoring } from './lib/f1.mjs';
 import { tvOf, replayOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
@@ -45,12 +44,6 @@ export function zhLater(text, from = 'auto', after = x => x) {
   const node = document.createTextNode(after(text));
   translate(text, 'zh-TW', from).then(zh => zh && (node.textContent = after(zh))).catch(() => {});
   return node;
-}
-// An F1 story's line: its teams by the app's names (賓士), its drivers kept
-// in English through the translator (held as ⟦0⟧…, put back after).
-function f1Later(text) {
-  const { text: held, back } = namedZh(text);
-  return zhLater(held, 'en', back);
 }
 const injuryText = s => (L() === 'en' ? s : injuryZh(s) || zhLater(s));
 const weatherText = w => weatherZh(w, L());
@@ -777,7 +770,7 @@ function gameCards(game, id, league) {
 
 // ---- Injury report ------------------------------------------------------------------------
 //
-// Who's hurt, live from ESPN's injury report (NBA, WNBA, NFL, NHL, MLB: a
+// Who's hurt, live from ESPN's injury report (NBA, MLB: a
 // league's whole list in one read, kept ten minutes): each player's status,
 // what and where, when they're due back and the reporter's word on it. A
 // league ESPN keeps no report for (soccer, Asian baseball) has no card.
@@ -1252,7 +1245,7 @@ function seasonLeadCard(lead, e) {
 }
 
 // Who starts (pregameLineups): MLB's probable pitchers and batting orders,
-// an NBA, WNBA or NHL side's starters once announced; before then, when
+// an NBA side's starters once announced; before then, when
 // they're said. Each side a list of its own (two columns cut the names).
 function lineupCard(l, e, nameOf) {
   if (!l) return null;
@@ -1278,7 +1271,7 @@ function lineupCard(l, e, nameOf) {
     );
   }
   if (l.pending)
-    return card(en ? 'Starting lineups' : '先發陣容', el('p', { class: 'muted small', text: e.league === 'nhl' ? (en ? 'Starting goalies are named before the game.' : '先發門將賽前公布。') : en ? 'Named about 30 minutes before tip-off.' : '開賽前約 30 分鐘公布。' }));
+    return card(en ? 'Starting lineups' : '先發陣容', el('p', { class: 'muted small', text: en ? 'Named about 30 minutes before tip-off.' : '開賽前約 30 分鐘公布。' }));
   return card(
     en ? 'Starting lineups' : '先發陣容',
     el('div', { class: 'injuries' }, sides.map(t => [t, [l.away, l.home][sideList(t)]]).filter(([, list]) => list.length).map(([t, list]) => side(t, list, p => p.jersey))),
@@ -3048,7 +3041,6 @@ function lapsFor(b, ss, over, redraw) {
   return { laps: out, places: over ? pick(got?.places, b.places) : pick(b.places, got?.places), stops: over ? pick(got?.stops, b.stops) : pick(b.stops, got?.stops), live: over ? Boolean(got?.live) : got?.live ?? true };
 }
 
-const fmtGap = s => (s >= 60 ? `+${Math.floor(s / 60)}:${(s % 60).toFixed(0).padStart(2, '0')}` : `+${s.toFixed(s < 10 ? 1 : 0)}`);
 // A driver's face that opens them (every face in F1's 數據 and board).
 function f1Face(ss, name, size = 'xs round') {
   const who = fieldDriver(ss.field, name, driverShort(name)) || { name };
@@ -3089,7 +3081,6 @@ function f1LapCompare(b, ss) {
     const colourOf = no => car(no)?.colour || '#888';
     const pitsOf = no => pitLaps(laps[no] || [], stops[no] || [], car(no)?.stints || []);
     const timeOf = (no, lap) => (laps[no] || []).find(x => x[0] === lap);
-    const sec = en ? 's' : ' 秒';
 
     // The picker: every car by its place, face and code, folded unless asked for (or nobody's picked).
     // (Opened by itself with nobody picked, it stays open as they're picked: it closed after the first, before.)
@@ -3692,8 +3683,6 @@ function fillField(s, e) {
     // (Each as F1's feed has it where it has said: on or over before ESPN.)
     // (The home's cards' rule: a session long past its start is over, ESPN's "on" or not.)
     const sessions = [...e.sessions].map(x => ({ ...x, status: sessionStatus(x) })).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
-    // A session on: its live board first, the weekend's schedule after it.
-    const liveNow = sessions.some(x => x.status.state === 'in');
     // The weekend's schedule under the session's results (not a long list on top of them).
     const schedule = sessions.length > 1 ? card(T('schedule'), weekendTimeline(sessions)) : null;
     let pick = e.sessionKey ? Math.max(0, sessions.findIndex(x => x.abbr === e.sessionKey)) : Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));

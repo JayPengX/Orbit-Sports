@@ -9,37 +9,11 @@
 //   play    the catalogue's key for the league's logos and names
 //   kind    'match' two sides; 'field' a race weekend
 import { leagueLogo as kitLeagueLogo } from '#kit/logos.mjs';
-import { SPORTS as ALL_SPORTS, CATALOG } from '#kit/catalog.mjs';
-import { BROADCAST } from './broadcast.mjs';
+import { SPORTS as ALL_SPORTS } from '#kit/catalog.mjs';
+import { LEAGUES } from '#kit/sports-espn.mjs';
 
-// Soccer in the order a Taiwan viewer would watch it (the owner's calls,
-// 2026-10-15): the kick-off in Taiwan's day first, then the level, a kind
-// kept together. The leagues: 英超 (elite, 20:00–00:00 on a weekend), 德甲
-// (21:30), 義甲 (18:30 to 02:45), 法甲 (mostly 03:00), 美職足 (Taiwan's
-// weekend breakfast, on Apple TV: forward of the 03:00 cups); then UEFA's
-// cups, 歐冠 (elite but 03:00 midweek), 歐霸 and 歐協聯 (Thursdays); then
-// 英足總盃 (ELTA's from the third round in January, a weekend evening),
-// 蘇超 (22:00, a level down) and 歐國聯 (internationals, 02:45). A league
-// not named keeps the catalogue's place after them.
-const SOCCER_WATCH = ['epl', 'bundesliga', 'seriea', 'ligue1', 'laliga', 'mls', 'ucl', 'uel', 'uecl', 'facup', 'scotland', 'worldcup', 'nationsleague'];
-const watchRank = k => (SOCCER_WATCH.includes(k) ? SOCCER_WATCH.indexOf(k) : SOCCER_WATCH.length);
-// The catalogue's order, soccer's own places filled in the watching order.
-const inOrder = entries => {
-  const soccer = entries.filter(([, l]) => l.sport === 'soccer').sort(([a], [b]) => watchRank(a) - watchRank(b));
-  return entries.map(x => (x[1].sport === 'soccer' ? soccer.shift() : x));
-};
-
-export const LEAGUES = Object.fromEntries(
-  inOrder(Object.entries(CATALOG))
-    .filter(([key]) => BROADCAST[key])
-    .map(([key, l]) => {
-      const league = { sport: l.sport, zh: l.zh, en: l.en, play: l.bet ?? null, kind: l.kind };
-      if (l.data === 'espn') league.espn = l.espn;
-      if (l.data === 'asia') league.asia = l.asia;
-      for (const k of ['top', 'cup', 'standings']) if (l[k]) league[k] = l[k];
-      return [key, league];
-    })
-);
+// The leagues themselves are the kit's (kit/sports-espn.mjs, which the proxy's builders read too).
+export { LEAGUES };
 // The sports with a league left.
 export const SPORTS = Object.fromEntries(Object.entries(ALL_SPORTS).filter(([k]) => Object.values(LEAGUES).some(l => l.sport === k)));
 

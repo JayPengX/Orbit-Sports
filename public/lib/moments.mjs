@@ -762,10 +762,6 @@ export function goalHowParts(text, kind = '', en = false) {
   const help = assist ? (en ? `assist ${shortName(assist)}` : `${shortName(assist)} 助攻`) : setUp ? (en ? setUp : `${setUp}後`) : '';
   return { shot: [spot ? (en ? `penalty${foot ? `, ${foot}` : ''}` : `12 碼${foot}`) : where, corner].filter(Boolean).join(' · '), help };
 }
-export const goalHow = (text, kind = '', en = false) => {
-  const { shot, help } = goalHowParts(text, kind, en);
-  return [shot, help].filter(Boolean).join(' · ');
-};
 export function feedText(sport, play, en, team = '') {
   // A league's own words (CPBL's, Chinese already).
   if (play.zh) return play.zh;

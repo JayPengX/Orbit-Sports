@@ -1,7 +1,7 @@
 // Who starts a game, before it starts (the owner, 2026-10-11: an NBA side's
 // five is announced half an hour before tip-off, and Orbit Sports didn't
 // say it). Each league from where it's said first:
-//   - the NBA, WNBA and NHL: ESPN's own competitor rosters (the core API),
+//   - the NBA: ESPN's own competitor rosters (the core API),
 //     where each starter is marked as the team announces it (none marked
 //     until then); names and faces from the team's roster;
 //   - MLB: MLB's own schedule, each side's probable pitcher days ahead and
@@ -12,9 +12,8 @@ import { fold } from './text.mjs';
 
 
 // The leagues whose starters ESPN marks before a game, and how far ahead
-// it's worth asking (an NBA five comes 30 minutes before, an NHL goalie
-// in the morning skate's hours).
-export const CORE_LINEUPS = { nba: 2 * 3_600_000, wnba: 2 * 3_600_000, nhl: 6 * 3_600_000 };
+// it's worth asking (an NBA five comes 30 minutes before).
+export const CORE_LINEUPS = { nba: 2 * 3_600_000 };
 export const coreRosterUrl = (espnPath, eventId, teamId) => {
   const [sport, league] = String(espnPath).split('/');
   return `https://sports.core.api.espn.com/v2/sports/${sport}/leagues/${league}/events/${eventId}/competitions/${eventId}/competitors/${teamId}/roster?lang=en&region=us`;

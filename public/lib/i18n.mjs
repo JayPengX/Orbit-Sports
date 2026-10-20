@@ -285,14 +285,8 @@ export const STRINGS = {
   }
 };
 
-export function detectLocale() {
-  try {
-    const saved = localStorage.getItem('quadra.lang');
-    if (saved === 'zh' || saved === 'en') return saved;
-  } catch {}
-  const langs = globalThis.navigator?.languages || [globalThis.navigator?.language || 'zh-TW'];
-  return langs.some(l => /^zh/i.test(l)) || !langs.some(l => /^en/i.test(l)) ? 'zh' : 'en';
-}
+// The reader's language is the kit's (quadra.mjs detectLang).
+export { detectLang as detectLocale } from '#kit/quadra.mjs';
 export function makeT(locale) {
   const dict = STRINGS[locale] || STRINGS.zh;
   return (key, vars = {}) => String(dict[key] ?? STRINGS.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');

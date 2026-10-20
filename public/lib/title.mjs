@@ -11,7 +11,7 @@
 //               says how many games it will have played once this one is
 //               in; a table that has that many already has it, and one
 //               short of it gets it added (games in time order).
-//   titleRace   whether the top of each table is settled, the magic
+//   standingsRace  whether the top of each table is settled, the magic
 //               number, and the earliest it could be: points (soccer, F1)
 //               or wins (baseball, basketball).
 
@@ -32,7 +32,7 @@ export function gbText(top, r) {
 // A season's games for each side, where it isn't each other side twice
 // (CPBL's table is a half-season's: 60; a European cup's league phase is 8
 // games each, not a round robin of its 36).
-export const SEASON_GAMES = { mlb: 162, nba: 82, wnba: 44, nbl: 29, mls: 34, nfl: 17, nhl: 82, cpbl: 60, ucl: 8, uel: 8, uecl: 6 };
+export const SEASON_GAMES = { mlb: 162, nba: 82, mls: 34, cpbl: 60, ucl: 8, uel: 8, uecl: 6 };
 
 // A game the table counts (the regular season: not the preseason, play-in, playoffs or all-star game).
 export const COUNTS = e => !['pre', 'post', 'final', 'playin', 'allstar', 'off'].includes(e.stage?.key || '');
@@ -300,13 +300,6 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
     }
   }
   return { unit, rows: out, title, places, zones };
-}
-
-// The title alone (the home page and tests): won, magic, soonest.
-export function titleRace(group, sport, opts = {}) {
-  const r = standingsRace(group, sport, opts);
-  if (!r) return null;
-  return { ...r.title, unit: r.unit, out: r.rows.filter(x => x.best > 1).map(x => x.id) };
 }
 
 // F1: a race (or sprint) on now or just over, its points by the running

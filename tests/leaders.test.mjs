@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, statText, leagueLeadersUrl, athletesUrls, ATHLETE_STATS, LEAGUE_TOP } from '../public/lib/leaders.mjs';
+import { parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, statText, athletesUrls, ATHLETE_STATS, LEAGUE_TOP } from '../public/lib/leaders.mjs';
 
 const a = (id, name) => ({ id, displayName: name, shortName: name.replace(/^(\w)\w+ /, '$1. '), headshot: { href: `${id}.png` } });
 

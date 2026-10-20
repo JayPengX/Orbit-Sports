@@ -24,8 +24,6 @@ const shortName = full => {
   const [first, ...rest] = String(full || '').split(' ');
   return rest.length ? `${first[0]}. ${rest.join(' ')}` : first;
 };
-// MLB's own picture of a player, by its id.
-export const mlbHeadshot = id => (id ? `https://img.mlbstatic.com/mlb-photos/image/upload/w_180,q_auto:best/v1/people/${id}/headshot/67/current` : null);
 // (Faces as everywhere else in the app: the kit's by name, not MLB's big cropped headshot.)
 const person = p => (p?.fullName ? { id: '', name: p.fullName, headshot: null } : null);
 

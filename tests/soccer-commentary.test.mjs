@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseSummary } from '../public/lib/espn.mjs';
-import { feedText, playParts } from '../public/lib/moments.mjs';
+import { feedText } from '../public/lib/moments.mjs';
 
 const data = JSON.parse(readFileSync(new URL('./fixtures/epl-commentary.json', import.meta.url)));
 
@@ -29,7 +29,8 @@ test('a penalty scored is a goal in 過程 (Picault, Atlanta–Inter Miami 89\',
 });
 
 test('how a goal went in, as baseball names each hit (Atlanta–Inter Miami, 2026-10-17)', async () => {
-  const { goalHow } = await import('../public/lib/moments.mjs');
+  const { goalHowParts } = await import('../public/lib/moments.mjs');
+  const goalHow = (...a) => Object.values(goalHowParts(...a)).filter(Boolean).join(' · ');
   const messi = 'Goal! Atlanta United 0, Inter Miami CF 3. Lionel Messi (Inter Miami CF) left footed shot from the centre of the box to the bottom right corner. Assisted by Luis Suárez following a fast break.';
   assert.equal(goalHow(messi, 'goal'), '禁區中路左腳 · 右下角 · L. Suárez 助攻');
   assert.equal(goalHow(messi, 'goal', true), 'left foot, box centre · bottom right · assist L. Suárez');

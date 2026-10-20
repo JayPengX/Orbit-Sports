@@ -2,7 +2,7 @@
 // cpblTable, tierZones, driverSeason) and a season's rounds (seasonRounds).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { liveTable, standingsRace, titleRace, roundOf, roundCounted, COUNTS, pctText, gbText } from '../public/lib/title.mjs';
+import { liveTable, standingsRace, roundOf, roundCounted, COUNTS, pctText, gbText } from '../public/lib/title.mjs';
 import { withGaps, cpblTable, driverSeason, seasonRounds, seasonTo, parseCalendar, monthsBetween, roundKind, roundLabel, zoneColor } from '../public/lib/espn.mjs';
 
 const row = (id, stats, extra = {}) => ({ id, name: id, stats, ...extra });
@@ -31,7 +31,7 @@ test('liveTable leaves out what the table doesn’t count: called off, preseason
   assert.equal(COUNTS({ stage: { key: 'playin' } }), false);
   // A sport with no table rule (or no table): as given.
   const g0 = t();
-  assert.equal(liveTable(g0, games, 'hockey'), g0);
+  assert.equal(liveTable(g0, games, 'tennis'), g0);
   assert.deepEqual(liveTable([], games, 'soccer'), []);
 });
 
@@ -85,7 +85,7 @@ test('F1: a weekend’s column by name; a race in only past a sprint’s 36 poin
 test('the title race before a game is played, and a table of one: nothing to say', () => {
   assert.equal(standingsRace({ rows: [row('A', { GP: '0', P: '0' }), row('B', { GP: '0', P: '0' }), row('C', { GP: '0', P: '0' }), row('D', { GP: '0', P: '0' })] }, 'soccer'), null);
   assert.equal(standingsRace({ rows: [row('A', { GP: '3', P: '9' })] }, 'soccer'), null);
-  assert.equal(titleRace({ rows: [row('A', { W: '1', L: '0' }), row('B', { W: '0', L: '1' })] }, 'baseball'), null, 'no season length known');
+  assert.equal(standingsRace({ rows: [row('A', { W: '1', L: '0' }), row('B', { W: '0', L: '1' })] }, 'baseball'), null, 'no season length known');
   assert.equal(standingsRace({ rows: [row('A', { PTS: '25' }), row('B', { PTS: '18' })] }, 'racing'), null, 'no races left known');
 });
 

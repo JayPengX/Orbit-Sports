@@ -34,11 +34,11 @@ import { stageOf } from './lib/stage.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
+import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
-import { icon, pageHead, headAction, heroGame, scoreCard, sportTile, leagueTile, SPORT_COLOR } from './cards.js';
+import { icon, pageHead, headAction, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
 
 // Shared-Data's pack of recent games (set as the app starts, below), and the
 // background look-ups of what it hasn't got, after it's in.
@@ -862,7 +862,6 @@ function syncPush() {
     // (The start notice at the title time, a few minutes before the official start: the owner's call, 2026-10-18.)
     const start = Date.parse(e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
-    const title = `${e.name} ${e.session}`;
     if (start > now - GRACE) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: 'live', kind: 'start' });
     const end = resultItem(e, now);
     if (end) items.push(end);
@@ -977,14 +976,6 @@ function centerChosen(box) {
 // ---- 推薦: every match of the chosen day, ranked for this person ---------------------------
 
 const REASON = r => t(`why_${r}`);
-// "35 分後", "3 小時後" for a start within the next 12 hours; nothing past that or once started.
-function untilText(start) {
-  const m = Math.round((Date.parse(start) - Date.now()) / 60_000);
-  if (!(m > 0) || m > 12 * 60) return '';
-  if (m < 60) return locale === 'en' ? `in ${m} min` : `${m} 分後`;
-  const h = Math.round(m / 60);
-  return locale === 'en' ? `in ${h} h` : `${h} 小時後`;
-}
 // A pick on 稍後: its game's row, and why it was picked as tags under it.
 function planRow(item, opts = {}) {
   const row = eventRow(item.event, opts);
@@ -1247,7 +1238,6 @@ function renderHome() {
   // ranked as it stood before, as on a past day, and what of it was on
   // show (the plan and the first of the rest) that's over now, or called
   // off (延期: still there, said so, not gone without a word).
-  const ended = x => x.event.status.state === 'post' || x.event.status.void;
   // (Theirs as it stood is also what their picks' finals are said for.)
   const ownWas = isToday ? rank(filtered(mine), 999, pctx, true) : [[], []];
   const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] }, true) : ownWas) : [[], []];
@@ -1904,7 +1894,7 @@ const md = ms => {
 };
 const roundDates = r => (!r.dates ? '' : r.dates.about ? `${locale === 'en' ? 'c.' : '約'} ${md(r.dates.from)}${locale === 'en' ? '' : ' 起'}` : md(r.dates.from) === md(r.dates.to) ? md(r.dates.from) : `${md(r.dates.from)}–${md(r.dates.to)}`);
 // How many games a round's series runs to, where its games don't say yet.
-const SERIES_LEN = { mlb: { RD16: 3, QTR: 5, SEMI: 7, FINAL: 7 }, nba: { RD16: 7, QTR: 7, SEMI: 7, FINAL: 7 }, nhl: { RD16: 7, QTR: 7, SEMI: 7, FINAL: 7 } };
+const SERIES_LEN = { mlb: { RD16: 3, QTR: 5, SEMI: 7, FINAL: 7 }, nba: { RD16: 7, QTR: 7, SEMI: 7, FINAL: 7 } };
 function playoffView(model, league) {
   const en = locale === 'en';
   const banner =

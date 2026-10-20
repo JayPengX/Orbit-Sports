@@ -35,7 +35,7 @@ export function parseSearch(data) {
       const league = (lid && BY_ID[lid]) || (c.sport && c.defaultLeagueSlug && BY_PATH[`${c.sport}/${c.defaultLeagueSlug}`]);
       // A men's club (or its player) in a league Orbit Sports doesn't have
       // (Benfica's Portuguese Liga): kept unplaced (league null, its
-      // league's slug), for its European cup to place it (placeInCups).
+      // league's slug), for its European cup to place it (placeTeams, placePlayers).
       const unplaced = !league && c.sport === 'soccer' && c.defaultLeagueSlug && !/(^|\.)w|women|youth|u\d{2}|friendly/i.test(c.defaultLeagueSlug);
       if (!id || (!unplaced && (!league || !LEAGUES[league]))) continue;
       if (unplaced) {
@@ -67,7 +67,4 @@ export async function placePlayers(players, cups, clubOf, most = 6) {
     })
   );
   return out.filter(Boolean);
-}
-export async function placeInCups(found, cups, clubOf) {
-  return { ...found, teams: placeTeams(found.teams, cups), players: await placePlayers(found.players, cups, clubOf) };
 }
