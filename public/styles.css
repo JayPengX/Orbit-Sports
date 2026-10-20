@@ -88,10 +88,6 @@ img { max-width: 100%; }
 .sp-head > .follow-btn, .head-act { flex: none; margin-bottom: 6px; }
 .head-act { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px 0 10px; border: 0; border-radius: 999px; background: var(--accent-wash); color: var(--accent); font: 600 15px/1 var(--q-font); }
 .head-act-ico svg { display: block; width: 18px; height: 18px; }
-/* 首頁's day: a chip at the top (opens the day sheet). */
-.day-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; margin: 4px 0 12px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--q-sunken); color: var(--q-text-2); font: 600 15px/1 var(--q-font); cursor: pointer; }
-.day-chip.tint { background: var(--accent-wash); color: var(--accent); }
-.over-chev { width: 7px; height: 7px; margin-top: -3px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
 .q-section { margin-top: 28px; }
 .q-section-head h2 { font-size: 20px; line-height: 25px; }
 .q-section-head .q-tag { align-self: center; }
@@ -229,7 +225,7 @@ img { max-width: 100%; }
 .sc-side { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--q-label-2); }
 .sc-side.win { color: var(--q-label); }
 .sc-side .logo:not(.round):not(.logo-fallback):not(.logo-flag) { width: 26px; height: 26px; padding: 2px; border-radius: 8px; background: var(--q-fill-4); object-fit: contain; }
-.sc-name { flex: 1; min-width: 0; display: -webkit-box; overflow: hidden; font: 500 15px/1.25 var(--q-font); -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.sc-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; font: 500 15px/1.25 var(--q-font); }
 .sc-side.win .sc-name { font-weight: 700; }
 .sc-side b { flex: none; font: 700 20px/1 var(--q-font-rounded); }
 .sc-event, .sc-champ { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; }
@@ -247,9 +243,8 @@ img { max-width: 100%; }
 .sport-card.on .sc-badge { background: #fff; color: var(--t); }
 .sp-count { color: var(--q-muted); font: 600 15px/1 var(--q-font); }
 .sp-done { margin-top: 16px; }
-/* The day sheet: what to show, then the days (a strip; 📅 for any day). */
+/* A date strip (賽事's league days; 首頁's and 轉播's bar): the days, 📅 for any. */
 .q-chips.wrap { flex-wrap: wrap; overflow: visible; }
-.day-filters { margin: 4px 0 16px; }
 .day-strip-wrap { display: flex; align-items: center; gap: 8px; }
 .day-strip { flex: 1 1 auto; min-width: 0; margin: 0; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
 .day-strip .q-chip.day { flex: none; display: grid; justify-items: center; gap: 2px; min-width: 60px; min-height: 48px; padding: 5px 10px; line-height: 1.2; scroll-snap-align: center; }
@@ -259,9 +254,30 @@ img { max-width: 100%; }
 .day-strip .q-chip.day.month-start { box-shadow: inset 2px 0 0 var(--q-sep); }
 .day-pick { position: relative; flex: none; justify-content: center; min-width: 48px; min-height: 48px; padding: 0 12px; overflow: hidden; }
 .day-pick-input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; cursor: pointer; }
-.day-strip-wait { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 4px; }
-.no-days { margin: 12px 4px; }
-.day-today { margin-top: 20px; }
+
+/* 首頁's and 轉播's day bar: a week strip that sticks under the status bar
+   (its colour only once stuck), the chosen day filled, today in the accent.
+   A swipe across the page: the day slides in. */
+.day-bar { position: sticky; top: var(--q-top); z-index: 30; display: flex; align-items: center; gap: 6px; margin: 0 calc(-1 * max(16px, env(safe-area-inset-left))) 6px; padding: 6px max(16px, env(safe-area-inset-left)) 8px; }
+.day-bar::before { content: ''; position: absolute; z-index: -1; inset: calc(-1 * var(--q-top)) 0 0; background: var(--q-page); opacity: 0; transition: opacity 0.2s; box-shadow: inset 0 -0.5px 0 var(--q-sep); pointer-events: none; }
+.day-bar.stuck::before { opacity: 1; }
+.day-bar .day-strip-wrap { flex: 1 1 auto; min-width: 0; gap: 6px; }
+.day-bar .day-strip { gap: 4px; scroll-snap-type: none; -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); padding-inline: 6px; scroll-padding-inline: 6px; }
+.day-bar .day-strip .q-chip.day { min-width: 50px; min-height: 54px; padding: 6px 6px; border-radius: 16px; background: none; color: var(--q-label); gap: 3px; }
+.day-bar .day-strip .q-chip.day > span { font: 600 12px/1.1 var(--q-font); color: var(--q-label-2); }
+.day-bar .day-strip .q-chip.day small { font: 700 16px/1.1 var(--q-font); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; opacity: 1; }
+.day-bar .day-strip .q-chip.day.is-today > span, .day-bar .day-strip .q-chip.day.is-today small { color: var(--accent); }
+.day-bar .day-strip .q-chip.day[aria-pressed='true'] { background: var(--accent); }
+.day-bar .day-strip .q-chip.day[aria-pressed='true'] > span, .day-bar .day-strip .q-chip.day[aria-pressed='true'] small { color: #fff; }
+.day-bar .day-strip .q-chip.day.month-start:not([aria-pressed='true']) { box-shadow: inset 1.5px 0 0 var(--q-sep); border-radius: 0 16px 16px 0; }
+.day-bar .day-pick { min-width: 44px; min-height: 44px; padding: 0; border-radius: 50%; }
+.day-filters { margin: 0 0 14px; }
+.tab-panel.swiping > :not(.day-bar) { transform: translateX(var(--swipe, 0)); opacity: 0.85; }
+.tab-panel.day-in-next > :not(.day-bar) { animation: day-in-next 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.tab-panel.day-in-prev > :not(.day-bar) { animation: day-in-prev 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes day-in-next { from { transform: translateX(36px); opacity: 0; } }
+@keyframes day-in-prev { from { transform: translateX(-36px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tab-panel.day-in-next > *, .tab-panel.day-in-prev > * { animation: none; } }
 
 /* ==== 賽事: a league ==== */
 /* Every league on one rail (the search first), to the screen's edges. */
