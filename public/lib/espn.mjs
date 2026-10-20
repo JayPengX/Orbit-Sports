@@ -802,6 +802,27 @@ export function cpblPlayoffs(events, seeds = null) {
     return { ...e, stage: t.stage, round: { key: t.series.kind, title: s.en, leg: 0, through: standing.get(t.series).completed ? Object.keys(t.series.wins).filter(id => t.series.wins[id] >= (CPBL_BEST[t.series.kind] + 1) / 2) : [] }, series: standing.get(t.series) };
   });
 }
+// A month to come with no list yet (the season over, next month's not
+// drawn up): the proxy fails it, and the kit asks twice more before it says
+// so, seconds every open waits on. Remembered on the device for two hours:
+// no games, not asked again till then (not in a month's last two days: a
+// game on the 1st that failed to read stays asked for).
+const NO_MONTH = 'fx.asia.none.v1';
+const NO_MONTH_MS = 2 * 3_600_000;
+function noMonths() {
+  try {
+    return JSON.parse(globalThis.localStorage?.getItem(NO_MONTH) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+function noMonth(key, now) {
+  try {
+    const kept = Object.fromEntries(Object.entries(noMonths()).filter(([, at]) => now - at < NO_MONTH_MS));
+    kept[key] = now;
+    globalThis.localStorage?.setItem(NO_MONTH, JSON.stringify(kept));
+  } catch {}
+}
 // The months around now (and `extra` more either side): a whole stretch of
 // the season, past games and the next ones.
 export async function asiaEvents(league, extra = 0, now = Date.now()) {
@@ -810,7 +831,14 @@ export async function asiaEvents(league, extra = 0, now = Date.now()) {
   for (let d = -1 - extra; d <= 1 + extra; d++) months.push(new Date(Date.UTC(y, m - 1 + d, 1)).toISOString().slice(0, 7));
   // This month unread is a failure, never "no games" (the others only fill out the stretch).
   const now0 = asiaMonthOf(now);
-  const lists = await Promise.all(months.map(m => asiaMonth(url => getJson(url, { ttl: m < now0 ? 6 * 3_600_000 : 2 * 60_000 }), LEAGUES[league].asia, m).catch(error => (m === now0 ? Promise.reject(error) : []))));
+  const none = noMonths();
+  const lists = await Promise.all(
+    months.map(m => {
+      const key = `${league}:${m}`;
+      if (m > now0 && now - (none[key] || 0) < NO_MONTH_MS) return [];
+      return asiaMonth(url => getJson(url, { ttl: m < now0 ? 6 * 3_600_000 : 2 * 60_000 }), LEAGUES[league].asia, m).catch(error => (m === now0 ? Promise.reject(error) : (m > now0 && Date.parse(`${m}-01T00:00:00+08:00`) - now > 2 * 86_400_000 && noMonth(key, now), [])));
+    })
+  );
   const seen = new Set();
   const events = parseAsia(lists.flat(), league)
     .filter(e => !seen.has(e.id) && seen.add(e.id))

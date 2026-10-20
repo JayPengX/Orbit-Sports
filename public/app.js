@@ -759,14 +759,15 @@ function loadTables() {
     .forEach(k => {
       state.home.tables[k] = {};
       state.home.tablesPending++;
+      // (Counted in before the repaint: the last table's repaint is the one that settles the picks.)
       standings(k)
         .then(g => {
           state.home.tables[k] = tableIndex(g);
+          state.home.tablesPending--;
           if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
           if (state.tab === 'following') renderFollowing();
         })
-        .catch(() => {})
-        .finally(() => state.home.tablesPending--);
+        .catch(() => state.home.tablesPending--);
     });
 }
 // Followed teams' schedules (their next and last games).
@@ -1208,14 +1209,30 @@ function renderHome() {
   if ((nothingToday || todayOver) && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length && !slot.stale && !slot.loading && !gap) {
     h.autoDay = false;
     h.jumping = true;
-    nextPickDay().then(d => {
+    let went = false;
+    const go = d => {
+      if (went) return;
+      went = true;
       h.jumping = false;
+      if (d) saveJump(d);
       if (d && state.home.date === today()) {
         state.home.date = d;
         stripRange.recenter = true;
         if (state.tab === 'home') renderHome();
       }
-    });
+    };
+    // Worked out already today (kept, and read at the open alongside today's): at once
+    // (once this drawing's done).
+    const kept = savedJump();
+    if (kept) Promise.resolve().then(() => go(kept));
+    else {
+      // The next day any of their leagues plays (each one's small list of
+      // game days), read while the one on TV here is worked out from the
+      // seasons: with a game of theirs on TV in the day's hours, it's that day.
+      const guess = nextLeagueDay();
+      if (guess) (state.days.get(guess)?.at ? Promise.resolve() : loadDay(guess)).then(() => pickDayHas(guess) && go(guess));
+      nextPickDay().then(go);
+    }
   }
   let fallback = false;
   let finding = false;
@@ -1290,6 +1307,8 @@ function renderHome() {
   // Everything the picks lean on is in: the day read fresh, the tables,
   // the followed teams, and no search for other games or days going on.
   h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !h.tablesPending && ![...h.teams.values()].includes(null);
+  // (A league of theirs that didn't answer: the loading screen reads it again before it lifts.)
+  h.partial = slot.partial > 0;
   // The best of the rest, by the clock (by score, a 02:45 sat above a 00:00): 稍後's 全部.
   const byStart = (x, y) => Date.parse(x.event.start) - Date.parse(y.event.start);
   const moreAll = [...more].sort(byStart);
@@ -1457,9 +1476,12 @@ const needDays = sp => {
   const had = state.home.sportDays.get(sp);
   return !had || (had.failed && Date.now() - had.at > 15_000);
 };
+// (One read at a time per sport: the boot's early one and the jump's are the same.)
+const sportDaysReading = new Map();
 async function readSportDays(sp) {
   const h = state.home;
-  const days = await sportDays(sp).catch(() => null);
+  if (!sportDaysReading.has(sp)) sportDaysReading.set(sp, sportDays(sp).catch(() => null).finally(() => sportDaysReading.delete(sp)));
+  const days = await sportDaysReading.get(sp);
   if (!days) return null;
   const old = h.sportDays.get(sp);
   if (days.failed && old) for (const d of old) days.add(d);
@@ -3190,12 +3212,61 @@ window.addEventListener('hashchange', () => {
   if (tab !== state.tab) showTab(tab);
   else if (hash === 'standings' && tab === 'matches') renderScores();
 });
-// The loading screen stays up on the picks until they're settled (a few
-// seconds at most), so they don't open half-read and reshuffle.
-const BOOT_WAIT = 7000;
+// The loading screen stays up on the picks until they're settled, so they
+// don't open half-read and fill in or reshuffle after it lifts: every
+// league of theirs read (one that didn't answer read again at once, not
+// in the retry's 4 s; shown as it is if it fails twice), the next day
+// they play read when today's over. A cap for a connection that hangs.
+const BOOT_WAIT = 12_000;
 async function homeReady(until) {
+  const again = new Set();
   // (A connection the kit finds slow: the saved picks at once, not the rest of the wait for fresh ones.)
-  while (state.tab === 'home' && !state.home.settled && Date.now() < until && netState() === 'online') await new Promise(r => setTimeout(r, 150));
+  while (state.tab === 'home' && Date.now() < until && netState() === 'online') {
+    const h = state.home;
+    if (h.settled && !(h.partial && !again.has(h.date))) return;
+    if (h.settled) {
+      again.add(h.date);
+      h.settled = false;
+      loadDay(h.date);
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+}
+// Today's games all over, the app opens on the next day they play: that
+// day, kept for today, is read alongside today's at the next open (and the
+// days each sport plays with it), not one after the other.
+const JUMP_KEY = 'fx.jump.v1';
+function saveJump(to) {
+  try {
+    localStorage.setItem(JUMP_KEY, JSON.stringify({ from: today(), to, leagues: leaguesKey() }));
+  } catch {}
+}
+function savedJump() {
+  try {
+    const j = JSON.parse(localStorage.getItem(JUMP_KEY) || 'null');
+    return j?.from === today() && j.leagues === leaguesKey() && j.to > today() ? j.to : null;
+  } catch {
+    return null;
+  }
+}
+const pickDayHas = date => {
+  const slot = state.days.get(date);
+  const sports = new Set(followedSports());
+  return Boolean(slot?.at && !slot.partial && slot.leagues === leaguesKey() && slot.events.some(e => sports.has(LEAGUES[e.league]?.sport) && !e.status?.void && !practice(e) && onTv(e) && inPickDay(Date.parse(e.start), date)));
+};
+const nextLeagueDay = () =>
+  pickLeagues()
+    .filter(k => LEAGUES[k].espn)
+    .map(k => [...(leagueDays(k) || [])].filter(d => d > today()).sort()[0])
+    .filter(Boolean)
+    .sort()[0] || null;
+function readJumpEarly() {
+  // (Each league's game days, small, for nextLeagueDay.)
+  pickLeagues().filter(k => LEAGUES[k].espn).forEach(k => leagueDays(k));
+  const to = savedJump();
+  if (!to) return;
+  loadDay(to);
+  if (tvReady()) followedSports().filter(needDays).forEach(readSportDays);
 }
 async function boot() {
   const until = Date.now() + BOOT_WAIT;
@@ -3220,6 +3291,7 @@ async function boot() {
   // sign-in, not a second one), not a round trip after it.
   // (Not under a sign-in link: its hand-off is redeemed first.)
   const early = quick != null && !/[#&]q[hp]=/.test(location.hash) ? loadDay(today()) : null;
+  if (early) readJumpEarly();
   const first = await starting;
   state.wallet = first.wallet || q.wallet;
   const before = JSON.stringify(state.prefs);
@@ -3235,6 +3307,7 @@ async function boot() {
     showTab(state.tab);
   }
   const prefsMoved = quick != null && JSON.stringify(state.prefs) !== before;
+  if (!early || prefsMoved) readJumpEarly();
   booted = true;
   setTimeout(syncFollows, 3000);
   window.__bootStep?.(t('loadingGames'), 0.84);
