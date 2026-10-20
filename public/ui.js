@@ -113,7 +113,13 @@ export function localDate(ms) {
 export const today = () => localDate(Date.now());
 export const addDays = (date, n) => localDate(new Date(`${date}T12:00:00`).getTime() + n * 86_400_000);
 const locales = () => (ctx.locale === 'en' ? 'en-US' : 'zh-TW');
-export const clock = iso => new Date(iso).toLocaleTimeString(locales(), { hour: '2-digit', minute: '2-digit', hour12: false });
+// (One formatter a language: making one costs more than a thousand uses, and a day's games ask hundreds of times.)
+const clocks = new Map();
+export const clock = iso => {
+  const loc = locales();
+  if (!clocks.has(loc)) clocks.set(loc, new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit', hour12: false }));
+  return clocks.get(loc).format(new Date(iso));
+};
 export function dayLabel(date, { long = false } = {}) {
   const { t } = ctx;
   const d = new Date(`${date}T12:00:00`);

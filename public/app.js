@@ -958,20 +958,24 @@ function noticeChanges(events) {
 const centered = new Map();
 function centerChosen(box) {
   const rows = [...box.querySelectorAll('.q-chips')];
+  // (Asked of the layout only for a newly chosen chip, every one read before any is scrolled:
+  // a read after a scroll lays the page out again, a second a switch on a phone.)
+  const moves = [];
   for (const chip of box.querySelectorAll('.q-chips [aria-pressed="true"]')) {
     const row = chip.parentElement;
     // A date strip places itself (dateStrip).
     if (row.classList.contains('day-strip')) continue;
+    const key = `${box.id || ''}|${row.className}|${rows.indexOf(row)}`;
+    const chosen = chip.textContent;
+    if (centered.get(key) === chosen) continue;
     // Not laid out yet (under the loading screen): nothing to centre, and not
     // counted as done (it was, and every redraw after left the date strip on
     // its first day, a month back).
     if (!row.clientWidth) continue;
-    const key = `${box.id || ''}|${row.className}|${rows.indexOf(row)}`;
-    const chosen = chip.textContent;
-    if (centered.get(key) === chosen) continue;
     centered.set(key, chosen);
-    if (row.scrollWidth > row.clientWidth) row.scrollLeft = chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2;
+    if (row.scrollWidth > row.clientWidth) moves.push([row, chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2]);
   }
+  for (const [row, left] of moves) row.scrollLeft = left;
 }
 
 // ---- 推薦: every match of the chosen day, ranked for this person ---------------------------
@@ -1386,7 +1390,8 @@ function renderHome() {
     // picks: ranked again on today's tables, yesterday's changed; the owner,
     // 2026-10-18). Theirs and the others on TV, under the sport chosen.
     past ? pastDay() : null,
-    !past && (fallback || finding) && !endedGames.length ? note(gap === 'leagues' ? t('someUnread') : gap === 'tv' ? t('tvUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet'), finding ? t('findingOthers') : planList.length ? t('othersSub') : gap ? t('notKnownYet') : noTvText(h.date), !finding && !planList.length) : null,
+    // (Nothing followed yet: the sport picker above already says so; no note under it.)
+    !past && (fallback || finding) && !endedGames.length && !(h.picking && !hasFollows && state.prefsLoaded && !finding) ? note(gap === 'leagues' ? t('someUnread') : gap === 'tv' ? t('tvUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet'), finding ? t('findingOthers') : planList.length ? t('othersSub') : gap ? t('notKnownYet') : noTvText(h.date), !finding && !planList.length) : null,
     !past && finding ? spinner() : null,
     past
       ? null
