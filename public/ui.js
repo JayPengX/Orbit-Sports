@@ -2,7 +2,7 @@
 // rows, sheets. `ctx` is filled by app.js (the text, the state and the
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
-import * as kitTeams from '#kit/play-teams.mjs';
+import { sidesInOrder } from '#kit/play-teams.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
 import { keptTiming } from './lib/f1.mjs';
 import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
@@ -11,7 +11,7 @@ import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
 import { broadcastsOf, AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES, espnSummary, onAir } from './lib/espn.mjs';
-import * as kit from '#kit/quadra.mjs';
+import { watchHalftime, halftimeAttrs, halftimeClock, halftimeEnd } from '#kit/quadra.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { tvOf, channelsOf, watchOf, replayHint } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
@@ -85,7 +85,7 @@ function keepPictures(node, list, keep) {
   }
 }
 export const spinner = () => el('div', { class: 'center-spin' }, [el('div', { class: 'spinner' })]);
-export const empty = text => kitUI.empty?.({ title: text }) ?? el('p', { class: 'empty', text });
+export const empty = text => kitUI.empty({ title: text });
 export const $ = id => document.getElementById(id);
 
 // ---- Wide tables -----------------------------------------------------------------------
@@ -219,8 +219,8 @@ export const withWatch = (row, e) => {
 // national side's flag, else the name's first letter.
 // onWhite: drawn on a white disc in every theme (a face's team badge):
 // never the dark screen's version (the Rays' light mark vanished on it).
-// A game's two sides in the kit's order (soccer home first, the rest away first); a local copy for old cached kits.
-export const sidesOf = e => kitTeams.sidesInOrder?.({ home: e.home, away: e.away, sport: e.league }) ?? (LEAGUES[e.league]?.sport === 'soccer' ? [e.home, e.away] : [e.away, e.home]);
+// A game's two sides in the kit's order (soccer home first, the rest away first).
+export const sidesOf = e => sidesInOrder({ home: e.home, away: e.away, sport: e.league });
 export function logo(url, name, cls = '', { onWhite = false } = {}) {
   const fallback = () => {
     const flag = countryFlag(name);
@@ -288,19 +288,19 @@ const atHalftime = e => e.kind === 'match' && e.status?.state === 'in' && !e.sta
 export function halftimeKey(e) {
   if (!atHalftime(e)) return null;
   const key = `sports:${e.league}:${e.id}`;
-  kit.watchHalftime?.(key, { sport: LEAGUES[e.league].sport, league: e.league, read: () => espnSummary(e.league, e.id) });
+  watchHalftime(key, { sport: LEAGUES[e.league].sport, league: e.league, read: () => espnSummary(e.league, e.id) });
   return key;
 }
 // What a status's element carries to tick (中場休息 12:34), drawn with statusText's words.
 export const halftimeTick = (e, label = statusText(e)) => {
   const key = halftimeKey(e);
-  return key && kit.halftimeAttrs ? kit.halftimeAttrs(key, label.replace(/\s+\d+:\d{2}$/, '')) : {};
+  return key ? halftimeAttrs(key, label.replace(/\s+\d+:\d{2}$/, '')) : {};
 };
 export function statusText(e) {
   const { t } = ctx;
   const s = e.status;
   const ht = halftimeKey(e);
-  if (ht) return [liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale), kit.halftimeClock?.(kit.halftimeEnd?.(ht))].filter(Boolean).join(' ');
+  if (ht) return [liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale), halftimeClock(halftimeEnd(ht))].filter(Boolean).join(' ');
   if (s.void) return t('postponed');
   // Waiting (rain, a late start): still on, not called off.
   if (s.delayed && s.state === 'pre') return t('delayed');
@@ -369,7 +369,7 @@ function statusEl(e, day = true) {
   const text = statusText(e);
   // At half-time: 中場休息, its countdown under it, ticking (the line kept for it before the countdown is known).
   const ht = halftimeKey(e);
-  if (ht && kit.halftimeAttrs) return el('span', { class: 'event-status in clocked' }, [el('span', { text: text.replace(/\s+\d+:\d{2}$/, '') }), el('small', { class: 'num', ...kit.halftimeAttrs(ht), text: /\d+:\d{2}$/.exec(text)?.[0] || '' })]);
+  if (ht) return el('span', { class: 'event-status in clocked' }, [el('span', { text: text.replace(/\s+\d+:\d{2}$/, '') }), el('small', { class: 'num', ...halftimeAttrs(ht), text: /\d+:\d{2}$/.exec(text)?.[0] || '' })]);
   const clockAt = e.status.state === 'in' ? /^(.+?)\s+(\d{1,2}:\d{2}(?:\.\d)?)$/.exec(text) : null;
   if (clockAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: clockAt[1] }), el('small', { class: 'num', text: clockAt[2] })]);
   // Paused mid-game (rain): the period, 暫停 under it (two lines drawn for it, never a wrap).
@@ -687,8 +687,8 @@ export function segmented(options, current, onPick, cls = '', { seg = false } = 
   );
 }
 export function section(title, content, { sub = '', action = null, cls = '' } = {}) {
-  // The kit's head (its h2 and chevron more); an old kit keeps the plain one.
-  const head = kitUI.sectionHead?.(title) ?? el('div', { class: 'q-section-head' }, [el('h2', { text: title })]);
+  // The kit's head (its h2 and chevron more).
+  const head = kitUI.sectionHead(title);
   if (action) head.append(action);
   return el('section', { class: `q-section ${cls}` }, [head, sub ? el('p', { class: 'section-sub', text: sub }) : null, content]);
 }

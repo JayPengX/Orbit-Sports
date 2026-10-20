@@ -3,7 +3,6 @@
 // and the days and hours a game is filed under.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { taipeiDate } from '../public/lib/days.mjs';
 import { onAir, dueToStart, sessionStatus, feedStatus, feedEnded, feedOnAt, settleField, splitWeekend, titlesAt, usDayOf, pastPage, startOf, parseStatus, overByRule, seriesWinner, decidedSide, settleSeries, favChance } from '../public/lib/espn.mjs';
 
 const now = Date.parse('2026-10-11T10:05:00Z');
@@ -94,9 +93,6 @@ test('the ESPN day page a game is on: New York’s date, summer time and winter 
   assert.equal(usDayOf('2026-11-01T04:30Z'), '20261101');
   assert.equal(usDayOf('2026-11-01T03:59Z'), '20261031');
   assert.equal(usDayOf('not a date'), '');
-  // Taiwan's date of a moment (UTC+8, no summer time).
-  assert.equal(taipeiDate('2026-10-11T15:59Z'), '2026-10-11');
-  assert.equal(taipeiDate('2026-10-11T16:00Z'), '2026-10-12');
 });
 
 test('a play-off game dated before its hour: placed at 20:00 New York, its time 待定, in summer and winter', () => {

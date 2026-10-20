@@ -2,17 +2,12 @@
 // the proxy, kept half an hour) and, for the NBA, NBA.com's Taiwan schedule
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
-import { proxyJson, packJson } from '#kit/quadra.mjs';
+import { proxyJson, packJson, taipeiDay } from '#kit/quadra.mjs';
 import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { watchOf as packOf, loadWatchMonth } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
-import * as quadra from '#kit/quadra.mjs';
-import { taipeiDate } from './days.mjs';
-
-// A time's day in Taiwan (a number: ms): the kit's, or days.mjs's on an older kit.
-const taipeiDay = quadra.taipeiDay ?? taipeiDate;
 
 let changed = () => {};
 export const onTvChange = fn => (changed = fn);

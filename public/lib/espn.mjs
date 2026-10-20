@@ -21,8 +21,8 @@ import { LEAGUES } from './leagues.mjs';
 import { athleteAverages, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
-import * as kit from '#kit/quadra.mjs';
-const { proxyJson } = kit;
+import { proxyJson, packJson, peekJson } from '#kit/quadra.mjs';
+import { mlbPostseason, mlbPostseasonUrl, mlbGameFor as postGameFor, mlbGone } from '#kit/postseason.mjs';
 import { stageFrom, roundName } from './stage.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { groupZh } from './statnames.mjs';
@@ -403,19 +403,15 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
 // (kit/postseason.mjs: one small read for all of October, minutes fresh) is
 // one moment for all of them: every playoff game to come takes its time,
 // 待定 and 如需 from it, and one MLB no longer lists (its series over) goes.
-// An older kit without it: as before.
-const postKit = import('#kit/postseason.mjs').catch(() => null);
 let postNow = null;
 // (A team's schedule has no round: its note says it, "ALCS - Game 3".)
 const waitingPost = e => e?.league === 'mlb' && (e.round || /\bgame \d/i.test(e.note || '')) && e.status?.state === 'pre';
 export async function loadPostseason(events) {
   if (!events.some(waitingPost)) return postNow;
-  const k = await postKit;
-  if (!k?.mlbPostseason) return postNow;
   // Only games from yesterday's US date on are taken off (one of last night's not started yet is still listed).
   const from = mlbDate(Date.now() - 86_400_000);
-  const data = await getJson(k.mlbPostseasonUrl(from.slice(0, 4)), { ttl: 5 * 60_000, mirror: false }).catch(() => null);
-  if (data?.dates) postNow = { k, from, list: k.mlbPostseason(data) };
+  const data = await getJson(mlbPostseasonUrl(from.slice(0, 4)), { ttl: 5 * 60_000, mirror: false }).catch(() => null);
+  if (data?.dates) postNow = { from, list: mlbPostseason(data) };
   return postNow;
 }
 export function byMlbPostseason(list, post = postNow) {
@@ -426,10 +422,10 @@ export function byMlbPostseason(list, post = postNow) {
       out.push(e);
       continue;
     }
-    const g = post.k.mlbGameFor(post.list, e);
+    const g = postGameFor(post.list, e);
     if (!g) {
       // Not on MLB's list, its series over: it won't be played.
-      if (!post.k.mlbGone?.(post.list, e, mlbDate(e.start), post.from)) out.push(e);
+      if (!mlbGone(post.list, e, mlbDate(e.start), post.from)) out.push(e);
       continue;
     }
     const plainNote = e.note.replace(/\s*-?\s*if necessary/i, '');
@@ -458,11 +454,11 @@ async function withMlbLive(events) {
 // A league's whole year of games: the nightly pack (Shared-Data, built
 // at midnight), never ESPN's 6 MB year page through the proxy (a few at once
 // ran the proxy out of memory, and parsing them froze the phone). Only an
-// older kit, or a pack not built yet, reads the page itself.
+// pack not built yet, reads the page itself.
 export function yearPage(league, year) {
   const l = LEAGUES[league];
   const direct = () => getJson(`${SITE}/${l.espn}/scoreboard?dates=${year}&limit=500`, { ttl: 6 * 3_600_000 });
-  return kit.packJson ? kit.packJson(`sports/${league}/${year}.json`).catch(direct) : direct();
+  return packJson(`sports/${league}/${year}.json`).catch(direct);
 }
 
 // A whole season of a race series (ESPN answers
@@ -1341,8 +1337,8 @@ export async function winNow(e) {
 }
 export async function winLine(e) {
   if (!PM_LEAGUE[e.league] || e.kind !== 'match' || (e.status.state !== 'in' && e.status.state !== 'post')) return null;
-  if (e.status.state === 'post' && kit.packJson) {
-    const month = await kit.packJson(monthPack(e.league, e.start), { ttl: 6 * 3_600_000 }).catch(() => null);
+  if (e.status.state === 'post') {
+    const month = await packJson(monthPack(e.league, e.start), { ttl: 6 * 3_600_000 }).catch(() => null);
     const kept = month?.games?.[gameKey(e.league, e)];
     if (kept?.none) return null;
     if (kept) return unpackLine(kept);
@@ -1360,8 +1356,8 @@ export async function raceWinLine(ss) {
   const state = ss.status.state;
   // A race to come: its prices as of now each time it's opened (kept half a minute, not five: a qualifying just over moves them).
   if (state === 'pre') return raceNow(ss.start, (url, { trim = '', kind }) => getJson(url, { trim, ttl: kind === 'now' ? 30_000 : PM_TTL[kind] ?? 5 * 60_000 }));
-  if (state === 'post' && kit.packJson) {
-    const month = await kit.packJson(monthPack('f1', ss.start), { ttl: 6 * 3_600_000 }).catch(() => null);
+  if (state === 'post') {
+    const month = await packJson(monthPack('f1', ss.start), { ttl: 6 * 3_600_000 }).catch(() => null);
     const kept = month?.games?.[raceKey(ss.start)];
     if (kept?.none) return null;
     if (kept) return unpackRace(kept);
@@ -1501,13 +1497,13 @@ export async function standings(league, { season = null } = {}) {
 // while the fresh one is read (a tap on 排名 waited seconds for it, 2026-10-15).
 export async function savedStandings(league) {
   if (LEAGUES[league].asia) return null;
-  const saved = await kit.peekJson(standingsUrl(league)).catch(() => null);
+  const saved = await peekJson(standingsUrl(league)).catch(() => null);
   return saved?.data ? standingsOf(saved.data, league) : null;
 }
 // CPBL's tables: the league's own (Shared-Data's nightly copy: the half on
 // now, the other half, the year), with the games finished since it was
 // built put in (a night's games before midnight). Only this season's.
-export const cpblPack = async () => kit.packJson('sports/cpbl/standings.json', { ttl: 30 * 60_000 });
+export const cpblPack = async () => packJson('sports/cpbl/standings.json', { ttl: 30 * 60_000 });
 export async function asiaStandings(league, season = null) {
   if (league !== 'cpbl') return [];
   const [pack, events] = await Promise.all([cpblPack(), asiaEvents(league).catch(() => [])]);

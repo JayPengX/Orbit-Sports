@@ -522,8 +522,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .wp-chart { display: block; width: 100%; height: 90px; }
 /* Which side the line leans to: the home side at the top, the away side at the bottom. */
 .wp-plot { position: relative; margin-top: 6px; }
-.wp-area { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: none; }
-.wp-line { fill: none; stroke: var(--accent); stroke-width: 2.2; vector-effect: non-scaling-stroke; }
 .wp-mid { stroke: var(--q-border); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
 /* Races, tournaments, fight cards, draws */
 .field { list-style: none; margin: 8px 0 0; padding: 0; background: var(--q-surface); border: 1px solid transparent; border-radius: var(--q-radius); }
@@ -597,9 +595,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .cmp-row.form .form-pills:last-child { grid-area: home; }
 .cmp-row.form .form-pills { flex-wrap: wrap; min-width: 0; }
 .info-list { list-style: none; margin: 0; padding: 0; display: grid; }
-.info-list li { display: grid; grid-template-columns: 22px 5.5em minmax(0, 1fr); align-items: start; column-gap: 10px; padding: 10px 0; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 14px; line-height: 1.45; }
+.info-list li { display: grid; grid-template-columns: minmax(5.5em, auto) minmax(0, 1fr); align-items: start; column-gap: 10px; padding: 10px 0; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 14px; line-height: 1.45; }
 .info-list li:first-child { border-top: 0; }
-.info-list li:not(:has(.info-icon)) { grid-template-columns: minmax(5.5em, auto) minmax(0, 1fr); }
 .info-k { color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .info-v { text-align: left; overflow-wrap: break-word; word-break: normal; font-weight: 600; min-width: 0; }
 .info-list.sessions .info-v { text-align: right; }
@@ -842,9 +839,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .lp-goals .lg-min { display: grid; gap: 1px; font-size: 12.5px; font-weight: 750; color: var(--q-muted); white-space: nowrap; }
 .lg-who { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; }
 .lg-who.tap:active { opacity: .6; }
-.lp-goals .lg-who .logo, .lp-goals .lg-who .person-pic { flex: none; }
-/* The scorer's face well bigger than the assist's (18px). */
-.lp-goals .lg-who > .person-pic { width: 38px; height: 38px; }
+.lp-goals .lg-who .logo { flex: none; }
 .lg-text { display: grid; gap: 1px; min-width: 0; }
 .lp-goals .lg-name { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
 .lg-sub { font-size: 12px; color: var(--q-muted); font-weight: 600; }
@@ -852,7 +847,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 /* An assist: the player's small face and name, a tap to their page. */
 .lg-help { display: flex; min-width: 0; }
 .lg-assist { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 0; border: 0; background: none; color: var(--q-muted); font: inherit; font-size: 12px; font-weight: 650; white-space: nowrap; }
-.lg-assist .logo, .lg-assist .person-pic { width: 18px; height: 18px; flex: none; }
+.lg-assist .logo { width: 18px; height: 18px; flex: none; }
 .lg-assist.tap:active { opacity: .6; }
 .lp-goals .lg-name.one-line { display: block; white-space: nowrap; overflow: hidden; }
 /* One line each, a little smaller where it's long (fitLine), never cut. */
@@ -1029,10 +1024,6 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .f1-team .logo.xxs { width: 14px; height: 14px; font-size: 7px; }
 .f1-res { display: grid; justify-items: end; gap: 4px; min-width: 0; }
 .f1-main { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
-.f1-tags { display: inline-flex; gap: 6px; align-items: center; color: var(--q-muted); white-space: nowrap; }
-.f1-tags small { font-size: 12px; font-weight: 650; }
-.f1-tags .up { color: var(--q-good); }
-.f1-tags .down { color: var(--q-bad); }
 .f1-pill { font-size: 11px !important; font-weight: 750 !important; line-height: 1.6; padding: 0 7px; border-radius: 999px; background: var(--q-fill, var(--q-sunken)); color: var(--q-text-2, var(--q-text)); }
 .f1-pill.fl { color: #a855f7; background: color-mix(in srgb, #a855f7 16%, transparent); }
 .f1-pill.bad { color: var(--q-bad); background: color-mix(in srgb, var(--q-bad) 14%, transparent); }
@@ -1307,11 +1298,6 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .standings tr.out td {
   opacity: 0.55;
 }
-@keyframes q-pulse {
-  50% {
-    opacity: 0.35;
-  }
-}
 /* A playoff series' sheet: the two sides and their wins, then each game. */
 .tie-head { display: grid; gap: 8px; padding: 4px 2px 14px; }
 .tie-head .mini-h { margin: 0; }
@@ -1352,7 +1338,6 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .wp-axis-in { margin-left: 30px; }
 .wp-gain { --side: var(--q-text-2); color: var(--side); background: color-mix(in srgb, var(--side) 16%, transparent); }
 .wp-gain.home, .wp-gain.away { color: var(--side); background: color-mix(in srgb, var(--side) 16%, transparent); }
-.wp-line { stroke-width: 2.4; }
 /* The F1 chart's drivers: each face in a ring of their team's colour (a teammate's dashed, as their line). */
 .rc-chips { gap: 6px 12px; }
 .rc-chip i.rc-face { display: inline-grid; width: 24px; height: 24px; border-radius: 50%; background: none; box-sizing: border-box; border: 2px solid var(--team); padding: 1px; }
@@ -1560,25 +1545,11 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lc-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .lc-line.dash { stroke-dasharray: 5 4; }
 .lc-pit { fill: var(--q-surface, #1c1c1e); stroke-width: 2; }
-.lc-tyres { display: grid; gap: 4px; }
-.lc-tyre-row { position: relative; height: 10px; }
-.lc-tyre-who { position: absolute; left: 0; top: -2px; font-size: 10px; font-weight: 800; color: var(--q-muted); }
-.lc-tyre-track { position: relative; display: block; height: 10px; border-radius: 3px; background: var(--q-fill, rgba(127,127,127,.12)); }
-.lc-tyre-track .stint { position: absolute; top: 0; bottom: 0; min-width: 0; border-radius: 3px; }
-.lc-rows li { grid-template-columns: 22px 104px minmax(0, 1fr) auto; }
-.lc-pace { margin: 0; font-size: 13px; font-weight: 650; }
 .fs-empty { margin: 4px 0; }
 .face-btn { flex: none; display: inline-grid; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
-.lc-stints { display: grid; gap: 6px; }
-.lc-stint-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; }
-.lc-key { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
-.lc-key-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 650; white-space: nowrap; }
 .lc-key-line svg { display: block; width: 22px; height: 6px; overflow: visible; }
 .lc-key-note { margin: 4px 0 0; }
 .lc-more { justify-self: center; }
-.lc-tyrenow > span { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; white-space: nowrap; }
-.lc-tyrenow .tyre { width: 16px; height: 16px; }
-.lc-tyrenow small { color: var(--q-muted); }
 .lc-grid.zero { stroke: var(--q-muted); stroke-dasharray: 3 3; }
 /* The live head: one card, the lap large, the flag a dot and a word, race control's word under a hairline. */
 .lb-top { gap: 10px; padding: 14px 16px; background: var(--q-surface); }
@@ -1671,7 +1642,6 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lc-sc { fill: color-mix(in srgb, #eab308 16%, transparent); }
 .lc-sc.vsc { fill: color-mix(in srgb, #eab308 10%, transparent); }
 .lc-sc-t { fill: #ca8a04; font-size: 8.5px; font-weight: 800; }
-.lc-foot { display: grid; gap: 2px; }
 .pw-rows li { grid-template-columns: 22px auto minmax(0, 1fr) auto; gap: 8px; }
 .pw-who { display: grid; gap: 1px; min-width: 0; }
 .pw-who strong { font-size: 13.5px; font-weight: 700; white-space: nowrap; }

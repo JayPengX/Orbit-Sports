@@ -9,13 +9,13 @@ import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
 import { knownHighlights } from './lib/highlights.mjs';
 import { stageTag } from './lib/stage.mjs';
 
-// An icon from the kit (empty on a phone still running an old kit).
-export const icon = name => kitUI.icons?.[name] || '';
+// An icon from the kit.
+export const icon = name => kitUI.icons[name] || '';
 const en = () => ctx.locale === 'en';
 
 // The page's head: a title, an action at the right.
 export function pageHead(title, action = null) {
-  return el('header', { class: 'q-page-head sp-head' }, [el('div', { class: 'sp-head-text' }, [kitUI.navTitle?.(title) ?? el('h1', { text: title })]), action]);
+  return el('header', { class: 'q-page-head sp-head' }, [el('div', { class: 'sp-head-text' }, [kitUI.navTitle(title)]), action]);
 }
 // A head's action: a tinted capsule with its glyph (管理, 追蹤).
 export const headAction = (label, glyph, onclick, on = false) =>
@@ -108,8 +108,7 @@ export function sportTile({ key, name, marks, order, onclick }) {
 // 聯賽: a followed league as the kit's tile for a rail; a tap opens it in 賽事.
 export function leagueTile(key, onOpen) {
   const name = leagueName(key, ctx.locale).replace(/\s.*$/, '');
-  const tile = kitUI.leagueTile?.({ logo: leagueLogo(key), name, onOpen: () => onOpen(key) });
-  if (!tile) return el('button', { class: 'q-press', type: 'button', text: name, onclick: () => onOpen(key) });
+  const tile = kitUI.leagueTile({ logo: leagueLogo(key), name, onOpen: () => onOpen(key) });
   // The tile turns dark grey in dark mode: the league's dark-screen logo there.
   const img = tile.querySelector('.q-logo img');
   const dark = leagueLogoDark(key);

@@ -323,7 +323,7 @@ test("byMlbPostseason: one series' days from different copies (G4 待定, G5 tim
       { ...g('7', 'ALDS - Game 4', '2026-10-09T00:00Z', 'Chicago White Sox', 'Cleveland Guardians'), status: { state: 'post' } },
       { id: '8', league: 'nba', note: 'Game 1', status: { state: 'pre' } }
     ],
-    { k, from: '2026-10-09', list }
+    { from: '2026-10-09', list }
   );
   const by = Object.fromEntries(out.map(e => [e.id, e]));
   assert.equal(by['4'], undefined);

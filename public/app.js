@@ -9,11 +9,10 @@
 // What the person follows lives on the pass (this app's payload): leagues in
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
-import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, keepOffline, onlineOnly, netState } from '#kit/quadra.mjs';
+import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/quadra.mjs';
 import { stripDays } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
-import * as kit from '#kit/quadra.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { transition } from './lib/notice.mjs';
 import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList } from './lib/espn.mjs';
@@ -38,8 +37,7 @@ import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, 
 import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, statusText, halftimeTick, sideLine, eventRow, sheet, section, moreButton, logo, leagueChip, leagueMark, twChips, seriesText, segmented, liveLine, fieldNow, podium, sideLogo, f1Brief, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic, replayChips } from './ui.js';
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
-// New kit names through the module (a phone can still run an older kit).
-import * as kitNames from '#kit/names.mjs';
+import { teamsByZh } from '#kit/names.mjs';
 import { icon, pageHead, headAction, heroGame, scoreCard, sportTile, leagueTile, SPORT_COLOR } from './cards.js';
 
 // Shared-Data's pack of recent games (set as the app starts, below), and the
@@ -53,10 +51,6 @@ const prefetchVideos = events => void (watchPack || Promise.resolve()).then(() =
 // League between editions) is hidden, and a sport with none left with it. Checked
 // once and kept on the device for 12 hours.
 const ACTIVE_KEY = 'fx.active.v2';
-// The copies of before (v1, fx.day.v3), which could hold a failed read as "no games", go.
-try {
-  for (const k of ['fx.active.v1', 'fx.day.v3']) localStorage.removeItem(k);
-} catch {}
 let activeSet = (() => {
   try {
     const x = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null');
@@ -905,10 +899,6 @@ function pickedToday() {
   } catch {}
   return new Set();
 }
-// (A day's saved picks, 2026-10-18 for a few hours: no longer kept.)
-try {
-  localStorage.removeItem('sports.dayPins.v1');
-} catch {}
 function notePicked(events) {
   const keys = pickedToday();
   const had = keys.size;
@@ -1132,7 +1122,7 @@ function revealDay(s) {
 // The days each league can be asked for (Shared-Data's nightly
 // sports/bounds.json): read once a session; null until read (nothing locked).
 let allBounds = null;
-const boundsRead = (kit.packJson?.('sports/bounds.json', { ttl: 12 * 3_600_000 }) || Promise.reject(new Error('old kit')))
+const boundsRead = packJson('sports/bounds.json', { ttl: 12 * 3_600_000 })
   .then(d => {
     allBounds = d?.leagues || null;
     // The strips drawn before it: their ends now.
@@ -1152,7 +1142,7 @@ function leagueDays(league, then) {
   if (!seasonDays.has(league)) {
     seasonDays.set(league, null);
     const own = () => seasonEvents(league).then(list => list.filter(e => !e.status?.void).map(e => localDate(Date.parse(e.start))));
-    const read = LEAGUES[league].espn && kit.packJson ? kit.packJson(`sports/${league}/days.json`, { ttl: 12 * 3_600_000 }).then(d => d?.days || []) : own();
+    const read = LEAGUES[league].espn ? packJson(`sports/${league}/days.json`, { ttl: 12 * 3_600_000 }).then(d => d?.days || []) : own();
     read
       .then(list => {
         if (!list.length) return seasonDays.delete(league);
@@ -2175,7 +2165,7 @@ function tagGroups(league, events, redraw) {
 function watchMonthsOf(events) {
   const months = new Map();
   for (const e of events) if (watchMonthWanted(e) && !months.has(watchMonthPath(e))) months.set(watchMonthPath(e), e);
-  return Promise.all([...months.values()].map(e => loadWatchMonth(e, kit.packJson)));
+  return Promise.all([...months.values()].map(e => loadWatchMonth(e, packJson)));
 }
 async function pickScoresDay(d) {
   const sc = state.scores;
@@ -2316,7 +2306,7 @@ async function runSearch(query, again = false) {
       busy
         ? spinner()
         : found?.failed
-          ? (kitUI.empty?.({ title: t('searchFailed'), action: { label: t('retry'), onTap: () => runSearch(query) } }) ?? el('div', { class: 'empty' }, [el('p', { class: 'muted', text: t('searchFailed') }), el('button', { class: 'q-btn small', type: 'button', text: t('retry'), onclick: () => runSearch(query) })]))
+          ? kitUI.empty({ title: t('searchFailed'), action: { label: t('retry'), onTap: () => runSearch(query) } })
           : !leagues.length && !found?.teams.length && !found?.players.length
             ? empty(t('noResults'))
             : null
@@ -2329,7 +2319,7 @@ async function runSearch(query, again = false) {
   // Madrid, Real Sociedad, Real Betis…), each searched by its English name,
   // and the words translated for anything else (a player's name). A machine
   // translation alone turned 皇家 into "Royal".
-  const byName = /[\u3400-\u9fff]/.test(query) ? kitNames.teamsByZh?.(query, 5) || [] : [];
+  const byName = /[\u3400-\u9fff]/.test(query) ? teamsByZh(query, 5) : [];
   if (/[\u3400-\u9fff]/.test(query)) q = await translate(query, 'en', 'zh-TW').catch(() => query);
   // A search that couldn't be read says so (never "nothing matches"), and is asked again once a little later.
   const lists = await Promise.all([...byName.map(x => searchEspn(x.name).catch(() => null)), searchEspn(q).catch(() => null)]);
@@ -2428,7 +2418,7 @@ function renderScores() {
   const sportOrder = shownSports().sort((a, b) => followedSports().includes(b) - followedSports().includes(a));
   const rail = [...state.prefs.leagues.filter(isActive), ...sportOrder.flatMap(sp => shownLeaguesOf(sp).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top)).filter(k => !mine.has(k)))];
   const leagueChips = el('div', { class: 'q-chips league-rail' }, [
-    el('button', { class: 'q-chip search-chip', type: 'button', 'aria-label': L({ zh: '搜尋', en: 'Search' }), html: icon('search') || '⌕', onclick: openSearch }),
+    el('button', { class: 'q-chip search-chip', type: 'button', 'aria-label': L({ zh: '搜尋', en: 'Search' }), html: icon('search'), onclick: openSearch }),
     ...rail.map(k =>
       el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), locale === 'en' ? leagueName(k, locale) : leagueName(k, locale).replace(/\s.*$/, '')])
     )
@@ -3084,7 +3074,7 @@ function liveTick() {
   const onScreen = (state.tab === 'home' && state.home.date === today()) || state.tab === 'live' || state.tab === 'following';
   // The whole day every two minutes; between, only the pages with a game on.
   if (Date.now() - (day?.fullAt || 0) > 120_000) loadDay(today());
-  else if (onScreen && live && age > kit.dev('sportsList') * 1000 - 2_000) loadDay(today(), { live: true });
+  else if (onScreen && live && age > dev('sportsList') * 1000 - 2_000) loadDay(today(), { live: true });
   // 首頁 on another day: past midnight it still shows the evening's games,
   // some still on (a 22:00 kick-off). Those are watched as today's are (the
   // whole day every two minutes, between only their pages), and any newer
@@ -3096,14 +3086,14 @@ function liveTick() {
     const on = dayAll(held).some(e => e.status.state === 'in' || dueToStart(e));
     const since = Date.now() - (held?.at || 0);
     if (on && Date.now() - (held?.fullAt || 0) > 120_000) loadDay(state.home.date);
-    else if (on && since > kit.dev('sportsList') * 1000 - 2_000) loadDay(state.home.date, { live: true });
+    else if (on && since > dev('sportsList') * 1000 - 2_000) loadDay(state.home.date, { live: true });
     else if (!on && since > 10 * 60_000) loadDay(state.home.date);
   }
   // 比分 too: a game on, or one due to start (it had waited for another game on to be read again).
   if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in' || dueToStart(e))) loadScores({ quiet: true });
   renderTabs();
 }
-kit.everyDev('sportsList', liveTick);
+everyDev('sportsList', liveTick);
 document.addEventListener('visibilitychange', liveTick);
 
 // ELTA's schedule came in: its 📺 channels appear (or go) on the open tab.
@@ -3170,15 +3160,10 @@ async function pollF1Live() {
     renderTabs();
   }
 }
-kit.everyDev('f1Feed', pollF1Live);
+everyDev('f1Feed', pollF1Live);
 document.addEventListener('visibilitychange', pollF1Live);
 
 window.__fxStarted = true;
-// 最新動態 is gone (2026-10-09): its cards kept on the phone go too.
-try {
-  localStorage.removeItem('fx.latest.v1');
-  localStorage.removeItem('fx.latest.prompt');
-} catch {}
 const gated = installGate('match', locale);
 watchUpdates({ current: document.querySelector('meta[name="build-version"]')?.content, key: 'quadraFixtures', cachePrefix: 'quadra-fixtures-' });
 const actions = topActions(q, { refresh: reloadNow });
@@ -3186,7 +3171,7 @@ const actions = topActions(q, { refresh: reloadNow });
 // official highlights and whether ELTA has its whole game, so a sheet has
 // its video at once and a card its replay. Kept on the device: an open
 // after the first has it before the loading screen lifts.
-watchPack = (kit.packJson?.('sports/watch.json', { ttl: 30 * 60_000 }) || Promise.reject(new Error('old kit')))
+watchPack = packJson('sports/watch.json', { ttl: 30 * 60_000 })
   .then(p => {
     setWatchPack(p);
     if (state.tab === 'home') renderHome();
