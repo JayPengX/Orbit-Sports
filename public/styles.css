@@ -386,6 +386,7 @@ img { max-width: 100%; }
   font-weight: 800; font-size: 11px; border-radius: 50%; line-height: 1;
 }
 .logo-fallback.lg, .logo-fallback.xl, .logo-fallback.xxl { font-size: 26px; }
+.logo-fallback.mark svg { width: 58%; height: 58%; }
 /* One of today's picks among the games on now: said on its row. */
 @keyframes pulse { 50% { opacity: 0.3; } }
 .logo-wrap { display: inline-flex; flex: none; line-height: 0; }

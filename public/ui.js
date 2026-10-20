@@ -230,7 +230,7 @@ export const sidesOf = e => sidesInOrder({ home: e.home, away: e.away, sport: e.
 export function logo(url, name, cls = '', { onWhite = false } = {}) {
   const fallback = () => {
     const flag = countryFlag(name);
-    return flag ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: flag }) : el('span', { class: `logo logo-fallback ${cls}`, 'aria-hidden': 'true', text: (name || '?').trim().slice(0, 1) });
+    return flag ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: flag }) : markPic('shield', name, cls) || el('span', { class: `logo logo-fallback ${cls}`, 'aria-hidden': 'true', text: (name || '?').trim().slice(0, 1) });
   };
   return logoPicture(smallPhoto(freshHeadshot(url)), onWhite ? null : darkLogo(url), `logo ${cls}${PLATED.test(url || '') ? ' plate' : ''}`, fallback);
 }
@@ -259,7 +259,16 @@ export function personPic(p, league, cls = '') {
   const stand = () => (league === 'f1' ? driverBadge(name, cls) : flag ? logoPicture(flag, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls));
   return personPhoto(name, league, { urls: [p?.headshot, isFlag(p?.logo) ? null : p?.logo].map(freshHeadshot), guess: freshHeadshot(espnHeadshot(league, p?.id)), later: [espnCollegeHeadshot(league, p?.id)], cls: `logo ${cls}`, fallback: stand });
 }
+// No picture: a drawing of what it is (a shield, a person), never letters (an older kit without the icons: the letters).
+function markPic(icon, name, cls) {
+  const svg = kitUI.icons?.[icon];
+  if (!svg) return null;
+  const span = el('span', { class: `logo logo-fallback mark ${cls}`, role: 'img', 'aria-label': String(name || '') });
+  span.innerHTML = svg;
+  return span;
+}
 const initialsPic = (name, cls) =>
+  markPic('user', name, cls) ||
   el('span', {
     class: `logo logo-fallback ${cls}`,
     'aria-hidden': 'true',
