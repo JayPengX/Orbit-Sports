@@ -4358,6 +4358,14 @@ export async function openPlayer(league, id, fallback = {}) {
       const known = a.team.split(/\s+/).find(w => w.length > 3 && teamNameZh(LEAGUES[league]?.play || league, w, sport));
       if (known) a.team = known;
     }
+    // A new regular season begun and ESPN's card still last season's: this
+    // season's from his games so far (athleteOverview's now), last season's
+    // regular season, playoffs and ranks put away; his career stays.
+    if (ov?.now && !String(a.stats?.title || '').includes(ov.now.name)) {
+      a.stats = ov.now.stats;
+      ov.season = { title: `${ov.now.name} season stats`, rows: [ov.now.row, ...(ov.season?.rows || []).filter(r => /career/i.test(r.name))] };
+      ov.rankings = [];
+    }
     const en = L() === 'en';
     const W = (zh, eng) => (en ? eng : zh);
     // A pitcher's role as he's used now (his last games), not the season's.

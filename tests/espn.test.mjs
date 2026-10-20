@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar , parseSeasonAverages } from '../public/lib/espn.mjs';
+import { parseScoreboard, parseSummary, parseStandings, parseTeam, parseSchedule, parseRoster, parseAthlete, parseCalendar , parseSeasonAverages, logSeasonLine } from '../public/lib/espn.mjs';
 import { LEAGUES, SPORTS } from '../public/lib/leagues.mjs';
 
 const fx = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url)));
@@ -441,4 +441,23 @@ test("a game brought to 'over' takes the newest record too, so the table counts 
   const table = liveTable([{ name: '', rows: [row('337', 6, 10), row('364', 6, 9)] }], [f], 'soccer');
   assert.equal(table.fresh, 1);
   assert.deepEqual(table[0].rows.map(r => [r.id, r.stats.GP, r.stats.P]), [['364', '7', '12'], ['337', '7', '10']]);
+});
+
+test("a new NBA season's numbers so far from the player's own log (preseason and games not played left out)", () => {
+  const labels = ['MIN', 'FG', 'FG%', '3PT', '3P%', 'FT', 'FT%', 'REB', 'AST', 'BLK', 'STL', 'PF', 'TO', 'PTS'];
+  const log = {
+    labels,
+    games: [
+      { stats: ['31', '12-21', '57.1', '7-12', '58.3', '7-8', '87.5', '5', '3', '0', '5', '5', '3', '38'] },
+      { stats: ['29', '6-15', '40.0', '2-6', '33.3', '4-4', '100', '7', '5', '1', '1', '2', '2', '18'] },
+      { stats: ['DNP'] },
+      { pre: true, stats: ['24', '2-10', '20.0', '1-7', '14.3', '0-0', '0', '6', '4', '0', '2', '1', '1', '5'] }
+    ]
+  };
+  const now = logSeasonLine(log, 2027);
+  assert.equal(now.name, '2026-27');
+  assert.deepEqual(now.stats.list.map(x => [x.label, x.value]), [['PPG', '28.0'], ['RPG', '6.0'], ['APG', '4.0'], ['FG%', '50.0']]);
+  assert.equal(now.row.cells.find(c => c.label === 'GP').value, '2');
+  assert.equal(now.row.cells.find(c => c.label === '3P%').value, '50.0');
+  assert.equal(logSeasonLine({ labels, games: [{ pre: true, stats: ['1', '0-1', '0', '0-0', '0', '0-0', '0', '0', '0', '0', '0', '0', '0', '0'] }] }, 2027), null);
 });

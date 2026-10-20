@@ -2000,6 +2000,28 @@ export function parseSeasonLog(data) {
   if (log) log.games = log.games.map(g => (pre.has(g.id) ? { ...g, pre: true } : g));
   return log;
 }
+// A basketball player's regular season so far, added up from his season's
+// log (its preseason left out; a game he didn't play not counted): the
+// card's four (ESPN's statsSummary shape) and the season's row (the
+// overview's columns), or null before his first game. `year`: ESPN's season
+// (2027 is 2026-27).
+export function logSeasonLine(log, year) {
+  const at = k => log?.labels?.indexOf(k) ?? -1;
+  if (!log || at('PTS') < 0) return null;
+  const games = log.games.filter(g => !g.pre && Number.isFinite(Number(g.stats[at('PTS')])));
+  if (!games.length) return null;
+  const sum = k => games.reduce((n, g) => n + (Number(g.stats[at(k)]) || 0), 0);
+  const pair = k => games.reduce(([m, a], g) => { const [x, y] = String(g.stats[at(k)] || '').split('-').map(Number); return [m + (x || 0), a + (y || 0)]; }, [0, 0]);
+  const per = k => (sum(k) / games.length).toFixed(1);
+  const pct = k => { const [m, a] = pair(k); return a ? ((m / a) * 100).toFixed(1) : '0.0'; };
+  const name = `${year - 1}-${String(year).slice(2)}`;
+  const cells = [['GP', 'Games Played', String(games.length)], ['MIN', 'Minutes', per('MIN')], ['FG%', 'Field Goal Percentage', pct('FG')], ['3P%', '3-Point Field Goal Percentage', pct('3PT')], ['FT%', 'Free Throw Percentage', pct('FT')], ['REB', 'Rebounds', per('REB')], ['AST', 'Assists', per('AST')], ['BLK', 'Blocks', per('BLK')], ['STL', 'Steals', per('STL')], ['PF', 'Fouls', per('PF')], ['TO', 'Turnovers', per('TO')], ['PTS', 'Points', per('PTS')]];
+  return {
+    name,
+    stats: { title: `${name} regular season stats`, list: [['PPG', 'Points Per Game', per('PTS')], ['RPG', 'Rebounds Per Game', per('REB')], ['APG', 'Assists Per Game', per('AST')], ['FG%', 'Field Goal Percentage', pct('FG')]].map(([label, n, value]) => ({ label, name: n, value, rank: '' })) },
+    row: { name: 'Regular Season', cells: cells.map(([label, long, value]) => ({ label, long, value })) }
+  };
+}
 export async function athleteOverview(league, id) {
   const season = logSeason(league);
   const [raw, seasonLog] = await Promise.all([
@@ -2011,6 +2033,11 @@ export async function athleteOverview(league, id) {
   const ov = parseOverview(raw);
   const newest = l => Date.parse(l?.games?.[0]?.date || '') || 0;
   if (seasonLog && newest(seasonLog) > newest(ov.log)) ov.log = seasonLog;
+  // A new regular season under way: his numbers so far from his own log
+  // (ESPN's card keeps last season's till it fills in: the sheet swaps them),
+  // and the preseason's games no longer among his last ones.
+  ov.now = LEAGUES[league].sport === 'basketball' ? logSeasonLine(seasonLog, season) : null;
+  if (ov.log && seasonLog?.games.some(g => !g.pre)) ov.log = { ...ov.log, games: ov.log.games.filter(g => !g.pre) };
   // A game's league: the one it names, else (one league to a sport: the NBA's, MLB's) the player's own.
   // Only the competitions Orbit Sports has (a friendly, another country's
   // cup: nothing of theirs to open or name), the last five of them.
