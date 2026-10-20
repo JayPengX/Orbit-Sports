@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, statText, athletesUrls, ATHLETE_STATS, LEAGUE_TOP } from '../public/lib/leaders.mjs';
+import { boxSeasonPage, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, statText, athletesUrls, ATHLETE_STATS, LEAGUE_TOP } from '../public/lib/leaders.mjs';
 
 const a = (id, name) => ({ id, displayName: name, shortName: name.replace(/^(\w)\w+ /, '$1. '), headshot: { href: `${id}.png` } });
 
@@ -124,4 +124,29 @@ test('a game to come: this season\'s roster with the numbers ESPN has (the team\
   assert.equal(out.season.name, '2025-26');
   // No roster read: the team's list as it was.
   assert.equal(rosterAverages(avg, [], new Map()), avg);
+});
+
+test("a new NBA season's first days: its leaders added up from its games' box scores (ESPN's list still last season's)", () => {
+  const keys = ['minutes', 'points', 'fieldGoalsMade-fieldGoalsAttempted', 'threePointFieldGoalsMade-threePointFieldGoalsAttempted', 'freeThrowsMade-freeThrowsAttempted', 'rebounds', 'assists', 'turnovers', 'steals', 'blocks'];
+  const game = (state, rows) => ({
+    header: { competitions: [{ status: { type: { state } } }] },
+    boxscore: { players: [{ team: { id: '2' }, statistics: [{ keys, athletes: rows.map(([id, name, stats, dnp]) => ({ athlete: { id, displayName: name, shortName: name }, stats, didNotPlay: Boolean(dnp) })) }] }] }
+  });
+  const pg = boxSeasonPage(
+    [
+      game('post', [['1', 'P. George', ['31', '38', '12-21', '7-12', '7-8', '5', '3', '3', '5', '0']], ['2', 'J. Tatum', ['38', '18', '6-15', '2-6', '4-4', '10', '11', '2', '1', '0']], ['3', 'Bench', [], true]]),
+      game('post', [['1', 'P. George', ['33', '20', '8-20', '2-8', '2-2', '7', '2', '1', '1', '1']]]),
+      // A game still on: not counted.
+      game('in', [['2', 'J. Tatum', ['20', '40', '15-20', '5-5', '5-5', '9', '9', '0', '0', '0']]])
+    ],
+    { year: 2027, displayName: '2026-27' }
+  );
+  const d = parseAthleteLeaders([pg], 'basketball', 'nba');
+  assert.equal(d.season.name, '2026-27');
+  const st = k => d.stats.find(s => s.key === k).list;
+  assert.deepEqual(st('pts').map(x => [x.name, x.value]), [['P. George', '29.0']]);
+  assert.equal(st('dd')[0].name, 'J. Tatum');
+  assert.equal(st('fg')[0].value, '48.8%');
+  assert.equal(pg.athletes.length, 2);
+  assert.equal(boxSeasonPage([game('in', [])], { year: 2027 }), null);
 });

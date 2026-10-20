@@ -17,7 +17,7 @@ import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGU
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey, withPitchingChange } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { athleteAverages, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf } from './leaders.mjs';
+import { athleteAverages, boxSeasonPage, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
 import { proxyJson, packJson, peekJson } from '#kit/quadra.mjs';
@@ -1760,7 +1760,35 @@ export async function leagueAverages(league) {
 const LEADERS_TTL = 6 * 3_600_000;
 const espnLeagueLeaders = l => getJson(leagueLeadersUrl('soccer', l.espn), { ttl: LEADERS_TTL, trim: 'espn-leaders' }).then(d => parseLeagueLeaders(d, 'soccer'));
 // Basketball's and baseball's: every player's season (one list, MLB's two), ranked here.
-const athletePages = l => Promise.all(athletesUrls(l.sport, l.espn).map(u => getJson(u, { ttl: LEADERS_TTL, trim: 'espn-athletes' })));
+// (A new NBA season under way and ESPN's list still last season's: this
+// season's from its games so far, boxSeason.)
+const athletePages = async l => {
+  const pages = await Promise.all(athletesUrls(l.sport, l.espn).map(u => getJson(u, { ttl: LEADERS_TTL, trim: 'espn-athletes' })));
+  const fresh = l.sport === 'basketball' ? await boxSeason(l, pages[0]).catch(() => null) : null;
+  return fresh ? [fresh] : pages;
+};
+// This regular season's finished games (this month's page and last
+// month's), their box scores added up; null when ESPN's list is this
+// season's already, or the regular season isn't on (the summer: last
+// season's is the one to show). The season from the league's scoreboard
+// (the proxy's trim of the list keeps only the season it answers with).
+async function boxSeason(l, page, now = Date.now()) {
+  const cur = (await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL }))?.leagues?.[0]?.season;
+  if (!cur?.year || !(Number(page?.requestedSeason?.year) < Number(cur.year)) || Number(cur.type?.type) !== 2) return null;
+  const month = ms => new Date(ms).toISOString().slice(0, 7).replace('-', '');
+  const first = month(Date.parse(cur.startDate) || 0);
+  const at = new Date(now);
+  const months = [...new Set([month(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() - 1, 1)), month(now)])].filter(m => m >= first);
+  const lists = await Promise.all(months.map(m => getJson(`${SITE}/${l.espn}/scoreboard?dates=${m}&limit=500`, { ttl: 10 * 60_000 })));
+  const ids = lists
+    .flatMap(d => d?.events || [])
+    .filter(e => e?.status?.type?.state === 'post' && Number(e?.season?.type) === 2 && Number(e?.season?.year) === Number(cur.year))
+    .map(e => e.id)
+    .slice(-120);
+  if (!ids.length) return null;
+  const games = await Promise.all(ids.map(id => getJson(`${SITE}/${l.espn}/summary?event=${encodeURIComponent(id)}`, { ttl: LEADERS_TTL }).catch(() => null)));
+  return boxSeasonPage(games, cur);
+}
 const fotmobPage = league => (fotmobLeagueUrl(league) ? getJson(fotmobLeagueUrl(league), { ttl: LEADERS_TTL }).then(d => parseFotmobPage(d)) : Promise.resolve(null));
 export async function leagueLeaders(league) {
   const l = LEAGUES[league];

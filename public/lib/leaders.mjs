@@ -188,6 +188,55 @@ function rank(pages, sport, league, { top = LEAGUE_TOP, team = null } = {}) {
   return stats.length ? { season, stats } : null;
 }
 export const parseAthleteLeaders = (pages, sport, league) => rank(pages, sport, league);
+
+// A new NBA season's first days: ESPN's list still answers with last
+// season's (it fills in the new one days later), so this season's is
+// added up here from its games' box scores (summaries), in the list's own
+// shape: each player's games, per-game numbers, shooting and double-doubles.
+// `season`: ESPN's currentSeason ({ year, displayName }).
+export function boxSeasonPage(summaries, season) {
+  const players = new Map();
+  for (const data of summaries) {
+    if (data?.header?.competitions?.[0]?.status?.type?.state !== 'post') continue;
+    for (const side of data?.boxscore?.players || []) {
+      const st = side.statistics?.[0];
+      const at = k => (st?.keys || []).indexOf(k);
+      const ix = { min: at('minutes'), pts: at('points'), fg: at('fieldGoalsMade-fieldGoalsAttempted'), tp: at('threePointFieldGoalsMade-threePointFieldGoalsAttempted'), ft: at('freeThrowsMade-freeThrowsAttempted'), reb: at('rebounds'), ast: at('assists'), stl: at('steals'), blk: at('blocks') };
+      if (ix.pts < 0) continue;
+      for (const x of st.athletes || []) {
+        const a = x.athlete || {};
+        const id = String(a.id ?? '');
+        if (!id || x.didNotPlay || !x.stats?.length) continue;
+        const n = i => (i < 0 ? 0 : Number(x.stats[i]) || 0);
+        const pair = i => (i < 0 ? [0, 0] : String(x.stats[i]).split('-').map(v => Number(v) || 0));
+        const p = players.get(id) || { a: { id, displayName: a.displayName || '', shortName: a.shortName || '', teamId: String(side.team?.id ?? '') }, g: 0, min: 0, pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, dd: 0, td: 0 };
+        const [fgm, fga] = pair(ix.fg);
+        const [tpm, tpa] = pair(ix.tp);
+        const [ftm, fta] = pair(ix.ft);
+        const line = { min: n(ix.min), pts: n(ix.pts), reb: n(ix.reb), ast: n(ix.ast), stl: n(ix.stl), blk: n(ix.blk) };
+        const tens = ['pts', 'reb', 'ast', 'stl', 'blk'].filter(k => line[k] >= 10).length;
+        Object.assign(p, { g: p.g + 1, min: p.min + line.min, pts: p.pts + line.pts, reb: p.reb + line.reb, ast: p.ast + line.ast, stl: p.stl + line.stl, blk: p.blk + line.blk, fgm: p.fgm + fgm, fga: p.fga + fga, tpm: p.tpm + tpm, tpa: p.tpa + tpa, ftm: p.ftm + ftm, fta: p.fta + fta, dd: p.dd + (tens >= 2), td: p.td + (tens >= 3) });
+        players.set(id, p);
+      }
+    }
+  }
+  if (!players.size) return null;
+  const per = (v, g) => Math.round((v / g) * 10) / 10;
+  const pct = (m, a) => (a ? Math.round((m / a) * 1000) / 10 : null);
+  const names = { general: ['gamesPlayed', 'avgMinutes', 'avgRebounds', 'doubleDouble', 'tripleDouble'], offensive: ['avgPoints', 'avgAssists', 'avgThreePointFieldGoalsMade', 'fieldGoalsMade', 'threePointFieldGoalsMade', 'freeThrowsMade', 'fieldGoalPct', 'threePointFieldGoalPct', 'freeThrowPct'], defensive: ['avgSteals', 'avgBlocks'] };
+  return {
+    requestedSeason: { year: season?.year, displayName: season?.displayName || '' },
+    categories: Object.entries(names).map(([name, list]) => ({ name, names: list })),
+    athletes: [...players.values()].map(p => ({
+      athlete: p.a,
+      categories: [
+        { name: 'general', values: [p.g, per(p.min, p.g), per(p.reb, p.g), p.dd, p.td] },
+        { name: 'offensive', values: [per(p.pts, p.g), per(p.ast, p.g), per(p.tpm, p.g), p.fgm, p.tpm, p.ftm, pct(p.fgm, p.fga), pct(p.tpm, p.tpa), pct(p.ftm, p.fta)] },
+        { name: 'defensive', values: [per(p.stl, p.g), per(p.blk, p.g)] }
+      ]
+    }))
+  };
+}
 // (A team's: its own fifteen a stat, the leader on its card, the rest in 隊內排行.)
 export const parseTeamAthletes = (pages, sport, league, team) => rank(pages, sport, league, { top: 15, team });
 
