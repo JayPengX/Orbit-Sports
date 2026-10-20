@@ -82,6 +82,8 @@ img { max-width: 100%; }
 .sp-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .sp-head-text { min-width: 0; }
 .sp-head h1 { overflow-wrap: anywhere; }
+/* (The head already sits in the page's margin: the large title's own 16 px each side only pushed it in and cut it.) */
+.sp-head .q-nav-title { padding-inline: 0; }
 .sp-head.long h1 { font-size: 28px; line-height: 34px; }
 .sp-head > .follow-btn, .head-act { flex: none; margin-bottom: 6px; }
 .head-act { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px 0 10px; border: 0; border-radius: 999px; background: var(--accent-wash); color: var(--accent); font: 600 15px/1 var(--q-font); }
