@@ -2022,13 +2022,21 @@ export function logSeasonLine(log, year) {
     row: { name: 'Regular Season', cells: cells.map(([label, long, value]) => ({ label, long, value })) }
   };
 }
+// The season begun, not one game of his in it yet (`none`).
+export function noSeasonLine(year) {
+  const name = `${year - 1}-${String(year).slice(2)}`;
+  return { name, none: true, stats: { title: `${name} regular season stats`, list: [], none: true }, row: { name: 'Regular Season', none: true, cells: [] } };
+}
 export async function athleteOverview(league, id) {
   const season = logSeason(league);
-  const [raw, seasonLog] = await Promise.all([
+  const basketball = LEAGUES[league].sport === 'basketball';
+  const [raw, seasonLog, board] = await Promise.all([
     getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }),
     // ESPN's overview keeps last season's games until a player's first of the
     // new regular season (no preseason): this season's own log, its preseason too.
-    season ? getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/gamelog?season=${season}`, { ttl: 60 * 60_000 }).then(parseSeasonLog, () => null) : null
+    season ? getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/gamelog?season=${season}`, { ttl: 60 * 60_000 }).then(parseSeasonLog, () => null) : null,
+    // (Whether this season's regular season has begun: the league's scoreboard says.)
+    basketball && season ? getJson(`${SITE}/${LEAGUES[league].espn}/scoreboard`, { ttl: LIVE_TTL }).catch(() => null) : null
   ]);
   const ov = parseOverview(raw);
   const newest = l => Date.parse(l?.games?.[0]?.date || '') || 0;
@@ -2036,14 +2044,20 @@ export async function athleteOverview(league, id) {
   // A new regular season under way: his numbers so far from his own log
   // (ESPN's card keeps last season's till it fills in: the sheet swaps them),
   // and the preseason's games no longer among his last ones.
-  ov.now = LEAGUES[league].sport === 'basketball' ? logSeasonLine(seasonLog, season) : null;
-  if (ov.log && seasonLog?.games.some(g => !g.pre)) ov.log = { ...ov.log, games: ov.log.games.filter(g => !g.pre) };
+  // (Begun and none of his yet: this season's, not played yet, never last season's.)
+  const cur = board?.leagues?.[0]?.season;
+  const begun = Number(cur?.year) === season && Number(cur?.type?.type) >= 2;
+  ov.now = basketball ? logSeasonLine(seasonLog, season) || (begun ? noSeasonLine(season) : null) : null;
+  if (ov.log && (begun || seasonLog?.games.some(g => !g.pre))) {
+    // (None left: the log kept empty, its columns for the games newer than it.)
+    ov.log = { ...ov.log, games: ov.log.games.filter(g => !g.pre) };
+  }
   // A game's league: the one it names, else (one league to a sport: the NBA's, MLB's) the player's own.
   // Only the competitions Orbit Sports has (a friendly, another country's
   // cup: nothing of theirs to open or name), the last five of them.
   if (ov.log) {
     ov.log.games = ov.log.games.map(g => ({ ...g, league: g.league || (LEAGUES[league].espn.startsWith('soccer/') ? '' : league), opp: nbaLogo(league, g.opp) })).filter(g => LEAGUES[g.league]).slice(0, 5);
-    if (!ov.log.games.length) ov.log = null;
+    if (!ov.log.games.length && !ov.now) ov.log = null;
   }
   return ov;
 }

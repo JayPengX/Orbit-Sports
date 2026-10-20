@@ -5,7 +5,7 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders } from './lib/espn.mjs';
+import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, logSeasonLine, logSeason } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -4166,6 +4166,34 @@ const LOG_PICKS = {
   pitching: [['IP', 'ER', 'K'], ['DEC', 'H', 'BB', 'HR', 'P', 'ERA']],
   soccer: [['G', 'A'], ['STRT', 'SH', 'ST', 'YC', 'RC']]
 };
+// A season's row (例行賽, 季後賽, 生涯) as a card, as a game is: its games,
+// three numbers big, the rest in a line that wraps. Not played yet: said so.
+const SEASON_PICKS = {
+  basketball: [['PTS', 'REB', 'AST'], ['MIN', 'FG%', '3P%', 'FT%', 'STL', 'BLK', 'TO']],
+  batting: [['AVG', 'H', 'HR', 'RBI'], ['AB', 'R', 'H', '2B', 'BB', 'SO', 'OBP', 'SLG', 'OPS', 'SB']],
+  pitching: [['ERA', 'W', 'K', 'SO'], ['L', 'SV', 'IP', 'WHIP', 'BB']],
+  soccer: [['G', 'A'], ['STRT', 'SHOT', 'SOG', 'YC', 'RC']]
+};
+function seasonRow(r, rows, sport, en) {
+  const W = (zh, eng) => (en ? eng : zh);
+  const name = splitName(r.name, rows, en) || zhLater(r.name);
+  if (r.none) return el('div', { class: 'glog-game' }, [el('div', { class: 'glog-head' }, [el('strong', { class: 'glog-split', text: name })]), el('p', { class: 'muted glog-none', text: W('還沒出賽', 'No games yet') })]);
+  const labels = r.cells.map(c => c.label);
+  const has = k => labels.includes(k);
+  const [big0, small0] = SEASON_PICKS[has('ERA') || has('IP') ? 'pitching' : has('AVG') || has('AB') ? 'batting' : sport] || [[], []];
+  let big = big0.filter(has).slice(0, 3);
+  let small = small0.filter(k => has(k) && !big.includes(k));
+  if (big.length < 2) [big, small] = [labels.filter(k => !/^(GP|G)$/.test(k) || sport === 'soccer').slice(0, 3), labels.slice(3, 9)];
+  const cell = k => r.cells.find(c => c.label === k);
+  const pitching = has('IP');
+  const label = k => statName(k, en ? 'en' : 'zh', { sport, long: cell(k)?.long, pitching });
+  const gp = cell('GP')?.value;
+  return el('div', { class: 'glog-game' }, [
+    el('div', { class: 'glog-head' }, [el('strong', { class: 'glog-split', text: name }), gp ? el('span', { class: 'result-pill', text: W(`${gp} 場`, `${gp} games`) }) : null]),
+    el('div', { class: 'glog-big' }, big.map(k => el('div', { class: 'glog-fig' }, [el('b', { class: 'num', text: cell(k)?.value ?? '–' }), el('small', { text: LOG_BIG[k]?.[en ? 1 : 0] || label(k) })]))),
+    small.length ? el('p', { class: 'glog-more' }, small.map(k => (k === 'MIN' ? el('span', { class: 'num', text: W(`${cell(k).value} 分鐘`, `${cell(k).value} min`) }) : el('span', {}, [`${label(k)} `, el('b', { class: 'num', text: cell(k)?.value ?? '' })])))) : null
+  ]);
+}
 function logPicks(log, sport) {
   const has = k => log.labels.includes(k);
   const [big, small] = LOG_PICKS[has('IP') ? 'pitching' : has('AB') ? 'batting' : sport] || [[], []];
@@ -4183,14 +4211,16 @@ const LOG_SMALL = { FG: ['投籃', 'FG'], '3PT': ['三分', '3PT'], FT: ['罰球
 // box score hasn't: –); a game he didn't play, 未上場.
 async function newerGames(league, id, teamId, log, scheduleOf, name = '') {
   const newest = Date.parse(log.games[0]?.date || '') || 0;
-  const done = (await scheduleOf()).filter(x => x.status?.state === 'post' && !x.status.void && Date.parse(x.start) > newest + 6 * 3_600_000).reverse().slice(0, 5);
+  // (The game on now too: his line so far, said to be live.)
+  const done = (await scheduleOf()).filter(x => (x.status?.state === 'post' || x.status?.state === 'in') && !x.status.void && Date.parse(x.start) > newest + 6 * 3_600_000).reverse().slice(0, 5);
   const lines = await Promise.all(done.map(x => summary(league, x.id).catch(() => null)));
   // MLB: his line from MLB's own box score, every column of the log (ESPN's has no 2B, 3B, GS, CG, SHO).
   const mlb = league === 'mlb' && name ? await Promise.all(done.map(x => mlbGameLog(x, name, log.labels).catch(() => null))) : [];
   return done.map((x, i) => {
     const d = lines[i];
     const { home, us, them } = sidesFor(x, teamId);
-    const result = outcome(us, them);
+    const live = x.status?.state === 'in';
+    const result = live ? '' : outcome(us, them);
     // His row: the table sharing the most columns with the log's (a two-way player's batting or pitching).
     const found = (d?.players || []).flatMap(p => p.tables.map(tb => ({ tb, row: tb.rows.find(r => r.id === String(id)) }))).filter(x => x.row && !x.row.dnp && x.row.stats?.some(v => v !== '' && v != null));
     const best = found.sort((p, q) => q.tb.labels.filter(k => log.labels.includes(k)).length - p.tb.labels.filter(k => log.labels.includes(k)).length)[0];
@@ -4204,7 +4234,7 @@ async function newerGames(league, id, teamId, log, scheduleOf, name = '') {
       return m ? (Number(m[2]) ? ((100 * Number(m[1])) / Number(m[2])).toFixed(1) : '0.0') : '–';
     };
     const stats = mlb[i] || (best ? log.labels.map(val) : log.labels.map((_, k) => (k ? '' : 'DNP')));
-    return { id: String(x.id), date: x.start, at: home ? 'vs' : '@', home, league, leagueName: '', pre: Boolean(x.preseason || /preseason/i.test(x.note || '')), team: { id: String(teamId), abbr: us?.abbr || '', logo: us?.logo || null }, opp: { id: String(them?.id ?? ''), name: them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: sideScore(us, them), stats };
+    return { id: String(x.id), date: x.start, live, at: home ? 'vs' : '@', home, league, leagueName: '', pre: Boolean(x.preseason || /preseason/i.test(x.note || '')), team: { id: String(teamId), abbr: us?.abbr || '', logo: us?.logo || null }, opp: { id: String(them?.id ?? ''), name: them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: sideScore(us, them), stats };
   });
 }
 
@@ -4442,7 +4472,6 @@ export async function openPlayer(league, id, fallback = {}) {
     // ours opens its match.
     const log = ov?.log;
     const compOf = g => (g.league ? leagueName(g.league, L()) : zhLater(g.leagueName, 'en'));
-    const oneComp = log && new Set(log.games.map(g => g.league || g.leagueName)).size === 1 ? log.games[0] : null;
     const matchOf = g => {
       const us = { id: g.team.id, name: g.team.abbr, short: g.team.abbr, abbr: g.team.abbr, logo: g.team.logo };
       const them = { id: g.opp.id, name: g.opp.name, short: g.opp.abbr || g.opp.name, abbr: g.opp.abbr, logo: g.opp.logo };
@@ -4465,8 +4494,10 @@ export async function openPlayer(league, id, fallback = {}) {
       const board = days.length ? (await scoreboard(g.league, days).catch(() => [])).find(x => String(x.id) === String(g.id)) : null;
       ctx.openEvent(board || listed || matchOf(g));
     };
-    const logCardOf = log =>
-      card(
+    const logCardOf = log => {
+      // (One competition for all its games: said once, at the top.)
+      const oneComp = new Set(log.games.map(g => g.league || g.leagueName)).size === 1 ? log.games[0] : null;
+      return card(
           // Last season's (ESPN's until a player's first game of the new one: April's in October), said to be.
           Date.now() - (Date.parse(log.games[0]?.date || '') || Date.now()) > 45 * 86_400_000 ? W(`上季最後 ${log.games.length} 場`, `Last season's last ${log.games.length}`) : W(`近 ${log.games.length} 場`, `Last ${log.games.length} games`),
           el(
@@ -4483,7 +4514,9 @@ export async function openPlayer(league, id, fallback = {}) {
                   el('span', { class: 'glog-date num', text: g.date ? localDate(Date.parse(g.date)).slice(5).replace('-', '/') : '' }),
                   el('span', { class: 'glog-opp' }, [el('span', { class: 'muted', text: g.at === '@' ? '@' : 'vs' }), logo(g.opp.logo, g.opp.name, 'xs'), el('strong', { text: g.opp.abbr || g.opp.name })]),
                   g.pre ? el('small', { class: 'glog-comp', text: W('熱身賽', 'Preseason') }) : !oneComp && (g.league || g.leagueName) ? el('small', { class: 'glog-comp' }, [compOf(g)]) : null,
-                  el('span', { class: `result-pill ${g.result === 'W' ? 'w' : g.result === 'L' ? 'l' : g.result === 'D' || g.result === 'T' ? 'd' : ''}`, text: [g.result ? (en ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result) : '', g.score].filter(Boolean).join(' ') })
+                  g.live
+                    ? el('span', { class: 'result-pill live', text: [W('進行中', 'Live'), g.score].filter(Boolean).join(' ') })
+                    : el('span', { class: `result-pill ${g.result === 'W' ? 'w' : g.result === 'L' ? 'l' : g.result === 'D' || g.result === 'T' ? 'd' : ''}`, text: [g.result ? (en ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result) : '', g.score].filter(Boolean).join(' ') })
                 ]),
                 big.length
                   ? el(
@@ -4511,7 +4544,10 @@ export async function openPlayer(league, id, fallback = {}) {
           ),
           { sub: oneComp && (oneComp.league || oneComp.leagueName) ? compOf(oneComp) : '' }
         );
-    let logCard = log ? logCardOf(log) : null;
+    };
+    // (This season begun, none of his yet: said so, not last season's.)
+    const noGamesCard = () => card(W('近期比賽', 'Games'), el('p', { class: 'muted glog-none', text: W(`${ov.now.name} 例行賽還沒出賽`, `No ${ov.now.name} regular-season games yet`) }));
+    let logCard = log?.games.length ? logCardOf(log) : ov?.now?.none ? noGamesCard() : null;
     const awardsCard = ov?.awards?.length
       ? card(W('榮譽', 'Honours'), el('ul', { class: 'award-list' }, ov.awards.map(w => el('li', {}, [el('strong', {}, [zhLater(w.name)]), w.count ? el('span', { class: 'award-count num', text: w.count.replace(/x$/i, '×') }) : null, w.seasons.length ? el('small', { class: 'muted', text: w.seasons.slice(0, 6).join(' · ') + (w.seasons.length > 6 ? ' …' : '') }) : null]))))
       : null;
@@ -4550,14 +4586,25 @@ export async function openPlayer(league, id, fallback = {}) {
     // Their headshot (ESPN's; none, every footballer: TheSportsDB's cut-out, personPic finds it).
     const pic = el('span', { class: 'pic-slot' }, [personPic({ id, name: a.name, headshot: a.headshot, logo: fallback.logo, flag: a.flag }, league, 'xxl round')]);
     // The key numbers in a strip under the hero (the season's first few).
-    const keyNums = a.stats.list.slice(0, 4);
-    const strip = keyNums.length
-      ? el('div', { class: 'team-strip' }, keyNums.map(x => el('div', { class: 'ts-cell' }, [el('strong', { class: 'num', text: x.value }), el('small', { text: statName(x.label, L(), { sport, long: x.name }) })])))
-      : null;
+    const stripOf = () => {
+      const keyNums = a.stats.list.slice(0, 4);
+      return keyNums.length ? el('div', { class: 'team-strip' }, keyNums.map(x => el('div', { class: 'ts-cell' }, [el('strong', { class: 'num', text: x.value }), el('small', { text: statName(x.label, L(), { sport, long: x.name }) })]))) : null;
+    };
+    const stripBox = el('div', { class: 'strip-slot' }, [stripOf()]);
+    const strip = stripBox;
     // Tabs: 概況 (the latest, this season), 數據 (the numbers), 近期比賽 (the
     // game log), 資料 (profile, honours); only those with something in them.
     const keep = list => list.filter(Boolean);
     const racing = sport === 'racing';
+    // This season's numbers: 概況's card and 數據's rows, drawn again when a
+    // game newer than ESPN's log comes in (the one on now among them).
+    const seasonCardOf = () =>
+      racing || !(a.stats.list.length || a.stats.none)
+        ? null
+        : card(seasonTitle(a.stats.title), a.stats.none ? el('p', { class: 'muted glog-none', text: W('本季例行賽還沒出賽', 'No regular-season games yet') }) : el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(statName(x.label, L(), { sport, long: x.name }), x.value, x.rank))), { sub: a.stats.live ? W('含進行中的比賽', 'With the game on now') : '' });
+    let seasonCard = seasonCardOf();
+    const rowsCardOf = () => (ov?.season ? card(en || !/career/i.test(ov.season.title) ? statsTitle(ov.season.title, L()) || T('season') : '生涯數據', el('div', { class: 'glog' }, ov.season.rows.map(r => seasonRow(r, ov.season.rows, sport, en))), { sub: a.stats.live ? W('含進行中的比賽', 'With the game on now') : '' }) : null);
+    let rowsCard = rowsCardOf();
     const overview = keep([
       og.season
         ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'stat-grid' }, [...freshSeason(og.season, champ).map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
@@ -4570,24 +4617,12 @@ export async function openPlayer(league, id, fallback = {}) {
         : null,
       nextRace ? nextRaceCard(nextRace, en) : null,
       mateCard,
-      !racing && a.stats.list.length ? card(seasonTitle(a.stats.title), el('div', { class: 'stat-grid' }, a.stats.list.map(x => tile(statName(x.label, L(), { sport, long: x.name }), x.value, x.rank)))) : null
+      seasonCard
     ]);
     const numbers = keep([
       og.gp ? card(W('正賽', 'Grand Prix'), f1Tiles(og.gp, en)) : summaryTiles.length ? card(W('本季表現', 'This season'), el('div', { class: 'stat-grid' }, summaryTiles)) : null,
       og.sprint ? card(W('衝刺賽', 'Sprint'), f1Tiles(og.sprint, en)) : null,
-      ov?.season
-        ? card(
-            en || !/career/i.test(ov.season.title) ? statsTitle(ov.season.title, L()) || T('season') : '生涯數據',
-            ov.season.rows.length > 1
-              ? el('div', { class: 'table-wrap' }, [
-                  el('table', { class: 'data game-log' }, [
-                    el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...ov.season.rows[0].cells.map(c => el('th', { class: 'num', title: c.label, text: statName(c.label, L(), { sport, long: c.long, pitching: ov.season.rows[0].cells.some(x => x.label === 'IP') }) }))])]),
-                    el('tbody', {}, ov.season.rows.map(r => el('tr', {}, [el('th', { class: 'left split-name' }, [splitName(r.name, ov.season.rows, en) || zhLater(r.name)]), ...r.cells.map(c => el('td', { class: 'num', text: c.value }))])))
-                  ])
-                ])
-              : el('div', { class: 'stat-grid dense' }, ov.season.rows[0].cells.map(c => tile(statName(c.label, L(), { sport, long: c.long, pitching: ov.season.rows[0].cells.some(x => x.label === 'IP') }), c.value)))
-          )
-        : null,
+      rowsCard,
       ov?.rankings?.length ? card(T('rankings'), el('div', { class: 'stat-grid' }, ov.rankings.map(x => tile(statName(x.label, L(), { sport, long: x.long }), x.value, x.rank)))) : null,
       og.career ? card(W('生涯數據', 'Career'), f1Tiles(og.career, en)) : null
     ]);
@@ -4688,12 +4723,31 @@ export async function openPlayer(league, id, fallback = {}) {
     // newest, his line from each one's box score, at once.
     if (log && a.teamId && !racing)
       newerGames(league, id, a.teamId, log, scheduleOf, a.name).then(newer => {
+        // (This season begun: its preseason left out here too.)
+        if (ov?.now) newer = newer.filter(g => !g.pre);
         if (!newer.length || !s.dialog.isConnected) return;
-        const fresh = logCardOf({ ...log, games: [...newer, ...log.games].slice(0, Math.max(log.games.length, 5)) });
-        const at = games.indexOf(logCard);
-        if (at >= 0) games[at] = fresh;
-        if (logCard.isConnected) logCard.replaceWith(fresh);
-        logCard = fresh;
+        const all = [...newer, ...log.games];
+        const swap = (list, old, fresh) => {
+          const at = list.indexOf(old);
+          if (at >= 0) list[at] = fresh;
+          else list.unshift(fresh);
+          if (old?.isConnected) old.replaceWith(fresh);
+          return fresh;
+        };
+        logCard = swap(games, logCard, logCardOf({ ...log, games: all.slice(0, Math.max(log.games.length, 5)) }));
+        if (!views.some(v => v[0] === 'games')) {
+          const bioAt = views.findIndex(v => v[0] === 'bio');
+          views.splice(bioAt >= 0 ? bioAt : views.length, 0, ['games', W('近期比賽', 'Games'), games]);
+          paintTab();
+        }
+        // ESPN's card still last season's: this season's numbers with these games (the one on now counted, said so).
+        const line = ov?.now ? logSeasonLine({ labels: log.labels, games: all }, logSeason(league)) : null;
+        if (!line) return;
+        a.stats = { ...line.stats, live: all.some(g => g.live) };
+        ov.season = { ...ov.season, rows: [line.row, ...ov.season.rows.filter(r => /career/i.test(r.name))] };
+        seasonCard = swap(overview, seasonCard, seasonCardOf());
+        rowsCard = swap(numbers, rowsCard, rowsCardOf());
+        put(stripBox, stripOf());
       });
   } catch {
     put(content, empty(T('failed')));

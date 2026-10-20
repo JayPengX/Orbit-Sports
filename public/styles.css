@@ -931,6 +931,9 @@ table.game-log td, table.game-log th { white-space: nowrap; }
 .glog-fig small { color: var(--q-label-2); font-size: 12px; white-space: nowrap; }
 .glog-more { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; color: var(--q-label-2); font-size: 13px; line-height: 1.35; }
 .glog-more b { color: var(--q-label); font-weight: 650; }
+.glog-split { font-size: 15px; }
+.glog-none { margin: 0; }
+.result-pill.live { color: var(--live); background: color-mix(in srgb, var(--live) 14%, transparent); font-weight: 650; }
 .glog-chev { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--q-muted); font-size: 20px; }
 /* Plain inline with a logo of fixed size: Safari sized an inline-flex cell before the logo loaded, and the result ran over it. */
 table.game-log .opp-cell { display: inline-block; white-space: nowrap; }
