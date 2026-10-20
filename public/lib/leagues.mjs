@@ -39,5 +39,6 @@ export const leagueLogo = key => (!LEAGUES[key] ? null : isEpl(key) ? new URL('.
 export function leagueLogoDark(key) {
   if (isEpl(key)) return new URL('../img/epl-dark.png', import.meta.url).href;
   const light = leagueLogo(key);
-  return light?.startsWith('https://a.espncdn.com/i/') ? light.replace('/500/', '/500-dark/') : null;
+  // (The original or the kit's small one through ESPN's resizer: its path inside.)
+  return /^https:\/\/a\.espncdn\.com\/(i|combiner)\b/.test(light || '') && light.includes('/500/') ? light.replace('/500/', '/500-dark/') : null;
 }

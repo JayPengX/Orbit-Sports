@@ -48,5 +48,5 @@ test('dark-screen league logos: the white lion for the Premier League, ESPN 500-
   assert.match(leagueLogoDark(epl), /img\/epl-dark\.png$/);
   const espn = Object.keys(LEAGUES).filter(k => k !== epl && leagueLogoDark(k));
   assert.ok(espn.length > 5);
-  for (const k of espn) assert.match(leagueLogoDark(k), /^https:\/\/a\.espncdn\.com\/i\/.*\/500-dark\//);
+  for (const k of espn) assert.match(leagueLogoDark(k), /^https:\/\/a\.espncdn\.com\/(i\/|combiner\/i\?img=\/i\/).*\/500-dark\//);
 });
