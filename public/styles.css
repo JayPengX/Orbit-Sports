@@ -913,6 +913,25 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .mate-grid > strong.mate-win { color: var(--q-text); }
 .mate-grid .mate-k { color: var(--q-text-2); }
 table.game-log td, table.game-log th { white-space: nowrap; }
+/* A player's last games: a card each, big numbers, nothing to scroll sideways. */
+.glog { display: grid; gap: 10px; }
+.glog-game { position: relative; display: grid; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--q-sunken); }
+.glog-game.q-press { cursor: pointer; padding-right: 30px; }
+.glog-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.glog-date { color: var(--q-label-2); font: 600 13px/1.2 var(--q-font); }
+.glog-opp { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 15px; }
+.glog-opp strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.glog-opp .logo-wrap, .glog-opp .logo { width: 20px; height: 20px; object-fit: contain; }
+/* (The competition under the line, so the result stays on it.) */
+.glog-comp { order: 3; flex-basis: 100%; margin-top: -2px; color: var(--q-muted); font-size: 12px; }
+.glog-head .result-pill { margin-left: auto; font-size: 12.5px; padding: 2px 9px; }
+.glog-big { display: grid; grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); gap: 8px; }
+.glog-fig { display: grid; justify-items: start; gap: 1px; min-width: 0; }
+.glog-fig b { font: 700 26px/1.05 var(--q-font-rounded); letter-spacing: -0.02em; }
+.glog-fig small { color: var(--q-label-2); font-size: 12px; white-space: nowrap; }
+.glog-more { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; color: var(--q-label-2); font-size: 13px; line-height: 1.35; }
+.glog-more b { color: var(--q-label); font-weight: 650; }
+.glog-chev { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--q-muted); font-size: 20px; }
 /* Plain inline with a logo of fixed size: Safari sized an inline-flex cell before the logo loaded, and the result ran over it. */
 table.game-log .opp-cell { display: inline-block; white-space: nowrap; }
 table.game-log .opp-cell > * { vertical-align: middle; }

@@ -4156,6 +4156,26 @@ const resultPills = list => el('div', { class: 'form-pills' }, list.map(r => el(
 // Individual sports (races, tours, fights): the person is followed like a team.
 const individual = league => LEAGUES[league]?.kind !== 'match';
 const LOG_WORDS = { Started: '先發', Sub: '替補', Substitute: '替補', 'Did not play': '未上場', DNP: '未上場' };
+// A game in a player's log, as a card: three or four numbers big (the ones
+// a line is read by), a few more in a line under them that wraps, never a
+// table to scroll sideways. By the log's columns: a batter's (AB), a
+// pitcher's (IP), else the sport's; a log of other columns, its first ones.
+const LOG_PICKS = {
+  basketball: [['PTS', 'REB', 'AST'], ['FG', '3PT', 'FT', 'MIN', 'STL', 'BLK', 'TO']],
+  batting: [['H', 'HR', 'RBI'], ['AB', 'R', 'BB', 'SO', 'SB', 'AVG']],
+  pitching: [['IP', 'ER', 'K'], ['DEC', 'H', 'BB', 'HR', 'P', 'ERA']],
+  soccer: [['G', 'A'], ['STRT', 'SH', 'ST', 'YC', 'RC']]
+};
+function logPicks(log, sport) {
+  const has = k => log.labels.includes(k);
+  const [big, small] = LOG_PICKS[has('IP') ? 'pitching' : has('AB') ? 'batting' : sport] || [[], []];
+  const b = big.filter(has);
+  if (b.length >= 2) return { big: b, small: small.filter(has) };
+  return { big: log.labels.slice(0, 3), small: log.labels.slice(3, 8) };
+}
+// Their words under a big number and in the line (shorter than the table's).
+const LOG_BIG = { PTS: ['得分', 'PTS'], REB: ['籃板', 'REB'], AST: ['助攻', 'AST'], H: ['安打', 'H'], HR: ['全壘打', 'HR'], RBI: ['打點', 'RBI'], IP: ['局數', 'IP'], ER: ['自責分', 'ER'], K: ['三振', 'K'], G: ['進球', 'Goals'], A: ['助攻', 'Assists'] };
+const LOG_SMALL = { FG: ['投籃', 'FG'], '3PT': ['三分', '3PT'], FT: ['罰球', 'FT'], STL: ['抄截', 'STL'], BLK: ['阻攻', 'BLK'], TO: ['失誤', 'TO'], AB: ['打數', 'AB'], R: ['得分', 'R'], BB: ['保送', 'BB'], SO: ['三振', 'SO'], SB: ['盜壘', 'SB'], AVG: ['打擊率', 'AVG'], H: ['被安打', 'H'], P: ['用球數', 'P'], ERA: ['防禦率', 'ERA'], SH: ['射門', 'Shots'], ST: ['射正', 'On target'], YC: ['黃牌', 'YC'], RC: ['紅牌', 'RC'] };
 // A player's games newer than ESPN's log of them: the team's games over
 // since the log's newest (six hours' grace: a log's date is the game's
 // day), newest first, each with his line from its box score, in the log's
@@ -4441,27 +4461,46 @@ export async function openPlayer(league, id, fallback = {}) {
       card(
           // Last season's (ESPN's until a player's first game of the new one: April's in October), said to be.
           Date.now() - (Date.parse(log.games[0]?.date || '') || Date.now()) > 45 * 86_400_000 ? W(`上季最後 ${log.games.length} 場`, `Last season's last ${log.games.length}`) : W(`近 ${log.games.length} 場`, `Last ${log.games.length} games`),
-          el('div', { class: 'table-wrap' }, [
-            el('table', { class: 'data game-log' }, [
-              el('thead', {}, [el('tr', {}, [el('th', { class: 'left', text: W('日期', 'Date') }), el('th', { class: 'left', text: W('對手', 'Opp') }), el('th', { class: 'left', text: W('結果', 'Result') }), ...log.labels.map(k => el('th', { class: 'num', title: k, text: statName(k, L(), { sport, long: log.longs?.[log.labels.indexOf(k)], pitching: log.labels.includes('IP') }) }))])]),
-              el(
-                'tbody',
-                {},
-                log.games.map(g =>
-                  el('tr', opensMatch(g) ? { class: 'log-tap', onclick: () => openLogGame(g) } : {}, [
-                    el('td', { class: 'left num', text: g.date ? localDate(Date.parse(g.date)).slice(5).replace('-', '/') : '' }),
-                    el('td', { class: 'left' }, [
-                      el('span', { class: 'opp-cell' }, [el('span', { class: 'muted opp-at', text: g.at === '@' ? '@' : 'vs' }), logo(g.opp.logo, g.opp.name, 'xs'), el('span', { class: 'opp-name', text: g.opp.abbr || g.opp.name })]),
-                      g.pre ? el('small', { class: 'log-comp', text: W('熱身賽', 'Preseason') }) : !oneComp && (g.league || g.leagueName) ? el('small', { class: 'log-comp' }, [compOf(g)]) : null
-                    ]),
-                    el('td', { class: 'left' }, [el('span', { class: `result-pill ${g.result === 'W' ? 'w' : g.result === 'L' ? 'l' : g.result === 'D' || g.result === 'T' ? 'd' : ''}`, text: [g.result ? (en ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result) : '', g.score].filter(Boolean).join(' ') })]),
-                    ...g.stats.map(v => el('td', { class: 'num', text: en ? v : LOG_WORDS[v] || v })),
-                    opensMatch(g) ? el('td', { class: 'log-chev', 'aria-hidden': 'true', text: '›' }) : log.games.some(opensMatch) ? el('td') : null
-                  ])
-                )
-              )
-            ])
-          ]),
+          el(
+            'div',
+            { class: 'glog' },
+            log.games.map(g => {
+              const { big, small } = logPicks(log, sport);
+              const at = k => g.stats[log.labels.indexOf(k)];
+              const said = v => (en ? v : LOG_WORDS[v] || v);
+              const name = k => statName(k, L(), { sport, long: log.longs?.[log.labels.indexOf(k)], pitching: log.labels.includes('IP') });
+              const taps = opensMatch(g);
+              return el('div', { class: `glog-game${taps ? ' q-press' : ''}`, ...(taps ? { role: 'button', tabindex: '0', onclick: () => openLogGame(g) } : {}) }, [
+                el('div', { class: 'glog-head' }, [
+                  el('span', { class: 'glog-date num', text: g.date ? localDate(Date.parse(g.date)).slice(5).replace('-', '/') : '' }),
+                  el('span', { class: 'glog-opp' }, [el('span', { class: 'muted', text: g.at === '@' ? '@' : 'vs' }), logo(g.opp.logo, g.opp.name, 'xs'), el('strong', { text: g.opp.abbr || g.opp.name })]),
+                  g.pre ? el('small', { class: 'glog-comp', text: W('熱身賽', 'Preseason') }) : !oneComp && (g.league || g.leagueName) ? el('small', { class: 'glog-comp' }, [compOf(g)]) : null,
+                  el('span', { class: `result-pill ${g.result === 'W' ? 'w' : g.result === 'L' ? 'l' : g.result === 'D' || g.result === 'T' ? 'd' : ''}`, text: [g.result ? (en ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result) : '', g.score].filter(Boolean).join(' ') })
+                ]),
+                big.length
+                  ? el(
+                      'div',
+                      { class: 'glog-big' },
+                      big.map(k => el('div', { class: 'glog-fig' }, [el('b', { class: 'num', text: said(at(k) ?? '–') }), el('small', { text: LOG_BIG[k]?.[en ? 1 : 0] || name(k) })]))
+                    )
+                  : null,
+                small.length
+                  ? el(
+                      'p',
+                      { class: 'glog-more' },
+                      small.map(k => {
+                        const v = said(at(k) ?? '');
+                        if (v === '' || v === '–') return null;
+                        if (k === 'MIN') return el('span', { class: 'num', text: W(`${v} 分鐘`, `${v} min`) });
+                        if (/[^\d.\-/]/.test(v)) return el('span', { text: v });
+                        return el('span', {}, [`${LOG_SMALL[k]?.[en ? 1 : 0] || name(k)} `, el('b', { class: 'num', text: v })]);
+                      })
+                    )
+                  : null,
+                taps ? el('span', { class: 'glog-chev', 'aria-hidden': 'true', text: '›' }) : null
+              ]);
+            })
+          ),
           { sub: oneComp && (oneComp.league || oneComp.leagueName) ? compOf(oneComp) : '' }
         );
     let logCard = log ? logCardOf(log) : null;
