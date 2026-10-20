@@ -112,6 +112,18 @@ const nbaId = side => (NBA_ID[side?.en || side?.name] ? 1610612700 + NBA_ID[side
 // given to a game with no other of its league starting near it).
 let known = () => [];
 export const knownEvents = fn => (known = fn);
+// (Worked out once a moment: a page drawn at once asks each game's channels
+// three or four times, and every ask gathered all the known games again;
+// half a league switch's freeze. Forgotten as soon as the drawing is done.)
+let tick = null;
+const now = () => {
+  if (!tick) {
+    tick = { tv: new WeakMap(), known: null };
+    queueMicrotask(() => (tick = null));
+  }
+  return tick;
+};
+const knownNow = () => (now().known ??= known());
 // A game's sides in Chinese, every way they're written (ELTA writes "海盜",
 // "統一"): [home's names, away's names].
 function zhSides(e) {
@@ -128,8 +140,18 @@ export const audioPref = fn => (prefer = fn);
 // adFree?, exact?, note? }, the channels that suit the person best first.
 export const tvOf = e => {
   if (!e) return [];
+  // (Asked again only if what it's worked from changed in between.)
+  const memo = now().tv;
+  const from = [eltaSchedule(), nbaSchedule(), prefer(), packOf(e)?.apple];
+  const had = memo.get(e);
+  if (had && had.from.every((x, i) => x === from[i])) return had.found;
+  const found = tvOfNow(e);
+  memo.set(e, { from, found });
+  return found;
+};
+const tvOfNow = e => {
   const nba = e.league === 'nba' ? { games: nbaSchedule(), ids: { home: nbaId(e.home), away: nbaId(e.away) } } : null;
-  const list = broadcastsFor(e, eltaSchedule(), { sides: zhSides(e), others: known(), prefer: prefer(), nba, sidesOf: zhSides });
+  const list = broadcastsFor(e, eltaSchedule(), { sides: zhSides(e), others: knownNow(), prefer: prefer(), nba, sidesOf: zhSides });
   // Apple TV's page of this very game (Shared-Data's pack, watch.mjs): the
   // TV app opens at the game, live and after (the channel's page left the
   // person to find it).
@@ -142,7 +164,7 @@ export const tvOf = e => {
 // Else the game as it is.
 // (`list`: the games read with it, the day's others.)
 export const eltaTime = (e, list = []) => {
-  const at = e?.timeTbd ? eltaStart(eltaSchedule(), e, zhSides(e), [...list, ...known()].filter((o, i, all) => all.findIndex(x => x.league === o.league && x.id === o.id) === i)) : null;
+  const at = e?.timeTbd ? eltaStart(eltaSchedule(), e, zhSides(e), [...list, ...knownNow()].filter((o, i, all) => all.findIndex(x => x.league === o.league && x.id === o.id) === i)) : null;
   return at ? { ...e, start: new Date(at).toISOString(), timeFrom: 'elta' } : e;
 };
 // Only those of this very game (a schedule's, or Apple TV's every MLS game): for a row's 📺 line.

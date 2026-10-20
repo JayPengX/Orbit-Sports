@@ -2516,7 +2516,13 @@ function renderScores() {
     // postponed game), a cup's league-phase matchday (第 2 比賽日).
     const weeks = [...new Set(shown.map(e => weekOf(e, () => state.tab === 'matches' && renderScores())).filter(Boolean))].sort((a, b) => a - b);
     const wk = weeks.length ? roundLabel(sc.league, weeks[0], weeks.at(-1), locale) : '';
-    list = el('div', {}, [el('p', { class: 'day-head', text: [dayLabel(sc.date, { long: true }), wk, t('gamesN', { n: shown.length })].filter(Boolean).join(' · ') }), shown.length ? el('div', { class: 'q-card list' }, shown.map(e => eventRow(e, { league: false, day: false }))) : empty(t('noGames'))]);
+    // The first screen's games at once, the rest a few at a time after (a
+    // cup night's 18 drawn at once froze a league switch for most of a second
+    // on a phone). A quiet refresh redraws in place, every game at once.
+    const row = e => eventRow(e, { league: false, day: false });
+    const card = shown.length ? el('div', { class: 'q-card list' }, (scoresQuiet ? shown : shown.slice(0, FIRST_ROWS)).map(row)) : null;
+    if (card && !scoresQuiet) moreRows(card, shown.slice(FIRST_ROWS), row);
+    list = el('div', {}, [el('p', { class: 'day-head', text: [dayLabel(sc.date, { long: true }), wk, t('gamesN', { n: shown.length })].filter(Boolean).join(' · ') }), card || empty(t('noGames'))]);
   }
   // The league as the page's head: its name, following it at the right.
   const name = leagueName(sc.league, locale);
@@ -2529,6 +2535,19 @@ function renderScores() {
   if (scoresQuiet && box.childNodes.length === parts.length) return parts.forEach((n, i) => morph(box.childNodes[i], n));
   put(box, ...parts);
   centerChosen(box);
+}
+
+// A long list's rows past the first screen, added a few at a time, each
+// batch its own moment (the page answers a tap in between); none once the
+// list has been drawn again.
+const FIRST_ROWS = 8;
+function moreRows(card, rest, row, step = 6) {
+  if (!rest.length) return;
+  setTimeout(() => {
+    if (!card.isConnected) return;
+    card.append(...rest.slice(0, step).map(row));
+    moreRows(card, rest.slice(step), row, step);
+  }, 0);
 }
 
 const searchEspn = q => proxyJson(`https://site.api.espn.com/apis/search/v2?query=${encodeURIComponent(q)}&limit=12`, { ttl: 10 * 60_000 }).then(parseSearch);
