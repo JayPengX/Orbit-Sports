@@ -2585,6 +2585,11 @@ function fitFive(row) {
   fiveWatch?.observe(row);
   return row;
 }
+// A name's short form: the given names to initials (Alexander Albon, A. Albon).
+const shortWords = n => {
+  const w = String(n || '').trim().split(/\s+/);
+  return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(' ')}` : w[0] || '';
+};
 function fitName(node, full, short) {
   node.dataset.full = full;
   node.dataset.short = short || full;
@@ -4181,7 +4186,7 @@ export function leagueLeadersView(data, league, { teamOf = () => null, pick = nu
     return el('button', { class: 'lb-row', type: 'button', onclick: () => openLeader(league, x) }, [
       el('span', { class: 'lb-rank num', text: String(rankOf(i)) }),
       personPic({ ...x, name: x.full || x.name }, league, 'sm round'),
-      el('span', { class: 'lb-name' }, [fitLine(el('strong', { class: 'one-line', text: x.full || x.name })), t ? fitLine(el('small', { class: 'one-line' }, [teamTag(t, t.short || t.name, league, { tap: false })])) : x.teamName ? fitLine(el('small', { class: 'one-line', text: !en && x.teamZh ? x.teamZh : x.teamName })) : null]),
+      el('span', { class: 'lb-name' }, [fitName(el('strong', { class: 'one-line' }), x.full || x.name, x.full && x.name !== x.full ? x.name : shortWords(x.full || x.name)), t ? fitLine(el('small', { class: 'one-line' }, [teamTag(t, t.short || t.name, league, { tap: false })])) : x.teamName ? fitLine(el('small', { class: 'one-line', text: !en && x.teamZh ? x.teamZh : x.teamName })) : null]),
       el('b', { class: 'lb-value num', text: x.value })
     ]);
   };

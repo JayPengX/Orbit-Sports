@@ -313,7 +313,10 @@ export function parseF1Leaders(pages, poles, drivers = []) {
     if (!by.has(id)) {
       const full = `${d.givenName || ''} ${d.familyName || ''}`.trim();
       const row = drivers.find(r => fold(r.en || r.name) === fold(full)) || drivers.find(r => fold(r.en || r.name).endsWith(` ${fold(d.familyName)}`));
-      by.set(id, { id: row?.id || '', name: shortName(full), full, team: '', teamName: '', headshot: null, n: { wins: 0, pod: 0, pole: 0, top10: 0, fl: 0, gain: 0, dnf: 0 }, finishes: [], grids: [] });
+      // (By ESPN's name for him where the table has him: Kimi Antonelli, not
+      // Jolpica's Andrea Kimi Antonelli, the same name and so the same photo as his page.)
+      const own = row ? row.en || row.name : full;
+      by.set(id, { id: row?.id || '', name: shortName(own), full: own, team: '', teamName: '', headshot: null, n: { wins: 0, pod: 0, pole: 0, top10: 0, fl: 0, gain: 0, dnf: 0 }, finishes: [], grids: [] });
     }
     return by.get(id);
   };
