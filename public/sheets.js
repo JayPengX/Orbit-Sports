@@ -92,6 +92,7 @@ const GUEST_FROM = { 'London Lions': ['英國職籃', 'British basketball'] };
 
 // ---- A match ----------------------------------------------------------------------------
 
+const realRecord = r => Boolean(r) && !/^0-0(-0)?$/.test(r);
 // The game page open now (openMatch), for a player opened from it.
 let openGame = null;
 export async function openMatch(e) {
@@ -146,6 +147,9 @@ export async function openMatch(e) {
         paint();
       });
   };
+  // The game's own page a step behind the day's list (still "End of 4th"
+  // there, over here): the list's word kept, never back from 完賽 to the break.
+  const behind = sm => (sm && e.status.state === 'post' && sm.status?.state !== 'post' ? { ...sm, status: e.status } : sm);
   let headSm = null;
   const paintHeader = sm => {
     headSm = sm;
@@ -160,7 +164,8 @@ export async function openMatch(e) {
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
         el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
-        x.record || raw.record ? el('small', { text: x.record || raw.record }) : x.guest || raw.guest ? el('small', { text: GUEST_FROM[raw.en || raw.name]?.[L() === 'en' ? 1 : 0] || (L() === 'en' ? 'Guest club' : '表演賽客隊') }) : null,
+        // (0-0: no game counted yet, or ESPN's not caught up with tonight's: left off, never a record that says nothing.)
+        realRecord(x.record || raw.record) ? el('small', { text: x.record || raw.record }) : x.guest || raw.guest ? el('small', { text: GUEST_FROM[raw.en || raw.name]?.[L() === 'en' ? 1 : 0] || (L() === 'en' ? 'Guest club' : '表演賽客隊') }) : null,
         // A guest club's game: neither side's follow here (the two sides even), the league side's under the score.
         hasTeamPage(e.league) && !guestGame ? followChip(e.league, x, () => paintHeader(sm)) : null
       ]);
@@ -203,7 +208,7 @@ export async function openMatch(e) {
       const [list, sm] = await Promise.all([scoreboard(e.league, espn ? gameDays() : undefined).catch(() => []), espn ? summary(e.league, e.id).catch(() => data) : null]);
       const fresh = list.find(x => x.id === e.id);
       if (fresh) e = { ...e, ...fresh };
-      if (espn) data = sm;
+      if (espn) data = behind(sm);
       else if (e.league === 'cpbl') {
         const sm = await cpblGame(e).catch(() => null);
         boxUnread = !sm && !data;
@@ -359,7 +364,7 @@ export async function openMatch(e) {
       if (Object.values(hurt).some(l => l.length)) paint();
     });
   try {
-    data = await summary(e.league, e.id);
+    data = behind(await summary(e.league, e.id));
   } catch {}
   wait.summary = true;
   if (ready) {

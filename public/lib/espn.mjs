@@ -1146,7 +1146,14 @@ export function parseSummary(data, league) {
   // When it ended, to the second: the last play's clock on the wall (ESPN
   // stamps every play; its 'End Game' is the horn), for a game over.
   const walls = [...(data?.plays || []), ...(data?.keyEvents || [])].map(p => Date.parse(p?.wallclock || '')).filter(Number.isFinite);
-  const status = overByRule(parseStatus(header?.status), sides.find(s => s.homeAway === 'away') || sides[1], sides.find(s => s.homeAway === 'home') || sides[0], league);
+  // ESPN's summary says the status alone, no period or clock (its scoreboard
+  // has them): the last play's, so "End of 4th" reads 第4節結束 and a
+  // decided game counts as over by the rules, never 第0節結束 with a
+  // countdown to a fifth (Jay, 2026-10-21).
+  const lastP = (data?.plays || []).at(-1);
+  const rawStatus = parseStatus(header?.status);
+  if (!rawStatus.period && lastP?.period?.number) Object.assign(rawStatus, { period: lastP.period.number, clock: rawStatus.clock || lastP.clock?.displayValue || '' });
+  const status = overByRule(rawStatus, sides.find(s => s.homeAway === 'away') || sides[1], sides.find(s => s.homeAway === 'home') || sides[0], league);
   const endedAt = status.state === 'post' && !status.void && walls.length ? new Date(Math.max(...walls)).toISOString() : null;
   // The last play's kind and id (a timeout on now: the kit's breakOf).
   const lp = (data?.plays || []).at(-1);

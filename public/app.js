@@ -820,6 +820,8 @@ async function loadFollowedTeams() {
 // Followed teams' coming games, for notices while the app is closed: the
 // start, and the final score (the Worker checks ESPN after the game's usual
 // length).
+// Finals this app showed as a banner itself (open at the time): not sent again as a phone notice.
+const bannered = new Set();
 function syncPush() {
   const now = Date.now();
   const items = [];
@@ -828,14 +830,18 @@ function syncPush() {
   const games = [...(state.days.get(today())?.events || []).filter(isFollowedEvent), ...followedGames(), ...followedTeams().flatMap(f => state.home.teams.get(`${f.league}:${f.id}`) || [])].map(freshGame);
   for (const e of games) {
     const key = `${e.league}:${e.id}`;
-    if (e.kind !== 'match' || e.other || seen.has(key) || e.status?.state === 'post' || e.status?.void) continue;
+    // (A game just over stays on the list till the Worker has told it: an app
+    // opened at the final sent its list without it, and the result never
+    // came, Jay 2026-10-21. The Worker sends each once; one this app showed
+    // as a banner itself is left off.)
+    if (e.kind !== 'match' || e.other || seen.has(key) || e.status?.void || (e.status?.state === 'post' && bannered.has(key))) continue;
     seen.add(key);
     const start = Date.parse(e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     // Its start only when it's on TV here; its final score in any case.
     // (Kept on the list for 10 minutes after the start: an open app sending its list again at the start
     // took it off before the Worker's run, and the notice never came. The Worker sends each once.)
-    if (start > now - GRACE && !e.timeTbd && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
+    if (e.status?.state !== 'post' && start > now - GRACE && !e.timeTbd && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
     const end = resultItem(e, now);
     if (end) items.push(end);
   }
@@ -853,7 +859,7 @@ function syncPush() {
   // race weekend's final already covers isn't said twice.
   const picked = pickedToday();
   for (const e of (state.days.get(today())?.events || []).filter(e => picked.has(`${e.league}:${e.id}`)).map(freshGame)) {
-    if (e.other || e.status?.state === 'post' || e.status?.void || items.some(x => x.tag === `end:${e.league}:${e.id}`)) continue;
+    if (e.other || e.status?.void || (e.status?.state === 'post' && bannered.has(`${e.league}:${e.id}`)) || items.some(x => x.tag === `end:${e.league}:${e.id}`)) continue;
     const end = resultItem(e, now, true);
     if (end) items.push(end);
   }
@@ -947,6 +953,7 @@ function noticeChanges(events) {
     if (!change) continue;
     const league = leagueName(e.league, locale);
     if (followed && change === 'start' && (onTv(e) || isFollowedGame(e))) notify(q, { title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
+    if (change === 'end' && document.visibilityState === 'visible') bannered.add(key);
     if (change === 'end') notify(q, { title: matchLine(e, true), body: [resultLine(e), league, followed ? '' : L(PICKED)].filter(Boolean).join(' · '), tag: `end:${key}`, hash: 'home', kind: followed ? 'end' : 'pickend' });
   }
 }
