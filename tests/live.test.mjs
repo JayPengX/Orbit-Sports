@@ -97,3 +97,11 @@ test("a play's period fits the plays list's time column, in the viewer's words",
   // Never ESPN's long words, whatever the sport.
   for (const n of [1, 2, 3, 4, 5]) assert.ok(playPeriod(q(n), 'basketball').length <= 3);
 });
+
+test('a timeout or a pitching change takes the clock\'s place', () => {
+  const nba = { status: { state: 'in', period: 2, clock: '5:32', name: 'STATUS_IN_PROGRESS' }, live: { lastType: 'Full Timeout' } };
+  assert.equal(liveLabel(nba, 'basketball'), '第2節 暫停');
+  assert.equal(liveLabel(nba, 'basketball', 'en'), 'Q2 Timeout');
+  assert.equal(liveLabel({ ...nba, live: { lastType: 'Substitution' } }, 'basketball'), '第2節 5:32');
+  assert.equal(liveLabel({ status: { state: 'in', period: 7 }, live: { half: 'bot', lastType: 'Pitching Change' } }, 'baseball'), '7局下 換投');
+});

@@ -1148,9 +1148,13 @@ export function parseSummary(data, league) {
   const walls = [...(data?.plays || []), ...(data?.keyEvents || [])].map(p => Date.parse(p?.wallclock || '')).filter(Number.isFinite);
   const status = overByRule(parseStatus(header?.status), sides.find(s => s.homeAway === 'away') || sides[1], sides.find(s => s.homeAway === 'home') || sides[0], league);
   const endedAt = status.state === 'post' && !status.void && walls.length ? new Date(Math.max(...walls)).toISOString() : null;
+  // The last play's kind and id (a timeout on now: the kit's breakOf).
+  const lp = (data?.plays || []).at(-1);
+  const lastPlay = lp ? { type: lp.type?.text || '', id: String(lp.id ?? '') } : null;
   return {
     league,
     endedAt,
+    lastPlay,
     status,
     sides,
     home: sides.find(s => s.homeAway === 'home') || sides[0] || null,

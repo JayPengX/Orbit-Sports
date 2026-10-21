@@ -11,7 +11,7 @@ import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
 import { AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES, espnSummary, onAir } from './lib/espn.mjs';
-import { watchHalftime, halftimeAttrs, halftimeClock, halftimeEnd } from '#kit/quadra.mjs';
+import * as kitQ from '#kit/quadra.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { channelsOf, watchOf, replayHint } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
@@ -297,25 +297,36 @@ const compChip = e => (e.other ? el('span', { class: 'league-tag other' }, [el('
 
 // ---- Events --------------------------------------------------------------------------
 
-// A game at half-time: its countdown's key, its break's end looked up once
-// (ESPN's summary, the kit's watchHalftime); null for any other moment.
-const atHalftime = e => e.kind === 'match' && e.status?.state === 'in' && !e.status.delayed && /HALFTIME/.test(e.status.name || '') && Boolean(LEAGUES[e.league]?.espn);
-export function halftimeKey(e) {
-  if (!atHalftime(e)) return null;
-  const key = `sports:${e.league}:${e.id}`;
-  watchHalftime(key, { sport: LEAGUES[e.league].sport, league: e.league, read: () => espnSummary(e.league, e.id) });
+// A game at a break (half-time, a period or quarter over, between innings,
+// a timeout, a pitching change): its countdown's key, the break's end
+// looked up once (ESPN's summary; the kit's breakOf and watchBreak, a
+// phone's older kit only half-time's); null for any other moment.
+export function breakKey(e) {
+  if (e.kind !== 'match' || e.status?.state !== 'in' || e.status.delayed || !LEAGUES[e.league]?.espn) return null;
+  const sport = LEAGUES[e.league].sport;
+  const read = () => espnSummary(e.league, e.id);
+  const base = `sports:${e.league}:${e.id}`;
+  if (!kitQ.breakOf) {
+    if (!/HALFTIME/.test(e.status.name || '')) return null;
+    kitQ.watchHalftime(base, { sport, league: e.league, read });
+    return base;
+  }
+  const b = kitQ.breakOf({ sport, league: e.league, status: e.status, live: e.live || {}, post: Boolean(e.series) });
+  if (!b) return null;
+  const key = `${base}:${b.kind}:${e.status.period || 0}:${b.play || ''}`;
+  kitQ.watchBreak(key, { seconds: b.seconds, read, test: b.test, play: b.play, mandatory: b.mandatory });
   return key;
 }
-// What a status's element carries to tick (中場休息 12:34), drawn with statusText's words.
-export const halftimeTick = (e, label = statusText(e)) => {
-  const key = halftimeKey(e);
-  return key ? halftimeAttrs(key, label.replace(/\s+\d+:\d{2}$/, '')) : {};
+// What a status's element carries to tick (中場休息 12:34, 第2節 暫停 0:58), drawn with statusText's words.
+export const breakTick = (e, label = statusText(e)) => {
+  const key = breakKey(e);
+  return key ? kitQ.halftimeAttrs(key, label.replace(/\s+\d+:\d{2}$/, '')) : {};
 };
 export function statusText(e) {
   const { t } = ctx;
   const s = e.status;
-  const ht = halftimeKey(e);
-  if (ht) return [liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale), halftimeClock(halftimeEnd(ht))].filter(Boolean).join(' ');
+  const ht = breakKey(e);
+  if (ht) return [liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale), kitQ.halftimeClock(kitQ.halftimeEnd(ht))].filter(Boolean).join(' ');
   if (s.void) return t('postponed');
   // Waiting (rain, a late start): still on, not called off.
   if (s.delayed && s.state === 'pre') return t('delayed');
@@ -383,8 +394,8 @@ function statusEl(e, day = true) {
   // A game on now with its clock (第4節 8:58): the period, the clock under it (two lines drawn for it, never a wrap).
   const text = statusText(e);
   // At half-time: 中場休息, its countdown under it, ticking (the line kept for it before the countdown is known).
-  const ht = halftimeKey(e);
-  if (ht) return el('span', { class: 'event-status in clocked' }, [el('span', { text: text.replace(/\s+\d+:\d{2}$/, '') }), el('small', { class: 'num', ...halftimeAttrs(ht), text: /\d+:\d{2}$/.exec(text)?.[0] || '' })]);
+  const ht = breakKey(e);
+  if (ht) return el('span', { class: 'event-status in clocked' }, [el('span', { text: text.replace(/\s+\d+:\d{2}$/, '') }), el('small', { class: 'num', ...kitQ.halftimeAttrs(ht), text: /\d+:\d{2}$/.exec(text)?.[0] || '' })]);
   const clockAt = e.status.state === 'in' ? /^(.+?)\s+(\d{1,2}:\d{2}(?:\.\d)?)$/.exec(text) : null;
   if (clockAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: clockAt[1] }), el('small', { class: 'num', text: clockAt[2] })]);
   // Paused mid-game (rain): the period, 暫停 under it (two lines drawn for it, never a wrap).

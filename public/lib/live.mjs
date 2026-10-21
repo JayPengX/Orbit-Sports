@@ -37,6 +37,17 @@ export function liveLabel(e, sport, lang = 'zh') {
     if (sport === 'basketball' && n > QUARTERS) return en ? `End of ${otName(n, en)}` : `${otName(n, en)}結束`;
     return en ? `End of ${ord(n)}` : `第${n}節結束`;
   }
+  // A stop with its own countdown (the kit's breakOf): its word in the clock's place.
+  const last = lv.lastType || '';
+  if (/two.minute warning/i.test(last)) return en ? 'Two-minute warning' : '兩分鐘警告';
+  if (sport !== 'soccer' && sport !== 'baseball' && n && /timeout/i.test(last) && !/end (of )?timeout/i.test(last)) {
+    const p = sport === 'basketball' && n > QUARTERS ? otName(n, en) : en ? (sport === 'basketball' ? `Q${n}` : `P${n}`) : `第${n}節`;
+    return en ? `${p} Timeout` : `${p} 暫停`;
+  }
+  if (sport === 'baseball' && n && /pitching change/i.test(last)) {
+    const where = en ? `${lv.half === 'bot' ? 'Bot' : 'Top'} ${ord(n)}` : `${n}局${lv.half === 'bot' ? '下' : '上'}`;
+    return en ? `${where} · Pitching change` : `${where} 換投`;
+  }
   if (sport === 'baseball') {
     // On by the clock, no score in any feed: say so, never a bare 進行中 over "–" and "–".
     if (s.noScore) return en ? 'Live · score unavailable' : '比賽中・比分讀不到';

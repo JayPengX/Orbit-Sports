@@ -27,7 +27,7 @@ import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mj
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, halftimeTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, today, sidesOf } from './ui.js';
+import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, today, sidesOf } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -132,6 +132,8 @@ export async function openMatch(e) {
     const home = sm?.home || e.home;
     const away = sm?.away || e.away;
     const st = sm?.status || e.status;
+    // The game as the summary has it now: its status, and its last play (a timeout's countdown).
+    const atNow = { ...e, status: st, live: sm?.lastPlay ? { ...e.live, lastType: sm.lastPlay.type, lastId: sm.lastPlay.id } : e.live };
     const guestGame = Boolean(e.home.guest || e.away.guest);
     // (The league's rounds still coming: the header drawn again once they're in, not left without its round.)
     const roundOnly = !stageTag(e, L()) && !seriesText(e) && Boolean(weekOf(e, () => headSm === sm && header.isConnected && paintHeader(sm)));
@@ -148,7 +150,7 @@ export async function openMatch(e) {
         homeFirst(e) ? side(home, e.home) : side(away, e.away),
         el('div', { class: 'mh-mid' }, [
           st.state === 'pre' ? el('strong', { class: 'mh-time', text: timeText(e) }) : el('strong', { class: 'mh-score num', 'data-q-live': st.state === 'in' ? `mh:${e.league}:${e.id}` : null, text: (homeFirst(e) ? [home, away] : [away, home]).map(x => scoreText(x.score)).join(' - ') }),
-          el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText({ ...e, status: st }), ...halftimeTick({ ...e, status: st }) }),
+          el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText(atNow), ...breakTick(atNow) }),
           // A league's round alone (第 5 輪): under the status, in the room the
           // sides' records and follows leave there, not a row of its own
           // floating between the header and the line score (the owner, 2026-10-17).
@@ -747,7 +749,7 @@ function gameCards(game, id, league) {
   // is (場上, 先發, ↓ 69') beside the title, not a card of its own.
   const scoreRow = el('div', { class: 'pg-row' }, [
     el('span', { class: 'pg-score' }, (([l, rt]) => [logo(l?.logo, l?.name, 'xs'), el('strong', { class: 'num', 'data-q-live': st.state === 'in' ? `pg:${e.league}:${e.id}` : null, text: st.state === 'pre' ? 'vs' : `${scoreText(l?.score)} – ${scoreText(rt?.score)}` }), logo(rt?.logo, rt?.name, 'xs')])(inOrder(e, [away, home]))),
-    el('span', { class: `pg-status ${st.state}`, text: statusText({ ...e, status: st }), ...halftimeTick({ ...e, status: st }) })
+    el('span', { class: `pg-status ${st.state}`, text: statusText({ ...e, status: st }), ...breakTick({ ...e, status: st }) })
   ]);
   // Soccer's cards: a label by the title, not a number among his stats (one
   // yellow, or two and off, or a straight red: never "2" of anything).
