@@ -1398,7 +1398,16 @@ export function parseStandings(data, league = null) {
       const seeds = stat('playoffSeed');
       const ranks = stat('rank');
       const by = seeds.every(n => n > 0) ? seeds : ranks.every(n => n > 0) ? ranks : null;
-      const ordered = by ? rows.map((r, i) => [r, by[i], i]).sort((x, y) => x[1] - y[1] || x[2] - y[2]).map(([r]) => r) : rows;
+      let ordered = by ? rows.map((r, i) => [r, by[i], i]).sort((x, y) => x[1] - y[1] || x[2] - y[2]).map(([r]) => r) : rows;
+      // A season's first days (a team yet to play): ESPN's seeds are its
+      // tie-breaks over nothing, a 0-1 side placed among the 0-0s (Jay,
+      // 2026-10-21). By the winning share then, one yet to play at .500
+      // (as games behind counts it), its seed kept between equals.
+      const wl = r => [Number(r.stats.W), Number(r.stats.L)];
+      if (ordered.every(r => wl(r).every(Number.isFinite)) && !ordered.some(r => r.stats.PTS != null || r.stats.P != null) && ordered.some(r => wl(r)[0] + wl(r)[1] === 0)) {
+        const share = r => (([w, l]) => (w + l ? w / (w + l) : 0.5))(wl(r));
+        ordered = ordered.map((r, i) => [r, i]).sort((x, y) => share(y[0]) - share(x[0]) || x[1] - y[1]).map(([r]) => r);
+      }
       // A championship's rounds (F1's: a column a weekend, its points, blank until counted).
       const rounds = (node.standings.entries[0]?.stats || []).filter(x => /^[A-Z]{3}$/.test(x.abbreviation || '') && /grand prix/i.test(x.displayName || '')).map(x => ({ key: x.abbreviation, name: x.displayName }));
       groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), en: node.name || node.displayName || '', rows: ordered, ...(rounds.length ? { rounds } : {}) });

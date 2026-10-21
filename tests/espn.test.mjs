@@ -461,3 +461,10 @@ test("a new NBA season's numbers so far from the player's own log (preseason and
   assert.equal(now.row.cells.find(c => c.label === '3P%').value, '50.0');
   assert.equal(logSeasonLine({ labels, games: [{ pre: true, stats: ['1', '0-1', '0', '0-0', '0', '0-0', '0', '0', '0', '0', '0', '0', '0', '0'] }] }, 2027), null);
 });
+
+// A season's first days: a 0-1 side under every 0-0 one, whatever ESPN's seeds say (Jay, 2026-10-21).
+test('early standings sort by winning share, a team yet to play at .500', () => {
+  const en = (id, seed, W, L) => ({ team: { id, displayName: id }, stats: [{ name: 'playoffSeed', value: seed }, { abbreviation: 'W', displayValue: String(W) }, { abbreviation: 'L', displayValue: String(L) }] });
+  const g = parseStandings({ children: [{ name: 'East', standings: { entries: [en('A', 1, 1, 0), en('B', 2, 0, 1), en('C', 3, 0, 0), en('D', 4, 0, 0)] } }] });
+  assert.deepEqual(g[0].rows.map(r => r.id), ['A', 'C', 'D', 'B']);
+});
