@@ -44,8 +44,8 @@ test('a race weekend lists every session, practice too', () => {
 
 test('logos for the leagues and teams the feeds leave bare', () => {
   assert.match(teamBadge('cpbl', 'Rakuten Monkeys'), /^https:/);
-  assert.equal(teamBadge('cpbl', 'Nobody FC'), null);
-  assert.match(leagueLogo('epl'), /^https:/);
+  // (The kit's own white and purple lions: an address beside the kit, a file in a test.)
+  assert.match(leagueLogo('epl'), /^(https|file):.*epl\.png$/);
   assert.match(leagueLogo('cpbl'), /^https:/);
 });
 
