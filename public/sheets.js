@@ -1950,7 +1950,13 @@ function boxNames(rows) {
     const span = tr?.querySelector?.('.box-name');
     if (!span) continue;
     const name = (r.name || '').length > 12 && count[lastName(r.name)] === 1 ? lastName(r.name) : r.name || '';
-    span.textContent = name;
+    // A name still long (Gilgeous-Alexander): two lines at its hyphen or
+    // space, set in the markup (Safari wouldn't break it there itself and cut it, Jay 2026-10-21).
+    const cut = name.length > 13 ? Math.max(name.lastIndexOf('-', name.length - 3) + 1, name.lastIndexOf(' ') + 1) : 0;
+    if (cut > 2) {
+      span.replaceChildren(document.createTextNode(name.slice(0, cut).trimEnd()), el('br'), document.createTextNode(name.slice(cut)));
+      span.classList.add('long');
+    } else span.textContent = name;
   }
   // Each fitted once drawn: smaller where it runs over, on two lines past that.
   const spans = rows.map(([, tr]) => tr?.querySelector?.('.box-name')).filter(Boolean);
@@ -1960,7 +1966,7 @@ function boxNames(rows) {
     for (const sp of spans) {
       if (sp.scrollWidth <= sp.clientWidth + 1) continue;
       sp.classList.add('mid');
-      if (sp.scrollWidth > sp.clientWidth + 1) sp.classList.add('long');
+      if (sp.scrollWidth > sp.clientWidth + 1) sp.classList.add('tiny');
     }
   };
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fit);

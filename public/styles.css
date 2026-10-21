@@ -983,7 +983,8 @@ table.box .box-who { white-space: normal; }
 table.box .roster-name { min-width: 0; }
 table.box .box-name { min-width: 0; overflow: hidden; white-space: nowrap; }
 table.box .box-name.mid { font-size: 11px; }
-table.box .box-name.long { white-space: normal; font-size: 11.5px; line-height: 1.2; overflow-wrap: normal; word-break: keep-all; }
+table.box .box-name.long { white-space: nowrap; font-size: 11.5px; line-height: 1.2; }
+table.box .box-name.tiny { font-size: 10px; }
 table.box td.num, table.box th.sortable { width: 48px; min-width: 48px; }
 table.box td.num { padding-inline: 5px; }
 table.box .sort-btn { padding-inline: 5px; }
