@@ -1018,110 +1018,38 @@ function reach(date, range = stripRange) {
   if (n < range.from) range.from = n - 3;
   if (n > range.to) range.to = n + 3;
 }
-function dayChip(d, current, onPick) {
+// A day chip's two lines: 今天 / 明天 / 昨天 or the weekday, over the date
+// (with the year when it isn't this one).
+const dayTop = d => (d === today() ? t('today') : d === addDays(today(), 1) ? t('tomorrow') : d === addDays(today(), -1) ? t('yesterday') : new Date(`${d}T12:00:00`).toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { weekday: 'short' }));
+const dayDate = d => {
   const dt = new Date(`${d}T12:00:00`);
-  const other = dt.getFullYear() !== new Date().getFullYear();
-  const first = dt.getDate() === 1;
-  return el('button', { class: `q-chip day${d === today() ? ' is-today' : ''}${first ? ' month-start' : ''}`, type: 'button', 'aria-pressed': String(d === current), 'data-day': d, onclick: () => onPick(d) }, [
-    el('span', { text: d === today() ? t('today') : d === addDays(today(), 1) ? t('tomorrow') : d === addDays(today(), -1) ? t('yesterday') : dt.toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { weekday: 'short' }) }),
-    el('small', { class: 'num', text: other ? `${String(dt.getFullYear()).slice(2)}/${dt.getMonth() + 1}/${dt.getDate()}` : `${dt.getMonth() + 1}/${dt.getDate()}` })
-  ]);
-}
-// `range`: the stretch of days shown (home's own by default; 賽事 keeps one
-// per league); it also holds the strip itself (`range.strip`), made once and
-// changed in place on every redraw after: the chips, the 📅 input and the
-// row's scroll are never thrown away under the person (a new input closed
-// iOS's open date picker, a new row lost its scroll and was pulled back by
-// three hands). `range.recenter`: the next draw brings the day to the middle.
-// `bounds`: the days that can be asked for (lib/bounds.mjs): the strip and
-// 📅 stop there.
+  return dt.getFullYear() !== new Date().getFullYear() ? `${String(dt.getFullYear()).slice(2)}/${dt.getMonth() + 1}/${dt.getDate()}` : `${dt.getMonth() + 1}/${dt.getDate()}`;
+};
+// The kit's strip of days (ui.mjs dayStrip, Quadra Play's too). `range`:
+// the stretch of days shown (home's own by default; 賽事 keeps one per
+// league); it also holds the strip's record (`range.strip`), so the strip
+// is made once and changed in place. `range.recenter`: the next draw brings
+// the day to the middle. `bounds`: the days that can be asked for
+// (lib/bounds.mjs): the strip and 📅 stop there. `follow`: 首頁's and 轉播's
+// bar, every new day to the middle, a swipe's too.
 function dateStrip(current, onPick, { only = null, range = stripRange, bounds = null, follow = false } = {}) {
   if (current && !only) reach(current, range);
   const days = stripDays(current, { only, range, base: today() }).filter(d => d === current || within(d, bounds));
-  const s = (range.strip ??= makeStrip());
-  Object.assign(s, { onPick, bounds, range });
-  // Back on the page after another view (a table): on its day at once.
-  if (!s.row.isConnected) (s.shown = false), (s.reveal = 'center');
-  // Other days (bounds or a season's days in, a sport picked, midnight): the
-  // chips made again inside the same row, the day first in view kept in place.
-  const key = `${today()}|${locale}|${days.join()}`;
-  if (key !== s.key) {
-    const anchor = s.row.isConnected && s.row.clientWidth ? firstInView(s.row) : null;
-    s.row.replaceChildren(...days.map(d => dayChip(d, current, s.pick)));
-    s.key = key;
-    const again = anchor && s.row.querySelector(`[data-day="${anchor.day}"]`);
-    if (again) s.row.scrollLeft += again.getBoundingClientRect().left - s.row.getBoundingClientRect().left - anchor.at;
-    else s.reveal ??= 'center';
-  }
-  for (const chip of s.row.children) chip.setAttribute('aria-pressed', String(chip.dataset.day === current));
-  // A day chosen elsewhere (📅, the next game day): brought into view; one
-  // tapped on the strip is in view already and stays where it is (`follow`,
-  // 首頁's and 轉播's bar: every new day to the middle, a swipe's too).
-  if (current !== s.current) {
-    if (s.current !== undefined && (!s.tapped || follow)) s.reveal ??= 'center';
-    s.current = current;
-  }
-  s.tapped = false;
-  if (range.recenter) (range.recenter = false), (s.reveal = 'center');
-  if (s.current !== undefined && !s.shown) s.reveal ??= 'center';
-  // The input: never touched while it's open (iOS's picker would close).
-  if (document.activeElement !== s.input) syncPick(s);
-  if (s.reveal) revealDay(s);
-  return s.wrap;
-}
-function makeStrip() {
-  const s = {};
-  s.row = el('div', { class: 'q-chips day-strip' });
-  // A tap: the chip shows it at once, the page follows off the tap's stack.
-  s.pick = d => {
-    for (const chip of s.row.children) chip.setAttribute('aria-pressed', String(chip.dataset.day === d));
-    s.tapped = true;
-    requestAnimationFrame(() => setTimeout(() => s.onPick(d)));
-  };
-  // Any day: the browser's own date picker. Its day taken the moment it's
-  // chosen (the page behind it changes, the picker stays open on iPhone).
-  s.input = el('input', { class: 'day-pick-input', type: 'date', 'aria-label': L({ zh: '選擇日期', en: 'Pick a date' }) });
-  s.input.addEventListener('change', () => {
-    if (!s.input.value) return;
-    const d = clampDay(s.input.value, s.bounds);
-    if (d === s.current) return;
-    reach(d, s.range);
-    s.onPick(d);
-  });
-  // Closed: the day it shows is the one picked (a day past the bounds, which
-  // iOS lets through, shows the one it came to).
-  s.input.addEventListener('blur', () => syncPick(s));
-  const cal = el('label', { class: 'q-chip day-pick', title: L({ zh: '選擇日期', en: 'Pick a date' }) }, [el('span', { class: 'day-pick-icon', 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2"/></svg>' }), s.input]);
-  s.wrap = el('div', { class: 'day-strip-wrap' }, [s.row, cal]);
-  return s;
-}
-function syncPick(s) {
-  const v = clampDay(s.current || today(), s.bounds);
-  if (s.input.value !== v) s.input.value = v;
-  for (const [k, b] of [['min', s.bounds?.from], ['max', s.bounds?.to]]) b ? s.input.setAttribute(k, b) : s.input.removeAttribute(k);
-}
-// The chip first in view, and how far it sits from the row's left edge.
-function firstInView(row) {
-  const left = row.getBoundingClientRect().left;
-  const chip = [...row.children].find(c => c.getBoundingClientRect().right > left + 1);
-  return chip ? { day: chip.dataset.day, at: chip.getBoundingClientRect().left - left } : null;
-}
-// The chosen chip in the middle of the row, once the row has a width (drawn
-// under the loading screen, it has none yet): at once the first time, gently after.
-function revealDay(s) {
-  const go = () => {
-    const chip = s.row.querySelector('[aria-pressed="true"]');
-    if (!chip || !s.row.isConnected || !s.row.clientWidth) return false;
-    const left = chip.offsetLeft - s.row.offsetLeft - s.row.clientWidth / 2 + chip.clientWidth / 2;
-    s.row.scrollTo({ left, behavior: s.shown ? 'smooth' : 'auto' });
-    s.reveal = null;
-    s.shown = true;
-    return true;
-  };
-  requestAnimationFrame(() => {
-    if (go() || typeof ResizeObserver === 'undefined' || s.waiting) return;
-    s.waiting = new ResizeObserver(() => s.row.clientWidth && (s.waiting.disconnect(), (s.waiting = null), s.reveal && go()));
-    s.waiting.observe(s.row);
+  const s = (range.strip ??= {});
+  if (range.recenter) (range.recenter = false), kitUI.dayRecenter(s);
+  return kitUI.dayStrip(s, {
+    days,
+    current,
+    today: today(),
+    // (📅's day: the strip reaches it first.)
+    onPick: d => (reach(d, range), onPick(d)),
+    label: dayTop,
+    sub: dayDate,
+    cls: d => (new Date(`${d}T12:00:00`).getDate() === 1 ? 'month-start' : ''),
+    clamp: v => clampDay(v, bounds),
+    bounds,
+    follow,
+    pickLabel: L({ zh: '選擇日期', en: 'Pick a date' })
   });
 }
 // The days each league can be asked for (Shared-Data's nightly
@@ -1442,7 +1370,7 @@ const fullSchedule = () => el('button', { class: 'section-more', type: 'button',
 // across the page goes a day either way (daySwipe). Under it, what to show
 // (every game, the followed teams', one sport: then only the days it plays).
 // Nothing while still picking sports.
-const homeBarEl = el('div', { class: 'day-bar' });
+const homeBarEl = el('div', { class: 'q-day-bar day-bar' });
 function pickHomeDay(d) {
   const h = state.home;
   if (d === h.date) return;
@@ -1472,66 +1400,8 @@ function homeFilters() {
 function toPageTop() {
   if (window.scrollY > 0) window.scrollTo({ top: 0 });
 }
-// The strip sticks under the status bar: there it takes the page's colour
-// behind it (.stuck), at rest it has none (the account button shows above).
-const stuckBars = () => {
-  for (const bar of document.querySelectorAll('.day-bar')) if (bar.isConnected && bar.offsetParent) bar.classList.toggle('stuck', bar.getBoundingClientRect().top <= parseFloat(getComputedStyle(bar).top) + 0.5 && window.scrollY > 0);
-};
-window.addEventListener('scroll', stuckBars, { passive: true });
-// A swipe across a page (not across a row that scrolls sideways): the next
-// or the day before, the page following the finger, the new day sliding in.
-function daySwipe(panel, step) {
-  let start = null;
-  const sideways = (node, stop) => {
-    for (let n = node; n && n !== stop; n = n.parentElement) {
-      if (n.matches?.('input, select, textarea, .day-bar, [data-noswipe]')) return true;
-      if (n.scrollWidth > n.clientWidth + 2 && /auto|scroll/.test(getComputedStyle(n).overflowX)) return true;
-    }
-    return false;
-  };
-  const settle = () => {
-    panel.classList.remove('swiping');
-    panel.style.removeProperty('--swipe');
-  };
-  panel.addEventListener(
-    'touchstart',
-    ev => {
-      start = ev.touches.length === 1 && !document.querySelector('dialog[open]') && !sideways(ev.target, panel) ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY, at: Date.now(), lock: null } : null;
-    },
-    { passive: true }
-  );
-  panel.addEventListener(
-    'touchmove',
-    ev => {
-      if (!start) return;
-      const dx = ev.touches[0].clientX - start.x;
-      const dy = ev.touches[0].clientY - start.y;
-      if (start.lock == null && Math.hypot(dx, dy) > 10) start.lock = Math.abs(dx) > Math.abs(dy) * 1.3 ? 'x' : 'y';
-      if (start.lock !== 'x') return;
-      ev.preventDefault();
-      panel.classList.add('swiping');
-      panel.style.setProperty('--swipe', `${Math.round(dx * 0.45)}px`);
-    },
-    { passive: false }
-  );
-  const end = ev => {
-    const s = start;
-    start = null;
-    if (!s || s.lock !== 'x') return settle();
-    const dx = (ev.changedTouches?.[0]?.clientX ?? s.x) - s.x;
-    const fast = Math.abs(dx) > 30 && Date.now() - s.at < 250;
-    const dir = Math.abs(dx) > 70 || fast ? (dx < 0 ? 1 : -1) : 0;
-    settle();
-    if (!dir || !step(dir)) return;
-    panel.classList.remove('day-in-next', 'day-in-prev');
-    void panel.offsetWidth;
-    panel.classList.add(dir > 0 ? 'day-in-next' : 'day-in-prev');
-    clearTimeout(panel.swipeTimer);
-    panel.swipeTimer = setTimeout(() => panel.classList.remove('day-in-next', 'day-in-prev'), 320);
-  };
-  panel.addEventListener('touchend', end, { passive: true });
-  panel.addEventListener('touchcancel', () => ((start = null), settle()), { passive: true });
-}
+// The strip sticks under the status bar, taking the page's colour there, and a
+// swipe across a page goes a day either way: the kit's (.q-day-bar, daySwipe).
 // The day a strip shows next to `date`, `dir` days on (among its chips: a
 // sport's game days, the bounds), or null at an end.
 function stripStep(range, date, dir) {
@@ -1659,7 +1529,7 @@ const liveShape = () =>
   ]);
 // 轉播's days: yesterday's (replays) to two weeks on (ELTA's list), a strip like 首頁's.
 const liveRange = { from: -1, to: 13 };
-const liveBarEl = el('div', { class: 'day-bar' });
+const liveBarEl = el('div', { class: 'q-day-bar day-bar' });
 // (null: today, whichever day that is now.)
 const liveDay = () => state.live.date || today();
 function pickLiveDay(d) {
@@ -3219,11 +3089,11 @@ function tabAgain(tab) {
   }
 }
 // A swipe on 首頁 or 轉播: the day before or after.
-daySwipe($('panel-home'), dir => {
+kitUI.daySwipe($('panel-home'), dir => {
   const d = !state.home.picking && stripStep(stripRange, state.home.date, dir);
   return Boolean(d && (pickHomeDay(d), true));
 });
-daySwipe($('panel-live'), dir => {
+kitUI.daySwipe($('panel-live'), dir => {
   const d = stripStep(liveRange, liveDay(), dir);
   return Boolean(d && (pickLiveDay(d), true));
 });
