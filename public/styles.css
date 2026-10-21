@@ -301,7 +301,7 @@ img { max-width: 100%; }
 .pic-tile .league-badge { --s: 30px; }
 
 /* ==== 轉播: when and where ==== */
-.guide-link { margin-top: 28px; }
+.q-rowcard.guide-link { margin-top: 28px; }
 /* ELTA's guide (its sheet): a day at a time, a showing a row. */
 .tvg-days { margin-bottom: 12px; }
 .tv-guide { padding: 0; }

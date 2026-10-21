@@ -1719,8 +1719,10 @@ function renderLive() {
     clearTimeout(liveGate.timer);
   }
   const ahead = all;
-  const window = (live.length ? 3 : 24) * 3_600_000;
-  const soon = ahead.filter(e => e.status.state === 'pre' && !e.status.void && !onAir(e, now) && Date.parse(e.start) - now < window && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
+  // What starts next: within 3 hours while games are on, else (or with nothing that soon) the next 24.
+  const startsWithin = hours => ahead.filter(e => e.status.state === 'pre' && !e.status.void && !onAir(e, now) && Date.parse(e.start) - now < hours * 3_600_000 && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
+  const soonShort = live.length ? startsWithin(3) : [];
+  const soon = soonShort.length ? soonShort : startsWithin(24);
   const mineFirst = list => [...list].sort((a, b) => isFollowedEvent(b) - isFollowedEvent(a));
   // A game on now: its row, and 觀看 beside it (straight into ELTA.tv's or Apple TV's app).
   const liveRow = e => withWatch(eventRow(e), e);
@@ -1759,7 +1761,7 @@ function renderLive() {
     !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) }), guide])) : null,
     liveSorted.length > 1 ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, liveSorted.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
     mineBlock,
-    later.length ? section(live.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e))), { action: guide }) : null,
+    later.length ? section(soonShort.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e))), { action: guide }) : null,
     !later.length && hero && guide ? el('div', { class: 'q-rowcard guide-link' }, [el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => openGuide(all) }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '愛爾達節目表', en: 'ELTA TV guide' }) })])])]) : null
   );
 }
