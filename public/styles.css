@@ -1953,3 +1953,15 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .ls-chev { color: var(--q-muted); font-size: 17px; }
 /* A narrow phone: the line score's sides by their logos alone (the hero over it names them), never a name cut to 「塞爾..」. */
 @media (max-width: 360px) { .linescore .ls-who > span { display: none; } .linescore.innings tr > :first-child { padding-left: 8px; } }
+
+/* No white in dark mode (Jay 2026-10-21): league logos on a dark tile, in their dark versions. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .league-badge {
+    background: var(--q-logo-bg);
+    box-shadow: inset 0 0 0 0.5px var(--q-sep);
+  }
+}
+:root[data-theme='dark'] .league-badge {
+  background: var(--q-logo-bg);
+  box-shadow: inset 0 0 0 0.5px var(--q-sep);
+}
