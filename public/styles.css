@@ -77,7 +77,8 @@ img { max-width: 100%; }
 @keyframes pulse { 50% { opacity: 0.3; } }
 
 /* ==== The frame: the page, its head, sections ==== */
-.page { max-width: var(--q-page-max); margin: 0 auto; padding: 4px max(16px, env(safe-area-inset-right)) calc(40px + var(--q-nav)) max(16px, env(safe-area-inset-left)); }
+/* The kit's column (quadra.css .q-col): the phone's 16 px in, the iPad's whole width. */
+.page { --q-margin: var(--q-gutter, 16px); max-width: var(--q-col, 640px); margin: 0 auto; padding: 4px max(var(--q-margin), env(safe-area-inset-right)) calc(40px + var(--q-nav)) max(var(--q-margin), env(safe-area-inset-left)); }
 /* One head per tab: the small line over the large title, an action at the right. */
 .sp-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .sp-head-text { min-width: 0; }
@@ -260,7 +261,7 @@ img { max-width: 100%; }
 
 /* ==== 賽事: a league ==== */
 /* Every league on one rail (the search first), to the screen's edges. */
-.q-chips.league-rail { margin: 0 calc(-1 * max(16px, env(safe-area-inset-left))) 4px; padding: 2px max(16px, env(safe-area-inset-left)) 6px; scroll-padding-inline: 16px; }
+.q-chips.league-rail { margin: 0 calc(-1 * max(var(--q-margin, 16px), env(safe-area-inset-left))) 4px; padding: 2px max(var(--q-margin, 16px), env(safe-area-inset-left)) 6px; scroll-padding-inline: var(--q-margin, 16px); }
 .league-rail .q-chip { padding-left: 6px; }
 .league-rail .q-chip .league-badge { --s: 24px; }
 /* A league tile's logo with its dark-screen version (cards.js leagueTile): the picture adds no box. */
@@ -594,10 +595,10 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .cmp-row > :last-child { text-align: right; justify-self: end; }
 .cmp-row.form .form-pills:last-child { justify-content: flex-end; }
 /* Form: the label on its own line above, each side's five results under it (never overlapping on a phone). */
-.cmp-row.form { grid-template-columns: 1fr 1fr; grid-template-areas: 'label label' 'away home'; row-gap: 6px; }
-.cmp-row.form > span { grid-area: label; }
-.cmp-row.form .form-pills:first-child { grid-area: away; }
-.cmp-row.form .form-pills:last-child { grid-area: home; }
+.cmp-row.form { grid-template-columns: 1fr 1fr; row-gap: 6px; }
+.cmp-row.form > span { grid-column: 1 / -1; grid-row: 1; }
+.cmp-row.form .form-pills:first-child { grid-column: 1; grid-row: 2; }
+.cmp-row.form .form-pills:last-child { grid-column: 2; grid-row: 2; }
 .cmp-row.form .form-pills { flex-wrap: nowrap; gap: 3px; min-width: 0; }
 /* Five games on one line at 320 (each pill gives a little, never a sixth on a row of its own). */
 .cmp-row.form .pill { width: auto; flex: 0 1 22px; min-width: 16px; }
@@ -1213,7 +1214,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .playoffs { display: grid; gap: 10px; margin-top: 4px; }
 .po-banner { margin: 0; padding: 9px 12px; border-radius: 12px; background: var(--accent-wash); font-size: 13px; line-height: 1.4; color: var(--q-text-2); }
 .po-banner strong { color: var(--accent); }
-.bracket { position: relative; display: flex; gap: 18px; overflow-x: auto; margin: 0 -16px; padding: 2px 16px 14px; scroll-padding-inline: 16px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.bracket { position: relative; display: flex; gap: 18px; overflow-x: auto; margin: 0 calc(-1 * var(--q-margin, 16px)); padding: 2px var(--q-margin, 16px) 14px; scroll-padding-inline: var(--q-margin, 16px); scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
 .br-col { flex: 0 0 184px; display: flex; flex-direction: column; scroll-snap-align: start; }
 .br-head { position: sticky; top: 0; display: grid; gap: 1px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--q-border); }
 .br-head strong { font-size: 15px; font-weight: 800; }
@@ -1985,3 +1986,17 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .team-domestic .league-tag { flex: none; }
 .team-domestic .td-text { white-space: nowrap; }
 .team-domestic .td-chev { opacity: .6; }
+
+/* ==== iPad landscape and wider: a card of rows (games, teams) runs two
+   across, so a game isn't one line with 1,000 px of nothing beside it; a
+   lone last row takes the whole width. ==== */
+@media (min-width: 700px) {
+  /* The day bar meets the page's gutter; its 📅 leads, so the days run on to the screen's right edge. */
+  .page .q-day-bar { margin-inline: calc(-1 * max(var(--q-margin), env(safe-area-inset-left))); padding-inline: max(var(--q-margin), env(safe-area-inset-left)) 0; }
+  .page .q-day-strip-wrap > .q-day-pick { order: -1; }
+}
+@media (min-width: 900px) {
+  .page :is(.q-card.list, .q-rowcard):has(> :nth-child(2)) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; align-content: start; }
+  .page :is(.q-card.list, .q-rowcard):has(> :nth-child(2)) > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .page :is(.q-card.list, .q-rowcard):has(> :nth-child(2)) > :nth-child(2)::before { display: none; }
+}
