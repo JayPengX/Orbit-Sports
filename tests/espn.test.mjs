@@ -465,6 +465,19 @@ test("a new NBA season's numbers so far from the player's own log (preseason and
 // A season's first days: a 0-1 side under every 0-0 one, whatever ESPN's seeds say (Jay, 2026-10-21).
 test('early standings sort by winning share, a team yet to play at .500', () => {
   const en = (id, seed, W, L) => ({ team: { id, displayName: id }, stats: [{ name: 'playoffSeed', value: seed }, { abbreviation: 'W', displayValue: String(W) }, { abbreviation: 'L', displayValue: String(L) }] });
-  const g = parseStandings({ children: [{ name: 'East', standings: { entries: [en('A', 1, 1, 0), en('B', 2, 0, 1), en('C', 3, 0, 0), en('D', 4, 0, 0)] } }] });
+  const g = parseStandings({ children: [{ name: 'East', standings: { entries: [en('A', 1, 1, 0), en('B', 2, 0, 1), en('C', 3, 0, 0), en('D', 4, 0, 0)] } }] }, 'nba');
   assert.deepEqual(g[0].rows.map(r => r.id), ['A', 'C', 'D', 'B']);
+});
+
+test('caughtUp counts a record again when it trails the finished games', async () => {
+  const { caughtUp } = await import('../public/lib/espn.mjs');
+  assert.equal(caughtUp('0-0', { w: 1, l: 0, n: 1 }), '1-0');
+  assert.equal(caughtUp('1-0', { w: 1, l: 0, n: 1 }), '1-0');
+  assert.equal(caughtUp('1-0', null), '1-0');
+  assert.equal(caughtUp('2-1-0', { w: 3, l: 1, n: 4 }), '2-1-0');
+});
+test('NBA early standings sort by record even with its PTS column', () => {
+  const en = (id, seed, W, L) => ({ team: { id, displayName: id }, stats: [{ name: 'playoffSeed', value: seed }, { abbreviation: 'W', displayValue: String(W) }, { abbreviation: 'L', displayValue: String(L) }, { abbreviation: 'PTS', displayValue: '0' }] });
+  const g = parseStandings({ children: [{ name: 'East', standings: { entries: [en('1', 1, 1, 0), en('2', 2, 0, 1), en('3', 3, 0, 0)] } }] }, 'nba');
+  assert.deepEqual(g[0].rows.map(r => r.id), ['1', '3', '2']);
 });

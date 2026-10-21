@@ -5,7 +5,7 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { mlbGameLog, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, logSeasonLine, logSeason } from './lib/espn.mjs';
+import { mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, logSeasonLine, logSeason } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -164,6 +164,8 @@ export async function openMatch(e) {
   let headSm = null;
   // Each side's record as it stood before the final (recordNow).
   const seenRecord = {};
+  // Each side's finished regular-season games (regularTally), once the game's over.
+  const tallies = {};
   const paintHeader = sm => {
     headSm = sm;
     const home = sm?.home || e.home;
@@ -175,7 +177,13 @@ export async function openMatch(e) {
     const rec = (x, raw) => {
       const r = x.record || raw.record || '';
       if (st.state !== 'post') seenRecord[raw.id] = r;
-      return recordNow(r, x, String(x.id) === String(home.id) ? away : home, { state: st.state, seasonType: sm?.seasonType, before: seenRecord[raw.id] });
+      const now = recordNow(r, x, String(x.id) === String(home.id) ? away : home, { state: st.state, seasonType: sm?.seasonType, before: seenRecord[raw.id] });
+      // Opened after the final, ESPN's still behind: counted from the team's finished games.
+      if (st.state === 'post' && sm?.seasonType === 2 && LEAGUES[e.league]?.espn && !(raw.id in tallies)) {
+        tallies[raw.id] = null;
+        regularTally(e.league, raw.id).then(t => t && ((tallies[raw.id] = t), headSm === sm && header.isConnected && paintHeader(sm)), () => {});
+      }
+      return caughtUp(now, tallies[raw.id]);
     };
     // (The league's rounds still coming: the header drawn again once they're in, not left without its round.)
     const roundOnly = !stageTag(e, L()) && !seriesText(e) && Boolean(weekOf(e, () => headSm === sm && header.isConnected && paintHeader(sm)));

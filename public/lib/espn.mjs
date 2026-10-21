@@ -1369,6 +1369,11 @@ export async function raceWinLine(ss) {
 
 // Groups (a league table, conferences, divisions): [{ name, rows: [{ id, name,
 // logo, rank, stats: { key: value } }], columns: [key…] }].
+// Sports ranked by their winning share (a draw-less record), not points.
+const BY_RECORD = new Set(['basketball', 'baseball', 'football']);
+const shareOf = r => (([w, l]) => (w + l ? w / (w + l) : 0.5))([Number(r.stats.W), Number(r.stats.L)]);
+// By the winning share, one yet to play at .500, the order given kept between equals.
+const byShare = rows => rows.map((r, i) => [r, i]).sort((x, y) => shareOf(y[0]) - shareOf(x[0]) || x[1] - y[1]).map(([r]) => r);
 export function parseStandings(data, league = null) {
   const groups = [];
   const walk = node => {
@@ -1406,10 +1411,8 @@ export function parseStandings(data, league = null) {
       // 2026-10-21). By the winning share then, one yet to play at .500
       // (as games behind counts it), its seed kept between equals.
       const wl = r => [Number(r.stats.W), Number(r.stats.L)];
-      if (ordered.every(r => wl(r).every(Number.isFinite)) && !ordered.some(r => r.stats.PTS != null || r.stats.P != null) && ordered.some(r => wl(r)[0] + wl(r)[1] === 0)) {
-        const share = r => (([w, l]) => (w + l ? w / (w + l) : 0.5))(wl(r));
-        ordered = ordered.map((r, i) => [r, i]).sort((x, y) => share(y[0]) - share(x[0]) || x[1] - y[1]).map(([r]) => r);
-      }
+      // (The NBA's table has a PTS too, half a game a win: by the sport, not the columns.)
+      if (BY_RECORD.has(LEAGUES[league]?.sport) && ordered.every(r => wl(r).every(Number.isFinite)) && ordered.some(r => wl(r)[0] + wl(r)[1] === 0)) ordered = byShare(ordered);
       // A championship's rounds (F1's: a column a weekend, its points, blank until counted).
       const rounds = (node.standings.entries[0]?.stats || []).filter(x => /^[A-Z]{3}$/.test(x.abbreviation || '') && /grand prix/i.test(x.displayName || '')).map(x => ({ key: x.abbreviation, name: x.displayName }));
       groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), en: node.name || node.displayName || '', rows: ordered, ...(rounds.length ? { rounds } : {}) });
@@ -1495,7 +1498,69 @@ const standingsOf = (data, league) => {
 export async function standings(league, { season = null } = {}) {
   if (LEAGUES[league].asia) return asiaStandings(league, season);
   // (On its own: a batch with the playoffs' game days waited on the slowest.)
-  return standingsOf(await getJson(standingsUrl(league, season), { ttl: season ? 86_400_000 : 10 * 60_000, alone: true }), league);
+  const data = await getJson(standingsUrl(league, season), { ttl: season ? 86_400_000 : 10 * 60_000, alone: true });
+  return season ? standingsOf(data, league) : withLatest(league, data);
+}
+
+// ---- Records the moment a game ends -------------------------------------------------
+//
+// ESPN's records and tables catch up with a final minutes after it (Jay,
+// 2026-10-21: every result reflects at once). A team's schedule has each
+// regular-season game's result as soon as it's over: a record counting fewer
+// games than it has finished is counted again from it.
+
+// A team's finished regular-season games this season: { w, l, n }.
+export async function regularTally(league, teamId) {
+  const espn = LEAGUES[league]?.espn;
+  if (!espn || !teamId) return null;
+  const sched = await getJson(`${SITE}/${espn}/teams/${encodeURIComponent(teamId)}/schedule?seasontype=2`, { ttl: 60_000 });
+  if (Number(sched?.requestedSeason?.type) !== 2) return null;
+  let w = 0;
+  let n = 0;
+  for (const ev of sched?.events || []) {
+    const comp = ev.competitions?.[0];
+    if (!comp?.status?.type?.completed) continue;
+    const me = (comp.competitors || []).find(c => String(c.team?.id ?? c.id) === String(teamId));
+    if (!me) continue;
+    n++;
+    if (me.winner) w++;
+  }
+  return { w, l: n - w, n };
+}
+// A "W-L" record caught up with the tally when it counts fewer games.
+export function caughtUp(rec, t) {
+  const m = /^(\d+)-(\d+)$/.exec(rec || '');
+  if (!m || !t || !(t.n > Number(m[1]) + Number(m[2]))) return rec;
+  return `${t.w}-${t.l}`;
+}
+// The table with the sides of games just over put up to date: only theirs
+// asked (today's finals, a handful), never every team's.
+async function withLatest(league, data) {
+  const sport = LEAGUES[league]?.sport;
+  const parsed = parseStandings(data, league);
+  const year = data?.season?.year ?? data?.children?.[0]?.standings?.season?.year ?? null;
+  if (BY_RECORD.has(sport)) {
+    const recent = (await scoreboard(league).catch(() => [])).filter(e => e.kind === 'match' && e.status?.state === 'post' && Date.now() - Date.parse(e.start) < 12 * 3_600_000);
+    const ids = new Set(recent.flatMap(e => [e.home?.id, e.away?.id]).filter(Boolean).map(String));
+    const rowIds = parsed.flatMap(g => g.rows.map(r => r.id)).filter(id => ids.has(id));
+    const tallies = Object.fromEntries(await Promise.all(rowIds.map(id => regularTally(league, id).then(t => [id, t], () => [id, null]))));
+    for (const g of parsed) {
+      let moved = false;
+      g.rows = g.rows.map(r => {
+        const t = tallies[r.id];
+        const [w, l] = [Number(r.stats.W), Number(r.stats.L)];
+        if (!t || !Number.isFinite(w) || !Number.isFinite(l) || !(t.n > w + l)) return r;
+        moved = true;
+        const pct = t.n ? t.w / t.n : 0;
+        return { ...r, stats: { ...r.stats, W: String(t.w), L: String(t.l), PCT: pct === 1 ? '1.000' : pct.toFixed(3).replace(/^0/, '') } };
+      });
+      // Its place by the new record, and the games behind counted again from the top.
+      if (moved) g.rows = byShare(g.rows).map(r => ({ ...r, stats: { ...r.stats, GB: '' } }));
+    }
+  }
+  const groups = withGaps(parsed, sport);
+  groups.year = year;
+  return groups;
 }
 // The table as this phone last read it (any age), or null: shown at once
 // while the fresh one is read (a tap on 排名 waited seconds for it, 2026-10-15).
