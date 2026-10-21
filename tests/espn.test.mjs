@@ -296,8 +296,11 @@ test("A baseball pair's season series: never the preseason; the playoff once it'
   assert.equal(before.series[0].summary, 'MIL wins series 4-3');
   assert.equal(before.series[0].kind, 'season');
   assert.ok(!before.series.some(s => s.summary === 'Series tied 1-1'));
-  const during = parseSummary({ ...fx('mlb-summary'), seasonseries: list(true) }, 'mlb');
+  // A playoff game: its playoff series; a regular-season game its season's, the playoff on or not (Jay, 2026-10-21).
+  const base = fx('mlb-summary');
+  const during = parseSummary({ ...base, header: { ...base.header, season: { ...base.header.season, type: 3 } }, seasonseries: list(true) }, 'mlb');
   assert.equal(during.series[0].kind, 'playoff');
+  assert.equal(parseSummary({ ...base, seasonseries: list(true) }, 'mlb').series[0].kind, 'season');
 });
 
 test("byMlbPostseason: one series' days from different copies (G4 待定, G5 timed, G6 待定) all take MLB's one list; a finished series' game goes", async () => {

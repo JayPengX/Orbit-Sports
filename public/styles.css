@@ -1942,6 +1942,8 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .ls-games { display: grid; margin-top: 12px; border-top: 1px solid var(--q-divider, var(--q-border)); }
 .ls-game { display: grid; grid-template-columns: 3.2em 1fr auto 1fr 12px; align-items: center; gap: 10px; width: 100%; padding: 10px 0; border: 0; border-bottom: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .ls-game:last-child { border-bottom: 0; }
+/* The game open now, among its series' meetings. */
+.ls-game.now { cursor: default; opacity: 1; background: var(--q-fill, var(--q-surface-2)); border-radius: 10px; padding-inline: 8px; margin-inline: -8px; width: calc(100% + 16px); }
 .ls-date { color: var(--q-label-2); font-size: 13px; }
 .ls-side { display: inline-flex; align-items: center; gap: 10px; color: var(--q-label-2); font-size: 17px; }
 .ls-side.right { justify-self: end; }

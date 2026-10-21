@@ -1110,12 +1110,22 @@ export function parseSummary(data, league) {
   // two March games). Never the preseason; the playoff once a game of it is
   // played, the regular season before.
   const played = s => (s.events || []).some(ev => ev.statusType?.completed || ev.status === 'post');
-  const rank = s => (s.type === 'playoff' && played(s) ? 0 : s.type === 'season' ? 1 : s.type === 'playoff' ? 2 : 3);
+  // (This game's own kind first: a regular-season game its season series, a
+  // playoff game its playoff series; a past regular-season game never shown
+  // the playoff series the two played later, Jay 2026-10-21.)
+  const gameType = Number(data?.header?.season?.type) || 0;
+  const rank = s => (gameType === 2 ? (s.type === 'season' ? 0 : 1) : gameType === 3 ? (s.type === 'playoff' ? 0 : 1) : s.type === 'playoff' && played(s) ? 0 : s.type === 'season' ? 1 : s.type === 'playoff' ? 2 : 3);
   const listed = data?.seasonseries || [];
-  const shown = listed.length > 1 ? listed.filter(s => s.type !== 'preseason').sort((x, y) => rank(x) - rank(y)) : listed;
+  const shown = (listed.length > 1 ? listed.filter(s => s.type !== 'preseason').sort((x, y) => rank(x) - rank(y)) : listed).filter(s => !(gameType === 2 && s.type === 'playoff'));
   const series = shown.map(s => {
-    const events = (s.events || []).map(ev => ({ id: String(ev.id), date: ev.date, done: Boolean(ev.statusType?.completed || ev.status === 'post'), score: (ev.competitors || []).map(c => `${c.team?.abbreviation || ''} ${c.score ?? ''}`).join(' · ') }));
-    if (s.type !== 'head-to-head') return { summary: s.summary || s.description || '', kind: s.type || '', events };
+    const events = (s.events || []).map(ev => ({ id: String(ev.id), date: ev.date, done: Boolean(ev.statusType?.completed || ev.status === 'post'), score: (ev.competitors || []).map(c => `${c.team?.abbreviation || ''} ${c.score ?? ''}`).join(' · '), ...meetingSides(ev.competitors) }));
+    if (s.type !== 'head-to-head') {
+      // Each game played, both sides with their scores (the card's rows), and the wins each.
+      const games = events.filter(ev => ev.done && ev.home && ev.away).map(({ id, date, home, away }) => ({ id, date, home, away }));
+      const wins = {};
+      for (const g of games) for (const t of [g.home, g.away]) if (t.winner) wins[t.id] = (wins[t.id] || 0) + 1;
+      return { summary: s.summary || s.description || '', kind: s.type || '', events, games, wins };
+    }
     const wins = {};
     let draws = 0;
     const done = (s.events || []).filter(ev => ev.statusType?.completed || ev.status === 'post');
@@ -1208,6 +1218,13 @@ export const espnSummary = (league, id) => getJson(`${SITE}/${LEAGUES[league].es
 // (kept a day): { season, n, wins: { teamId: n }, games: [{ id, date, home,
 // away }] }, or null. Not football's (its head-to-head is every meeting).
 const playedSeries = s => (s?.events || []).some(ev => /\d/.test(ev.score || '') && ev.done);
+// A meeting's two sides, home and away: { id, abbr, name, short, logo, score, winner }.
+const meetingSide = c => ({ id: String(c.team?.id ?? c.id ?? ''), abbr: c.team?.abbreviation || '', name: c.team?.displayName || '', short: c.team?.shortDisplayName || '', logo: logoOf(c.team), score: String(c.score?.displayValue ?? c.score ?? ''), winner: Boolean(c.winner) });
+function meetingSides(list = []) {
+  const h = list.find(c => c.homeAway === 'home');
+  const a = list.find(c => c.homeAway === 'away');
+  return h && a ? { home: meetingSide(h), away: meetingSide(a) } : {};
+}
 async function lastSeasonMeetings(league, data) {
   const year = Number(data?.header?.season?.year);
   const sides = (data?.header?.competitions?.[0]?.competitors || []).map(c => String(c.team?.id ?? ''));

@@ -66,17 +66,40 @@ function h2hView({ n, wins, draws, noDraw = false }, e) {
 // No meeting this season yet: last season's, as football's head-to-head is
 // drawn (each side's wins, one bar), then each game: the day, both sides
 // with their scores, the winner's strong; a tap opens it.
-function lastSeriesCard(ls, e) {
-  const en = L() === 'en';
+// Meetings, each a row (its date, both sides by logo and score, the winner
+// bold), under who won how many: last season's, this season's, a playoff
+// series; the game open now marked.
+function meetingsCard(title, sub, games, e, { wins = null } = {}) {
   const team = t => [e.home, e.away].find(x => String(x?.id) === t.id) || t;
+  const tally = wins || games.reduce((w, g) => (([g.home, g.away].forEach(t => t.winner && (w[t.id] = (w[t.id] || 0) + 1))), w), {});
   const row = g => {
     // (Each game in the page's order of the two, whoever was at home then.)
     const [first, second] = String(sidesOf(e)[0]?.id) === g.home.id ? [g.home, g.away] : [g.away, g.home];
     // (Each side by its logo and score: the names are the card's header.)
     const side = (t, right) => el('span', { class: `ls-side${right ? ' right' : ''}${t.winner ? ' win' : ''}`, title: team(t).short || t.short || t.abbr }, right ? [el('b', { class: 'num', text: t.score }), logo(team(t).logo || t.logo, t.name, 'xs')] : [logo(team(t).logo || t.logo, t.name, 'xs'), el('b', { class: 'num', text: t.score })]);
-    return el('button', { class: 'ls-game', type: 'button', onclick: () => ctx.openEvent({ id: g.id, league: e.league, kind: 'match', start: g.date, status: { state: 'post', detail: '', short: '', completed: true }, home: { ...team(g.home), score: g.home.score }, away: { ...team(g.away), score: g.away.score } }) }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(5).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), el('span', { class: 'ls-chev', 'aria-hidden': 'true', text: '›' })]);
+    const here = g.id === String(e.id);
+    return el('button', { class: `ls-game${here ? ' now' : ''}`, type: 'button', disabled: here ? true : null, onclick: () => ctx.openEvent({ id: g.id, league: e.league, kind: 'match', start: g.date, status: { state: 'post', detail: '', short: '', completed: true }, home: { ...team(g.home), score: g.home.score }, away: { ...team(g.away), score: g.away.score } }) }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(5).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), el('span', { class: 'ls-chev', 'aria-hidden': 'true', text: here ? '' : '›' })]);
   };
-  return card(en ? 'Last season' : '上季對戰', el('div', {}, [h2hView({ n: ls.n, wins: ls.wins, draws: 0, noDraw: true }, e), el('div', { class: 'ls-games' }, ls.games.map(row))]), { sub: en ? `${ls.season} regular season · ${ls.n}` : `${ls.season} 例行賽 · ${ls.n} 場` });
+  return card(title, el('div', {}, [h2hView({ n: games.length, wins: tally, draws: 0, noDraw: true }, e), el('div', { class: 'ls-games' }, games.map(row))]), { sub });
+}
+function lastSeriesCard(ls, e) {
+  const en = L() === 'en';
+  return meetingsCard(en ? 'Last season' : '上季對戰', en ? `${ls.season} regular season · ${ls.n}` : `${ls.season} 例行賽 · ${ls.n} 場`, ls.games, e, { wins: ls.wins });
+}
+// This game's own series, as it stood when this game ended (a past game's
+// never the meetings after it): the regular season's 本季對戰, a playoff's
+// series by its round; the newest first.
+function ownSeriesCard(s, e) {
+  const en = L() === 'en';
+  const at = Date.parse(e.start) + 6 * 3_600_000;
+  const games = (s.games || []).filter(g => Date.parse(g.date) <= at).sort((x, y) => y.date.localeCompare(x.date));
+  if (!games.length) return null;
+  const playoff = s.kind === 'playoff';
+  // (A game long over: that season's, never read as this one's.)
+  const then = Date.now() - Date.parse(e.start) > 36 * 3_600_000;
+  const title = playoff ? stageTag(e, L()) || (en ? 'Playoff series' : '季後賽系列賽') : en ? (then ? 'Series that season' : 'Season series') : then ? '當季對戰' : '本季對戰';
+  const sub = playoff ? (en ? `Playoffs · ${games.length}` : `季後賽 · ${games.length} 場`) : en ? `Regular season · ${games.length}` : `例行賽 · ${games.length} 場`;
+  return meetingsCard(title, sub, games, e);
 }
 // A series' line in the reader's words (the sides by their names here).
 export function seriesZh(text, e) {
@@ -161,6 +184,9 @@ export async function openMatch(e) {
   // The game's own page a step behind the day's list (still "End of 4th"
   // there, over here): the list's word kept, never back from 完賽 to the break.
   const behind = sm => (sm && e.status.state === 'post' && sm.status?.state !== 'post' ? { ...sm, status: e.status } : sm);
+  // A game over a day and more ago (last season's, from 上季對戰): its page
+  // that game's alone, never today's injuries, table or season leaders (Jay, 2026-10-21).
+  const past = () => (data?.status || e.status).state === 'post' && Date.now() - Date.parse(e.start) > 36 * 3_600_000;
   let headSm = null;
   // Each side's record as it stood before the final (recordNow).
   const seenRecord = {};
@@ -287,13 +313,15 @@ export async function openMatch(e) {
     // 陣容: soccer's line-ups; basketball's from its box score (先發, 替補, 未上場 and why: a player who didn't play is left off 球員), before tip-off its rosters.
     if (data?.rosters.some(r => r.players.length) || Object.keys(data?.squads || {}).length || (LEAGUES[e.league]?.sport === 'basketball' && (data?.players.some(p => p.tables[0]?.rows.length) || (before && squads && Object.values(squads).some(x => x.roster.length))))) tabs.push(['lineups', T('lineups')]);
     // The table only once it has a game in it (a preseason's is all zeros in the feed's order).
-    const shownTable = table?.length ? table : data?.table.length ? [{ rows: data.table.map(r => ({ id: r.id, stats: r.stats })) }] : [];
+    const shownTable = past() ? [] : table?.length ? table : data?.table.length ? [{ rows: data.table.map(r => ({ id: r.id, stats: r.stats })) }] : [];
     if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     else if (view === 'table') view = 'overview';
     // The same row of tabs before, during and after (two of them or six).
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { chips: true }) : null);
     top.hidden = view !== 'overview';
-    const next = matchSection(view, data && { ...data, injuries: withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead }, e, table, { line, wait });
+    // (A game over: ESPN's injuries are today's, not that night's: who sat out is its box score's, 未上場.)
+    const over = (data?.status || e.status).state === 'post';
+    const next = matchSection(view, data && { ...data, table: past() ? [] : data.table, injuries: over ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
     // chance chart, a finger on it) never leaves the page.
@@ -745,6 +773,19 @@ const tagOf = (d, e) => (id, ...more) => teamTag(sideOf(d, e, id), [d?.byId?.[id
 const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [typeof title === 'string' ? el('span', { text: title }) : el('span', {}, [title]), sub ? el('small', {}, [sub]) : null]), body]);
 
 // Why a player didn't play, as ESPN says it ("COACH'S DECISION", "INJURY/ILLNESS - Left Knee; Sprain").
+// A game over: who sat it out (the box score's, each with why), in the injuries' place; none said, no card.
+function satOutCard(d, e) {
+  const en = L() === 'en';
+  const teams = (d?.players || [])
+    .map(p => ({ team: p.team, list: [...new Map(p.tables.flatMap(tb => tb.rows.filter(r => r.dnp)).map(r => [r.id || r.name, r])).values()] }))
+    .filter(t => t.list.length)
+    .sort((x, y) => ((x.team === String(e.home.id)) - (y.team === String(e.home.id))) * (homeFirst(e) ? -1 : 1));
+  if (!teams.length) return null;
+  return card(
+    en ? 'Did not play' : '未上場',
+    el('div', { class: 'injuries' }, teams.map(t => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(t.team)]), el('ul', { class: 'inj-list' }, t.list.slice(0, 12).map(x => el('li', {}, [x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, x.id, { name: x.full || x.name, logo: x.headshot }) }, [personPic({ ...x, name: x.full || x.name }, e.league, 'xs round'), el('span', { text: x.name })]) : el('span', { text: x.name }), el('small', {}, [dnpText(x.reason, en)])])))])))
+  );
+}
 function dnpText(reason, en) {
   const r = String(reason || '').trim();
   if (en || !r) return en ? r.toLowerCase().replace(/^./, c => c.toUpperCase()) || 'Did not play' : '未上場';
@@ -1185,7 +1226,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   const sm = side => d?.byId?.[side.id] || side;
   const compareRows = [
     // The record: the feed's, else the table's wins and losses.
-    [T('record'), ...sides.map((s, i) => sm(s).record || s.record || (places[i]?.row?.stats?.W != null ? `${places[i].row.stats.W}-${places[i].row.stats.L}` : '—'))],
+    // (A game long over: its record then, said so, never read as today's.)
+    [(d?.status || e.status).state === 'post' && Date.now() - Date.parse(e.start) > 36 * 3_600_000 ? (L() === 'en' ? 'Record then' : '當時戰績') : T('record'), ...sides.map((s, i) => sm(s).record || s.record || (places[i]?.row?.stats?.W != null ? `${places[i].row.stats.W}-${places[i].row.stats.L}` : '—'))],
     places.some(Boolean) ? [T('standing'), ...places.map(p => (p ? placeCell(p, (table?.length || 0) > 1) : '—'))] : null,
     ...(places.every(Boolean) ? keyStats(e.league, places) : [])
   ].filter(Boolean);
@@ -1223,7 +1265,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     replay: replayLink(e),
     highlights: highlights(e),
     // (A guest club from outside the league has no record or place to set beside the other's.)
-    matchup: e.home.guest || e.away.guest ? null : card(T('matchup'), compare),
+    // (The records alone, the hero's already: no card of one row.)
+    matchup: e.home.guest || e.away.guest || (compareRows.length < 2 && !forms.some(f => f.length)) ? null : card(T('matchup'), compare),
     win: winCard(d, e, line, wait),
     onField: onFieldCard(d, e, nameOf),
     lineups: lineupCard(d?.lineups, e, nameOf),
@@ -1243,8 +1286,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
         )
       : null,
     season: seasonLeadCard(d?.seasonLead, e),
-    series: d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.lastSeries ? lastSeriesCard(d.lastSeries, e) : d?.series.length && d.series[0].summary && d.series[0].events.some(x => x.done) ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
-    injuries: d?.injuries.some(i => i.list.length)
+    series: d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.lastSeries ? lastSeriesCard(d.lastSeries, e) : d?.series[0]?.games?.length && ownSeriesCard(d.series[0], e) ? ownSeriesCard(d.series[0], e) : d?.series.length && d.series[0].summary && d.series[0].events.some(x => x.done) ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
+    injuries: d?.injuries.some(i => i.list.length) === false && (d?.status || e.status).state === 'post' ? satOutCard(d, e) : d?.injuries.some(i => i.list.length)
       ? card(
           T('injuries'),
           el(
