@@ -170,12 +170,17 @@ const window = e => {
   const start = Date.parse(e.start);
   return [start, start + minutes(e) * 60_000];
 };
-// Two matches clash when more than half an hour (or half the shorter one) overlaps.
+// Two matches of one sport clash when more than half an hour (or half the shorter one) overlaps.
+// Two sports clash only when they start within half an hour of each other: a
+// World Series game at 08:00 and an NBA one at 09:30 are both picks, his to
+// choose between on the night (the owner, 2026-10-21).
 // A game whose hour isn't set yet (timeTbd) clashes with nothing: its place in the day is a guess.
+const sportOf = e => LEAGUES[e.league]?.sport || e.league;
 export function clash(x, y) {
   if (x.timeTbd || y.timeTbd) return false;
   const [a1, a2] = window(x);
   const [b1, b2] = window(y);
+  if (sportOf(x) !== sportOf(y)) return Math.abs(a1 - b1) < 30 * 60_000;
   const overlap = Math.min(a2, b2) - Math.max(a1, b1);
   return overlap > Math.min(30 * 60_000, (Math.min(a2 - a1, b2 - b1) / 2));
 }

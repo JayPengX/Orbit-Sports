@@ -3889,7 +3889,9 @@ function fillField(s, e) {
         box,
         sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,
         // (A live F1 session's own card says it: the line said it twice.)
-        e.league === 'f1' && ss.status.state === 'in' ? null : el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, status: ss.status })}` }),
+        // The chosen session's own hour (the weekend's opened one's official start
+        // said every session's: the owner, 2026-10-21).
+        e.league === 'f1' && ss.status.state === 'in' ? null : el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, official: ss.start, timeTbd: ss.timeTbd, status: ss.status })}` }),
         // The picked session's whole replay and highlights, once it's over.
         ...(() => {
           const one = { ...e, id: `${weekend}~${ss.abbr}`, weekend, sessionKey: ss.abbr, session: sessionName(ss, L()), start: ss.start, official: ss.start, status: ss.status };

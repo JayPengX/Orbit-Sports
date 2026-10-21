@@ -526,7 +526,10 @@ const AWAKE_FROM = 5;
 const nightWorthy = e => bigGame(e) || isFollowedEvent(e);
 // A race weekend's practice: in 賽事 and the race's sheet, never among 首頁's picks or days.
 const practice = e => /^FP\d$/.test(e.sessionKey || '');
-const nightOnly = e => new Date(Date.parse(e.start)).getHours() < AWAKE_FROM && !isFollowedEvent(e);
+// (A race session by its official start, not its broadcast's titles a few
+// minutes before: a 05:00 qualifying titled at 04:56 is a morning pick, not the small hours.)
+const officialMs = e => Date.parse(e.official || e.start);
+const nightOnly = e => new Date(officialMs(e)).getHours() < AWAKE_FROM && !isFollowedEvent(e);
 const inDay = (ms, date) => ms >= Date.parse(`${date}T00:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 
@@ -573,7 +576,7 @@ async function readDay(leagues, date, { current = false, night = false, pages = 
   // Results are the whole day's: a game in the small hours that's over (or
   // any of a past day's) counts for its day, it just wasn't one to wake up for.
   const past = date < today();
-  const out = raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(Date.parse(e.start), date) || (inDay(Date.parse(e.start), date) && (night || nightWorthy(e))) || ((past || e.status.state === 'post') && inDay(Date.parse(e.start), date)) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
+  const out = raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(officialMs(e), date) || (inDay(Date.parse(e.start), date) && (night || nightWorthy(e))) || ((past || e.status.state === 'post') && inDay(Date.parse(e.start), date)) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
   out.failed = failed;
   out.read = read;
   return out;
@@ -1479,7 +1482,7 @@ async function sportDays(sport) {
   days.failed = failed;
   for (const e of lists.flat().flatMap(x => (x.sessions ? splitWeekend(x, now, locale) : [x]))) {
     if (e.status?.void || practice(e) || !(onTv(e) || ((e.status?.state === 'post' || tvUnread()) && !tvKnown(e)))) continue;
-    const ms = Date.parse(e.start);
+    const ms = officialMs(e);
     const d = localDate(ms);
     if (inPickDay(ms, d) && d >= from && d <= to) days.add(d);
   }
@@ -3328,7 +3331,7 @@ function savedJump() {
 const pickDayHas = date => {
   const slot = state.days.get(date);
   const sports = new Set(followedSports());
-  return Boolean(slot?.at && !slot.partial && slot.leagues === leaguesKey() && slot.events.some(e => sports.has(LEAGUES[e.league]?.sport) && !e.status?.void && !practice(e) && onTv(e) && inPickDay(Date.parse(e.start), date)));
+  return Boolean(slot?.at && !slot.partial && slot.leagues === leaguesKey() && slot.events.some(e => sports.has(LEAGUES[e.league]?.sport) && !e.status?.void && !practice(e) && onTv(e) && inPickDay(officialMs(e), date)));
 };
 const nextLeagueDay = () =>
   pickLeagues()

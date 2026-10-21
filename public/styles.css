@@ -1976,3 +1976,4 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .pi-second .br-side.tbd .br-name { overflow: visible; text-overflow: clip; }
 .pi-arrow { border-color: var(--q-muted); opacity: .55; }
 .pi-arrow::after { border-left-color: var(--q-muted); }
+.score-card > .sess-tag { justify-self: start; }

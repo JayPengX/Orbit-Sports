@@ -97,8 +97,17 @@ test('an F1 session takes its own length: qualifying (an hour) runs into no 22:0
   const quali = { league: 'f1', kind: 'field', sessionKey: 'Qual', start: '2026-10-10T13:00:00Z' };
   const epl = { league: 'epl', kind: 'match', start: '2026-10-10T14:00:00Z' };
   assert.equal(clash(quali, epl), false);
-  // The race (two hours) still does.
-  assert.equal(clash({ ...quali, sessionKey: 'Race' }, epl), true);
+  // Two sports clash only when they start together.
+  assert.equal(clash({ ...quali, sessionKey: 'Race' }, { ...epl, start: '2026-10-10T13:15:00Z' }), true);
+});
+
+test('a World Series game at 08:00 and an NBA one at 09:30 are both picks; two NBA games an hour apart are not', () => {
+  const mlb = { id: 'ws1', league: 'mlb', kind: 'match', start: '2026-10-24T00:00:00Z', status: { state: 'pre' }, note: 'World Series - Game 1', away: { id: '1', name: 'A' }, home: { id: '2', name: 'B' } };
+  const nba = { id: 'n1', league: 'nba', kind: 'match', start: '2026-10-24T01:30:00Z', status: { state: 'pre' }, away: { id: '3', name: 'C' }, home: { id: '4', name: 'D' } };
+  assert.equal(clash(mlb, nba), false);
+  assert.equal(clash(nba, { ...nba, id: 'n2', start: '2026-10-24T02:30:00Z' }), true);
+  const { plan } = dayPlan([mlb, nba], { leagues: ['nba', 'mlb'], now: Date.parse('2026-10-23T12:00:00Z') });
+  assert.deepEqual(plan.map(p => p.event.id), ['ws1', 'n1']);
 });
 
 test("seven games in, the table counts for a share; the broadcaster's pick of the games then counts more", () => {
@@ -145,7 +154,9 @@ test('scoreMatch: an open game over a walkover at the same time, though the broa
 test('clash: a baseball game at 08:00 and a basketball game at 10:30 are both watchable (2026-10-17, ALCS G4 then Nuggets v Lakers)', () => {
   const g = (league, start) => ({ id: league, league, kind: 'match', start, status: { state: 'pre' } });
   assert.equal(clash(g('mlb', '2026-10-17T00:00:00Z'), g('nba', '2026-10-17T02:30:00Z')), false);
-  assert.equal(clash(g('mlb', '2026-10-17T00:00:00Z'), g('nba', '2026-10-17T01:30:00Z')), true);
+  // An hour and a half apart is fine too across sports (the owner, 2026-10-21); together is not.
+  assert.equal(clash(g('mlb', '2026-10-17T00:00:00Z'), g('nba', '2026-10-17T01:30:00Z')), false);
+  assert.equal(clash(g('mlb', '2026-10-17T00:00:00Z'), g('nba', '2026-10-17T00:15:00Z')), true);
 });
 
 test('the day as it stood keeps a postponed pick and an ended one (they don’t vanish from 已結束的推薦)', () => {
