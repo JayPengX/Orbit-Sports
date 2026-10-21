@@ -436,6 +436,10 @@ img { max-width: 100%; }
 /* A game's sections and their cards with room between them (the sheet had read as packed: 2 px over the chips, none under). */
 .match-tabs:not(:empty) { margin: 18px 0 16px; }
 .match-content > .stack { gap: 16px; }
+/* The line score and the game's moment, over 概況's cards (on every state's page, under the same tabs). */
+.match-top:not(:empty) { display: grid; gap: 12px; margin-bottom: 16px; }
+.match-top[hidden] { display: none; }
+.match-top > .live-panel { margin: 0; }
 .match-content .replay-group { gap: 10px; }
 .match-head > .mh-follow { margin: 0; }
 .mh-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 8px; }
@@ -615,7 +619,9 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .cmp-row.form > span { grid-area: label; }
 .cmp-row.form .form-pills:first-child { grid-area: away; }
 .cmp-row.form .form-pills:last-child { grid-area: home; }
-.cmp-row.form .form-pills { flex-wrap: wrap; min-width: 0; }
+.cmp-row.form .form-pills { flex-wrap: nowrap; gap: 3px; min-width: 0; }
+/* Five games on one line at 320 (each pill gives a little, never a sixth on a row of its own). */
+.cmp-row.form .pill { width: auto; flex: 0 1 22px; min-width: 16px; }
 .info-list { list-style: none; margin: 0; padding: 0; display: grid; }
 .info-list li { display: grid; grid-template-columns: minmax(5.5em, auto) minmax(0, 1fr); align-items: start; column-gap: 10px; padding: 10px 0; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 14px; line-height: 1.45; }
 .info-list li:first-child { border-top: 0; }
@@ -1931,3 +1937,19 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 }
 :root[data-theme='dark'] .hc-logo, :root[data-theme='dark'] .suggest-tile { background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18); }
 :root[data-theme='dark'] .q-tag.on-hero.strong { background: rgba(255, 255, 255, 0.28); color: #fff; }
+
+/* Last season's meetings (a game page with none this season yet): a row each, logos and scores. */
+.ls-games { display: grid; margin-top: 12px; border-top: 1px solid var(--q-divider, var(--q-border)); }
+.ls-game { display: grid; grid-template-columns: 3.2em 1fr auto 1fr 12px; align-items: center; gap: 10px; width: 100%; padding: 10px 0; border: 0; border-bottom: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ls-game:last-child { border-bottom: 0; }
+.ls-date { color: var(--q-label-2); font-size: 13px; }
+.ls-side { display: inline-flex; align-items: center; gap: 10px; color: var(--q-label-2); font-size: 17px; }
+.ls-side.right { justify-self: end; }
+.ls-side b { font-weight: 600; }
+.ls-side.win { color: var(--q-label); }
+.ls-side.win b { font-weight: 800; }
+.ls-side .logo-wrap, .ls-side .logo { width: 22px; height: 22px; flex: none; object-fit: contain; }
+.ls-dash { color: var(--q-muted); }
+.ls-chev { color: var(--q-muted); font-size: 17px; }
+/* A narrow phone: the line score's sides by their logos alone (the hero over it names them), never a name cut to 「塞爾..」. */
+@media (max-width: 360px) { .linescore .ls-who > span { display: none; } .linescore.innings tr > :first-child { padding-left: 8px; } }

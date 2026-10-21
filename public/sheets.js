@@ -52,15 +52,31 @@ const homeFirst = e => String(sidesOf(e)[0]?.id) === String(e.home?.id);
 const inOrder = (e, [away, home]) => (homeFirst(e) ? [home, away] : [away, home]);
 // The last meetings at a glance: each side's logo, name and wins, the draws
 // between, and one bar split by them (a sentence wrapped its parts apart).
-function h2hView({ n, wins, draws }, e) {
+function h2hView({ n, wins, draws, noDraw = false }, e) {
   const en = L() === 'en';
   const side = (x, cls) => el('div', { class: `h2h-side ${cls}` }, [teamTap(x, e.league, 'h2h-who', [logo(x.logo, x.name, 'sm'), el('span', { class: 'h2h-name', text: x.short || x.name })]), el('div', { class: 'h2h-score' }, [el('strong', { class: 'num h2h-n', text: String(wins[x.id] || 0) }), el('small', { text: en ? 'won' : '勝' })])]);
   const share = k => `flex-grow:${k}`;
   const [a, h] = [wins[e.away.id] || 0, wins[e.home.id] || 0];
   return el('div', { class: 'h2h' }, [
-    el('div', { class: 'h2h-row' }, [side(homeFirst(e) ? e.home : e.away, 'away'), el('div', { class: 'h2h-draw' }, [el('strong', { class: 'num h2h-n', text: String(draws || 0) }), el('small', { text: en ? 'drawn' : '和局' })]), side(homeFirst(e) ? e.away : e.home, 'home')]),
+    // (A sport without draws: none between them.)
+    el('div', { class: 'h2h-row' }, [side(homeFirst(e) ? e.home : e.away, 'away'), noDraw ? el('div', { class: 'h2h-draw' }, [el('small', { class: 'muted', text: 'vs' })]) : el('div', { class: 'h2h-draw' }, [el('strong', { class: 'num h2h-n', text: String(draws || 0) }), el('small', { text: en ? 'drawn' : '和局' })]), side(homeFirst(e) ? e.away : e.home, 'home')]),
     n ? el('div', { class: 'h2h-bar', 'aria-hidden': 'true' }, inOrder(e, [a ? el('i', { class: 'away', style: share(a) }) : null, h ? el('i', { class: 'home', style: share(h) }) : null]).flatMap((x, i) => (i === 0 ? [x, draws ? el('i', { class: 'draw', style: share(draws) }) : null] : [x]))) : null
   ]);
+}
+// No meeting this season yet: last season's, as football's head-to-head is
+// drawn (each side's wins, one bar), then each game: the day, both sides
+// with their scores, the winner's strong; a tap opens it.
+function lastSeriesCard(ls, e) {
+  const en = L() === 'en';
+  const team = t => [e.home, e.away].find(x => String(x?.id) === t.id) || t;
+  const row = g => {
+    // (Each game in the page's order of the two, whoever was at home then.)
+    const [first, second] = String(sidesOf(e)[0]?.id) === g.home.id ? [g.home, g.away] : [g.away, g.home];
+    // (Each side by its logo and score: the names are the card's header.)
+    const side = (t, right) => el('span', { class: `ls-side${right ? ' right' : ''}${t.winner ? ' win' : ''}`, title: team(t).short || t.short || t.abbr }, right ? [el('b', { class: 'num', text: t.score }), logo(team(t).logo || t.logo, t.name, 'xs')] : [logo(team(t).logo || t.logo, t.name, 'xs'), el('b', { class: 'num', text: t.score })]);
+    return el('button', { class: 'ls-game', type: 'button', onclick: () => ctx.openEvent({ id: g.id, league: e.league, kind: 'match', start: g.date, status: { state: 'post', detail: '', short: '', completed: true }, home: { ...team(g.home), score: g.home.score }, away: { ...team(g.away), score: g.away.score } }) }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(5).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), el('span', { class: 'ls-chev', 'aria-hidden': 'true', text: '›' })]);
+  };
+  return card(en ? 'Last season' : '上季對戰', el('div', {}, [h2hView({ n: ls.n, wins: ls.wins, draws: 0, noDraw: true }, e), el('div', { class: 'ls-games' }, ls.games.map(row))]), { sub: en ? `${ls.season} regular season · ${ls.n}` : `${ls.season} 例行賽 · ${ls.n} 場` });
 }
 // A series' line in the reader's words (the sides by their names here).
 export function seriesZh(text, e) {
@@ -83,8 +99,12 @@ export async function openMatch(e) {
   const s = sheet(leagueName(e.league, L()), { league: e.league });
   const header = el('div', { class: 'match-head' });
   const sections = el('div', { class: 'match-tabs' });
+  // The line score and the game's moment (on now, or how it went): under the
+  // tabs on 概況, so a game's page is one layout whatever its state (the
+  // hero, the tabs, then the cards; the owner, 2026-10-21).
+  const top = el('div', { class: 'match-top' });
   const content = el('div', { class: 'match-content' }, [spinner()]);
-  s.body.append(header, sections, content);
+  s.body.append(header, sections, top, content);
   let view = 'overview';
   let data = null;
   // A CPBL game begun whose box score (cpbl.com.tw, read through the proxy) failed: said, not left blank.
@@ -161,10 +181,9 @@ export async function openMatch(e) {
       !roundOnly && (stageTag(e, L()) || seriesText(e)) ? stageLine(e) : null,
       gameFollow(e, st, () => paintHeader(sm), guestGame && hasTeamPage(e.league) ? inOrder(e, [away, home]).filter((x, i) => !x.guest && !inOrder(e, [e.away, e.home])[i].guest) : []),
       // On now or about to start: one tap to watch it, at the top.
-      watchButton({ ...e, status: st }, 'wide'),
-      linescore(sm, e),
-      livePanel(e, sm) || storyPanel(e, sm)
+      watchButton({ ...e, status: st }, 'wide')
     );
+    put(top, linescore(sm, e), livePanel(e, sm) || storyPanel(e, sm));
   };
   paintHeader(null);
   // A game on (or about to start): the score, the situation and the
@@ -241,7 +260,9 @@ export async function openMatch(e) {
     const shownTable = table?.length ? table : data?.table.length ? [{ rows: data.table.map(r => ({ id: r.id, stats: r.stats })) }] : [];
     if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     else if (view === 'table') view = 'overview';
-    put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint())) : null);
+    // The same row of tabs before, during and after (two of them or six).
+    put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { chips: true }) : null);
+    top.hidden = view !== 'overview';
     const next = matchSection(view, data && { ...data, injuries: withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead }, e, table, { line, wait });
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
@@ -1192,7 +1213,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
         )
       : null,
     season: seasonLeadCard(d?.seasonLead, e),
-    series: d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.series.length && d.series[0].summary ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
+    series: d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.lastSeries ? lastSeriesCard(d.lastSeries, e) : d?.series.length && d.series[0].summary && d.series[0].events.some(x => x.done) ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
     injuries: d?.injuries.some(i => i.list.length)
       ? card(
           T('injuries'),
@@ -1210,17 +1231,12 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     tv: exactTv ? twCard(e.league, e) : null,
     info: card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([, k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
   };
-  // In the order the game's moment wants (the owner, 2026-10-13: the live
-  // page had grown): on, who's on now first, then the live chance, who's
-  // leading, the rest; to come, the matchup, the chance, who starts; over,
-  // the replay and highlights, who led, the chance's story, the rest.
-  const ORDER = {
-    in: ['onField', 'win', 'leaders', 'matchup', 'season', 'series', 'injuries', 'tv', 'info'],
-    pre: ['matchup', 'win', 'lineups', 'season', 'series', 'injuries', 'tv', 'info', 'leaders'],
-    post: ['replay', 'highlights', 'leaders', 'win', 'matchup', 'season', 'series', 'info', 'injuries']
-  };
-  const state = (d?.status || e.status).state;
-  return el('div', { class: 'stack' }, (ORDER[state] || ORDER.pre).map(k => part[k] || (k === 'onField' ? part.lineups : null)));
+  // One order whatever the game's moment (the owner, 2026-10-21: the page
+  // before, during and after alike), only what's in it changing: the replay
+  // and highlights once it's over, who's on (or starts), the chance, who
+  // leads, the matchup, the season, the series, the rest.
+  const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'season', 'series', 'injuries', 'tv', 'info'];
+  return el('div', { class: 'stack' }, ORDER.map(k => part[k] || (k === 'onField' ? part.lineups : null)));
 }
 
 // 本季數據領先, side by side: each stat both teams have, its leader on each

@@ -1114,7 +1114,7 @@ export function parseSummary(data, league) {
   const listed = data?.seasonseries || [];
   const shown = listed.length > 1 ? listed.filter(s => s.type !== 'preseason').sort((x, y) => rank(x) - rank(y)) : listed;
   const series = shown.map(s => {
-    const events = (s.events || []).map(ev => ({ id: String(ev.id), date: ev.date, score: (ev.competitors || []).map(c => `${c.team?.abbreviation || ''} ${c.score ?? ''}`).join(' · ') }));
+    const events = (s.events || []).map(ev => ({ id: String(ev.id), date: ev.date, done: Boolean(ev.statusType?.completed || ev.status === 'post'), score: (ev.competitors || []).map(c => `${c.team?.abbreviation || ''} ${c.score ?? ''}`).join(' · ') }));
     if (s.type !== 'head-to-head') return { summary: s.summary || s.description || '', kind: s.type || '', events };
     const wins = {};
     let draws = 0;
@@ -1194,9 +1194,35 @@ export async function cpblGame(e) {
 // A game's summary as ESPN sends it (the same read summary() makes): when
 // its half ended, for 中場休息's countdown (the kit's watchHalftime).
 export const espnSummary = (league, id) => getJson(`${SITE}/${LEAGUES[league].espn}/summary?event=${encodeURIComponent(id)}`, { ttl: LIVE_TTL });
+// No meeting of the two this season yet (a series with none played): last
+// season's regular-season games between them, from one side's schedule
+// (kept a day): { season, n, wins: { teamId: n }, games: [{ id, date, home,
+// away }] }, or null. Not football's (its head-to-head is every meeting).
+const playedSeries = s => (s?.events || []).some(ev => /\d/.test(ev.score || '') && ev.done);
+async function lastSeasonMeetings(league, data) {
+  const year = Number(data?.header?.season?.year);
+  const sides = (data?.header?.competitions?.[0]?.competitors || []).map(c => String(c.team?.id ?? ''));
+  if (!year || sides.length !== 2 || !sides.every(Boolean)) return null;
+  const sched = await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(sides[0])}/schedule?season=${year - 1}&seasontype=2`, { ttl: 24 * 3_600_000 });
+  const side = c => ({ id: String(c.team?.id ?? ''), abbr: c.team?.abbreviation || '', name: c.team?.displayName || '', short: c.team?.shortDisplayName || '', logo: logoOf(c.team), score: String(c.score?.displayValue ?? c.score ?? ''), winner: Boolean(c.winner) });
+  const games = (sched?.events || [])
+    .map(ev => ({ ev, comp: ev.competitions?.[0] }))
+    .filter(({ comp }) => comp?.status?.type?.completed && (comp.competitors || []).some(c => String(c.team?.id) === sides[1]))
+    .map(({ ev, comp }) => {
+      const [h, a] = ['home', 'away'].map(k => side(comp.competitors.find(c => c.homeAway === k) || {}));
+      return { id: String(ev.id), date: ev.date, home: h, away: a };
+    })
+    .sort((x, y) => y.date.localeCompare(x.date));
+  if (!games.length) return null;
+  const wins = {};
+  for (const g of games) for (const t of [g.home, g.away]) if (t.winner) wins[t.id] = (wins[t.id] || 0) + 1;
+  const name = sched?.requestedSeason?.displayName || String(year - 1);
+  return { season: name, n: games.length, wins, games };
+}
 export async function summary(league, id) {
   const data = await espnSummary(league, id);
   let sm = parseSummary(data, league);
+  if (LEAGUES[league]?.sport !== 'soccer' && LEAGUES[league]?.espn && !sm.series?.some(playedSeries)) sm = { ...sm, lastSeries: await lastSeasonMeetings(league, data).catch(() => null) };
   // MLB's 陣容: each side's whole active roster and who's in what role (MLB's box score).
   if (league === 'mlb') sm = await withMlbSquads(sm, data?.header?.competitions?.[0]?.date).catch(() => sm);
   // A game to come: no box score (ESPN's holds season totals under a game's

@@ -685,8 +685,9 @@ export function sheet(title, { accent, league } = {}) {
 // sliding to the pick; of more, the kit's chips in a row that scrolls (as
 // iOS keeps a segmented control to a handful).
 // (`seg`: one row of equal parts whatever the count, up to the kit's seven: a team's five tabs.)
-export function segmented(options, current, onPick, cls = '', { seg = false } = {}) {
-  const few = options.length <= 4 || (seg && options.length <= 7);
+// (`chips`: the chips row whatever the count: a game's tabs, alike before and during it.)
+export function segmented(options, current, onPick, cls = '', { seg = false, chips = false } = {}) {
+  const few = !chips && (options.length <= 4 || (seg && options.length <= 7));
   return el(
     'div',
     { class: `${few ? 'q-seg' : 'q-chips'} ${cls === 'scroll' ? '' : cls}`.trim(), role: 'group' },
