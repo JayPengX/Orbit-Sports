@@ -1,7 +1,7 @@
 // Orbit Sports' shared pieces: small DOM helpers, days and times, event
 // rows, sheets. `ctx` is filled by app.js (the text, the state and the
 // actions rows and sheets call).
-import { LEAGUES, SPORTS, leagueName, leagueLogo } from './lib/leagues.mjs';
+import { LEAGUES, SPORTS, leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
 import { sidesInOrder } from '#kit/play-teams.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
 import { keptTiming } from './lib/f1.mjs';
@@ -285,7 +285,7 @@ export const sportIcon = league => SPORTS[LEAGUES[league]?.sport]?.icon || '';
 // into a dark background.
 export function leagueMark(key, cls = 'lg-mark') {
   const icon = () => el('span', { class: 'league-icon', 'aria-hidden': 'true', text: sportIcon(key) });
-  return el('span', { class: `league-badge ${cls}` }, [logoPicture(leagueLogo(key), null, 'league-img', icon)]);
+  return el('span', { class: `league-badge ${cls}` }, [logoPicture(leagueLogo(key), leagueLogoDark(key), 'league-img', icon)]);
 }
 export const leagueChip = (key, short = false) => el('span', { class: 'league-tag' }, [leagueMark(key), el('span', { text: short ? shortLeague(key) : leagueName(key, ctx.locale) })]);
 // A row's narrow column: a league known by its letters by them alone (MLB, not MLB 美國職棒);
