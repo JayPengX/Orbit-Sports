@@ -134,6 +134,7 @@ img { max-width: 100%; }
 .event-status.in:not(.clocked) { grid-auto-flow: column; justify-content: start; align-items: center; gap: 5px; }
 .event-status.in:not(.clocked)::before, .event-status.clocked > :first-child::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.4s ease-in-out infinite; }
 .event-status.clocked > :first-child::before { margin-right: 5px; vertical-align: 2px; }
+.event-status.clocked > :first-child { white-space: nowrap; }
 /* 即將開賽 on one line in a phone's narrow time column (no dot: it's not under way yet). */
 .event-status.in.starting { white-space: nowrap; }
 .event-status.in.starting::before { display: none; }
