@@ -2529,6 +2529,38 @@ function weekendCard(sessions) {
   ]);
 }
 
+// A league's rounds read: the page drawn again once (every game on it asked
+// for them, and each drew the whole page again: 18 redraws on a cup night).
+let roundsTimer = 0;
+const roundsIn = () => {
+  clearTimeout(roundsTimer);
+  roundsTimer = setTimeout(() => state.tab === 'matches' && renderScores());
+};
+// The league rail: made once for its leagues and language, the chosen one
+// marked in place on every redraw after (made again each time, its thirty
+// logos were most of a league switch's freeze on a phone; kept, it also
+// keeps its scroll).
+let railKept = null;
+function leagueRail(rail) {
+  const key = `${locale}|${rail.join()}`;
+  if (railKept?.key !== key) {
+    const pick = k => {
+      const sc = state.scores;
+      if (sc.league === k) return;
+      state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games' };
+      loadScores();
+    };
+    railKept = {
+      key,
+      node: el('div', { class: 'q-chips league-rail' }, [
+        el('button', { class: 'q-chip search-chip', type: 'button', 'aria-label': L({ zh: '搜尋', en: 'Search' }), html: icon('search'), onclick: openSearch }),
+        ...rail.map(k => el('button', { class: 'q-chip', type: 'button', 'data-league': k, 'aria-pressed': 'false', onclick: () => pick(k) }, [leagueMark(k), locale === 'en' ? leagueName(k, locale) : leagueName(k, locale).replace(/\s.*$/, '')]))
+      ])
+    };
+  }
+  for (const chip of railKept.node.querySelectorAll('[data-league]')) chip.setAttribute('aria-pressed', String(chip.dataset.league === state.scores.league));
+  return railKept.node;
+}
 function renderScores() {
   const sc = state.scores;
   // A sport or league with nothing on now: the first one that has.
@@ -2546,12 +2578,7 @@ function renderScores() {
   // the search first of all.
   const sportOrder = shownSports().sort((a, b) => followedSports().includes(b) - followedSports().includes(a));
   const rail = [...state.prefs.leagues.filter(isActive), ...sportOrder.flatMap(sp => shownLeaguesOf(sp).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top)).filter(k => !mine.has(k)))];
-  const leagueChips = el('div', { class: 'q-chips league-rail' }, [
-    el('button', { class: 'q-chip search-chip', type: 'button', 'aria-label': L({ zh: '搜尋', en: 'Search' }), html: icon('search'), onclick: openSearch }),
-    ...rail.map(k =>
-      el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(sc.league === k), onclick: () => ((state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games' }), loadScores()) }, [leagueMark(k), locale === 'en' ? leagueName(k, locale) : leagueName(k, locale).replace(/\s.*$/, '')])
-    )
-  ]);
+  const leagueChips = leagueRail(rail);
   let strip = null;
   let list;
   let stages = null;
@@ -2626,7 +2653,7 @@ function renderScores() {
     const shown = sc.stage === 'all' ? games : games.filter(e => stageOf(e).key === sc.stage);
     // A football league's day: its matchweek (第 6 輪, or 第 6–7 輪 across a
     // postponed game), a cup's league-phase matchday (第 2 比賽日).
-    const weeks = [...new Set(shown.map(e => weekOf(e, () => state.tab === 'matches' && renderScores())).filter(Boolean))].sort((a, b) => a - b);
+    const weeks = [...new Set(shown.map(e => weekOf(e, roundsIn)).filter(Boolean))].sort((a, b) => a - b);
     const wk = weeks.length ? roundLabel(sc.league, weeks[0], weeks.at(-1), locale) : '';
     // The first screen's games at once, the rest a few at a time after (a
     // cup night's 18 drawn at once froze a league switch for most of a second
