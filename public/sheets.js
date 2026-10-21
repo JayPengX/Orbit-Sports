@@ -27,7 +27,7 @@ import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mj
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { f1Shown, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, today, sidesOf } from './ui.js';
+import { f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, today, sidesOf } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -3996,6 +3996,22 @@ export async function openTeam(league, id, fallback = {}) {
       ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? freshStandings(league).catch(() => null) : null, leagueInjuries(league).catch(() => null), homeLeague(league, id).catch(() => null)])
       : await ownTeam(league, id, fallback);
     const outside = Boolean(home && !home.key && home.name);
+    // Opened from a European cup: the club's own league too (義甲 第 3 名 ·
+    // 4勝2和1敗), a tap to its page there (Jay, 2026-10-21); the record
+    // beside the cup's place the cup's own.
+    const domestic = LEAGUES[league]?.cup && home?.key && home.key !== league && LEAGUES[home.key] ? home.key : null;
+    const domBox = domestic ? el('button', { class: 'team-domestic', type: 'button', hidden: true, onclick: () => openTeam(domestic, id, fallback) }) : null;
+    if (domestic)
+      freshStandings(domestic)
+        .then(g => {
+          const p = placeOf(g, id);
+          if (!p) return;
+          const st = p.row.stats;
+          const wdl = [st.W, st.D, st.L].every(v => v != null && v !== '') ? W(`${st.W}勝${st.D}和${st.L}敗`, `${st.W}-${st.D}-${st.L}`) : '';
+          put(domBox, leagueChip(domestic, true), el('span', { class: 'td-text', text: [W(`第 ${p.pos} 名`, `${p.pos}${['th', 'st', 'nd', 'rd'][p.pos % 10 < 4 && Math.floor(p.pos / 10) !== 1 ? p.pos % 10 : 0]}`), wdl].filter(Boolean).join(' · ') }), el('span', { class: 'td-chev', 'aria-hidden': 'true', text: '›' }));
+          domBox.hidden = false;
+        })
+        .catch(() => {});
     // Only the competitions Orbit Sports has: a friendly or another country's
     // cup has nothing of its own here (its table, its names, its page).
     const sched = all.filter(x => !x.other && LEAGUES[x.league]);
@@ -4017,7 +4033,9 @@ export async function openTeam(league, id, fallback = {}) {
     const form = formFrom.slice(-5).filter(x => x.home && x.away).map(resultOf).filter(Boolean);
     // Games played before the table's first are preseason ones, and so is ESPN's record then: said so.
     const pre = Boolean(groups?.length) && !groups.some(tableStarted) && played.length > 0;
-    const record = [pre ? W('季前賽', 'Preseason') : '', (outside ? '' : info.record) || ownRecord(played, resultOf)].filter(Boolean).join(' ');
+    // (ESPN's record is the club's league's: in a cup, the cup's own from its table, W-D-L.)
+    const cupRecord = domestic && place && [place.row.stats.W, place.row.stats.D, place.row.stats.L].every(v => v != null && v !== '') ? `${place.row.stats.W}-${place.row.stats.D}-${place.row.stats.L}` : '';
+    const record = [pre ? W('季前賽', 'Preseason') : '', cupRecord || (outside || domestic ? '' : info.record) || ownRecord(played, resultOf)].filter(Boolean).join(' ');
     // The numbers that matter in the sport, in one strip.
     const sport = LEAGUES[league]?.sport;
     const want = sport === 'soccer' ? ['GP', 'W', 'D', 'L', 'GD', 'P'] : ['W', 'L', 'PCT', 'GB', 'STRK'];
@@ -4121,6 +4139,7 @@ export async function openTeam(league, id, fallback = {}) {
           info.en && info.en !== info.name ? el('small', { class: 'muted', text: info.en }) : null,
           outside ? el('small', { class: 'muted team-home' }, [zhLater(home.name, 'en')]) : null,
           el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? el('span', { class: 'nowrap', text: W(`${leagueName(league, L())}${groups.length > 1 && place.group ? ` ${groupName(place.group, 'zh')} · ` : ''}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in ${groups.length > 1 && place.group ? groupName(place.group, 'en') : `the ${leagueName(league, L())}`}`) }) : !groups || groups.some(tableStarted) ? standingZh(info.standing, L()) : ''].filter(Boolean), ' · ')),
+          domBox,
           form.length ? el('div', { class: 'hero-form', 'aria-label': formFrom === inLeague ? W(`${leagueName(league, L())}近 ${form.length} 場`, `Last ${form.length} in the ${leagueName(league, L())}`) : W(`近 ${form.length} 場`, `Last ${form.length}`) }, [resultPills(form)]) : null
         ]),
         followBtn

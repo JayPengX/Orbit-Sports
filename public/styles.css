@@ -1979,3 +1979,9 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .pi-arrow { border-color: var(--q-muted); opacity: .55; }
 .pi-arrow::after { border-left-color: var(--q-muted); }
 .score-card > .sess-tag { justify-self: start; }
+/* A club opened from a European cup: its own league, its place and record there, a tap to its page in it. */
+.team-domestic { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; padding: 5px 10px 5px 6px; border-radius: 999px; background: color-mix(in srgb, var(--q-text, currentColor) 10%, transparent); font-size: 13px; font-weight: 650; cursor: pointer; max-width: 100%; }
+.team-domestic[hidden] { display: none; }
+.team-domestic .league-tag { flex: none; }
+.team-domestic .td-text { white-space: nowrap; }
+.team-domestic .td-chev { opacity: .6; }
