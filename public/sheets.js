@@ -920,7 +920,7 @@ const BOX_TABLES = { batting: ['打擊', 'Batting'], pitching: ['投球', 'Pitch
 // (a player yet to come on has none: the row's line still runs across).
 const boxRow = (e, tb, r) =>
   el('tr', {}, [
-    el('th', { class: 'left' }, [el('span', { class: 'box-who' }, [el('button', { class: 'link roster-name', type: 'button', disabled: r.id ? null : true, onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', { text: r.name })]), r.pos ? el('small', { text: r.pos }) : null])]),
+    el('th', { class: 'left' }, [el('span', { class: 'box-who' }, [el('button', { class: 'link roster-name', type: 'button', disabled: r.id ? null : true, onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', { class: 'box-name', text: r.name })]), r.pos ? el('small', { text: r.pos }) : null])]),
     ...tb.labels.map((_, i) => el('td', { class: 'num', text: r.stats[i] ?? '' }))
   ]);
 // A game to come's 球員: each side's season numbers (MLB's lineups from the
@@ -1938,8 +1938,36 @@ function gameNotes(t, title) {
 // sections again on a live game's refresh and on coming back from a
 // player's page, and the sort stays as it was left.)
 const boxSorts = new Map();
+// A box score's name in its one width: a long one by the last name alone
+// (Hartenstein, Gilgeous-Alexander) unless a teammate shares it (Jal. and
+// Jay. Williams kept apart); still long, smaller, and past that on two lines
+// at its hyphen (Jay, 2026-10-21: a long name pushed the numbers off).
+const lastName = n => String(n || '').replace(/^(\S+\.\s+)+/, '');
+function boxNames(rows) {
+  const count = {};
+  for (const [r] of rows) count[lastName(r.name)] = (count[lastName(r.name)] || 0) + 1;
+  for (const [r, tr] of rows) {
+    const span = tr?.querySelector?.('.box-name');
+    if (!span) continue;
+    const name = (r.name || '').length > 12 && count[lastName(r.name)] === 1 ? lastName(r.name) : r.name || '';
+    span.textContent = name;
+  }
+  // Each fitted once drawn: smaller where it runs over, on two lines past that.
+  const spans = rows.map(([, tr]) => tr?.querySelector?.('.box-name')).filter(Boolean);
+  let tries = 0;
+  const fit = () => {
+    if (!spans[0]?.isConnected) return ++tries < 20 && requestAnimationFrame(fit);
+    for (const sp of spans) {
+      if (sp.scrollWidth <= sp.clientWidth + 1) continue;
+      sp.classList.add('mid');
+      if (sp.scrollWidth > sp.clientWidth + 1) sp.classList.add('long');
+    }
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fit);
+}
 function boxTable(tb, key, sport, rowOf) {
   const rows = tb.rows.map(r => [r, rowOf(r)]);
+  boxNames(rows);
   const body = el('tbody', {}, rows.map(([, tr]) => tr));
   let { by, dir } = boxSorts.get(key) || { by: -1, dir: 0 };
   const value = (r, i) => {

@@ -975,6 +975,18 @@ table.game-log .result-pill { font-size: 12px; padding: 1px 8px; }
 table.data .roster-name { gap: 6px; font-weight: 600; }
 table.data .roster-name .logo.round { width: 22px; height: 22px; flex: none; }
 table.data th.left { min-width: max-content; }
+/* A box score's names one width (both teams' tables in the same columns, a
+   long name never pushing the numbers off, Jay 2026-10-21): a name past it
+   smaller, on two lines at its hyphen or space (S. Gilgeous- / Alexander). */
+table.box thead th.left:first-child, table.box tbody th.left, table.box tfoot th.left { width: 124px; min-width: 124px; max-width: 124px; }
+table.box .box-who { white-space: normal; }
+table.box .roster-name { min-width: 0; }
+table.box .box-name { min-width: 0; overflow: hidden; white-space: nowrap; }
+table.box .box-name.mid { font-size: 11px; }
+table.box .box-name.long { white-space: normal; font-size: 11.5px; line-height: 1.2; overflow-wrap: normal; word-break: keep-all; }
+table.box td.num, table.box th.sortable { width: 48px; min-width: 48px; }
+table.box td.num { padding-inline: 5px; }
+table.box .sort-btn { padding-inline: 5px; }
 .box-who { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .box-who small { flex: none; line-height: 1; }
 .inj-dot { font-size: 11px; }
