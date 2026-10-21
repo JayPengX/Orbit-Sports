@@ -1375,7 +1375,7 @@ function renderHome() {
         el('div', { class: 'q-rowcard' }, placeRows.map(f => {
           const r = state.home.tables[f.league][f.id];
           return el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [
-            el('span', { class: 'suggest-tile' }, [logo(f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), f.name, 'sm', { onWhite: true })]),
+            el('span', { class: 'suggest-tile' }, [logo(f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), f.name, 'sm')]),
             el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: shownName(f) }), el('small', { text: [leagueName(f.league, locale).replace(/\s.*$/, ''), r.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : ''].filter(Boolean).join(' · ') })]),
             el('b', { class: 'q-ritem-value rank-pos num', text: L({ zh: `第 ${r.pos} 名`, en: `#${r.pos}` }) })
           ]);
@@ -2768,7 +2768,7 @@ function suggestCard(s) {
   const logoUrl = fallbackLogo(s.league, { id: s.id, name: s.name });
   // A row of the kit's list: the team's logo at 40px as the tile (white in every theme: the Dodgers' and Yankees' marks are white), name and league, + / ✓ trailing.
   return el('button', { class: `q-ritem suggest${on ? ' on' : ''}`, type: 'button', onclick: () => toggleFollow(s.league, { id: s.id, name: s.name, en: s.name, logo: logoUrl }) }, [
-    el('span', { class: 'suggest-tile' }, [logo(logoUrl, s.name, 'sm', { onWhite: true })]),
+    el('span', { class: 'suggest-tile' }, [logo(logoUrl, s.name, 'sm')]),
     el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: locale === 'en' && s.short ? s.short : localSide(s.league, { name: s.name }).name }), el('small', { text: leagueName(s.league, locale) })]),
     el('b', { class: 'suggest-add', text: on ? '✓' : '+' })
   ]);

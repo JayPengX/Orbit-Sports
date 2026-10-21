@@ -33,7 +33,7 @@ function channelTags(e, n = 2) {
     .map(b => el('span', { class: 'q-tag on-hero', text: b.short?.[en() ? 'en' : 'zh'] || b.zh || '' }));
 }
 
-const sidePic = side => (side?.athlete ? personPic(side, side.league, 'hc-pic round') : logo(side?.logo, side?.name, 'hc-pic', { onWhite: true }));
+const sidePic = side => (side?.athlete ? personPic(side, side.league, 'hc-pic round') : logo(side?.logo, side?.name, 'hc-pic'));
 
 // The hero: the one game to watch. A live game's scores carry the kit's live
 // attribute so they tick as every row's do.
