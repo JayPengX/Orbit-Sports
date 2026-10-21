@@ -132,49 +132,40 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
     const done = real.length === r.ties.length && real.length > 0 && real.every(t => t.winner);
     r.state = live ? 'live' : done ? 'done' : real.length || (r.dates && r.dates.from <= now) ? 'on' : 'later';
   }
-  alignPlayIn(rounds);
-  return { mode, season, rounds };
+  const playIn = splitPlayIn(rounds);
+  return { mode, season, rounds, ...(playIn ? { playIn } : {}) };
 }
 
-// The NBA's play-in drawn as its own two steps beside the first round, each
-// game on the row of the series it feeds: 7 v 8 by the 2 v 7, the 8th seed
-// game by the 1 v 8, 9 v 10 beside the 8th seed game it feeds. The other rows
-// are left empty (`gap`; `through`: 7 v 8's line passing the 8th seed game's
-// column), so the columns line up.
-const GAP = { gap: true };
-function alignPlayIn(rounds) {
+// The NBA's play-in, each conference's three games apart (Jay, 2026-10-21:
+// drawn beside the first round's rows it read as gaps and a stray card):
+// [{ half: '東區' | '西區', seven, ten, eighth }], 7 v 8, 9 v 10, and the
+// 8th seed game (7/8's loser v 9/10's winner). The play-in's rounds leave
+// the bracket, which starts at the first round.
+export function splitPlayIn(rounds) {
   const [a, b, first] = ['PLAYIN', 'PLAYIN2', 'RD16'].map(k => rounds.find(r => r.key === k));
-  if (!a || !b || !first || first.ties.length % 2) return;
-  const n = first.ties.length;
-  const per = n / 2;
+  if (!a || !b) return null;
+  const halves = ['東區', '西區'];
+  // A conference: its tie's own half, else the first round's order (the table's, East first), else its place in the list.
+  const per = (first?.ties.length || 8) / 2;
   const ids = t => (t?.sides || []).filter(Boolean).map(s => String(s.id));
-  const rowOf = t => (t?.winner ? first.ties.findIndex(x => ids(x).includes(t.winner)) : -1);
-  // A conference's rows: where the first round has its half, else in the order met (the table's, predicted).
-  const met = [...new Set([...first.ties, ...a.ties, ...b.ties].map(t => t?.half).filter(Boolean))];
   const blockOf = (t, i, each) => {
-    if (!t?.half) return Math.floor(i / each);
-    const j = first.ties.findIndex(x => x?.half === t.half);
-    return j >= 0 ? Math.floor(j / per) : met.indexOf(t.half) % 2;
+    if (t?.half) return Math.max(0, halves.indexOf(t.half));
+    const j = first ? first.ties.findIndex(x => x && ids(x).some(id => ids(t).includes(id))) : -1;
+    return j >= 0 ? Math.floor(j / per) : Math.floor(i / each);
   };
-  const nine = t => /9th/i.test(t?.games?.[0]?.note || '') || t?.seeds?.[0] === 9;
-  const A = Array(n).fill(GAP);
-  const B = Array(n).fill(GAP);
-  for (const c of [0, 1]) {
-    const pa = a.ties.filter((t, i) => blockOf(t, i, a.ties.length / 2) === c);
-    const eighth = b.ties.find((t, i) => blockOf(t, i, b.ties.length / 2) === c) ?? null;
-    const seven = pa.find(t => t && !nine(t)) ?? null;
-    const ten = pa.find(t => t && nine(t)) ?? null;
-    const lo = c * per;
-    const hi = lo + per - 1;
-    const r8 = rowOf(eighth) >= lo && rowOf(eighth) <= hi ? rowOf(eighth) : lo;
-    const r7 = rowOf(seven) >= lo && rowOf(seven) <= hi && rowOf(seven) !== r8 ? rowOf(seven) : r8 === hi ? lo : hi;
-    A[r7] = seven;
-    A[r8] = ten;
-    B[r8] = eighth;
-    B[r7] = { gap: true, through: true };
-  }
-  a.ties = A;
-  b.ties = B;
+  const nine = t => /9th|9\/10/i.test(t?.games?.[0]?.note || '') || t?.seeds?.[0] === 9;
+  const groups = [0, 1].map(c => {
+    const pa = a.ties.filter((t, i) => t && !t.gap && blockOf(t, i, Math.max(1, a.ties.length / 2)) === c);
+    return {
+      half: halves[c],
+      seven: pa.find(t => !nine(t)) ?? null,
+      ten: pa.find(t => nine(t)) ?? null,
+      eighth: b.ties.find((t, i) => t && !t.gap && blockOf(t, i, Math.max(1, b.ties.length / 2)) === c) ?? null
+    };
+  });
+  const rest = rounds.filter(r => r !== a && r !== b);
+  rounds.splice(0, rounds.length, ...rest);
+  return { title: a.title, state: a.state, dates: a.dates, groups };
 }
 // The round to open on: the one on now, else the next unfinished, else the last.
 export const openRound = model => model.rounds.findIndex(r => r.state === 'live') + 1 || model.rounds.findIndex(r => r.state !== 'done') + 1 || model.rounds.length;

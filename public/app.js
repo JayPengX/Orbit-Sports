@@ -1987,11 +1987,30 @@ function playoffView(model, league) {
     model.rounds.map(r => el('section', { class: `br-col ${r.state}` }, [el('div', { class: 'br-head' }, [el('strong', { text: en ? r.title.en : r.title.zh }), el('small', { text: [lenOf(r), stateText(r)].filter(Boolean).join(' · ') })]), el('div', { class: 'br-ties' }, r.ties.map(t => tie(t, r)))]))
   );
   if (!stacked) linkTies(map, model);
+  // The NBA's play-in on its own above the bracket: each conference's three
+  // games as a small bracket, 7 v 8 and 9 v 10 on the left, the 8th seed
+  // game (7/8's loser v 9/10's winner) between them on the right.
+  const pi = model.playIn;
+  const playIn = pi
+    ? el('section', { class: 'br-playin' }, [
+        el('div', { class: 'br-head' }, [el('strong', { text: en ? pi.title.en : pi.title.zh }), el('small', { text: stateText(pi) })]),
+        ...pi.groups.map(g =>
+          el('div', { class: 'pi-conf' }, [
+            el('p', { class: 'pi-label', text: en ? (g.half === '東區' ? 'East' : 'West') : g.half }),
+            el('div', { class: 'pi-grid' }, [
+              el('div', { class: 'pi-first' }, [tie(g.seven, pi), tie(g.ten, pi)]),
+              el('div', { class: 'pi-arrow', 'aria-hidden': 'true' }),
+              el('div', { class: 'pi-second' }, [tie(g.eighth, { ...pi, title: { zh: '第八種子戰', en: '8th Seed Game' } })])
+            ])
+          ])
+        )
+      ])
+    : null;
   // Opened on the round that's on (or next), not always the first.
   const at = stacked ? 0 : openRound(model) - 1;
   // (By the rounds themselves: the lines' drawing sits first in the map.)
   if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.querySelectorAll(':scope > .br-col')[at]?.offsetLeft - map.offsetLeft - 16));
-  return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, map]);
+  return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, playIn, map]);
 }
 // The lines from each tie to the one it feeds (a bracket's elbows), drawn
 // once the columns are laid out and again when they change size. A tie goes
