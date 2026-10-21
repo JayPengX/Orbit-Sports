@@ -1162,6 +1162,8 @@ export function parseSummary(data, league) {
     league,
     endedAt,
     lastPlay,
+    // 1 preseason, 2 regular season, 3 playoffs (a final counts in the record only in 2).
+    seasonType: Number(data?.header?.season?.type) || 0,
     status,
     sides,
     home: sides.find(s => s.homeAway === 'home') || sides[0] || null,

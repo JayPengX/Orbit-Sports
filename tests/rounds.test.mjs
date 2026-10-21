@@ -156,3 +156,15 @@ test("a zone's colour by what it is: Europe's three cups each their own, ESPN's 
   assert.equal(zoneColor('Playoffs', '##AABBCC'), '#AABBCC');
   assert.equal(zoneColor('Relegation', ''), '#FF7F84');
 });
+
+// A record the moment the game ends, ESPN's still behind (Jay, 2026-10-21).
+test('recordNow counts a regular-season final ESPN has yet to', async () => {
+  const { recordNow } = await import('../public/sheets.js');
+  const won = { score: '106' }, lost = { score: '100' };
+  assert.equal(recordNow('0-0', won, lost, { state: 'post', seasonType: 2 }), '1-0');
+  assert.equal(recordNow('0-0', lost, won, { state: 'post', seasonType: 2 }), '0-1');
+  assert.equal(recordNow('5-3', won, lost, { state: 'post', seasonType: 2, before: '5-3' }), '6-3');
+  assert.equal(recordNow('6-3', won, lost, { state: 'post', seasonType: 2, before: '5-3' }), '6-3');
+  assert.equal(recordNow('0-0', won, lost, { state: 'in', seasonType: 2 }), '0-0');
+  assert.equal(recordNow('0-0', won, lost, { state: 'post', seasonType: 1 }), '0-0');
+});

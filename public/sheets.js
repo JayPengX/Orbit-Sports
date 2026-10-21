@@ -92,7 +92,18 @@ const GUEST_FROM = { 'London Lions': ['英國職籃', 'British basketball'] };
 
 // ---- A match ----------------------------------------------------------------------------
 
-const realRecord = r => Boolean(r) && !/^0-0(-0)?$/.test(r);
+// A side's record the moment its game ends (Jay, 2026-10-21: everything
+// reflects at once): ESPN's is tonight's result behind for a while, so a
+// regular-season final whose record is still the one seen before it (or a
+// side's 0-0, which a team that's played can't be) counts the result itself.
+export function recordNow(rec, side, other, { state, seasonType, before } = {}) {
+  const m = /^(\d+)-(\d+)$/.exec(rec || '');
+  if (!m || state !== 'post' || seasonType !== 2) return rec || '';
+  const [w, l] = [Number(m[1]), Number(m[2])];
+  const [a, b] = [Number(side?.score), Number(other?.score)];
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a === b || !(w + l === 0 || before === rec)) return rec;
+  return a > b ? `${w + 1}-${l}` : `${w}-${l + 1}`;
+}
 // The game page open now (openMatch), for a player opened from it.
 let openGame = null;
 export async function openMatch(e) {
@@ -151,6 +162,8 @@ export async function openMatch(e) {
   // there, over here): the list's word kept, never back from 完賽 to the break.
   const behind = sm => (sm && e.status.state === 'post' && sm.status?.state !== 'post' ? { ...sm, status: e.status } : sm);
   let headSm = null;
+  // Each side's record as it stood before the final (recordNow).
+  const seenRecord = {};
   const paintHeader = sm => {
     headSm = sm;
     const home = sm?.home || e.home;
@@ -159,13 +172,17 @@ export async function openMatch(e) {
     // The game as the summary has it now: its status, and its last play (a timeout's countdown).
     const atNow = { ...e, status: st, live: sm?.lastPlay ? { ...e.live, lastType: sm.lastPlay.type, lastId: sm.lastPlay.id } : e.live };
     const guestGame = Boolean(e.home.guest || e.away.guest);
+    const rec = (x, raw) => {
+      const r = x.record || raw.record || '';
+      if (st.state !== 'post') seenRecord[raw.id] = r;
+      return recordNow(r, x, String(x.id) === String(home.id) ? away : home, { state: st.state, seasonType: sm?.seasonType, before: seenRecord[raw.id] });
+    };
     // (The league's rounds still coming: the header drawn again once they're in, not left without its round.)
     const roundOnly = !stageTag(e, L()) && !seriesText(e) && Boolean(weekOf(e, () => headSm === sm && header.isConnected && paintHeader(sm)));
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
         el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
-        // (0-0: no game counted yet, or ESPN's not caught up with tonight's: left off, never a record that says nothing.)
-        realRecord(x.record || raw.record) ? el('small', { text: x.record || raw.record }) : x.guest || raw.guest ? el('small', { text: GUEST_FROM[raw.en || raw.name]?.[L() === 'en' ? 1 : 0] || (L() === 'en' ? 'Guest club' : '表演賽客隊') }) : null,
+        rec(x, raw) ? el('small', { text: rec(x, raw) }) : x.guest || raw.guest ? el('small', { text: GUEST_FROM[raw.en || raw.name]?.[L() === 'en' ? 1 : 0] || (L() === 'en' ? 'Guest club' : '表演賽客隊') }) : null,
         // A guest club's game: neither side's follow here (the two sides even), the league side's under the score.
         hasTeamPage(e.league) && !guestGame ? followChip(e.league, x, () => paintHeader(sm)) : null
       ]);
