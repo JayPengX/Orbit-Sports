@@ -1093,6 +1093,9 @@ function leagueDays(league, then) {
 // 首頁's (swiped too). A league's head opens its own page on that day.
 // The games are everything read for the day (rawDays: the followed leagues,
 // the others, the rest), small hours too.
+// 賽事's (全部's and a league's): the same bar, pinned the same way.
+const allBarEl = el('div', { class: 'q-day-bar day-bar' });
+const scoresBarEl = el('div', { class: 'q-day-bar day-bar' });
 const ALL = 'all';
 const allRange = { from: STRIP.from, to: STRIP.to };
 // (null: today, whichever day that is now.)
@@ -1158,7 +1161,8 @@ function renderAll() {
   const ready = slot?.at && !slot.stale && slot.othersAt && (isToday ? slot.restAt : restDays.get(date)?.at);
   const head = pageHead(L({ zh: '全部賽事', en: 'All games' }));
   head.dataset.all = date;
-  const strip = dateStrip(date, pickAllDay, { range: allRange, bounds: homeBounds() });
+  put(allBarEl, dateStrip(date, pickAllDay, { range: allRange, bounds: homeBounds() }));
+  const strip = allBarEl;
   let list;
   if (!ready) list = spinner();
   else {
@@ -2644,7 +2648,8 @@ function renderScores() {
     const league = sc.league;
     const season = leagueDays(league, () => state.tab === 'matches' && state.scores.league === league && renderScores());
     const only = new Set([...sc.days, ...(season || [])]);
-    strip = dateStrip(sc.date, pickScoresDay, { only, range: sc.range, bounds: leagueBounds(league) });
+    put(scoresBarEl, dateStrip(sc.date, pickScoresDay, { only, range: sc.range, bounds: leagueBounds(league) }));
+    strip = scoresBarEl;
     const order = { in: 0, pre: 1, post: 2 };
     const games = [...(sc.byDay.get(sc.date) || [])].sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
     prefetchVideos(games);
@@ -3226,10 +3231,15 @@ kitUI.daySwipe($('panel-live'), dir => {
   const d = stripStep(liveRange, liveDay(), dir);
   return Boolean(d && (pickLiveDay(d), true));
 });
-// 賽事's 全部 too (a league's page keeps its own strip, no swipe).
+// 賽事's too: 全部's days, or a league's game days (its schedule shown, not its table).
 kitUI.daySwipe($('panel-matches'), dir => {
-  const d = state.scores.league === ALL && stripStep(allRange, allDay(), dir);
-  return Boolean(d && (pickAllDay(d), true));
+  const sc = state.scores;
+  if (sc.league === ALL) {
+    const d = stripStep(allRange, allDay(), dir);
+    return Boolean(d && (pickAllDay(d), true));
+  }
+  const d = scoresBarEl.isConnected && sc.range && stripStep(sc.range, sc.date, dir);
+  return Boolean(d && (pickScoresDay(d), true));
 });
 // The refresh button: today (or the day on screen) and the open league again.
 async function reloadNow() {
