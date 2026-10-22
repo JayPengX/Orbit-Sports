@@ -116,7 +116,7 @@ img { max-width: 100%; }
 .q-card.list { overflow: hidden; border-radius: 22px; }
 .list > :is(.event-row, .watch-row, .fg-row, .tie-game) { position: relative; }
 .list > :is(.event-row, .watch-row, .fg-row, .tie-game) + :is(.event-row, .watch-row, .fg-row, .tie-game)::before { content: ''; position: absolute; z-index: 1; top: 0; left: 16px; right: 0; border-top: var(--q-hairline, 0.5px) solid var(--q-sep); }
-.event-row { position: relative; display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: 0; background: none; color: inherit; font: inherit; text-align: left; transition: background-color 0.25s; -webkit-tap-highlight-color: transparent; }
+.event-row { position: relative; display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: 0; background: none; color: inherit; font: inherit; text-align: left; transition: background-color 0.25s; -webkit-tap-highlight-color: transparent; }
 .event-row:active:not(:disabled) { background: var(--q-fill-4); transition-duration: 0s; }
 @media (hover: hover) { .event-row:hover:not(:disabled) { background: var(--q-fill-4); } }
 /* A game called off: not a button (openEvent), still read as the others. */
@@ -131,10 +131,12 @@ img { max-width: 100%; }
 .event-status.pre.two b { font: inherit; }
 .event-status.in { display: grid; gap: 2px; color: var(--live); font-weight: 700; }
 .event-status.in small { font: 600 12px/1.2 var(--q-font-rounded); }
+/* A game on: every row alike, the dot then the period on the first line, what's after it
+   (the clock, 暫停 0:33, 結束) under the period, both on one line each, never into the logos. */
+.event-status.in.clocked { grid-template-columns: 6px auto; column-gap: 4px; row-gap: 1px; align-items: center; justify-content: start; letter-spacing: -0.02em; }
+.event-status.in.clocked::before { content: ''; grid-column: 1; grid-row: 1; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.4s ease-in-out infinite; }
+.event-status.in.clocked > * { grid-column: 2; white-space: nowrap; }
 .event-status.in:not(.clocked) { grid-auto-flow: column; justify-content: start; align-items: center; gap: 5px; }
-.event-status.in:not(.clocked)::before, .event-status.clocked > :first-child::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.4s ease-in-out infinite; }
-.event-status.clocked > :first-child::before { margin-right: 5px; vertical-align: 2px; }
-.event-status.clocked > :first-child { white-space: nowrap; }
 /* 即將開賽 on one line in a phone's narrow time column (no dot: it's not under way yet). */
 .event-status.in.starting { white-space: nowrap; }
 .event-status.in.starting::before { display: none; }
@@ -347,7 +349,7 @@ img { max-width: 100%; }
 
 /* Narrow phones: the time column and a followed card's rows give way first. */
 @media (max-width: 359px) {
-  .event-row { grid-template-columns: 56px minmax(0, 1fr); gap: 10px; padding: 12px 14px; }
+  .event-row { grid-template-columns: 62px minmax(0, 1fr); gap: 8px; padding: 12px 12px 12px 14px; }
   .side .logo:not(.round):not(.logo-fallback):not(.logo-flag), .side :is(.logo.round, .logo-fallback, .logo-flag) { width: 26px; height: 26px; }
   .side-name { font-size: 15px; }
   .watch-row.in-meta > .watch-btn { left: 12px; }

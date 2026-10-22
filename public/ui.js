@@ -374,6 +374,21 @@ export const whenOf = e => {
   const date = localDate(Date.parse(shownStart(e)));
   return date === today() ? timeText(e) : `${dayLabel(date)} ${timeText(e)}`;
 };
+// A live status in its two parts: the period, and what's after it (a word:
+// 暫停, 結束, 休息, Timeout; a clock). 第3節 暫停 0:33 → 第3節 / 暫停 0:33,
+// 第1節結束 → 第1節 / 結束, 第4節 8:01 → 第4節 / 8:01, 5局上 alone.
+export function liveParts(text) {
+  let head = String(text).trim();
+  const clockAt = /\s+(\d{1,2}:\d{2}(?:\.\d)?)$/.exec(head);
+  const clock = clockAt ? clockAt[1] : '';
+  if (clockAt) head = head.slice(0, clockAt.index);
+  head = head.replace(/\s*·\s*/g, ' ').trim();
+  // (Only after a period's number: 中場休息 stays whole.)
+  const wordAt = /^(.*\d.*?)\s*(暫停|結束|休息|Timeout|End|Delayed|Paused)$/i.exec(head);
+  const word = wordAt ? wordAt[2] : '';
+  if (wordAt) head = wordAt[1].trim();
+  return [head, word, clock];
+}
 // A row's status: a game on another day shows its day above its time.
 function statusEl(e, day = true) {
   if (e.status.state === 'pre' && !e.status.void && localDate(Date.parse(e.start)) !== today())
@@ -381,19 +396,17 @@ function statusEl(e, day = true) {
   // Its start come, ESPN not yet saying it's under way: about to start, said in the live colour.
   // (The one rule for it, onAir: not a game whose hour is only a stand-in, nor one hours past it.)
   if (e.status.state === 'pre' && onAir(e)) return el('span', { class: 'event-status in starting', text: ctx.locale === 'en' ? 'Starting' : '即將開賽' });
-  // A game on now with its clock (第4節 8:58): the period, the clock under it (two lines drawn for it, never a wrap).
   const text = statusText(e);
-  // At half-time: 中場休息, its countdown under it, ticking (the line kept for it before the countdown is known).
   const ht = breakKey(e);
-  if (ht) return el('span', { class: 'event-status in clocked' }, [el('span', { text: text.replace(/\s+\d+:\d{2}$/, '') }), el('small', { class: 'num', ...kitQ.halftimeAttrs(ht), text: /\d+:\d{2}$/.exec(text)?.[0] || '' })]);
-  const clockAt = e.status.state === 'in' ? /^(.+?)\s+(\d{1,2}:\d{2}(?:\.\d)?)$/.exec(text) : null;
-  if (clockAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: clockAt[1] }), el('small', { class: 'num', text: clockAt[2] })]);
-  // Paused mid-game (rain): the period, 暫停 under it (two lines drawn for it, never a wrap).
-  const pausedAt = e.status.state === 'in' && e.status.delayed ? new RegExp(`^(.+?) · (${ctx.t('paused')})$`).exec(text) : null;
-  if (pausedAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: pausedAt[1] }), el('small', { text: pausedAt[2] })]);
-  // A period over (第1節結束, 3局中場): the period, 結束 under it (two lines drawn for it, never over the logos).
-  const endAt = e.status.state === 'in' && text.length > 4 ? /^(.+?)(結束|休息|中場)$/.exec(text) : null;
-  if (endAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: endAt[1] }), el('small', { text: endAt[2] })]);
+  // A game on now, every row alike (the owner 2026-10-22, "ugly": some on
+  // one line, some on two, 第4節 暫停 into the logos): the period on the
+  // first line, what's after it (its clock, 暫停, 結束, a break's countdown,
+  // ticking) on the second, both kept to the column, the dot by the first.
+  if (e.status.state === 'in') {
+    const [head, word, clock] = liveParts(ht ? text.replace(/\s+\d+:\d{2}$/, '') : text);
+    const tail = ht ? el('small', { class: 'num', ...kitQ.halftimeAttrs(ht, word), text: [word, kitQ.halftimeClock(kitQ.halftimeEnd(ht))].filter(Boolean).join(' ') }) : word || clock ? el('small', { class: 'num', text: [word, clock].filter(Boolean).join(' ') }) : null;
+    return el('span', { class: 'event-status in clocked' }, [el('span', { text: head }), tail]);
+  }
   // A final with more to say (完賽（10 局）, 完賽（PK 大戰）): 完賽, and the rest under it (two lines drawn for it, never cut).
   const ended = e.status.state === 'post' ? /^(.+?)（(.+)）$/.exec(text) : null;
   if (ended) return el('span', { class: 'event-status post ended' }, [el('span', { text: ended[1] }), el('small', { text: ended[2] })]);
