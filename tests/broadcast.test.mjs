@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhSame, zhLike, eltaVodOf, eltaVodsOf, parseEltaIndex, eltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhLike, eltaVodOf, eltaVodsOf, parseEltaIndex, eltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -104,9 +104,6 @@ test("beyond ELTA's list: an NBA game on ELTA by NBA.com's schedule (two that da
 });
 
 test('Chinese names match however ELTA shortens them', () => {
-  assert.ok(zhSame('海盜', '匹茲堡海盜'));
-  assert.ok(zhSame('里茲聯', '利茲聯'));
-  assert.ok(!zhSame('老虎', '洋基'));
   assert.deepEqual(teamNameZh('mlb', 'Pittsburgh Pirates'), { full: '匹茲堡海盜', short: '海盜' });
   assert.equal(teamNameZh('epl', 'Manchester City', 'soccer').short, '曼城');
   assert.equal(teamNameZh('cpbl', 'Uni Lions').short, '統一獅');
