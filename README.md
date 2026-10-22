@@ -50,14 +50,19 @@ couldn't be read is shown, never hidden.
     results.
   - A team page ranks its own players; a player page shows their league
     ranks; a match shows each side's season leaders.
-- **Win chance:** ESPN's line, else Polymarket's. A chart with key moments
+- **Win chance:** ESPN's line, else Polymarket's. Soccer on or over is
+  worked out here (`lib/soccerwp.mjs`): each side's goals a Poisson count
+  over the time left, its rate from the odds before the start (ESPN's or
+  the sportsbook's, else the market's first price), from the score, the
+  minute and red cards; every competition gets it, and a late level game
+  is a draw's. A chart with key moments
   while on or over; a split bar before. Each side in its colour, its
   chance written in it (`wpline.mjs sideColors`: two alike, or none, and
   one takes a spare colour); a draw grey.
 - **F1 live board:** F1's own timing (`f1-live`). Positions, tyres, gaps,
   race control in Chinese by rule (`lib/racecontrol.mjs`), track map,
   compare, stop window, championship as it stands.
-- **拉鋸** (close game): a live game in its last stretch and within reach (NBA 4th or OT, MLB 8th–9th, soccer from the 80th).
+- **勝負未定** (close finish): a live game in its last stretch and within reach (NBA 4th or OT, MLB 8th–9th, soccer from the 80th).
 - **Tables count results at once** (`lib/title.mjs liveTable`,
   `liveRacing`, `freshStandings`), on every page with a table: finals
   only, never a game still on. The title
@@ -115,7 +120,7 @@ couldn't be read is shown, never hidden.
 | `lib/leaders.mjs` | 數據領先: stats, ranks, team and player |
 | `lib/picks.mjs`, `foryou.mjs` | Today's picks; affinity (shared with Play) |
 | `lib/broadcast.mjs`, `tv.mjs`, `highlights.mjs` | Where to watch (the kit's, shared with the proxy); channels; videos |
-| `lib/winprob.mjs`, `wpline.mjs`, `moments.mjs` | Win chance line and key moments |
+| `lib/winprob.mjs`, `soccerwp.mjs`, `wpline.mjs`, `moments.mjs` | Win chance line and key moments |
 | `lib/live.mjs`, `lineups.mjs`, `onfield.mjs`, `mlb.mjs`, `cpblbox.mjs` | Live state; starters (MLB's own, the NBA's from RotoWire through the proxy: ESPN's core API refuses it); who's on; MLB and CPBL fill-ins |
 | `lib/leagues.mjs`, `search.mjs`, `statnames.mjs`, `stage.mjs`, `compname.mjs`, `i18n.mjs`, `text.mjs` | Leagues; search; Chinese names for stats, stages and competitions; text |
 | `lib/days.mjs`, `bounds.mjs`, `strip.mjs`, `retry.mjs` | Days on the viewer's clock; the days a league has; the date strip; failed reads tried again |

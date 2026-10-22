@@ -15,6 +15,7 @@ import { personKey, pitcherRole } from './lib/mlb.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors, readableOn } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText, goalHowParts, basketEn } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
+import { soccerLine } from './lib/soccerwp.mjs';
 import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, injuryWhatZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
@@ -181,7 +182,9 @@ export async function openMatch(e) {
   const loadLine = () => {
     const now = { ...e, status: data?.status || e.status };
     const pre = now.status.state === 'pre';
-    if ((pre ? data?.predict?.source === 'espn' : data?.winProb.length > 3) || Date.now() - lineAt < 60_000) return;
+    // (A soccer game on or over is drawn here, lib/soccerwp.mjs: the market's line only for its odds before the start, where ESPN has none.)
+    const soccer = !pre && LEAGUES[e.league].sport === 'soccer' && e.kind === 'match';
+    if ((pre ? data?.predict?.source === 'espn' : soccer ? data?.predict || line : data?.winProb.length > 3) || Date.now() - lineAt < 60_000) return;
     lineAt = Date.now();
     (pre ? winNow : winLine)(now)
       .then(l => l && (line = l))
@@ -1672,8 +1675,18 @@ function winCard(d, e, line, wait) {
     coming = !real && (!wait.summary || (market && !wait.line));
     if (real) real = winChanceCard(real, e);
   } else {
-    real = d?.winProb.length > 3 ? winProbCard({ points: d.winProb }, e, d.timeline) : line?.points?.length > 3 ? winProbCard(line, e, d?.timeline, d?.events) : null;
-    coming = !real && ((!wait.summary && (market || ['baseball', 'basketball'].includes(sport))) || (market && wait.summary && !wait.line));
+    if (sport === 'soccer' && e.kind === 'match') {
+      // Worked out from the game (lib/soccerwp.mjs), its odds before the start
+      // ESPN's or the sportsbook's, else the market's first price, else a usual game's.
+      const prior = d?.predict || (line?.points?.[0] ? line.points[0] : null);
+      const status = { ...(d?.status || e.status) };
+      const model = d && (prior || !market || wait.line) ? soccerLine({ prior, timeline: d.timeline, events: d.events, status, homeId: e.home.id, start: e.start, score: { home: (d.home || e.home)?.score, away: (d.away || e.away)?.score } }) : null;
+      real = model ? winProbCard(model, e, d.timeline, d.events) : null;
+      coming = !real && (!wait.summary || (market && !d?.predict && !wait.line));
+    } else {
+      real = d?.winProb.length > 3 ? winProbCard({ points: d.winProb }, e, d.timeline) : line?.points?.length > 3 ? winProbCard(line, e, d?.timeline, d?.events) : null;
+      coming = !real && ((!wait.summary && (market || ['baseball', 'basketball'].includes(sport))) || (market && wait.summary && !wait.line));
+    }
   }
   if (coming) {
     waited.set(wait, true);
@@ -1854,7 +1867,7 @@ function winProbCard(line, e, timeline, events = []) {
     const score = scoreAt(pts, i ?? pts.length - 1, events, e.home.id);
     const tally = score ? ` · ${inOrder(e, score).join('–')}` : '';
     const stamp = [pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`, lateClock(sport, p)].filter(Boolean).join(' ');
-    at.textContent = i == null ? `${rest}${tally} · ${en ? 'Hold to look back' : '按住圖表查看'}` : `${stamp}${tally}`;
+    at.textContent = i == null ? `${rest}${tally}` : `${stamp}${tally}`;
     at.classList.toggle('on', i != null);
     const latest = latestOf();
     tell(i == null ? latest : m, i == null && latest ? (en ? 'Just now' : '剛剛') : '');
@@ -2264,7 +2277,7 @@ function raceChanceCard(line, ss, feed = null) {
     const under = bands.find(b => k > b.i0 && k <= b.i1);
     const leader = lead ? (typeof lead.k === 'number' ? names[lead.k] : driverShort(lead.k, en)) : '';
     const state = [leader ? (en ? `${leader} leads` : `${leader} 領先`) : '', under ? bandName(under.kind, en) : ''].filter(Boolean).map(x => ` · ${x}`).join('');
-    at.textContent = i == null ? `${ss.status.state === 'post' ? (en ? 'Final' : '終場') : lapText(p)}${state} · ${en ? 'Hold to look back' : '按住圖表查看'}` : `${lapText(p)}${state}`;
+    at.textContent = i == null ? `${ss.status.state === 'post' ? (en ? 'Final' : '終場') : lapText(p)}${state}` : `${lapText(p)}${state}`;
     at.classList.toggle('on', i != null);
     // On a moment, or under the safety car: what it was.
     const bandOf = m => bands.find(b => m.i === Math.min(b.i1, b.i0 + 1));
@@ -3428,7 +3441,7 @@ function f1LapCompare(b, ss) {
           if (p && lap != null) Object.assign(marks[k].style, { left: `${(X(p[0]) / W) * 100}%`, top: `${(Y(p[1]) / H) * 100}%` });
         });
         const under = lap != null && neutralLaps(b.control || [], b.lap?.now || lapHi).find(p => lap >= p.from && lap <= p.to);
-        at.textContent = lap == null ? `${en ? `Lap ${series[0]?.pts.at(-1)?.[0] ?? lapHi}` : `第 ${series[0]?.pts.at(-1)?.[0] ?? lapHi} 圈`} · ${en ? 'Hold the chart to look back' : '按住圖表查看'}` : `${en ? `Lap ${lap}` : `第 ${lap} 圈`}${pitsAt(lap)}${under ? ` · ${under.kind === 'sc' ? (en ? 'Safety car' : '安全車') : en ? 'VSC' : '虛擬安全車'}` : ''}`;
+        at.textContent = lap == null ? `${en ? `Lap ${series[0]?.pts.at(-1)?.[0] ?? lapHi}` : `第 ${series[0]?.pts.at(-1)?.[0] ?? lapHi} 圈`}` : `${en ? `Lap ${lap}` : `第 ${lap} 圈`}${pitsAt(lap)}${under ? ` · ${under.kind === 'sc' ? (en ? 'Safety car' : '安全車') : en ? 'VSC' : '虛擬安全車'}` : ''}`;
         at.classList.toggle('on', lap != null);
         rule.hidden = lap == null;
         if (lap != null) rule.style.left = `${xs[i] * 100}%`;
