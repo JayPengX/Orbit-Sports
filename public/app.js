@@ -895,11 +895,10 @@ function resultItem(e, now, pick = false) {
   const base = { body: [`{result}`, leagueName(e.league, locale), pick ? L(PICKED) : ''].filter(Boolean).join(' · '), tag: `end:${e.league}:${e.id}`, hash: 'home', kind: pick ? 'pickend' : 'end' };
   if (espn && e.kind === 'match' && /^\d+$/.test(e.id))
     return { ...base, at: Date.parse(e.start) + (SHORTEST[LEAGUES[e.league].sport] || 100) * 60_000, until: Date.parse(e.start) + HOLD, title: matchLine(e), check: { espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } };
-  // CPBL (no ESPN): the league's own list (the Worker reads it in Taiwan), by the clubs; else
-  // its game in TheSportsDB's day list, the one this app reads CPBL from.
+  // CPBL (no ESPN): its game in TheSportsDB's day list, the one this app reads CPBL from.
   const tsdb = /^cpbl-tsdb-(\d+)$/.exec(String(e.id));
   if (e.league === 'cpbl' && tsdb)
-    return { ...base, at: start + SHORTEST.baseball * 60_000, until: start + HOLD, title: matchLine(e), check: { tsdb: tsdb[1], day: new Date(start).toISOString().slice(0, 10), names: [e.away.short || e.away.name, e.home.short || e.home.name], clubs: [e.away.en, e.home.en] } };
+    return { ...base, at: start + SHORTEST.baseball * 60_000, until: start + HOLD, title: matchLine(e), check: { tsdb: tsdb[1], day: new Date(start).toISOString().slice(0, 10), names: [e.away.short || e.away.name, e.home.short || e.home.name] } };
   if (espn && e.kind === 'field' && ['SR', 'Race'].includes(e.sessionKey) && /^\d+$/.test(String(e.weekend)))
     return { ...base, at: start + (e.sessionKey === 'Race' ? 80 : 25) * 60_000, until: start + HOLD, title: `${e.name} ${e.session}`, check: { espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } };
   return null;
