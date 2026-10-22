@@ -891,11 +891,15 @@ const HOLD = 8 * 3_600_000;
 function resultItem(e, now, pick = false) {
   const espn = LEAGUES[e.league].espn;
   const start = Date.parse(e.official || e.start);
-  if (!espn || e.timeTbd || !(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) return null;
+  if (e.timeTbd || !(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) return null;
   const base = { body: [`{result}`, leagueName(e.league, locale), pick ? L(PICKED) : ''].filter(Boolean).join(' · '), tag: `end:${e.league}:${e.id}`, hash: 'home', kind: pick ? 'pickend' : 'end' };
-  if (e.kind === 'match' && /^\d+$/.test(e.id))
+  if (espn && e.kind === 'match' && /^\d+$/.test(e.id))
     return { ...base, at: Date.parse(e.start) + (SHORTEST[LEAGUES[e.league].sport] || 100) * 60_000, until: Date.parse(e.start) + HOLD, title: matchLine(e), check: { espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } };
-  if (e.kind === 'field' && ['SR', 'Race'].includes(e.sessionKey) && /^\d+$/.test(String(e.weekend)))
+  // CPBL (no ESPN): its game in TheSportsDB's day list, the one this app reads CPBL from.
+  const tsdb = /^cpbl-tsdb-(\d+)$/.exec(String(e.id));
+  if (e.league === 'cpbl' && tsdb)
+    return { ...base, at: start + SHORTEST.baseball * 60_000, until: start + HOLD, title: matchLine(e), check: { tsdb: tsdb[1], day: new Date(start).toISOString().slice(0, 10), names: [e.away.short || e.away.name, e.home.short || e.home.name] } };
+  if (espn && e.kind === 'field' && ['SR', 'Race'].includes(e.sessionKey) && /^\d+$/.test(String(e.weekend)))
     return { ...base, at: start + (e.sessionKey === 'Race' ? 80 : 25) * 60_000, until: start + HOLD, title: `${e.name} ${e.session}`, check: { espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } };
   return null;
 }
