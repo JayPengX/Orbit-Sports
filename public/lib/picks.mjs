@@ -27,6 +27,11 @@ import { eventKeys, teamKey } from './foryou.mjs';
 // about 2 h 40, a playoff game nearer 3 h (the owner, 2026-10-16: 185 had
 // ALCS G4 at 08:00 clash with an NBA game at 10:30).
 export const DURATION = { soccer: 115, baseball: 170, basketball: 145, racing: 120 };
+// The soonest a game can be over, in minutes: when the Worker starts asking
+// for its final (asked each 2 minutes from then, told the moment it ends,
+// push.js; the owner: results at once, 2026-10-22). A quick game is under
+// its usual length (a 2 h 20 baseball game, a blowout), so never that.
+export const SHORTEST = { soccer: 105, baseball: 110, basketball: 110, football: 160, hockey: 115 };
 const BIG_GAME = /final|semi|play-?off|postseason|wild ?card|series|championship|derby|決賽|季後/i;
 // A final, a play-off, a postseason or series game: worth staying up for.
 export const bigGame = e => ['post', 'final', 'playin'].includes(e?.stage?.key) || BIG_GAME.test(`${e?.note || ''} ${e?.name || ''}`);

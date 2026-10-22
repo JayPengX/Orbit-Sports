@@ -21,6 +21,10 @@ test('MLB from the 9th: only what the rules settle', () => {
   assert.equal(overByRule(st('STATUS_IN_PROGRESS', 9, 'Mid 9th'), ...sides(4, 2), 'mlb').state, 'in');
   assert.equal(overByRule(st('STATUS_IN_PROGRESS', 9, 'End 9th'), ...sides(4, 2), 'mlb').state, 'post');
   assert.equal(overByRule(st('STATUS_IN_PROGRESS', 8, 'End 8th'), ...sides(4, 2), 'mlb').state, 'in');
+  // A walk-off: the home side ahead in the bottom of the 9th or later ends it there.
+  assert.equal(overByRule(st('STATUS_IN_PROGRESS', 10, 'Bot 10th'), ...sides(3, 4), 'mlb').state, 'post');
+  assert.equal(overByRule(st('STATUS_IN_PROGRESS', 9, 'Bot 9th'), ...sides(4, 3), 'mlb').state, 'in');
+  assert.equal(overByRule(st('STATUS_IN_PROGRESS', 8, 'Bot 8th'), ...sides(3, 4), 'mlb').state, 'in');
 });
 
 // ESPN's summary gives the status without a period (76人 v 尼克, 2026-10-21:

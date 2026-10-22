@@ -27,7 +27,7 @@ import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
-import { dayPlan, tableIndex, DURATION, scoreMatch, bigGame, tableStarted } from './lib/picks.mjs';
+import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
@@ -821,8 +821,8 @@ async function loadFollowedTeams() {
   }
 }
 // Followed teams' coming games, for notices while the app is closed: the
-// start, and the final score (the Worker checks ESPN after the game's usual
-// length).
+// start, and the final score (the Worker asks ESPN each 2 minutes from the
+// soonest the game can end, and tells it the moment it's over).
 // Finals this app showed as a banner itself (open at the time): not sent again as a phone notice.
 const bannered = new Set();
 function syncPush() {
@@ -879,23 +879,22 @@ function syncPush() {
   }
   schedulePush(q, items);
 }
-// A game's or a sprint's or race's final, for the Worker to send once ESPN
-// has it (it fills in the score or the podium, and who won: {result}), after
-// its usual length; a pick's says so (今日推薦賽果, its own switch).
-// A final not in yet past the game's usual length: checked a minute on,
-// rounded up to the next five minutes, so the list sent stays the same from
-// one refresh to the next (a minute on from each refresh sent it again every
-// few seconds once a game ran long).
-const soonest = now => Math.ceil((now + 60_000) / 300_000) * 300_000;
+// A game's or a sprint's or race's final, for the Worker to send the moment
+// it's over (it fills in the score or the podium, and who won: {result}); a
+// pick's says so (今日推薦賽果, its own switch). Asked from the soonest it can
+// end (SHORTEST) at every Worker run until 8 hours after the start (`until`):
+// fixed times, so the list sent stays the same from one refresh to the next,
+// and an app opened mid-game hands over a check that's due at once.
+const HOLD = 8 * 3_600_000;
 function resultItem(e, now, pick = false) {
   const espn = LEAGUES[e.league].espn;
   const start = Date.parse(e.official || e.start);
   if (!espn || e.timeTbd || !(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) return null;
   const base = { body: [`{result}`, leagueName(e.league, locale), pick ? L(PICKED) : ''].filter(Boolean).join(' · '), tag: `end:${e.league}:${e.id}`, hash: 'home', kind: pick ? 'pickend' : 'end' };
   if (e.kind === 'match' && /^\d+$/.test(e.id))
-    return { ...base, at: Math.max(soonest(now), Date.parse(e.start) + (DURATION[LEAGUES[e.league].sport] || 150) * 60_000), title: matchLine(e), check: { espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } };
+    return { ...base, at: Date.parse(e.start) + (SHORTEST[LEAGUES[e.league].sport] || 100) * 60_000, until: Date.parse(e.start) + HOLD, title: matchLine(e), check: { espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } };
   if (e.kind === 'field' && ['SR', 'Race'].includes(e.sessionKey) && /^\d+$/.test(String(e.weekend)))
-    return { ...base, at: Math.max(soonest(now), start + (e.sessionKey === 'Race' ? 100 : 40) * 60_000), title: `${e.name} ${e.session}`, check: { espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } };
+    return { ...base, at: start + (e.sessionKey === 'Race' ? 80 : 25) * 60_000, until: start + HOLD, title: `${e.name} ${e.session}`, check: { espn, event: String(e.weekend), session: e.sessionKey, day: new Date(start).toISOString().slice(0, 10).replaceAll('-', '') } };
   return null;
 }
 // Every one of today's picks (今日推薦), kept on the device for the day: a
