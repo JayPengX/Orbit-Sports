@@ -679,23 +679,9 @@ export function sheet(title, { accent, league } = {}) {
   if (accent) s.el.style.setProperty('--q-accent', accent);
   return { dialog: s.el, body, close: s.close };
 }
-// A choice of a few (four at most): the kit's segmented control, its thumb
-// sliding to the pick; of more, the kit's chips in a row that scrolls (as
-// iOS keeps a segmented control to a handful).
-// (`seg`: one row of equal parts whatever the count, up to the kit's seven: a team's five tabs.)
-// (`chips`: the chips row whatever the count: a game's tabs, alike before and during it.)
-export function segmented(options, current, onPick, cls = '', { seg = false, chips = false } = {}) {
-  const few = !chips && (options.length <= 4 || (seg && options.length <= 7));
-  return el(
-    'div',
-    { class: `${few ? 'q-seg' : 'q-chips'} ${cls === 'scroll' ? '' : cls}`.trim(), role: 'group' },
-    options.map(([key, label]) => el('button', { type: 'button', ...(few ? {} : { class: 'q-chip' }), 'aria-pressed': String(key === current), text: label, onclick: () => onPick(key) }))
-  );
-}
-export function section(title, content, { sub = '', action = null, cls = '' } = {}) {
-  // The kit's head (its h2 and chevron more).
-  const head = kitUI.sectionHead(title);
-  if (action) head.append(action);
-  return el('section', { class: `q-section ${cls}` }, [head, sub ? el('p', { class: 'section-sub', text: sub }) : null, content]);
-}
+// A choice of a few: the kit's segmented control, its thumb sliding to the
+// pick; of more (or `chips`), the kit's chips row that scrolls. (`seg`: one
+// row of equal parts up to seven: a team's five tabs.)
+export const segmented = (options, current, onPick, cls = '', o = {}) => kitUI.pickSeg(options, current, onPick, { cls: cls === 'scroll' ? '' : cls, ...o });
+export const section = (title, content, { sub = '', action = null, cls = '' } = {}) => kitUI.section(title, content, { sub, action, cls, shd: true });
 export const moreButton = (label, onclick) => el('button', { class: 'section-more', type: 'button', text: label, onclick });
