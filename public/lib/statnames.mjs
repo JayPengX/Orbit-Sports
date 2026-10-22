@@ -169,6 +169,49 @@ export function injuryZh(status) {
     }[s.toLowerCase()] ?? null
   );
 }
+// What's wrong, in Chinese from a fixed list (Jay, 2026-10-22: Google read
+// "Back" as 後退): ESPN's body part then what happened ("Knee Soreness" →
+// 膝蓋痠痛, "Knee - ACL" → 膝蓋前十字韌帶), each word or phrase from INJURY_WORDS;
+// a word not in it left out, never guessed; none known, null (the status alone).
+const INJURY_WORDS = {
+  // Where.
+  abdomen: '腹部', abdominal: '腹部', achilles: '阿基里斯腱', 'achilles tendon': '阿基里斯腱', ankle: '腳踝', arm: '手臂', back: '背部', 'lower back': '下背', 'upper back': '上背',
+  biceps: '二頭肌', bicep: '二頭肌', calf: '小腿', chest: '胸部', concussion: '腦震盪', elbow: '手肘', face: '臉部', finger: '手指', foot: '腳', forearm: '前臂', groin: '鼠蹊部',
+  hamstring: '腿後肌', hand: '手', head: '頭部', heel: '腳跟', hip: '髖部', knee: '膝蓋', kneecap: '膝蓋骨', lat: '背闊肌', leg: '腿', 'lower body': '下半身', 'upper body': '上半身',
+  'lower leg': '小腿', neck: '頸部', oblique: '腹斜肌', orbital: '眼眶', pectoral: '胸肌', quadriceps: '股四頭肌', quad: '股四頭肌', ribs: '肋骨', rib: '肋骨', shoulder: '肩膀',
+  side: '側腹', skull: '頭骨', thigh: '大腿', thumb: '拇指', toe: '腳趾', triceps: '三頭肌', wrist: '手腕', shin: '脛骨', jaw: '下巴', nose: '鼻子', eye: '眼睛', mouth: '嘴部',
+  tooth: '牙齒', pelvis: '骨盆', spine: '脊椎', adductor: '內收肌', glute: '臀肌', hernia: '疝氣', acl: '前十字韌帶', mcl: '內側副韌帶', pcl: '後十字韌帶', lcl: '外側副韌帶',
+  meniscus: '半月板', 'ac joint': '肩鎖關節', 'ucl': '尺側副韌帶', tendon: '肌腱', ligament: '韌帶', muscle: '肌肉', 'plantar fascia': '足底筋膜', left: '左', right: '右',
+  // What happened.
+  abrasion: '擦傷', bruise: '挫傷', contusion: '挫傷', dislocated: '脫臼', dislocation: '脫臼', fracture: '骨折', fractured: '骨折', broken: '骨折', inflammation: '發炎',
+  'pinched nerve': '神經壓迫', 'plantar fasciitis': '足底筋膜炎', ruptured: '斷裂', rupture: '斷裂', soreness: '痠痛', sore: '痠痛', spasms: '痙攣', spasm: '痙攣', sprain: '扭傷',
+  sprained: '扭傷', strain: '拉傷', strained: '拉傷', surgery: '手術', tendinitis: '肌腱炎', tendonitis: '肌腱炎', tear: '撕裂', torn: '撕裂', tightness: '緊繃', impingement: '夾擠',
+  'stress reaction': '疲勞性反應', 'stress fracture': '疲勞性骨折', laceration: '割傷', bursitis: '滑囊炎', effusion: '積液', injury: '傷勢', knock: '輕傷', infection: '感染',
+  'turf toe': '草皮趾', 'torn acl': '前十字韌帶撕裂', 'torn meniscus': '半月板撕裂', 'tommy john surgery': '韌帶重建手術', 'tommy john': '韌帶重建手術', recovery: '復健', management: '傷勢管理',
+  // Not hurt.
+  illness: '生病', sick: '生病', personal: '個人因素', rest: '休息', 'not injury related': '非傷病因素', "coach's decision": '教練決定', 'coaches decision': '教練決定',
+  'contract dispute': '合約糾紛', suspension: '禁賽', suspended: '禁賽', undisclosed: '未公開', 'g league': '下放發展聯盟', 'g league - two-way': '下放發展聯盟', 'two-way': '雙向合約',
+  plus: '、', paternity: '陪產假', bereavement: '喪假', 'family': '家庭因素', 'league suspension': '聯盟禁賽', 'health and safety protocols': '健康防疫規定', conditioning: '體能調整', 'load management': '輪休'
+};
+const INJURY_LONGEST = Math.max(...Object.keys(INJURY_WORDS).map(k => k.split(' ').length));
+export function injuryWhatZh(what) {
+  const words = String(what || '').toLowerCase().replace(/\s+\+\s+/g, ' plus ').replace(/\s+[-–]\s+|[(),/]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(w => w && w !== 'and' && w !== 'the');
+  if (!words.length) return null;
+  const out = [];
+  for (let i = 0; i < words.length; ) {
+    let hit = 0;
+    for (let n = Math.min(INJURY_LONGEST, words.length - i); n > 0 && !hit; n--) if (INJURY_WORDS[words.slice(i, i + n).join(' ')]) hit = n;
+    if (!hit) {
+      i++;
+      continue;
+    }
+    const zh = INJURY_WORDS[words.slice(i, i + hit).join(' ')];
+    if (out.at(-1) !== zh) out.push(zh);
+    i += hit;
+  }
+  while (out.at(-1) === '、') out.pop();
+  return out.length && out[0] !== '、' ? out.join('') : null;
+}
 // A playoff series' line in Chinese: "NYY win series 2-0", "LV leads series 1-0",
 // "Series tied 1-1". `name(abbr)` gives a side's name.
 export function seriesLineZh(text, name = x => x) {
