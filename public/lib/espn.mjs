@@ -1024,7 +1024,7 @@ export function parseSummary(data, league) {
     }, []);
   const keyEvents = (data?.keyEvents || [])
     .filter(k => k.type?.type !== 'kickoff' && k.type?.type !== 'halftime' && k.type?.type !== 'end-regular-time')
-    .map(k => ({ text: k.text || k.type?.text || '', type: k.type?.type || '', clock: k.clock?.displayValue || '', team: String(k.team?.id ?? ''), scoring: Boolean(k.scoringPlay), ...detailOf(k), type: k.type?.type || '' }));
+    .map(k => ({ text: k.text || k.type?.text || '', clock: k.clock?.displayValue || '', team: String(k.team?.id ?? ''), scoring: Boolean(k.scoringPlay), ...detailOf(k), type: k.type?.type || '' }));
   const rosters = (data?.rosters || []).map(r => ({
     team: String(r.team?.id ?? ''),
     formation: r.formation || '',

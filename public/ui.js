@@ -13,25 +13,15 @@ import { AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES, espnSummary, onAir } from './lib/espn.mjs';
 import * as kitQ from '#kit/quadra.mjs';
 import * as kitUI from '#kit/ui.mjs';
+import { addDays } from '#kit/format.mjs';
 import { channelsOf, watchOf, replayHint } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
 import { fold } from './lib/text.mjs';
 
 export const ctx = { t: k => k, locale: 'zh', state: null, openEvent: () => {}, openTeam: () => {}, openPlayer: () => {} };
 
-export function el(tag, props = {}, children = []) {
-  const node = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (v == null || v === false) continue;
-    if (k === 'class') node.className = v;
-    else if (k === 'text') node.textContent = v;
-    else if (k === 'html') node.innerHTML = v;
-    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v === true ? '' : v);
-  }
-  for (const child of [].concat(children)) if (child != null && child !== false) node.append(child);
-  return node;
-}
+// Elements: the kit's (ui.mjs h).
+export const el = kitUI.h;
 // replaceChildren, skipping the null and false left by conditional pieces.
 // A child drawn again as the same node (the date strip) stays where it is,
 // never taken out and put back: that lost its scroll and closed an open picker.
@@ -111,7 +101,7 @@ export function localDate(ms) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 export const today = () => localDate(Date.now());
-export const addDays = (date, n) => localDate(new Date(`${date}T12:00:00`).getTime() + n * 86_400_000);
+export { addDays };
 const locales = () => (ctx.locale === 'en' ? 'en-US' : 'zh-TW');
 // (One formatter a language: making one costs more than a thousand uses, and a day's games ask hundreds of times.)
 const clocks = new Map();

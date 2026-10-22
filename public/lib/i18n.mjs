@@ -1,3 +1,4 @@
+import { makeT as kitMakeT } from '#kit/lang.mjs';
 // Orbit Sports' text, Traditional Chinese and English (the page follows
 // the browser's language).
 export const STRINGS = {
@@ -283,7 +284,5 @@ export const STRINGS = {
 
 // The reader's language is the kit's (quadra.mjs detectLang).
 export { detectLang as detectLocale } from '#kit/quadra.mjs';
-export function makeT(locale) {
-  const dict = STRINGS[locale] || STRINGS.zh;
-  return (key, vars = {}) => String(dict[key] ?? STRINGS.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
-}
+// t(key, vars) in a language: the kit's makeT over Sports' words.
+export const makeT = locale => kitMakeT(STRINGS, locale);
