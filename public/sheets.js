@@ -412,8 +412,10 @@ export async function openMatch(e) {
     });
   // A game to come or on: who's out, from each team's roster too (soccer's rosters say nothing of it).
   if (e.kind === 'match' && e.status.state !== 'post' && LEAGUES[e.league].sport !== 'soccer')
-    Promise.all([e.away, e.home].map(x => (x?.id ? teamInjuries(e.league, x.id).then(list => [x.id, list]).catch(() => null) : null))).then(got => {
-      hurt = Object.fromEntries(got.filter(Boolean));
+    // (With the league's report, the same the team's page reads: each one's why and when back.)
+    Promise.all([leagueInjuries(e.league).catch(() => ({})), ...[e.away, e.home].map(x => (x?.id ? teamInjuries(e.league, x.id).then(list => [x.id, list]).catch(() => null) : null))]).then(([report, ...got]) => {
+      hurt = Object.fromEntries(got.filter(Boolean).map(([id, list]) => [id, list.map(x => ({ ...x, ...whyOf(report?.[String(id)], x) }))]));
+      for (const id of [e.away?.id, e.home?.id].map(String)) for (const x of report?.[id] || []) if (!hurt[id]?.some(y => (x.id && y.id === x.id) || y.name === x.name)) (hurt[id] ||= []).push(x);
       if (Object.values(hurt).some(l => l.length)) paint();
     });
   try {
@@ -425,6 +427,12 @@ export async function openMatch(e) {
     paint();
   } else settle();
   loadLine();
+}
+
+// One player's why and when back from the league's report (by id, else name).
+function whyOf(list, x) {
+  const r = (list || []).find(y => (x.id && y.id === x.id) || y.name === x.name);
+  return r ? { what: x.what || r.what || '', back: x.back || r.back || '' } : {};
 }
 
 // Basketball: each side's top scorer (the face, then who and their line, the team fouls), live or over.
@@ -870,10 +878,15 @@ function gameCards(game, id, league) {
 // league ESPN keeps no report for (soccer, Asian baseball) has no card.
 const INJ_TONE = { out: 'bad', 'injured reserve': 'bad', 'injured list': 'bad', suspension: 'bad', doubtful: 'bad', questionable: 'warn', 'day-to-day': 'warn', probable: 'good' };
 const injTone = status => Object.entries(INJ_TONE).find(([k]) => String(status).toLowerCase().includes(k))?.[1] || 'warn';
+// When he's due back ("11/8 週日 回歸"); a date already gone by is the report's old guess: left off.
+function backText(at) {
+  if (!at || !(localDate(Date.parse(at)) >= localDate(Date.now()))) return '';
+  return L() === 'en' ? `back ${dayLabel(localDate(Date.parse(at)))}` : `${dayLabel(localDate(Date.parse(at)))} 回歸`;
+}
 // One player's line: status chip, what's wrong, when they're back.
 function injuryLine(x, league) {
   const en = L() === 'en';
-  const back = x.back ? (en ? `back ${dayLabel(localDate(Date.parse(x.back)))}` : `${dayLabel(localDate(Date.parse(x.back)))} 回歸`) : '';
+  const back = backText(x.back);
   // One row a player: the face and name, what and when under it on one line, the status at the right.
   const sub = [x.what ? (en ? x.what : zhLater(x.what)) : null, back || null].filter(Boolean);
   return el('button', { class: 'inj-row', type: 'button', disabled: x.id ? null : true, onclick: () => x.id && ctx.openPlayer(league, x.id, { name: x.name, logo: x.headshot }) }, [
@@ -1119,10 +1132,11 @@ function matchSection(view, d, e, table, lw = {}) {
           const rest = people.filter(p => !out.includes(p) && !starters.includes(p));
           const groups = starters.length ? [[en ? 'Starters' : '先發', starters], [T('bench'), rest]] : byPosition([{ name: '', players: rest }], 'basketball').map(g => [g.name, g.players]);
           // (By position, the heading says it: no position again on each row.)
-          const note = p => (out.includes(p) ? injuryText(why(p)?.status || (en ? 'Injured' : '傷兵')) : starters.length || groups.length < 2 ? posZh(p.pos, 'basketball', L()) : '');
+          const note = p => (starters.length || groups.length < 2 ? posZh(p.pos, 'basketball', L()) : '');
           return card(
             tag(String(t.id)),
-            el('div', {}, [...groups, [en ? 'Injured' : '傷兵', out]].filter(([, ps]) => ps.length).flatMap(([name, ps]) => [name ? el('p', { class: 'mini-h', text: name }) : null, squadList(ps, e.league, 'basketball', note)]))
+            // (The hurt as the team's page has them: the status, what's wrong and when back.)
+            el('div', {}, [...groups, [en ? 'Injured' : '傷兵', out]].filter(([, ps]) => ps.length).flatMap(([name, ps]) => [name ? el('p', { class: 'mini-h', text: name }) : null, ps === out ? el('div', { class: 'inj-report' }, ps.map(p => injuryLine({ ...p, status: why(p)?.status || (en ? 'Injured' : '傷兵'), what: why(p)?.what || '', back: why(p)?.back || '' }, e.league))) : squadList(ps, e.league, 'basketball', note)]))
           );
         })
         .filter(Boolean)
@@ -1297,7 +1311,9 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
               .filter(i => i.list.length)
               // The cards' order (soccer home first, the rest away first).
               .sort((x, y) => ((x.team === String(e.home.id)) - (y.team === String(e.home.id))) * (homeFirst(e) ? -1 : 1))
-              .map(i => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(i.team)]), el('ul', { class: 'inj-list' }, i.list.slice(0, 12).map(x => el('li', {}, [x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, x.id, { name: x.name, logo: x.headshot }) }, [personPic(x, e.league, 'xs round'), el('span', { text: x.name })]) : el('span', { text: x.name }), el('small', {}, [/^rest$/i.test(x.detail) ? (L() === 'en' ? 'Rest' : '休息') : injuryText(x.status)])])))]))
+              // Each one as the team's page has him (Jay, 2026-10-22: the why only
+              // there): the status, what's wrong and when he's back.
+              .map(i => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(i.team)]), el('div', { class: 'inj-report' }, i.list.slice(0, 12).map(x => injuryLine(/^rest$/i.test(x.detail) ? { ...x, status: L() === 'en' ? 'Rest' : '休息' } : x, e.league)))]))
           )
         )
       : null,
@@ -1336,7 +1352,7 @@ function seasonLeadCard(lead, e) {
 }
 
 // Who starts (pregameLineups): MLB's probable pitchers and batting orders,
-// an NBA side's starters once announced; before then, when
+// an NBA side's five, expected or announced; before then, when
 // they're said. Each side a list of its own (two columns cut the names).
 function lineupCard(l, e, nameOf) {
   if (!l) return null;
@@ -1366,7 +1382,8 @@ function lineupCard(l, e, nameOf) {
   return card(
     en ? 'Starting lineups' : '先發陣容',
     el('div', { class: 'injuries' }, sides.map(t => [t, [l.away, l.home][sideList(t)]]).filter(([, list]) => list.length).map(([t, list]) => side(t, list, p => p.jersey))),
-    { sub: en ? 'Announced' : '已公布' }
+    // (RotoWire's: expected hours before, confirmed once each team says it.)
+    { sub: !l.confirmed || (l.confirmed.away && l.confirmed.home) ? (en ? 'Announced' : '已公布') : en ? 'Expected' : '預計先發' }
   );
 }
 
@@ -4274,7 +4291,7 @@ const ROSTER_GROUP = { pitchers: '投手', catchers: '捕手', infielders: '內�
 // A squad's rows: number, face and name (a tap opens the player), and a note
 // at the right (`note`: position, age, an injury). `hurt`: 🩹 by a hurt name.
 function squadList(ps, league, sport, note, { hurt = false } = {}) {
-  return el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, league, 'xs round'), el('span', { text: p.name }), hurt && p.injured ? el('span', { class: 'inj-dot', title: T('injuries'), text: '🩹' }) : null]), el('small', { text: note(p) })])));
+  return el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, league, 'xs round'), el('span', { text: p.name }), hurt && p.injured ? el('span', { class: 'inj-dot', title: T('injuries'), text: '🩹' }) : null]), el('small', {}, [].concat(note(p) ?? ''))])));
 }
 function byPosition(list, sport) {
   const zh = L() !== 'en';
@@ -4827,6 +4844,7 @@ export async function openPlayer(league, id, fallback = {}) {
           name !== a.name ? el('small', { class: 'muted', text: a.name }) : null,
           teamChip,
           el('p', { class: 'muted' }, joinNodes(sub, ' · ')),
+          // Why he's out and when he's back, as the team's page says it (Jay, 2026-10-22), the report's word under it.
           a.injuries.length ? el('p', { class: 'injury-tag' }, joinNodes(['🩹', ...a.injuries.map(injuryText)], ' ')) : null,
         ]),
         followBtn,
@@ -4842,6 +4860,10 @@ export async function openPlayer(league, id, fallback = {}) {
             ])
           : null
       ]),
+      // Why he's out and when he's back (Jay, 2026-10-22: said only on the
+      // team's page), the report's word under it: a card of its own under
+      // the hero, whatever the tab.
+      a.injury ? el('div', { class: 'q-card pad player-injury' }, [el('div', { class: 'player-inj' }, [el('span', { class: `inj-status ${injTone(a.injury.status)}`, text: injuryText(a.injury.status) }), a.injury.what ? el('strong', {}, [zhLater(a.injury.what)]) : null, backText(a.injury.back) ? el('small', { class: 'muted nb', text: backText(a.injury.back) }) : null]), a.injury.comment ? el('p', { class: 'injury-note muted' }, [zhLater(a.injury.comment)]) : null]) : null,
       strip,
       tabsBox,
       tabBody

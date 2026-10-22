@@ -29,3 +29,18 @@ test("MLB's people open their page: matched to the team's ESPN roster by name", 
   assert.equal(nobody.id, '');
   assert.equal(none, null);
 });
+
+test("RotoWire's NBA five: the game's day in New York, each side by its nickname, expected or confirmed", async () => {
+  const { rotowireUrl, rotowireGame } = await import('../public/lib/lineups.mjs');
+  const now = Date.parse('2026-10-22T02:20:00Z'); // 22:20 on the 21st in New York
+  assert.match(rotowireUrl('2026-10-22T02:30Z', now), /nba-lineups\.php$/);
+  assert.match(rotowireUrl('2026-10-22T23:00Z', now), /\?date=tomorrow$/);
+  assert.equal(rotowireUrl('2026-10-24T23:00Z', now), null);
+  const data = { games: [{ away: { team: 'Trail Blazers', lineup: 'expected', starters: [{ pos: 'PG', name: 'Scoot Henderson' }], out: [{ pos: 'C', name: 'Robert Williams', status: 'Out' }] }, home: { team: 'Suns', lineup: 'confirmed', starters: [{ pos: 'SG', name: 'Devin Booker' }], out: [] } }] };
+  const g = rotowireGame(data, { away: { en: 'Portland Trail Blazers' }, home: { en: 'Phoenix Suns' } });
+  assert.equal(g.away.confirmed, false);
+  assert.equal(g.home.confirmed, true);
+  assert.deepEqual(g.away.starters[0], { id: '', name: 'Scoot Henderson', pos: 'PG', status: '' });
+  assert.equal(g.away.out[0].status, 'Out');
+  assert.equal(rotowireGame(data, { away: { en: 'Phoenix Suns' }, home: { en: 'Portland Trail Blazers' } }), null);
+});

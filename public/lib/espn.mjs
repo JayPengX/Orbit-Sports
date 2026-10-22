@@ -15,7 +15,7 @@ import { teamBadge, teamLogo, f1Constructor, NBA_ID } from '#kit/logos.mjs';
 import { detectLocale } from './i18n.mjs';
 import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGUE, raceLine, raceLaps, raceEvents, raceNow, raceKey, unpackRace } from './winprob.mjs';
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey, withPitchingChange } from './mlb.mjs';
-import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName } from './lineups.mjs';
+import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName, rotowireUrl, rotowireGame } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { athleteAverages, boxSeasonPage, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
@@ -1042,7 +1042,7 @@ export function parseSummary(data, league) {
   const leaders = (data?.leaders || []).flatMap(t =>
     (t.leaders || []).map(l => ({ team: String(t.team?.id ?? ''), stat: l.displayName || l.name, id: String(l.leaders?.[0]?.athlete?.id ?? ''), name: l.leaders?.[0]?.athlete?.shortName || l.leaders?.[0]?.athlete?.displayName || '', full: l.leaders?.[0]?.athlete?.displayName || '', headshot: freshHeadshot(l.leaders?.[0]?.athlete?.headshot?.href) || null, value: l.leaders?.[0]?.displayValue || '' }))
   );
-  const injuries = (data?.injuries || []).map(t => ({ team: String(t.team?.id ?? ''), list: (t.injuries || []).map(i => ({ id: String(i.athlete?.id ?? ''), headshot: freshHeadshot(i.athlete?.headshot?.href) || null, name: i.athlete?.displayName || '', status: i.status || i.type?.description || '', detail: i.details?.type || '' })) }));
+  const injuries = (data?.injuries || []).map(t => ({ team: String(t.team?.id ?? ''), list: (t.injuries || []).map(i => ({ id: String(i.athlete?.id ?? ''), headshot: freshHeadshot(i.athlete?.headshot?.href) || null, name: i.athlete?.displayName || '', status: i.status || i.type?.description || '', detail: i.details?.type || '', what: [i.details?.type, i.details?.detail].filter(x => x && x !== 'Other' && x !== 'Not Specified' && !/^rest$/i.test(x)).join(' '), back: i.details?.returnDate || '' })) }));
   // ESPN's win probability, play by play: the home side's chance (and a draw's, where there can be one).
   // The game's plays by the wall clock (t in seconds): what the chart's marks and a finger on it go by.
   const wall = p => Date.parse(p?.wallclock || '') / 1000;
@@ -1827,7 +1827,12 @@ export function mergeInjuries(injuries = [], byTeam = {}) {
   for (const [team, list] of Object.entries(byTeam)) {
     let t = out.find(x => x.team === team);
     if (!t) out.push((t = { team, list: [] }));
-    for (const x of list || []) if (!t.list.some(y => (x.id && y.id === x.id) || y.name === x.name)) t.list.push(x);
+    for (const x of list || []) {
+      const i = t.list.findIndex(y => (x.id && y.id === x.id) || y.name === x.name);
+      if (i < 0) t.list.push(x);
+      // (The why and when back from the league's report where the game's page leaves them out.)
+      else t.list[i] = { ...t.list[i], what: t.list[i].what || x.what || '', back: t.list[i].back || x.back || '' };
+    }
   }
   return out;
 }
@@ -1988,15 +1993,27 @@ export async function pregameLineups(e, now = Date.now()) {
     return { kind: 'mlb', pitchers: { away: away.pitcher, home: home.pitcher }, order: { away: away.order, home: home.order } };
   }
   const far = CORE_LINEUPS[e.league];
-  if (!far || ahead > far || !LEAGUES[e.league]?.espn || !e.home?.id || !e.away?.id) return null;
+  if (!far || !LEAGUES[e.league]?.espn || !e.home?.id || !e.away?.id) return null;
+  const rosters = [e.away, e.home].map(t => roster(e.league, t.id).catch(() => []));
+  // The NBA: RotoWire's five for the game's day, expected then confirmed
+  // (the one place it's said before tip-off now), each matched to the
+  // team's ESPN roster for its id and face; who may not play and why too.
+  const rw = e.league === 'nba' && rotowireUrl(e.start, now) ? await getJson(rotowireUrl(e.start, now), { ttl: 2 * 60_000 }).then(d => rotowireGame(d, e)).catch(() => null) : null;
+  if (rw && (rw.away.starters.length || rw.home.starters.length)) {
+    const [ra, rh] = await Promise.all(rosters);
+    const named = (list, r) => byRosterName(list, r).map(p => ({ ...p, jersey: flatRoster(r).find(x => x.id === p.id)?.jersey || '' }));
+    return { kind: 'core', away: named(rw.away.starters, ra), home: named(rw.home.starters, rh), confirmed: { away: rw.away.confirmed, home: rw.home.confirmed }, out: { away: named(rw.away.out, ra), home: named(rw.home.out, rh) }, pending: false };
+  }
+  if (ahead > far) return null;
   const sides = await Promise.all(
-    [e.away, e.home].map(async t => {
-      const starters = coreStarters(await getJson(coreRosterUrl(LEAGUES[e.league].espn, e.id, t.id), { ttl: 60_000 }));
-      return starters.length ? withRoster(starters, await roster(e.league, t.id).catch(() => [])) : [];
+    [e.away, e.home].map(async (t, i) => {
+      const starters = coreStarters(await getJson(coreRosterUrl(LEAGUES[e.league].espn, e.id, t.id), { ttl: 60_000 }).catch(() => null));
+      return starters.length ? withRoster(starters, await rosters[i]) : [];
     })
   );
   return { kind: 'core', away: sides[0], home: sides[1], pending: !sides.some(x => x.length) };
 }
+const flatRoster = r => (Array.isArray(r) ? r : []).flatMap(g => (Array.isArray(g?.players) ? g.players : [g])).filter(Boolean);
 export function parseAthlete(data) {
   const a = data?.athlete || {};
   return {
@@ -2018,7 +2035,7 @@ export function parseAthlete(data) {
     status: a.status?.name || '',
     injuries: (a.injuries || []).map(i => i.status || i.type?.description).filter(Boolean),
     // The latest injury report: its status, what and where, when they're due back, ESPN's word on it.
-    injury: a.injuries?.[0] ? { status: a.injuries[0].status || a.injuries[0].type?.description || '', date: a.injuries[0].date || '', what: [a.injuries[0].details?.type, a.injuries[0].details?.location].filter(x => x && x !== 'Other').join(' '), back: a.injuries[0].details?.returnDate || '', comment: a.injuries[0].longComment || a.injuries[0].shortComment || '' } : null,
+    injury: a.injuries?.[0] ? { status: a.injuries[0].status || a.injuries[0].type?.description || '', date: a.injuries[0].date || '', what: [a.injuries[0].details?.type, a.injuries[0].details?.detail].filter(x => x && x !== 'Other' && x !== 'Not Specified').join(' '), back: a.injuries[0].details?.returnDate || '', comment: a.injuries[0].shortComment || a.injuries[0].longComment || '' } : null,
     stats: { title: a.statsSummary?.displayName || '', list: (a.statsSummary?.statistics || []).map(s => ({ label: s.shortDisplayName || s.abbreviation, name: s.displayName, value: s.displayValue, rank: s.rankDisplayValue || '' })) },
     // A driver's country.
     country: a.flag?.alt || a.citizenship || a.citizenshipCountry?.abbreviation || '',
