@@ -92,7 +92,7 @@ export function scoreCard(e, onOpen) {
   const w = e.kind === 'match' ? winners(e) : null;
   const side = (s, win) => el('span', { class: `sc-side${win ? ' win' : ''}` }, [s.athlete ? personPic(s, e.league, 'sm round') : logo(s.logo, s.name, 'sm'), el('span', { class: 'sc-name q-fit', text: s.short || s.name }), el('b', { class: 'num', text: e.status.void || e.status.state === 'pre' ? '' : scoreText(s.score) })]);
   const champ = e.kind !== 'match' ? (e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1))?.field?.[0] : null;
-  return el('button', { class: 'score-card q-press', type: 'button', disabled: e.status?.void ? true : null, onclick: () => onOpen(e) }, [
+  return el('button', { class: `score-card q-press${e.status?.state === 'in' && !e.status.void ? ' live' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => onOpen(e) }, [
     el('span', { class: 'sc-top' }, [leagueMark(e.league, 'lg-mark xs'), el('span', { text: leagueName(e.league, ctx.locale).replace(/\s.*$/, '') }), el('small', { text: statusText(e), ...breakTick(e) }), e.status?.state === 'post' && knownHighlights(e) ? el('i', { class: 'sc-play', 'aria-hidden': 'true', html: icon('play') }) : null]),
     ...(e.kind === 'match'
       ? sidesOf(e).map(s => side(s, s === e.home ? w.home : w.away))

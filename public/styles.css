@@ -227,6 +227,9 @@ img { max-width: 100%; }
 .sc-side .logo:not(.round):not(.logo-fallback):not(.logo-flag) { width: 26px; height: 26px; padding: 2px; border-radius: 8px; background: var(--q-fill-4); object-fit: contain; }
 .sc-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; font: 500 15px/1.25 var(--q-font); }
 .sc-side.win .sc-name { font-weight: 700; }
+/* On now: both sides at full strength and the score live red, as 轉播's rows have it (not dimmed like a final's loser). */
+.score-card.live .sc-side { color: var(--q-label); }
+.score-card.live .sc-side b, .score-card.live .sc-top small { color: var(--live); }
 .sc-side b { flex: none; font: 700 20px/1 var(--q-font-rounded); }
 .sc-event, .sc-champ { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; }
 .sc-event strong { min-width: 0; font-weight: 600; }
