@@ -1127,7 +1127,7 @@ function matchSection(view, d, e, table, lw = {}) {
           const hurt = new Map((d.injuries?.find(x => x.team === String(t.id))?.list || []).map(x => [x.id || x.name, x]));
           const why = p => hurt.get(p.id) || hurt.get(p.name);
           const out = people.filter(p => why(p) || p.injured);
-          const named = d.lineups?.kind === 'core' && !d.lineups.pending ? [d.lineups.away, d.lineups.home][k] || [] : [];
+          const named = d.lineups?.kind === 'core' && !d.lineups.pending && !d.lineups.last ? [d.lineups.away, d.lineups.home][k] || [] : [];
           const starters = people.filter(p => !out.includes(p) && named.some(x => x.id === p.id));
           const rest = people.filter(p => !out.includes(p) && !starters.includes(p));
           const groups = starters.length ? [[en ? 'Starters' : '先發', starters], [T('bench'), rest]] : byPosition([{ name: '', players: rest }], 'basketball').map(g => [g.name, g.players]);
@@ -1383,7 +1383,8 @@ function lineupCard(l, e, nameOf) {
     en ? 'Starting lineups' : '先發陣容',
     el('div', { class: 'injuries' }, sides.map(t => [t, [l.away, l.home][sideList(t)]]).filter(([, list]) => list.length).map(([t, list]) => side(t, list, p => p.jersey))),
     // (RotoWire's: expected hours before, confirmed once each team says it.)
-    { sub: !l.confirmed || (l.confirmed.away && l.confirmed.home) ? (en ? 'Announced' : '已公布') : en ? 'Expected' : '預計先發' }
+    // (Nothing said for this game yet: each side's five last time out, 上場先發.)
+    { sub: l.last ? (en ? 'Last game' : '上場先發') : l.projected ? (en ? 'Expected' : '預計先發') : !l.confirmed || (l.confirmed.away && l.confirmed.home) ? (en ? 'Announced' : '已公布') : en ? 'Expected' : '預計先發' }
   );
 }
 

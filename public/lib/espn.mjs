@@ -2004,14 +2004,52 @@ export async function pregameLineups(e, now = Date.now()) {
     const named = (list, r) => byRosterName(list, r).map(p => ({ ...p, jersey: flatRoster(r).find(x => x.id === p.id)?.jersey || '' }));
     return { kind: 'core', away: named(rw.away.starters, ra), home: named(rw.home.starters, rh), confirmed: { away: rw.away.confirmed, home: rw.home.confirmed }, out: { away: named(rw.away.out, ra), home: named(rw.home.out, rh) }, pending: false };
   }
-  if (ahead > far) return null;
-  const sides = await Promise.all(
-    [e.away, e.home].map(async (t, i) => {
-      const starters = coreStarters(await getJson(coreRosterUrl(LEAGUES[e.league].espn, e.id, t.id), { ttl: 60_000 }).catch(() => null));
-      return starters.length ? withRoster(starters, await rosters[i]) : [];
-    })
-  );
-  return { kind: 'core', away: sides[0], home: sides[1], pending: !sides.some(x => x.length) };
+  const sides =
+    ahead > far
+      ? [[], []]
+      : await Promise.all(
+          [e.away, e.home].map(async (t, i) => {
+            const starters = coreStarters(await getJson(coreRosterUrl(LEAGUES[e.league].espn, e.id, t.id), { ttl: 60_000 }).catch(() => null));
+            return starters.length ? withRoster(starters, await rosters[i]) : [];
+          })
+        );
+  if (sides.some(x => x.length)) return { kind: 'core', away: sides[0], home: sides[1], pending: false };
+  // Nothing said for this game yet: each side's five from its last game
+  // (上場先發, Jay 2026-10-22), till the expected one comes; a game more
+  // than ten days off, nothing.
+  if (ahead > 10 * 86_400_000) return null;
+  // (A side yet to play this season: its depth chart's first at each position, ESPN's 預計.)
+  const last = await Promise.all([e.away, e.home].map(async (t, i) => {
+    const five = await lastStarters(e.league, t.id, e.start, await rosters[i]).catch(() => []);
+    return five.length ? { five, last: true } : { five: await depthStarters(e.league, t.id, await rosters[i]).catch(() => []), last: false };
+  }));
+  return last.some(x => x.five.length) ? { kind: 'core', away: last[0].five, home: last[1].five, last: last.every(x => x.last || !x.five.length), projected: last.some(x => !x.last && x.five.length), pending: false } : null;
+}
+// A side's depth chart's first at each position (ESPN's: pg, sg, sf, pf, c), with the roster's faces and numbers.
+async function depthStarters(league, id, roster) {
+  const data = await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}/depthcharts`, { ttl: 60 * 60_000 });
+  const pos = data?.depthchart?.[0]?.positions || {};
+  const people = flatRoster(roster);
+  return ['pg', 'sg', 'sf', 'pf', 'c']
+    .map(k => pos[k]?.athletes?.[0])
+    .filter(a => a?.id)
+    .map(a => {
+      const p = people.find(x => x.id === String(a.id));
+      return { id: String(a.id), name: a.displayName || p?.name || '', headshot: p?.headshot || null, pos: p?.pos || '', jersey: p?.jersey || '' };
+    });
+}
+// A side's five in its last game over before `before` (its box score): [{ id, name, headshot, pos, jersey }].
+async function lastStarters(league, id, before, roster) {
+  const games = await teamSchedule(league, id);
+  const g = games.filter(x => x.status?.state === 'post' && !x.status?.void && x.start < before).at(-1);
+  if (!g) return [];
+  const sm = parseSummary(await espnSummary(league, g.id), league);
+  const rows = sm.players?.find(p => p.team === String(id))?.tables?.[0]?.rows || [];
+  const people = flatRoster(roster);
+  return rows.filter(r => r.starter && !r.dnp).slice(0, 5).map(r => {
+    const p = people.find(x => x.id === r.id);
+    return { id: r.id, name: r.full || r.name, headshot: r.headshot || p?.headshot || null, pos: r.pos || p?.pos || '', jersey: r.jersey || p?.jersey || '' };
+  });
 }
 const flatRoster = r => (Array.isArray(r) ? r : []).flatMap(g => (Array.isArray(g?.players) ? g.players : [g])).filter(Boolean);
 export function parseAthlete(data) {
