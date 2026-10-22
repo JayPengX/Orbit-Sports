@@ -144,7 +144,7 @@ every 6 hours).
 
 | This | Also check |
 | --- | --- |
-| A league | `leagues.mjs`, picks, Shared-Proxy's `builders/`, Quadra Play |
+| A league | `leagues.mjs`, picks, Shared-Proxy's `builders/` |
 | `liveTable` / `title.mjs` | Every table and the title line |
 | A session's status | Home cards, 轉播, the weekend sheet, standings, notices |
 | `trimF1Live` (Shared-Proxy) | The F1 board, 數據, Play's settling |

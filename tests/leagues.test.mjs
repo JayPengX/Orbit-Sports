@@ -27,7 +27,7 @@ test('both languages have the same strings', () => {
 
 const ev = (id, league, state, start, home, away) => ({ id, league, kind: 'match', start, status: { state }, home: { name: home }, away: { name: away } });
 
-test('match keys match Quadra Play keys', () => {
+test('match keys match the catalogue keys', () => {
   const keys = eventKeys(ev('1', 'epl', 'pre', '2026-09-28T12:00:00Z', 'Arsenal', 'Chelsea'));
   assert.ok(keys.includes('league:epl'));
   assert.ok(keys.includes('sport:soccer'));

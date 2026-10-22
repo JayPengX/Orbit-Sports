@@ -2,7 +2,7 @@
 // rows, sheets. `ctx` is filled by app.js (the text, the state and the
 // actions rows and sheets call).
 import { LEAGUES, SPORTS, leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
-import { sidesInOrder } from '#kit/play-teams.mjs';
+import { sidesInOrder } from '#kit/catalog.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
 import { keptTiming } from './lib/f1.mjs';
 import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
@@ -263,7 +263,7 @@ function driverBadge(name, cls) {
 }
 export const sportIcon = league => SPORTS[LEAGUES[league]?.sport]?.icon || '';
 // A league's mark: its logo, else its sport's icon.
-// On a small white disc (as Quadra Play shows them), so no logo vanishes
+// On a small white disc, so no logo vanishes
 // into a dark background.
 export function leagueMark(key, cls = 'lg-mark') {
   const icon = () => el('span', { class: 'league-icon', 'aria-hidden': 'true', text: sportIcon(key) });

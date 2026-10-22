@@ -1,7 +1,6 @@
 // Every league Orbit Sports covers: the shared catalogue's (catalog.mjs,
-// the kit's leagues.mjs, which Play reads too) that are on ELTA.tv or Apple
-// TV in Taiwan (lib/broadcast.mjs), with its sport, where its data comes from
-// and, when Quadra Play sells it, Play's key for it.
+// the kit's) that are on ELTA.tv or Apple TV in Taiwan (lib/broadcast.mjs),
+// with its sport, where its data comes from and its catalogue key (`bet`).
 //
 //   espn    ESPN's site API path (scoreboards, match summaries, teams,
 //           rosters, standings, players)
@@ -27,7 +26,7 @@ export const hasStandings = key => (Boolean(LEAGUES[key]?.espn) && ((LEAGUES[key
 export const hasTeams = key => Boolean(LEAGUES[key]?.espn) && LEAGUES[key].kind === 'match';
 // A team page: ESPN's leagues, and CPBL's built from its own schedule.
 export const hasTeamPage = key => LEAGUES[key]?.kind === 'match';
-// The league's logo, from the shared kit (by Quadra Play's key), or null.
+// The league's logo, from the shared kit (by its catalogue key), or null.
 // The Premier League's is its lion, cut whole from ESPN's logo (the kit's
 // crop of it leaves the lion small).
 const isEpl = key => (LEAGUES[key]?.play || key) === 'epl';

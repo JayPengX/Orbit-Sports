@@ -233,7 +233,7 @@ export async function espnQualifying(eventId, sessionId, field, prefix = 'Q') {
 // part and the clock, the flag, the race's lap, race control's latest, and
 // each car. Null when the feed's session isn't this one (`abbr`, `start`).
 // Which session a reading is, and whether it's over, are the kit's
-// (f1live.mjs, shared with Play).
+// (the kit's f1live.mjs).
 export { sameSession, feedParts, feedOver };
 
 // The last reading, kept on the device (a reload, a reopen or a sheet opened

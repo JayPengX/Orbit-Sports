@@ -231,8 +231,7 @@ function savePrefs() {
 }
 let savePending = false;
 // What the person follows and opens, on the pass too (`follows:match`,
-// `aff:match`): Quadra Play recommends from it, and apps on a phone's home
-// screen don't share storage. Leagues in order; teams as [league, name].
+// `aff:match`): apps on a phone's home screen don't share storage. Leagues in order; teams as [league, name].
 const followsValue = () => ({
   leagues: state.prefs.leagues.slice(0, 30),
   teams: state.prefs.follows
@@ -1035,7 +1034,7 @@ function reach(date, range = stripRange) {
   if (n < range.from) range.from = n - 3;
   if (n > range.to) range.to = n + 3;
 }
-// The kit's strip of days (ui.mjs dayStrip, Quadra Play's too). `range`:
+// The kit's strip of days (ui.mjs dayStrip). `range`:
 // the stretch of days shown (home's own by default; 賽事 keeps one per
 // league); it also holds the strip's record (`range.strip`), so the strip
 // is made once and changed in place. `range.recenter`: the next draw brings

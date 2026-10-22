@@ -3,8 +3,7 @@
 // postseason numbers are a handful of games).
 //   - basketball and baseball: ESPN's list of every player's season
 //     (common v3 statistics/byathlete, a thousand a page, trimmed by the
-//     proxy: espn-athletes; the same address Play reads, so one copy in the
-//     proxy's cache), MLB's batters and pitchers two lists. Each stat ranked
+//     proxy: espn-athletes), MLB's batters and pitchers two lists. Each stat ranked
 //     here, a rate only among those who qualify as the league counts it (an
 //     NBA shooter's makes, a batter's plate appearances, a pitcher's innings);
 //     a team's the same list, its own players;
@@ -74,7 +73,6 @@ export const hasLeaders = (sport, espn) => Boolean(espn && LEADER_STATS[sport] &
 
 const SITE = 'https://site.api.espn.com/apis/site';
 const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
-// (Play's address exactly: the proxy's one cached copy serves both.)
 export const athletesUrls = (sport, espn) => {
   const all = `${COMMON}/${espn}/statistics/byathlete?limit=1000&isqualified=false&seasontype=2`;
   return sport === 'baseball' ? [all, `${all}&category=pitching`] : [all];

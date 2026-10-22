@@ -60,7 +60,7 @@ test('the leagues: each sport’s, which have tables, teams and team pages', () 
   assert.equal(leagueName('epl', 'en'), LEAGUES.epl.en);
 });
 
-test('affinity keys: the same as Quadra Play’s whatever the page shows (the English name)', () => {
+test('affinity keys: the catalogue keys whatever the page shows (the English name)', () => {
   assert.equal(leagueKey('nope'), 'nope');
   assert.equal(typeof familyOf('nba'), 'string');
   assert.equal(teamKey('epl', 'Brighton & Hove Albion'), teamKey('epl', 'brighton and hove albion'));
