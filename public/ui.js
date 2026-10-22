@@ -122,12 +122,6 @@ export function dayLabel(date, { long = false } = {}) {
   if (long) return near ? `${near} · ${plain}${paren}` : `${plain}${paren}`;
   return near || `${plain} ${wd}`;
 }
-export function toast(text, action = null, ms = 3200) {
-  const box = el('div', { class: `toast${action ? ' with-action' : ''}` }, [el('span', { text }), action]);
-  $('toasts').append(box);
-  setTimeout(() => box.remove(), ms);
-  return box;
-}
 
 // ---- Watching: ELTA.tv, Apple TV ------------------------------------------------------
 //
@@ -167,20 +161,18 @@ export function openWatch(ev, b) {
   location.href = b.app;
   setTimeout(() => {
     if (left || !b.url) return document.removeEventListener('visibilitychange', away);
-    const web = el('a', {
-      class: 'toast-act',
-      href: b.url,
-      target: '_blank',
-      rel: 'noopener',
-      text: `${ctx.t('eltaWeb')} ›`,
-      onclick: () => {
-        try {
-          localStorage.setItem(APP_MISS, String(Date.now()));
-        } catch {}
-        offer?.remove();
+    offer = kitUI.toast(ctx.t('eltaAppMiss'), {
+      ms: 8000,
+      action: {
+        label: `${ctx.t('eltaWeb')} ›`,
+        onTap: () => {
+          try {
+            localStorage.setItem(APP_MISS, String(Date.now()));
+          } catch {}
+          open(b.url, '_blank', 'noopener');
+        }
       }
     });
-    offer = toast(ctx.t('eltaAppMiss'), web, 8000);
     setTimeout(() => document.removeEventListener('visibilitychange', away), 8000);
   }, 1800);
 }

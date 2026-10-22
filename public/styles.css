@@ -105,10 +105,6 @@ img { max-width: 100%; }
 .home-note p { color: var(--q-label-2); font: var(--q-t-subhead); }
 .home-note .section-more { margin-top: 8px; font-size: 15px; }
 .q-btn.block.show-more { margin-top: 12px; }
-.toasts { position: fixed; left: 50%; bottom: calc(12px + var(--q-nav)); transform: translateX(-50%); z-index: 100; display: grid; justify-items: center; gap: 8px; width: min(420px, calc(100vw - 32px)); pointer-events: none; }
-/* The kit's glass toast (as .q-toast). */
-.toast { max-width: 100%; padding: 12px 18px; border-radius: 22px; background: var(--q-glass-strong); -webkit-backdrop-filter: blur(30px) saturate(2); backdrop-filter: blur(30px) saturate(2); box-shadow: var(--q-glass-rim), var(--q-glass-drop); color: var(--q-text); font: 600 15px/20px var(--q-font); animation: q-toast-pop var(--q-dur-bouncy) var(--q-spring-bouncy); }
-@keyframes q-toast-pop { from { opacity: 0; transform: translateY(24px) scale(0.9); } }
 
 /* ==== A game as a row (ui.js eventRow): every list, tab and sheet ====
    Its time (or state) down the left, the two sides with their scores, a
@@ -994,9 +990,6 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 :root[data-theme='dark'] .sess-tag.qual { color: #60a5fa; }
 :root[data-theme='dark'] .sess-tag.sprint { color: #c084fc; }
 :root[data-theme='dark'] .sess-tag.sq { color: #2dd4bf; }
-/* A toast with a way forward (the web page when the ELTA.tv app didn't open). */
-.toast.with-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: auto; }
-.toast-act { flex: none; font-weight: 750; color: var(--accent); text-decoration: none; }
 .pic-slot { display: contents; }
 /* An F1 team: its drivers side by side, each with their share of the points. */
 .team-drivers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
