@@ -110,7 +110,8 @@ const state = {
   days: new Map(),
   live: { date: null },
   home: { date: today(), filter: 'all', shown: 20, teams: new Map(), tables: {}, sportDays: new Map(), autoDay: true, tablesPending: 0, settled: false },
-  scores: { sport: 'soccer', league: 'epl', date: null, byDay: null, days: [], extra: 0, loading: false, mode: 'days', stage: 'all', view: 'games' },
+  // 賽事 opens on 全部 (every league's games of a day), the leagues after it.
+  scores: { sport: null, league: 'all', date: null, byDay: null, days: [], extra: 0, loading: false, mode: 'days', stage: 'all', view: 'games' },
 };
 
 const q = quadraSession('match', { lang: locale });
@@ -634,6 +635,7 @@ function repaintDay(date) {
   if (sheetOver()) return void heldDays.add(date);
   if (state.tab === 'home' && state.home.date === date) renderHome();
   if (state.tab === 'live' && (date === today() || date === addDays(today(), 1) || date === state.live.date)) renderLive();
+  if (allShown(date)) renderScores();
 }
 // `live`: only the pages of the games on now or due to start (livePages),
 // over the day held; a whole read (fullAt) every two minutes in any case.
@@ -684,7 +686,7 @@ async function loadDay(date, { live = false } = {}) {
   // today's rest in any case (every league's games on now, for 直播's badge
   // and 首頁's live games), a moment after the first read.
   if (slot.othersAt) loadOthers(date, live);
-  if (slot.restAt && (state.tab === 'live' || Date.now() - slot.restAt > 120_000)) loadRest(date, live && Date.now() - slot.restAt <= 120_000);
+  if (slot.restAt && (state.tab === 'live' || allShown(date) || Date.now() - slot.restAt > 120_000)) loadRest(date, live && Date.now() - slot.restAt <= 120_000);
   else if (!slot.restAt && isToday && !slot.restLoading) setTimeout(() => !slot.restAt && loadRest(date), 2500);
   loadFollowedTeams();
   repaintDay(date);
@@ -752,7 +754,7 @@ function retryLater(key, failed, again, wanted) {
   else retries.done(key);
 }
 // A day's retries run while it's on screen (首頁's day; 直播's today and tomorrow).
-const dayWanted = date => date === today() || date === addDays(today(), 1) || (state.tab === 'home' && state.home.date === date) || (state.tab === 'live' && liveDay() === date);
+const dayWanted = date => date === today() || date === addDays(today(), 1) || (state.tab === 'home' && state.home.date === date) || (state.tab === 'live' && liveDay() === date) || allShown(date);
 let pushTimer = 0;
 // The followed leagues' tables, for the picks and 追蹤's places (they come in on their own).
 function loadTables() {
@@ -1089,6 +1091,110 @@ function leagueDays(league, then) {
   return seasonDays.get(league);
 }
 
+// ---- 賽事's 全部: every league's games of a day ----------------------------------------------
+//
+// What 賽事 opens on (it used to open on the first league followed: F1,
+// every time; Jay 2026-10-21): a day's games of every league, grouped by
+// league (theirs first, in the rail's order), under a strip of days like
+// 首頁's (swiped too). A league's head opens its own page on that day.
+// The games are everything read for the day (rawDays: the followed leagues,
+// the others, the rest), small hours too.
+const ALL = 'all';
+const allRange = { from: STRIP.from, to: STRIP.to };
+// (null: today, whichever day that is now.)
+const allDay = () => state.scores.date || today();
+const allShown = date => state.tab === 'matches' && state.scores.league === ALL && allDay() === date;
+function openAll(date) {
+  state.scores = { ...state.scores, sport: null, league: ALL, date: date && date !== today() ? date : null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, q: '' };
+  allRange.recenter = true;
+  clearSearch();
+  if (state.tab === 'matches') renderScores();
+  else showTab('matches');
+}
+function pickAllDay(d) {
+  if (d === allDay()) return;
+  state.scores.date = d === today() ? null : d;
+  toPageTop();
+  renderScores();
+}
+// Another day's rest of the leagues (首頁 reads the followed ones and 24
+// others; today's rest is 直播's, loadRest): read once for 全部.
+const restDays = new Map();
+async function loadRestDay(date) {
+  const r = restDays.get(date) || { at: 0, failed: 0 };
+  if (r.loading) return;
+  r.loading = true;
+  restDays.set(date, r);
+  try {
+    r.failed = (await readDay(restLeagues(), date, { night: true })).failed || 0;
+  } catch {
+    r.failed = Math.max(1, restLeagues().length);
+  } finally {
+    r.loading = false;
+    r.at = Date.now();
+  }
+  retryLater(`restday:${date}`, r.failed > 0, () => loadRestDay(date), () => allShown(date));
+  if (allShown(date)) renderScores();
+}
+// A day's games, every league's read (by the clock: the small hours too),
+// each as its newest copy; a tournament running across the day too.
+function allGames(date) {
+  const from = Date.parse(`${date}T00:00:00`);
+  const to = Date.parse(`${addDays(date, 1)}T00:00:00`);
+  const isToday = date === today();
+  return [...(rawDays.get(date)?.values() || [])]
+    .map(freshGame)
+    .filter(e => LEAGUES[e.league] && (inDay(Date.parse(e.start), date) || (isToday && e.status.state === 'in') || (!e.sessionKey && e.kind !== 'match' && e.end && Date.parse(e.start) < to && Date.parse(e.end) >= from)));
+}
+const ALL_ROWS = 5;
+function renderAll() {
+  const box = $('panel-matches');
+  const date = allDay();
+  const isToday = date === today();
+  // The day's reads, all at once: theirs, the others', the rest's.
+  let slot = state.days.get(date);
+  if (!slot?.at || (slot.stale && !slot.loading)) {
+    if (!slot?.loading) loadDay(date);
+    slot = state.days.get(date);
+  }
+  if (slot && !slot.othersAt && !slot.othersLoading) loadOthers(date);
+  if (slot && isToday && !slot.restAt && !slot.restLoading) loadRest(date);
+  const rest = restDays.get(date);
+  if (!isToday && !rest?.at && !rest?.loading) loadRestDay(date);
+  const ready = slot?.at && !slot.stale && slot.othersAt && (isToday ? slot.restAt : restDays.get(date)?.at);
+  const head = pageHead(L({ zh: '全部賽事', en: 'All games' }));
+  head.dataset.all = date;
+  const strip = dateStrip(date, pickAllDay, { range: allRange, bounds: homeBounds() });
+  let list;
+  if (!ready) list = spinner();
+  else {
+    const games = allGames(date);
+    const unread = (slot.partial || 0) + (slot.othersFailed || 0) + ((isToday ? slot.restFailed : restDays.get(date)?.failed) || 0);
+    const place = new Map(scoresRail().map((k, i) => [k, i]));
+    const byLeague = new Map();
+    for (const e of games) byLeague.set(e.league, [...(byLeague.get(e.league) || []), e]);
+    const order = { in: 0, pre: 1, post: 2 };
+    const groups = [...byLeague].sort(([a], [b]) => (place.get(a) ?? 999) - (place.get(b) ?? 999));
+    prefetchVideos(games);
+    const group = ([k, rows]) => {
+      rows.sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
+      // The league's head: its mark and name, and how many, a tap to its page that day.
+      const sh = kitUI.sectionHead(leagueName(k, locale), { more: t('gamesN', { n: rows.length }), onMore: () => openScores(k, date) });
+      sh.prepend(leagueMark(k));
+      return el('section', { class: 'q-section all-league', 'data-league': k }, [sh, el('div', { class: 'q-card list' }, rows.slice(0, ALL_ROWS).map(e => eventRow(e, { league: false, day: false }))), rows.length > ALL_ROWS ? el('button', { class: 'q-btn block show-more', type: 'button', text: L({ zh: `還有 ${rows.length - ALL_ROWS} 場`, en: `${rows.length - ALL_ROWS} more` }), onclick: () => openScores(k, date) }) : null]);
+    };
+    list = el('div', { class: 'all-day' }, [
+      el('p', { class: 'day-head', text: [dayLabel(date, { long: true }), t('gamesN', { n: games.length })].join(' · ') }),
+      ...(games.length ? groups.map(group) : [empty(unread ? t('someUnread') : t('noGames'))])
+    ]);
+  }
+  const parts = [head, leagueRail(scoresRail()), strip, list];
+  // The same day drawn again (a score changed, another league read): in place.
+  if (box.firstChild?.dataset?.all === date && box.childNodes.length === parts.length) return parts.forEach((n, i) => morph(box.childNodes[i], n));
+  put(box, ...parts);
+  centerChosen(box);
+}
+
 const ENDED_GAMES = { zh: '已結束', en: 'Ended' };
 // ELTA's four 體育台; MAX's channels carry the English feed. Its pick is a
 // game there with its own commentators: a 體育台 can carry a game in 原音
@@ -1366,7 +1472,7 @@ function noTvText(date) {
   }
   return t('noOthers');
 }
-const fullSchedule = () => el('button', { class: 'section-more', type: 'button', text: `${L({ zh: '看完整賽程', en: 'Every game' })} ›`, onclick: () => showTab('matches') });
+const fullSchedule = () => el('button', { class: 'section-more', type: 'button', text: `${L({ zh: '看完整賽程', en: 'Every game' })} ›`, onclick: () => openAll(state.home.date) });
 // 首頁's day: the date strip at the top, always on screen (it sticks under
 // the status bar while the page scrolls), today in the middle; a swipe
 // across the page goes a day either way (daySwipe). Under it, what to show
@@ -2084,6 +2190,7 @@ const bracketShape = () =>
 async function loadScores({ quiet = false } = {}) {
   const sc = state.scores;
   const league = sc.league;
+  if (league === ALL) return renderScores();
   const key = `${league}|${sc.extra}`;
   sc.loadingKey = key;
   sc.loading = !quiet;
@@ -2454,6 +2561,7 @@ function leagueRail(rail) {
       key,
       node: el('div', { class: 'q-chips league-rail' }, [
         el('button', { class: 'q-chip search-chip', type: 'button', 'aria-label': L({ zh: '搜尋', en: 'Search' }), html: icon('search'), onclick: openSearch }),
+        el('button', { class: 'q-chip all-chip', type: 'button', 'data-league': ALL, 'aria-pressed': 'false', text: t('f_all'), onclick: () => state.scores.league !== ALL && openAll(today()) }),
         ...rail.map(k => el('button', { class: 'q-chip', type: 'button', 'data-league': k, 'aria-pressed': 'false', onclick: () => pick(k) }, [leagueMark(k), locale === 'en' ? leagueName(k, locale) : leagueName(k, locale).replace(/\s.*$/, '')]))
       ])
     };
@@ -2461,8 +2569,16 @@ function leagueRail(rail) {
   for (const chip of railKept.node.querySelectorAll('[data-league]')) chip.setAttribute('aria-pressed', String(chip.dataset.league === state.scores.league));
   return railKept.node;
 }
+function scoresRail() {
+  const mine = new Set(state.prefs.leagues);
+  // Every league on one rail, theirs first (in their order), then by sport;
+  // the search first of all, then 全部.
+  const sportOrder = shownSports().sort((a, b) => followedSports().includes(b) - followedSports().includes(a));
+  return [...state.prefs.leagues.filter(isActive), ...sportOrder.flatMap(sp => shownLeaguesOf(sp).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top)).filter(k => !mine.has(k)))];
+}
 function renderScores() {
   const sc = state.scores;
+  if (sc.league === ALL) return renderAll();
   // A sport or league with nothing on now: the first one that has.
   if (activeSet && !isActive(sc.league)) {
     const sport = isActiveSport(sc.sport) ? sc.sport : shownSports()[0];
@@ -2474,11 +2590,7 @@ function renderScores() {
   }
   const box = $('panel-matches');
   const mine = new Set(state.prefs.leagues);
-  // Every league on one rail, theirs first (in their order), then by sport;
-  // the search first of all.
-  const sportOrder = shownSports().sort((a, b) => followedSports().includes(b) - followedSports().includes(a));
-  const rail = [...state.prefs.leagues.filter(isActive), ...sportOrder.flatMap(sp => shownLeaguesOf(sp).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top)).filter(k => !mine.has(k)))];
-  const leagueChips = leagueRail(rail);
+  const leagueChips = leagueRail(scoresRail());
   let strip = null;
   let list;
   let stages = null;
@@ -3089,9 +3201,7 @@ function showTab(tab) {
   renderTabs();
   if (tab === 'home') renderHome();
   if (tab === 'matches') {
-    // First time here: the person's first followed league.
-    const first = followedLeagues()[0];
-    if (!state.scores.touched && !state.scores.byDay && first) state.scores = { ...state.scores, sport: LEAGUES[first].sport, league: first, view: hasStandings(first) ? state.scores.view : 'games' };
+    // (It opens on 全部, never on whichever league is followed first: F1 every time.)
     state.scores.byDay ? renderScores() : loadScores();
   }
   if (tab === 'live') renderLive();
@@ -3108,6 +3218,10 @@ function tabAgain(tab) {
     liveRange.recenter = true;
     pickLiveDay(today());
   }
+  if (tab === 'matches' && state.scores.league === ALL && allDay() !== today()) {
+    allRange.recenter = true;
+    pickAllDay(today());
+  }
 }
 // A swipe on 首頁 or 轉播: the day before or after.
 kitUI.daySwipe($('panel-home'), dir => {
@@ -3118,13 +3232,18 @@ kitUI.daySwipe($('panel-live'), dir => {
   const d = stripStep(liveRange, liveDay(), dir);
   return Boolean(d && (pickLiveDay(d), true));
 });
+// 賽事's 全部 too (a league's page keeps its own strip, no swipe).
+kitUI.daySwipe($('panel-matches'), dir => {
+  const d = state.scores.league === ALL && stripStep(allRange, allDay(), dir);
+  return Boolean(d && (pickAllDay(d), true));
+});
 // The refresh button: today (or the day on screen) and the open league again.
 async function reloadNow() {
   actions.refresh.disabled = true;
   try {
     // The open league's playoffs too (read again, not kept their 10 minutes).
     if (state.tab === 'matches') staleBracket(state.scores.league);
-    await Promise.allSettled([loadDay(state.tab === 'home' ? state.home.date : today()), state.tab === 'matches' ? loadScores() : null]);
+    await Promise.allSettled([loadDay(state.tab === 'home' ? state.home.date : state.tab === 'matches' && state.scores.league === ALL ? allDay() : today()), state.tab === 'matches' ? loadScores() : null]);
   } finally {
     actions.refresh.disabled = false;
   }
@@ -3159,7 +3278,7 @@ function liveTick() {
   // On now, or due to start (its kickoff passed or a minute away): watched as live.
   const live = dayAll(day).some(e => e.status.state === 'in' || dueToStart(e));
   const age = Date.now() - (day?.at || 0);
-  const onScreen = (state.tab === 'home' && state.home.date === today()) || state.tab === 'live' || state.tab === 'following';
+  const onScreen = (state.tab === 'home' && state.home.date === today()) || state.tab === 'live' || state.tab === 'following' || allShown(today());
   // The whole day every two minutes; between, only the pages with a game on.
   if (Date.now() - (day?.fullAt || 0) > 120_000) loadDay(today());
   else if (onScreen && live && age > dev('sportsList') * 1000 - 2_000) loadDay(today(), { live: true });
