@@ -1026,13 +1026,6 @@ function reach(date, range = stripRange) {
   if (n < range.from) range.from = n - 3;
   if (n > range.to) range.to = n + 3;
 }
-// A day chip's two lines: 今天 / 明天 / 昨天 or the weekday, over the date
-// (with the year when it isn't this one).
-const dayTop = d => (d === today() ? t('today') : d === addDays(today(), 1) ? t('tomorrow') : d === addDays(today(), -1) ? t('yesterday') : new Date(`${d}T12:00:00`).toLocaleDateString(locale === 'en' ? 'en-US' : 'zh-TW', { weekday: 'short' }));
-const dayDate = d => {
-  const dt = new Date(`${d}T12:00:00`);
-  return dt.getFullYear() !== new Date().getFullYear() ? `${String(dt.getFullYear()).slice(2)}/${dt.getMonth() + 1}/${dt.getDate()}` : `${dt.getMonth() + 1}/${dt.getDate()}`;
-};
 // The kit's strip of days (ui.mjs dayStrip, Quadra Play's too). `range`:
 // the stretch of days shown (home's own by default; 賽事 keeps one per
 // league); it also holds the strip's record (`range.strip`), so the strip
@@ -1051,13 +1044,10 @@ function dateStrip(current, onPick, { only = null, range = stripRange, bounds = 
     today: today(),
     // (📅's day: the strip reaches it first.)
     onPick: d => (reach(d, range), onPick(d)),
-    label: dayTop,
-    sub: dayDate,
-    cls: d => (new Date(`${d}T12:00:00`).getDate() === 1 ? 'month-start' : ''),
+    // (Each chip's two lines, 今天 or the weekday over the date, the kit's: every app's the same.)
     clamp: v => clampDay(v, bounds),
     bounds,
-    follow,
-    pickLabel: L({ zh: '選擇日期', en: 'Pick a date' })
+    follow
   });
 }
 // The days each league can be asked for (Shared-Data's nightly
