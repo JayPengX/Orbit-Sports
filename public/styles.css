@@ -113,7 +113,7 @@ img { max-width: 100%; }
 .list > :is(.event-row, .watch-row, .fg-row, .tie-game) { position: relative; }
 .list > :is(.event-row, .watch-row, .fg-row, .tie-game) + :is(.event-row, .watch-row, .fg-row, .tie-game)::before { content: ''; position: absolute; z-index: 1; top: 0; left: 16px; right: 0; border-top: var(--q-hairline, 0.5px) solid var(--q-sep); }
 .event-row { position: relative; display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: 0; background: none; color: inherit; font: inherit; text-align: left; transition: background-color 0.25s; -webkit-tap-highlight-color: transparent; }
-.event-row:active:not(:disabled) { background: var(--q-fill-4); transition-duration: 0s; }
+.event-row:active:not(:disabled, .abroad) { background: var(--q-fill-4); transition-duration: 0s; }
 @media (hover: hover) { .event-row:hover:not(:disabled) { background: var(--q-fill-4); } }
 /* A game called off: not a button (openEvent), still read as the others. */
 :is(.event-row, .tf-game, .res-row, .wk-card, .tvg-body, .score-card):disabled { color: inherit; opacity: 1; cursor: default; }
@@ -1120,6 +1120,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .team-tab { margin-top: 10px; display: grid; gap: 10px; }
 .res-row { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .res-row:first-child { border-top: 0; }
+.res-row.abroad { cursor: default; }
 .res-date { font-size: 12.5px; color: var(--q-muted); }
 .res-opp { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 650; }
 .res-opp .res-name { display: grid; min-width: 0; }

@@ -17,10 +17,10 @@ import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGU
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey, withPitchingChange } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName, rotowireUrl, rotowireGame } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { athleteAverages, boxSeasonPage, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf } from './leaders.mjs';
+import { athleteAverages, boxSeasonPage, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf, FOTMOB_LEAGUE, FOTMOB_HOME, fotmobLeagueLogo, fotmobTeamLogo } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
-import { proxyJson, packJson, peekJson } from '#kit/quadra.mjs';
+import { proxyJson, packJson, peekJson, translate } from '#kit/quadra.mjs';
 import { mlbPostseason, mlbPostseasonUrl, mlbGameFor as postGameFor, mlbGone } from '#kit/postseason.mjs';
 import { roundName } from './stage.mjs';
 import { teamNameZh } from '#kit/names.mjs';
@@ -1966,6 +1966,81 @@ export async function teamLeaders(league, id, side = {}) {
     return teamFromLeague(await espnLeagueLeaders(l).catch(() => null), id);
   }
   return parseTeamAthletes(await athletePages(l), l.sport, league, id);
+}
+// A club opened from a cup whose own league isn't one of ours (ESPN files
+// Lech Poznań under the Europa League and has no Ekstraklasa; Real Madrid's
+// LaLiga isn't followed): that league from FotMob's page of the club, found
+// by its name among the cup's clubs. `side` the club as ESPN names it.
+// { key } when FotMob's league is one of ours (its page has it all); else
+// { league: { id, name, logo, dark }, place, group (its table, as a league's
+// standings), games (its league's, as a schedule's) }; null when not found.
+export async function clubAbroad(league, side, lang = detectLocale()) {
+  if (!FOTMOB_LEAGUE[league] || !LEAGUES[league]?.cup) return null;
+  const cup = await getJson(fotmobLeagueUrl(league), { ttl: LEADERS_TTL });
+  // (Found by its English names: `side` is the page's, in Chinese.)
+  const words = { name: side.en || side.name, en: side.en, short: side.enShort || '' };
+  const club = fotmobTeamOf(cup?.teams || [], words, sideWords(words));
+  if (!club) return null;
+  const home = (await getJson(fotmobTeamUrl(club.id), { ttl: 10 * 60_000 }))?.home;
+  const lid = home?.league?.id;
+  if (!lid || lid === FOTMOB_LEAGUE[league] || !home.table?.length) return null;
+  const ours = Object.keys(FOTMOB_LEAGUE).find(k => FOTMOB_LEAGUE[k] === lid && !LEAGUES[k]?.cup);
+  if (ours) return { key: ours };
+  const en = lang === 'en';
+  const own = String(club.id);
+  // Each club in Chinese: the kit's name, else Google's (kept a month), else as FotMob writes it.
+  const named = new Map();
+  const nameOf = n => {
+    if (!named.has(n)) named.set(n, en ? Promise.resolve(n) : Promise.resolve(teamNameZh('', n, 'soccer')?.full || translate(n, 'zh-TW', 'en').then(z => (/[㐀-鿿]/.test(z) && !/[A-Za-z]{3}/.test(z) ? z : n), () => n)));
+    return named.get(n);
+  };
+  const leagueName = (FOTMOB_HOME[lid] || [])[en ? 1 : 0] || (await nameOf(home.league.name || ''));
+  const sideOf = async x => (String(x?.id) === own ? { ...side, id: side.id, score: x.score } : { id: '', fotmob: String(x?.id ?? ''), name: await nameOf(x?.name || ''), short: await nameOf(x?.name || ''), logo: fotmobTeamLogo(x?.id), score: x?.score });
+  const zoneOf = i => (home.zones || []).find(z => z.at.includes(i));
+  const rows = await Promise.all(
+    home.table.map(async (r, i) => {
+      const me = String(r.id) === own;
+      const [gf, ga] = String(r.scores || '').split('-');
+      return {
+        id: me ? String(side.id) : '',
+        name: me ? side.name : await nameOf(r.name),
+        short: me ? side.short || side.name : await nameOf(r.name),
+        logo: me ? side.logo : fotmobTeamLogo(r.id),
+        color: zoneOf(i)?.color || null,
+        note: zoneOf(i)?.title || '',
+        stats: { GP: String(r.played ?? ''), W: String(r.wins ?? ''), D: String(r.draws ?? ''), L: String(r.losses ?? ''), F: gf ?? '', A: ga ?? '', GD: r.gd > 0 ? `+${r.gd}` : String(r.gd ?? ''), P: String(r.pts ?? '') }
+      };
+    })
+  );
+  const i = rows.findIndex(r => r.id === String(side.id));
+  const games = await Promise.all(
+    (home.games || [])
+      .filter(g => g.league === lid && g.at && !g.dateTbd)
+      .map(async g => {
+        const state = g.cancelled ? 'post' : g.finished ? 'post' : g.live || g.started ? 'in' : 'pre';
+        const clock = String(g.clock || '').replace(/[\u200e\u200f]/g, '').replace(/’/g, "'");
+        return {
+          id: `fm${g.id}`,
+          league,
+          kind: 'match',
+          abroad: true,
+          other: leagueName,
+          otherLogo: fotmobLeagueLogo(lid),
+          otherDark: fotmobLeagueLogo(lid, true),
+          start: g.at,
+          ...(g.timeTbd ? { timeTbd: true } : {}),
+          status: { state, void: g.cancelled || undefined, short: state === 'post' ? g.reason : clock, clock: state === 'in' && clock !== 'HT' ? clock : '', name: clock === 'HT' ? 'STATUS_HALFTIME' : '' },
+          home: await sideOf(g.home),
+          away: await sideOf(g.away)
+        };
+      })
+  );
+  return {
+    league: { id: lid, name: leagueName, logo: fotmobLeagueLogo(lid), dark: fotmobLeagueLogo(lid, true) },
+    place: i >= 0 ? { pos: i + 1, row: rows[i] } : null,
+    group: { name: '', rows },
+    games: games.sort((a, b) => a.start.localeCompare(b.start))
+  };
 }
 export async function roster(league, id, home = '') {
   const path = home && LEAGUES[league].espn.startsWith('soccer/') ? `soccer/${home}` : LEAGUES[league].espn;

@@ -280,7 +280,8 @@ export const leagueChip = (key, short = false) => el('span', { class: 'league-ta
 const SHORT_EN = { epl: 'EPL', bundesliga: 'Bundes.', seriea: 'Serie A', ligue1: 'Ligue 1', ucl: 'UCL', uel: 'UEL', uecl: 'UECL', facup: 'FA Cup', scotland: 'SPFL', nationsleague: 'UNL', f1: 'F1' };
 const shortLeague = key => (ctx.locale === 'en' && SHORT_EN[key]) || /^([A-Za-z0-9]+) [^\x00-\x7f]/.exec(leagueName(key, ctx.locale))?.[1] || leagueName(key, ctx.locale);
 // An event's competition: its league, or (a friendly, a cup Orbit Sports doesn't have) its own name.
-const compChip = e => (e.other ? el('span', { class: 'league-tag other' }, [el('span', { text: otherName(e.other, ctx.locale === 'en') })]) : leagueChip(e.league, true));
+// (A club's own league from FotMob: its logo too.)
+const compChip = e => (e.otherLogo ? el('span', { class: 'league-tag' }, [el('span', { class: 'league-badge lg-mark' }, [logoPicture(e.otherLogo, e.otherDark, 'league-img', () => null)]), el('span', { text: e.other })]) : e.other ? el('span', { class: 'league-tag other' }, [el('span', { text: otherName(e.other, ctx.locale === 'en') })]) : leagueChip(e.league, true));
 
 // ---- Events --------------------------------------------------------------------------
 
@@ -460,7 +461,9 @@ export function eventRow(e, { league = true, day = true, picked = false } = {}) 
   if (e.kind === 'match') {
     const w = winners(e);
     const series = seriesText(e);
-    return el('button', { class: `event-row${live ? ' live' : ''}${mine ? ' mine' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) }, [
+    // (A club's own league's game from FotMob, which ESPN doesn't have: no game page to open.)
+    const attrs = e.abroad ? { class: `event-row abroad${live ? ' live' : ''}` } : { class: `event-row${live ? ' live' : ''}${mine ? ' mine' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) };
+    return el(e.abroad ? 'div' : 'button', attrs, [
       el('div', { class: 'event-meta' }, [statusEl(e, day)]),
       el('div', { class: 'event-sides' }, [sideLine(e.away, e, w.away), sideLine(e.home, e, w.home), series ? el('small', { class: 'series-line', text: series }) : null, liveLine(e), rowTags(e, { league, picked, tag: stageTag(e, ctx.locale) })])
     ]);

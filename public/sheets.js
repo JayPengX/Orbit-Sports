@@ -6,7 +6,7 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, logSeasonLine, logSeason } from './lib/espn.mjs';
+import { mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, logSeasonLine, logSeason, clubAbroad } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -4027,14 +4027,22 @@ export async function openTeam(league, id, fallback = {}) {
   const en = L() === 'en';
   const W = (zh, eng) => (en ? eng : zh);
   try {
-    const [info, all, groups, hurt = null, home] = espn
-      ? await Promise.all([team(league, id), teamSchedule(league, id).catch(() => []), hasStandings(league) ? freshStandings(league).catch(() => null) : null, leagueInjuries(league).catch(() => null), homeLeague(league, id).catch(() => null)])
+    // A club opened from a cup whose own league ESPN doesn't give us (Lech
+    // Poznań: ESPN files it under the Europa League and has no Ekstraklasa;
+    // Real Madrid's LaLiga isn't followed): that league from FotMob (Jay,
+    // 2026-10-22: every club's page shows its own league).
+    const infoP = espn ? team(league, id) : null;
+    const homeP = espn ? homeLeague(league, id).catch(() => null) : null;
+    const abroadP = espn ? Promise.all([infoP, homeP]).then(([i, h]) => (LEAGUES[league]?.cup && !(h?.key && h.key !== league && LEAGUES[h.key] && !LEAGUES[h.key].cup) ? clubAbroad(league, i) : null)).catch(() => null) : null;
+    const [info, all, groups, hurt = null, home, abroad = null] = espn
+      ? await Promise.all([infoP, teamSchedule(league, id).catch(() => []), hasStandings(league) ? freshStandings(league).catch(() => null) : null, leagueInjuries(league).catch(() => null), homeP, abroadP])
       : await ownTeam(league, id, fallback);
+    const away = abroad?.league ? abroad : null;
     const outside = Boolean(home && !home.key && home.name);
     // Opened from a European cup: the club's own league too (義甲 第 3 名 ·
     // 4勝2和1敗), a tap to its page there (Jay, 2026-10-21); the record
     // beside the cup's place the cup's own.
-    const domestic = LEAGUES[league]?.cup && home?.key && home.key !== league && LEAGUES[home.key] ? home.key : null;
+    const domestic = LEAGUES[league]?.cup && home?.key && home.key !== league && LEAGUES[home.key] && !LEAGUES[home.key].cup ? home.key : abroad?.key || null;
     const domBox = domestic ? el('button', { class: 'team-domestic', type: 'button', hidden: true, onclick: () => openTeam(domestic, id, fallback) }) : null;
     if (domestic)
       freshStandings(domestic)
@@ -4048,8 +4056,9 @@ export async function openTeam(league, id, fallback = {}) {
         })
         .catch(() => {});
     // Only the competitions Orbit Sports has: a friendly or another country's
-    // cup has nothing of its own here (its table, its names, its page).
-    const sched = all.filter(x => !x.other && LEAGUES[x.league]);
+    // cup has nothing of its own here (its table, its names, its page). And
+    // a club's own league from FotMob (its games no page of their own).
+    const sched = [...all.filter(x => !x.other && LEAGUES[x.league]), ...(away?.games || [])].sort((a, b) => a.start.localeCompare(b.start));
     const now = Date.now();
     const played = sched.filter(x => x.status.state === 'post' && !x.status.void);
     const past = played.slice(-10).reverse();
@@ -4058,7 +4067,7 @@ export async function openTeam(league, id, fallback = {}) {
     const followBtn = followButton(() => ctx.isFollowed(league, id), () => ctx.toggleFollow(league, side));
     const place = placeOf(groups, id);
     // A club in several competitions: each game says which.
-    const comps = new Set(sched.map(x => x.league)).size > 1;
+    const comps = new Set(sched.map(x => x.other || x.league)).size > 1;
     const resultOf = x => resultFor(x, id);
     // Its form in the competition it's opened from, as the record and place
     // beside it are (leagueForm); 戰績 below keeps every competition. A club
@@ -4070,7 +4079,7 @@ export async function openTeam(league, id, fallback = {}) {
     const pre = Boolean(groups?.length) && !groups.some(tableStarted) && played.length > 0;
     // (ESPN's record is the club's league's: in a cup, the cup's own from its table, W-D-L.)
     const cupRecord = domestic && place && [place.row.stats.W, place.row.stats.D, place.row.stats.L].every(v => v != null && v !== '') ? `${place.row.stats.W}-${place.row.stats.D}-${place.row.stats.L}` : '';
-    const record = [pre ? W('季前賽', 'Preseason') : '', cupRecord || (outside || domestic ? '' : info.record) || ownRecord(played, resultOf)].filter(Boolean).join(' ');
+    const record = [pre ? W('季前賽', 'Preseason') : '', cupRecord || (outside || domestic ? '' : info.record) || ownRecord(played.filter(x => !x.abroad), resultOf)].filter(Boolean).join(' ');
     // The numbers that matter in the sport, in one strip.
     const sport = LEAGUES[league]?.sport;
     const want = sport === 'soccer' ? ['GP', 'W', 'D', 'L', 'GD', 'P'] : ['W', 'L', 'PCT', 'GB', 'STRK'];
@@ -4083,12 +4092,22 @@ export async function openTeam(league, id, fallback = {}) {
       : null;
     const next = upcoming[0];
     const nextCard = next ? el('div', { class: 'team-next' }, [el('p', { class: 'mini-h', text: W('下一場', 'Next game') }), el('div', { class: 'q-card list' }, [eventRow(next, { league: comps })])]) : null;
+    // Its own league's place (FotMob's): 波蘭超 第 2 名 · 8勝1和1敗, a tap to that table.
+    const ord = n => `${n}${['th', 'st', 'nd', 'rd'][n % 10 < 4 && Math.floor(n / 10) !== 1 ? n % 10 : 0]}`;
+    const awayBox = away?.place
+      ? (() => {
+          const st = away.place.row.stats;
+          const wdl = [st.W, st.D, st.L].every(v => v != null && v !== '') ? W(`${st.W}勝${st.D}和${st.L}敗`, `${st.W}-${st.D}-${st.L}`) : '';
+          const chip = el('span', { class: 'league-tag' }, [el('span', { class: 'league-badge lg-mark' }, [logoPicture(away.league.logo, away.league.dark, 'league-img', () => null)]), el('span', { text: away.league.name })]);
+          return el('button', { class: 'team-domestic', type: 'button', onclick: () => ((view = 'table'), paint(), body.scrollIntoView({ behavior: 'smooth', block: 'start' })) }, [chip, el('span', { class: 'td-text', text: [W(`第 ${away.place.pos} 名`, ord(away.place.pos)), wdl].filter(Boolean).join(' · ') }), el('span', { class: 'td-chev', 'aria-hidden': 'true', text: '›' })]);
+        })()
+      : null;
     const tabsBox = el('div');
     const body = el('div', { class: 'team-tab' });
     const views = [['schedule', W('賽程', 'Schedule')], ['results', W('戰績', 'Results')]];
     if (espn && !outside) views.push(['roster', W('陣容', 'Roster')]);
-    if (!outside && hasLeaders(sport, LEAGUES[league]?.espn)) views.push(['leaders', W('數據領先', 'Leaders')]);
-    if (place) views.push(['table', W('排名', 'Table')]);
+    if ((!outside || away) && hasLeaders(sport, LEAGUES[league]?.espn)) views.push(['leaders', W('數據領先', 'Leaders')]);
+    if (place || away?.place) views.push(['table', W('排名', 'Table')]);
     // Five in one row of equal parts (as chips they crowded the edge): each two characters then (the card under says 數據領先).
     if (views.length > 4) for (const v of views) v[1] = { schedule: W('賽程', 'Games'), leaders: W('數據', 'Stats') }[v[0]] || v[1];
     let view = upcoming.length > 1 ? 'schedule' : 'results';
@@ -4112,7 +4131,7 @@ export async function openTeam(league, id, fallback = {}) {
                   const them = x.home.id === String(id) ? x.away : x.home;
                   const at = x.home.id === String(id) ? 'vs' : '@';
                   const score = x.home.id === String(id) ? `${x.home.score}-${x.away.score}` : `${x.away.score}-${x.home.score}`;
-                  return el('button', { class: 'res-row', type: 'button', disabled: x.status?.void ? true : null, onclick: () => ctx.openEvent(x) }, [
+                  return el(x.abroad ? 'div' : 'button', x.abroad ? { class: 'res-row abroad' } : { class: 'res-row', type: 'button', disabled: x.status?.void ? true : null, onclick: () => ctx.openEvent(x) }, [
                     el('span', { class: 'res-date num', text: localDate(Date.parse(x.start)).slice(5).replace('-', '/') }),
                     el('span', { class: 'res-opp' }, [el('small', { class: 'muted', text: at }), logo(them.logo, them.name, 'xs'), el('span', { class: 'res-name' }, [el('span', { text: them.short || them.name }), mixed ? el('small', { class: 'res-comp', text: x.other ? otherName(x.other, en) : leagueName(x.league, L()) }) : null])]),
                     el('span', { class: `result-pill ${r === 'W' ? 'w' : r === 'L' ? 'l' : 'd'}`, text: `${en ? r : { W: '勝', L: '敗', D: '和' }[r]} ${score}` })
@@ -4162,7 +4181,9 @@ export async function openTeam(league, id, fallback = {}) {
       }
       if (view === 'table') {
         const g = (groups || []).find(x => x.rows.some(r => r.id === String(id)));
-        put(body, g ? standingsTables([g], league, { mark: [String(id)], compact: true }) : empty(T('noStandings')));
+        // Its own league's table first (FotMob's: its rows open nothing), then the cup's.
+        const home = away?.place ? standingsTables([{ ...away.group, name: away.league.name }], league, { mark: [String(id)], compact: true, open: false }) : null;
+        put(body, home || g ? el('div', { class: 'stack' }, [home, g ? standingsTables([home ? { ...g, name: g.name || leagueName(league, L()) } : g], league, { mark: [String(id)], compact: true }) : null]) : empty(T('noStandings')));
       }
     };
     put(
@@ -4172,9 +4193,10 @@ export async function openTeam(league, id, fallback = {}) {
         el('div', { class: 'team-hero-text' }, [
           el('h3', { text: info.name }),
           info.en && info.en !== info.name ? el('small', { class: 'muted', text: info.en }) : null,
-          outside ? el('small', { class: 'muted team-home' }, [zhLater(home.name, 'en')]) : null,
+          outside && !away ? el('small', { class: 'muted team-home' }, [zhLater(home.name, 'en')]) : null,
           el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? el('span', { class: 'nowrap', text: W(`${leagueName(league, L())}${groups.length > 1 && place.group ? ` ${groupName(place.group, 'zh')} · ` : ''}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in ${groups.length > 1 && place.group ? groupName(place.group, 'en') : `the ${leagueName(league, L())}`}`) }) : !groups || groups.some(tableStarted) ? standingZh(info.standing, L()) : ''].filter(Boolean), ' · ')),
           domBox,
+          awayBox,
           form.length ? el('div', { class: 'hero-form', 'aria-label': formFrom === inLeague ? W(`${leagueName(league, L())}近 ${form.length} 場`, `Last ${form.length} in the ${leagueName(league, L())}`) : W(`近 ${form.length} 場`, `Last ${form.length}`) }, [resultPills(form)]) : null
         ]),
         followBtn
@@ -5239,7 +5261,8 @@ function raceBlock(race, g, league, many) {
   const kept = lines.map((l, k) => [l, k]).sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1]).slice(0, 2).map(([l]) => l);
   return kept.length ? el('div', { class: 'title-race' }, kept) : null;
 }
-export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false } = {}) {
+// `open: false`: rows that open nothing (a club's own league from FotMob, its clubs not ESPN's).
+export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false, open = true } = {}) {
   const sport = LEAGUES[league]?.sport;
   const want = STANDING_COLUMNS[sport] || ['W', 'L'];
   const small = COMPACT_COLUMNS[sport] || want;
@@ -5273,7 +5296,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
                 return el('tr', { class: rowCls }, [
                   el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null }, [String(i + 1), settled.has(r.id) ? glyph('lock', 'rank-lock') : null]),
                   el('th', { class: 'left name-cell' }, [
-                    el('button', { class: 'link team-link', type: 'button', onclick: () => (r.athlete ? r.id && ctx.openPlayer(league, r.id, r) : league === 'f1' ? openConstructor(r) : r.id && openTeam(league, r.id, r)) }, [r.athlete ? personPic(r, league, 'xs round') : league === 'f1' ? constructorBadge(r.en || r.name, 'xs') : logo(r.logo, r.name, 'xs'), el('span', { class: 'nm' }, name)])
+                    el(open ? 'button' : 'span', open ? { class: 'link team-link', type: 'button', onclick: () => (r.athlete ? r.id && ctx.openPlayer(league, r.id, r) : league === 'f1' ? openConstructor(r) : r.id && openTeam(league, r.id, r)) } : { class: 'team-link' }, [r.athlete ? personPic(r, league, 'xs round') : league === 'f1' ? constructorBadge(r.en || r.name, 'xs') : logo(r.logo, r.name, 'xs'), el('span', { class: 'nm' }, name)])
                   ]),
                   ...cols.map(c => el('td', { class: cls(c), text: r.stats[c] ?? '' }))
                 ]);

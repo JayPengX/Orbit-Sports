@@ -376,6 +376,17 @@ export function parseF1Leaders(pages, poles, drivers = []) {
 export const FOTMOB_LEAGUE = { epl: 47, bundesliga: 54, seriea: 55, ligue1: 53, mls: 130, ucl: 42, uel: 73, uecl: 10216, facup: 132, scotland: 64, nationsleague: 9806 };
 export const fotmobLeagueUrl = league => (FOTMOB_LEAGUE[league] ? `https://www.fotmob.com/api/data/leagues?id=${FOTMOB_LEAGUE[league]}` : null);
 export const fotmobTeamUrl = id => `https://www.fotmob.com/api/data/teams?id=${encodeURIComponent(id)}`;
+// A club's own league that Orbit Sports doesn't follow (one opened from a
+// European cup or the FA Cup: Lech Poznań's Ekstraklasa), FotMob's id →
+// [zh, en]; one not listed: FotMob's own name, translated.
+export const FOTMOB_HOME = {
+  87: ['西甲', 'LaLiga'], 140: ['西乙', 'LaLiga 2'], 61: ['葡超', 'Liga Portugal'], 57: ['荷甲', 'Eredivisie'], 40: ['比甲', 'Belgian Pro League'], 71: ['土超', 'Süper Lig'], 135: ['希超', 'Greek Super League'], 38: ['奧甲', 'Austrian Bundesliga'], 69: ['瑞士超', 'Swiss Super League'],
+  196: ['波蘭超', 'Ekstraklasa'], 122: ['捷甲', 'Czech First League'], 252: ['克羅埃西亞甲', 'HNL'], 182: ['塞爾維亞超', 'Serbian SuperLiga'], 46: ['丹超', 'Danish Superliga'], 59: ['挪超', 'Eliteserien'], 67: ['瑞典超', 'Allsvenskan'], 189: ['羅甲', 'Liga I'], 212: ['匈甲', 'NB I'],
+  136: ['賽普勒斯甲', 'Cypriot First Division'], 127: ['以超', "Ligat ha'Al"], 441: ['烏超', 'Ukrainian Premier League'], 270: ['保甲', 'Bulgarian First League'], 173: ['斯洛維尼亞甲', 'PrvaLiga'], 176: ['斯洛伐克甲', 'Slovak First League'], 262: ['亞塞拜然超', 'Azerbaijan Premier League'], 225: ['哈薩克超', 'Kazakhstan Premier League'],
+  48: ['英冠', 'Championship'], 108: ['英甲', 'League One'], 109: ['英乙', 'League Two'], 146: ['德乙', '2. Bundesliga'], 86: ['義乙', 'Serie B'], 110: ['法乙', 'Ligue 2']
+};
+export const fotmobLeagueLogo = (id, dark = false) => `https://images.fotmob.com/image_resources/logo/leaguelogo/${dark ? 'dark/' : ''}${id}.png`;
+export const fotmobTeamLogo = id => `https://images.fotmob.com/image_resources/logo/teamlogo/${id}.png`;
 export const fotmobFace = id => `https://images.fotmob.com/image_resources/playerimages/${id}.png`;
 // The stats shown, in order: [FotMob's name, zh, en, on a team's page too].
 // (Per 90 minutes where FotMob counts it so: said under the stat's name.)
