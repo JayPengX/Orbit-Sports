@@ -401,6 +401,9 @@ function statusEl(e, day = true) {
   // Paused mid-game (rain): the period, 暫停 under it (two lines drawn for it, never a wrap).
   const pausedAt = e.status.state === 'in' && e.status.delayed ? new RegExp(`^(.+?) · (${ctx.t('paused')})$`).exec(text) : null;
   if (pausedAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: pausedAt[1] }), el('small', { text: pausedAt[2] })]);
+  // A period over (第1節結束, 3局中場): the period, 結束 under it (two lines drawn for it, never over the logos).
+  const endAt = e.status.state === 'in' && text.length > 4 ? /^(.+?)(結束|休息|中場)$/.exec(text) : null;
+  if (endAt) return el('span', { class: 'event-status in clocked' }, [el('span', { text: endAt[1] }), el('small', { text: endAt[2] })]);
   // A final with more to say (完賽（10 局）, 完賽（PK 大戰）): 完賽, and the rest under it (two lines drawn for it, never cut).
   const ended = e.status.state === 'post' ? /^(.+?)（(.+)）$/.exec(text) : null;
   if (ended) return el('span', { class: 'event-status post ended' }, [el('span', { text: ended[1] }), el('small', { text: ended[2] })]);
