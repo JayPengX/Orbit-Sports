@@ -267,7 +267,12 @@ export const sportIcon = league => SPORTS[LEAGUES[league]?.sport]?.icon || '';
 // into a dark background.
 export function leagueMark(key, cls = 'lg-mark') {
   const icon = () => el('span', { class: 'league-icon', 'aria-hidden': 'true', text: sportIcon(key) });
-  return el('span', { class: `league-badge ${cls}` }, [logoPicture(leagueLogo(key), leagueLogoDark(key), 'league-img', icon)]);
+  const badge = el('span', { class: `league-badge ${cls}` }, [logoPicture(leagueLogo(key), leagueLogoDark(key), 'league-img', icon)]);
+  // A wide mark (F1's, 2.5 to 1) fills more of its disc: in the same box as
+  // the round ones it read as half their size beside NBA's and 英超's.
+  const wide = img => img.naturalWidth > img.naturalHeight * 1.6 && badge.classList.add('wide');
+  for (const img of badge.querySelectorAll('img')) img.complete && img.naturalWidth ? wide(img) : img.addEventListener('load', () => wide(img), { once: true });
+  return badge;
 }
 export const leagueChip = (key, short = false) => el('span', { class: 'league-tag' }, [leagueMark(key), el('span', { text: short ? shortLeague(key) : leagueName(key, ctx.locale) })]);
 // A row's narrow column: a league known by its letters by them alone (MLB, not MLB 美國職棒);

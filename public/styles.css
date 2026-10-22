@@ -260,6 +260,8 @@ img { max-width: 100%; }
 /* A league tile's logo with its dark-screen version (cards.js leagueTile): the picture adds no box. */
 .q-logo .q-logo-pic { display: contents; }
 .league-rail .search-chip { width: 44px; justify-content: center; padding: 0; }
+/* 全部: its word in the middle of its chip (the league chips' narrow left is for their badge). */
+.league-rail .q-chip.all-chip { justify-content: center; padding: 0 18px; }
 .search-chip svg { display: block; width: 18px; height: 18px; }
 .q-seg.views { margin: 12px 0 4px; }
 .q-seg.views > button { padding-inline: 4px; font-size: 14px; }
@@ -385,6 +387,7 @@ img { max-width: 100%; }
 .league-badge { --s: 18px; display: inline-grid; place-items: center; flex: none; width: var(--s); height: var(--s); border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); overflow: hidden; }
 .league-badge .logo-wrap { display: grid; place-items: center; width: 78%; height: 78%; }
 .league-badge .league-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.league-badge.wide .logo-wrap { width: 94%; height: 94%; }
 .league-badge .league-icon { display: grid; place-items: center; font-size: calc(var(--s) * 0.6); line-height: 1; }
 .q-chip .lg-mark { --s: 20px; margin-right: 6px; vertical-align: -5px; }
 .logo-flag { display: inline-grid; place-items: center; font-size: 1.15em; line-height: 1; background: none; }
