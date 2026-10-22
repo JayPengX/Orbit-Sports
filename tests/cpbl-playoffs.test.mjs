@@ -40,8 +40,8 @@ test("CPBL's play-offs: each game its series and number, the first pairing the c
 });
 
 test("a CPBL play-off game's box score is read by its kind", () => {
-  assert.equal(cpblBoxUrl({ id: 'cpbl-2026-E2-2026-10-10' }), 'https://asia-baseball.quadra/cpbl/box/2026-E2.json');
-  assert.equal(cpblBoxUrl({ id: 'cpbl-2026-290-2026-08-26' }), 'https://asia-baseball.quadra/cpbl/box/2026-290.json');
+  assert.equal(cpblBoxUrl({ id: 'cpbl-2026-E2-2026-10-10' }), 'https://asia-baseball.orbit/cpbl/box/2026-E2.json');
+  assert.equal(cpblBoxUrl({ id: 'cpbl-2026-290-2026-08-26' }), 'https://asia-baseball.orbit/cpbl/box/2026-290.json');
   assert.equal(cpblBoxUrl({ id: 'cpbl-tsdb-2615589' }), null);
 });
 

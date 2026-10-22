@@ -8,7 +8,7 @@
 //   closeness  how evenly matched they are (places close together)
 //   stakes     a top-of-the-table meeting, a final, a play-off, a series
 //   fame       a headline league, a final
-//   habit      what they open, follow and bet on in every Quadra app (the
+//   habit      what they open, follow and bet on in every Orbit app (the
 //              shared affinity map)
 //   featured   the broadcaster's own pick: of a league's games at one time,
 //              the one ELTA puts on a main channel with its commentators

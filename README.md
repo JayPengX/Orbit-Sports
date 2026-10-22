@@ -3,7 +3,7 @@
 What a viewer in Taiwan would watch: every league on ELTA.tv (愛爾達) or
 Apple TV, with scores, schedules, match details, standings, teams and
 players; a day planned around what you follow; one tap to watch. F1 has
-its own live board from F1's timing. Signs in with the Quadra Pass.
+its own live board from F1's timing. Signs in with the Orbit Pass.
 
 Live: https://jaypengx.github.io/Orbit-Sports/
 

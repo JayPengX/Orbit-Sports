@@ -1,15 +1,15 @@
-// Orbit Sports (was Quadra Fixtures): an Orbit app, one of the everyday
-// tools, signed in with the Quadra Pass. Every supported sport's scores, schedules, match details (box
+// Orbit Sports (was Orbit Sports): an Orbit app, one of the everyday
+// tools, signed in with the Orbit Pass. Every supported sport's scores, schedules, match details (box
 // scores, plays, line-ups, win probability), standings, teams and players,
 // and a day planned around what the person follows, for the leagues on
 // ELTA.tv and Apple TV in Taiwan, with a tap to watch them there. The data is
 // ESPN's (CPBL's own site for its games), read through the
-// Quadra data proxy (lib/espn.mjs).
+// Orbit data proxy (lib/espn.mjs).
 //
 // What the person follows lives on the pass (this app's payload): leagues in
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
-import { quadraSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/quadra.mjs';
+import { orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
 import { stripDays } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
@@ -115,7 +115,7 @@ const state = {
   scores: { sport: null, league: 'all', date: null, byDay: null, days: [], extra: 0, loading: false, mode: 'days', stage: 'all', view: 'games' },
 };
 
-const q = quadraSession('match', { lang: locale });
+const q = orbitSession('match', { lang: locale });
 Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, isFollowed, toggleFollow, track, isFollowedEvent, isFollowedGame, toggleFollowGame });
 
 // ---- What the person follows (on the pass) ---------------------------------------------
@@ -3385,7 +3385,7 @@ document.addEventListener('visibilitychange', pollF1Live);
 
 window.__fxStarted = true;
 const gated = installGate('match', locale);
-watchUpdates({ current: document.querySelector('meta[name="build-version"]')?.content, key: 'quadraFixtures', cachePrefix: 'quadra-fixtures-' });
+watchUpdates({ current: document.querySelector('meta[name="build-version"]')?.content, key: 'orbitSports', cachePrefix: 'orbit-sports-' });
 const actions = topActions(q, { refresh: reloadNow });
 // Shared-Data's pack of recent games (built every few hours): each one's
 // official highlights and whether ELTA has its whole game, so a sheet has

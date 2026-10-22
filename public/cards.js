@@ -1,4 +1,4 @@
-// The tabs' own pieces, drawn with the kit's classes (quadra.css "Premium
+// The tabs' own pieces, drawn with the kit's classes (orbit.css "Premium
 // layer": .q-page-head, .q-hero-card, .q-tag, .q-rail): the page head, the
 // hero game, a finished game's score card, a sport's tile. Markup only: what
 // a game is (onAir, sessionStatus, picks, standings) is decided elsewhere.

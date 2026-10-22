@@ -310,13 +310,13 @@ export function askFinishes(events = [], then = () => {}) {
 // A session that's over, from F1's archive (f1-live.js /session.json): each
 // car's best lap and gap (a practice: ESPN keeps only the order), in the live
 // board's shape. Null when it isn't there (yet).
-const ARCHIVE = start => `https://f1-live.quadra/session.json?start=${encodeURIComponent(new Date(start).toISOString())}`;
+const ARCHIVE = start => `https://f1-live.orbit/session.json?start=${encodeURIComponent(new Date(start).toISOString())}`;
 // Every car's laps in a session ({ cars: { no: [[lap, ms, gap, place, pit]…] } },
 // f1-live.js /laps.json): again each 15 seconds while it runs, kept once over.
 // Over but not in F1's archive yet (it comes an hour or more after the
 // flag): the proxy's own log of it, read again each minute until it is
 // (`live` says which).
-const lapsUrl = (start, final) => `https://f1-live.quadra/laps.json?start=${encodeURIComponent(new Date(start).toISOString())}${final ? '&final=1' : ''}`;
+const lapsUrl = (start, final) => `https://f1-live.orbit/laps.json?start=${encodeURIComponent(new Date(start).toISOString())}${final ? '&final=1' : ''}`;
 export const sessionLaps = async (start, over) => {
   const got = await getJson(lapsUrl(start, over), { ttl: over ? 24 * 3_600_000 : 2_000 }).catch(() => null);
   if (got?.cars || !over) return got?.cars ? got : null;
@@ -324,7 +324,7 @@ export const sessionLaps = async (start, over) => {
   return kept?.cars ? { ...kept, live: true } : null;
 };
 // A circuit's outline, corners and the time a stop costs there (f1-live.js /circuit.json).
-export const circuitMap = (key, year) => getJson(`https://f1-live.quadra/circuit.json?key=${Number(key)}&year=${Number(year)}`, { ttl: 7 * 24 * 3_600_000 }).then(c => (c?.x?.length ? c : null));
+export const circuitMap = (key, year) => getJson(`https://f1-live.orbit/circuit.json?key=${Number(key)}&year=${Number(year)}`, { ttl: 7 * 24 * 3_600_000 }).then(c => (c?.x?.length ? c : null));
 export const sessionTiming = start => getJson(ARCHIVE(start), { ttl: 24 * 3_600_000 }).then(b => (b?.cars?.length ? b : null));
 // The last reading of this session if it's recent (10 minutes), or its last
 // word (the session over: it stands until the official numbers come), else null.

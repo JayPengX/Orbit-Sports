@@ -4,6 +4,6 @@
 // isn't the one its address names (GitHub's CDN can answer a new address
 // with the old file for a while after a deploy).
 // Pictures from other sites: the kit's shared picture cache (sw-images.js).
-self.QUADRA_SW = { cache: 'quadra-fixtures-v2', title: 'Orbit Sports' };
+self.ORBIT_SW = { cache: 'orbit-sports-v2', title: 'Orbit Sports' };
 importScripts('../Shared-Proxy/kit/sw-images.js');
 importScripts('../Shared-Proxy/kit/sw.js');

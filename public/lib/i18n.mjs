@@ -282,7 +282,7 @@ export const STRINGS = {
   }
 };
 
-// The reader's language is the kit's (quadra.mjs detectLang).
-export { detectLang as detectLocale } from '#kit/quadra.mjs';
+// The reader's language is the kit's (orbit.mjs detectLang).
+export { detectLang as detectLocale } from '#kit/orbit.mjs';
 // t(key, vars) in a language: the kit's makeT over Sports' words.
 export const makeT = locale => kitMakeT(STRINGS, locale);

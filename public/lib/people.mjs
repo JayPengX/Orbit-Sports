@@ -3,7 +3,7 @@
 // ("Mr. LeBron James" → 勒布朗·詹姆斯), else of the surname alone (Google
 // leaves "Nae'Qwan" in Latin letters: 湯姆林); none at all, the name as it
 // is. Kept a month on the phone by the kit's translate.
-import { translate } from '#kit/quadra.mjs';
+import { translate } from '#kit/orbit.mjs';
 
 const SUFFIX = /,?\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i;
 // Google's answer as a name: the honorific off, its dots one kind (·).

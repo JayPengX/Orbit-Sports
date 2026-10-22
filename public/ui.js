@@ -11,7 +11,7 @@ import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
 import { AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES, espnSummary, onAir } from './lib/espn.mjs';
-import * as kitQ from '#kit/quadra.mjs';
+import * as kitQ from '#kit/orbit.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { addDays } from '#kit/format.mjs';
 import { channelsOf, watchOf, replayHint } from './lib/tv.mjs';

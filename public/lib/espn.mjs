@@ -1,5 +1,5 @@
 // Sports data for Orbit Sports: ESPN's public site API (CPBL from its
-// own site), through the Quadra data proxy, which caches every
+// own site), through the Orbit data proxy, which caches every
 // answer for every viewer and answers signed-in apps only.
 //
 // Everything is normalized into a few shapes the page draws:
@@ -20,7 +20,7 @@ import { LEAGUES } from './leagues.mjs';
 import { athleteAverages, boxSeasonPage, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf, FOTMOB_LEAGUE, FOTMOB_HOME, fotmobLeagueLogo, fotmobTeamLogo } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
-import { proxyJson, packJson, peekJson, translate } from '#kit/quadra.mjs';
+import { proxyJson, packJson, peekJson, translate } from '#kit/orbit.mjs';
 import { mlbPostseason, mlbPostseasonUrl, mlbGameFor as postGameFor, mlbGone } from '#kit/postseason.mjs';
 import { roundName } from './stage.mjs';
 import { teamNameZh } from '#kit/names.mjs';

@@ -1,4 +1,4 @@
-/* Orbit Sports: the kit's frame (quadra.css: tokens, the premium layer,
+/* Orbit Sports: the kit's frame (orbit.css: tokens, the premium layer,
    sections, chips, sheets) in this app's orange, then by screen: a game as a
    row (every list), 首頁, 賽事, 轉播, 追蹤, and the sheets (a match, a race
    weekend, a team, a player, the tables). Light and dark from the kit's
@@ -77,7 +77,7 @@ img { max-width: 100%; }
 @keyframes pulse { 50% { opacity: 0.3; } }
 
 /* ==== The frame: the page, its head, sections ==== */
-/* The kit's column (quadra.css .q-col): the phone's 16 px in, the iPad's whole width. */
+/* The kit's column (orbit.css .q-col): the phone's 16 px in, the iPad's whole width. */
 .page { --q-margin: var(--q-gutter, 16px); max-width: var(--q-col, 640px); margin: 0 auto; padding: 4px max(var(--q-margin), env(safe-area-inset-right)) calc(40px + var(--q-nav)) max(var(--q-margin), env(safe-area-inset-left)); }
 /* One head per tab: the small line over the large title, an action at the right. */
 .sp-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }

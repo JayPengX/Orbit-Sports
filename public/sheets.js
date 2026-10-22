@@ -2,7 +2,7 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { personZh } from './lib/people.mjs';
-import { translate, proxyJson, packJson, everyDev, dev } from '#kit/quadra.mjs';
+import { translate, proxyJson, packJson, everyDev, dev } from '#kit/orbit.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';

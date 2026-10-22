@@ -5,7 +5,7 @@
 // numbers (數據), the game's notes (二壘安打, 盜壘, 最快球速…) and every
 // at-bat for 過程. Its words are the league's own Chinese.
 
-export const ASIA = 'https://asia-baseball.quadra';
+export const ASIA = 'https://asia-baseball.orbit';
 // The game's year and number from its id (`cpbl-2026-290-2026-08-26`).
 export function cpblBoxUrl(e) {
   // (A play-off game's number has its kind before it: cpbl-2026-E2-…)

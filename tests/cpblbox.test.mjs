@@ -22,7 +22,7 @@ const box = {
 const e = { id: 'cpbl-2026-290-2026-08-26', league: 'cpbl', status: { state: 'post' }, home: { id: 'Fubon Guardians', short: '富邦悍將' }, away: { id: 'TSG Hawks', short: '台鋼雄鷹' } };
 
 test("CPBL's box score: the game from its id; the league's own box as the sheet's summary", () => {
-  assert.equal(cpblBoxUrl(e), 'https://asia-baseball.quadra/cpbl/box/2026-290.json');
+  assert.equal(cpblBoxUrl(e), 'https://asia-baseball.orbit/cpbl/box/2026-290.json');
   assert.equal(cpblBoxUrl({ id: '401907992' }), null);
   const sm = cpblSummary(box, e);
   assert.deepEqual(sm.home.lines, ['0', '2', '3']);
