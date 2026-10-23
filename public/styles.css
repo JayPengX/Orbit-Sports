@@ -86,9 +86,7 @@ img { max-width: 100%; }
 /* (The head already sits in the page's margin: the large title's own 16 px each side only pushed it in and cut it.) */
 .sp-head .q-nav-title { padding-inline: 0; }
 .sp-head.long h1 { font-size: 28px; line-height: 34px; }
-.sp-head > .follow-btn, .head-act { flex: none; margin-bottom: 6px; }
-.head-act { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px 0 10px; border: 0; border-radius: 999px; background: var(--accent-wash); color: var(--accent); font: 600 15px/1 var(--q-font); }
-.head-act-ico svg { display: block; width: 18px; height: 18px; }
+.sp-head > .follow-btn { flex: none; margin-bottom: 6px; }
 .q-section { margin-top: 28px; }
 .q-section-head h2 { font-size: 20px; line-height: 25px; }
 .q-section-head .q-tag { align-self: center; }
@@ -559,18 +557,21 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .stat-tile strong { overflow: hidden; text-overflow: ellipsis; }
 .sheet-body > .q-btn.block { margin-top: 12px; }
 .q-btn.small { min-height: 34px; padding: 0 14px; font-size: 13.5px; flex: none; }
-/* ---- 我的設定 (追蹤's 設定): the app's rows, a row's small round controls ---- */
-.set-row { gap: 6px; }
-.set-row .q-ritem-text { margin-right: 4px; }
-.row-ctl { flex: none; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: var(--q-fill-4, rgba(120, 120, 128, 0.12)); color: var(--q-label-2); }
-.row-ctl svg { width: 16px; height: 16px; }
-.row-ctl.off { color: var(--q-bad, #ef4444); }
-.row-ctl:disabled { opacity: 0.3; }
-.set-add { display: grid; gap: 6px; }
-.suggest-tile .league-badge.set-mark { --s: 30px; border-radius: 0; background: none; box-shadow: none; }
-.suggest-tile .league-badge.set-mark .logo-wrap { width: 100%; height: 100%; }
+/* ---- 我的設定 (追蹤's 設定): leagues as logo tiles (their place in a
+   corner badge, + for one to add), follows as rows ---- */
+.set-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 4px; justify-items: center; }
+.set-grid .q-league { position: relative; width: 100%; }
+.set-badge { position: absolute; top: -4px; right: calc(50% - 34px); z-index: 1; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--q-accent); color: var(--q-accent-ink, #fff); font: 700 11.5px/1 var(--q-font); font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--q-surface); }
+.set-badge.add { background: var(--q-fill-3, #e5e5ea); color: var(--q-accent); font-size: 15px; }
+.set-add .mini-h { margin: 14px 0 10px; }
+.set-add .mini-h:first-child { margin-top: 0; }
 .set-empty { margin: 0 4px; }
-.set-add .mini-h { margin: 8px 4px 6px; }
+.set-league .q-logo { transition: box-shadow 0.2s; }
+.set-league.on .q-logo { box-shadow: 0 0 0 2.5px var(--q-accent); }
+.set-acts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin-top: 14px; padding-top: 14px; border-top: var(--q-hairline, 1px) solid var(--q-sep, rgba(0,0,0,.1)); }
+.q-rowcard .set-acts { margin: 0; padding: 4px 12px 12px; border-top: 0; padding-left: 64px; }
+.set-acts .q-btn { min-width: 0; padding: 0 8px; white-space: nowrap; }
+.set-follow.on { background: var(--q-fill-4, rgba(120,120,128,.08)); }
 /* ---- Sheet parts ---- */
 .stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .stack > .q-card + .q-card { margin-top: 0; }
@@ -2003,3 +2004,4 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .all-league .q-section-head h2 { flex: 1; min-width: 0; }
 .all-day > .day-head:first-child { margin-top: 4px; }
 .tv-guide + .section-sub { margin-top: 12px; }
+.set-follow.on + .set-acts { background: var(--q-fill-4, rgba(120,120,128,.08)); }

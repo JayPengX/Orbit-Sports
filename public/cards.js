@@ -18,10 +18,6 @@ const en = () => ctx.locale === 'en';
 export function pageHead(title, action = null) {
   return el('header', { class: 'q-page-head sp-head' }, [el('div', { class: 'sp-head-text' }, [kitUI.navTitle(title)]), action]);
 }
-// A head's action: a tinted capsule with its glyph (管理, 追蹤).
-export const headAction = (label, glyph, onclick, on = false) =>
-  el('button', { class: `head-act q-press${on ? ' on' : ''}`, type: 'button', 'aria-pressed': String(on), onclick }, [el('span', { class: 'head-act-ico', 'aria-hidden': 'true', html: icon(glyph) }), el('span', { text: label })]);
-
 // A sport's colour: tiles and the hero's ground.
 const SPORT_COLOR = { soccer: '#16a34a', baseball: '#dc2626', basketball: '#ea580c', racing: '#4f46e5' };
 

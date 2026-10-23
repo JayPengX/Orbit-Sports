@@ -38,7 +38,7 @@ import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton,
 import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
-import { icon, pageHead, headAction, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
+import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
 
 // Shared-Data's pack of recent games (set as the app starts, below), and the
 // background look-ups of what it hasn't got, after it's in.
@@ -435,43 +435,74 @@ function track(keys = [], weight = 1) {
 // The leagues the person follows, in their order.
 const followedLeagues = () => [...state.prefs.leagues];
 
-// 我的設定: everything the person picks, in one sheet, in the app's rows
-// (熱門球隊's): their leagues in order, the others to add by sport, who they
-// follow, the commentary they like.
-const rowTile = mark => el('span', { class: 'suggest-tile' }, [mark]);
-const rowText = (title, sub = '') => el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: title }), sub ? el('small', { text: sub }) : null]);
-// A row's small round control (↑, ↓, ✕).
-const ARROW = { up: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>', down: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10l6 6 6-6"/></svg>' };
-const rowCtl = (glyph, label, onclick, disabled = false) => el('button', { class: `row-ctl q-press${glyph === 'x' ? ' off' : ''}`, type: 'button', 'aria-label': label, disabled: disabled ? true : null, html: ARROW[glyph] || icon(glyph), onclick });
+// 我的設定 (追蹤's 設定): everything the person picks, in one sheet, in the
+// app's look (the owner, 2026-10-23: no rows of small buttons): a hero
+// saying what's followed; their leagues as logo tiles in their order (a tap:
+// move it or let it go); the rest of the leagues by sport, a tap to add;
+// the teams and players followed as rows (a tap: open, move up, let go);
+// the commentary they like.
 function openFollowEditor() {
   const s = sheet(L({ zh: '我的設定', en: 'My settings' }));
+  // The league or follow tapped: its actions in a row under it (a menu
+  // would open behind the sheet).
+  let picked = null;
+  let pickedF = -1;
+  const acts = list => el('div', { class: 'set-acts' }, list.filter(Boolean).map(([label, onClick, cls = 'tinted']) => el('button', { class: `q-btn small ${cls}`, type: 'button', text: label, onclick: () => (onClick(), paint()) })));
   const paint = () => {
     const p = state.prefs;
-    const sportOf = k => L(SPORTS[LEAGUES[k]?.sport] || { zh: '', en: '' });
+    const n = p.leagues.length;
+    if (!p.leagues.includes(picked)) picked = null;
+    if (pickedF >= p.follows.length) pickedF = -1;
+    const tile = (k, i, add) => {
+      const box = leagueTile(k, () => {});
+      box.classList.add('set-league');
+      if (!add && k === picked) box.classList.add('on');
+      box.prepend(el('span', { class: `set-badge${add ? ' add' : ''}`, 'aria-hidden': 'true', text: add ? '+' : String(i + 1) }));
+      box.setAttribute('aria-label', add ? L({ zh: `加入${leagueName(k, locale)}`, en: `Add ${leagueName(k, locale)}` }) : leagueName(k, locale));
+      box.onclick = add ? () => (toggleLeague(k), paint()) : () => ((picked = picked === k ? null : k), paint());
+      return box;
+    };
+    const at = p.leagues.indexOf(picked);
+    const leagueActs = picked
+      ? acts([
+          at > 0 ? [L({ zh: '往前', en: 'Earlier' }), () => moveLeague(picked, -1)] : null,
+          at < n - 1 ? [L({ zh: '往後', en: 'Later' }), () => moveLeague(picked, 1)] : null,
+          [t('unfollow'), () => toggleLeague(picked), 'danger tinted']
+        ])
+      : null;
     const toAdd = shownSports()
       .map(sp => [sp, shownLeaguesOf(sp).filter(k => !p.leagues.includes(k))])
       .filter(([, ks]) => ks.length);
+    const openOne = f => (f.athlete ? openPlayer(f.league, f.id, f) : f.f1team === true ? openConstructor({ id: '', name: f.name, en: f.name }) : openTeam(f.league, f.id, f));
+    const follow = (f, i) => [
+      el('button', { class: `q-ritem set-follow${i === pickedF ? ' on' : ''}`, type: 'button', onclick: () => ((pickedF = pickedF === i ? -1 : i), paint()) }, [
+        el('span', { class: 'suggest-tile' }, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm')]),
+        el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: shownName(f) }), el('small', { text: leagueName(f.league, locale) })])
+      ]),
+      i === pickedF
+        ? acts([
+            [f.athlete ? L({ zh: '球員頁面', en: 'Player page' }) : L({ zh: '球隊頁面', en: 'Team page' }), () => openOne(f)],
+            i > 0 ? [L({ zh: '往前', en: 'Up' }), () => ((pickedF = i - 1), moveFollow(i, -1))] : null,
+            [t('unfollow'), () => ((pickedF = -1), toggleFollow(f.league, f)), 'danger tinted']
+          ])
+        : null
+    ];
+    const teams = p.follows.length;
     put(
       s.body,
+      kitUI.sheetHero({
+        eyebrow: L({ zh: '我的追蹤', en: 'Following' }),
+        big: L({ zh: `${n} 個聯賽`, en: `${n} league${n === 1 ? '' : 's'}` }),
+        sub: teams ? L({ zh: `${teams} 支球隊與選手`, en: `${teams} teams and players` }) : '',
+        tint: 'var(--q-accent)'
+      }),
       section(
         t('yourLeagues'),
-        p.leagues.length
-          ? el('div', { class: 'q-rowcard set-rows' }, p.leagues.map((k, i) => el('div', { class: 'q-ritem set-row' }, [rowTile(leagueMark(k, 'set-mark')), rowText(leagueName(k, locale).replace(/\s.*$/, ''), sportOf(k)), rowCtl('up', t('moveUp'), () => (moveLeague(k, -1), paint()), i === 0), rowCtl('down', t('moveDown'), () => (moveLeague(k, 1), paint()), i === p.leagues.length - 1), rowCtl('x', t('unfollow'), () => (toggleLeague(k), paint()))])))
-          : el('p', { class: 'muted small set-empty', text: t('noLeaguesYet') }),
-        { sub: p.leagues.length > 1 ? L({ zh: '排在前面的先出現', en: 'The first ones show first' }) : '' }
+        n ? el('div', { class: 'q-card pad' }, [el('div', { class: 'set-grid' }, p.leagues.map((k, i) => tile(k, i, false))), leagueActs]) : el('p', { class: 'muted small set-empty', text: t('noLeaguesYet') }),
+        { sub: n > 1 ? L({ zh: '按一下調整順序', en: 'Tap one to reorder' }) : '' }
       ),
-      toAdd.length
-        ? section(
-            L({ zh: '加入聯賽', en: 'Add a league' }),
-            el('div', { class: 'set-add' }, toAdd.map(([sp, ks]) => el('div', {}, [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'q-rowcard' }, ks.map(k => el('button', { class: 'q-ritem suggest', type: 'button', onclick: () => (toggleLeague(k), paint()) }, [rowTile(leagueMark(k, 'set-mark')), rowText(leagueName(k, locale)), el('b', { class: 'suggest-add', text: '+' })])))])))
-          )
-        : null,
-      section(
-        L({ zh: '追蹤的球隊與選手', en: 'Teams and players you follow' }),
-        p.follows.length
-          ? el('div', { class: 'q-rowcard set-rows' }, p.follows.map((f, i) => el('div', { class: 'q-ritem set-row' }, [rowTile(f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm')), rowText(shownName(f), leagueName(f.league, locale)), rowCtl('up', t('moveUp'), () => (moveFollow(i, -1), paint()), i === 0), rowCtl('x', t('unfollow'), () => (toggleFollow(f.league, f), paint()))])))
-          : el('p', { class: 'muted small set-empty', text: t('teamsHint') })
-      ),
+      toAdd.length ? section(L({ zh: '加入聯賽', en: 'Add a league' }), el('div', { class: 'q-card pad set-add' }, toAdd.flatMap(([sp, ks]) => [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'set-grid' }, ks.map(k => tile(k, 0, true)))]))) : null,
+      section(L({ zh: '球隊與選手', en: 'Teams and players' }), teams ? el('div', { class: 'q-rowcard' }, p.follows.flatMap(follow)) : el('p', { class: 'muted small set-empty', text: t('teamsHint') })),
       section(
         t('tvAudio'),
         segmented(
@@ -2851,24 +2882,23 @@ function renderFollowing() {
         { sub: gamesNote(games) }
       )
     : null;
-  const manage = headAction(L({ zh: '管理', en: 'Manage' }), 'list', openFollowEditor);
-  // 我的設定 where it's seen (the owner, 2026-10-23: only a head button
-  // before): its rows at the foot of the tab, each saying what's set now.
+  // 我的設定 where it's seen (the owner, 2026-10-23: not a 管理 button in
+  // the head): its rows at the foot of the tab, each saying what's set now.
   const names = p.leagues.slice(0, 3).map(k => leagueName(k, locale)).join('、') + (p.leagues.length > 3 ? L({ zh: ` 等 ${p.leagues.length} 個`, en: ` and ${p.leagues.length - 3} more` }) : '');
   const settings = section(
     L({ zh: '設定', en: 'Settings' }),
     el('div', { class: 'q-rowcard' }, [
-      el('button', { class: 'q-ritem chevron', type: 'button', onclick: openFollowEditor }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('list') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '聯賽與追蹤', en: 'Leagues and follows' }) }), el('small', { text: names || t('noLeaguesYet') })])]),
-      el('button', { class: 'q-ritem chevron', type: 'button', onclick: openFollowEditor }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: t('tvAudio') })]), el('span', { class: 'q-ritem-value', text: (p.audio || 'en') === 'en' ? t('tvAudioEn') : t('tvAudioZh') })])
+      el('button', { class: 'q-ritem chevron set-open', type: 'button', onclick: openFollowEditor }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('list') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '聯賽與追蹤', en: 'Leagues and follows' }) }), el('small', { text: names || t('noLeaguesYet') })])]),
+      el('button', { class: 'q-ritem chevron set-open', type: 'button', onclick: openFollowEditor }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: t('tvAudio') })]), el('span', { class: 'q-ritem-value', text: (p.audio || 'en') === 'en' ? t('tvAudioEn') : t('tvAudioZh') })])
     ])
   );
   if (!teams.length && !people.length) {
-    put(box, pageHead(t('tab_following'), manage), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'q-rowcard' }, SUGGEST.map(suggestCard))), settings);
+    put(box, pageHead(t('tab_following')), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'q-rowcard' }, SUGGEST.map(suggestCard))), settings);
     return;
   }
   put(
     box,
-    pageHead(t('tab_following'), manage),
+    pageHead(t('tab_following')),
     gamesBlock,
     teams.length ? section(L({ zh: '球隊', en: 'Teams' }), el('div', { class: 'team-cards' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamCard(f))))) : null,
     people.length ? section(L({ zh: '選手', en: 'Players' }), el('div', { class: 'team-cards' }, people.map(personRow))) : null,
