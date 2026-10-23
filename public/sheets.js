@@ -614,7 +614,7 @@ export function storyRows(e, sm) {
     return events.length ? goalTimeline(e, events) : null;
   }
   // Basketball, a game of a hundred baskets: its deciding stretch, if it had
-  // one (within 8 with two minutes left in the fourth or an overtime): each
+  // one (one possession in the last two minutes of the fourth or an overtime): each
   // basket from there, how it went in (a three, a layup, a dunk, who
   // assisted), the score after it.
   const secs = c => {
@@ -658,15 +658,18 @@ function storyPanel(e, sm) {
   return parts.length ? el('div', { class: 'live-panel' }, parts) : null;
 }
 // The baskets from two minutes left in the fourth (or an overtime) on, when
-// it was within 8 then; none in a game already decided.
+// it came down to one possession (3 points or fewer at some point in them,
+// or a tie); none in a game the leader saw out (Cavaliers–76ers, 2026-10-22:
+// 6 down at 2:00, never closer than 4, and ten free throws listed).
 function clutchPlays(feed, secs) {
   const scored = feed.filter(p => p.scoring && p.team && p.home != null && p.away != null);
   const late = p => p.periodNum > 4 || (p.periodNum === 4 && secs(p.clock) <= 120);
   const first = scored.findIndex(late);
   if (first < 0) return [];
-  const before = scored[first - 1] || { home: 0, away: 0 };
-  if (Math.abs(Number(before.home) - Number(before.away)) > 8) return [];
-  return scored.slice(first).filter(late).slice(-10);
+  const plays = scored.slice(first).filter(late);
+  const gap = p => Math.abs(Number(p.home) - Number(p.away));
+  if (Math.min(...[scored[first - 1] || { home: 0, away: 0 }, ...plays].map(gap)) > 3) return [];
+  return plays.slice(-10);
 }
 // A count as dots: balls of 4, strikes and outs of 3.
 const dots = (n, of, cls) => el('span', { class: `lp-dots ${cls}` }, Array.from({ length: of }, (_, i) => el('i', { class: i < n ? 'on' : '' })));
