@@ -1407,7 +1407,7 @@ export function parseStandings(data, league = null) {
         }
         // ESPN's clinch mark (MLB's, the NBA's: x, y, z clinched; e eliminated, its own math, divisions in).
         const clincher = String((en.stats || []).find(x => x.name === 'clincher')?.displayValue || '').trim();
-        const row = { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note ? zoneColor(en.note.description, en.note.color) : en.team?.color && !en.team?.logos ? `#${en.team.color}` : '', stats, ...(clincher ? { clincher } : {}) };
+        const row = { id: String(en.team?.id ?? ''), name: en.team?.displayName || en.team?.name || '', short: en.team?.shortDisplayName || en.team?.abbreviation || '', abbr: en.team?.abbreviation || '', logo: logoOf(en.team), note: en.note?.description || '', color: en.note ? zoneColor(en.note.description, en.note.color) : en.team?.color && !en.team?.logos ? `#${en.team.color}` : '', stats, ...(clincher ? { clincher } : {}) };
         // F1's constructors in Chinese (麥拉倫, 法拉利), the English kept for matching.
         if (league === 'f1' && detectLocale() !== 'en') {
           const zh = f1Constructor(row.name).zh;

@@ -2059,7 +2059,7 @@ function playoffView(model, league) {
   const sideRow = (s, t, i) => {
     const id = s ? String(s.id) : '';
     const seed = t.projected ? t.seeds?.[i] : s?.seed;
-    const label = t.projected ? t.labels?.[i] : '';
+    const label = t.projected ? labelText(t.labels?.[i]) : '';
     const score = !t.projected && s ? t.score?.[id] : undefined;
     // A place still being played for: both sides that could take it.
     const maybe = !s && t.options?.[i];
@@ -2072,14 +2072,26 @@ function playoffView(model, league) {
     return el('div', { class: `br-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}${s ? '' : ' tbd'}` }, [
       el('span', { class: 'br-seed num', text: seed ? String(seed) : '' }),
       s ? sideLogo(s, league, 'xs') : el('span', { class: 'logo xs br-tbd-logo', 'aria-hidden': 'true' }),
-      el('span', { class: 'br-name', text: s ? s.short || s.name : label || (en ? 'TBD' : '待定') }),
+      el('span', { class: 'br-name q-fit', text: s ? s.short || s.name : label || (en ? 'TBD' : '待定'), ...(s?.abbr ? { 'data-abbr': s.abbr } : {}) }),
       el('strong', { class: 'num br-score', text: score ?? '' })
     ]);
   };
+  // A predicted place's words (playoffs.mjs has them in Chinese) in English.
+  const labelText = x =>
+    !en || !x
+      ? x
+      : x
+          .replace(/^(\S+) 勝者$/, '$1 winner')
+          .replace(/^(\S+) 敗者$/, '$1 loser')
+          .replace(/^附加賽勝者$/, 'Play-off winner')
+          .replace(/^附加賽$/, 'Play-In')
+          .replace(/^挑戰賽勝者$/, 'Challenge winner')
+          .replace(/^一勝優勢$/, '1 win up')
+          .replace(/^(\S+) 組$/, 'Group $1');
   const note = (t, r) => {
     if (!t) return roundDates(r) ? `${en ? 'Expected' : '預計'} ${roundDates(r)}` : en ? 'To be decided' : '待定';
     // (The 8th seed game sits in the play-in's column: named on its card; English's words too long for 預測 beside them.)
-    if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', t.labels?.find(Boolean) && t.sides.every(Boolean) ? t.labels.filter(Boolean).join(' v ') : '', en && t.roundTitle ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
+    if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', t.labels?.find(Boolean) && t.sides.every(Boolean) ? t.labels.filter(Boolean).map(labelText).join(' v ') : '', en && t.roundTitle ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
     if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}`;
     if (t.live) return en ? 'On now' : '進行中';
@@ -2128,11 +2140,11 @@ function playoffView(model, league) {
 }
 // The lines from each tie to the one it feeds (a bracket's elbows), drawn
 // once the columns are laid out and again when they change size. A tie goes
-// where the model says (`feeds`: the NBA's play-in, 7 v 8's loser and 9 v
-// 10's winner to the 8th seed game beside them, joined on the column's
-// left), else to the next one holding its winner, else where its seeds'
-// winner waits ("4/5 勝者"), else the one beside it; a decided tie's line
-// drawn stronger, to follow a side's way, a loser's way dashed.
+// where the model says (`feeds`: the NBA's play-in, 9 v 10's winner down
+// into the 8th seed game under it; 7 v 8's loser left to its card's words),
+// else to the next one holding its winner, else where its seeds' winner
+// waits ("4/5 勝者"), else the one beside it; a decided tie's line drawn
+// stronger, to follow a side's way.
 function linkTies(map, model) {
   const NS = 'http://www.w3.org/2000/svg';
   const ids = t => (t ? [...(t.sides || []), ...(t.options || []).flat()].filter(Boolean).map(x => String(x.id)) : []);
@@ -2155,13 +2167,30 @@ function linkTies(map, model) {
   };
   const draw = () => {
     if (!map.isConnected) return void ro.disconnect();
+    // A name too long for its column even shrunk as far as the kit goes
+    // (72%: English's Timberwolves, Trail Blazers): its abbreviation, the
+    // logo beside it (never cut).
+    for (const n of map.querySelectorAll('.br-name[data-abbr]')) {
+      const k = parseFloat(n.style.fontSize) / (Number(n.dataset.qFit) || parseFloat(getComputedStyle(n).fontSize)) || 1;
+      if (n.clientWidth && (n.scrollWidth / k) * 0.72 > n.clientWidth + 1) (n.textContent = n.dataset.abbr), (n.style.fontSize = '');
+    }
     map.querySelector(':scope > .br-links')?.remove();
     const nodes = [...map.querySelectorAll(':scope > .br-col')].map(c => [...c.querySelectorAll('.br-ties > .br-tie')]);
     if (!nodes[0]?.[0]?.offsetHeight) return;
+    // Every head and every card the same height (the 8th seed game's two
+    // lines of words ran taller than a side's logo row; 約 4/14 起 under a
+    // head), so the rows line up across columns and a line between two
+    // cards side by side runs straight (Jay, 2026-10-23: "not straight").
+    for (const sel of [':scope > .br-col > .br-head', ':scope > .br-col .br-tie']) {
+      const all = [...map.querySelectorAll(sel)];
+      const tall = Math.max(...all.map(n => n.offsetHeight));
+      for (const n of all) if (n.offsetHeight < tall) n.style.minHeight = `${tall}px`;
+    }
     const box = map.getBoundingClientRect();
     const at = n => {
       const r = n.getBoundingClientRect();
-      return { l: r.left - box.left + map.scrollLeft, r: r.right - box.left + map.scrollLeft, y: r.top - box.top + map.scrollTop + r.height / 2 };
+      const top = r.top - box.top + map.scrollTop;
+      return { l: r.left - box.left + map.scrollLeft, r: r.right - box.left + map.scrollLeft, x: r.left - box.left + map.scrollLeft + r.width / 2, top, bottom: top + r.height, y: Math.round(top + r.height / 2) + 0.5 };
     };
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('class', 'br-links');
@@ -2176,14 +2205,16 @@ function linkTies(map, model) {
           if (!end) continue;
           const [a, b] = [at(nodes[i][j]), at(end)];
           const path = document.createElementNS(NS, 'path');
-          // In its own column: round the left edge, into the tie's side.
-          if (f.to[0] === i) path.setAttribute('d', `M${a.l} ${a.y}H${a.l - 8}V${b.y}H${b.l}`);
+          // In its own column (9 v 10 into the 8th seed game under it): straight down the gap between them.
+          if (f.to[0] === i) path.setAttribute('d', b.top > a.top ? `M${a.x} ${a.bottom}V${b.top}` : `M${a.x} ${a.top}V${b.bottom}`);
+          // Side by side: one straight line.
+          else if (Math.abs(a.y - b.y) < 4) path.setAttribute('d', `M${a.r} ${a.y}H${b.l}`);
           else {
             // The turn halfway across the gap before the tie fed, so a line passing a column runs straight.
             const turn = b.l - (parseFloat(getComputedStyle(map).columnGap) || 18) / 2;
             path.setAttribute('d', `M${a.r} ${a.y}H${turn}V${b.y}H${b.l}`);
           }
-          path.setAttribute('class', [t.winner ? 'won' : '', f.lose ? 'lose' : ''].filter(Boolean).join(' '));
+          if (t.winner) path.setAttribute('class', 'won');
           svg.append(path);
         }
       })

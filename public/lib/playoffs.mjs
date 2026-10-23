@@ -86,7 +86,7 @@ const cpblClub = groups => en => {
   const row = en && (groups || []).flatMap(x => x.rows || []).find(r => r.id === en || r.en === en);
   return row ? side(row, 0) : null;
 };
-const side = (row, seed) => (row ? { id: row.id, name: row.name, short: row.short || row.name, logo: row.logo, seed } : null);
+const side = (row, seed) => (row ? { id: row.id, name: row.name, short: row.short || row.name, abbr: row.abbr || '', logo: row.logo, seed } : null);
 // The two conferences / leagues of a table, each in seed order.
 // (MLB's table is by division: each league's divisions read together, by the seeds ESPN gives.)
 const leagues2 = groups => bySeed(groups).filter(g => g.rows?.length >= 6).slice(0, 2).map(g => g.rows);
@@ -156,8 +156,9 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
 // first round put 4 v 5, 1 v 8, 2 v 7, 3 v 6 (1 v 8 and 2 v 7 side by
 // side, their pairs as they were), the play-in beside them: 9 v 10, the
 // 8th seed game (by the 1 v 8 it feeds), 7 v 8 (by the 2 v 7), an empty
-// row. 7 v 8's loser and 9 v 10's winner go to the 8th seed game in the
-// same column (`feeds`: [{ to: [round, tie], lose? }], drawn by app.js).
+// row. 9 v 10's winner goes down to the 8th seed game in the same column
+// (`feeds`: [{ to: [round, tie] }], drawn by app.js); 7 v 8's loser is in
+// that card's words (7/8 敗者), no line (it crossed the column).
 // (Drawn as two columns, 2026-10-21, it was mostly empty rows; apart, it
 // stood on its own.)
 export function mergePlayIn(rounds) {
@@ -224,7 +225,7 @@ export function mergePlayIn(rounds) {
     for (let j = 0; j < per; j++) if (col[j] === null) col[j] = { pending: true, kind: 'pending', sides: [null, null], options: [null, null], score: {}, winner: null, live: false, next: null, games: [] };
     const base = c * per;
     if (col[f8] && !col[f8].gap) col[f8].roundTitle = { zh: '第八種子戰', en: '8th Seed Game' };
-    links.push([col[f7], [{ to: [1, base + f7] }, { to: [0, base + f8], lose: true }]], [col[f8], [{ to: [1, base + f8] }]]);
+    links.push([col[f7], [{ to: [1, base + f7] }]], [col[f8], [{ to: [1, base + f8] }]]);
     if (ten >= 0 && ten < per && ten !== f7) links.push([col[ten], [{ to: [0, base + f8] }]]);
     ties.push(...col);
   });
