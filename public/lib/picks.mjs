@@ -24,6 +24,7 @@
 
 import { LEAGUES, TOP_LEAGUES } from './leagues.mjs';
 import { eventKeys, teamKey } from './foryou.mjs';
+import * as dayoff from '#kit/dayoff.mjs';
 
 // Minutes a match usually takes, by sport.
 // A game's length in minutes. Baseball's with the pitch clock (2023 on):
@@ -160,10 +161,11 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
     const hours = (Date.parse(e.start) - now) / 3_600_000;
     if (hours >= 0 && hours < 2) score += 0.08;
     // When it's on in Taiwan: an evening game is easy to watch, one in a
-    // weekday's working hours isn't.
+    // working day's hours isn't (a holiday or a typhoon day off where the
+    // person works is a day off: the kit's dayOffAt; an older kit, Mon–Fri).
     const tw = new Date(Date.parse(e.start) + 8 * 3_600_000);
     const hr = tw.getUTCHours();
-    const weekday = tw.getUTCDay() > 0 && tw.getUTCDay() < 6;
+    const weekday = dayoff.dayOffAt ? !dayoff.dayOffAt(Date.parse(e.start), dayoff.myPlace?.('work'), 'work') : tw.getUTCDay() > 0 && tw.getUTCDay() < 6;
     if (hr >= 18 && hr <= 23) score += 0.08;
     else if (weekday && hr >= 9 && hr < 17) score -= 0.06;
   }

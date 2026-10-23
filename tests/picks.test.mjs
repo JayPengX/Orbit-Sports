@@ -209,3 +209,21 @@ test('the 22:00 game: Liverpool (5th) v Brighton (3rd) on MAX over Man United (1
   const ctx = { leagues: ['epl'], tables, now: NOW, featured: e => e.id === 'mun', aff: { 'team:epl:manchester united': 5 } };
   assert.deepEqual([...leagueChoices([liv, mun, pal], { watched: ['epl'], ctx })], ['epl:liv']);
 });
+
+test("a holiday or a typhoon day off where the person works isn't working hours: its morning game counts as any day off's", async () => {
+  const { keepDayOff, setPlace } = await import('#kit/dayoff.mjs');
+  const ctx = { leagues: ['mlb'], now: Date.UTC(2026, 9, 9, 0) };
+  const at11 = day => ({ id: day, league: 'mlb', kind: 'match', start: `${day}T03:00:00Z`, status: { state: 'pre' }, away: side('1', 'A'), home: side('2', 'B') });
+  // Friday 9 Oct 2026 (國慶日補假), Saturday 10th, Thursday 8th (a workday).
+  const holiday = scoreMatch(at11('2026-10-09'), ctx).score;
+  assert.equal(holiday, scoreMatch(at11('2026-10-10'), ctx).score);
+  assert.ok(scoreMatch(at11('2026-10-08'), ctx).score < holiday);
+  // Thursday 22 Oct: 新竹 off for the typhoon.
+  const place = { county: '新竹市', town: '東區' };
+  keepDayOff(place, { '2026-10-22': { work: { off: true, from: null } } });
+  const before = scoreMatch(at11('2026-10-22'), ctx).score;
+  const mem = new Map();
+  globalThis.localStorage ??= { getItem: k => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) };
+  setPlace('work', place);
+  assert.ok(scoreMatch(at11('2026-10-22'), ctx).score > before, 'a typhoon day off where they work');
+});
