@@ -132,6 +132,7 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   }
   // Fame.
   if (TOP_LEAGUES.includes(e.league)) score += 0.12;
+  score += 0.1 * [e.home, e.away].filter(x => bigClub(e.league, x)).length;
   if (e.stage?.key === 'final') score += 0.25;
   // Habit: the strongest thing the person is into that this match touches.
   const max = Math.max(1, ...Object.values(aff));
@@ -170,6 +171,16 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   return { score: Math.round(score * 1000) / 1000, reasons };
 }
 
+// The clubs people here tune in for, whatever the table says this week (the
+// table is luck seven games in; Jay 2026-10-23 had Liverpool v Brighton as
+// the 22:00 game, over Man United v Bournemouth on 愛爾達2台).
+const BIG = {
+  soccer: /^(manchester city|man city|arsenal|liverpool|chelsea|manchester united|man united|tottenham( hotspur)?|real madrid|barcelona|bayern munich|bayern|borussia dortmund|dortmund|paris saint-germain|psg|juventus|internazionale|inter milan|inter|ac milan|milan|napoli|celtic|rangers)$/i,
+  basketball: /^(los angeles lakers|lakers|golden state warriors|warriors|boston celtics|celtics)$/i,
+  baseball: /^(los angeles dodgers|dodgers|new york yankees|yankees)$/i
+};
+export const bigClub = (league, side) => Boolean(side && BIG[LEAGUES[league]?.sport]?.test(String(side.en || side.name || '').trim()));
+
 // Leagues followed as a league: no team or player of them followed. Jay
 // (2026-10-23) watches a league as ELTA airs it and picks a game, not a
 // team; such a league's chosen games count as a followed team's do. A league
@@ -182,8 +193,9 @@ export function watchedLeagues(leagues = [], follows = []) {
 // league's games starting within the hour of one another (one slot: a
 // Saturday's 22:00 Premier League games), one on TV here, the best matchup
 // as the picks rank it before the start (so the choice holds once the games
-// are on; ELTA's main-channel pick only a near tie's decider, as there:
-// 愛爾達1台 isn't always the better game). A slot none of
+// are on): the table, the odds, the stakes, the clubs. Not the channel (only
+// an even tie's decider: 愛爾達1台 isn't always the better game) nor habit
+// (the person picks the game, not a team). A slot none of
 // whose games is on TV here has no choice, unless TV isn't known for it yet.
 // `awake`: the hours a choice can be (Jay 2026-10-23: a 03:00 game is never
 // his, it's among 更多賽事).
@@ -201,14 +213,15 @@ export function leagueChoices(events, { watched = [], onTv = () => true, tvKnown
     if (!byLeague.has(e.league)) byLeague.set(e.league, []);
     byLeague.get(e.league).push(e);
   }
-  const sctx = { ...ctx, games: [], chosen: null };
+  const sctx = { ...ctx, games: [], chosen: null, featured: null, aff: {} };
+  const featured = ctx.featured || (() => false);
   const before = e => ({ ...e, status: { ...e.status, state: 'pre' } });
   const choose = slot => {
     let pool = slot.filter(onTv);
     if (!pool.length) pool = slot.some(tvKnown) ? [] : slot;
     const best = pool
-      .map(e => ({ e, score: scoreMatch(before(e), sctx).score }))
-      .sort((x, y) => y.score - x.score || String(x.e.id).localeCompare(String(y.e.id)))[0];
+      .map(e => ({ e, score: scoreMatch(before(e), sctx).score, main: featured(e) ? 1 : 0 }))
+      .sort((x, y) => y.score - x.score || y.main - x.main || String(x.e.id).localeCompare(String(y.e.id)))[0];
     if (best) out.add(`${best.e.league}:${best.e.id}`);
   };
   for (const list of byLeague.values()) {

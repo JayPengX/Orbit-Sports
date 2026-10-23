@@ -78,7 +78,8 @@ couldn't be read is shown, never hidden.
   and highlights from `watch.json` (R2).
 - **A league followed as a league** (none of its teams or players
   followed; `picks.mjs leagueChoices`): of its games starting within the
-  hour of one another, the best matchup on TV here counts as a followed
+  hour of one another, the best matchup on TV here (table, odds, stakes,
+  big clubs; the channel only breaks an even tie) counts as a followed
   team's game: picks, the hero, 我的比賽, 你的轉播, start and final notices.
   Never a game from midnight to 05:00 (those stay in 更多賽事).
   F1 followed that way: its qualifying, sprint and race. A league with a

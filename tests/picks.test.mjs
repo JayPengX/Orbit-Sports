@@ -199,3 +199,13 @@ test('a league followed as a league: the game of each hour it would be chosen, a
   assert.equal(s.reasons[0], 'leagueGame');
   assert.ok(s.score - t.score >= 0.99);
 });
+
+test('the 22:00 game: Liverpool (5th) v Brighton (3rd) on MAX over Man United (13th) v Bournemouth (15th) on ELTA 2, whatever the habit', () => {
+  const ids = ['382', '359', '331', '363', '364', '337', '357', '368', '306', '373', '361', '362', '360', '384', '349', '367', '388', '370', '393', '366'];
+  const tables = { epl: tableIndex([{ rows: ids.map(id => ({ id, stats: { GP: '7' } })) }]) };
+  const liv = match('epl', 'liv', 14, side('331', 'Brighton & Hove Albion'), side('364', 'Liverpool'), { fav: 0.465 });
+  const mun = match('epl', 'mun', 14, side('360', 'AFC Bournemouth'), side('349', 'Manchester United'), { fav: 0.476 });
+  const pal = match('epl', 'pal', 14, side('384', 'Newcastle United'), side('361', 'Crystal Palace'), { fav: 0.43 });
+  const ctx = { leagues: ['epl'], tables, now: NOW, featured: e => e.id === 'mun', aff: { 'team:epl:manchester united': 5 } };
+  assert.deepEqual([...leagueChoices([liv, mun, pal], { watched: ['epl'], ctx })], ['epl:liv']);
+});
