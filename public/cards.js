@@ -5,6 +5,7 @@
 import * as kitUI from '#kit/ui.mjs';
 import { el, ctx, sidesOf, logo, personPic, statusText, breakTick, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine } from './ui.js';
 import { channelsOf, watchOf } from './lib/tv.mjs';
+import { ALT_VIEW } from './lib/broadcast.mjs';
 import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
 import { knownHighlights } from './lib/highlights.mjs';
 import { onAir } from './lib/espn.mjs';
@@ -21,10 +22,11 @@ export function pageHead(title, action = null) {
 // A sport's colour: tiles and the hero's ground.
 const SPORT_COLOR = { soccer: '#16a34a', baseball: '#dc2626', basketball: '#ea580c', racing: '#4f46e5' };
 
-// A game's TV channels as tags on the hero (the first two).
+// A game's TV channels as tags on the hero (the first two real broadcasts: no 球員視角 or 數據視角).
 function channelTags(e, n = 2) {
   if (!e || e.status?.void || e.status?.state === 'post') return [];
   return channelsOf(e)
+    .filter(b => !ALT_VIEW.has(b.audio))
     .slice(0, n)
     .map(b => el('span', { class: 'q-tag on-hero', text: b.short?.[en() ? 'en' : 'zh'] || b.zh || '' }));
 }

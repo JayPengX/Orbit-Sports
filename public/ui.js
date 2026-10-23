@@ -9,7 +9,7 @@ import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } fr
 import { liveLabel, liveNote, closeLabel, goalHead } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
-import { AUDIO_NAMES, hasAudio } from './lib/broadcast.mjs';
+import { AUDIO_NAMES, hasAudio, ALT_VIEW } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES, espnSummary, onAir } from './lib/espn.mjs';
 import * as kitQ from '#kit/orbit.mjs';
 import * as kitUI from '#kit/ui.mjs';
@@ -658,15 +658,16 @@ export function tvLine(e) {
     if (!r) return null;
     const again = el('span', { class: 'tv-again', text: r.apple ? (ctx.locale === 'en' ? 'Apple TV · replay' : 'Apple TV・重播') : ctx.locale === 'en' ? (r.replay ? ' · replay' : 'ELTA · replay') : r.replay ? '・回看' : '愛爾達・重播' });
     if (r.video) return el('small', { class: 'tv-line' }, [again]);
-    const ch = r.channels.slice(0, 2).map(b => el('span', { class: 'tv-ch', text: name(b) }));
+    const ch = r.channels.filter(b => !ALT_VIEW.has(b.audio)).slice(0, 1).map(b => el('span', { class: 'tv-ch', text: name(b) }));
     // A channel's 回看 / replay reads as part of that channel, not a chip of its own.
     if (r.replay && ch.length) ch.at(-1).append(again);
     return el('small', { class: 'tv-line' }, r.replay && ch.length ? ch : [...ch, again]);
   }
-  const list = channelsOf(e);
-  if (!list.length) return null;
-  const parts = list.slice(0, 2).map(b => el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), audioTag(b)]));
-  return el('small', { class: 'tv-line' }, [...parts, list.length > 2 ? el('span', { class: 'tv-ch', text: `+${list.length - 2}` }) : null]);
+  // One row on every card, its main broadcast (the best for the person):
+  // never a 球員視角 or 數據視角, which only the game's page lists (a second
+  // row made that card taller than the rest, Jay 2026-10-23).
+  const b = channelsOf(e).find(x => !ALT_VIEW.has(x.audio));
+  return b ? el('small', { class: 'tv-line' }, [el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), audioTag(b)])]) : null;
 }
 // A race weekend's session as a badge (排位賽, 衝刺賽, 正賽…), coloured by kind, so the row says it at a glance.
 export function sessionTag(e) {

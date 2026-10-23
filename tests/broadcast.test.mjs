@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhLike, eltaVodOf, eltaVodsOf, parseEltaIndex, eltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhLike, eltaVodOf, eltaVodsOf, parseEltaIndex, eltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart, camPlayer } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -460,4 +460,20 @@ test('球員特寫視角 is another view (one player followed), its sound unsaid
   const game = { id: 'm2', league: 'epl', kind: 'match', start: '2026-10-17T11:30:00Z', status: { state: 'pre' }, home: { name: 'Everton' }, away: { name: 'Chelsea' } };
   const chs = broadcastsFor(game, list, { sides: [['艾佛頓'], ['切爾西']], prefer: 'zh' }).filter(b => b.exact);
   assert.deepEqual(chs.map(b => [b.ch, b.audio]), [[548, 'zh'], [105, 'dual'], [549, 'cam']]);
+});
+
+test('球員視角: the player it follows, from ELTA\'s listing or its video of that view; its plain cut and 數據視角 never taken for it', () => {
+  assert.equal(camPlayer('阿斯頓維拉 VS 曼城 第8輪(Haaland球員特寫視角)'), 'Haaland');
+  assert.equal(camPlayer('8/22 英超兵工廠VS科文垂城第1輪(Rice球員特寫視角)'), 'Rice');
+  assert.equal(camPlayer('阿斯頓維拉 VS 曼城 第8輪(球員特寫視角)'), '', 'the listing says no one: not known');
+  assert.equal(camPlayer('利物浦 VS 曼城 第6輪(數據視角)'), '');
+  const episodes = [
+    { id: '73339', title: '10/18 英超 里茲聯 VS 曼聯 第7輪(數據視角)' },
+    { id: '73330', title: '10/17  英超 艾佛頓 VS 切爾西 第7輪' },
+    { id: '73326', title: '10/17 英超 艾佛頓 VS 切爾西 第7輪(Joao Pedro球員特寫視角)' }
+  ];
+  const e = { league: 'epl', kind: 'match', start: '2026-10-17T19:00:00Z' };
+  assert.equal(eltaEpisode(episodes, e, [['艾佛頓'], ['切爾西']], { cam: true })?.id, '73326');
+  assert.equal(eltaEpisode(episodes, e, [['艾佛頓'], ['切爾西']])?.id, '73330', 'the game itself, never its player cam');
+  assert.equal(eltaEpisode(episodes, { ...e, start: '2026-10-18T14:00:00Z' }, [['里茲聯'], ['曼聯']], { cam: true }), null, 'only a 數據視角 that day');
 });

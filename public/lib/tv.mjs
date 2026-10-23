@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson, packJson, taipeiDay } from '#kit/orbit.mjs';
-import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio, camPlayer } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { watchOf as packOf, loadWatchMonth } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
@@ -188,6 +188,32 @@ export const tvUntil = () => eltaDays(eltaSchedule() || [])?.to || null;
 export const tvKnown = e =>
   e.league === 'mls' ||
   e.league === 'f1' || (e.league === 'nba' && Boolean(nbaSchedule()?.length)) || eltaListed(eltaSchedule() || [], e);
+
+// Who a game's 球員視角 follows (`b`: its channel): ELTA's listing when it
+// names him, else its video of that view on ELTA.tv once up ("…(Joao Pedro
+// 球員特寫視角)"); '' while neither says (asked again after half an hour).
+const camKnown = new Map();
+export const camKnownOf = (e, b) => camPlayer(b?.title) || camKnown.get(`${e.league}:${e.id}`)?.name || '';
+export async function camPlayerOf(e, b, now = Date.now()) {
+  const said = camKnownOf(e, b);
+  if (said) return said;
+  const key = `${e.league}:${e.id}`;
+  const had = camKnown.get(key);
+  if (had && now - had.at < 30 * 60_000) return had.name;
+  camKnown.set(key, { name: '', at: now });
+  await eltaPagesReady();
+  const sides = zhSides(e);
+  let name = '';
+  for (const v of eltaVodsOf(e, sides[0])) {
+    const episodes = await proxyJson(eltaVodUrl(v), { ttl: 30 * 60_000 })
+      .then(d => d?.episodes || [])
+      .catch(() => []);
+    name = camPlayer(eltaEpisode(episodes, e, sides, { cam: true })?.title);
+    if (name) break;
+  }
+  camKnown.set(key, { name, at: now });
+  return name;
+}
 
 // Games whose whole video was found on ELTA.tv, kept on the device (the
 // newest 500): a row says so without reading ELTA's lists for it.

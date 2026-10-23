@@ -20,7 +20,7 @@ import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, settleScoring } from './lib/f1.mjs';
-import { tvOf, replayOf } from './lib/tv.mjs';
+import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
@@ -2407,6 +2407,11 @@ function replayLink(e) {
     .catch(() => out.remove());
   return out;
 }
+// A 球員視角's line: who it follows, or plainly that ELTA hasn't said.
+const camLine = (e, b) => {
+  const who = e && camKnownOf(e, b);
+  return L() === 'en' ? (who ? `Player cam: ${who}` : 'Player cam · player not named by ELTA') : who ? `球員視角：${who}` : '球員視角・愛爾達未公布跟拍球員';
+};
 // A broadcast's lines on 台灣轉播, each short enough for its row.
 function twLines(b, e) {
   const en = L() === 'en';
@@ -2416,12 +2421,21 @@ function twLines(b, e) {
   };
   const guess = e?.timeFrom === 'elta';
   const air = at => (guess ? (en ? `Expected ${when(at)}` : `預計 ${when(at)}`) : `${when(at)} ${en ? 'on air' : '開播'}`);
-  if (b.ch) return [[audioName(b), b.adFree ? (en ? 'no ads' : '無廣告') : ''].filter(Boolean).join(en ? ', ' : '・'), b.at ? air(b.at) : ''].filter(Boolean);
+  if (b.ch) return [b.audio === 'cam' ? camLine(e, b) : [audioName(b), b.adFree ? (en ? 'no ads' : '無廣告') : ''].filter(Boolean).join(en ? ', ' : '・'), b.at ? air(b.at) : ''].filter(Boolean);
   if (b.svc === 'appletv') return [en ? 'Every game' : '每場都有'];
   if (b.every) return [en ? 'Every session' : '每節都轉播'];
   // A play-off game ELTA hasn't named yet (MLB's postseason: it has every game).
   if (b.tba) return [en ? 'Every postseason game' : '季後賽每場都轉播', guess ? air(Date.parse(e.start)) : ''].filter(Boolean);
   return [en ? 'On ELTA, says NBA.com' : 'NBA.com 確認有轉播'];
+}
+// (Nothing drawn: finds the line above it once the name comes.)
+function camLater(e, b) {
+  const mark = el('i', { hidden: true });
+  camPlayerOf(e, b).then(who => {
+    const line = who && mark.isConnected && mark.previousElementSibling?.querySelector('small.one-line');
+    if (line) line.textContent = camLine(e, b);
+  });
+  return mark;
 }
 function twCard(league, e = null) {
   const list = e ? tvOf(e) : broadcastsOf(league);
@@ -2445,6 +2459,8 @@ function twCard(league, e = null) {
                       // ELTA's slot); a channel not yet named, who says it's on.
                       ...twLines(b, e).map(text => el('small', { class: 'one-line', text }))
                     ]),
+                    // (Who a 球員視角 follows, looked up on ELTA.tv: its line said again once found.)
+                    b.audio === 'cam' && e && !camKnownOf(e, b) ? camLater(e, b) : null,
                     b.url ? el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` }) : null
                   ])
                 )
