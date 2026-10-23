@@ -116,8 +116,8 @@ export function groupZh(name, lang = 'zh') {
     'atlantic division': '大西洋組', 'central division': '中央組', 'southeast division': '東南組', 'northwest division': '西北組', 'pacific division': '太平洋組', 'southwest division': '西南組'
   };
   if (FIXED[n.toLowerCase()]) return FIXED[n.toLowerCase()];
-  const div = /^(AL|NL) (East|West|Central)$/i.exec(n);
-  if (div) return `${{ al: '美聯', nl: '國聯' }[div[1].toLowerCase()]}${{ east: '東區', west: '西區', central: '中區' }[div[2].toLowerCase()]}`;
+  const div = /^(AL|NL|American League|National League) (East|West|Central)$/i.exec(n);
+  if (div) return `${{ a: '美聯', n: '國聯' }[div[1][0].toLowerCase()]}${{ east: '東區', west: '西區', central: '中區' }[div[2].toLowerCase()]}`;
   const grp = /^Group ([A-Z])$/i.exec(n);
   if (grp) return `${grp[1].toUpperCase()} 組`;
   // The Nations League's tiers: Group C2 → C 級第 2 組.

@@ -1393,7 +1393,7 @@ const shareOf = r => (([w, l]) => (w + l ? w / (w + l) : 0.5))([Number(r.stats.W
 const byShare = rows => rows.map((r, i) => [r, i]).sort((x, y) => shareOf(y[0]) - shareOf(x[0]) || x[1] - y[1]).map(([r]) => r);
 export function parseStandings(data, league = null) {
   const groups = [];
-  const walk = node => {
+  const walk = (node, parent = null) => {
     if (node?.standings?.entries?.length) {
       const rows = node.standings.entries.map(en => {
         const stats = Object.fromEntries((en.stats || []).map(s => [s.abbreviation || s.name, s.displayValue]));
@@ -1432,9 +1432,13 @@ export function parseStandings(data, league = null) {
       if (BY_RECORD.has(LEAGUES[league]?.sport) && ordered.every(r => wl(r).every(Number.isFinite)) && ordered.some(r => wl(r)[0] + wl(r)[1] === 0)) ordered = byShare(ordered);
       // A championship's rounds (F1's: a column a weekend, its points, blank until counted).
       const rounds = (node.standings.entries[0]?.stats || []).filter(x => /^[A-Z]{3}$/.test(x.abbreviation || '') && /grand prix/i.test(x.displayName || '')).map(x => ({ key: x.abbreviation, name: x.displayName }));
-      groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), en: node.name || node.displayName || '', rows: ordered, ...(rounds.length ? { rounds } : {}) });
+      // A division's league (MLB's: 美聯東區 in 美國聯盟), each row's playoff
+      // seed kept: the league's seeds read across its divisions (playoffs.mjs).
+      const under = parent?.name && parent.children?.length > 1 && parent !== data ? { parent: parent.name } : {};
+      if (under.parent) ordered.forEach(r => (r.seed = seeds[rows.indexOf(r)] || null));
+      groups.push({ name: groupZh(node.name || node.displayName || '', detectLocale()), en: node.name || node.displayName || '', rows: ordered, ...under, ...(rounds.length ? { rounds } : {}) });
     }
-    for (const child of node?.children || []) walk(child);
+    for (const child of node?.children || []) walk(child, node);
   };
   walk(data);
   return tierZones(groups);
@@ -1502,9 +1506,13 @@ export function tierZones(groups) {
 // `season`: a past season's (its year as ESPN numbers it), kept a day.
 // The regular season's table: ESPN's default counts pre-season games in
 // (the NBA's in October: Toronto 0-1 before a real game).
+// MLB's by division (Jay, 2026-10-23: its league-wide list, in playoff-seed
+// order with the games behind counted from the first seed, read 光芒,
+// 守護者, 太空人 81-81, then 洋基 93-68 4.5 back): as MLB and ESPN show it.
+const BY_DIVISION = new Set(['mlb']);
 const standingsUrl = (league, season = null) => {
   const l = LEAGUES[league];
-  const query = [['baseball', 'basketball'].includes(l.sport) ? 'seasontype=2' : '', season ? `season=${season}` : ''].filter(Boolean).join('&');
+  const query = [['baseball', 'basketball'].includes(l.sport) ? 'seasontype=2' : '', BY_DIVISION.has(league) ? 'level=3' : '', season ? `season=${season}` : ''].filter(Boolean).join('&');
   return `${STANDINGS}/${l.espn}/standings${query ? `?${query}` : ''}`;
 };
 const standingsOf = (data, league) => {

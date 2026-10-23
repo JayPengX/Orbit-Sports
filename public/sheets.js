@@ -1169,7 +1169,9 @@ function matchSection(view, d, e, table, lw = {}) {
     const sport = LEAGUES[e.league]?.sport;
     const recent = [...(ctx.recentOf?.(e.league) || []).filter(x => x.id !== e.id), { ...e, status: d?.status || e.status, home: { ...e.home, ...(d?.home || {}) }, away: { ...e.away, ...(d?.away || {}) } }];
     const groups = table?.length && sport !== 'racing' ? tableNow(official, e.league, recent) : official;
-    return standingsTables(groups, e.league, { mark: [e.home.id, e.away.id] });
+    // A league by division (MLB's six): the divisions of this game's two sides.
+    const mine = groups.filter(g => g.parent && g.rows.some(r => r.id === String(e.home.id) || r.id === String(e.away.id)));
+    return standingsTables(mine.length ? mine : groups, e.league, { mark: [e.home.id, e.away.id], many: mine.length > 0 });
   }
   return overview(d, e, table, nameOf, lw);
 }
@@ -5186,7 +5188,8 @@ function raceBlock(race, g, league, many) {
   // said plainly: 第一 (the heading says of what), the line kept to one row.
   const phase = Boolean(LEAGUES[league]?.cup) && !many;
   many = many || phase;
-  const top = many ? W('第一', 'first place') : '';
+  // A division's first is its title (MLB's 美聯東區: 拿下分區冠軍).
+  const top = many ? (g?.parent ? W('分區冠軍', 'the division') : W('第一', 'first place')) : '';
   const unit = race.unit === 'pts' ? W(' 分', ' pts') : W(' 場', '');
   // Football's rounds as the league counts them: a matchweek league's and a
   // cup's league phase are each side's games (第 N 輪, 第 N 比賽日); MLS's

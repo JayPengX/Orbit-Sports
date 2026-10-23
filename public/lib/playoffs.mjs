@@ -87,7 +87,19 @@ const cpblClub = groups => en => {
 };
 const side = (row, seed) => (row ? { id: row.id, name: row.name, short: row.short || row.name, logo: row.logo, seed } : null);
 // The two conferences / leagues of a table, each in seed order.
-const leagues2 = groups => (groups || []).filter(g => g.rows?.length >= 6).slice(0, 2).map(g => g.rows);
+// (MLB's table is by division: each league's divisions read together, by the seeds ESPN gives.)
+const leagues2 = groups => bySeed(groups).filter(g => g.rows?.length >= 6).slice(0, 2).map(g => g.rows);
+export function bySeed(groups) {
+  if (!(groups || []).some(g => g.parent)) return groups || [];
+  const out = [];
+  for (const g of groups) {
+    const at = out.find(x => x.name === (g.parent || g.name));
+    if (at) at.rows.push(...g.rows);
+    else out.push({ name: g.parent || g.name, rows: [...g.rows] });
+  }
+  for (const g of out) g.rows = g.rows.map((r, i) => [r, i]).sort((x, y) => (x[0].seed || 99) - (y[0].seed || 99) || x[1] - y[1]).map(([r]) => r);
+  return out;
+}
 const pair = (rows, a, b, labels = ['', '']) => ({ projected: true, sides: [side(rows[a - 1], a), side(rows[b - 1], b)], seeds: [a, b], labels });
 const waits = (rows, a, from) => ({ projected: true, sides: [side(rows[a - 1], a), null], seeds: [a, 0], labels: ['', `${from} 勝者`] });
 function cupProject(groups) {

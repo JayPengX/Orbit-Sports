@@ -484,3 +484,25 @@ test('NBA early standings sort by record even with its PTS column', () => {
   const g = parseStandings({ children: [{ name: 'East', standings: { entries: [en('1', 1, 1, 0), en('2', 2, 0, 1), en('3', 3, 0, 0)] } }] }, 'nba');
   assert.deepEqual(g[0].rows.map(r => r.id), ['1', '3', '2']);
 });
+
+// MLB by division (2026's final AL: 光芒 98-64 first in the East, 洋基 4.5
+// back; the West's 太空人 81-81 first there, never above 洋基 league-wide).
+test('standings: MLB by division, each league seeded across its divisions', async () => {
+  const { bySeed } = await import('../public/lib/playoffs.mjs');
+  const { groupZh } = await import('../public/lib/statnames.mjs');
+  const g = parseStandings(fx('mlb-standings-divisions'));
+  assert.equal(g.length, 6);
+  assert.deepEqual(g.map(x => x.parent), ['American League', 'American League', 'American League', 'National League', 'National League', 'National League']);
+  const east = g.find(x => x.en === 'American League East');
+  assert.deepEqual(east.rows.map(r => r.stats.W), ['98', '93', '87', '79', '79']);
+  assert.deepEqual(east.rows.map(r => r.stats.GB), ['-', '4.5', '11', '18.5', '19']);
+  assert.equal(g.find(x => x.en === 'American League West').rows[0].stats.W, '81');
+  const al = bySeed(g)[0];
+  assert.equal(al.rows.length, 15);
+  assert.deepEqual(al.rows.slice(0, 6).map(r => r.seed), [1, 2, 3, 4, 5, 6]);
+  assert.equal(al.rows[3].stats.W, '93');
+  assert.equal(groupZh('American League East'), '美聯東區');
+  assert.equal(groupZh('National League Central'), '國聯中區');
+  // A league-wide table (no divisions): as it was.
+  assert.equal(bySeed(parseStandings(fx('mlb-standings'))).length, 2);
+});
