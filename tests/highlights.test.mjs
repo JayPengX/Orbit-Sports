@@ -180,3 +180,17 @@ test("MLB: the whole game's highlights, never an inning's cut or its last outs (
   const regular = game('mlb', side('Los Angeles Dodgers', 4), side('Milwaukee Brewers', 7), { start: '2026-08-28T23:10Z' });
   assert.equal(pickHighlights([v('r', 'Dodgers vs. Brewers Game Highlights (8/28/26) | MLB Highlights', 'MLB', MLB, '10h ago')], regular, Date.parse('2026-08-29T12:00Z')).id, 'r');
 });
+
+test("football: the extended cut before the few-minute one, from the league's or a club's channel", () => {
+  const e = game('epl', side('Coventry City', 1), side('Tottenham Hotspur', 3), { start: '2026-10-07T00:08Z' });
+  const PL = 'UCG5qGWdu8nIRZqJ_GgDwQ-w';
+  const list = [
+    v('short', 'Tottenham Hotspur 3-1 Coventry City | Premier League Highlights', 'Premier League', PL, '10h ago'),
+    v('ext', 'Tottenham Hotspur 3-1 Coventry City | Extended Premier League Highlights', 'Premier League', PL, '9h ago')
+  ];
+  const got = pickHighlights(list, e, NOW);
+  assert.equal(got.id, 'ext');
+  assert.equal(got.ext, true);
+  assert.equal(pickHighlights(list.slice(0, 1), e, NOW).id, 'short', 'no extended cut: the short one');
+  assert.equal(pickHighlights(list.slice(0, 1), e, NOW).ext, undefined);
+});

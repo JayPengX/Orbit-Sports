@@ -1195,7 +1195,7 @@ const ytLogo = () => {
 // while it's open is kept for the next time it's opened. A game the recent
 // pack has let go waits for its month of Shared-Data's season (a row the
 // same size, its words only), then is drawn so.
-const HL_NAME = { official: ['官方精華', 'Official highlights'], elta: ['愛爾達精華', 'ELTA highlights'], full: ['全場精華', 'Full-game highlights'], search: ['搜尋精華影片', 'Search for highlights'] };
+const HL_NAME = { extended: ['完整精華', 'Extended highlights'], official: ['官方精華', 'Official highlights'], elta: ['愛爾達精華', 'ELTA highlights'], full: ['全場精華', 'Full-game highlights'], search: ['搜尋精華影片', 'Search for highlights'] };
 function highlights(e, waited = false) {
   if (e?.status?.state !== 'post' || e.status.void) return null;
   const en = L() === 'en';
