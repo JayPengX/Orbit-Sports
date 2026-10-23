@@ -35,7 +35,7 @@ import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
 import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic } from './ui.js';
-import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
+import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
 import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
@@ -1449,8 +1449,13 @@ function renderHome() {
         .filter(e => !pastSeen.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && pastSeen.add(`${e.league}:${e.id}:${e.sessionKey || ''}`))
         .sort((x, y) => Date.parse(x.start) - Date.parse(y.start))
     : [];
+  // A light day (three games of theirs or fewer, a weekday's one or two,
+  // Jay 2026-10-23): each game over as a card with who led and the ways to
+  // see it again; a busy day stays a plain list. Only the day's own games.
+  const light = filtered(mine).length <= 3;
   function pastDay() {
     const games = pastGames;
+    if (light && games.length) return section(t('pastEvents'), recapList(games, rowDay), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
     const title = t('pastEvents');
     if (!games.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
     return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))), games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
@@ -1464,7 +1469,7 @@ function renderHome() {
   // (A followed team's next game from its own schedule, whatever day is open, and the open day's.)
   const nextOf = f => (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame).filter(e => e.status?.state === 'pre' && !e.status.void && Date.parse(e.start) > now).sort((x, y) => Date.parse(x.start) - Date.parse(y.start))[0];
   const nextKeys = new Set();
-  const mineNext = gone || h.picking || !hasFollows
+  const mineNext = past || h.picking || !hasFollows
     ? []
     : [...filtered(mine).filter(e => isFollowedEvent(e) && !e.status.void && e.status.state === 'pre'), ...followedTeams().map(nextOf).filter(Boolean)]
         .filter(e => !seenKeys.has(keyOf(e)) && !nextKeys.has(keyOf(e)) && nextKeys.add(keyOf(e)))
@@ -1489,13 +1494,6 @@ function renderHome() {
         }))
       )
     : null;
-  // A light day (two games of theirs or fewer today, often a weekday's
-  // one, Jay 2026-10-23): who stood out in the games over, and the next
-  // day they have games, never a page left empty under one result.
-  const light = h.date === today() && h.filter === 'all' && !h.picking && hasFollows && filtered(mine).length <= 2 && !slot.stale && !slot.loading;
-  const doneLight = light ? (todayOver ? pastGames : endedGames).filter(e => e.kind === 'match' && e.status.state === 'post' && !e.status.void).slice(0, 2) : [];
-  const bestShelf = lightLeaders(doneLight);
-  const nextShelf = light ? nextDayShelf(seenKeys) : null;
   put(
     box,
     homeBar(),
@@ -1506,8 +1504,6 @@ function renderHome() {
     // picks: ranked again on today's tables, yesterday's changed; the owner,
     // 2026-10-18). Theirs and the others on TV, under the sport chosen.
     past ? pastDay() : null,
-    bestShelf,
-    nextShelf,
     // (Nothing followed yet: the sport picker above already says so; no note under it.)
     !past && (fallback || finding) && !endedGames.length && !(h.picking && !hasFollows && state.prefsLoaded && !finding) ? note(gap === 'leagues' ? t('someUnread') : gap === 'tv' ? t('tvUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet'), finding ? t('findingOthers') : planList.length ? t('othersSub') : gap ? t('notKnownYet') : noTvText(h.date), !finding && !planList.length) : null,
     !past && finding ? spinner() : null,
@@ -1522,65 +1518,26 @@ function renderHome() {
     !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
     leaguesShelf,
     placesShelf,
-    endedGames.length ? section(t('pastEvents'), kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
+    endedGames.length ? section(t('pastEvents'), light ? recapList(endedGames, rowDay) : kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
   );
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
 }
-// 全場最佳 on a light day: each game over, the one who led each side
-// (the game's own leaders, its page's first), a row each.
+// A light day's games over: a card each, with who led each side and the
+// ways to see it again (sheets.js gameRecap); each game's leaders read once.
 const homeBest = new Map();
-function lightLeaders(games) {
-  const rows = [];
-  for (const e of games) {
+function recapList(games, opts) {
+  return el('div', { class: 'recap-list' }, games.map(e => {
     const k = `${e.league}:${e.id}`;
     if (!homeBest.has(k)) {
       homeBest.set(k, null);
       summary(e.league, e.id)
         .then(d => homeBest.set(k, d?.leaders || []))
         .catch(() => homeBest.set(k, []))
-        .finally(() => state.tab === 'home' && state.home.date === today() && renderHome());
+        .finally(() => state.tab === 'home' && renderHome());
     }
-    const list = homeBest.get(k) || [];
-    for (const side of sidesOf(e)) {
-      const l = list.find(x => x.team === String(side.id) && x.name);
-      if (l) rows.push({ e, side, l });
-    }
-  }
-  if (!rows.length) return null;
-  return section(
-    L({ zh: '全場最佳', en: 'Top performers' }),
-    el('div', { class: 'q-rowcard' }, rows.map(({ e, side, l }) =>
-      el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => (l.id ? openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) : openEvent(e)) }, [
-        personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'),
-        el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title one-line', text: l.full || l.name }), el('small', { text: `${side.short || side.name} · ${statName(l.stat, locale, { sport: LEAGUES[e.league]?.sport })}` })]),
-        el('b', { class: 'q-ritem-value num', text: l.value })
-      ])
-    ))
-  );
-}
-// 即將開始 on a light day: the next day with games of theirs, its best
-// few, and the way there.
-function nextDayShelf(seen) {
-  const date = savedJump() || nextLeagueDay();
-  if (!date) return null;
-  const slot = state.days.get(date);
-  if (!slot?.at) {
-    if (!slot?.loading) loadDay(date).then(() => state.tab === 'home' && state.home.date === today() && renderHome());
-    return null;
-  }
-  const keyOf = e => `${e.league}:${e.id}`;
-  const games = filtered(slot.events.filter(e => !practice(e) && !e.status?.void && (isFollowedGame(e) || onTv(e))))
-    .filter(e => !seen.has(keyOf(e)));
-  if (!games.length) return null;
-  const { plan, also } = dayPlan(games, { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, aff: affinity(null, Date.now(), ['match']), now: Date.now(), featured: featuredIn(dayAll(slot)), chosen: chosenGames() }, { n: 6, also: 999 });
-  const list = [...plan, ...also].slice(0, 8).map(x => x.event).sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
-  const go = () => {
-    state.home.date = date;
-    stripRange.recenter = true;
-    renderHome();
-  };
-  return section(t('upcomingEvents'), kitRail(list), { action: moreButton(dayLabel(date), go) });
+    return el('div', { class: 'q-card recap' }, [eventRow(e, opts), ...(e.kind === 'match' && !e.status.void ? gameRecap(e, homeBest.get(k)) : [])]);
+  }));
 }
 // Cards that scroll sideways (the kit's rail).
 // A rail of games as cards; a lone game as a row in a full-width card (one

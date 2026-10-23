@@ -2620,6 +2620,27 @@ const lineWatch = typeof ResizeObserver === 'function'
       }
     })
   : null;
+// A game over on a light day's 首頁 (Jay 2026-10-23): who led each side,
+// a column each, and the ways to see it again (回看, 精華), as on its page.
+export function gameRecap(e, leaders) {
+  const sides = inOrder(e, [e.away, e.home]);
+  const best = sides.map(s => (leaders || []).find(l => l.team === String(s.id) && l.name)).filter(Boolean);
+  const byId = Object.fromEntries(sides.map(s => [String(s.id), s]));
+  return [
+    best.length
+      ? el('div', { class: 'recap-best' }, best.map(l =>
+          el('button', { class: 'recap-lead', type: 'button', disabled: l.id ? null : true, onclick: () => l.id && ctx.openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) }, [
+            personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'),
+            el('span', { class: 'recap-text' }, [
+              fitLine(el('strong', { text: playerName(l.full || l.name, 'full', l.name) })),
+              fitLine(el('small', { text: `${byId[l.team]?.short || byId[l.team]?.name || ''} · ${statName(l.stat, L(), { sport: LEAGUES[e.league]?.sport })} ${leaderValue(l.value, L())}` }))
+            ])
+          ])
+        ))
+      : null,
+    el('div', { class: 'recap-links' }, [replayLink(e), highlights(e)].filter(Boolean))
+  ].filter(Boolean);
+}
 function fitLine(n) {
   if (!n) return n;
   n.classList.add('one-line');
