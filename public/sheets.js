@@ -920,8 +920,9 @@ function injuryLine(x, league, { lead = false } = {}) {
 // (a long report pushed the team's own tabs off the screen).
 const INJ_ORDER = ['bad', 'warn', 'good'];
 const INJ_SHOWN = 3;
-function teamInjuryCard(list, league) {
-  if (!list?.length) return null;
+// One side's injuries, the same on a team's page and a game's: the most
+// serious first, three until 全部 is tapped.
+function injuryBox(list, league) {
   const sorted = [...list].sort((a, b) => INJ_ORDER.indexOf(injTone(a.status)) - INJ_ORDER.indexOf(injTone(b.status)));
   const box = el('div', { class: 'inj-report' }, sorted.slice(0, sorted.length > INJ_SHOWN + 1 ? INJ_SHOWN : sorted.length).map(x => injuryLine(x, league)));
   const rest = sorted.length > INJ_SHOWN + 1 ? sorted.length - INJ_SHOWN : 0;
@@ -934,7 +935,11 @@ function teamInjuryCard(list, league) {
           onclick: ev => (box.append(...sorted.slice(INJ_SHOWN).map(x => injuryLine(x, league))), ev.currentTarget.remove())
         })
       : null;
-  return card(L() === 'en' ? 'Injury report' : '傷兵報告', el('div', {}, [box, more]), { sub: dayLabel(localDate(Math.max(...list.map(x => Date.parse(x.date) || 0)) || Date.now())) });
+  return el('div', {}, [box, more]);
+}
+function teamInjuryCard(list, league) {
+  if (!list?.length) return null;
+  return card(T('injuries'), injuryBox(list, league), { sub: dayLabel(localDate(Math.max(...list.map(x => Date.parse(x.date) || 0)) || Date.now())) });
 }
 
 // A side's row in the league's table: [place, row, group size]; none before the table's first game.
@@ -1298,7 +1303,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
               .sort((x, y) => ((x.team === String(e.home.id)) - (y.team === String(e.home.id))) * (homeFirst(e) ? -1 : 1))
               // Each one as the team's page has him (Jay, 2026-10-22: the why only
               // there): the status, what's wrong and when he's back.
-              .map(i => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(i.team)]), el('div', { class: 'inj-report' }, i.list.slice(0, 12).map(x => injuryLine(/^rest$/i.test(x.detail) ? { ...x, status: L() === 'en' ? 'Rest' : '休息' } : x, e.league)))]))
+              .map(i => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(i.team)]), injuryBox(i.list.map(x => (/^rest$/i.test(x.detail) ? { ...x, status: L() === 'en' ? 'Rest' : '休息' } : x)), e.league)]))
           )
         )
       : null,
