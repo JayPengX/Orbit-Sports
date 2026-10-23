@@ -2157,7 +2157,7 @@ function playoffView(model, league) {
 // The lines from each tie to the one it feeds (a bracket's elbows), drawn
 // once the columns are laid out and again when they change size. A tie goes
 // where the model says (`feeds`: the NBA's play-in, 9 v 10's winner down
-// into the 8th seed game under it; 7 v 8's loser left to its card's words),
+// and 7 v 8's loser up into the 8th seed game between them),
 // else to the next one holding its winner, else where its seeds' winner
 // waits ("4/5 勝者"), else the one beside it; a decided tie's line drawn
 // stronger, to follow a side's way.
@@ -2221,7 +2221,7 @@ function linkTies(map, model) {
           if (!end) continue;
           const [a, b] = [at(nodes[i][j]), at(end)];
           const path = document.createElementNS(NS, 'path');
-          // In its own column (9 v 10 into the 8th seed game under it): straight down the gap between them.
+          // In its own column (9 v 10 and 7 v 8 into the 8th seed game between them): straight across the gap.
           if (f.to[0] === i) path.setAttribute('d', b.top > a.top ? `M${a.x} ${a.bottom}V${b.top}` : `M${a.x} ${a.top}V${b.bottom}`);
           // Side by side: one straight line.
           else if (Math.abs(a.y - b.y) < 4) path.setAttribute('d', `M${a.r} ${a.y}H${b.l}`);

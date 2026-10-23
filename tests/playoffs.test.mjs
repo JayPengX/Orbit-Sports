@@ -21,8 +21,8 @@ test('NBA and MLS: each conference by seed', () => {
   const tie = t => (t.gap ? '—' : seeds(t));
   assert.deepEqual(nba.rounds[0].ties.map(tie), ['E9 v E10', '(7/8 敗者) v (9/10 勝者)', 'E7 v E8', '—', 'W9 v W10', '(7/8 敗者) v (9/10 勝者)', 'W7 v W8', '—']);
   assert.deepEqual(nba.rounds[1].ties.slice(0, 4).map(seeds), ['E4 v E5', 'E1 v (附加賽)', 'E2 v (7/8 勝者)', 'E3 v E6']);
-  // 7 v 8: its winner to 2 v 7; 9 v 10 down to the 8th seed game; that to 1 v 8.
-  assert.deepEqual(nba.rounds[0].ties[2].feeds, [{ to: [1, 2] }]);
+  // 7 v 8: its winner to 2 v 7, its loser up to the 8th seed game; 9 v 10 down to it; that to 1 v 8.
+  assert.deepEqual(nba.rounds[0].ties[2].feeds, [{ to: [1, 2] }, { to: [0, 1] }]);
   assert.deepEqual(nba.rounds[0].ties[0].feeds, [{ to: [0, 1] }]);
   assert.deepEqual(nba.rounds[0].ties[5].feeds, [{ to: [1, 5] }]);
   const mls = playoffModel({ league: 'mls', mode: 'projected', groups: g });

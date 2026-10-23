@@ -1274,6 +1274,9 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .bracket.stacked .br-maybe { grid-column: 2 / 5; gap: 6px; }
 .bracket.stacked .br-name, .bracket.stacked .br-note { overflow: visible; white-space: nowrap; }
 .bracket.no-seeds .br-seed { display: none; }
+/* (Without the seed's column too: the logo, name and score in their own, the name not squeezed into a 16px seed's place.) */
+.bracket.no-seeds .br-side { grid-template-columns: auto minmax(0, 1fr) auto; }
+.bracket.no-seeds .br-maybe { grid-column: 1 / 4; }
 .bracket.stacked.no-seeds .br-side { grid-template-columns: auto minmax(0, 1fr) auto; }
 .bracket.stacked.no-seeds .br-maybe { grid-column: 1 / 4; }
 .playoffs.waiting .br-tie { min-height: 84px; align-content: center; gap: 9px; }
