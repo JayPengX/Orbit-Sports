@@ -244,6 +244,33 @@ test('basketball: a run that did its work early ends there, not where the drift 
   assert.equal(run.text, 'H 30-0 攻勢');
 });
 
+// Cavaliers at 76ers, 2026-10-22: down 89-95, a 16-3 run; Embiid's jumper
+// at 6:54 made it 96-95, but the (lagging) price peaked two baskets on, at
+// 100-95, and 過程's 超前 row sat there. The row is on the play that took
+// the lead; the chart's dot stays on the peak.
+test('basketball: a run that takes the lead is placed on the play that took it, the dot on the price high', () => {
+  const pts = [];
+  let [h, a] = [0, 0];
+  const add = (v, dh, da, id) => pts.push({ home: v, n: 4, play: { id, home: (h += dh), away: (a += da), clock: '' } });
+  add(0.5, 84, 84, 'p0');
+  for (let i = 0; i < 6; i++) add(0.5 - (i + 1) * 0.04, 0, 2, `c${i}`); // the Cavaliers to 84-96: 0.26
+  add(0.24, 3, 0, 'r0'); // 87-96
+  add(0.3, 2, 0, 'r1'); // 89-96
+  add(0.36, 0, 0, 'm0');
+  add(0.44, 2, 0, 'r2'); // 91-96
+  add(0.5, 2, 0, 'r3'); // 93-96
+  add(0.55, 2, 0, 'r4'); // 95-96
+  add(0.6, 2, 0, 'flip'); // 97-96: the lead
+  add(0.72, 2, 0, 'r6'); // 99-96
+  add(0.86, 2, 0, 'peak'); // 101-96, the price's high
+  for (let i = 0; i < 4; i++) add(0.85, 1, 1, `t${i}`);
+  const run = playMoments(pts, 'basketball', { home: { id: 'h', name: '76人' }, away: { id: 'a', name: '騎士' }, en: false }).find(m => m.periods && m.side === 'home');
+  assert.ok(run, 'the run');
+  assert.match(run.text, /超前$/);
+  assert.equal(pts[run.i].play.id, 'peak', 'the dot on the price high');
+  assert.equal(pts[run.lead].play.id, 'flip', 'the row on the play that took the lead');
+});
+
 // Brewers at Padres, 2026-10-06: three 9th-inning plays at +9% were kept
 // (every late play was) over the Padres' 3rd-inning rally (+19% from five
 // small plays, none over 9%), which wasn't a moment at all.

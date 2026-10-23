@@ -161,6 +161,18 @@ const RUN_PLAYS = 48;
 // Basketball: a drift of this much is a stretch (a run), RUNS at most.
 const STRETCH = 0.2;
 const RUNS = 4;
+// The first point after `from`, up to `to`, whose play has `mine` ahead
+// (`ahead`) or level with the other side; null if none says so.
+function leadAt(points, from, to, mine, ahead) {
+  const other = mine === 'home' ? 'away' : 'home';
+  for (let k = from + 1; k <= to; k++) {
+    const p = points[k]?.play;
+    if (p?.home == null || p?.away == null) continue;
+    const m = (Number(p[mine]) || 0) - (Number(p[other]) || 0);
+    if (ahead ? m > 0 : m === 0) return k;
+  }
+  return null;
+}
 function swingMoments(points, sport, side) {
   const vals = points.map(value);
   const home = d => (d >= 0 ? 'home' : 'away');
@@ -181,7 +193,11 @@ function swingMoments(points, sport, side) {
       const [m0, m1] = [side0('home') - side0('away'), side1('home') - side1('away')];
       const did = m0 < 0 && m1 === 0 ? ['追平', ' · ties it'] : m0 < 0 && m1 > 0 ? ['超前', ' · takes the lead'] : m1 < 0 ? ['追近', ''] : [to - from > RUN_PLAYS ? '拉開' : '攻勢', ''];
       const text = side.en ? `${who.name} ${mine}-${theirs}${did[1]}` : `${who.name} ${mine}-${theirs} ${did[0]}`;
-      return { i: to, from, delta, side: home(delta), icon: ICON.basketball, text, team: who.id, periods: [points[from].n, points[to].n] };
+      // A run that took the lead (or tied it): the play where the score did,
+      // by the play-by-play (`lead`), for 過程's row. The price lags the plays,
+      // so its peak (`i`, the chart's dot) can be a few plays on (the owner, 2026-10-23).
+      const flip = did[0] === '超前' || did[0] === '追平' ? leadAt(points, from, to, delta >= 0 ? 'home' : 'away', did[0] === '超前') : null;
+      return { i: to, from, delta, side: home(delta), icon: ICON.basketball, text, team: who.id, periods: [points[from].n, points[to].n], ...(flip != null ? { lead: flip } : {}) };
     });
   // The biggest few (RUNS), in the game's order.
   return [...stretches]

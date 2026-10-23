@@ -296,6 +296,9 @@ export async function openMatch(e) {
   // sooner), the others popping in and everything moving down.
   let ready = !LEAGUES[e.league].espn;
   let shown = false;
+  // 過程 drawn once for the game's data as it is (an NBA game's 500-odd rows):
+  // a tab tapped back to it puts the same list back, drawn again only when the data changes.
+  let playsKept = null;
   const settle = () => {
     if (ready) return;
     ready = true;
@@ -331,15 +334,21 @@ export async function openMatch(e) {
     top.hidden = view !== 'overview';
     // (A game over: ESPN's injuries are today's, not that night's: who sat out is its box score's, 未上場.)
     const over = (data?.status || e.status).state === 'post';
-    const next = matchSection(view, data && { ...data, table: past() ? [] : data.table, injuries: over ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
+    const fresh = () => matchSection(view, data && { ...data, table: past() ? [] : data.table, injuries: over ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
+    const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
+    const next = keep || fresh();
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
     // chance chart, a finger on it) never leaves the page.
     const was = content.firstElementChild;
     // (A kept card comes as a stand-in, __keep: the card itself never put in the new stack.)
-    if (was?.classList.contains('stack') && next?.classList?.contains('stack') && was.dataset.view === view && content.childElementCount === 1) put(was, ...[...next.childNodes].map(n => n.__keep || n));
+    if (was === next) {
+      // (過程 kept: already on the page.)
+    } else if (was?.classList.contains('stack') && next?.classList?.contains('stack') && was.dataset.view === view && content.childElementCount === 1 && !keep) put(was, ...[...next.childNodes].map(n => n.__keep || n));
     else put(content, next);
     if (content.firstElementChild?.classList.contains('stack')) content.firstElementChild.dataset.view = view;
+    // (What's on the page now: a live refresh's rows go into the list already there.)
+    if (view === 'plays' && !keep && content.firstElementChild) playsKept = { data, lang: L(), over, node: content.firstElementChild };
     if (boxUnread && view === 'overview' && e.status.state !== 'pre') content.append(el('p', { class: 'muted box-unread', text: T('boxUnread') }));
     for (const f of game.subs) f();
   };
@@ -1057,14 +1066,16 @@ function matchSection(view, d, e, table, lw = {}) {
     const live = (d.status || e.status).state === 'in';
     // Football: the whole commentary (every shot, corner and foul), its key events where there's none.
     const list = sport === 'basketball' && d.feed.length ? d.feed : sport === 'baseball' && d.feed.some(p => p.kind === 'play-result') ? d.feed.filter(p => p.kind === 'play-result' || (p.scoring && p.kind !== 'play-result')) : sport === 'soccer' && d.commentary?.length ? d.commentary : d.keyEvents.length ? d.keyEvents : d.plays;
-    // The chart's key moments, by play: a run told where it ended, a play by itself.
+    // The chart's key moments, by play: a run told where it ended (or where it took the lead), a play by itself.
     const marks = new Map();
     const tint = tintOf(e);
     const pts = d.winProb || [];
     if (pts.length && pts.every(p => p.n)) {
       const sides = { home: { id: e.home.id, name: sideShort(e.home.id) }, away: { id: e.away.id, name: sideShort(e.away.id) }, en };
       for (const m of playMoments(pts, sport, sides)) {
-        const id = (m.periods || m.rally ? pts[m.i]?.play?.id : m.src?.id) || pts[m.i]?.play?.id;
+        // (A run that took the lead: on the play that took it, not where the lagging price peaked.)
+        const at = m.lead ?? m.i;
+        const id = (m.periods || m.rally ? pts[at]?.play?.id : m.src?.id) || pts[at]?.play?.id;
         if (id) marks.set(id, m);
       }
     }
@@ -1083,11 +1094,18 @@ function matchSection(view, d, e, table, lw = {}) {
       const m = p.id ? marks.get(p.id) : null;
       const chip = m ? el('span', { class: `wp-gain ${m.side}`, style: tint[m.side] ? `--side:${tint[m.side]}` : null, text: `${m.side === 'home' ? sideShort(e.home.id) : sideShort(e.away.id)} +${Math.round(Math.abs(m.delta) * 100)}%` }) : null;
       // A run: a line of its own after the play that ended it (its words, its swing).
-      const run = m && (m.periods || m.rally) ? el('li', { class: 'run-mark' }, [clockless ? null : el('span', { class: 'play-when' }), el('span', { class: 'play-text' }, [el('span', { class: 'play-main', text: m.text })]), chip]) : null;
+      // (Its side's logo where a play has its face; the row tinted in the shirt that side wore, the chart's colour.)
+      const runSide = m ? side(m.team) || (m.side === 'home' ? e.home : e.away) : null;
+      // (The logo in the clock's column where there is one, so the words have the row: 76人 16-3 超前 on one line at 320 px.)
+      const runLogo = () => (runSide?.logo ? logo(runSide.logo, sideShort(m.team), 'xs play-team') : el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(e.league)]));
+      const runWords = () => el('span', { class: 'play-words' }, [el('span', { class: 'play-main q-fit-wrap', text: m.text })]);
+      const run = m && (m.periods || m.rally) ? el('li', { class: 'run-mark', style: tint[m.side] ? `--side:${tint[m.side]}` : null }, [clockless ? null : el('span', { class: 'play-when run-logo' }, [runLogo()]), el('span', { class: `play-text${clockless ? ' has-face' : ''}` }, [clockless ? runLogo() : null, runWords()]), chip]) : null;
       // A key play: its swing under its words (the score stays on the right).
       const line = playLine(e.league, p, side(p.team));
       if (m && !run) line.querySelector('.play-words')?.append(chip);
-      const row = el('li', { class: [p.scoring ? 'scoring' : '', m && !run ? 'key' : ''].filter(Boolean).join(' ') }, [
+      // (A score tinted in the shirt its side wore, as the chart colours it.)
+      const by = String(p.team) === String(e.home.id) ? 'home' : String(p.team) === String(e.away.id) ? 'away' : '';
+      const row = el('li', { class: [p.scoring ? 'scoring' : '', m && !run ? 'key' : ''].filter(Boolean).join(' '), style: (p.scoring || (m && !run)) && tint[by] ? `--side:${tint[by]}` : null }, [
         // The period over the clock, a designed two lines in a narrow column.
         clockless ? null : el('span', { class: 'play-when' }, [sport === 'soccer' && period ? el('small', { text: period }) : null, el('span', { class: 'num', text: p.clock })]),
         line,
@@ -2325,10 +2343,12 @@ function playLine(league, p, side) {
   // line under it is the play's details alone (the team's name took its room).
   const badged = Boolean(p.pic && !own && side?.logo);
   const parts = playParts(feedText(LEAGUES[league]?.sport, p, L() === 'en', team), badged ? '' : team);
-  const { main } = parts;
+  // (A name never split over two lines: J. Embiid, C. Porter Jr. kept whole, the line broken between names and words.)
+  const whole = t => String(t || '').replace(/\b([A-Z][a-z]{0,2}\.) (?=\p{Lu})/gu, '$1\u00a0').replace(/ (Jr\.|Sr\.|II|III|IV)\b/g, '\u00a0$1');
+  const main = whole(parts.main);
   // Who helped, as faces (a tap to their page): their names taken out of the small line.
   const helpers = (p.helpers || []).filter(h => h.pic?.id);
-  const sub = helpers.length ? String(parts.sub || '').split(' · ').filter(x => !helpers.some(h => h.name && x.includes(h.name.split(' ').at(-1)))).join(' · ') : parts.sub;
+  const sub = whole(helpers.length ? String(parts.sub || '').split(' · ').filter(x => !helpers.some(h => h.name && x.includes(h.name.split(' ').at(-1)))).join(' · ') : parts.sub);
   const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge', { onWhite: true }) : null])) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
   // A play with neither (本節結束, 比賽結束): the league's mark, so every row has its picture.
   return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(league)]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null, helpers.length ? helpersLine(league, helpers) : null])]);
