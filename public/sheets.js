@@ -3929,7 +3929,9 @@ function fillField(s, e) {
       const espnList = () => (ss.field.length && e.league === 'f1' ? el('ol', { class: 'field f1-field' }, ss.field.map((c, i) => f1Row({ pos: i + 1, full: c.name, field: ss.field, main: c.score || '' }))) : ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField')));
       const known = f1Numbers.get(key);
       const shape = () => el('ol', { class: 'field f1-field waiting' }, Array.from({ length: Math.max(1, Math.min(ss.field.length || 10, 22)) }, () => el('li', { class: 'skel-row' }, [skeleton([70], 'skel-pos'), el('i', { class: 'skel skel-pic' }), skeleton([62, 40]), skeleton([90, 50], 'skel-right')])));
-      const holder = el('div', { class: 'f1-holder' }, [known ? f1Final(known.rows, known.board, ss) : lastWord ? f1Final(null, { ...lastWord, final: true }, ss) : numbers ? shape() : espnList()]);
+      // A session still to come with no order yet: nothing in its place (its
+      // line above says when; a big 還沒有名次 box read as broken: the owner, 2026-10-23).
+      const holder = el('div', { class: 'f1-holder' }, [known ? f1Final(known.rows, known.board, ss) : lastWord ? f1Final(null, { ...lastWord, final: true }, ss) : numbers ? shape() : ss.status.state === 'pre' && !ss.field.length ? null : espnList()]);
       put(
         box,
         sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,

@@ -1892,6 +1892,14 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 /* A race weekend's session (its chips, its line, its replay): clear of the card above it. */
 .race-box { margin-top: 6px; }
 .race-box > .muted.small { margin: -4px 0 0; }
+/* An empty slot (no order yet, no race chance) takes no gap in the stack. */
+.race-box > :empty { display: none; }
+/* The weekend's sessions share the row (a fifth chip was cut at 320). */
+.race-box > .q-chips { gap: 6px; }
+.race-box > .q-chips > .q-chip { flex: 1 1 auto; justify-content: center; padding-inline: 8px; }
+@media (max-width: 360px) { .race-box > .q-chips > .q-chip { font-size: 14px; padding-inline: 7px; } }
+/* A card after anything that isn't one (the race box, a replay link) keeps the cards' gap. */
+.sheet-body > * + .q-card { margin-top: 12px; }
 /* A player's name never wrapped by the browser: smaller where long (app.js fitNumbers), two lines only where sheets.js heroName breaks it. */
 .player-hero .team-head-text h3 { white-space: nowrap; }
 /* 數據領先 of a league: rank, face, name over team, the number. */
