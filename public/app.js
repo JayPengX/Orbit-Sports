@@ -29,7 +29,7 @@ import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
-import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
+import { playoffModel, openRound, FORMATS, seedPicture } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
@@ -3254,8 +3254,10 @@ function tableOf(league) {
   // unsaid. The game on is the next one, said as this one (raceBlock).
   const settledNow = sport === 'racing' ? now : tableNow(groups, league, recent.filter(e => e.status?.state !== 'in'));
   const races = settledNow.map(g => standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league), team: sport === 'racing' && !g.rows.some(r => r.athlete) }));
+  // A league by division (MLB's): its playoff seeds first, the divisions' rows marked by them.
+  const { picture, divisions } = seedPicture(now, league, locale);
   return el('div', {}, [
-    standingsTables(now, league, { races, many: sport !== 'racing' && now.length > 1 }),
+    standingsTables([...picture, ...divisions], league, { races: [...picture.map(() => null), ...races], many: sport !== 'racing' && now.length > 1 }),
     el('p', { class: 'muted small table-note', text: t('gapHint') })
   ]);
 }

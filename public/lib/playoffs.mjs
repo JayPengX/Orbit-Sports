@@ -90,6 +90,38 @@ const side = (row, seed) => (row ? { id: row.id, name: row.name, short: row.shor
 // The two conferences / leagues of a table, each in seed order.
 // (MLB's table is by division: each league's divisions read together, by the seeds ESPN gives.)
 const leagues2 = groups => bySeed(groups).filter(g => g.rows?.length >= 6).slice(0, 2).map(g => g.rows);
+// How a league by division makes its playoffs (Jay, 2026-10-23: the
+// division tables alone didn't say): each league's six seeds, the three
+// division leaders then the three wild cards, and the next sides out, with
+// the games each is ahead of (+) or behind the last wild card. And the
+// divisions' own rows marked the same (a bar: 分區第一, 外卡).
+// MLB's: 3 division leaders, 3 wild cards a league.
+const PICTURE = { mlb: { leaders: 3, cards: 3, more: 3 } };
+const PICTURE_COLOR = { lead: '#81D6AC', card: '#6CA6F0' };
+export function seedPicture(groups, league, lang = 'zh') {
+  const f = PICTURE[league];
+  if (!f || !(groups || []).some(g => g.parent)) return { picture: [], divisions: groups || [] };
+  const en = lang === 'en';
+  const seeds = f.leaders + f.cards;
+  const zone = seed => (!seed || seed > seeds ? null : seed <= f.leaders ? { note: en ? 'Division leader' : '分區第一', color: PICTURE_COLOR.lead } : { note: en ? 'Wild card' : '外卡', color: PICTURE_COLOR.card });
+  const marked = r => ({ ...r, ...(zone(r.seed) || { note: '', color: '' }) });
+  const divisions = groups.map(g => (g.parent ? { ...g, rows: g.rows.map(marked) } : g));
+  const half = x => (Number.isInteger(x) ? String(x) : x.toFixed(1));
+  const picture = bySeed(groups)
+    .filter(g => g.rows.length > seeds && g.rows.every(r => r.seed))
+    .map(g => {
+      const last = g.rows[seeds - 1];
+      const [w0, l0] = [Number(last.stats.W), Number(last.stats.L)];
+      const rows = g.rows.slice(0, seeds + f.more).map((r, i) => {
+        const gb = (w0 - Number(r.stats.W) + (Number(r.stats.L) - l0)) / 2;
+        const GB = i < f.leaders ? '' : i === seeds - 1 || gb === 0 ? '-' : gb < 0 ? `+${half(-gb)}` : half(gb);
+        return { ...marked(r), stats: { ...r.stats, GB } };
+      });
+      const name = en ? `${g.name} playoff picture` : `${{ 'American League': '美聯', 'National League': '國聯' }[g.name] || g.name}季後賽席次`;
+      return { name, en: g.name, rows, picture: true };
+    });
+  return { picture, divisions };
+}
 export function bySeed(groups) {
   if (!(groups || []).some(g => g.parent)) return groups || [];
   const out = [];

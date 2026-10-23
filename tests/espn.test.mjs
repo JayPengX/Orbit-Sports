@@ -506,3 +506,19 @@ test('standings: MLB by division, each league seeded across its divisions', asyn
   // A league-wide table (no divisions): as it was.
   assert.equal(bySeed(parseStandings(fx('mlb-standings'))).length, 2);
 });
+
+test('standings: MLB playoff picture, seeds across the divisions', async () => {
+  const { seedPicture } = await import('../public/lib/playoffs.mjs');
+  const { picture, divisions } = seedPicture(parseStandings(fx('mlb-standings-divisions')), 'mlb', 'zh');
+  assert.deepEqual(picture.map(g => g.name), ['美聯季後賽席次', '國聯季後賽席次']);
+  const al = picture[0].rows;
+  assert.equal(al.length, 9);
+  // 光芒, 守護者, 太空人 lead their divisions; 洋基, 紅襪, 白襪 the wild cards.
+  assert.deepEqual(al.slice(0, 6).map(r => r.note), ['分區第一', '分區第一', '分區第一', '外卡', '外卡', '外卡']);
+  assert.deepEqual(al.slice(0, 6).map(r => r.stats.W), ['98', '85', '81', '93', '87', '84']);
+  assert.deepEqual(al.slice(3).map(r => r.stats.GB), ['+9.5', '+3', '-', '4', '4.5', '5']);
+  assert.equal(al[6].note, '');
+  const east = divisions.find(g => g.en === 'American League East');
+  assert.deepEqual(east.rows.map(r => r.note), ['分區第一', '外卡', '外卡', '', '']);
+  assert.equal(seedPicture(parseStandings(fx('epl-standings')), 'epl').picture.length, 0);
+});

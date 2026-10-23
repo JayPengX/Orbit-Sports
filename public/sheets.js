@@ -5341,6 +5341,8 @@ export function outOfIt(g, race, league) {
   const over = race ? race.rows.every(x => x.settled) && race.title.done : total ? rows.every(r => played(r) >= total) : false;
   // ESPN's e: out of the playoffs, during the season and after it.
   if (rows.some(r => r.clincher)) return new Set(rows.filter(r => r.clincher === 'e').map(r => r.id));
+  // A division's or a league's seeds (MLB's): its bars are the playoff seeds, out only by ESPN's e.
+  if (g.parent || g.picture) return new Set();
   const zones = rows.some(r => r.note && !/relegat|eliminat/i.test(r.note));
   const ended = over || (total && rows.every(r => played(r) >= total));
   // A playoff league's season over: the sides outside its playoff zones.
