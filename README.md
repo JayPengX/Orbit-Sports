@@ -73,6 +73,12 @@ couldn't be read is shown, never hidden.
   commentary, MAX first); NBA.com's ELTA list (`public/nba-elta.json`,
   written every 6 h by the deploy); Apple TV's page per MLS game. Replays
   and highlights from `watch.json` (R2).
+- **A league followed as a league** (none of its teams or players
+  followed; `picks.mjs leagueChoices`): of its games starting within the
+  hour of one another, the best matchup on TV here counts as a followed
+  team's game: picks, the hero, 我的比賽, 你的轉播, start and final notices.
+  F1 followed that way: its qualifying, sprint and race. A league with a
+  team or player of it followed goes by those.
 - **Today's picks** (`lib/picks.mjs`): followed leagues and teams, quality,
   closeness, stakes, fame, habit, ELTA's featured game, live now. The best
   game, then the best that doesn't clash.

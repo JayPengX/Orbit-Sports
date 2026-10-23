@@ -27,7 +27,7 @@ import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
-import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted } from './lib/picks.mjs';
+import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
@@ -343,9 +343,31 @@ function loadFollowedGames() {
 setInterval(() => {
   for (const g of followedGames()) if (g.status.state === 'in' || (g.status.state === 'pre' && Date.parse(g.start) < Date.now())) gameDaysRead.clear();
 }, 60_000);
-function isFollowedEvent(e) {
+// Leagues followed as a league (no team or player of them followed): each
+// slot's chosen game is the person's as a followed team's is (picks.mjs
+// leagueChoices; Jay 2026-10-23), and a race weekend's qualifying, sprint
+// and race.
+const watched = () => watchedLeagues(state.prefs.leagues, state.prefs.follows);
+let tvGen = 0;
+const chosenMemo = { key: '', set: new Set() };
+function chosenGames() {
+  const w = watched();
+  if (!w.length) return new Set();
+  const slots = [...state.days.values()];
+  const key = `${w.join()}|${tvGen}|${tvReady()}|${slots.map(x => `${x.at}:${x.events?.length}`).join()}|${Object.keys(state.home.tables || {}).join()}`;
+  if (chosenMemo.key === key) return chosenMemo.set;
+  const all = slots.flatMap(x => x.events || []);
+  const ctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, tables: state.home.tables, aff: affinity(null, Date.now(), ['match']), featured: featuredIn(all) };
+  chosenMemo.key = key;
+  chosenMemo.set = leagueChoices(all, { watched: w, onTv, tvKnown, ctx });
+  return chosenMemo.set;
+}
+const isChosenGame = e => e.kind === 'match' && chosenGames().has(`${e.league}:${e.id}`);
+// (`chosen` false: a followed team's, player's or match's only.)
+function isFollowedEvent(e, { chosen = true } = {}) {
   if (isFollowedGame(e)) return true;
-  if (e.kind === 'match') return followedTeams().some(f => f.league === e.league && (f.id === e.home?.id || f.id === e.away?.id));
+  if (e.kind === 'match') return followedTeams().some(f => f.league === e.league && (f.id === e.home?.id || f.id === e.away?.id)) || (chosen && isChosenGame(e));
+  if (chosen && e.sessionKey && ['Qual', 'SR', 'Race'].includes(e.sessionKey) && watched().includes(e.league)) return true;
   // A race with a followed driver in it.
   const people = (e.sessions || []).flatMap(x => x.field || []);
   if (people.some(p => p && isFollowed(e.league, p.id))) return true;
@@ -523,15 +545,17 @@ function restoreDay() {
 // 其他推薦, on its own day at its hour. Every one of the person's own
 // leagues is there; of the others, only one worth staying up for
 // (nightWorthy: a play-off, a final or a series game, an MLB wild-card
-// decider at 02:00). A followed team's or match's can be 今日推薦.
+// decider at 02:00). A followed team's or match's can be 今日推薦 (a league
+// followed as a league: its small hours' games stay there, or every night's
+// 03:00 game would lead the day).
 const AWAKE_FROM = 5;
-const nightWorthy = e => bigGame(e) || isFollowedEvent(e);
+const nightWorthy = e => bigGame(e) || isFollowedEvent(e, { chosen: false });
 // A race weekend's practice: in 賽事 and the race's sheet, never among 首頁's picks or days.
 const practice = e => /^FP\d$/.test(e.sessionKey || '');
 // (A race session by its official start, not its broadcast's titles a few
 // minutes before: a 05:00 qualifying titled at 04:56 is a morning pick, not the small hours.)
 const officialMs = e => Date.parse(e.official || e.start);
-const nightOnly = e => new Date(officialMs(e)).getHours() < AWAKE_FROM && !isFollowedEvent(e);
+const nightOnly = e => new Date(officialMs(e)).getHours() < AWAKE_FROM && !isFollowedEvent(e, { chosen: false });
 const inDay = (ms, date) => ms >= Date.parse(`${date}T00:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
 
@@ -871,8 +895,9 @@ function syncPush() {
   }
   // A followed race weekend: each qualifying, sprint and race starting, and
   // the sprint's and the race's result (the Worker reads the podium off ESPN's day).
-  for (const e of followedGames()) {
-    if (e.kind !== 'field' || !['Qual', 'SR', 'Race'].includes(e.sessionKey) || e.status.state === 'post') continue;
+  // (And a league followed as a league: its weekends' sessions today.)
+  for (const e of [...followedGames(), ...(state.days.get(today())?.events || []).filter(e => e.kind === 'field' && isFollowedEvent(e))]) {
+    if (e.kind !== 'field' || !['Qual', 'SR', 'Race'].includes(e.sessionKey) || e.status.state === 'post' || items.some(x => x.tag === `start:${e.league}:${e.id}`)) continue;
     // (The start notice at the title time, a few minutes before the official start: the owner's call, 2026-10-18.)
     const start = Date.parse(e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
@@ -1222,7 +1247,7 @@ function renderHome() {
     return;
   }
   const now = Date.now();
-  const pctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: h.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(dayAll(slot)) };
+  const pctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: h.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(dayAll(slot)), chosen: chosenGames() };
   let past = h.date < today();
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
@@ -1445,7 +1470,7 @@ function renderHome() {
         : finding || fallback || liveBlock || hero || h.picking || mineNext.length || restShown.length
           ? null
           : section(t('todayPicks'), note('', gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine'))),
-    mineNext.length ? section(L({ zh: '我的球隊', en: 'My teams' }), kitRail(mineNext.map(e => scoreCard(e, openEvent)))) : null,
+    mineNext.length ? section(watched().length ? L({ zh: '我的比賽', en: 'My games' }) : L({ zh: '我的球隊', en: 'My teams' }), kitRail(mineNext.map(e => scoreCard(e, openEvent)))) : null,
     !past && restShown.length ? section(planList.length ? (isToday ? L({ zh: '今晚', en: 'Tonight' }) : L({ zh: '更多賽事', en: 'More games' })) : t('moreRecs'), kitRail(restShown.map(x => scoreCard(x.event, openEvent))), { action: moreAll.length > restShown.length ? moreButton(t('seeAll'), () => openMore(moreAll, rowDay)) : null }) : null,
     leaguesShelf,
     placesShelf,
@@ -1499,7 +1524,7 @@ function homeBar() {
 function homeFilters() {
   const h = state.home;
   if (h.picking || !state.prefs.leagues.length) return null;
-  const filters = [['all', t('f_all')], ...(state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...followedSports().filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
+  const filters = [['all', t('f_all')], ...(watched().length ? [['teams', t('f_mine')]] : state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...followedSports().filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
   if (filters.length < 3) return null;
   return el('div', { class: 'q-chips day-filters' }, filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => h.filter !== k && ((stripRange.recenter = true), pickFilter(k)) })));
 }
@@ -1764,7 +1789,7 @@ function renderLiveDay(d) {
     .filter(e => inDay(Date.parse(e.start), d) && !practice(e) && !seen.has(dayKey(e)) && seen.add(dayKey(e)))
     .filter(e => onTv(e) || isFollowedGame(e) || ((e.status.state === 'post' || past) && !tvKnown(e)))
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
-  const c = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(list) };
+  const c = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(list), chosen: chosenGames() };
   const ranked = list.filter(e => !e.status.void).map(e => ({ e, mine: isFollowedEvent(e), score: scoreMatch(e, c).score })).sort((x, y) => y.mine - x.mine || y.score - x.score);
   const top = ranked[0]?.e || null;
   const hero = top ? heroGame(top, { mine: isFollowedEvent(top), eyebrow: top.status.state === 'pre' ? dayLabel(d, { long: true }) : '', onOpen: openEvent }) : null;
@@ -2726,12 +2751,14 @@ function myTvGames() {
   const fresh = new Map(dayAll(state.days.get(today())).map(e => [`${e.league}:${e.id}`, e]));
   const games = followedTeams().flatMap(f => teamGames(f) || []).map(e => fresh.get(`${e.league}:${e.id}`) || e);
   // F1's qualifying, sprint and race (practice is on 賽事 and the guide, not among yours).
-  const f1 = state.prefs.follows.some(f => f.league === 'f1') ? f1Races().flatMap(e => splitWeekend(e, now, locale)).filter(e => e.sessionKey && !practice(e)) : [];
+  const f1 = state.prefs.follows.some(f => f.league === 'f1') || watched().includes('f1') ? f1Races().flatMap(e => splitWeekend(e, now, locale)).filter(e => e.sessionKey && !practice(e)) : [];
   // A match followed on its own is theirs, on TV here or not.
   const own = followedGames();
   const seen = new Set();
   const key = e => `${e.league}:${e.id}:${e.sessionKey || ''}`;
-  return [...own, ...games, ...f1]
+  // A league followed as a league: its chosen games (the days read so far).
+  const chosen = [...state.days.values()].flatMap(x => x.events || []).filter(isChosenGame).map(e => fresh.get(`${e.league}:${e.id}`) || e);
+  return [...own, ...games, ...chosen, ...f1]
     .filter(e => !e.status?.void && e.status?.state !== 'post' && Date.parse(e.start) > now - 4 * 3_600_000 && Date.parse(e.start) < now + TV_DAYS * 86_400_000)
     .filter(e => (onTv(e) || own.includes(e)) && !seen.has(key(e)) && seen.add(key(e)))
     .sort((a, b) => (b.status.state === 'in') - (a.status.state === 'in') || a.start.localeCompare(b.start));
@@ -3323,7 +3350,7 @@ const repaintOpen = () => {
     pushTimer = setTimeout(syncPush, 1500);
   }, 250);
 };
-onTvChange(repaintOpen);
+onTvChange(() => (tvGen++, repaintOpen()));
 
 new MutationObserver(() => fitNumbers([...document.querySelectorAll('.mh-score, .team-head h3, .mh-team strong')])).observe(document.body, { childList: true, subtree: true });
 

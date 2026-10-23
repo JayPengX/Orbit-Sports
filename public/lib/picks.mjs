@@ -4,6 +4,9 @@
 //
 //   priority   the leagues they follow, in their order (the first counts most)
 //   teams      a followed team playing (the strongest single signal)
+//   chosen     in a league followed as a league (no team or player of it
+//              followed), the game of its hour the person would choose
+//              (leagueChoices): counts as much as a followed team's
 //   quality    how good the two sides are (their places in the table)
 //   closeness  how evenly matched they are (places close together)
 //   stakes     a top-of-the-table meeting, a final, a play-off, a series
@@ -69,7 +72,7 @@ const tableWeight = (...rows) => {
   return gp.length ? Math.min(1, Math.min(...gp) / TABLE_GAMES) : 1;
 };
 
-export function scoreMatch(e, { leagues = [], follows = [], games = [], tables = {}, aff = {}, now = Date.now(), featured = null } = {}) {
+export function scoreMatch(e, { leagues = [], follows = [], games = [], tables = {}, aff = {}, now = Date.now(), featured = null, chosen = null } = {}) {
   const reasons = [];
   let score = 0.2;
   // A match followed on its own: the person asked for this one.
@@ -87,6 +90,9 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   if (keys.some(k => followed.has(k)) || follows.some(f => f.league === e.league && (f.id === e.home?.id || f.id === e.away?.id))) {
     score += 1;
     reasons.unshift('team');
+  } else if (chosen?.has(`${e.league}:${e.id}`)) {
+    score += 1;
+    reasons.unshift('leagueGame');
   }
   // The table: quality, closeness, a meeting at the top.
   const a = strength(tables, e.league, e.away);
@@ -162,6 +168,57 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   }
   if (TOP_LEAGUES.includes(e.league) && !reasons.length) reasons.push('top');
   return { score: Math.round(score * 1000) / 1000, reasons };
+}
+
+// Leagues followed as a league: no team or player of them followed. Jay
+// (2026-10-23) watches a league as ELTA airs it and picks a game, not a
+// team; such a league's chosen games count as a followed team's do. A league
+// with a team or player of it followed goes by those instead.
+export function watchedLeagues(leagues = [], follows = []) {
+  const own = new Set(follows.map(f => f.league));
+  return leagues.filter(k => !own.has(k));
+}
+// The games a person who watches these leagues would choose: of each
+// league's games starting within the hour of one another (one slot: a
+// Saturday's 22:00 Premier League games), one on TV here, the best matchup
+// as the picks rank it before the start (so the choice holds once the games
+// are on; ELTA's main-channel pick only a near tie's decider, as there:
+// 愛爾達1台 isn't always the better game). A slot none of
+// whose games is on TV here has no choice, unless TV isn't known for it yet.
+// Returns a Set of 'league:id'.
+const SLOT = 3_600_000;
+export function leagueChoices(events, { watched = [], onTv = () => true, tvKnown = () => true, ctx = {} } = {}) {
+  const out = new Set();
+  const w = new Set(watched);
+  const byLeague = new Map();
+  const seen = new Set();
+  for (const e of events || []) {
+    const key = `${e.league}:${e.id}`;
+    if (!w.has(e.league) || e.kind !== 'match' || e.status?.void || e.other || e.abroad || seen.has(key) || !Number.isFinite(Date.parse(e.start))) continue;
+    seen.add(key);
+    if (!byLeague.has(e.league)) byLeague.set(e.league, []);
+    byLeague.get(e.league).push(e);
+  }
+  const sctx = { ...ctx, games: [], chosen: null };
+  const before = e => ({ ...e, status: { ...e.status, state: 'pre' } });
+  const choose = slot => {
+    let pool = slot.filter(onTv);
+    if (!pool.length) pool = slot.some(tvKnown) ? [] : slot;
+    const best = pool
+      .map(e => ({ e, score: scoreMatch(before(e), sctx).score }))
+      .sort((x, y) => y.score - x.score || String(x.e.id).localeCompare(String(y.e.id)))[0];
+    if (best) out.add(`${best.e.league}:${best.e.id}`);
+  };
+  for (const list of byLeague.values()) {
+    list.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    let slot = [];
+    for (const e of list) {
+      if (slot.length && Date.parse(e.start) - Date.parse(slot[0].start) >= SLOT) (choose(slot), (slot = []));
+      slot.push(e);
+    }
+    if (slot.length) choose(slot);
+  }
+  return out;
 }
 
 // A live game, by sport: when it's late (the period), a close one (the

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreMatch, dayPlan, clash, tableIndex, tableStarted, bigGame } from '../public/lib/picks.mjs';
+import { scoreMatch, dayPlan, clash, tableIndex, tableStarted, bigGame, watchedLeagues, leagueChoices } from '../public/lib/picks.mjs';
 
 const at = h => new Date(Date.UTC(2026, 9, 3, h)).toISOString();
 const side = (id, name) => ({ id, name, short: name });
@@ -169,4 +169,31 @@ test('the day as it stood keeps a postponed pick and an ended one (they don’t 
   const { plan } = dayPlan(events, ctx, { asStood: true });
   assert.deepEqual(plan.map(p => p.event.id), ['pp', 'f']);
   assert.equal(plan[0].event.status.void, true, 'shown as it is now: postponed');
+});
+
+test('a league followed as a league: the game of each hour it would be chosen, as strong as a followed team', () => {
+  assert.deepEqual(watchedLeagues(['epl', 'nba', 'mlb'], [{ league: 'nba', id: '7', name: 'Lakers' }]), ['epl', 'mlb'], 'a league with a team followed goes by the team');
+  const tables = { epl: tableIndex([{ rows: Array.from({ length: 20 }, (_, i) => ({ id: String(i + 1) })) }]) };
+  // Saturday 22:00: three games; the bottom two on ELTA's main channel, the top two on MAX, one not on TV. Then 00:30: two on TV.
+  const main = match('epl', 'm', 14, side('15', 'O'), side('16', 'P'));
+  const max = match('epl', 'x', 14, side('1', 'A'), side('2', 'B'));
+  const none = match('epl', 'n', 14, side('3', 'C'), side('4', 'D'));
+  const late1 = match('epl', 'l1', 16, side('19', 'S'), side('20', 'T'), { start: new Date(Date.UTC(2026, 9, 3, 16, 30)).toISOString() });
+  const late2 = match('epl', 'l2', 16, side('5', 'E'), side('6', 'F'), { start: new Date(Date.UTC(2026, 9, 3, 16, 30)).toISOString() });
+  const nba = match('nba', 'k', 14, side('7', 'Lakers'), side('8', 'Suns'));
+  const onTv = e => e.id !== 'n';
+  const ctx = { leagues: ['epl', 'nba'], follows: [{ league: 'nba', id: '7', name: 'Lakers' }], tables, now: NOW, featured: e => e.id === 'm' };
+  const chosen = leagueChoices([main, max, none, late1, late2, nba], { watched: ['epl'], onTv, ctx });
+  assert.deepEqual([...chosen].sort(), ['epl:l2', 'epl:x'], 'the better matchup on TV (the main channel only a near tie’s decider); never the NBA (a team followed there)');
+  // Live, a chosen game holds (scored as it stood before the start).
+  const again = leagueChoices([main, max, { ...late1, status: { state: 'in', period: 2 }, home: { ...late1.home, score: '1' }, away: { ...late1.away, score: '1' } }, late2], { watched: ['epl'], onTv, ctx });
+  assert.ok(again.has('epl:l2'));
+  // A slot with nothing on TV: no choice. TV not known yet: the best anyway.
+  assert.equal(leagueChoices([none], { watched: ['epl'], onTv, ctx }).size, 0);
+  assert.equal(leagueChoices([none], { watched: ['epl'], onTv: () => false, tvKnown: () => false, ctx }).size, 1);
+  // The chosen game scores as a followed team's.
+  const s = scoreMatch(max, { ...ctx, chosen: new Set(['epl:x']) });
+  const t = scoreMatch(max, ctx);
+  assert.equal(s.reasons[0], 'leagueGame');
+  assert.ok(s.score - t.score >= 0.99);
 });
