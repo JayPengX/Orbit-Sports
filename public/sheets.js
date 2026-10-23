@@ -299,6 +299,20 @@ export async function openMatch(e) {
   // 過程 drawn once for the game's data as it is (an NBA game's 500-odd rows):
   // a tab tapped back to it puts the same list back, drawn again only when the data changes.
   let playsKept = null;
+  // 季後賽 (a playoff game): the league's bracket, read once when first shown;
+  // undefined before, null while it's read, false when there's none.
+  let poView;
+  const playoffsNode = () => {
+    if (poView === undefined) {
+      poView = null;
+      ctx
+        .playoffsOf(e.league)
+        .then(n => (poView = n || false))
+        .catch(() => (poView = false))
+        .finally(() => paint());
+    }
+    return el('div', { class: 'stack' }, [poView || spinner()]);
+  };
   const settle = () => {
     if (ready) return;
     ready = true;
@@ -327,8 +341,11 @@ export async function openMatch(e) {
     if (data?.rosters.some(r => r.players.length) || Object.keys(data?.squads || {}).length || (LEAGUES[e.league]?.sport === 'basketball' && data?.players.some(p => p.tables[0]?.rows.length)) || (before && squads && Object.values(squads).some(x => x.roster.length))) tabs.push(['lineups', T('lineups')]);
     // The table only once it has a game in it (a preseason's is all zeros in the feed's order).
     const shownTable = past() ? [] : table?.length ? table : data?.table.length ? [{ rows: data.table.map(r => ({ id: r.id, stats: r.stats })) }] : [];
-    if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
-    else if (view === 'table') view = 'overview';
+    // A playoff game (a series, a knockout tie): 季後賽, the bracket, in place of 排名 (the owner, 2026-10-23).
+    const playoff = Boolean(e.round && ctx.hasBracket?.(e.league) && ctx.playoffsOf);
+    if (playoff && poView !== false) tabs.push(['playoffs', L() === 'en' ? 'Playoffs' : '季後賽']);
+    else if (!playoff && shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
+    if ((view === 'table' || view === 'playoffs') && !tabs.some(([k]) => k === view)) view = 'overview';
     // The same row of tabs before, during and after (two of them or six).
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { chips: true }) : null);
     top.hidden = view !== 'overview';
@@ -336,7 +353,7 @@ export async function openMatch(e) {
     const over = (data?.status || e.status).state === 'post';
     const fresh = () => matchSection(view, data && { ...data, table: past() ? [] : data.table, injuries: over ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
-    const next = keep || fresh();
+    const next = view === 'playoffs' ? playoffsNode() : keep || fresh();
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
     // chance chart, a finger on it) never leaves the page.

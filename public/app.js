@@ -2087,15 +2087,20 @@ function staleBracket(league) {
 }
 // A game's whole series (or two-legged tie), for its match page: from the
 // league's bracket, the one 季後賽 shows (read now when not held fresh).
-async function seriesOf(e) {
-  const league = e?.league;
-  if (!e?.round || !hasBracket(league)) return null;
+// The league's bracket model, held fresh 10 minutes (read now when not).
+async function bracketModel(league) {
   const had = brackets.get(league);
   let model = had?.model && !had.failed && Date.now() - had.at < 10 * 60_000 ? had.model : null;
   if (!model) {
     model = playoffModel({ league, ...(await playoffData(league)) });
     brackets.set(league, { ...(brackets.get(league) || {}), model, at: Date.now(), loading: false, failed: false });
   }
+  return model;
+}
+async function seriesOf(e) {
+  const league = e?.league;
+  if (!e?.round || !hasBracket(league)) return null;
+  const model = await bracketModel(league);
   for (const r of model.rounds)
     for (const t of r.ties)
       if (t && !t.gap && !t.projected && !t.pending && t.games.some(g => g.id === e.id)) {
@@ -2106,6 +2111,14 @@ async function seriesOf(e) {
   return null;
 }
 ctx.seriesOf = seriesOf;
+// A playoff game's page: 季後賽 in place of 排名 (the owner, 2026-10-23), the
+// same map the league's 季後賽 shows; null when there's none to show.
+ctx.hasBracket = league => hasBracket(league);
+ctx.playoffsOf = async league => {
+  if (!hasBracket(league)) return null;
+  const model = await bracketModel(league);
+  return model?.rounds?.length ? playoffView(model, league) : null;
+};
 // The playoffs as a map you swipe across: a column a round (its name, and
 // done / on now / its dates under it), the later rounds between the ties
 // that feed them. Each tie: each side's seed, logo and name with its wins (or
