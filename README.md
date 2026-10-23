@@ -80,6 +80,7 @@ couldn't be read is shown, never hidden.
   followed; `picks.mjs leagueChoices`): of its games starting within the
   hour of one another, the best matchup on TV here counts as a followed
   team's game: picks, the hero, 我的比賽, 你的轉播, start and final notices.
+  Never a game from midnight to 05:00 (those stay in 更多賽事).
   F1 followed that way: its qualifying, sprint and race. A league with a
   team or player of it followed goes by those.
 - **Today's picks** (`lib/picks.mjs`): followed leagues and teams, quality,

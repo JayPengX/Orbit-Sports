@@ -185,16 +185,18 @@ export function watchedLeagues(leagues = [], follows = []) {
 // are on; ELTA's main-channel pick only a near tie's decider, as there:
 // 愛爾達1台 isn't always the better game). A slot none of
 // whose games is on TV here has no choice, unless TV isn't known for it yet.
+// `awake`: the hours a choice can be (Jay 2026-10-23: a 03:00 game is never
+// his, it's among 更多賽事).
 // Returns a Set of 'league:id'.
 const SLOT = 3_600_000;
-export function leagueChoices(events, { watched = [], onTv = () => true, tvKnown = () => true, ctx = {} } = {}) {
+export function leagueChoices(events, { watched = [], onTv = () => true, tvKnown = () => true, awake = () => true, ctx = {} } = {}) {
   const out = new Set();
   const w = new Set(watched);
   const byLeague = new Map();
   const seen = new Set();
   for (const e of events || []) {
     const key = `${e.league}:${e.id}`;
-    if (!w.has(e.league) || e.kind !== 'match' || e.status?.void || e.other || e.abroad || seen.has(key) || !Number.isFinite(Date.parse(e.start))) continue;
+    if (!w.has(e.league) || !awake(e) || e.kind !== 'match' || e.status?.void || e.other || e.abroad || seen.has(key) || !Number.isFinite(Date.parse(e.start))) continue;
     seen.add(key);
     if (!byLeague.has(e.league)) byLeague.set(e.league, []);
     byLeague.get(e.league).push(e);

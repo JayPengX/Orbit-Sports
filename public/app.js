@@ -359,7 +359,7 @@ function chosenGames() {
   const all = slots.flatMap(x => x.events || []);
   const ctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, tables: state.home.tables, aff: affinity(null, Date.now(), ['match']), featured: featuredIn(all) };
   chosenMemo.key = key;
-  chosenMemo.set = leagueChoices(all, { watched: w, onTv, tvKnown, ctx });
+  chosenMemo.set = leagueChoices(all, { watched: w, onTv, tvKnown, awake: e => new Date(officialMs(e)).getHours() >= AWAKE_FROM, ctx });
   return chosenMemo.set;
 }
 const isChosenGame = e => e.kind === 'match' && chosenGames().has(`${e.league}:${e.id}`);

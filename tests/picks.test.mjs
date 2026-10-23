@@ -191,6 +191,8 @@ test('a league followed as a league: the game of each hour it would be chosen, a
   // A slot with nothing on TV: no choice. TV not known yet: the best anyway.
   assert.equal(leagueChoices([none], { watched: ['epl'], onTv, ctx }).size, 0);
   assert.equal(leagueChoices([none], { watched: ['epl'], onTv: () => false, tvKnown: () => false, ctx }).size, 1);
+  // The small hours: never a choice.
+  assert.equal(leagueChoices([main, max], { watched: ['epl'], onTv, awake: () => false, ctx }).size, 0);
   // The chosen game scores as a followed team's.
   const s = scoreMatch(max, { ...ctx, chosen: new Set(['epl:x']) });
   const t = scoreMatch(max, ctx);
