@@ -318,8 +318,8 @@ export async function openMatch(e) {
     const season = before ? seasonPlayers(data, squads) : [];
     if (before ? season.length : data?.players.some(p => p.tables.some(tb => tb.rows.length))) tabs.push(['players', T('players')]);
     if (data?.plays.length || data?.keyEvents.length || data?.commentary?.length) tabs.push(['plays', T('plays')]);
-    // 陣容: soccer's line-ups; basketball's from its box score (先發, 替補, 未上場 and why: a player who didn't play is left off 球員), before tip-off its rosters.
-    if (data?.rosters.some(r => r.players.length) || Object.keys(data?.squads || {}).length || (LEAGUES[e.league]?.sport === 'basketball' && (data?.players.some(p => p.tables[0]?.rows.length) || (before && squads && Object.values(squads).some(x => x.roster.length))))) tabs.push(['lineups', T('lineups')]);
+    // 陣容: soccer's line-ups; basketball's from its box score (先發, 替補, 未上場 and why: a player who didn't play is left off 球員); baseball's active roster; before the start, each side's squad.
+    if (data?.rosters.some(r => r.players.length) || Object.keys(data?.squads || {}).length || (LEAGUES[e.league]?.sport === 'basketball' && data?.players.some(p => p.tables[0]?.rows.length)) || (before && squads && Object.values(squads).some(x => x.roster.length))) tabs.push(['lineups', T('lineups')]);
     // The table only once it has a game in it (a preseason's is all zeros in the feed's order).
     const shownTable = past() ? [] : table?.length ? table : data?.table.length ? [{ rows: data.table.map(r => ({ id: r.id, stats: r.stats })) }] : [];
     if (shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
@@ -412,9 +412,12 @@ export async function openMatch(e) {
         paint();
       });
   }
-  // A basketball game to come: each side's players with their averages and its roster.
-  if (e.kind === 'match' && e.status.state === 'pre' && LEAGUES[e.league].sport === 'basketball' && LEAGUES[e.league].espn && e.away?.id && e.home?.id)
-    Promise.all([e.away, e.home].map(x => Promise.all([seasonAverages(e.league, x.id).catch(() => null), roster(e.league, x.id).catch(() => []), leagueAverages(e.league).catch(() => new Map())]).then(([avg, list, all]) => [String(x.id), { avg: rosterAverages(avg, list.flatMap(g => g.players), all), roster: list.flatMap(g => g.players) }]))).then(got => {
+  // A game to come: each side's roster (陣容 before the line-ups are out),
+  // a basketball side's with its averages too (球員). Baseball's whole
+  // active roster comes with MLB's box score.
+  const sportOf = LEAGUES[e.league].sport;
+  if (e.kind === 'match' && e.status.state === 'pre' && sportOf !== 'baseball' && LEAGUES[e.league].espn && e.away?.id && e.home?.id)
+    Promise.all([e.away, e.home].map(x => Promise.all([sportOf === 'basketball' ? seasonAverages(e.league, x.id).catch(() => null) : null, roster(e.league, x.id).catch(() => []), sportOf === 'basketball' ? leagueAverages(e.league).catch(() => new Map()) : null]).then(([avg, list, all]) => [String(x.id), { avg: sportOf === 'basketball' ? rosterAverages(avg, list.flatMap(g => g.players), all) : null, roster: list.flatMap(g => g.players) }]))).then(got => {
       squads = Object.fromEntries(got);
       paint();
     });
@@ -792,7 +795,9 @@ const tagOf = (d, e) => (id, ...more) => teamTag(sideOf(d, e, id), [d?.byId?.[id
 const card = (title, body, { sub = '' } = {}) => el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }, [typeof title === 'string' ? el('span', { text: title }) : el('span', {}, [title]), sub ? el('small', {}, [sub]) : null]), body]);
 
 // Why a player didn't play, as ESPN says it ("COACH'S DECISION", "INJURY/ILLNESS - Left Knee; Sprain").
-// A game over: who sat it out (the box score's, each with why), in the injuries' place; none said, no card.
+// A game over: who sat it out (the box score's, each with why), in the
+// injuries' place, in the injury report's rows (the reason a chip, what's
+// wrong under the name); none said, no card.
 function satOutCard(d, e) {
   const en = L() === 'en';
   const teams = (d?.players || [])
@@ -800,23 +805,25 @@ function satOutCard(d, e) {
     .filter(t => t.list.length)
     .sort((x, y) => ((x.team === String(e.home.id)) - (y.team === String(e.home.id))) * (homeFirst(e) ? -1 : 1));
   if (!teams.length) return null;
-  return card(
-    en ? 'Did not play' : '未上場',
-    el('div', { class: 'injuries' }, teams.map(t => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(t.team)]), el('ul', { class: 'inj-list' }, t.list.slice(0, 12).map(x => el('li', {}, [x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, x.id, { name: x.full || x.name, logo: x.headshot }) }, [personPic({ ...x, name: x.full || x.name }, e.league, 'xs round'), el('span', {  }, [playerName(x.full || x.name, 'full', x.name)])]) : el('span', {  }, [playerName(x.full || x.name, 'full', x.name)]), el('small', {}, [dnpText(x.reason, en)])])))])))
-  );
+  return card(en ? 'Did not play' : '未上場', el('div', { class: 'injuries' }, teams.map(t => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(t.team)]), el('div', { class: 'inj-report' }, t.list.slice(0, 12).map(x => injuryLine(sat(x), e.league)))]))));
 }
-function dnpText(reason, en) {
+// A player who sat a game out as an injury report's row: the reason (教練決定, 傷病, 輪休) and what's wrong.
+const sat = x => ({ ...x, ...dnpWhy(x.reason, L() === 'en') });
+function dnpWhy(reason, en) {
   const r = String(reason || '').trim();
-  if (en || !r) return en ? r.toLowerCase().replace(/^./, c => c.toUpperCase()) || 'Did not play' : '未上場';
-  if (/coach/i.test(r)) return '教練決定';
-  // (What's wrong after the dash: "INJURY/ILLNESS - Left Knee; Sprain" → 傷病 · 左膝蓋扭傷.)
-  if (/injury|illness/i.test(r)) return ['傷病', injuryWhatZh(r.split(/\s+-\s+/).slice(1).join(' ').replace(/;/g, ' '))].filter(Boolean).join(' · ');
-  if (/not with team/i.test(r)) return '未隨隊';
-  if (/suspen/i.test(r)) return '禁賽';
-  if (/personal/i.test(r)) return '個人因素';
-  if (/rest/i.test(r)) return '輪休';
-  return '未上場';
+  const [kind, ...rest] = r.split(/\s+-\s+/);
+  const what = rest.join(' ').replace(/;/g, ' ');
+  const of = (label, tone = 'warn') => ({ label, tone, whatText: what ? (en ? what : injuryWhatZh(what)) : '' });
+  if (en) return of(kind ? kind.toLowerCase().replace(/^./, c => c.toUpperCase()) : 'Did not play', /injury|illness|suspen/i.test(kind) ? 'bad' : 'warn');
+  if (/coach/i.test(r)) return of('教練決定');
+  if (/injury|illness/i.test(r)) return of('傷病', 'bad');
+  if (/not with team/i.test(r)) return of('未隨隊');
+  if (/suspen/i.test(r)) return of('禁賽', 'bad');
+  if (/personal/i.test(r)) return of('個人因素');
+  if (/rest/i.test(r)) return of('輪休');
+  return of('未上場');
 }
+const dnpText = (reason, en) => [dnpWhy(reason, en).label, dnpWhy(reason, en).whatText].filter(Boolean).join(' · ');
 // A player's line in a game (parseSummary's box score: every sport's
 // tables, soccer's made from its line-ups): [{ team, table, row }], or null.
 function gameLine(d, id) {
@@ -896,15 +903,17 @@ function backText(at) {
   return L() === 'en' ? `back ${dayLabel(localDate(Date.parse(at)))}` : `${dayLabel(localDate(Date.parse(at)))} 回歸`;
 }
 // One player's line: status chip, what's wrong, when they're back.
-function injuryLine(x, league) {
+// (`lead`: a 陣容 card's, the number's column first, so its rows line up with the squad's above.)
+function injuryLine(x, league, { lead = false } = {}) {
   const en = L() === 'en';
   const back = backText(x.back);
   // One row a player: the face and name, what and when under it on one line, the status at the right.
-  const sub = [x.what ? (en ? x.what : injuryWhatZh(x.what)) : null, back || null].filter(Boolean);
-  return el('button', { class: 'inj-row', type: 'button', disabled: x.id ? null : true, onclick: () => x.id && ctx.openPlayer(league, x.id, { name: x.name, logo: x.headshot }) }, [
+  const sub = [x.whatText ?? (x.what ? (en ? x.what : injuryWhatZh(x.what)) : null), back || null].filter(Boolean);
+  return el('button', { class: `inj-row${lead ? ' lead' : ''}`, type: 'button', disabled: x.id ? null : true, onclick: () => x.id && ctx.openPlayer(league, x.id, { name: x.name, logo: x.headshot }) }, [
+    lead ? el('span', { class: 'jersey num', text: x.jersey || '' }) : null,
     personPic(x, league, 'xs round'),
     el('span', { class: 'inj-who' }, [fitLine(el('strong', { class: 'one-line' }, [playerName(x.full || x.name, 'full', x.name)])), sub.length ? fitLine(el('small', { class: 'one-line' }, joinNodes(sub, ' · '))) : null]),
-    el('span', { class: `inj-status ${injTone(x.status)}`, text: injuryText(x.status) })
+    el('span', { class: `inj-status ${x.tone || injTone(x.status)}`, text: x.label || injuryText(x.status) })
   ]);
 }
 // A team's card: the most serious first, three of them until 全部 is tapped
@@ -1001,8 +1010,8 @@ function matchSection(view, d, e, table, lw = {}) {
       'div',
       { class: 'stack' },
       d.seasonPlayers.flatMap(p =>
-        p.tables.map(tb =>
-          card(tag(p.team, tb.name === 'avg' ? '' : boxTableName(tb.name)), boxTable(tb, `${e.id}|${p.team}|season-${tb.name}`, LEAGUES[e.league]?.sport, r => boxRow(e, tb, r)), { sub: seasonSub(p.season) })
+        p.tables.map((tb, _, all) =>
+          card(tag(p.team, tb.name === 'avg' || all.length < 2 ? '' : boxTableName(tb.name)), boxTable(tb, `${e.id}|${p.team}|season-${tb.name}`, LEAGUES[e.league]?.sport, r => boxRow(e, tb, r)), { sub: seasonSub(p.season) })
         )
       )
     );
@@ -1016,9 +1025,10 @@ function matchSection(view, d, e, table, lw = {}) {
           // Basketball: a player who didn't play a minute (no numbers) is left off; 陣容 lists him and why.
           .map(tb => (LEAGUES[e.league]?.sport === 'basketball' ? { ...tb, rows: tb.rows.filter(r => !r.dnp && r.stats?.some(v => v !== '' && v != null)) } : tb))
           .filter(tb => tb.rows.length)
-          .map(tb =>
+          // (A table's name only beside another: baseball's 打擊 and 投球, never a lone 球員.)
+          .map((tb, _, all) =>
             card(
-              tag(p.team, boxTableName(tb.name)),
+              tag(p.team, all.length > 1 ? boxTableName(tb.name) : ''),
               boxTable(tb, `${e.id}|${p.team}|${tb.name}`, LEAGUES[e.league]?.sport, r => boxRow(e, tb, r))
             )
           )
@@ -1080,117 +1090,78 @@ function matchSection(view, d, e, table, lw = {}) {
     }
     return playsNav(el('ol', { class: `plays${clockless ? ' clockless' : ''}` }, rows));
   }
-  // MLB: each side's whole active roster (MLB's box score, squads): once the
-  // lineups are out, 打序 (a substitute under his spot), the pitchers used
-  // (先發, 後援), the bullpen and the bench left; before them, everyone by
-  // position, the probable starter marked. The hurt apart under 傷兵.
-  if (view === 'lineups' && Object.keys(d?.squads || {}).length) {
+  // 陣容: each side a card of the one shape (sideSquad), every sport and
+  // moment alike (the owner, 2026-10-23: starters shown one way across the
+  // sports): who starts first (先發; baseball's 打序 and its pitchers; a
+  // soccer game on, who's on the pitch and who's come off), then 替補, then
+  // who's out (未上場 once it's over, 傷兵 before). A game to come with no
+  // starters said yet: the squad by position, the probable ones marked.
+  if (view === 'lineups' && d) {
     const en = L() === 'en';
     const W = (zh, eng) => (en ? eng : zh);
-    const pos = p => posZh(p.pos, 'baseball', L());
-    const KIND = [['P', W('投手', 'Pitchers')], ['C', W('捕手', 'Catchers')], ['IF', W('內野手', 'Infielders')], ['OF', W('外野手', 'Outfielders')]];
-    const kind = p => (/^(P|SP|RP|TWP)$/.test(p.pos) ? 'P' : p.pos === 'C' ? 'C' : /^(1B|2B|3B|SS|IF)$/.test(p.pos) ? 'IF' : 'OF');
-    return el(
-      'div',
-      { class: 'lineups' },
-      inOrder(e, [e.away, e.home])
-        .map(t => {
-          const k = t === e.away ? 0 : 1;
-          const sq = d.squads[String(t.id)];
-          if (!sq) return null;
-          const hurt = d.injuries?.find(x => x.team === String(t.id))?.list || [];
-          const groups = [];
-          if (sq.order.length) {
-            groups.push([W('打序', 'Batting order'), sq.order, p => (p.sub ? `${W('替補', 'Sub')} · ${pos(p)}` : pos(p)), p => (p.sub ? '' : String(p.slot))]);
-            groups.push([W('投手', 'Pitchers'), sq.pitched, p => (p.starter ? W('先發', 'Starter') : W('後援', 'Relief')), p => p.jersey]);
-            groups.push([W('牛棚', 'Bullpen'), sq.bullpen, () => '', p => p.jersey]);
-            groups.push([W('板凳', 'Bench'), sq.bench, pos, p => p.jersey]);
-          } else {
-            const probable = d.lineups?.kind === 'mlb' ? [d.lineups.pitchers.away, d.lineups.pitchers.home][k] : null;
-            const isProbable = p => Boolean(probable) && ((probable.id && p.id === probable.id) || p.name === probable.name);
-            for (const [key, name] of KIND) groups.push([name, sq.all.filter(p => kind(p) === key).sort((a, b) => isProbable(b) - isProbable(a)), p => (isProbable(p) ? W('預計先發', 'Probable starter') : key === 'P' ? '' : pos(p)), p => p.jersey]);
-          }
-          const rows = (list, note, lead) => squadList(list.map(p => ({ ...p, jersey: lead(p) })), e.league, 'baseball', note);
-          return card(
-            tag(String(t.id)),
-            el('div', {}, [
-              ...groups.filter(([, list]) => list.length).flatMap(([name, list, note, lead]) => [el('p', { class: 'mini-h', text: name }), rows(list, note, lead)]),
-              ...(hurt.length ? [el('p', { class: 'mini-h', text: W('傷兵', 'Injured') }), squadList(hurt.map(x => ({ ...x, jersey: '' })), e.league, 'baseball', x => injuryText(x.status || ''))] : [])
-            ])
-          );
-        })
-        .filter(Boolean)
-    );
-  }
-  // A basketball game to come: each side's roster, its starters first once
-  // they're named (pregameLineups), else by position; the hurt apart, with why.
-  if (view === 'lineups' && d?.courtSquads && LEAGUES[e.league]?.sport === 'basketball') {
-    const en = L() === 'en';
-    const POS = ['PG', 'G', 'SG', 'G-F', 'SF', 'F', 'F-G', 'PF', 'F-C', 'C-F', 'C'];
-    const rank = p => (POS.indexOf(p.pos) + 1 || POS.length + 1);
-    return el(
-      'div',
-      { class: 'lineups' },
-      inOrder(e, [e.away, e.home])
-        .map(t => {
-          const k = t === e.away ? 0 : 1;
-          const people = [...(d.courtSquads[String(t.id)]?.roster || [])].sort((a, b) => rank(a) - rank(b));
-          if (!people.length) return null;
-          const hurt = new Map((d.injuries?.find(x => x.team === String(t.id))?.list || []).map(x => [x.id || x.name, x]));
-          const why = p => hurt.get(p.id) || hurt.get(p.name);
-          const out = people.filter(p => why(p) || p.injured);
-          const named = d.lineups?.kind === 'core' && !d.lineups.pending && !d.lineups.last ? [d.lineups.away, d.lineups.home][k] || [] : [];
-          const starters = people.filter(p => !out.includes(p) && named.some(x => x.id === p.id));
-          const rest = people.filter(p => !out.includes(p) && !starters.includes(p));
-          const groups = starters.length ? [[en ? 'Starters' : '先發', starters], [T('bench'), rest]] : byPosition([{ name: '', players: rest }], 'basketball').map(g => [g.name, g.players]);
-          // (By position, the heading says it: no position again on each row.)
-          const note = p => (starters.length || groups.length < 2 ? posZh(p.pos, 'basketball', L()) : '');
-          return card(
-            tag(String(t.id)),
-            // (The hurt as the team's page has them: the status, what's wrong and when back.)
-            el('div', {}, [...groups, [en ? 'Injured' : '傷兵', out]].filter(([, ps]) => ps.length).flatMap(([name, ps]) => [name ? el('p', { class: 'mini-h', text: name }) : null, ps === out ? el('div', { class: 'inj-report' }, ps.map(p => injuryLine({ ...p, status: why(p)?.status || (en ? 'Injured' : '傷兵'), what: why(p)?.what || '', back: why(p)?.back || '' }, e.league))) : squadList(ps, e.league, 'basketball', note)]))
-          );
-        })
-        .filter(Boolean)
-    );
-  }
-  if (view === 'lineups' && d && LEAGUES[e.league]?.sport === 'basketball') {
-    const en = L() === 'en';
-    const list = ps => el('ul', { class: 'roster-list' }, ps.map(r => el('li', {}, [el('span', { class: 'jersey num', text: r.jersey || '' }), el('button', { class: 'link roster-name', type: 'button', onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', {  }, [playerName(r.full || r.name, 'full', r.full || r.name)])]), el('small', {}, [r.dnp ? dnpText(r.reason, en) : posZh(r.pos, 'basketball', L())])])));
-    const sides = inOrder(e, [e.away, e.home]).map(t => d.players.find(p => p.team === String(t.id))).filter(Boolean);
-    return el(
-      'div',
-      { class: 'lineups' },
-      sides.map(p => {
-        const rows = p.tables[0]?.rows || [];
-        const out = rows.filter(r => r.dnp || !r.stats?.some(v => v !== '' && v != null));
-        const starters = rows.filter(r => r.starter && !out.includes(r));
-        const bench = rows.filter(r => !r.starter && !out.includes(r));
-        return card(tag(p.team), el('div', {}, [starters.length ? el('p', { class: 'mini-h', text: en ? 'Starters' : '先發' }) : null, starters.length ? list(starters) : null, bench.length ? el('p', { class: 'mini-h', text: T('bench') }) : null, bench.length ? list(bench) : null, out.length ? el('p', { class: 'mini-h', text: en ? 'Did not play' : '未上場' }) : null, out.length ? list(out) : null]));
-      })
-    );
-  }
-  if (view === 'lineups' && d) {
-    return el(
-      'div',
-      { class: 'lineups' },
-      [...d.rosters]
-        .sort((x, y) => inOrder(e, [e.away, e.home]).findIndex(t => String(t.id) === x.team) - inOrder(e, [e.away, e.home]).findIndex(t => String(t.id) === y.team))
-        .filter(r => r.players.length)
-        .map(r => {
-          const sport = LEAGUES[e.league]?.sport;
-          // A soccer game on: who's on the pitch now (a sub with his minute), who came off, the bench left.
-          const now = sport === 'soccer' && (d.status || e.status).state === 'in' ? onPitch([r])[0] : null;
-          const en = L() === 'en';
-          const mark = p => (p.sentOff ? el('span', { class: 'sent-off', text: en ? ' · Sent off' : ' · 紅牌' }) : p.subAt && (p.subbedIn || p.subbedOut) ? el('span', { class: 'sub-on', text: ` ${p.subbedOut ? '↓' : '↑'}${p.subAt}` }) : null);
-          const list = ps => el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, p.id, p) }, [personPic(p, e.league, 'xs round'), el('span', {  }, [playerName(p.full || p.name, 'full', p.name)])]), el('small', {}, [p.pos === 'SUB' ? '' : posZh(p.pos, sport, L()), now ? mark(p) : null])])));
-          if (now)
-            return card(tag(r.team, r.formation), el('div', {}, [el('p', { class: 'mini-h', text: now.on.length < 11 ? (en ? `On the pitch · ${now.on.length} men` : `場上 · ${now.on.length} 人`) : en ? 'On the pitch' : '場上' }), list(now.on), now.off.length ? el('p', { class: 'mini-h', text: en ? 'Off' : '已下場' }) : null, now.off.length ? list(now.off) : null, now.bench.length ? el('p', { class: 'mini-h', text: T('bench') }) : null, now.bench.length ? list(now.bench) : null]));
-          const starters = r.players.filter(p => p.starter);
-          const subs = r.players.filter(p => !p.starter);
-          return card(tag(r.team, r.formation), el('div', {}, [starters.length ? list(starters) : null, subs.length ? el('p', { class: 'mini-h', text: T('bench') }) : null, subs.length ? list(subs) : null]));
-        })
-    );
+    const sport = LEAGUES[e.league]?.sport;
+    const pos = p => (p.pos === 'SUB' ? '' : posZh(p.pos, sport, L()));
+    const hurtOf = t => d.injuries?.find(x => x.team === String(t.id))?.list || [];
+    const hurtRows = list => list.map(x => ({ ...x, status: x.status || (en ? 'Injured' : '傷兵') }));
+    const sides = inOrder(e, [e.away, e.home]);
+    const k = t => (t === e.away ? 0 : 1);
+    const rostered = d.rosters.some(r => r.players.length);
+    const cards = sides.map(t => {
+      const id = String(t.id);
+      // Baseball (MLB's box score: its whole active roster).
+      const sq = d.squads?.[id];
+      if (sq) {
+        const lead = (list, f) => list.map(p => ({ ...p, jersey: f(p) }));
+        if (sq.order.length)
+          return sideSquad(tag(id), [
+            { name: W('打序', 'Batting order'), list: lead(sq.order, p => (p.sub ? '' : String(p.slot))), note: p => (p.sub ? `${W('替補', 'Sub')} · ${pos(p)}` : pos(p)) },
+            { name: W('投手', 'Pitchers'), list: sq.pitched, note: p => (p.starter ? W('先發', 'Starter') : W('後援', 'Relief')) },
+            { name: W('牛棚', 'Bullpen'), list: sq.bullpen },
+            { name: T('bench'), list: sq.bench, note: pos },
+            { name: T('injuries'), list: hurtRows(hurtOf(t)), out: true }
+          ], e.league, sport);
+        const probable = d.lineups?.kind === 'mlb' ? [d.lineups.pitchers.away, d.lineups.pitchers.home][k(t)] : null;
+        const isProbable = p => Boolean(probable) && ((probable.id && p.id === probable.id) || p.name === probable.name);
+        const KIND = [['P', W('投手', 'Pitchers')], ['C', W('捕手', 'Catchers')], ['IF', W('內野手', 'Infielders')], ['OF', W('外野手', 'Outfielders')]];
+        const kind = p => (/^(P|SP|RP|TWP)$/.test(p.pos) ? 'P' : p.pos === 'C' ? 'C' : /^(1B|2B|3B|SS|IF)$/.test(p.pos) ? 'IF' : 'OF');
+        return sideSquad(tag(id), [...KIND.map(([key, name]) => ({ name, list: sq.all.filter(p => kind(p) === key).sort((a, b) => isProbable(b) - isProbable(a)), note: p => (isProbable(p) ? W('預計先發', 'Probable') : key === 'P' ? '' : pos(p)) })), { name: T('injuries'), list: hurtRows(hurtOf(t)), out: true }], e.league, sport);
+      }
+      // Soccer's line-ups (ESPN's, an hour or so before): on now, who's on
+      // the pitch, who's come off, the bench; else 先發 and 替補, each sub's
+      // minute by his name.
+      const r = d.rosters.find(x => x.team === id && x.players.length);
+      if (r) {
+        const live = (d.status || e.status).state === 'in';
+        const now = sport === 'soccer' && live ? onPitch([r])[0] : null;
+        const mark = p => [pos(p), p.sentOff ? W('紅牌', 'Sent off') : p.subAt && (p.subbedIn || p.subbedOut) ? `${p.subbedOut ? '↓' : '↑'}${p.subAt}` : ''].filter(Boolean).join(' · ');
+        const head = tag(id, r.formation);
+        if (now) return sideSquad(head, [{ name: now.on.length < 11 ? W(`場上 · ${now.on.length} 人`, `On the pitch · ${now.on.length} men`) : W('場上', 'On the pitch'), list: now.on, note: mark }, { name: W('已下場', 'Off'), list: now.off, note: mark }, { name: T('bench'), list: now.bench, note: mark }], e.league, sport);
+        return sideSquad(head, [{ name: W('先發', 'Starters'), list: r.players.filter(p => p.starter), note: mark }, { name: T('bench'), list: r.players.filter(p => !p.starter), note: mark }], e.league, sport);
+      }
+      // A game begun (basketball's box score): 先發, 替補, 未上場 and why.
+      const box = d.players.find(p => p.team === id)?.tables[0]?.rows || [];
+      if (box.length && (d.status || e.status).state !== 'pre') {
+        const out = box.filter(x => x.dnp || !x.stats?.some(v => v !== '' && v != null));
+        return sideSquad(tag(id), [
+          { name: W('先發', 'Starters'), list: box.filter(x => x.starter && !out.includes(x)), note: pos },
+          { name: T('bench'), list: box.filter(x => !x.starter && !out.includes(x)), note: pos },
+          { name: W('未上場', 'Did not play'), list: out.map(sat), out: true }
+        ], e.league, sport);
+      }
+      // A game to come: the squad (its roster), the named starters first,
+      // else by position; the hurt apart, with why.
+      const people = [...(d.courtSquads?.[id]?.roster || [])].sort((a, b) => posRank(a.pos, sport) - posRank(b.pos, sport));
+      if (!people.length) return null;
+      const hurt = new Map(hurtOf(t).map(x => [x.id || x.name, x]));
+      const why = p => hurt.get(p.id) || hurt.get(p.name);
+      const out = people.filter(p => why(p) || p.injured);
+      const named = d.lineups?.kind === 'core' && !d.lineups.pending && !d.lineups.last ? [d.lineups.away, d.lineups.home][k(t)] || [] : [];
+      const starters = people.filter(p => !out.includes(p) && named.some(x => x.id === p.id));
+      const rest = people.filter(p => !out.includes(p) && !starters.includes(p));
+      const groups = starters.length ? [{ name: W('先發', 'Starters'), list: starters, note: pos }, { name: T('bench'), list: rest, note: pos }] : byPosition([{ name: '', players: rest }], sport).map(g => ({ name: g.name, list: g.players }));
+      return sideSquad(tag(id), [...groups, { name: T('injuries'), list: out.map(p => ({ ...p, status: why(p)?.status || (en ? 'Injured' : '傷兵'), what: why(p)?.what || '', back: why(p)?.back || '' })), out: true }], e.league, sport);
+    });
+    if (cards.some(Boolean) || rostered) return el('div', { class: 'lineups' }, cards.filter(Boolean));
   }
   if (view === 'table') {
     const official = table?.length ? table : [{ name: '', rows: (d?.table || []).map(r => ({ id: r.id, name: r.team, short: r.team, logo: null, stats: r.stats })) }];
@@ -1295,7 +1266,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     matchup: e.home.guest || e.away.guest || (compareRows.length < 2 && !forms.some(f => f.length)) ? null : card(T('matchup'), compare),
     win: winCard(d, e, line, wait),
     onField: onFieldCard(d, e, nameOf),
-    lineups: lineupCard(d?.lineups, e, nameOf),
+    lineups: lineupCard(d?.lineups, d, e, nameOf),
     leaders: leadersBy.some(x => x.length)
       ? card(
           T('leaders'),
@@ -1363,40 +1334,46 @@ function seasonLeadCard(lead, e) {
   );
 }
 
-// Who starts (pregameLineups): MLB's probable pitchers and batting orders,
-// an NBA side's five, expected or announced; before then, when
-// they're said. Each side a list of its own (two columns cut the names).
-function lineupCard(l, e, nameOf) {
-  if (!l) return null;
+// 先發陣容 on 概況, before the start, one card in every sport: each side
+// under its name, its starters as 陣容's rows (number or place in the order,
+// face, name, position), and in the corner whether they're 已公布, 預計 or
+// 上場先發. MLB's probable pitcher heads his side's batting order; soccer's
+// eleven come with ESPN's line-ups (about an hour before); until a sport's
+// are said, when they will be.
+function lineupCard(l, d, e, nameOf) {
+  if ((d?.status || e.status).state !== 'pre') return null;
   const en = L() === 'en';
+  const W = (zh, eng) => (en ? eng : zh);
   const sport = LEAGUES[e.league]?.sport;
-  const who = p => (p.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, e.league, 'xs round'), el('span', {  }, [playerName(p.full || p.name, 'full', p.name)])]) : el('span', { class: 'roster-name' }, [personPic(p, e.league, 'xs round'), el('span', {  }, [playerName(p.full || p.name, 'full', p.name)])]));
-  // Each row: its number (or place in the order), the face and name from the left, the position at the right.
-  const row = (p, lead = '') => el('li', {}, [el('span', { class: 'jersey num', text: lead || '' }), who(p), el('small', { text: posZh(p.pos, sport, L()) })]);
-  const side = (team, list, lead) => el('div', {}, [el('p', { class: 'mini-h' }, [teamTag(team, nameOf(team.id), e.league)]), el('ul', { class: 'inj-list lineup-list' }, list.map((p, i) => row(p, lead(p, i))))]);
   const sides = inOrder(e, [e.away, e.home]);
-  const sideList = t => (t === e.away ? 0 : 1);
+  const k = t => (t === e.away ? 0 : 1);
+  const pos = p => (p.pos === 'SUB' ? '' : posZh(p.pos, sport, L()));
+  const side = (t, list, note = pos, extra = '') => (list.length ? [el('p', { class: 'mini-h' }, [teamTag(t, [nameOf(t.id), extra].filter(Boolean).join(' · '), e.league)]), squadList(list, e.league, sport, note)] : []);
+  const title = W('先發陣容', 'Starting lineups');
+  const pending = text => card(title, el('p', { class: 'muted small', text }));
+  const xi = sides.map(t => d?.rosters?.find(r => r.team === String(t.id) && r.players.some(p => p.starter)));
+  if (sport === 'soccer' && xi.some(Boolean))
+    return card(title, el('div', { class: 'injuries' }, sides.flatMap((t, i) => (xi[i] ? side(t, xi[i].players.filter(p => p.starter), pos, xi[i].formation) : []))), { sub: W('已公布', 'Announced') });
+  if (sport === 'soccer') return Date.parse(e.start) - Date.now() < 2 * 86_400_000 ? pending(W('開賽前約 1 小時公布。', 'Named about an hour before kick-off.')) : null;
+  if (!l) return null;
   if (l.kind === 'mlb') {
-    // Both sides, always: a side MLB hasn't named yet says so (待定, under an empty face like a player's), rather than leaving one pitcher alone.
-    const pitchers = sides.map(t => [t, [l.pitchers.away, l.pitchers.home][sideList(t)]]);
-    const orders = sides.map(t => [t, [l.order.away, l.order.home][sideList(t)]]).filter(([, o]) => o.length);
+    // Each side: its probable pitcher (待定 under an empty face while MLB
+    // hasn't named him), then its batting order once posted.
+    const posted = sides.some(t => [l.order.away, l.order.home][k(t)].length);
+    const of = t => [{ ...([l.pitchers.away, l.pitchers.home][k(t)] || { id: '', name: W('待定', 'TBD'), tbd: true }), jersey: '', probable: true }, ...[l.order.away, l.order.home][k(t)].map((p, i) => ({ ...p, jersey: String(i + 1) }))];
     return card(
-      en ? 'Starters' : '先發',
-      el('div', { class: 'injuries' }, [
-        el('div', {}, [el('p', { class: 'mini-h', text: en ? 'Probable pitchers' : '預計先發投手' }), el('ul', { class: 'inj-list lineup-list' }, pitchers.map(([t, p]) => el('li', {}, [el('span', { class: 'jersey', 'aria-hidden': 'true' }), p ? who(p) : el('span', { class: 'roster-name' }, [el('span', { class: 'logo xs round empty-face', 'aria-hidden': 'true' }), el('span', { class: 'muted', text: en ? 'TBD' : '待定' })]), el('small', {}, [teamTag(t, t.short || t.name, e.league, { tap: false })])])))]),
-        ...orders.map(([t, o]) => side(t, o, (p, i) => String(i + 1)))
-      ]),
-      { sub: orders.length ? (en ? 'Batting orders posted' : '打序已公布') : en ? 'Batting orders hours before' : '打序賽前數小時公布' }
+      title,
+      el('div', { class: 'injuries' }, sides.flatMap(t => side(t, of(t), p => (p.tbd ? '' : p.probable ? W('先發投手', 'Starting pitcher') : pos(p))))),
+      { sub: posted ? W('打序已公布', 'Batting orders posted') : W('打序賽前數小時公布', 'Batting orders hours before') }
     );
   }
-  if (l.pending)
-    return card(en ? 'Starting lineups' : '先發陣容', el('p', { class: 'muted small', text: en ? 'Named about 30 minutes before tip-off.' : '開賽前約 30 分鐘公布。' }));
+  if (l.pending) return pending(W('開賽前約 30 分鐘公布。', 'Named about 30 minutes before tip-off.'));
   return card(
-    en ? 'Starting lineups' : '先發陣容',
-    el('div', { class: 'injuries' }, sides.map(t => [t, [l.away, l.home][sideList(t)]]).filter(([, list]) => list.length).map(([t, list]) => side(t, list, p => p.jersey))),
+    title,
+    el('div', { class: 'injuries' }, sides.flatMap(t => side(t, [l.away, l.home][k(t)]))),
     // (RotoWire's: expected hours before, confirmed once each team says it.)
     // (Nothing said for this game yet: each side's five last time out, 上場先發.)
-    { sub: l.last ? (en ? 'Last game' : '上場先發') : l.projected ? (en ? 'Expected' : '預計先發') : !l.confirmed || (l.confirmed.away && l.confirmed.home) ? (en ? 'Announced' : '已公布') : en ? 'Expected' : '預計先發' }
+    { sub: l.last ? W('上場先發', 'Last game') : l.projected ? W('預計先發', 'Expected') : !l.confirmed || (l.confirmed.away && l.confirmed.home) ? W('已公布', 'Announced') : W('預計先發', 'Expected') }
   );
 }
 
@@ -4343,7 +4320,23 @@ const ROSTER_GROUP = { pitchers: '投手', catchers: '捕手', infielders: '內�
 // A squad's rows: number, face and name (a tap opens the player), and a note
 // at the right (`note`: position, age, an injury). `hurt`: 🩹 by a hurt name.
 function squadList(ps, league, sport, note, { hurt = false } = {}) {
-  return el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, league, 'xs round'), el('span', {  }, [playerName(p.full || p.name, 'full', p.name)]), hurt && p.injured ? el('span', { class: 'inj-dot', title: T('injuries'), text: '🩹' }) : null]), el('small', {}, [].concat(note(p) ?? ''))])));
+  return el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [p.tbd ? el('span', { class: 'logo xs round empty-face', 'aria-hidden': 'true' }) : personPic(p, league, 'xs round'), fitLine(el('span', { class: p.tbd ? 'muted' : null }, [playerName(p.full || p.name, 'full', p.name)])), hurt && p.injured ? el('span', { class: 'inj-dot', title: T('injuries'), text: '🩹' }) : null]), el('small', {}, [].concat(note(p) ?? ''))])));
+}
+// A position's place in a squad read by position: basketball's guards to
+// centres, soccer's keeper to forwards (each group in that order).
+const POS_ORDER = { basketball: ['PG', 'G', 'SG', 'G-F', 'SF', 'F', 'F-G', 'PF', 'F-C', 'C-F', 'C'], soccer: ['G', 'D', 'M', 'F'] };
+const posRank = (pos, sport) => {
+  const list = POS_ORDER[sport] || [];
+  const at = list.indexOf(sport === 'soccer' ? String(pos || '').slice(0, 1).toUpperCase() : pos);
+  return at < 0 ? list.length : at;
+};
+// One side's 陣容, the same card in every sport: the side's name (its
+// formation where it has one), then each group under its heading in the
+// order given (an empty one left out); players as squadList's rows, the
+// hurt and those who sat out as the injury report's (status, what, back).
+function sideSquad(head, groups, league, sport) {
+  const parts = groups.filter(g => g.list?.length).flatMap(g => [g.name ? el('p', { class: 'mini-h', text: g.name }) : null, g.out ? el('div', { class: 'inj-report' }, g.list.map(x => injuryLine(x, league, { lead: true }))) : squadList(g.list, league, sport, g.note || (() => ''))]);
+  return parts.length ? card(head, el('div', {}, parts)) : null;
 }
 function byPosition(list, sport) {
   const zh = L() !== 'en';
