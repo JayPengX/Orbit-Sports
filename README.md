@@ -33,11 +33,14 @@ couldn't be read is shown, never hidden.
   - **轉播:** when and where. The same date strip (yesterday to two weeks
     on). Today: on now with 觀看, yours in the next 7 days, the next 24 h,
     ELTA's whole guide; another day: its best game, then all it has on TV.
-  - **追蹤:** how yours are doing. Teams, players, matches, drivers.
+  - **追蹤:** how yours are doing. Teams, players, matches, drivers; 設定
+    at its foot (leagues in order, follows, commentary).
 - **Sheets** (full height):
   - **A match:** header and line score, a live panel, then sections drawn
     once in an order set by the game's moment: 概況, 數據, 球員, 過程, 先發,
-    場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊.
+    場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊. Every sport shares one
+    先發陣容 card, one 陣容 card per side (先發 or 打序, 替補, then 未上場 or
+    傷兵 in the injury report's rows) and one 傷兵 list (three, then 全部).
   - **A race weekend.**
   - **A team:** 賽程, 戰績, 陣容, 數據領先 with 隊內排行, 排名.
   - **A player:** 概況 with 聯盟排名, 數據, 近期比賽, 資料; opened from a
