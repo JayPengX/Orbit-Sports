@@ -2053,7 +2053,8 @@ function playoffView(model, league) {
   };
   const note = (t, r) => {
     if (!t) return roundDates(r) ? `${en ? 'Expected' : '預計'} ${roundDates(r)}` : en ? 'To be decided' : '待定';
-    if (t.projected) return [t.labels?.find(Boolean) && t.sides.every(Boolean) ? t.labels.filter(Boolean).join(' v ') : '', en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
+    // (The 8th seed game sits in the play-in's column: named on its card; English's words too long for 預測 beside them.)
+    if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', t.labels?.find(Boolean) && t.sides.every(Boolean) ? t.labels.filter(Boolean).join(' v ') : '', en && t.roundTitle ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
     if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}`;
     if (t.live) return en ? 'On now' : '進行中';
@@ -2079,8 +2080,8 @@ function playoffView(model, league) {
     const said = note(t, r);
     const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}`, text: said }) : null];
     return t && !t.projected && !t.pending
-      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openTie({ ...t, games: t.games.map(freshGame) }, league, en ? r.title.en : r.title.zh) }, body)
-      : el('div', { class: `br-tie ${t?.pending ? 'pending' : t ? 'projected' : 'tbd'}` }, body);
+      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openTie({ ...t, games: t.games.map(freshGame) }, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh) }, body)
+      : el('div', { class: `br-tie ${t?.pending ? 'pending' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
   };
   const entry = brackets.get(league);
   const fade = entry && !entry.shown;
@@ -2094,36 +2095,19 @@ function playoffView(model, league) {
     model.rounds.map(r => el('section', { class: `br-col ${r.state}` }, [el('div', { class: 'br-head' }, [el('strong', { text: en ? r.title.en : r.title.zh }), el('small', { text: [lenOf(r), stateText(r)].filter(Boolean).join(' · ') })]), el('div', { class: 'br-ties' }, r.ties.map(t => tie(t, r)))]))
   );
   if (!stacked) linkTies(map, model);
-  // The NBA's play-in on its own above the bracket: each conference's three
-  // games as a small bracket, 7 v 8 and 9 v 10 on the left, the 8th seed
-  // game (7/8's loser v 9/10's winner) between them on the right.
-  const pi = model.playIn;
-  const playIn = pi
-    ? el('section', { class: 'br-playin' }, [
-        el('div', { class: 'br-head' }, [el('strong', { text: en ? pi.title.en : pi.title.zh }), el('small', { text: stateText(pi) })]),
-        ...pi.groups.map(g =>
-          el('div', { class: 'pi-conf' }, [
-            el('p', { class: 'pi-label', text: en ? (g.half === '東區' ? 'East' : 'West') : g.half }),
-            el('div', { class: 'pi-grid' }, [
-              el('div', { class: 'pi-first' }, [tie(g.seven, pi), tie(g.ten, pi)]),
-              el('div', { class: 'pi-arrow', 'aria-hidden': 'true' }),
-              el('div', { class: 'pi-second' }, [tie(g.eighth, { ...pi, title: { zh: '第八種子戰', en: '8th Seed Game' } })])
-            ])
-          ])
-        )
-      ])
-    : null;
   // Opened on the round that's on (or next), not always the first.
   const at = stacked ? 0 : openRound(model) - 1;
   // (By the rounds themselves: the lines' drawing sits first in the map.)
   if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.querySelectorAll(':scope > .br-col')[at]?.offsetLeft - map.offsetLeft - 16));
-  return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, playIn, map]);
+  return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, map]);
 }
 // The lines from each tie to the one it feeds (a bracket's elbows), drawn
 // once the columns are laid out and again when they change size. A tie goes
-// to the next one holding its winner (7 v 8's past the 8th seed game, to the
-// first round), else where its seeds' winner waits ("4/5 勝者"), else the
-// one beside it; a decided tie's line drawn stronger, to follow a side's way.
+// where the model says (`feeds`: the NBA's play-in, 7 v 8's loser and 9 v
+// 10's winner to the 8th seed game beside them, joined on the column's
+// left), else to the next one holding its winner, else where its seeds'
+// winner waits ("4/5 勝者"), else the one beside it; a decided tie's line
+// drawn stronger, to follow a side's way, a loser's way dashed.
 function linkTies(map, model) {
   const NS = 'http://www.w3.org/2000/svg';
   const ids = t => (t ? [...(t.sides || []), ...(t.options || []).flat()].filter(Boolean).map(x => String(x.id)) : []);
@@ -2162,16 +2146,21 @@ function linkTies(map, model) {
     R.forEach((r, i) =>
       r.ties.forEach((t, j) => {
         if (!t || t.gap || !nodes[i]?.[j]) return;
-        const to = target(i, j);
-        const end = to && nodes[to[0]]?.[to[1]];
-        if (!end) return;
-        const [a, b] = [at(nodes[i][j]), at(end)];
-        // The turn halfway across the gap before the tie fed, so a line passing a column runs straight.
-        const turn = b.l - (parseFloat(getComputedStyle(map).columnGap) || 18) / 2;
-        const path = document.createElementNS(NS, 'path');
-        path.setAttribute('d', `M${a.r} ${a.y}H${turn}V${b.y}H${b.l}`);
-        if (t.winner) path.setAttribute('class', 'won');
-        svg.append(path);
+        for (const f of t.feeds || [{ to: target(i, j) }]) {
+          const end = f.to && nodes[f.to[0]]?.[f.to[1]];
+          if (!end) continue;
+          const [a, b] = [at(nodes[i][j]), at(end)];
+          const path = document.createElementNS(NS, 'path');
+          // In its own column: round the left edge, into the tie's side.
+          if (f.to[0] === i) path.setAttribute('d', `M${a.l} ${a.y}H${a.l - 8}V${b.y}H${b.l}`);
+          else {
+            // The turn halfway across the gap before the tie fed, so a line passing a column runs straight.
+            const turn = b.l - (parseFloat(getComputedStyle(map).columnGap) || 18) / 2;
+            path.setAttribute('d', `M${a.r} ${a.y}H${turn}V${b.y}H${b.l}`);
+          }
+          path.setAttribute('class', [t.winner ? 'won' : '', f.lose ? 'lose' : ''].filter(Boolean).join(' '));
+          svg.append(path);
+        }
       })
     );
     map.prepend(svg);

@@ -16,17 +16,18 @@ const CUP = [R('knockout-round-playoffs', '淘汰附加賽', 'Knockout playoffs'
 export const FORMATS = {
   mlb: {
     rounds: [R('RD16', '外卡賽', 'Wild Card', 4), R('QTR', '分區系列賽', 'Division Series', 4), R('SEMI', '聯盟冠軍賽', 'LCS', 2), R('FINAL', '世界大賽', 'World Series', 1)],
-    // Each league: seeds 3 v 6 and 4 v 5; 1 and 2 wait in the Division Series.
-    project: g => leagues2(g).reduce((o, rows) => ({ RD16: [...(o.RD16 || []), pair(rows, 3, 6), pair(rows, 4, 5)], QTR: [...(o.QTR || []), waits(rows, 1, '4/5'), waits(rows, 2, '3/6')] }), {})
+    // Each league: seeds 4 v 5 and 3 v 6; 1 and 2 wait in the Division Series (4/5's beside 1).
+    project: g => leagues2(g).reduce((o, rows) => ({ RD16: [...(o.RD16 || []), pair(rows, 4, 5), pair(rows, 3, 6)], QTR: [...(o.QTR || []), waits(rows, 1, '4/5'), waits(rows, 2, '3/6')] }), {})
   },
   nba: {
     rounds: [R('PLAYIN', '附加賽', 'Play-In', 4), R('PLAYIN2', '第八種子戰', '8th Seed Game', 2), R('RD16', '首輪', 'First Round', 8), R('QTR', '分區準決賽', 'Conf. Semifinals', 4), R('SEMI', '分區冠軍賽', 'Conf. Finals', 2), R('FINAL', '總冠軍賽', 'NBA Finals', 1)],
     // Each conference: the play-in (7 v 8, 9 v 10, then 7/8's loser v 9/10's
-    // winner), then 1 v 8, 4 v 5, 3 v 6, 2 v 7 (7 and 8 through the play-in).
+    // winner), then 1 v 8, 4 v 5, 3 v 6, 2 v 7: the 7 and 8 places the
+    // play-in's winners' (its games beside them: mergePlayIn).
     project: g => ({
       PLAYIN: leagues2(g).flatMap(rows => [pair(rows, 7, 8), pair(rows, 9, 10)]),
       PLAYIN2: leagues2(g).map(() => ({ projected: true, sides: [null, null], seeds: [0, 0], labels: ['7/8 敗者', '9/10 勝者'] })),
-      RD16: leagues2(g).flatMap(rows => [pair(rows, 1, 8, ['', '附加賽']), pair(rows, 4, 5), pair(rows, 3, 6), pair(rows, 2, 7, ['', '附加賽'])])
+      RD16: leagues2(g).flatMap(rows => [{ ...waits(rows, 1, ''), seeds: [1, 8], labels: ['', '附加賽'] }, pair(rows, 4, 5), pair(rows, 3, 6), { ...waits(rows, 2, '7/8'), seeds: [2, 7] }])
     })
   },
   mls: {
@@ -132,52 +133,126 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
     for (const r of rounds) if (p[r.key]?.length && r.ties.every(t => !t)) r.ties = p[r.key];
   }
   if (mode !== 'projected') fmt?.fill?.(rounds, groups, seeds);
+  mergePlayIn(rounds);
+  alignFeeders(rounds);
   // Each round's dates: its games' (games not drawn yet count too), else the calendar's stage.
   for (const r of rounds) {
-    const games = events.filter(e => e.round?.key === r.key);
+    const games = events.filter(e => (r.keys || [r.key]).includes(e.round?.key));
     const stage = stages.find(s => stageKey(s.label) === r.key);
     const times = games.map(e => Date.parse(e.start)).filter(Number.isFinite);
     r.dates = times.length ? { from: Math.min(...times), to: Math.max(...times) } : stage?.start ? { from: Date.parse(stage.start), to: Date.parse(stage.end) - 1 } : null;
     if (!r.dates && r === rounds[0] && startsAfter) r.dates = { from: startsAfter + 3 * 86_400_000, to: startsAfter + 3 * 86_400_000, about: true };
-    const real = r.ties.filter(t => t && !t.projected);
+    const real = r.ties.filter(t => t && !t.projected && !t.gap);
     const live = real.some(t => t.live) || games.some(e => e.status?.state === 'in' && !undecided(e.home) && !undecided(e.away));
-    const done = real.length === r.ties.length && real.length > 0 && real.every(t => t.winner);
+    const done = real.length === r.ties.filter(t => !t?.gap).length && real.length > 0 && real.every(t => t.winner);
     r.state = live ? 'live' : done ? 'done' : real.length || (r.dates && r.dates.from <= now) ? 'on' : 'later';
   }
-  const playIn = splitPlayIn(rounds);
-  return { mode, season, rounds, ...(playIn ? { playIn } : {}) };
+  return { mode, season, rounds };
 }
 
-// The NBA's play-in, each conference's three games apart (Jay, 2026-10-21:
-// drawn beside the first round's rows it read as gaps and a stray card):
-// [{ half: '東區' | '西區', seven, ten, eighth }], 7 v 8, 9 v 10, and the
-// 8th seed game (7/8's loser v 9/10's winner). The play-in's rounds leave
-// the bracket, which starts at the first round.
-export function splitPlayIn(rounds) {
+// The NBA's play-in in the bracket itself (Jay, 2026-10-23: two graphs
+// read as two things, when one leads to the other), one column before the
+// first round, each game beside where its winner goes. Each conference's
+// first round put 4 v 5, 1 v 8, 2 v 7, 3 v 6 (1 v 8 and 2 v 7 side by
+// side, their pairs as they were), the play-in beside them: 9 v 10, the
+// 8th seed game (by the 1 v 8 it feeds), 7 v 8 (by the 2 v 7), an empty
+// row. 7 v 8's loser and 9 v 10's winner go to the 8th seed game in the
+// same column (`feeds`: [{ to: [round, tie], lose? }], drawn by app.js).
+// (Drawn as two columns, 2026-10-21, it was mostly empty rows; apart, it
+// stood on its own.)
+export function mergePlayIn(rounds) {
   const [a, b, first] = ['PLAYIN', 'PLAYIN2', 'RD16'].map(k => rounds.find(r => r.key === k));
-  if (!a || !b) return null;
+  if (!a || !b || !first) return;
   const halves = ['東區', '西區'];
-  // A conference: its tie's own half, else the first round's order (the table's, East first), else its place in the list.
-  const per = (first?.ties.length || 8) / 2;
-  const ids = t => (t?.sides || []).filter(Boolean).map(s => String(s.id));
+  const ids = t => (t && !t.gap ? [...(t.sides || []), ...(t.options || []).flat()].filter(Boolean).map(s => String(s.id)) : []);
+  const per = Math.max(1, Math.floor(first.ties.length / 2));
+  // A conference: its tie's own half, else the first round's (the table's order, East first), else its place in the list.
   const blockOf = (t, i, each) => {
     if (t?.half) return Math.max(0, halves.indexOf(t.half));
-    const j = first ? first.ties.findIndex(x => x && ids(x).some(id => ids(t).includes(id))) : -1;
+    const j = first.ties.findIndex(x => ids(x).some(id => ids(t).includes(id)));
     return j >= 0 ? Math.floor(j / per) : Math.floor(i / each);
   };
   const nine = t => /9th|9\/10/i.test(t?.games?.[0]?.note || '') || t?.seeds?.[0] === 9;
   const groups = [0, 1].map(c => {
     const pa = a.ties.filter((t, i) => t && !t.gap && blockOf(t, i, Math.max(1, a.ties.length / 2)) === c);
     return {
-      half: halves[c],
       seven: pa.find(t => !nine(t)) ?? null,
       ten: pa.find(t => nine(t)) ?? null,
       eighth: b.ties.find((t, i) => t && !t.gap && blockOf(t, i, Math.max(1, b.ties.length / 2)) === c) ?? null
     };
   });
-  const rest = rounds.filter(r => r !== a && r !== b);
-  rounds.splice(0, rounds.length, ...rest);
-  return { title: a.title, state: a.state, dates: a.dates, groups };
+  const ties = [];
+  const links = [];
+  groups.forEach((g, c) => {
+    const block = first.ties.slice(c * per, (c + 1) * per);
+    // The first round's tie a play-in game feeds: one holding its sides
+    // (its winner, or both still playing for the place), else its seed's
+    // place (a prediction), else the one with a side to come.
+    const fedBy = (t, seed, not = -1) => {
+      const won = t?.winner;
+      let j = won ? block.findIndex(x => ids(x).includes(won)) : -1;
+      if (j < 0 && t) j = block.findIndex((x, k) => k !== not && x?.options?.some(o => o && ids(t).some(id => ids({ sides: o }).includes(id))));
+      if (j < 0) j = block.findIndex((x, k) => k !== not && x?.seeds?.[1] === seed);
+      if (j < 0) j = block.findIndex((x, k) => k !== not && x && x.sides?.some(s => !s));
+      return j;
+    };
+    let f7 = fedBy(g.seven, 7);
+    let f8 = fedBy(g.eighth, 8, f7);
+    if (f8 < 0 || f8 === f7) f8 = f7 === 0 ? per - 1 : 0;
+    if (f7 < 0 || f7 === f8) f7 = f8 === 0 ? per - 1 : 0;
+    const pairOf = j => Math.floor(j / 2);
+    const order = [...block.keys()];
+    if (per === 4 && pairOf(f7) !== pairOf(f8)) {
+      // Each pair's play-in-fed tie on its inner row, next to the other pair's.
+      for (const j of [f7, f8]) {
+        const p = pairOf(j) * 2;
+        if (j % 2 !== (p === 0 ? 1 : 0)) [order[p], order[p + 1]] = [order[p + 1], order[p]];
+      }
+      [f7, f8] = [order.indexOf(f7), order.indexOf(f8)];
+    }
+    const placed = order.map(j => block[j]);
+    first.ties.splice(c * per, per, ...placed);
+    // The play-in's column: 9 v 10 on the far side of the 8th seed game from 7 v 8.
+    const col = Array.from({ length: per }, () => ({ gap: true }));
+    const up = f8 < f7;
+    const ten = up ? f8 - 1 : f8 + 1;
+    const seat = (t, j, fallback) => (j >= 0 && j < per ? (col[j] = t || fallback) : null);
+    seat(g.eighth, f8, { projected: true, sides: [null, null], seeds: [0, 0], labels: ['7/8 敗者', '9/10 勝者'] });
+    seat(g.seven, f7, null);
+    seat(g.ten, ten >= 0 && ten < per && ten !== f7 ? ten : -1, null);
+    // (Each place an object of its own to hang its lines on: a game not drawn yet an empty card.)
+    for (let j = 0; j < per; j++) if (col[j] === null) col[j] = { pending: true, kind: 'pending', sides: [null, null], options: [null, null], score: {}, winner: null, live: false, next: null, games: [] };
+    const base = c * per;
+    if (col[f8] && !col[f8].gap) col[f8].roundTitle = { zh: '第八種子戰', en: '8th Seed Game' };
+    links.push([col[f7], [{ to: [1, base + f7] }, { to: [0, base + f8], lose: true }]], [col[f8], [{ to: [1, base + f8] }]]);
+    if (ten >= 0 && ten < per && ten !== f7) links.push([col[ten], [{ to: [0, base + f8] }]]);
+    ties.push(...col);
+  });
+  // The column's lines, once it's in place (its round first).
+  for (const [t, feeds] of links) if (t && !t.gap) t.feeds = feeds;
+  const merged = { key: 'PLAYIN', keys: ['PLAYIN', 'PLAYIN2'], title: a.title, ties };
+  rounds.splice(0, rounds.length, merged, ...rounds.filter(r => r !== a && r !== b));
+}
+// A round of fewer ties than the next (MLS's wild card, 8 v 9 for the 1
+// seed's place): each tie beside the one it feeds, the rows between empty,
+// so its line runs straight across.
+function alignFeeders(rounds) {
+  const ids = t => (t && !t.gap ? [...(t.sides || []), ...(t.options || []).flat()].filter(Boolean).map(s => String(s.id)) : []);
+  for (let i = 0; i + 1 < rounds.length; i++) {
+    const [r, next] = [rounds[i], rounds[i + 1]];
+    if (r.keys || r.ties.length >= next.ties.length || r.ties.some(t => !t)) continue;
+    // (Each conference's "8/9 勝者" the same words: the first not taken, in order.)
+    const at = [];
+    for (const t of r.ties) {
+      const key = t.seeds?.every(Boolean) ? `${t.seeds.join('/')} 勝者` : '';
+      const j = next.ties.findIndex((x, k) => !at.includes(k) && ids(x).some(id => ids(t).includes(id)));
+      at.push(j >= 0 ? j : key ? next.ties.findIndex((x, k) => !at.includes(k) && x?.labels?.includes(key)) : -1);
+    }
+    if (at.some(j => j < 0) || new Set(at).size < at.length) continue;
+    const col = next.ties.map(() => ({ gap: true }));
+    r.ties.forEach((t, k) => (col[at[k]] = t));
+    r.ties = col;
+  }
 }
 // The round to open on: the one on now, else the next unfinished, else the last.
 export const openRound = model => model.rounds.findIndex(r => r.state === 'live') + 1 || model.rounds.findIndex(r => r.state !== 'done') + 1 || model.rounds.length;
