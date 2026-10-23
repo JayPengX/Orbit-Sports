@@ -1456,8 +1456,8 @@ button.lp-person.tap:active { opacity: 0.6; }
 .h2h-bar { display: flex; gap: 3px; height: 6px; }
 .h2h-bar i { display: block; flex-basis: 0; min-width: 6px; border-radius: 3px; }
 .h2h-bar i.away { background: var(--away); }
-.h2h-bar i.draw { background: var(--q-border); }
-.h2h-bar i.home { background: var(--accent); }
+.h2h-bar i.draw { background: color-mix(in srgb, var(--q-muted) 60%, transparent); }
+.h2h-bar i.home { background: var(--home); }
 /* (The race keeps room for five characters; the cars give way first.) */
 .race-weeks { display: grid; grid-template-columns: 18px minmax(96px, 1fr) repeat(var(--cols), minmax(38px, 56px)) 32px; column-gap: 6px; margin: 0 -2px; }
 .rw-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; min-height: 48px; padding: 6px 2px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }

@@ -122,8 +122,8 @@ export const hasHue = c => {
   const [, sat, l] = toHsl(rgb(c));
   return sat >= 0.25 && l > 0.08 && l < 0.92;
 };
-// A side's spare colours, far from each other and from a draw's grey: a blue, a teal, a purple, an amber, a red.
-const SPARE = ['#2f6fdf', '#0f9d8a', '#8b5cf6', '#e08a00', '#d9443a'];
+// A side's spare colours, far from each other and from a draw's grey: a blue, a red, a teal, an amber, a purple.
+const SPARE = ['#2f6fdf', '#d9443a', '#0f9d8a', '#e08a00', '#8b5cf6'];
 export function sideColors(home, away, bg = '#ffffff') {
   // A colour readable as it is first (Newcastle's light blue before its black lightened), then made readable.
   const ok = c => rgb(c) && contrast(rgb(c), rgb(bg) || [255, 255, 255]) >= READABLE;
@@ -149,8 +149,17 @@ export function sideColors(home, away, bg = '#ffffff') {
     return s1 >= 0.35 && s2 >= 0.35 ? Math.min(d, 360 - d) : 0;
   };
   const far = (x, y) => apart(rgb(x), rgb(y)) >= 90 || hueGap(x, y) >= 40;
-  for (const h of hs) for (const a of as) if (far(h, a)) return { home: h, away: a };
-  const spare = other => SPARE.map(c => readableOn(c, bg)).find(c => c && (!other || far(c, other)));
+  // The home side keeps its own colour; the other its own, else its second, else a spare
+  // (Brighton's blue and Palace's: Palace a spare red, never Brighton a teal from ESPN's second colour).
+  // (Beside another colour, the first a good way round the wheel from it: a red's a blue, a blue's a red.)
+  const spare = other => {
+    const ready = SPARE.map(c => readableOn(c, bg)).filter(Boolean);
+    return other ? ready.find(c => hueGap(c, other) >= 90) || ready.find(c => far(c, other)) : ready[0];
+  };
+  if (hs[0] && as.length) {
+    const a = as.find(c => far(hs[0], c));
+    return { home: hs[0], away: a || spare(hs[0]) };
+  }
   if (hs[0]) return { home: hs[0], away: spare(hs[0]) };
   if (as[0]) return { home: spare(as[0]), away: as[0] };
   const first = spare(null);
