@@ -435,56 +435,60 @@ function track(keys = [], weight = 1) {
 // The leagues the person follows, in their order.
 const followedLeagues = () => [...state.prefs.leagues];
 
-// 我的設定: everything the person picks, in one sheet: the sports in order,
-// their leagues, who they follow and the commentary they like.
+// 我的設定: everything the person picks, in one sheet, in the app's rows
+// (熱門球隊's): their leagues in order, the others to add by sport, who they
+// follow, the commentary they like.
+const rowTile = mark => el('span', { class: 'suggest-tile' }, [mark]);
+const rowText = (title, sub = '') => el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: title }), sub ? el('small', { text: sub }) : null]);
+// A row's small round control (↑, ↓, ✕).
+const ARROW = { up: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>', down: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10l6 6 6-6"/></svg>' };
+const rowCtl = (glyph, label, onclick, disabled = false) => el('button', { class: `row-ctl q-press${glyph === 'x' ? ' off' : ''}`, type: 'button', 'aria-label': label, disabled: disabled ? true : null, html: ARROW[glyph] || icon(glyph), onclick });
 function openFollowEditor() {
   const s = sheet(L({ zh: '我的設定', en: 'My settings' }));
-  const pickChip = (on, text, onclick) => el('button', { class: `q-chip${on ? ' on' : ''}`, type: 'button', 'aria-pressed': String(on), text, onclick });
   const paint = () => {
     const p = state.prefs;
+    const sportOf = k => L(SPORTS[LEAGUES[k]?.sport] || { zh: '', en: '' });
+    const toAdd = shownSports()
+      .map(sp => [sp, shownLeaguesOf(sp).filter(k => !p.leagues.includes(k))])
+      .filter(([, ks]) => ks.length);
     put(
       s.body,
-      el('h3', { class: 'section-h', text: t('yourLeagues') }),
-      el('p', { class: 'section-sub', text: L({ zh: '排在前面的聯賽先出現。', en: 'The first ones show first.' }) }),
-      p.leagues.length
-        ? el(
-            'ol',
-            { class: 'order-list' },
-            p.leagues.map((k, i) =>
-              el('li', {}, [
-                el('span', { class: 'order-n num', text: String(i + 1) }),
-                leagueMark(k, 'lg-mark sm'),
-                el('span', { class: 'order-name', text: leagueName(k, locale) }),
-                el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveUp'), disabled: i === 0 ? true : null, text: '↑', onclick: () => (moveLeague(k, -1), paint()) }),
-                el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveDown'), disabled: i === p.leagues.length - 1 ? true : null, text: '↓', onclick: () => (moveLeague(k, 1), paint()) }),
-                el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleLeague(k), paint()) })
-              ])
-            )
-          )
-        : el('p', { class: 'muted small', text: t('noLeaguesYet') }),
-      ...shownSports()
-        .map(sp => [sp, shownLeaguesOf(sp).filter(k => !p.leagues.includes(k))])
-        .filter(([, ks]) => ks.length)
-        .map(([sp, ks]) => el('div', { class: 'league-pick' }, [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'q-chips wrap' }, ks.map(k => pickChip(false, `+ ${leagueName(k, locale)}`, () => (toggleLeague(k), paint()))))])),
-      el('h3', { class: 'section-h', text: L({ zh: '追蹤的球隊與選手', en: 'Teams and players you follow' }) }),
-      p.follows.length
-        ? el('ul', { class: 'order-list' }, p.follows.map((f, i) => el('li', {}, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm'), el('span', { class: 'order-name', text: `${shownName(f)} · ${leagueName(f.league, locale)}` }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('moveUp'), disabled: i === 0 ? true : null, text: '↑', onclick: () => (moveFollow(i, -1), paint()) }), el('button', { class: 'icon-btn', type: 'button', 'aria-label': t('unfollow'), text: '✕', onclick: () => (toggleFollow(f.league, f), paint()) })])))
-        : el('p', { class: 'muted small', text: t('teamsHint') }),
-      el('h3', { class: 'section-h', text: t('tvAudio') }),
-      segmented(
-        [
-          ['en', t('tvAudioEn')],
-          ['zh', t('tvAudioZh')]
-        ],
-        state.prefs.audio || 'en',
-        v => {
-          state.prefs.audio = v;
-          savePrefs();
-          if (state.tab === 'home') renderHome();
-          paint();
-        }
+      section(
+        t('yourLeagues'),
+        p.leagues.length
+          ? el('div', { class: 'q-rowcard set-rows' }, p.leagues.map((k, i) => el('div', { class: 'q-ritem set-row' }, [rowTile(leagueMark(k, 'set-mark')), rowText(leagueName(k, locale).replace(/\s.*$/, ''), sportOf(k)), rowCtl('up', t('moveUp'), () => (moveLeague(k, -1), paint()), i === 0), rowCtl('down', t('moveDown'), () => (moveLeague(k, 1), paint()), i === p.leagues.length - 1), rowCtl('x', t('unfollow'), () => (toggleLeague(k), paint()))])))
+          : el('p', { class: 'muted small set-empty', text: t('noLeaguesYet') }),
+        { sub: p.leagues.length > 1 ? L({ zh: '排在前面的先出現', en: 'The first ones show first' }) : '' }
       ),
-      el('p', { class: 'section-sub', text: t('tvAudioHint') })
+      toAdd.length
+        ? section(
+            L({ zh: '加入聯賽', en: 'Add a league' }),
+            el('div', { class: 'set-add' }, toAdd.map(([sp, ks]) => el('div', {}, [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'q-rowcard' }, ks.map(k => el('button', { class: 'q-ritem suggest', type: 'button', onclick: () => (toggleLeague(k), paint()) }, [rowTile(leagueMark(k, 'set-mark')), rowText(leagueName(k, locale)), el('b', { class: 'suggest-add', text: '+' })])))])))
+          )
+        : null,
+      section(
+        L({ zh: '追蹤的球隊與選手', en: 'Teams and players you follow' }),
+        p.follows.length
+          ? el('div', { class: 'q-rowcard set-rows' }, p.follows.map((f, i) => el('div', { class: 'q-ritem set-row' }, [rowTile(f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm')), rowText(shownName(f), leagueName(f.league, locale)), rowCtl('up', t('moveUp'), () => (moveFollow(i, -1), paint()), i === 0), rowCtl('x', t('unfollow'), () => (toggleFollow(f.league, f), paint()))])))
+          : el('p', { class: 'muted small set-empty', text: t('teamsHint') })
+      ),
+      section(
+        t('tvAudio'),
+        segmented(
+          [
+            ['en', t('tvAudioEn')],
+            ['zh', t('tvAudioZh')]
+          ],
+          state.prefs.audio || 'en',
+          v => {
+            state.prefs.audio = v;
+            savePrefs();
+            if (state.tab === 'home') renderHome();
+            paint();
+          }
+        ),
+        { sub: t('tvAudioHint') }
+      )
     );
   };
   paint();
@@ -1755,16 +1759,16 @@ function renderLive() {
   const liveSorted = mineFirst(live);
   const heroEvent = liveSorted[0] || nextUp || null;
   const hero = heroEvent ? heroGame(heroEvent, { mine: isFollowedEvent(heroEvent), picked: pickedToday().has(`${heroEvent.league}:${heroEvent.id}`), eyebrow: live.length ? '' : L({ zh: `下一場 · ${waitText}`, en: `Next · ${waitText}` }), onOpen: openEvent }) : null;
-  const guide = guideItems().some(p => p.end > now) ? moreButton(L({ zh: '節目表', en: 'TV guide' }), () => openGuide(all)) : null;
+  const guide = guideItems().some(p => p.end > now) ? guideLink(all) : null;
   put(
     box,
     liveBar(),
     hero,
-    !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) }), guide])) : null,
+    !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })])) : null,
+    guide,
     liveSorted.length > 1 ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, liveSorted.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
     mineBlock,
-    later.length ? section(soonShort.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e))), { action: guide }) : null,
-    !later.length && hero && guide ? el('div', { class: 'q-rowcard guide-link' }, [el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => openGuide(all) }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '愛爾達節目表', en: 'ELTA TV guide' }) })])])]) : null
+    later.length ? section(soonShort.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null
   );
 }
 // Another day on 轉播: everything on TV here that day by the clock (the
@@ -1795,13 +1799,14 @@ function renderLiveDay(d) {
   const hero = top ? heroGame(top, { mine: isFollowedEvent(top), eyebrow: top.status.state === 'pre' ? dayLabel(d, { long: true }) : '', onOpen: openEvent }) : null;
   const rest = list.filter(e => e !== top);
   const gap = dayUnknown([slot], tvUnread());
-  const guide = !past && guideItems().some(p => p.end > now) ? moreButton(L({ zh: '節目表', en: 'TV guide' }), () => openGuide(list)) : null;
+  const guide = !past && guideItems().some(p => p.end > now && localDate(p.start) === d) ? guideLink(list, d) : null;
   put(
     box,
     liveBar(),
     hero,
-    !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null, guide]) : null,
-    rest.length ? section(L({ zh: '當天轉播', en: 'On TV that day' }), el('div', { class: 'q-card list' }, rest.map(e => eventRow(e, { day: false }))), { action: guide || el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null
+    !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null,
+    guide,
+    rest.length ? section(L({ zh: '當天轉播', en: 'On TV that day' }), el('div', { class: 'q-card list' }, rest.map(e => eventRow(e, { day: false }))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null
   );
 }
 // ---- 愛爾達's guide -------------------------------------------------------------------------
@@ -1845,19 +1850,30 @@ function guideRow(p, events, now) {
     on && p.channels[0] ? watchLink(eltaChannel(p.channels[0].ch), { class: 'tvg-watch', text: L({ zh: '觀看', en: 'Watch' }) }) : null
   ]);
 }
-// The whole guide, a day at a time.
-function openGuide(events) {
-  const s = sheet(L({ zh: '愛爾達轉播表', en: 'ELTA TV guide' }));
+// 轉播's way into the guide: a row of its own under the hero (the owner,
+// 2026-10-23: a small 節目表 link at a section's edge went unseen).
+const guideLink = (events, day = null) =>
+  el('div', { class: 'q-rowcard guide-link' }, [
+    el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => openGuide(events, day) }, [
+      el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }),
+      el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '愛爾達節目表', en: 'ELTA TV guide' }) }), el('small', { text: L({ zh: '每個頻道、每一天的轉播', en: 'Every channel, every day' }) })])
+    ])
+  ]);
+// The whole guide, a day at a time: the kit's day strip (every app's), the
+// day's showings in one card.
+function openGuide(events, from = null) {
+  const s = sheet(L({ zh: '愛爾達節目表', en: 'ELTA TV guide' }));
   const items = guideItems();
   const days = [...new Set(items.map(p => localDate(p.start)))].filter(d => d >= today());
-  let day = days[0];
+  let day = days.includes(from) ? from : days[0];
+  const strip = {};
   const paint = () => {
     const now = Date.now();
     const list = items.filter(p => localDate(p.start) === day && (day !== today() || p.end > now));
     put(
       s.body,
-      el('div', { class: 'q-chips tvg-days' }, days.map(d => el('button', { class: `q-chip${d === day ? ' on' : ''}`, type: 'button', 'aria-pressed': String(d === day), text: dayLabel(d), onclick: () => ((day = d), paint()) }))),
-      list.length ? el('div', { class: 'q-card list tv-guide' }, list.map(p => guideRow(p, events, now))) : el('p', { class: 'muted small', text: L({ zh: '這天沒有節目。', en: 'Nothing that day.' }) }),
+      kitUI.dayBar(strip, { flat: true, days, current: day, today: today(), bounds: { from: days[0], to: days.at(-1) }, clamp: v => days.find(d => d >= v) ?? days.at(-1), onPick: d => ((day = d), paint()) }),
+      list.length ? el('div', { class: 'q-card list tv-guide' }, list.map(p => guideRow(p, events, now))) : empty(L({ zh: '這天沒有節目。', en: 'Nothing that day.' })),
       el('p', { class: 'section-sub', text: L({ zh: '需訂閱 ELTA.tv', en: 'Needs ELTA.tv' }) })
     );
   };
@@ -2836,8 +2852,18 @@ function renderFollowing() {
       )
     : null;
   const manage = headAction(L({ zh: '管理', en: 'Manage' }), 'list', openFollowEditor);
+  // 我的設定 where it's seen (the owner, 2026-10-23: only a head button
+  // before): its rows at the foot of the tab, each saying what's set now.
+  const names = p.leagues.slice(0, 3).map(k => leagueName(k, locale)).join('、') + (p.leagues.length > 3 ? L({ zh: ` 等 ${p.leagues.length} 個`, en: ` and ${p.leagues.length - 3} more` }) : '');
+  const settings = section(
+    L({ zh: '設定', en: 'Settings' }),
+    el('div', { class: 'q-rowcard' }, [
+      el('button', { class: 'q-ritem chevron', type: 'button', onclick: openFollowEditor }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('list') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '聯賽與追蹤', en: 'Leagues and follows' }) }), el('small', { text: names || t('noLeaguesYet') })])]),
+      el('button', { class: 'q-ritem chevron', type: 'button', onclick: openFollowEditor }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: t('tvAudio') })]), el('span', { class: 'q-ritem-value', text: (p.audio || 'en') === 'en' ? t('tvAudioEn') : t('tvAudioZh') })])
+    ])
+  );
   if (!teams.length && !people.length) {
-    put(box, pageHead(t('tab_following'), manage), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'q-rowcard' }, SUGGEST.map(suggestCard))));
+    put(box, pageHead(t('tab_following'), manage), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'q-rowcard' }, SUGGEST.map(suggestCard))), settings);
     return;
   }
   put(
@@ -2845,7 +2871,8 @@ function renderFollowing() {
     pageHead(t('tab_following'), manage),
     gamesBlock,
     teams.length ? section(L({ zh: '球隊', en: 'Teams' }), el('div', { class: 'team-cards' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamCard(f))))) : null,
-    people.length ? section(L({ zh: '選手', en: 'Players' }), el('div', { class: 'team-cards' }, people.map(personRow))) : null
+    people.length ? section(L({ zh: '選手', en: 'Players' }), el('div', { class: 'team-cards' }, people.map(personRow))) : null,
+    settings
   );
 }
 // A popular team, followed with a tap.
