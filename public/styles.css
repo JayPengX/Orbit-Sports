@@ -1228,6 +1228,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 /* (--q-border is clear on cards now: the lines in the muted text colour, faint.) */
 .br-links path { fill: none; stroke: color-mix(in srgb, var(--q-muted) 55%, transparent); stroke-width: 1.5; stroke-linejoin: round; }
 .br-links path.won { stroke: color-mix(in srgb, var(--q-text) 38%, transparent); stroke-width: 2; }
+.br-links path.head { fill: color-mix(in srgb, var(--q-muted) 55%, transparent); stroke: none; }
+.br-maybe .br-word { margin-left: 3px; color: var(--q-muted); font-weight: 600; }
 /* The 8th seed game before it's drawn: its two places' words the card's width (no seed, no empty logo). */
 .br-tie.eighth .br-side.tbd .br-seed, .br-tie.eighth .br-side.tbd .br-tbd-logo { display: none; }
 .br-tie.eighth .br-side.tbd .br-name { grid-column: 1 / -1; }

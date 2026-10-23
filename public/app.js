@@ -2110,6 +2110,12 @@ function playoffView(model, league) {
     const score = !t.projected && s ? t.score?.[id] : undefined;
     // A place still being played for: both sides that could take it.
     const maybe = !s && t.options?.[i];
+    // The 8th seed game's places: both logos and what they're playing for ("🚀/🦅 敗者").
+    if (maybe && t.optionWords?.[i])
+      return el('div', { class: 'br-side maybe' }, [
+        el('span', { class: 'br-seed num', text: seed ? String(seed) : '' }),
+        el('span', { class: 'br-maybe' }, [...maybe.flatMap((x, j) => [j ? el('span', { class: 'br-or', text: '/' }) : null, sideLogo(x, league, 'xs')]), el('span', { class: 'br-name br-word', text: en ? t.optionWords[i].en : t.optionWords[i].zh })])
+      ]);
     if (maybe)
       return el('div', { class: 'br-side maybe' }, [
         el('span', { class: 'br-seed num' }),
@@ -2137,6 +2143,8 @@ function playoffView(model, league) {
           .replace(/^(\S+) 組$/, 'Group $1');
   const note = (t, r) => {
     if (!t) return roundDates(r) ? `${en ? 'Expected' : '預計'} ${roundDates(r)}` : en ? 'To be decided' : '待定';
+    // A play-in game not decided: what winning and losing it means.
+    if (t.outcome && !t.winner && !t.live && (t.projected || t.pending || !t.next)) return en ? t.outcome.en : t.outcome.zh;
     // (The 8th seed game sits in the play-in's column: named on its card; English's words too long for 預測 beside them.)
     if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', t.labels?.find(Boolean) && t.sides.every(Boolean) ? t.labels.filter(Boolean).map(labelText).join(' v ') : '', en && t.roundTitle ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
@@ -2162,7 +2170,7 @@ function playoffView(model, league) {
     // An empty row (the play-in's): a card's height, unseen, so the columns line up.
     if (t?.gap) return el('div', { class: `br-tie gap${t.through ? ' through' : ''}`, 'aria-hidden': 'true' }, [sideRow(null, blank, 0), sideRow(null, blank, 1), el('small', { class: 'br-note', text: '·' })]);
     const said = note(t, r);
-    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}`, text: said }) : null];
+    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said }) : null];
     return t && !t.projected && !t.pending
       ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openTie({ ...t, games: t.games.map(freshGame) }, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh) }, body)
       : el('div', { class: `br-tie ${t?.pending ? 'pending' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
@@ -2253,7 +2261,15 @@ function linkTies(map, model) {
           const [a, b] = [at(nodes[i][j]), at(end)];
           const path = document.createElementNS(NS, 'path');
           // In its own column (9 v 10 and 7 v 8 into the 8th seed game between them): straight across the gap.
-          if (f.to[0] === i) path.setAttribute('d', b.top > a.top ? `M${a.x} ${a.bottom}V${b.top}` : `M${a.x} ${a.top}V${b.bottom}`);
+          // (An arrowhead at the end: which way the team goes.)
+          if (f.to[0] === i) {
+            const [from, to, d] = b.top > a.top ? [a.bottom, b.top, -1] : [a.top, b.bottom, 1];
+            path.setAttribute('d', `M${a.x} ${from}V${to + d * 4}`);
+            const head = document.createElementNS(NS, 'path');
+            head.setAttribute('d', `M${a.x - 4} ${to + d * 5}L${a.x} ${to}L${a.x + 4} ${to + d * 5}Z`);
+            head.setAttribute('class', 'head');
+            svg.append(head);
+          }
           // Side by side: one straight line.
           else if (Math.abs(a.y - b.y) < 4) path.setAttribute('d', `M${a.r} ${a.y}H${b.l}`);
           else {

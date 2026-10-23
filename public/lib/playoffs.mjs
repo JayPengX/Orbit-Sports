@@ -185,10 +185,10 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
 // The NBA's play-in in the bracket itself (Jay, 2026-10-23: two graphs
 // read as two things, when one leads to the other), one column before the
 // first round, each game beside where its winner goes. Each conference's
-// first round put 4 v 5, 1 v 8, 2 v 7, 3 v 6 (1 v 8 and 2 v 7 side by
-// side, their pairs as they were), the play-in beside them: 9 v 10, the
-// 8th seed game (by the 1 v 8 it feeds), 7 v 8 (by the 2 v 7), an empty
-// row. 9 v 10's winner and 7 v 8's loser go to the 8th seed game between
+// first round put 3 v 6, 2 v 7, 1 v 8, 4 v 5 (2 v 7 and 1 v 8 side by
+// side, each with its pair), the play-in beside them read from the top:
+// an empty row, 7 v 8 (by the 2 v 7), the 8th seed game (by the 1 v 8 it
+// feeds), 9 v 10. 9 v 10's winner and 7 v 8's loser go to the 8th seed game between
 // them in the same column, a short line each (`feeds`: [{ to: [round, tie] }],
 // drawn by app.js).
 // (Drawn as two columns, 2026-10-21, it was mostly empty rows; apart, it
@@ -236,16 +236,23 @@ export function mergePlayIn(rounds) {
     const pairOf = j => Math.floor(j / 2);
     const order = [...block.keys()];
     if (per === 4 && pairOf(f7) !== pairOf(f8)) {
-      // Each pair's play-in-fed tie on its inner row, next to the other pair's.
-      for (const j of [f7, f8]) {
-        const p = pairOf(j) * 2;
-        if (j % 2 !== (p === 0 ? 1 : 0)) [order[p], order[p + 1]] = [order[p + 1], order[p]];
+      // 7 v 8's pair on top, 7 v 8's tie on its lower row; the 8th seed
+      // game's pair under it, its tie on its upper row: the two side by
+      // side, the play-in read from the top (Jay, 2026-10-23: "flip it").
+      const pair = j => [pairOf(j) * 2, pairOf(j) * 2 + 1];
+      const [p7, p8] = [pair(f7), pair(f8)];
+      order.splice(0, 4, p7.find(j => j !== f7), f7, f8, p8.find(j => j !== f8));
+      // The pairs swapped: the next round's two ties of this conference too.
+      const next = rounds[rounds.indexOf(first) + 1];
+      if (pairOf(f7) === 1 && next?.ties.length === first.ties.length / 2) {
+        const at = c * (per / 2);
+        [next.ties[at], next.ties[at + 1]] = [next.ties[at + 1], next.ties[at]];
       }
-      [f7, f8] = [order.indexOf(f7), order.indexOf(f8)];
+      [f7, f8] = [1, 2];
     }
     const placed = order.map(j => block[j]);
     first.ties.splice(c * per, per, ...placed);
-    // The play-in's column: 9 v 10 on the far side of the 8th seed game from 7 v 8.
+    // The play-in's column: 7 v 8, the 8th seed game, 9 v 10 under it.
     const col = Array.from({ length: per }, () => ({ gap: true }));
     const up = f8 < f7;
     const ten = up ? f8 - 1 : f8 + 1;
@@ -255,6 +262,28 @@ export function mergePlayIn(rounds) {
     seat(g.ten, ten >= 0 && ten < per && ten !== f7 ? ten : -1, null);
     // (Each place an object of its own to hang its lines on: a game not drawn yet an empty card.)
     for (let j = 0; j < per; j++) if (col[j] === null) col[j] = { pending: true, kind: 'pending', sides: [null, null], options: [null, null], score: {}, winner: null, live: false, next: null, games: [] };
+    // The 8th seed game not drawn yet: who it'll be, by the teams
+    // (7 v 8's loser once it's played, else both its logos and 敗者; 9 v
+    // 10's winner the same), not "7/8 敗者".
+    const e8 = col[f8];
+    if (e8 && !e8.gap && !e8.games?.length) {
+      const known = [g.seven, g.ten].map(t => (t?.sides?.every(Boolean) ? t : null));
+      const loser = known[0]?.winner ? known[0].sides.find(x => String(x.id) !== known[0].winner) : null;
+      const winner = known[1]?.winner ? known[1].sides.find(x => String(x.id) === known[1].winner) : null;
+      Object.assign(e8, { sides: [loser, winner], options: [loser ? null : known[0]?.sides || null, winner ? null : known[1]?.sides || null], optionWords: [{ zh: '敗者', en: 'loser' }, { zh: '勝者', en: 'winner' }] });
+    }
+    // The 2 v 7's 7 the same way while 7 v 8's on: its two logos and 勝者.
+    const t7 = first.ties[c * per + f7];
+    const k7 = t7 && !t7.gap && t7.sides ? t7.sides.findIndex(x => !x) : -1;
+    if (k7 >= 0 && !t7.options?.[k7] && g.seven?.sides?.every(Boolean) && !g.seven.winner) {
+      t7.options = [0, 1].map(k => (k === k7 ? g.seven.sides : t7.options?.[k] || null));
+      t7.optionWords = [0, 1].map(k => (k === k7 ? { zh: '勝者', en: 'winner' } : null));
+    }
+    // What each game means, on its card till it's decided.
+    const means = (t, zh, en) => t && !t.gap && (t.outcome = { zh, en });
+    means(g.seven || col[f7], '勝者 7 種子・敗者再戰', 'W: 7 seed · L: again');
+    means(col[ten], '勝者再戰・敗者淘汰', 'W: again · L: out');
+    means(e8, '勝者 8 種子・敗者淘汰', 'W: 8 seed · L: out');
     const base = c * per;
     if (col[f8] && !col[f8].gap) col[f8].roundTitle = { zh: '第八種子戰', en: '8th Seed Game' };
     links.push([col[f7], [{ to: [1, base + f7] }, { to: [0, base + f8] }]], [col[f8], [{ to: [1, base + f8] }]]);
