@@ -1570,11 +1570,12 @@ const cardBg = () => getComputedStyle(document.documentElement).getPropertyValue
 const gameKits = new Map();
 function tintOf(e) {
   const kits = gameKits.get(`${e.league}|${e.id}`) || {};
-  // The shirt's colour, else its trim's, where it has a hue; a white or black shirt, the club's own.
+  // The shirt's colour as it is (white on a dark card, black on a light one,
+  // where it shows: sideColors), else its trim's where it has a hue, else the club's own.
   const worn = s => {
     const k = kits[String(s.id)];
     const c = [k?.color, k?.alt].find(hasHue);
-    return c ? { ...s, color: c, alt: s.color } : s;
+    return k ? { ...s, shirt: k.color, ...(c ? { color: c, alt: s.color } : {}) } : s;
   };
   return sideColors(worn(e.home), worn(e.away), cardBg());
 }
@@ -1876,8 +1877,10 @@ function winProbCard(line, e, timeline, events = []) {
   };
   const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
   // Each band in its side's colour (a draw's grey), the even line dashed across.
+  // A white or black side's band near solid, so it never reads as the draw's grey.
+  const solid = c => (hasHue(c) ? '62%' : '92%');
   const band = (d, c, cls = '') => (d ? `<path d="${d}" class="wp-band${cls}" style="fill:${c}"/>` : '');
-  const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${band(homeArea, `color-mix(in srgb, ${homeC} 62%, transparent)`)}${band(drawArea, 'color-mix(in srgb, var(--q-muted) 38%, transparent)', ' draw')}${band(awayArea, `color-mix(in srgb, ${awayC} 62%, transparent)`)}${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/>${gaps}</svg>`;
+  const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${band(homeArea, `color-mix(in srgb, ${homeC} ${solid(homeC)}, transparent)`)}${band(drawArea, 'color-mix(in srgb, var(--q-muted) 38%, transparent)', ' draw')}${band(awayArea, `color-mix(in srgb, ${awayC} ${solid(awayC)}, transparent)`)}${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/>${gaps}</svg>`;
   const plot = scrubPlot(xs, show, [el('div', { html: svg }), ...pins, rule, dot]);
   dot.classList.add('ring');
   // Whose half is whose: each side's logo beside the chart (never over the line).

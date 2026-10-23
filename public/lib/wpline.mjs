@@ -116,8 +116,7 @@ export function readableOn(c, bg = '#ffffff', need = READABLE) {
   }
   return null;
 }
-// A colour of its own: a hue, not white, black or grey (a shirt's: Leverkusen's
-// black at home, Freiburg's white away; their club colour shows instead).
+// A colour of its own: a hue, not white, black or grey.
 export const hasHue = c => {
   if (!rgb(c)) return false;
   const [, sat, l] = toHsl(rgb(c));
@@ -140,7 +139,8 @@ export function sideColors(home, away, bg = '#ffffff') {
     return sat < 0.12 || l <= 0.08 || l >= 0.92;
   };
   // Its own colour as it is, then its hues (its own, then its second) made readable, then whatever's readable.
-  const tries = s => [...new Set([...[s?.color].filter(ok), ...[s?.color, s?.alt].filter(hued).map(own), ...[s?.color, s?.alt].filter(ok), ...[s?.color, s?.alt].map(c => readableOn(c, bg))].filter(c => c && !neutral(c)).map(c => c.toLowerCase()))];
+  // (The shirt worn that day first, white or black as it is where it shows on the card: Leeds's white, Jay 2026-10-23.)
+  const tries = s => [...new Set([...[s?.shirt].filter(c => c && ok(c)), ...[...[s?.color].filter(ok), ...[s?.color, s?.alt].filter(hued).map(own), ...[s?.color, s?.alt].filter(ok), ...[s?.color, s?.alt].map(c => readableOn(c, bg))].filter(c => c && !neutral(c))].map(c => c.toLowerCase()))];
   const [hs, as] = [tries(home), tries(away)];
   // Told apart: far apart, or two clear hues a good way round the wheel (Genoa's navy and Fiorentina's purple).
   const hueGap = (x, y) => {
