@@ -1179,6 +1179,9 @@ export function parseSummary(data, league) {
     home: sides.find(s => s.homeAway === 'home') || sides[0] || null,
     away: sides.find(s => s.homeAway === 'away') || sides[1] || null,
     byId,
+    // The shirts each side wore in this game (a club's third kit, Arsenal's
+    // cream at Forest, 2026-10-18), by team id: { color, alt } as '#rrggbb'.
+    kits: Object.fromEntries((box.teams || []).filter(t => /^[0-9a-f]{6}$/i.test(t.team?.uniform?.color || '')).map(t => [String(t.team.id), { color: `#${t.team.uniform.color}`, alt: /^[0-9a-f]{6}$/i.test(t.team.uniform.alternateColor || '') ? `#${t.team.uniform.alternateColor}` : null }])),
     teamStats,
     details,
     players,

@@ -303,6 +303,7 @@ export async function openMatch(e) {
   };
   setTimeout(settle, 3_000);
   const paint = () => {
+    if (data?.kits && Object.keys(data.kits).length) gameKits.set(`${e.league}|${e.id}`, data.kits);
     if (!ready) return;
 
     if (!shown) {
@@ -1563,8 +1564,12 @@ function subsList(sides, tag, league) {
 // colour on it (sideColors: always two, told apart): the win chance chart's
 // bands and labels, the stat bars, the players' rings.
 const cardBg = () => getComputedStyle(document.documentElement).getPropertyValue('--q-surface').trim() || '#ffffff';
+// (In the shirts the sides wore that day where the game's page says, its summary's kits: gameKits.)
+const gameKits = new Map();
 function tintOf(e) {
-  return sideColors(e.home, e.away, cardBg());
+  const kits = gameKits.get(`${e.league}|${e.id}`) || {};
+  const worn = s => (kits[String(s.id)] ? { ...s, ...kits[String(s.id)] } : s);
+  return sideColors(worn(e.home), worn(e.away), cardBg());
 }
 // Each side's colour as text: its band's, darker (or lighter) to read at 4.5:1.
 const inkOf = c => readableOn(c, cardBg(), 4.5) || c;
