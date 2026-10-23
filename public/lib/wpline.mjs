@@ -116,6 +116,13 @@ export function readableOn(c, bg = '#ffffff', need = READABLE) {
   }
   return null;
 }
+// A colour of its own: a hue, not white, black or grey (a shirt's: Leverkusen's
+// black at home, Freiburg's white away; their club colour shows instead).
+export const hasHue = c => {
+  if (!rgb(c)) return false;
+  const [, sat, l] = toHsl(rgb(c));
+  return sat >= 0.25 && l > 0.08 && l < 0.92;
+};
 // A side's spare colours, far from each other and from a draw's grey: a blue, a teal, a purple, an amber, a red.
 const SPARE = ['#2f6fdf', '#0f9d8a', '#8b5cf6', '#e08a00', '#d9443a'];
 export function sideColors(home, away, bg = '#ffffff') {
@@ -123,10 +130,7 @@ export function sideColors(home, away, bg = '#ffffff') {
   const ok = c => rgb(c) && contrast(rgb(c), rgb(bg) || [255, 255, 255]) >= READABLE;
   // A colour of its own: a hue, not white, black or grey (ESPN's second
   // colour is white for most clubs: Inter showed white, not its blue).
-  const hued = c => {
-    const [, sat, l] = rgb(c) ? toHsl(rgb(c)) : [0, 0, 0];
-    return sat >= 0.25 && l > 0.08 && l < 0.92;
-  };
+  const hued = hasHue;
   const own = c => (ok(c) ? c : readableOn(c, bg));
   // Never black, white or grey: a band in it reads as the draw's grey or as
   // nothing (two reds with white seconds: the white, made readable on a

@@ -11,7 +11,7 @@ import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { personKey, pitcherRole } from './lib/mlb.mjs';
-import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors, readableOn } from './lib/wpline.mjs';
+import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors, readableOn, hasHue } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText, goalHowParts, basketEn } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { soccerLine } from './lib/soccerwp.mjs';
@@ -1568,7 +1568,12 @@ const cardBg = () => getComputedStyle(document.documentElement).getPropertyValue
 const gameKits = new Map();
 function tintOf(e) {
   const kits = gameKits.get(`${e.league}|${e.id}`) || {};
-  const worn = s => (kits[String(s.id)] ? { ...s, ...kits[String(s.id)] } : s);
+  // The shirt's colour, else its trim's, where it has a hue; a white or black shirt, the club's own.
+  const worn = s => {
+    const k = kits[String(s.id)];
+    const c = [k?.color, k?.alt].find(hasHue);
+    return c ? { ...s, color: c, alt: s.color } : s;
+  };
   return sideColors(worn(e.home), worn(e.away), cardBg());
 }
 // Each side's colour as text: its band's, darker (or lighter) to read at 4.5:1.
