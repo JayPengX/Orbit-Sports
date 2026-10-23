@@ -18,7 +18,6 @@ import { transition } from './lib/notice.mjs';
 import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
-import { personZh } from './lib/people.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
@@ -251,14 +250,8 @@ function syncFollows() {
     .catch(() => {});
 }
 // A followed team's name as shown (kept in English on the pass).
-// A followed player's name in Chinese once it's in (lib/people.mjs; F1's drivers have theirs).
-const personName = f => {
-  const shown = shownName(f);
-  if (locale === 'en' || !f.athlete || f.league === 'f1') return shown;
-  const n = document.createTextNode(shown);
-  personZh(f.name).then(z => z && (n.textContent = z.full)).catch(() => {});
-  return n;
-};
+// A followed player's name in English, as he's known.
+const personName = f => shownName(f);
 const shownName = f => (f.athlete ? f.name : f.f1team === true ? (locale === 'en' ? f.name : f1Constructor(f.name).zh || f.name) : localSide(f.league, { name: f.name }).name);
 function isFollowed(league, id) {
   return state.prefs.follows.some(f => f.league === league && f.id === id);

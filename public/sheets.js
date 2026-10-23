@@ -1,7 +1,6 @@
 // Orbit Sports' sheets: a match (header, then its data by section), a
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
-import { personZh } from './lib/people.mjs';
 import { translate, proxyJson, packJson, everyDev, dev } from '#kit/orbit.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
@@ -47,14 +46,10 @@ export function zhLater(text, from = 'auto', after = x => x) {
   translate(text, 'zh-TW', from).then(zh => zh && (node.textContent = after(zh))).catch(() => {});
   return node;
 }
-// A player's name in Chinese once it's in (lib/people.mjs), the English
-// till then; `short` his surname (a box score's "L. James" → 詹姆斯).
-const zhName = (full, form = 'full', shown = full) => {
-  if (L() === 'en' || !full) return shown || '';
-  const n = document.createTextNode(shown || full);
-  personZh(full).then(z => z && (n.textContent = form === 'short' ? z.short : z.full)).catch(() => {});
-  return n;
-};
+// A player's name in English in both languages (Jay, 2026-10-23: never
+// 多諾萬·米切爾; teams stay in Chinese): `full` the whole name ("Donovan
+// Mitchell"), `short` the box score's ("D. Mitchell").
+const playerName = (full, form = 'full', shown = full) => (form === 'full' ? full || shown : shown || full) || '';
 // (A status not in the list: its words from the fixed list, never Google's guess.)
 const injuryText = s => (L() === 'en' ? s : injuryZh(s) || injuryWhatZh(s) || '傷兵');
 const weatherText = w => weatherZh(w, L());
@@ -804,7 +799,7 @@ function satOutCard(d, e) {
   if (!teams.length) return null;
   return card(
     en ? 'Did not play' : '未上場',
-    el('div', { class: 'injuries' }, teams.map(t => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(t.team)]), el('ul', { class: 'inj-list' }, t.list.slice(0, 12).map(x => el('li', {}, [x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, x.id, { name: x.full || x.name, logo: x.headshot }) }, [personPic({ ...x, name: x.full || x.name }, e.league, 'xs round'), el('span', {  }, [zhName(x.full || x.name, 'full', x.name)])]) : el('span', {  }, [zhName(x.full || x.name, 'full', x.name)]), el('small', {}, [dnpText(x.reason, en)])])))])))
+    el('div', { class: 'injuries' }, teams.map(t => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(t.team)]), el('ul', { class: 'inj-list' }, t.list.slice(0, 12).map(x => el('li', {}, [x.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, x.id, { name: x.full || x.name, logo: x.headshot }) }, [personPic({ ...x, name: x.full || x.name }, e.league, 'xs round'), el('span', {  }, [playerName(x.full || x.name, 'full', x.name)])]) : el('span', {  }, [playerName(x.full || x.name, 'full', x.name)]), el('small', {}, [dnpText(x.reason, en)])])))])))
   );
 }
 function dnpText(reason, en) {
@@ -905,7 +900,7 @@ function injuryLine(x, league) {
   const sub = [x.what ? (en ? x.what : injuryWhatZh(x.what)) : null, back || null].filter(Boolean);
   return el('button', { class: 'inj-row', type: 'button', disabled: x.id ? null : true, onclick: () => x.id && ctx.openPlayer(league, x.id, { name: x.name, logo: x.headshot }) }, [
     personPic(x, league, 'xs round'),
-    el('span', { class: 'inj-who' }, [fitLine(el('strong', { class: 'one-line' }, [zhName(x.full || x.name, 'full', x.name)])), sub.length ? fitLine(el('small', { class: 'one-line' }, joinNodes(sub, ' · '))) : null]),
+    el('span', { class: 'inj-who' }, [fitLine(el('strong', { class: 'one-line' }, [playerName(x.full || x.name, 'full', x.name)])), sub.length ? fitLine(el('small', { class: 'one-line' }, joinNodes(sub, ' · '))) : null]),
     el('span', { class: `inj-status ${injTone(x.status)}`, text: injuryText(x.status) })
   ]);
 }
@@ -947,7 +942,7 @@ const BOX_TABLES = { batting: ['打擊', 'Batting'], pitching: ['投球', 'Pitch
 // (a player yet to come on has none: the row's line still runs across).
 const boxRow = (e, tb, r) =>
   el('tr', {}, [
-    el('th', { class: 'left' }, [el('span', { class: 'box-who' }, [el('button', { class: 'link roster-name', type: 'button', disabled: r.id ? null : true, onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', { class: 'box-name' }, [zhName(r.full || r.name, 'short', r.name)])]), r.pos ? el('small', { text: r.pos }) : null])]),
+    el('th', { class: 'left' }, [el('span', { class: 'box-who' }, [el('button', { class: 'link roster-name', type: 'button', disabled: r.id ? null : true, onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', { class: 'box-name' }, [playerName(r.full || r.name, 'short', r.name)])]), r.pos ? el('small', { text: r.pos }) : null])]),
     ...tb.labels.map((_, i) => el('td', { class: 'num', text: r.stats[i] ?? '' }))
   ]);
 // A game to come's 球員: each side's season numbers (MLB's lineups from the
@@ -1158,7 +1153,7 @@ function matchSection(view, d, e, table, lw = {}) {
   }
   if (view === 'lineups' && d && LEAGUES[e.league]?.sport === 'basketball') {
     const en = L() === 'en';
-    const list = ps => el('ul', { class: 'roster-list' }, ps.map(r => el('li', {}, [el('span', { class: 'jersey num', text: r.jersey || '' }), el('button', { class: 'link roster-name', type: 'button', onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', {  }, [zhName(r.full || r.name, 'full', r.full || r.name)])]), el('small', {}, [r.dnp ? dnpText(r.reason, en) : posZh(r.pos, 'basketball', L())])])));
+    const list = ps => el('ul', { class: 'roster-list' }, ps.map(r => el('li', {}, [el('span', { class: 'jersey num', text: r.jersey || '' }), el('button', { class: 'link roster-name', type: 'button', onclick: () => r.id && ctx.openPlayer(e.league, r.id, { name: r.full || r.name, logo: r.headshot }) }, [personPic({ ...r, name: r.full || r.name }, e.league, 'xs round'), el('span', {  }, [playerName(r.full || r.name, 'full', r.full || r.name)])]), el('small', {}, [r.dnp ? dnpText(r.reason, en) : posZh(r.pos, 'basketball', L())])])));
     const sides = inOrder(e, [e.away, e.home]).map(t => d.players.find(p => p.team === String(t.id))).filter(Boolean);
     return el(
       'div',
@@ -1185,7 +1180,7 @@ function matchSection(view, d, e, table, lw = {}) {
           const now = sport === 'soccer' && (d.status || e.status).state === 'in' ? onPitch([r])[0] : null;
           const en = L() === 'en';
           const mark = p => (p.sentOff ? el('span', { class: 'sent-off', text: en ? ' · Sent off' : ' · 紅牌' }) : p.subAt && (p.subbedIn || p.subbedOut) ? el('span', { class: 'sub-on', text: ` ${p.subbedOut ? '↓' : '↑'}${p.subAt}` }) : null);
-          const list = ps => el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, p.id, p) }, [personPic(p, e.league, 'xs round'), el('span', {  }, [zhName(p.full || p.name, 'full', p.name)])]), el('small', {}, [p.pos === 'SUB' ? '' : posZh(p.pos, sport, L()), now ? mark(p) : null])])));
+          const list = ps => el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, p.id, p) }, [personPic(p, e.league, 'xs round'), el('span', {  }, [playerName(p.full || p.name, 'full', p.name)])]), el('small', {}, [p.pos === 'SUB' ? '' : posZh(p.pos, sport, L()), now ? mark(p) : null])])));
           if (now)
             return card(tag(r.team, r.formation), el('div', {}, [el('p', { class: 'mini-h', text: now.on.length < 11 ? (en ? `On the pitch · ${now.on.length} men` : `場上 · ${now.on.length} 人`) : en ? 'On the pitch' : '場上' }), list(now.on), now.off.length ? el('p', { class: 'mini-h', text: en ? 'Off' : '已下場' }) : null, now.off.length ? list(now.off) : null, now.bench.length ? el('p', { class: 'mini-h', text: T('bench') }) : null, now.bench.length ? list(now.bench) : null]));
           const starters = r.players.filter(p => p.starter);
@@ -1307,7 +1302,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
             leadersBy.map((list, i) =>
               el('div', {}, [
                 el('p', { class: 'mini-h' }, [teamTag(sides[i], sides[i].short || sides[i].name, e.league)]),
-                ...list.map(l => el('button', { class: 'leader', type: 'button', disabled: l.id ? null : true, onclick: () => l.id && ctx.openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) }, [personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'), el('span', { class: 'leader-text' }, [el('small', { text: statName(l.stat, L(), { sport: LEAGUES[e.league]?.sport }) }), el('span', {}, [el('strong', {  }, [zhName(l.full || l.name, 'full', l.name)]), el('b', { class: 'num', text: leaderValue(l.value, L()) })])])]))
+                ...list.map(l => el('button', { class: 'leader', type: 'button', disabled: l.id ? null : true, onclick: () => l.id && ctx.openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) }, [personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'), el('span', { class: 'leader-text' }, [el('small', { text: statName(l.stat, L(), { sport: LEAGUES[e.league]?.sport }) }), el('span', {}, [fitLine(el('strong', { class: 'one-line' }, [playerName(l.full || l.name, 'full', l.name)])), el('b', { class: 'num', text: leaderValue(l.value, L()) })])])]))
               ])
             )
           )
@@ -1353,7 +1348,7 @@ function seasonLeadCard(lead, e) {
   const side = (st, x) =>
     el('button', { class: 'leader', type: 'button', onclick: () => openLeader(e.league, x) }, [
       personPic({ ...x, name: x.full || x.name }, e.league, 'sm round'),
-      el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitLine(el('strong', { class: 'one-line' }, [zhName(x.full || x.name, 'full', x.name)])), el('b', { class: 'num', text: x.value })])])
+      el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitLine(el('strong', { class: 'one-line' }, [playerName(x.full || x.name, 'full', x.name)])), el('b', { class: 'num', text: x.value })])])
     ]);
   return card(
     en ? 'Season leaders' : '本季數據領先',
@@ -1372,7 +1367,7 @@ function lineupCard(l, e, nameOf) {
   if (!l) return null;
   const en = L() === 'en';
   const sport = LEAGUES[e.league]?.sport;
-  const who = p => (p.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, e.league, 'xs round'), el('span', {  }, [zhName(p.full || p.name, 'full', p.name)])]) : el('span', { class: 'roster-name' }, [personPic(p, e.league, 'xs round'), el('span', {  }, [zhName(p.full || p.name, 'full', p.name)])]));
+  const who = p => (p.id ? el('button', { class: 'link roster-name', type: 'button', onclick: () => ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, e.league, 'xs round'), el('span', {  }, [playerName(p.full || p.name, 'full', p.name)])]) : el('span', { class: 'roster-name' }, [personPic(p, e.league, 'xs round'), el('span', {  }, [playerName(p.full || p.name, 'full', p.name)])]));
   // Each row: its number (or place in the order), the face and name from the left, the position at the right.
   const row = (p, lead = '') => el('li', {}, [el('span', { class: 'jersey num', text: lead || '' }), who(p), el('small', { text: posZh(p.pos, sport, L()) })]);
   const side = (team, list, lead) => el('div', {}, [el('p', { class: 'mini-h' }, [teamTag(team, nameOf(team.id), e.league)]), el('ul', { class: 'inj-list lineup-list' }, list.map((p, i) => row(p, lead(p, i))))]);
@@ -1433,7 +1428,7 @@ function onFieldCard(d, e, nameOf) {
     const tile = (p, colour) =>
       el('button', { class: 'five-tile', type: 'button', style: `--shirt:${colour}`, 'aria-label': `${p.full || p.name}${p.starter ? (en ? ', starter' : '，先發') : en ? ', off the bench' : '，替補'}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
         el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, p.starter && !p.cameOn ? null : el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' })]),
-        el('span', { class: 'pm-name one' }, [zhName(p.full || p.name, 'short', tileName(p))]),
+        el('span', { class: 'pm-name one' }, [playerName(p.full || p.name, 'short', tileName(p))]),
         // Said in words, not a mark to learn: 先發 or 替補 (the green ↑ on the face too).
         el('span', { class: `five-role${p.starter ? ' starter' : ''}`, text: p.starter ? (en ? 'Starter' : '先發') : en ? 'Bench' : '替補' }),
         el('strong', { class: 'five-pts num', text: en ? `${p.line.pts || 0} PTS` : `${p.line.pts || 0} 分` }),
@@ -1474,7 +1469,7 @@ function pitchView([away, home], d, e, nameOf) {
     el('button', { class: 'pm', type: 'button', style: `left:${(x * 100).toFixed(1)}%;top:${(y * 100).toFixed(1)}%;--shirt:${shirt}`, 'aria-label': `${p.name}${p.subbedIn ? (en ? ', came on' : '，替補上場') : ''}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [
       el('span', { class: 'pm-face' }, [personPic(p, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(shirt)}`, text: p.jersey }) : null, p.subbedIn ? el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' }) : null]),
       // One line, a long surname smaller (fitted to the marker below), never broken at its hyphen.
-      el('span', { class: oneLineName(surname(p)) }, [zhName(p.full || p.name, 'short', surname(p))])
+      el('span', { class: oneLineName(surname(p)) }, [playerName(p.full || p.name, 'short', surname(p))])
     ]);
   const spots = [
     // The away side's left is the screen's right, its goal at the top.
@@ -1511,7 +1506,7 @@ function diamondView(d, e, nameOf) {
     const p = who(full);
     return el('button', { class: `pm${cls ? ` ${cls}` : ''}`, type: 'button', style: `left:${x}%;top:${y}%;--shirt:${colour}`, 'aria-label': `${label ? `${label} ` : ''}${full}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: full, logo: p.headshot }) }, [
       el('span', { class: 'pm-face' }, [personPic(p, e.league, 'pm-pic'), label ? el('span', { class: 'pm-num', style: `color:${inkOn(colour)}`, text: label }) : null]),
-      el('span', { class: oneLineName(tileName({ name: full, full, short: p.short || full.split(' ').slice(1).join(' ') || full })) }, [zhName(full, 'short', tileName({ name: full, full, short: p.short || full.split(' ').slice(1).join(' ') || full }))])
+      el('span', { class: oneLineName(tileName({ name: full, full, short: p.short || full.split(' ').slice(1).join(' ') || full })) }, [playerName(full, 'short', tileName({ name: full, full, short: p.short || full.split(' ').slice(1).join(' ') || full }))])
     ]);
   };
   const posWord = k => (en ? k : posZh(k, 'baseball', 'zh').replace(/手$/, '').replace('外野', '外'));
@@ -1985,17 +1980,17 @@ const boxSorts = new Map();
 // Jay. Williams kept apart); still long, smaller, and past that on two lines
 // at its hyphen (Jay, 2026-10-21: a long name pushed the numbers off).
 const lastName = n => String(n || '').replace(/^(\S+\.\s+)+/, '');
+// A player page's name: past 12 letters, given names and surname each on a line of their own.
+const heroName = full => {
+  const cut = full.length > 12 ? full.replace(/,?\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i, '').lastIndexOf(' ') : -1;
+  return cut > 0 ? [full.slice(0, cut), el('br'), full.slice(cut + 1)] : [full];
+};
 function boxNames(rows) {
   const count = {};
   for (const [r] of rows) count[lastName(r.name)] = (count[lastName(r.name)] || 0) + 1;
   for (const [r, tr] of rows) {
     const span = tr?.querySelector?.('.box-name');
     if (!span) continue;
-    // (In Chinese his surname, the whole name where a teammate shares it: lib/people.mjs.)
-    if (L() !== 'en' && (r.full || r.name)) {
-      span.replaceChildren(zhName(r.full || r.name, count[lastName(r.name)] > 1 ? 'full' : 'short', r.name || ''));
-      continue;
-    }
     const name = (r.name || '').length > 12 && count[lastName(r.name)] === 1 ? lastName(r.name) : r.name || '';
     // A name still long (Gilgeous-Alexander): two lines at its hyphen or
     // space, set in the markup (Safari wouldn't break it there itself and cut it, Jay 2026-10-21).
@@ -2006,8 +2001,7 @@ function boxNames(rows) {
     } else span.textContent = name;
   }
   // Each fitted once drawn: smaller where it runs over, on two lines past that.
-  // (Chinese surnames are short: fitted only in English, never on the English held till the Chinese comes.)
-  const spans = L() === 'en' ? rows.map(([, tr]) => tr?.querySelector?.('.box-name')).filter(Boolean) : [];
+  const spans = rows.map(([, tr]) => tr?.querySelector?.('.box-name')).filter(Boolean);
   let tries = 0;
   const fit = () => {
     if (!spans[0]?.isConnected) return ++tries < 20 && requestAnimationFrame(fit);
@@ -2313,7 +2307,7 @@ function personTap(league, p, pic) {
 function personName(league, p, cls = 'field-name') {
   if (!p) return el('span', { class: cls });
   const can = p.id && LEAGUES[league]?.espn && /^\d+$/.test(String(p.id));
-  return can ? el('button', { class: `link ${cls}`, type: 'button', onclick: () => ctx.openPlayer(league, p.id, p) }, [zhName(p.full || p.name, 'full', p.name)]) : el('span', { class: cls }, [zhName(p.full || p.name, 'full', p.name)]);
+  return can ? el('button', { class: `link ${cls}`, type: 'button', onclick: () => ctx.openPlayer(league, p.id, p) }, [playerName(p.full || p.name, 'full', p.name)]) : el('span', { class: cls }, [playerName(p.full || p.name, 'full', p.name)]);
 }
 // A play in 過程 (and the live panel's latest): the player's face (a tap
 // opens them), or the team's logo for a team's play; what happened in
@@ -4254,7 +4248,7 @@ export function teamLeadersCard(data, league) {
       { class: 'leader-cols' },
       data.stats.map(st => {
         const x = st.list[0];
-        return el('button', { class: 'leader', type: 'button', onclick: () => openLeader(league, x) }, [personPic({ ...x, name: x.full || x.name }, league, 'sm round'), el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitLine(el('strong', { class: 'one-line' }, [zhName(x.full || x.name, 'full', x.name)])), el('b', { class: 'num', text: x.value })])])]);
+        return el('button', { class: 'leader', type: 'button', onclick: () => openLeader(league, x) }, [personPic({ ...x, name: x.full || x.name }, league, 'sm round'), el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitLine(el('strong', { class: 'one-line' }, [playerName(x.full || x.name, 'full', x.name)])), el('b', { class: 'num', text: x.value })])])]);
       })
     ),
     { sub: leadersSeason(data, sport, en) }
@@ -4344,7 +4338,7 @@ const ROSTER_GROUP = { pitchers: '投手', catchers: '捕手', infielders: '內�
 // A squad's rows: number, face and name (a tap opens the player), and a note
 // at the right (`note`: position, age, an injury). `hurt`: 🩹 by a hurt name.
 function squadList(ps, league, sport, note, { hurt = false } = {}) {
-  return el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, league, 'xs round'), el('span', {  }, [zhName(p.full || p.name, 'full', p.name)]), hurt && p.injured ? el('span', { class: 'inj-dot', title: T('injuries'), text: '🩹' }) : null]), el('small', {}, [].concat(note(p) ?? ''))])));
+  return el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [personPic(p, league, 'xs round'), el('span', {  }, [playerName(p.full || p.name, 'full', p.name)]), hurt && p.injured ? el('span', { class: 'inj-dot', title: T('injuries'), text: '🩹' }) : null]), el('small', {}, [].concat(note(p) ?? ''))])));
 }
 function byPosition(list, sport) {
   const zh = L() !== 'en';
@@ -4892,10 +4886,12 @@ export async function openPlayer(league, id, fallback = {}) {
       el('div', { class: `team-head player-hero${heroColor ? ' tinted' : ''}`, style: heroColor ? `--hero:${heroColor}` : null }, [
         pic,
         el('div', { class: 'team-head-text' }, [
-          // The name on one line, a little smaller where long (fitNumbers on .team-head h3); the number with the position under it.
-          el('h3', {}, [zhName(name, 'full', name)]),
-          // (The English under it: the name as the box scores and the world write it.)
-          L() !== 'en' || name !== a.name ? el('small', { class: 'muted', text: a.name || name }) : null,
+          // The name a little smaller where long (fitNumbers on .team-head h3); a long
+          // one on two lines, the given names over the surname (Donovan / Mitchell,
+          // never Samir El / Mourabet); the number with the position under it.
+          el('h3', {}, heroName(playerName(name, 'full', name))),
+          // (The box scores' form under it, where it differs.)
+          name !== a.name ? el('small', { class: 'muted', text: a.name || name }) : null,
           teamChip,
           el('p', { class: 'muted' }, joinNodes(sub, ' · ')),
           // Why he's out and when he's back, as the team's page says it (Jay, 2026-10-22), the report's word under it.
@@ -5304,7 +5300,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
               {},
               rows.map(r => {
                 const i = g.rows.indexOf(r);
-                const name = [el('span', { class: 'nm-full' }, [zhName(r.full || r.name, 'full', r.name)]), el('span', { class: 'nm-short', text: r.short || r.name })];
+                const name = [el('span', { class: 'nm-full' }, [playerName(r.full || r.name, 'full', r.name)]), el('span', { class: 'nm-short', text: r.short || r.name })];
                 const rowCls = [ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '', out.has(r.id) ? 'out' : ''].filter(Boolean).join(' ');
                 return el('tr', { class: rowCls }, [
                   el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null }, [String(i + 1), settled.has(r.id) ? glyph('lock', 'rank-lock') : null]),

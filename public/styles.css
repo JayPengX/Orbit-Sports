@@ -1892,7 +1892,7 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 /* A race weekend's session (its chips, its line, its replay): clear of the card above it. */
 .race-box { margin-top: 6px; }
 .race-box > .muted.small { margin: -4px 0 0; }
-/* A player's name on one line: smaller where long (app.js fitNumbers), never two (Samir El / Mourabet at 375). */
+/* A player's name never wrapped by the browser: smaller where long (app.js fitNumbers), two lines only where sheets.js heroName breaks it. */
 .player-hero .team-head-text h3 { white-space: nowrap; }
 /* 數據領先 of a league: rank, face, name over team, the number. */
 .lb-list { display: grid; }

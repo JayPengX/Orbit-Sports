@@ -102,7 +102,7 @@ couldn't be read is shown, never hidden.
 - A past page shows its own moment, not today's points on top.
 - Table zones stay with their places as results reorder them.
 - No news and no AI in Sports. The injury report is on team pages only.
-- F1 drivers are named in English; F1 teams in Chinese.
+- Players and F1 drivers are named in English, in both languages (never 勒布朗·詹姆斯); teams in Chinese.
 - A called-off game opens nothing (延期 in its place).
 - The kit's `sports-*.mjs` (highlights, broadcast, win probability) are run
   by the proxy's builders too, so they import nothing but each other.
