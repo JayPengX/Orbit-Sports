@@ -1207,12 +1207,14 @@ function highlights(e, waited = false) {
   }
   const v = knownHighlights(e);
   const kind = highlightsKind(v);
-  if (!v) findHighlights(e, (url, o) => proxyJson(url, o)).catch(() => {});
-  return el('a', { class: `yt-link${v ? '' : ' search'}`, href: v ? videoUrl(v.id) : searchUrl(e), target: '_blank', rel: 'noopener' }, [
+  // (Found now: the row becomes the video's, not the search's.)
+  const node = el('a', { class: `yt-link${v ? '' : ' search'}`, href: v ? videoUrl(v.id) : searchUrl(e), target: '_blank', rel: 'noopener' }, [
     ytLogo(),
     el('span', { class: 'yt-text' }, [el('strong', { text: HL_NAME[kind][en ? 1 : 0] }), el('small', { class: 'one-line', text: v ? [v.channel, v.length].filter(Boolean).join(' · ') : 'YouTube' })]),
     el('span', { class: 'yt-go', text: '›' })
   ]);
+  if (!v) findHighlights(e, (url, o) => proxyJson(url, o)).then(f => f && node.isConnected && node.replaceWith(highlights(e, true))).catch(() => {});
+  return node;
 }
 
 // The overview: the teams side by side, what the match is (where, when, TV),
