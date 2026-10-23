@@ -1440,14 +1440,17 @@ function renderHome() {
   const rowDay = { day: h.date === today() };
   // Nothing of theirs: a quiet card saying why, and the way to every game.
   const note = (title, sub, go = true) => el('div', { class: 'home-note' }, [title ? el('strong', { text: title }) : null, sub ? el('p', { text: sub }) : null, go ? fullSchedule() : null]);
+  // A day gone by: only theirs, the games of their own leagues (what the
+  // day showed them), not every league's (the others' ten German and
+  // Italian games were there too). Under the sport chosen; by the clock.
+  const pastSeen = new Set();
+  const pastGames = past
+    ? filtered(mine)
+        .filter(e => !pastSeen.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && pastSeen.add(`${e.league}:${e.id}:${e.sessionKey || ''}`))
+        .sort((x, y) => Date.parse(x.start) - Date.parse(y.start))
+    : [];
   function pastDay() {
-    // Only theirs: the games of their own leagues (what the day showed
-    // them), not every league's (the others' ten German and Italian games
-    // were there too). Under the sport chosen; by the clock.
-    const seen = new Set();
-    const games = filtered(mine)
-      .filter(e => !seen.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && seen.add(`${e.league}:${e.id}:${e.sessionKey || ''}`))
-      .sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
+    const games = pastGames;
     const title = t('pastEvents');
     if (!games.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
     return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))), games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
@@ -1455,11 +1458,13 @@ function renderHome() {
   // Shelves under the picks (each game once: the hero and 正在進行 first, then
   // 我的球隊, the picks, 今晚, the ended): my teams' games still to come, the
   // rest of the day's picks, my leagues, my teams' places in them.
+  // (Today over is still today: what's next of theirs, their leagues and places stay.)
+  const gone = past && !todayOver;
   const seenKeys = new Set([heroKey, ...liveRest.map(x => keyOf(x.event))]);
   // (A followed team's next game from its own schedule, whatever day is open, and the open day's.)
   const nextOf = f => (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame).filter(e => e.status?.state === 'pre' && !e.status.void && Date.parse(e.start) > now).sort((x, y) => Date.parse(x.start) - Date.parse(y.start))[0];
   const nextKeys = new Set();
-  const mineNext = past || h.picking || !hasFollows
+  const mineNext = gone || h.picking || !hasFollows
     ? []
     : [...filtered(mine).filter(e => isFollowedEvent(e) && !e.status.void && e.status.state === 'pre'), ...followedTeams().map(nextOf).filter(Boolean)]
         .filter(e => !seenKeys.has(keyOf(e)) && !nextKeys.has(keyOf(e)) && nextKeys.add(keyOf(e)))
@@ -1469,8 +1474,8 @@ function renderHome() {
   const planShown = planList.filter(x => !seenKeys.has(keyOf(x.event)));
   planShown.forEach(x => seenKeys.add(keyOf(x.event)));
   const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, 12);
-  const leaguesShelf = past || h.picking || !hasFollows ? null : section(t('yourLeagues'), el('div', { class: 'q-rail league-rail' }, state.prefs.leagues.map(k => leagueTile(k, lk => openScores(lk)))));
-  const placeRows = past || h.picking ? [] : followedTeams().filter(f => state.home.tables[f.league]?.[f.id]?.pos && !f.athlete).slice(0, 6);
+  const leaguesShelf = gone || h.picking || !hasFollows ? null : section(t('yourLeagues'), el('div', { class: 'q-rail league-rail' }, state.prefs.leagues.map(k => leagueTile(k, lk => openScores(lk)))));
+  const placeRows = gone || h.picking ? [] : followedTeams().filter(f => state.home.tables[f.league]?.[f.id]?.pos && !f.athlete).slice(0, 6);
   const placesShelf = placeRows.length
     ? section(
         L({ zh: '我的球隊排名', en: 'My teams in the table' }),
@@ -1484,6 +1489,13 @@ function renderHome() {
         }))
       )
     : null;
+  // A light day (two games of theirs or fewer today, often a weekday's
+  // one, Jay 2026-10-23): who stood out in the games over, and the next
+  // day they have games, never a page left empty under one result.
+  const light = h.date === today() && h.filter === 'all' && !h.picking && hasFollows && filtered(mine).length <= 2 && !slot.stale && !slot.loading;
+  const doneLight = light ? (todayOver ? pastGames : endedGames).filter(e => e.kind === 'match' && e.status.state === 'post' && !e.status.void).slice(0, 2) : [];
+  const bestShelf = lightLeaders(doneLight);
+  const nextShelf = light ? nextDayShelf(seenKeys) : null;
   put(
     box,
     homeBar(),
@@ -1494,6 +1506,8 @@ function renderHome() {
     // picks: ranked again on today's tables, yesterday's changed; the owner,
     // 2026-10-18). Theirs and the others on TV, under the sport chosen.
     past ? pastDay() : null,
+    bestShelf,
+    nextShelf,
     // (Nothing followed yet: the sport picker above already says so; no note under it.)
     !past && (fallback || finding) && !endedGames.length && !(h.picking && !hasFollows && state.prefsLoaded && !finding) ? note(gap === 'leagues' ? t('someUnread') : gap === 'tv' ? t('tvUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet'), finding ? t('findingOthers') : planList.length ? t('othersSub') : gap ? t('notKnownYet') : noTvText(h.date), !finding && !planList.length) : null,
     !past && finding ? spinner() : null,
@@ -1512,6 +1526,61 @@ function renderHome() {
   );
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
+}
+// 全場最佳 on a light day: each game over, the one who led each side
+// (the game's own leaders, its page's first), a row each.
+const homeBest = new Map();
+function lightLeaders(games) {
+  const rows = [];
+  for (const e of games) {
+    const k = `${e.league}:${e.id}`;
+    if (!homeBest.has(k)) {
+      homeBest.set(k, null);
+      summary(e.league, e.id)
+        .then(d => homeBest.set(k, d?.leaders || []))
+        .catch(() => homeBest.set(k, []))
+        .finally(() => state.tab === 'home' && state.home.date === today() && renderHome());
+    }
+    const list = homeBest.get(k) || [];
+    for (const side of sidesOf(e)) {
+      const l = list.find(x => x.team === String(side.id) && x.name);
+      if (l) rows.push({ e, side, l });
+    }
+  }
+  if (!rows.length) return null;
+  return section(
+    L({ zh: '全場最佳', en: 'Top performers' }),
+    el('div', { class: 'q-rowcard' }, rows.map(({ e, side, l }) =>
+      el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => (l.id ? openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) : openEvent(e)) }, [
+        personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'),
+        el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title one-line', text: l.full || l.name }), el('small', { text: `${side.short || side.name} · ${statName(l.stat, locale, { sport: LEAGUES[e.league]?.sport })}` })]),
+        el('b', { class: 'q-ritem-value num', text: l.value })
+      ])
+    ))
+  );
+}
+// 即將開始 on a light day: the next day with games of theirs, its best
+// few, and the way there.
+function nextDayShelf(seen) {
+  const date = savedJump() || nextLeagueDay();
+  if (!date) return null;
+  const slot = state.days.get(date);
+  if (!slot?.at) {
+    if (!slot?.loading) loadDay(date).then(() => state.tab === 'home' && state.home.date === today() && renderHome());
+    return null;
+  }
+  const keyOf = e => `${e.league}:${e.id}`;
+  const games = filtered(slot.events.filter(e => !practice(e) && !e.status?.void && (isFollowedGame(e) || onTv(e))))
+    .filter(e => !seen.has(keyOf(e)));
+  if (!games.length) return null;
+  const { plan, also } = dayPlan(games, { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, aff: affinity(null, Date.now(), ['match']), now: Date.now(), featured: featuredIn(dayAll(slot)), chosen: chosenGames() }, { n: 6, also: 999 });
+  const list = [...plan, ...also].slice(0, 8).map(x => x.event).sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
+  const go = () => {
+    state.home.date = date;
+    stripRange.recenter = true;
+    renderHome();
+  };
+  return section(t('upcomingEvents'), kitRail(list), { action: moreButton(dayLabel(date), go) });
 }
 // Cards that scroll sideways (the kit's rail).
 // A rail of games as cards; a lone game as a row in a full-width card (one
