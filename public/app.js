@@ -1532,8 +1532,8 @@ function recapList(games, opts) {
     if (!homeBest.has(k)) {
       homeBest.set(k, null);
       summary(e.league, e.id)
-        .then(d => homeBest.set(k, d?.leaders || []))
-        .catch(() => homeBest.set(k, []))
+        .then(d => homeBest.set(k, d || {}))
+        .catch(() => homeBest.set(k, {}))
         .finally(() => state.tab === 'home' && renderHome());
     }
     return el('div', { class: 'q-card recap' }, [eventRow(e, opts), ...(e.kind === 'match' && !e.status.void ? gameRecap(e, homeBest.get(k)) : [])]);

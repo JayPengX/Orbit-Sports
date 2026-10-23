@@ -1976,13 +1976,16 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 /* A light day's games over on 首頁: the row, who led each side, the ways to see it again. */
 .recap-list { display: grid; gap: 12px; }
 .q-card.recap { padding: 0 0 14px; overflow: hidden; border-radius: 22px; }
-.recap-best { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 2px 14px 0; }
+.recap-best { display: grid; gap: 8px; padding: 2px 14px 0; }
 .recap-lead { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px; border: 0; border-radius: 16px; background: var(--q-fill-4); color: inherit; font: inherit; text-align: left; }
 .recap-lead .logo { flex: none; }
 .recap-text { display: grid; gap: 2px; min-width: 0; }
 .recap-text > * { display: block; min-width: 0; overflow: hidden; white-space: nowrap; }
 .recap-text strong { font: 600 15px/1.25 var(--q-font); }
-.recap-text small { color: var(--q-muted); font-size: 12.5px; }
+.recap-text small { color: var(--q-muted); font-size: 13px; }
+.recap-text .recap-line { display: flex; align-items: center; gap: 6px; }
+.recap-line .logo { flex: none; }
+.recap-line > span { min-width: 0; }
 /* 回看 and 精華 as two buttons side by side: the name alone, the whole tile the link. */
 .recap-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; padding: 0 14px; }
 .recap-links:empty { display: none; }

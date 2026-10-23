@@ -2620,20 +2620,84 @@ const lineWatch = typeof ResizeObserver === 'function'
       }
     })
   : null;
-// A game over on a light day's 首頁 (Jay 2026-10-23): who led each side,
-// a column each, and the ways to see it again (回看, 精華), as on its page.
-export function gameRecap(e, leaders) {
+// A game over on a light day's 首頁 (Jay 2026-10-23): who decided it for
+// each side, by what decides the sport (never a stat that misleads, Jay:
+// not shots for a forward who didn't score in a 3-1), a column each, and
+// the ways to see it again (回看, 精華), as on its page.
+const boxNum = v => parseFloat(String(v ?? '').replace(/[^\d.-]/g, '')) || 0;
+function sideStar(d, e, team) {
+  const en = L() === 'en';
+  const sport = LEAGUES[e.league]?.sport;
+  const tables = (d?.players || []).find(p => p.team === team)?.tables || [];
+  const col = (t, ...labels) => t.labels.findIndex(x => labels.includes(x));
+  const rowsWith = (...labels) => tables.filter(t => col(t, ...labels) >= 0).flatMap(t => t.rows.map(r => ({ r, t })));
+  const val = ({ r, t }, ...labels) => boxNum(r.stats[col(t, ...labels)]);
+  const join = parts => parts.filter(Boolean).join(' · ');
+  if (sport === 'soccer') {
+    // The goals (an own goal is the other side's), with their minutes; then
+    // the assists; then a keeper who kept them in it.
+    const goals = new Map();
+    for (const k of d?.keyEvents || []) if (k.scoring && k.team === team && k.pic?.id && !/own/i.test(`${k.kind} ${k.type} ${k.text}`)) goals.set(k.pic.id, [...(goals.get(k.pic.id) || []), k.clock]);
+    const all = rowsWith('G', 'A');
+    const row = id => all.find(x => x.r.id === id);
+    const [id, mins] = [...goals].sort((x, y) => y[1].length - x[1].length)[0] || [];
+    if (id) {
+      const x = row(id);
+      const ast = x ? val(x, 'A') : 0;
+      const ke = d.keyEvents.find(k => k.pic?.id === id);
+      return { p: x?.r || { id, name: ke.who, full: ke.pic.name, headshot: ke.pic.headshot }, line: join([`${en ? 'Goal' : '進球'} ${mins.join(en ? ', ' : '、')}`, ast ? (en ? `${ast} assist${ast > 1 ? 's' : ''}` : `${ast} 助攻`) : '']) };
+    }
+    const a = all.filter(x => val(x, 'A') > 0).sort((x, y) => val(y, 'A') - val(x, 'A'))[0];
+    if (a) return { p: a.r, line: en ? `${val(a, 'A')} assist${val(a, 'A') > 1 ? 's' : ''}` : `${val(a, 'A')} 助攻` };
+    const k = rowsWith('SV').filter(x => val(x, 'SV') >= 3).sort((x, y) => val(y, 'SV') - val(x, 'SV'))[0];
+    return k ? { p: k.r, line: en ? `${val(k, 'SV')} saves` : `${val(k, 'SV')} 次撲救` } : null;
+  }
+  if (sport === 'basketball') {
+    const x = rowsWith('PTS').sort((p, q) => val(q, 'PTS') - val(p, 'PTS'))[0];
+    if (!x || !val(x, 'PTS')) return null;
+    return { p: x.r, line: en ? join([`${val(x, 'PTS')} PTS`, `${val(x, 'REB')} REB`, `${val(x, 'AST')} AST`]) : join([`${val(x, 'PTS')} 分`, `${val(x, 'REB')} 籃板`, `${val(x, 'AST')} 助攻`]) };
+  }
+  if (sport === 'baseball') {
+    // A starter who shut them down, else the bat that drove the runs in,
+    // else whoever pitched longest.
+    const outs = x => { const ip = String(x.r.stats[col(x.t, 'IP')] || '0').split('.'); return Number(ip[0]) * 3 + Number(ip[1] || 0); };
+    const arms = rowsWith('IP').filter(x => x.t.name === 'pitching' || col(x.t, 'ERA') >= 0).sort((p, q) => outs(q) - outs(p));
+    const arm = arms[0];
+    const armLine = x => (en ? join([`${x.r.stats[col(x.t, 'IP')]} IP`, `${val(x, 'K')} K`, `${val(x, 'ER')} ER`]) : join([`${x.r.stats[col(x.t, 'IP')]} 局`, `${val(x, 'K')} 次三振`, `失 ${val(x, 'ER')} 分`]));
+    if (arm && outs(arm) >= 18 && val(arm, 'ER') <= 1) return { p: arm.r, line: armLine(arm) };
+    const bats = rowsWith('RBI', 'HR').filter(x => x.t.name !== 'pitching' && col(x.t, 'IP') < 0);
+    const weight = x => val(x, 'HR') * 3 + val(x, 'RBI') * 2 + val(x, 'H') + val(x, 'R');
+    const bat = bats.filter(x => val(x, 'RBI') > 0 || val(x, 'HR') > 0).sort((p, q) => weight(q) - weight(p))[0];
+    if (bat) {
+      const h = val(bat, 'H');
+      const hr = val(bat, 'HR');
+      const rbi = val(bat, 'RBI');
+      return { p: bat.r, line: en ? join([`${bat.r.stats[col(bat.t, 'H-AB')] || h + ' H'}`, hr ? `${hr > 1 ? hr + ' ' : ''}HR` : '', rbi ? `${rbi} RBI` : '']) : join([h ? `${h} 安` : '', hr ? `${hr} 轟` : '', rbi ? `${rbi} 分打點` : '']) };
+    }
+    return arm ? { p: arm.r, line: armLine(arm) } : null;
+  }
+  if (sport === 'hockey') {
+    const pts = x => val(x, 'G') * 2 + val(x, 'A');
+    const x = rowsWith('G').filter(x => val(x, 'G') + val(x, 'A') > 0).sort((p, q) => pts(q) - pts(p))[0];
+    if (x) return { p: x.r, line: en ? join([val(x, 'G') ? `${val(x, 'G')} G` : '', val(x, 'A') ? `${val(x, 'A')} A` : '']) : join([val(x, 'G') ? `${val(x, 'G')} 進球` : '', val(x, 'A') ? `${val(x, 'A')} 助攻` : '']) };
+    const g = rowsWith('SV').sort((p, q) => val(q, 'SV') - val(p, 'SV'))[0];
+    return g && val(g, 'SV') ? { p: g.r, line: en ? `${val(g, 'SV')} saves` : `${val(g, 'SV')} 次撲救` } : null;
+  }
+  // The rest (American football): the game's own first leader, its stat named.
+  const l = (d?.leaders || []).find(x => x.team === team && x.name);
+  return l ? { p: l, line: `${statName(l.stat, L(), { sport })} ${leaderValue(l.value, L())}` } : null;
+}
+export function gameRecap(e, d) {
   const sides = inOrder(e, [e.away, e.home]);
-  const best = sides.map(s => (leaders || []).find(l => l.team === String(s.id) && l.name)).filter(Boolean);
-  const byId = Object.fromEntries(sides.map(s => [String(s.id), s]));
+  const best = sides.map(s => ({ s, star: d ? sideStar(d, e, String(s.id)) : null })).filter(x => x.star);
   return [
     best.length
-      ? el('div', { class: 'recap-best' }, best.map(l =>
-          el('button', { class: 'recap-lead', type: 'button', disabled: l.id ? null : true, onclick: () => l.id && ctx.openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) }, [
-            personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'),
+      ? el('div', { class: 'recap-best' }, best.map(({ s, star: { p, line } }) =>
+          el('button', { class: 'recap-lead', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
+            personPic({ ...p, name: p.full || p.name }, e.league, 'sm round'),
             el('span', { class: 'recap-text' }, [
-              fitLine(el('strong', { text: playerName(l.full || l.name, 'full', l.name) })),
-              fitLine(el('small', { text: `${byId[l.team]?.short || byId[l.team]?.name || ''} · ${statName(l.stat, L(), { sport: LEAGUES[e.league]?.sport })} ${leaderValue(l.value, L())}` }))
+              fitLine(el('strong', { text: playerName(p.full || p.name, 'full', p.name) })),
+              el('small', { class: 'recap-line' }, [sideLogo(s, e.league, 'xs'), fitLine(el('span', { text: line }))])
             ])
           ])
         ))
