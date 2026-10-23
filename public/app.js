@@ -367,7 +367,8 @@ const isChosenGame = e => e.kind === 'match' && chosenGames().has(`${e.league}:$
 function isFollowedEvent(e, { chosen = true } = {}) {
   if (isFollowedGame(e)) return true;
   if (e.kind === 'match') return followedTeams().some(f => f.league === e.league && (f.id === e.home?.id || f.id === e.away?.id)) || (chosen && isChosenGame(e));
-  if (chosen && e.sessionKey && ['Qual', 'SR', 'Race'].includes(e.sessionKey) && watched().includes(e.league)) return true;
+  // (Not one in the small hours: a 04:00 race is among 更多賽事, as a match is.)
+  if (chosen && e.sessionKey && ['Qual', 'SR', 'Race'].includes(e.sessionKey) && watched().includes(e.league) && new Date(officialMs(e)).getHours() >= AWAKE_FROM) return true;
   // A race with a followed driver in it.
   const people = (e.sessions || []).flatMap(x => x.field || []);
   if (people.some(p => p && isFollowed(e.league, p.id))) return true;
@@ -1404,7 +1405,7 @@ function renderHome() {
   const hero = heroItem ? heroGame(heroItem.event, { picked: isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }) : null;
   // The rest on now: a row each with 觀看; every game on is 轉播's.
   const liveBlock = liveRest.length
-    ? section(t('liveNow'), kitRail(liveRest.map(x => scoreCard(x.event, openEvent))), {
+    ? section(t('liveNow'), kitRail(liveRest.map(x => x.event)), {
         cls: 'live-now',
         action: allLive > liveShown.length ? moreButton(L({ zh: `全部 ${allLive}`, en: `All ${allLive}` }), () => showTab('live')) : null
       })
@@ -1505,17 +1506,19 @@ function renderHome() {
         : finding || fallback || liveBlock || hero || h.picking || mineNext.length || restShown.length
           ? null
           : section(t('todayPicks'), note('', gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine'))),
-    mineNext.length ? section(watched().length ? L({ zh: '我的比賽', en: 'My games' }) : L({ zh: '我的球隊', en: 'My teams' }), kitRail(mineNext.map(e => scoreCard(e, openEvent)))) : null,
-    !past && restShown.length ? section(planList.length ? (isToday ? L({ zh: '今晚', en: 'Tonight' }) : L({ zh: '更多賽事', en: 'More games' })) : t('moreRecs'), kitRail(restShown.map(x => scoreCard(x.event, openEvent))), { action: moreAll.length > restShown.length ? moreButton(t('seeAll'), () => openMore(moreAll, rowDay)) : null }) : null,
+    mineNext.length ? section(watched().length ? L({ zh: '我的比賽', en: 'My games' }) : L({ zh: '我的球隊', en: 'My teams' }), kitRail(mineNext)) : null,
+    !past && restShown.length ? section(planList.length ? (isToday ? L({ zh: '今晚', en: 'Tonight' }) : L({ zh: '更多賽事', en: 'More games' })) : t('moreRecs'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('seeAll'), () => openMore(moreAll, rowDay)) : null }) : null,
     leaguesShelf,
     placesShelf,
-    endedGames.length ? section(L(ENDED_GAMES), kitRail(endedGames.map(e => scoreCard(e, openEvent))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
+    endedGames.length ? section(L(ENDED_GAMES), kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
   );
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
 }
 // Cards that scroll sideways (the kit's rail).
-const kitRail = cards => el('div', { class: 'q-rail score-rail' }, cards);
+// A rail of games as cards; a lone game as a row in a full-width card (one
+// card by itself in a rail looked empty, Jay 2026-10-23).
+const kitRail = games => (games.length === 1 ? el('div', { class: 'q-card list' }, [eventRow(games[0], { day: true })]) : el('div', { class: 'q-rail score-rail' }, games.map(e => scoreCard(e, openEvent))));
 // 稍後's 全部: the rest of the day worth a look, by the clock.
 function openMore(items, opts) {
   const s = sheet(t('moreRecs'));
