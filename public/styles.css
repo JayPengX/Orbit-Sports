@@ -77,8 +77,8 @@ img { max-width: 100%; }
 @keyframes pulse { 50% { opacity: 0.3; } }
 
 /* ==== The frame: the page, its head, sections ==== */
-/* The kit's column (orbit.css .q-col): the phone's 16 px in, the iPad's whole width. */
-.page { --q-margin: var(--q-gutter, 16px); max-width: var(--q-col, 640px); margin: 0 auto; padding: 4px max(var(--q-margin), env(safe-area-inset-right)) calc(40px + var(--q-nav)) max(var(--q-margin), env(safe-area-inset-left)); }
+/* The page: the phone's 16 px in. */
+.page { --q-margin: 16px; padding: 4px max(var(--q-margin), env(safe-area-inset-right)) calc(40px + var(--q-nav)) max(var(--q-margin), env(safe-area-inset-left)); }
 /* One head per tab: the small line over the large title, an action at the right. */
 .sp-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .sp-head-text { min-width: 0; }
@@ -400,10 +400,7 @@ img { max-width: 100%; }
 .race-flag.emoji { display: inline-grid; place-items: center; font-size: 15px; line-height: 1; }
 .race-flag.emoji.big { font-size: 24px; }
 /* ---- Sheets ---- */
-.fx-sheet { width: min(640px, calc(100vw - 16px)); }
-@media (max-width: 719px) {
-  .fx-sheet { max-height: 94vh; max-height: 94dvh; }
-}
+.fx-sheet { max-height: 94vh; max-height: 94dvh; }
 .sheet-body { padding-bottom: 8px; }
 .match-head { display: grid; gap: 16px; padding: 8px 0 2px; }
 /* A game's sections and their cards with room between them (the sheet had read as packed: 2 px over the chips, none under). */
@@ -493,10 +490,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .plays .play-when > * { overflow: hidden; text-overflow: ellipsis; }
 .plays .play-when small { font-size: 11px; }
 .lineups { display: grid; gap: 12px; }
-@media (min-width: 600px) {
-  .lineups { grid-template-columns: 1fr 1fr; }
-  .lineups .q-card + .q-card { margin-top: 0; }
-}
 .roster-list { list-style: none; margin: 0; padding: 0; display: grid; }
 .roster-list li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; border-top: 1px solid var(--q-divider, var(--q-border)); }
 .roster-list li:first-child { border-top: 0; }
@@ -507,9 +500,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .roster-list small { color: var(--q-muted); font-size: 12px; white-space: nowrap; }
 .jersey { color: var(--q-muted); font-size: 12.5px; text-align: right; }
 .leaders { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-@media (min-width: 520px) {
-  .leaders { grid-template-columns: 1fr 1fr; }
-}
 .leaders li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 8px; }
 .leaders small { grid-column: 1 / -1; color: var(--q-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .leaders strong { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -638,9 +628,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .leader b { color: var(--accent); }
 .series-text { font-size: 14px; }
 .injuries { display: grid; gap: 10px; }
-@media (min-width: 520px) {
-  .injuries { grid-template-columns: 1fr 1fr; }
-}
 .sb-group { margin: 10px 0 -2px; }
 .sb-group:first-of-type { margin-top: 0; }
 .sb-legend { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 800; }
@@ -784,14 +771,11 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .standings .name-cell { width: 100%; min-width: 7.5em; }
 .standings .team-link { display: flex; align-items: center; gap: 6px; max-width: none; overflow: visible; }
 .standings .nm { min-width: 0; white-space: nowrap; }
-.standings .nm-short { display: none; }
 .standings td.gap, .standings th.gap { color: var(--q-text-2); font-weight: 700; }
-@media (max-width: 560px) {
-  .standings .nm-full { display: none; }
-  .standings .nm-short { display: inline; }
-  .standings .extra { display: none; }
-  .standings th, .standings td { padding: 7px 5px; }
-}
+.standings .nm-full { display: none; }
+.standings .nm-short { display: inline; }
+.standings .extra { display: none; }
+.standings th, .standings td { padding: 7px 5px; }
 .standings.compact .extra { display: none; }
 .standings.compact .nm-full { display: none; }
 .standings.compact .nm-short { display: inline; }
@@ -832,11 +816,9 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .lp-who p { margin: 0; display: grid; min-width: 0; }
 .lp-who small, .lp-last small { font-size: 11px; color: var(--q-muted); font-weight: 700; }
 .lp-who strong { font-size: 13.5px; overflow-wrap: break-word; color: var(--q-text); }
-/* A phone: the batter and pitcher on a line of their own, side by side (a name never broken mid-way). */
-@media (max-width: 440px) {
-  .lp-baseball { grid-template-columns: auto minmax(0, 1fr); }
-  .lp-who { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 10px; }
-}
+/* The batter and pitcher on a line of their own, side by side (a name never broken mid-way). */
+.lp-baseball { grid-template-columns: auto minmax(0, 1fr); }
+.lp-who { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 10px; }
 .lp-goals { list-style: none; margin: 0; padding: 0; display: grid; }
 .lp-goals li { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 48px; padding: 6px 0; }
 .lp-goals li + li { border-top: 1px solid var(--q-divider, var(--q-border)); }
@@ -1251,15 +1233,13 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 /* A place still being played for: the two sides that could take it, each logo by its name. */
 .br-tie.pending { border-style: dashed; border-color: var(--q-border); box-shadow: none; }
 .br-maybe { grid-column: 2 / 5; display: flex; align-items: center; gap: 5px; min-width: 0; }
-/* A phone: two whole rounds across the screen, a swipe snapping to the next. */
-@media (max-width: 560px) {
-  .bracket { gap: 14px; scroll-snap-type: x mandatory; }
-  .br-col { flex-basis: calc((100% - 14px) / 2); }
-  .br-tie { padding: 9px 9px; }
-  .br-side { grid-template-columns: 12px auto minmax(0, 1fr) auto; gap: 4px; font-size: 14px; }
-  .br-side .logo { width: 20px; height: 20px; }
-  .br-maybe { grid-column: 1 / 5; gap: 4px; }
-}
+/* Two whole rounds across the screen, a swipe snapping to the next. */
+.bracket { gap: 14px; scroll-snap-type: x mandatory; }
+.br-col { flex-basis: calc((100% - 14px) / 2); }
+.br-tie { padding: 9px 9px; }
+.br-side { grid-template-columns: 12px auto minmax(0, 1fr) auto; gap: 4px; font-size: 14px; }
+.br-side .logo { width: 20px; height: 20px; }
+.br-maybe { grid-column: 1 / 5; gap: 4px; }
 .br-opt { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .br-maybe .br-name { overflow: visible; }
 .br-maybe .logo { width: 20px; height: 20px; flex: none; }
@@ -1985,20 +1965,6 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .team-domestic .league-tag { flex: none; }
 .team-domestic .td-text { white-space: nowrap; }
 .team-domestic .td-chev { opacity: .6; }
-
-/* ==== iPad landscape and wider: a card of rows (games, teams) runs two
-   across, so a game isn't one line with 1,000 px of nothing beside it; a
-   lone last row takes the whole width. ==== */
-@media (min-width: 700px) {
-  /* The day bar meets the page's gutter; its 📅 leads, so the days run on to the screen's right edge. */
-  .page .q-day-bar { margin-inline: calc(-1 * max(var(--q-margin), env(safe-area-inset-left))); padding-inline: max(var(--q-margin), env(safe-area-inset-left)) 0; }
-  .page .q-day-strip-wrap > .q-day-pick { order: -1; }
-}
-@media (min-width: 900px) {
-  .page :is(.q-card.list, .q-rowcard):has(> :nth-child(2)) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; align-content: start; }
-  .page :is(.q-card.list, .q-rowcard):has(> :nth-child(2)) > :last-child:nth-child(odd) { grid-column: 1 / -1; }
-  .page :is(.q-card.list, .q-rowcard):has(> :nth-child(2)) > :nth-child(2)::before { display: none; }
-}
 
 /* 賽事's 全部: a league's head, its mark beside its name, how many at the right. */
 .all-league .q-section-head { align-items: center; justify-content: flex-start; gap: 8px; }
