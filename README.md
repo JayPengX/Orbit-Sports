@@ -26,7 +26,7 @@ couldn't be read is shown, never hidden.
 
 - **Tabs, one question each:**
   - **首頁:** what to watch. A date strip that sticks at the top (swipe
-    the page for the next or last day), 正在進行, 今日推薦 (a no-clash plan),
+    the page for the next or last day), 正在進行, 推薦 (a no-clash plan), 我的比賽, 更多賽事,
     已結束, followed teams today.
   - **賽事:** a league. Sport and league chips, game days, then 賽程, 排名,
     季後賽, 數據領先.

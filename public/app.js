@@ -1255,7 +1255,6 @@ function renderAll() {
   centerChosen(box);
 }
 
-const ENDED_GAMES = { zh: '已結束', en: 'Ended' };
 // ELTA's four 體育台; MAX's channels carry the English feed. Its pick is a
 // game there with its own commentators: a 體育台 can carry a game in 原音
 // too, not its pick (Brighton v Palace on 愛爾達2台 in 原音 while Leeds v
@@ -1407,7 +1406,7 @@ function renderHome() {
   const liveBlock = liveRest.length
     ? section(t('liveNow'), kitRail(liveRest.map(x => x.event)), {
         cls: 'live-now',
-        action: allLive > liveShown.length ? moreButton(L({ zh: `全部 ${allLive}`, en: `All ${allLive}` }), () => showTab('live')) : null
+        action: allLive > liveShown.length ? moreButton(t('allN', { n: allLive }), () => showTab('live')) : null
       })
     : null;
   const hasFollows = state.prefs.leagues.length > 0;
@@ -1449,7 +1448,7 @@ function renderHome() {
     const games = filtered(mine)
       .filter(e => !seen.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && seen.add(`${e.league}:${e.id}:${e.sessionKey || ''}`))
       .sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
-    const title = L(ENDED_GAMES);
+    const title = t('pastEvents');
     if (!games.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
     return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))), games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
   }
@@ -1470,7 +1469,7 @@ function renderHome() {
   const planShown = planList.filter(x => !seenKeys.has(keyOf(x.event)));
   planShown.forEach(x => seenKeys.add(keyOf(x.event)));
   const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, 12);
-  const leaguesShelf = past || h.picking || !hasFollows ? null : section(L({ zh: '我的聯賽', en: 'My leagues' }), el('div', { class: 'q-rail league-rail' }, state.prefs.leagues.map(k => leagueTile(k, lk => openScores(lk)))));
+  const leaguesShelf = past || h.picking || !hasFollows ? null : section(t('yourLeagues'), el('div', { class: 'q-rail league-rail' }, state.prefs.leagues.map(k => leagueTile(k, lk => openScores(lk)))));
   const placeRows = past || h.picking ? [] : followedTeams().filter(f => state.home.tables[f.league]?.[f.id]?.pos && !f.athlete).slice(0, 6);
   const placesShelf = placeRows.length
     ? section(
@@ -1485,7 +1484,6 @@ function renderHome() {
         }))
       )
     : null;
-  const laterTitle = fallback ? t('othersPicks') : isToday ? L({ zh: '稍後', en: 'Later' }) : L({ zh: '推薦', en: 'Picks' });
   put(
     box,
     homeBar(),
@@ -1502,15 +1500,15 @@ function renderHome() {
     past
       ? null
       : planShown.length
-        ? section(laterTitle, el('div', { class: 'q-card list' }, planShown.map(x => planRow(x, rowDay))), { action: !restShown.length && moreAll.length ? moreButton(t('seeAll'), () => openMore(moreAll, rowDay)) : null })
+        ? section(t('picks'), el('div', { class: 'q-card list' }, planShown.map(x => planRow(x, rowDay))), { action: !restShown.length && moreAll.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null })
         : finding || fallback || liveBlock || hero || h.picking || mineNext.length || restShown.length
           ? null
-          : section(t('todayPicks'), note('', gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine'))),
-    mineNext.length ? section(watched().length ? L({ zh: '我的比賽', en: 'My games' }) : L({ zh: '我的球隊', en: 'My teams' }), kitRail(mineNext)) : null,
-    !past && restShown.length ? section(planList.length ? (isToday ? L({ zh: '今晚', en: 'Tonight' }) : L({ zh: '更多賽事', en: 'More games' })) : t('moreRecs'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('seeAll'), () => openMore(moreAll, rowDay)) : null }) : null,
+          : section(t('picks'), note('', gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine'))),
+    mineNext.length ? section(t('myGames'), kitRail(mineNext)) : null,
+    !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
     leaguesShelf,
     placesShelf,
-    endedGames.length ? section(L(ENDED_GAMES), kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
+    endedGames.length ? section(t('pastEvents'), kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
   );
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
@@ -1521,7 +1519,7 @@ function renderHome() {
 const kitRail = games => (games.length === 1 ? el('div', { class: 'q-card list' }, [eventRow(games[0], { day: true })]) : el('div', { class: 'q-rail score-rail' }, games.map(e => scoreCard(e, openEvent))));
 // 稍後's 全部: the rest of the day worth a look, by the clock.
 function openMore(items, opts) {
-  const s = sheet(t('moreRecs'));
+  const s = sheet(t('moreGames'));
   put(s.body, el('div', { class: 'q-card list' }, items.map(x => eventRow(x.event, opts))));
 }
 // Nothing on TV here that day: why (past ELTA's list, only the NBA's and
@@ -1782,7 +1780,7 @@ function renderLive() {
     byDay.get(d).push(e);
   }
   const mineBlock = byDay.size
-    ? section(L({ zh: '你的轉播', en: 'Yours on TV' }), el('div', { class: 'by-day' }, [...byDay].map(([d, list]) => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { day: false })))]).flat()), {
+    ? section(t('myGames'), el('div', { class: 'by-day' }, [...byDay].map(([d, list]) => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { day: false })))]).flat()), {
         action: el('span', { class: 'q-tag tint', text: L({ zh: `${TV_DAYS} 天`, en: `${TV_DAYS} days` }) })
       })
     : null;
@@ -1800,9 +1798,9 @@ function renderLive() {
     hero,
     !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })])) : null,
     guide,
-    liveSorted.length > 1 ? section(L({ zh: '直播中', en: 'Live now' }), el('div', { class: 'q-card list' }, liveSorted.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
+    liveSorted.length > 1 ? section(t('liveNow'), el('div', { class: 'q-card list' }, liveSorted.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
     mineBlock,
-    later.length ? section(soonShort.length ? t('startingSoon') : L({ zh: '接下來 24 小時', en: 'Next 24 hours' }), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null
+    later.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null
   );
 }
 // Another day on 轉播: everything on TV here that day by the clock (the
