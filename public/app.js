@@ -2117,6 +2117,8 @@ ctx.hasBracket = league => hasBracket(league);
 ctx.playoffsOf = async league => {
   if (!hasBracket(league)) return null;
   const model = await bracketModel(league);
+  // A game of it started or ended (the sheet's own reads, while 首頁's tick waits under it): read again next time.
+  notePlayoffGames(model.rounds.flatMap(r => r.ties.flatMap(t => t?.games || [])).map(freshGame));
   return model?.rounds?.length ? playoffView(model, league) : null;
 };
 // The playoffs as a map you swipe across: a column a round (its name, and
@@ -2223,9 +2225,11 @@ function playoffView(model, league) {
     if (t?.gap) return el('div', { class: `br-tie gap${t.through ? ' through' : ''}`, 'aria-hidden': 'true' }, [sideRow(null, blank, 0), sideRow(null, blank, 1), el('small', { class: 'br-note', text: '·' })]);
     const said = note(t, r);
     const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said }) : null];
-    return t && !t.projected && !t.pending
-      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openTie(t, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh) }, body)
-      : el('div', { class: `br-tie ${t?.pending ? 'pending' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
+    if (!t || t.projected || t.pending) return el('div', { class: `br-tie ${t?.pending ? 'pending' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
+    // (Its sheet from the card as last drawn: patchPlayoffs moves __open over with the newer games.)
+    const card = el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => card.__open() }, body);
+    card.__open = () => openTie(t, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh);
+    return card;
   };
   const entry = brackets.get(league);
   const fade = entry && !entry.shown;
@@ -2243,7 +2247,42 @@ function playoffView(model, league) {
   const at = stacked ? 0 : openRound(model) - 1;
   // (By the rounds themselves: the lines' drawing sits first in the map.)
   if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.querySelectorAll(':scope > .br-col')[at]?.offsetLeft - map.offsetLeft - 16));
-  return el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, map]);
+  const root = el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, map]);
+  root.__patch = neu => patchPlayoffs(root, neu);
+  return root;
+}
+// A live refresh's drawing put into the bracket on screen: the same ties
+// (the same sides in the same places), only their scores, notes and states
+// changed in place, so the map keeps where it was swiped to and its lines;
+// another shape (a series won, a round filled) put in whole. The node now shown.
+function patchPlayoffs(old, neu) {
+  const cards = n => [...n.querySelectorAll('.br-tie')];
+  const shape = n => [n.querySelector('.po-banner')?.textContent || '', ...cards(n).map(c => `${c.tagName}:${[...c.querySelectorAll('.br-name')].map(x => x.dataset.abbr || x.textContent).join('/')}`)].join('|');
+  if (!old.isConnected || shape(old) !== shape(neu)) return old.isConnected && old.replaceWith(neu), neu;
+  const pairs = sel => [...old.querySelectorAll(sel)].map((n, i) => [n, neu.querySelectorAll(sel)[i]]);
+  for (const [a, b] of pairs('.br-head small')) if (a.textContent !== b.textContent) a.textContent = b.textContent;
+  for (const [a, b] of pairs(':scope > .bracket > .br-col')) a.className = b.className;
+  const olds = cards(old);
+  cards(neu).forEach((b, i) => {
+    const a = olds[i];
+    a.classList.toggle('live', b.classList.contains('live'));
+    if (b.__open) a.__open = b.__open;
+    const sides = [...b.querySelectorAll('.br-side')];
+    a.querySelectorAll('.br-side').forEach((x, j) => {
+      const y = sides[j];
+      if (!y) return;
+      for (const k of ['win', 'out']) x.classList.toggle(k, y.classList.contains(k));
+      const [sx, sy] = [x.querySelector('.br-score'), y.querySelector('.br-score')];
+      if (sx && sy && sx.textContent !== sy.textContent) sx.textContent = sy.textContent;
+    });
+    const [na, nb] = [a.querySelector('.br-note'), b.querySelector('.br-note')];
+    if (na && nb) {
+      if (na.textContent !== nb.textContent) na.textContent = nb.textContent;
+      na.classList.toggle('live', nb.classList.contains('live'));
+    } else if (nb) a.append(nb);
+    else na?.remove();
+  });
+  return old;
 }
 // The lines from each tie to the one it feeds (a bracket's elbows), drawn
 // once the columns are laid out and again when they change size. A tie goes
@@ -2403,6 +2442,8 @@ let scoresQuiet = false;
 // element whose tag, attributes or children's count differ replaced whole.
 function morph(old, neu) {
   if (old.nodeType !== neu.nodeType || old.nodeName !== neu.nodeName) return old.replaceWith(neu);
+  // (The bracket: its own, keeping its swipe and lines.)
+  if (old.__patch && neu.__patch) return void old.__patch(neu);
   if (old.nodeType === 3) {
     if (old.nodeValue !== neu.nodeValue) old.nodeValue = neu.nodeValue;
     return;

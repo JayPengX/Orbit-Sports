@@ -299,9 +299,12 @@ export async function openMatch(e) {
   // 過程 drawn once for the game's data as it is (an NBA game's 500-odd rows):
   // a tab tapped back to it puts the same list back, drawn again only when the data changes.
   let playsKept = null;
-  // 季後賽 (a playoff game): the league's bracket, read once when first shown;
-  // undefined before, null while it's read, false when there's none.
+  // 季後賽 (a playoff game): the league's bracket, read when first shown and
+  // drawn again at every live refresh after (the game's score and inning on
+  // its card, a series won), changed in place on the map already there;
+  // undefined before, null while it's first read, false when there's none.
   let poView;
+  let poBusy = false;
   const playoffsNode = () => {
     if (poView === undefined) {
       poView = null;
@@ -310,6 +313,13 @@ export async function openMatch(e) {
         .then(n => (poView = n || false))
         .catch(() => (poView = false))
         .finally(() => paint());
+    } else if (poView && !poBusy) {
+      poBusy = true;
+      ctx
+        .playoffsOf(e.league)
+        .then(n => n && (poView = poView.__patch ? poView.__patch(n) : n))
+        .catch(() => {})
+        .finally(() => (poBusy = false));
     }
     return el('div', { class: 'stack' }, [poView || spinner()]);
   };
