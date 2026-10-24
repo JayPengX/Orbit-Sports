@@ -35,6 +35,19 @@ test('basketball: the runs, by the points each side scored', () => {
   assert.equal(m.side, 'home');
 });
 
+test('basketball: a run ending on a play with no score (a timeout) counts from the last score, never 0-0', () => {
+  const pts = [];
+  let [h, a] = [0, 0];
+  const add = (v, dh, da) => pts.push({ home: v, n: 1, play: { home: (h += dh), away: (a += da) } });
+  for (let i = 0; i < 6; i++) add(0.5, 1, 2);
+  for (let i = 0; i < 6; i++) add(0.5 + (i + 1) * 0.04, 2, 0);
+  // The run's last point: the timeout called after it, no score on it (Rockets 12-5, read "-5--12").
+  pts.push({ home: 0.78, n: 1, play: { text: 'Spurs Full timeout' } });
+  const [m] = playMoments(pts, 'basketball', { home: { id: '1', name: '火箭' }, away: { id: '2', name: '馬刺' }, en: false });
+  assert.match(m.text, /^火箭 \d+-\d+ /);
+  assert.equal(m.text, '火箭 12-0 超前');
+});
+
 test("soccer on Polymarket's line: a goal always told, with the move around it", () => {
   const s = parseSummary(fixture('epl-summary.json'), 'epl');
   const goal = s.events.find(ev => ev.kind === 'score');

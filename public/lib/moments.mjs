@@ -173,6 +173,12 @@ function leadAt(points, from, to, mine, ahead) {
   }
   return null;
 }
+// The score at point `k` as { home, away }: scoreAt's (its play's, else the
+// last before it with one: a timeout's play has none, read 0-0 it made a run "-5--12").
+const lastScore = (points, k) => {
+  const [away, home] = scoreAt(points, k) || [0, 0];
+  return { home, away };
+};
 function swingMoments(points, sport, side) {
   const vals = points.map(value);
   const home = d => (d >= 0 ? 'home' : 'away');
@@ -182,7 +188,7 @@ function swingMoments(points, sport, side) {
     .map(({ from, to }) => {
       const delta = vals[to] - vals[from];
       const who = sideOf(delta, side);
-      const [pa, pb] = [points[from].play, points[to].play];
+      const [pa, pb] = [lastScore(points, from), lastScore(points, to)];
       const scored = k => (Number(pb?.[k]) || 0) - (Number(pa?.[k]) || 0);
       const [mine, theirs] = delta >= 0 ? [scored('home'), scored('away')] : [scored('away'), scored('home')];
       // What it did to the score: from behind to level (追平), to ahead
@@ -249,7 +255,7 @@ const PITCHES = 3;
 function baseballMoments(points, side) {
   const vals = points.map(value);
   const out = [];
-  const score = k => points.slice(0, k + 1).reverse().find(q => q.play?.home != null && q.play?.away != null)?.play;
+  const score = k => lastScore(points, k);
   let a = 1;
   for (let i = 1; i <= points.length; i++) {
     if (i < points.length && points[i].n === points[a].n && points[i].half === points[a].half) continue;
