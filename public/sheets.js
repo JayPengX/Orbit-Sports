@@ -4233,6 +4233,8 @@ export async function openTeam(league, id, fallback = {}) {
     const played = sched.filter(x => x.status.state === 'post' && !x.status.void);
     const past = played.slice(-10).reverse();
     const upcoming = sched.filter(x => x.status.state !== 'post' && !x.status.void && Date.parse(x.start) > now - 4 * 3_600_000);
+    // (A club ESPN has no badge for: FotMob's, from its own league's page.)
+    if (!info.logo && away?.badge) info.logo = away.badge;
     const side = { id: info.id, name: info.name, en: info.en, logo: info.logo };
     const followBtn = followButton(() => ctx.isFollowed(league, id), () => ctx.toggleFollow(league, side));
     const place = placeOf(groups, id);

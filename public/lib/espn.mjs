@@ -1999,6 +1999,8 @@ export async function clubAbroad(league, side, lang = detectLocale()) {
   if (ours) return { key: ours };
   const en = lang === 'en';
   const own = String(club.id);
+  // Its badge FotMob's where ESPN has none (Oxford City, of the National League).
+  side = { ...side, logo: side.logo || fotmobTeamLogo(club.id) };
   // Each club in Chinese: the kit's name, else Google's (kept a month), else as FotMob writes it.
   const named = new Map();
   const nameOf = n => {
@@ -2047,6 +2049,7 @@ export async function clubAbroad(league, side, lang = detectLocale()) {
       })
   );
   return {
+    badge: side.logo,
     league: { id: lid, name: leagueName, logo: fotmobLeagueLogo(lid), dark: fotmobLeagueLogo(lid, true) },
     place: i >= 0 ? { pos: i + 1, row: rows[i] } : null,
     group: { name: '', rows },
