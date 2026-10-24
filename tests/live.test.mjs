@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { liveOf, liveLabel, liveNote } from '../public/lib/live.mjs';
+import { liveOf, liveLabel, liveNote, withTimeout } from '../public/lib/live.mjs';
 import { parseScoreboard } from '../public/lib/espn.mjs';
 
 const status = (name, shortDetail, period, displayClock = '0:00') => ({ period, displayClock, type: { name, state: 'in', shortDetail, detail: shortDetail } });
@@ -104,4 +104,18 @@ test('a timeout or a pitching change takes the clock\'s place', () => {
   assert.equal(liveLabel(nba, 'basketball', 'en'), 'Q2 Timeout');
   assert.equal(liveLabel({ ...nba, live: { lastType: 'Substitution' } }, 'basketball'), '第2節 5:32');
   assert.equal(liveLabel({ status: { state: 'in', period: 7 }, live: { half: 'bot', lastType: 'Pitching Change' } }, 'baseball'), '7局下 換投');
+});
+
+test('a timeout stays one through the substitutions made in it, until the clock moves', () => {
+  const at = (lastType, clock = '8:27', lastId = '9') => ({ kind: 'match', league: 'nba', id: 'to1', status: { state: 'in', period: 4, clock }, live: { lastType, lastId } });
+  // Never seen as a timeout: a substitution is a substitution.
+  assert.equal(withTimeout(at('Substitution', '8:27', '10')).live.lastType, 'Substitution');
+  withTimeout(at('Full Timeout', '8:27', '11'));
+  const sub = withTimeout(at('Substitution', '8:27', '12'));
+  assert.equal(sub.live.lastType, 'Full Timeout');
+  assert.equal(sub.live.lastId, '11');
+  assert.equal(liveLabel(sub, 'basketball'), '第4節 暫停');
+  // Play again: the clock ran, the timeout's over (and not brought back by a later substitution).
+  assert.equal(withTimeout(at('Jump Shot', '8:10', '13')).live.lastType, 'Jump Shot');
+  assert.equal(withTimeout(at('Substitution', '8:27', '14')).live.lastType, 'Substitution');
 });

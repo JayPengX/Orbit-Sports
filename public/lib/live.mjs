@@ -117,3 +117,25 @@ export function playPeriod(p, sport, lang = 'zh') {
   if (halves) return en ? `H${n}` : n === 1 ? '上半場' : '下半場';
   return en ? `Q${n}` : `第${n}節`;
 }
+
+// A timeout seen on a game, kept through the substitutions made in it: ESPN
+// logs them after the timeout at the same stopped clock, and the last play
+// read "Substitution" for the rest of the break, its countdown and 暫停 gone
+// (3 of the 7 in Pistons–Heat, 2026-10-23). The game as if its timeout were
+// still the last play while its clock hasn't moved.
+const timeoutsSeen = new Map();
+export function withTimeout(e) {
+  if (e.kind !== 'match' || e.status?.state !== 'in') return e;
+  const key = `${e.league}:${e.id}`;
+  const lv = e.live || {};
+  const at = `${e.status.period || 0}|${e.status.clock || ''}`;
+  if (/timeout/i.test(lv.lastType || '') && !/end (of )?timeout/i.test(lv.lastType)) {
+    timeoutsSeen.set(key, { at, lastType: lv.lastType, lastId: lv.lastId });
+    return e;
+  }
+  const held = timeoutsSeen.get(key);
+  if (!held) return e;
+  if (held.at === at && /substitution/i.test(lv.lastType || '')) return { ...e, live: { ...lv, lastType: held.lastType, lastId: held.lastId } };
+  timeoutsSeen.delete(key);
+  return e;
+}

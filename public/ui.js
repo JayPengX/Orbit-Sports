@@ -6,7 +6,7 @@ import { sidesInOrder } from '#kit/catalog.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
 import { keptTiming } from './lib/f1.mjs';
 import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
-import { liveLabel, liveNote, closeLabel, goalHead } from './lib/live.mjs';
+import { liveLabel, liveNote, closeLabel, goalHead, withTimeout } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { otherName } from './lib/compname.mjs';
 import { AUDIO_NAMES, hasAudio, ALT_VIEW } from './lib/broadcast.mjs';
@@ -291,6 +291,7 @@ const compChip = e => (e.otherLogo ? el('span', { class: 'league-tag' }, [el('sp
 // phone's older kit only half-time's); null for any other moment.
 export function breakKey(e) {
   if (e.kind !== 'match' || e.status?.state !== 'in' || e.status.delayed || !LEAGUES[e.league]?.espn) return null;
+  e = withTimeout(e);
   const sport = LEAGUES[e.league].sport;
   const read = () => espnSummary(e.league, e.id);
   const base = `sports:${e.league}:${e.id}`;
@@ -312,6 +313,7 @@ export const breakTick = (e, label = statusText(e)) => {
 };
 export function statusText(e) {
   const { t } = ctx;
+  e = withTimeout(e);
   const s = e.status;
   const ht = breakKey(e);
   if (ht) return [liveLabel(e, LEAGUES[e.league]?.sport, ctx.locale), kitQ.halftimeClock(kitQ.halftimeEnd(ht))].filter(Boolean).join(' ');
