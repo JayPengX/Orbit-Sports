@@ -12,6 +12,12 @@ test('stages: preseason, regular, cup, All-Star, playoffs and finals', () => {
   const cup = stageFrom({ seasonType: 2, note: 'NBA Cup - Quarterfinals' });
   assert.equal(cup.key, 'cup');
   assert.equal(stageTag({ stage: cup }, 'zh'), 'NBA 盃 · 八強');
+  // A note that's only the cup: its name once.
+  for (const note of ['NBA Cup', 'Emirates NBA Cup']) {
+    assert.equal(stageTag({ stage: stageFrom({ seasonType: 2, note }) }, 'zh'), 'NBA 盃');
+    assert.equal(stageTag({ stage: stageFrom({ seasonType: 2, note }) }, 'en'), 'NBA Cup');
+  }
+  assert.equal(stageTag({ stage: stageFrom({ seasonType: 2, note: 'Emirates NBA Cup - East Group B' }) }, 'en'), 'NBA Cup · East Group B');
   assert.equal(stageFrom({ seasonType: 2, typeAbbr: 'ALLSTAR', note: 'NBA All-Star - Round Robin' }).key, 'allstar');
   const wc = stageFrom({ seasonType: 3, seasonSlug: 'post-season', note: 'NLWC - Game 1' });
   assert.equal(wc.key, 'post');

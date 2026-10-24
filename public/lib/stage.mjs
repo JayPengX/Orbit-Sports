@@ -28,6 +28,11 @@ export function stageTag(e, lang = 'zh') {
   if (!s.special) return e?.group ? groupName(e.group, lang) : '';
   const round = s.round?.[lang === 'en' ? 'en' : 'zh'];
   const stage = s[lang === 'en' ? 'en' : 'zh'];
-  if (round && s.key === 'cup') return `${lang === 'en' ? 'NBA Cup' : 'NBA 盃'} · ${round.replace(/^NBA Cup - /i, '')}`;
+  if (round && s.key === 'cup') {
+    // The round past the cup's own name ("Emirates NBA Cup - East Group B"): a note that's only the cup ("NBA Cup") says it once, never "NBA 盃 · NBA 盃".
+    const cup = lang === 'en' ? 'NBA Cup' : 'NBA 盃';
+    const rest = round.replace(/(emirates )?nba cup|in-season tournament|NBA 盃/gi, '').replace(/^[\s\-–·:]+|[\s\-–·:]+$/g, '');
+    return rest ? `${cup} · ${rest}` : cup;
+  }
   return round || stage;
 }
