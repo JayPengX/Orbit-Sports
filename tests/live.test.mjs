@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { liveOf, liveLabel, liveNote, withTimeout } from '../public/lib/live.mjs';
+import { liveOf, liveLabel, liveNote, withTimeout, liveParts } from '../public/lib/live.mjs';
 import { parseScoreboard } from '../public/lib/espn.mjs';
 
 const status = (name, shortDetail, period, displayClock = '0:00') => ({ period, displayClock, type: { name, state: 'in', shortDetail, detail: shortDetail } });
@@ -118,4 +118,11 @@ test('a timeout stays one through the substitutions made in it, until the clock 
   // Play again: the clock ran, the timeout's over (and not brought back by a later substitution).
   assert.equal(withTimeout(at('Jump Shot', '8:10', '13')).live.lastType, 'Jump Shot');
   assert.equal(withTimeout(at('Substitution', '8:27', '14')).live.lastType, 'Substitution');
+});
+
+test('a live status in two rows, the last minute\'s clock too', () => {
+  assert.deepEqual(liveParts('第4節 8:01'), ['第4節', '', '8:01']);
+  assert.deepEqual(liveParts('第1節 49.7'), ['第1節', '', '49.7']);
+  assert.deepEqual(liveParts('第3節 暫停 0:33'), ['第3節', '暫停', '0:33']);
+  assert.deepEqual(liveParts('5局上'), ['5局上', '', '']);
 });

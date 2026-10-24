@@ -139,3 +139,20 @@ export function withTimeout(e) {
   timeoutsSeen.delete(key);
   return e;
 }
+
+// A live status in its two parts: the period, and what's after it (a word:
+// 暫停, 結束, 休息, Timeout; a clock). 第3節 暫停 0:33 → 第3節 / 暫停 0:33,
+// 第1節結束 → 第1節 / 結束, 第4節 8:01 → 第4節 / 8:01, 第1節 49.7 → 第1節 / 49.7, 5局上 alone.
+export function liveParts(text) {
+  let head = String(text).trim();
+  // (Under a minute, ESPN's clock is seconds and tenths: 49.7.)
+  const clockAt = /\s+(\d{1,2}:\d{2}(?:\.\d)?|\d{1,2}\.\d)$/.exec(head);
+  const clock = clockAt ? clockAt[1] : '';
+  if (clockAt) head = head.slice(0, clockAt.index);
+  head = head.replace(/\s*·\s*/g, ' ').trim();
+  // (Only after a period's number: 中場休息 stays whole.)
+  const wordAt = /^(.*\d.*?)\s*(暫停|結束|休息|Timeout|End|Delayed|Paused)$/i.exec(head);
+  const word = wordAt ? wordAt[2] : '';
+  if (wordAt) head = wordAt[1].trim();
+  return [head, word, clock];
+}
