@@ -15,7 +15,7 @@ import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { transition } from './lib/notice.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
@@ -36,7 +36,7 @@ import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, sessionTag, raceFlag, audioName, personPic } from './ui.js';
+import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, sessionTag, raceFlag, audioName, personPic, refreshBadges } from './ui.js';
 import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
@@ -728,6 +728,7 @@ async function loadDay(date, { live = false } = {}) {
     const kept = events.failed && !live ? [...events, ...slot.events.filter(e => !events.some(x => x.league === e.league))] : events;
     if (isToday) noticeChanges(kept);
     if (isToday) notePlayoffGames(kept);
+    noteCupBadges(kept);
     // The other days held (the nightly copies of the days to come): today's results on top.
     if (isToday) for (const [d, other] of state.days) if (d !== date && other.events?.length) other.events = settleSeries(other.events);
     Object.assign(slot, { events: kept, at: Date.now(), stale: false, leagues: key, partial: events.failed || 0 }, live ? {} : { fullAt: Date.now() });
@@ -2124,6 +2125,11 @@ function loadBracket(league) {
 // league's) changes its bracket (the series, who's through, on now): read
 // again then, not left as it was for up to 10 minutes after a clincher.
 const poState = new Map();
+// A cup's games read (the FA Cup's non-league clubs ESPN has no badge for):
+// its clubs' FotMob badges, the shields drawn so far swapped for them.
+function noteCupBadges(events) {
+  for (const k of new Set((events || []).map(e => e.league))) if (LEAGUES[k]?.cup) cupBadges(k).then(got => got && refreshBadges());
+}
 function notePlayoffGames(events) {
   const changed = new Set();
   for (const e of events) {
@@ -2309,7 +2315,9 @@ function playoffView(model, key) {
     // An empty row (the play-in's): a card's height, unseen, so the columns line up.
     if (t?.gap) return el('div', { class: `br-tie gap${t.through ? ' through' : ''}`, 'aria-hidden': 'true' }, [sideRow(null, blank, 0), sideRow(null, blank, 1), el('small', { class: 'br-note', text: '·' })]);
     const said = note(t, r);
-    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said }) : null];
+    // A game on at a break (中場休息, 暫停): its countdown ticking in the note as everywhere else.
+    const on = t?.live && t.games.find(g => g.status?.state === 'in');
+    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said, ...(on ? breakTick(on, said) : {}) }) : null];
     if (!t || t.projected || t.pending) return el('div', { class: `br-tie ${t?.pending ? 'pending' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
     // (Its sheet from the card as last drawn: patchPlayoffs moves __open over with the newer games.)
     const card = el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => card.__open() }, body);
@@ -2366,6 +2374,8 @@ function patchPlayoffs(old, neu) {
     if (na && nb) {
       if (na.textContent !== nb.textContent) na.textContent = nb.textContent;
       na.classList.toggle('live', nb.classList.contains('live'));
+      // (Its break's countdown, if any, ticking on with the newer drawing's.)
+      for (const k of ['halftime', 'halftimeLabel']) nb.dataset[k] != null ? (na.dataset[k] = nb.dataset[k]) : delete na.dataset[k];
     } else if (nb) a.append(nb);
     else na?.remove();
   });
@@ -2554,6 +2564,7 @@ function applyScores(sc, events) {
   sc.byDay = byDay;
   sc.all = events;
   notePlayoffGames(events);
+  noteCupBadges(events);
   sc.days = [...byDay.keys()].sort();
   tagGroups(sc.league, events, () => state.tab === 'matches' && state.scores === sc && renderScores());
 }

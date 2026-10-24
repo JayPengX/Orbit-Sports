@@ -8,6 +8,7 @@ import { keptTiming } from './lib/f1.mjs';
 import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
 import { liveLabel, liveNote, closeLabel, goalHead, withTimeout, liveParts } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
+import { badgeOf } from './lib/leaders.mjs';
 import { otherName } from './lib/compname.mjs';
 import { AUDIO_NAMES, hasAudio, ALT_VIEW } from './lib/broadcast.mjs';
 import { freshHeadshot, SESSION_NAMES, espnSummary, onAir } from './lib/espn.mjs';
@@ -210,11 +211,31 @@ export const withWatch = (row, e) => {
 // A game's two sides in the kit's order (soccer home first, the rest away first).
 export const sidesOf = e => sidesInOrder({ home: e.home, away: e.away, sport: e.league });
 export function logo(url, name, cls = '', { onWhite = false } = {}) {
-  const fallback = () => {
+  const plain = () => {
     const flag = countryFlag(name);
-    return flag ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: flag }) : markPic('shield', name, cls) || el('span', { class: `logo logo-fallback ${cls}`, 'aria-hidden': 'true', text: (name || '?').trim().slice(0, 1) });
+    if (flag) return el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: flag });
+    const n = markPic('shield', name, cls) || el('span', { class: `logo logo-fallback ${cls}`, 'aria-hidden': 'true', text: (name || '?').trim().slice(0, 1) });
+    // (Swapped for the club's badge if one comes later: refreshBadges.)
+    if (name) n.dataset.club = name;
+    return n;
+  };
+  // A club ESPN has no badge for: FotMob's, where a cup's page gave it (leaders.mjs badgeOf).
+  const fallback = () => {
+    const badge = badgeOf(name);
+    return badge && badge !== url ? logoPicture(badge, null, `logo ${cls}`, plain) : plain();
   };
   return logoPicture(smallPhoto(freshHeadshot(url)), onWhite ? null : darkLogo(url), `logo ${cls}${PLATED.test(url || '') ? ' plate' : ''}`, fallback);
+}
+// A cup's badges come in (espn.mjs cupBadges): every shield drawn for a
+// club that has one now shows it, in place.
+export function refreshBadges() {
+  for (const n of document.querySelectorAll('[data-club]')) {
+    const name = n.dataset.club;
+    const badge = badgeOf(name);
+    if (!badge) continue;
+    const cls = [...n.classList].filter(c => !/^logo(-fallback|-mark)?$|^mark/.test(c)).join(' ');
+    n.replaceWith(logo(badge, name, cls));
+  }
 }
 // Logos drawn dark with no version for a dark screen (the London Lions' black
 // lion): on a light round plate there, so they don't vanish into the card.

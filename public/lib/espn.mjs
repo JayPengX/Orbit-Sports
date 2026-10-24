@@ -17,10 +17,10 @@ import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGU
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey, withPitchingChange } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName, rotowireUrl, rotowireGame } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
-import { athleteAverages, boxSeasonPage, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf, FOTMOB_LEAGUE, FOTMOB_HOME, fotmobLeagueLogo, fotmobTeamLogo } from './leaders.mjs';
+import { athleteAverages, boxSeasonPage, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf, FOTMOB_LEAGUE, FOTMOB_HOME, fotmobLeagueLogo, fotmobTeamLogo, noteBadges } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
-import { proxyJson, packJson, peekJson, translate } from '#kit/orbit.mjs';
+import { proxyJson, packJson, peekJson } from '#kit/orbit.mjs';
 import { mlbPostseason, mlbPostseasonUrl, mlbGameFor as postGameFor, mlbGone } from '#kit/postseason.mjs';
 import { roundName } from './stage.mjs';
 import { teamNameZh } from '#kit/names.mjs';
@@ -1985,6 +1985,20 @@ export async function teamLeaders(league, id, side = {}) {
 // { key } when FotMob's league is one of ours (its page has it all); else
 // { league: { id, name, logo, dark }, place, group (its table, as a league's
 // standings), games (its league's, as a schedule's) }; null when not found.
+// A cup's clubs' badges from FotMob (leaders.mjs badgeOf), read once a
+// session; true once there are some.
+const badgesRead = new Map();
+export function cupBadges(league) {
+  if (!LEAGUES[league]?.cup || !FOTMOB_LEAGUE[league]) return Promise.resolve(false);
+  if (!badgesRead.has(league))
+    badgesRead.set(
+      league,
+      getJson(fotmobLeagueUrl(league), { ttl: LEADERS_TTL })
+        .then(d => (noteBadges(d?.teams || []), Boolean(d?.teams?.length)))
+        .catch(() => (badgesRead.delete(league), false))
+    );
+  return badgesRead.get(league);
+}
 export async function clubAbroad(league, side, lang = detectLocale()) {
   if (!FOTMOB_LEAGUE[league] || !LEAGUES[league]?.cup) return null;
   const cup = await getJson(fotmobLeagueUrl(league), { ttl: LEADERS_TTL });
@@ -2001,13 +2015,11 @@ export async function clubAbroad(league, side, lang = detectLocale()) {
   const own = String(club.id);
   // Its badge FotMob's where ESPN has none (Oxford City, of the National League).
   side = { ...side, logo: side.logo || fotmobTeamLogo(club.id) };
-  // Each club in Chinese: the kit's name, else Google's (kept a month), else as FotMob writes it.
-  const named = new Map();
-  const nameOf = n => {
-    if (!named.has(n)) named.set(n, en ? Promise.resolve(n) : Promise.resolve(teamNameZh('', n, 'soccer')?.full || translate(n, 'zh-TW', 'en').then(z => (/[㐀-鿿]/.test(z) && !/[A-Za-z]{3}/.test(z) ? z : n), () => n)));
-    return named.get(n);
-  };
-  const leagueName = (FOTMOB_HOME[lid] || [])[en ? 1 : 0] || (await nameOf(home.league.name || ''));
+  // Each club in Chinese where it has a name of its own (the kit's), else as
+  // FotMob writes it: a machine's guess at a non-league club's name read wrong
+  // (the owner, 2026-10-24), as did its league's (全國南北).
+  const nameOf = async n => (en ? n : teamNameZh('', n, 'soccer')?.full || n);
+  const leagueName = (FOTMOB_HOME[lid] || [])[en ? 1 : 0] || home.league.name || '';
   const sideOf = async x => (String(x?.id) === own ? { ...side, id: side.id, score: x.score } : { id: '', fotmob: String(x?.id ?? ''), name: await nameOf(x?.name || ''), short: await nameOf(x?.name || ''), logo: fotmobTeamLogo(x?.id), score: x?.score });
   const zoneOf = i => (home.zones || []).find(z => z.at.includes(i));
   const rows = await Promise.all(

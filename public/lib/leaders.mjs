@@ -462,6 +462,21 @@ export function parseFotmobStat(raw, key) {
 // the same name, else the one its names say most of.
 // (Brighton & Hove Albion is FotMob's Brighton and Hove Albion; marks and dots dropped.)
 const clubKey = s => fold(String(s || '').replace(/&/g, ' and ')).replace(/[^a-z0-9]+/g, ' ').trim();
+// A cup's clubs' badges, FotMob's, by name: for a club ESPN has no badge for
+// (the FA Cup's non-league sides, Oxford City), drawn where its picture
+// fails (ui.js logo). Filled from the cup's FotMob page (espn.mjs cupBadges).
+// (The two write a club's name apart: ESPN's "AFC Hornchurch", "Salisbury
+// FC", "Worcester City" are FotMob's "Hornchurch", "Salisbury", "Worcester":
+// FC and AFC go, and a City or Town at the end when the name isn't there whole.)
+const clubBadges = new Map();
+const badgeKey = n => clubKey(n).replace(/\b(a?fc)\b/g, ' ').replace(/\s+/g, ' ').trim();
+export const badgeOf = name => {
+  const k = badgeKey(name);
+  return clubBadges.get(k) || clubBadges.get(k.replace(/ (city|town)$/, '')) || null;
+};
+export function noteBadges(teams = []) {
+  for (const t of teams) for (const n of [t.name, t.shortName]) if (n && t.id != null && !clubBadges.has(badgeKey(n))) clubBadges.set(badgeKey(n), fotmobTeamLogo(t.id));
+}
 export function fotmobTeamOf(teams, side, words = []) {
   const names = [side?.en, side?.name, side?.short].filter(Boolean).map(clubKey);
   const exact = teams.find(t => [t.name, t.shortName].map(clubKey).some(n => names.includes(n)));

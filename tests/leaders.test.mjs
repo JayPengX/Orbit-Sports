@@ -150,3 +150,11 @@ test("a new NBA season's first days: its leaders added up from its games' box sc
   assert.equal(pg.athletes.length, 2);
   assert.equal(boxSeasonPage([game('in', [])], { year: 2027 }), null);
 });
+
+test('a cup club ESPN has no badge for takes FotMob\'s, the two names written apart', async () => {
+  const { noteBadges, badgeOf } = await import('../public/lib/leaders.mjs');
+  noteBadges([{ id: 1, name: 'Hornchurch' }, { id: 2, name: 'Salisbury' }, { id: 3, name: 'Worcester' }, { id: 4, name: 'Harborough Town FC' }, { id: 5, name: 'Oxford City' }, { id: 6, name: 'Oxford United', shortName: 'Oxford Utd' }]);
+  const id = n => badgeOf(n)?.match(/teamlogo\/(\d+)/)?.[1];
+  assert.deepEqual(['AFC Hornchurch', 'Salisbury FC', 'Worcester City', 'Harborough Town', 'Oxford City', 'Oxford United'].map(id), ['1', '2', '3', '4', '5', '6']);
+  assert.equal(badgeOf('Oxford'), null);
+});
