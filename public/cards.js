@@ -7,7 +7,6 @@ import { el, ctx, sidesOf, logo, personPic, statusText, breakTick, timeText, ser
 import { channelsOf, watchOf } from './lib/tv.mjs';
 import { ALT_VIEW } from './lib/broadcast.mjs';
 import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
-import { knownHighlights } from './lib/highlights.mjs';
 import { onAir } from './lib/espn.mjs';
 import { stageTag } from './lib/stage.mjs';
 
@@ -91,7 +90,7 @@ export function scoreCard(e, onOpen) {
   const side = (s, win) => el('span', { class: `sc-side${win ? ' win' : ''}` }, [s.athlete ? personPic(s, e.league, 'sm round') : logo(s.logo, s.name, 'sm'), el('span', { class: 'sc-name q-fit', text: s.short || s.name }), el('b', { class: 'num', text: e.status.void || e.status.state === 'pre' ? '' : scoreText(s.score) })]);
   const champ = e.kind !== 'match' ? (e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1))?.field?.[0] : null;
   return el('button', { class: `score-card q-press${e.status?.state === 'in' && !e.status.void ? ' live' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => onOpen(e) }, [
-    el('span', { class: 'sc-top' }, [leagueMark(e.league, 'lg-mark xs'), el('span', { text: leagueName(e.league, ctx.locale).replace(/\s.*$/, '') }), el('small', { text: statusText(e), ...breakTick(e) }), e.status?.state === 'post' && knownHighlights(e) ? el('i', { class: 'sc-play', 'aria-hidden': 'true', html: icon('play') }) : null]),
+    el('span', { class: 'sc-top' }, [leagueMark(e.league, 'lg-mark xs'), el('span', { text: leagueName(e.league, ctx.locale).replace(/\s.*$/, '') }), el('small', { text: statusText(e), ...breakTick(e) })]),
     ...(e.kind === 'match'
       ? sidesOf(e).map(s => side(s, s === e.home ? w.home : w.away))
       : [el('span', { class: 'sc-event' }, [raceFlag(e), el('strong', { text: e.name })]), champ ? el('span', { class: 'sc-champ' }, [personPic(champ, e.league, 'sm round'), el('span', { text: champ.short || champ.name })]) : sessionTag(e)]),
