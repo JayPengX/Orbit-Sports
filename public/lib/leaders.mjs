@@ -381,7 +381,7 @@ export const FOTMOB_HOME = {
   87: ['西甲', 'LaLiga'], 140: ['西乙', 'LaLiga 2'], 61: ['葡超', 'Liga Portugal'], 57: ['荷甲', 'Eredivisie'], 40: ['比甲', 'Belgian Pro League'], 71: ['土超', 'Süper Lig'], 135: ['希超', 'Greek Super League'], 38: ['奧甲', 'Austrian Bundesliga'], 69: ['瑞士超', 'Swiss Super League'],
   196: ['波蘭超', 'Ekstraklasa'], 122: ['捷甲', 'Czech First League'], 252: ['克羅埃西亞甲', 'HNL'], 182: ['塞爾維亞超', 'Serbian SuperLiga'], 46: ['丹超', 'Danish Superliga'], 59: ['挪超', 'Eliteserien'], 67: ['瑞典超', 'Allsvenskan'], 189: ['羅甲', 'Liga I'], 212: ['匈甲', 'NB I'],
   136: ['賽普勒斯甲', 'Cypriot First Division'], 127: ['以超', "Ligat ha'Al"], 441: ['烏超', 'Ukrainian Premier League'], 270: ['保甲', 'Bulgarian First League'], 173: ['斯洛維尼亞甲', 'PrvaLiga'], 176: ['斯洛伐克甲', 'Slovak First League'], 262: ['亞塞拜然超', 'Azerbaijan Premier League'], 225: ['哈薩克超', 'Kazakhstan Premier League'],
-  48: ['英冠', 'Championship'], 108: ['英甲', 'League One'], 109: ['英乙', 'League Two'], 146: ['德乙', '2. Bundesliga'], 86: ['義乙', 'Serie B'], 110: ['法乙', 'Ligue 2']
+  48: ['英冠', 'Championship'], 108: ['英甲', 'League One'], 109: ['英乙', 'League Two'], 117: ['英格蘭全國聯賽', 'National League'], 8944: ['全國聯賽南北區', 'National League North & South'], 146: ['德乙', '2. Bundesliga'], 86: ['義乙', 'Serie B'], 110: ['法乙', 'Ligue 2']
 };
 export const fotmobLeagueLogo = (id, dark = false) => `https://images.fotmob.com/image_resources/logo/leaguelogo/${dark ? 'dark/' : ''}${id}.png`;
 export const fotmobTeamLogo = id => `https://images.fotmob.com/image_resources/logo/teamlogo/${id}.png`;

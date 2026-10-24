@@ -359,7 +359,8 @@ export async function openMatch(e) {
     const shownTable = past() ? [] : table?.length ? table : data?.table.length ? [{ rows: data.table.map(r => ({ id: r.id, stats: r.stats })) }] : [];
     // A playoff game (a series, a knockout tie): 季後賽, the bracket, in place of 排名 (the owner, 2026-10-23).
     const playoff = Boolean(e.round && ctx.hasBracket?.(e.league) && ctx.playoffsOf);
-    if (playoff && poViewOf(e.league) !== false) tabs.push(['playoffs', L() === 'en' ? 'Playoffs' : '季後賽']);
+    // (A cup's: 淘汰賽, as 賽事 names it.)
+    if (playoff && poViewOf(e.league) !== false) tabs.push(['playoffs', LEAGUES[e.league]?.cup ? (L() === 'en' ? 'Knockouts' : '淘汰賽') : L() === 'en' ? 'Playoffs' : '季後賽']);
     else if (!playoff && shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     // An NBA Cup game (group play or knockout): NBA 盃, the cup's knockout, beside 排名 (its games count in the table too).
     const cup = e.league === 'nba' && /nba cup|emirates cup|in-season tournament/i.test(e.note || '') && ctx.hasBracket?.('nbacup');
