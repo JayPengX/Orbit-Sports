@@ -977,6 +977,18 @@ function pickedToday() {
   } catch {}
   return new Set();
 }
+// Games on now in one order, every tab that lists them (首頁's 正在進行 and
+// its top card, 轉播's): a followed team's first, then today's picks, then
+// the picks' own score (picks.mjs scoreMatch). 轉播 had its own (the
+// headline leagues, then followed), and led with the Rockets while 首頁 led
+// with the World Series. `also`: picks of the day not yet noted.
+function rankOnNow(list, ctx, also = new Set()) {
+  const picked = new Set([...pickedToday(), ...also]);
+  const k = x => `${x.event.league}:${x.event.id}`;
+  return list.map(e => ({ event: e, ...scoreMatch(e, ctx) })).sort((x, y) => isFollowedEvent(y.event) - isFollowedEvent(x.event) || picked.has(k(y)) - picked.has(k(x)) || y.score - x.score);
+}
+// The picks' context for a day held (what rankOnNow and the plan weigh).
+const pickContext = (slot, now = Date.now()) => ({ leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(dayAll(slot)), chosen: chosenGames() });
 function notePicked(events) {
   const keys = pickedToday();
   const had = keys.size;
@@ -1283,7 +1295,7 @@ function renderHome() {
     return;
   }
   const now = Date.now();
-  const pctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: h.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(dayAll(slot)), chosen: chosenGames() };
+  const pctx = pickContext(slot, now);
   let past = h.date < today();
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
@@ -1376,10 +1388,12 @@ function renderHome() {
   // theirs on, the best of everything on now), ranked like the picks, and
   // taken out of the lists below so no game shows twice.
   const onNow = list => list.filter(e => onAir(e));
-  const rankLive = (list, c) => list.map(e => ({ event: e, ...scoreMatch(e, c) })).sort((x, y) => y.score - x.score);
-  let liveItems = isToday ? rankLive(onNow(filtered(mine)), pctx) : [];
+  const keyOf = x => `${x.league}:${x.id}`;
+  const planKeys = new Set(isToday ? (fallback ? wasPlan : ownWas[0]).map(x => keyOf(x.event)) : []);
+  const isPick = x => planKeys.has(keyOf(x.event));
+  let liveItems = isToday ? rankOnNow(onNow(filtered(mine)), pctx, planKeys) : [];
   const liveMine = liveItems.length > 0;
-  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankLive(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e))), { ...pctx, sports: [], leagues: [] }).filter(x => x.score >= 0.3);
+  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankOnNow(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e))), { ...pctx, sports: [], leagues: [] }, planKeys).filter(x => x.score >= 0.3);
   const allLive = isToday ? onNow(dayAll(slot)).filter(onTv).length : 0;
   if (slot?.at) prefetchVideos(dayAll(slot));
   // Today's picks on now first, each marked ★ 推薦, then the rest of theirs,
@@ -1388,10 +1402,6 @@ function renderHome() {
   // list a day's finals are told for (three at once read as no plan at all,
   // the owner 2026-10-18): the day's plan as it stood (ranked with the games
   // already on: the picks only look ahead).
-  const keyOf = x => `${x.league}:${x.id}`;
-  const planKeys = new Set(isToday ? (fallback ? wasPlan : ownWas[0]).map(x => keyOf(x.event)) : []);
-  const isPick = x => planKeys.has(keyOf(x.event));
-  liveItems = [...liveItems.filter(isPick), ...liveItems.filter(x => !isPick(x))];
   const liveShown = liveItems.slice(0, liveMine ? 5 : 3);
   const liveKeys = new Set(liveShown.map(x => `${x.event.league}:${x.event.id}`));
   planList = planList.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
@@ -1757,8 +1767,8 @@ function renderLive() {
   const keys = new Set();
   // Only what's on TV in Taiwan (賽事 has every game).
   const all = [...dayAll(slot), ...byKey.values()].filter(e => !keys.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && keys.add(`${e.league}:${e.id}:${e.sessionKey || ''}`)).filter(onTv);
-  // Every game on now, the headline leagues first.
-  const live = all.filter(e => onAir(e)).sort((a, b) => Boolean(LEAGUES[b.league]?.top) - Boolean(LEAGUES[a.league]?.top));
+  // Every game on now, in 首頁's order (rankOnNow).
+  const live = rankOnNow(all.filter(e => onAir(e)), pickContext(slot, now)).map(x => x.event);
   // Nothing on: the next 24 hours, so tomorrow's too.
   const tomorrow = addDays(today(), 1);
   const next = state.days.get(tomorrow);
@@ -1788,7 +1798,6 @@ function renderLive() {
   const startsWithin = hours => ahead.filter(e => e.status.state === 'pre' && !e.status.void && !onAir(e, now) && Date.parse(e.start) - now < hours * 3_600_000 && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
   const soonShort = live.length ? startsWithin(3) : [];
   const soon = soonShort.length ? soonShort : startsWithin(24);
-  const mineFirst = list => [...list].sort((a, b) => isFollowedEvent(b) - isFollowedEvent(a));
   // A game on now: its row, and 觀看 beside it (straight into ELTA.tv's or Apple TV's app).
   const liveRow = e => withWatch(eventRow(e), e);
   // The next to start (a followed team's if one is within the hour of the first).
@@ -1814,9 +1823,8 @@ function renderLive() {
   const later = soon.filter(e => (e !== nextUp || live.length) && !mineKeys.has(key(e)));
   const wait = nextUp ? Math.max(0, Date.parse(nextUp.start) - now) : 0;
   const waitText = wait < 60_000 ? L({ zh: '馬上', en: 'any minute' }) : wait < 3_600_000 ? L({ zh: `${Math.round(wait / 60_000)} 分鐘後`, en: `in ${Math.round(wait / 60_000)} min` }) : L({ zh: `${Math.floor(wait / 3_600_000)} 小時 ${Math.round((wait % 3_600_000) / 60_000)} 分後`, en: `in ${Math.floor(wait / 3_600_000)} h ${Math.round((wait % 3_600_000) / 60_000)} min` });
-  // The game to lead with: the first on now (a followed team's first), else the next to start.
-  const liveSorted = mineFirst(live);
-  const heroEvent = liveSorted[0] || nextUp || null;
+  // The game to lead with: the first on now (首頁's), else the next to start.
+  const heroEvent = live[0] || nextUp || null;
   const hero = heroEvent ? heroGame(heroEvent, { mine: isFollowedEvent(heroEvent), picked: pickedToday().has(`${heroEvent.league}:${heroEvent.id}`), eyebrow: live.length ? '' : L({ zh: `下一場 · ${waitText}`, en: `Next · ${waitText}` }), onOpen: openEvent }) : null;
   const guide = guideItems().some(p => p.end > now) ? guideLink(all) : null;
   put(
@@ -1825,7 +1833,7 @@ function renderLive() {
     hero,
     !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })])) : null,
     guide,
-    liveSorted.length > 1 ? section(t('liveNow'), el('div', { class: 'q-card list' }, liveSorted.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
+    live.length > 1 ? section(t('liveNow'), el('div', { class: 'q-card list' }, live.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
     mineBlock,
     later.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null
   );
