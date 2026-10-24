@@ -86,3 +86,10 @@ test('a long conference name fits the comparison as its initials', () => {
   assert.equal(groupShort('American League East'), 'ALE');
   assert.equal(groupShort('Eastern'), 'Eastern');
 });
+
+test('the NBA Cup\'s own words: group play and the championship', async () => {
+  const { stageFrom: from, stageTag: tag } = await import('../public/lib/stage.mjs');
+  assert.equal(tag({ stage: from({ seasonType: 2, note: 'NBA Cup - Group Play' }) }, 'zh'), 'NBA 盃 · 小組賽');
+  assert.equal(tag({ stage: from({ seasonType: 2, note: 'NBA Cup Championship' }) }, 'zh'), 'NBA 盃 · 冠軍賽');
+  assert.equal(tag({ stage: from({ seasonType: 2, note: 'NBA Cup Championship' }) }, 'en'), 'NBA Cup · Championship');
+});

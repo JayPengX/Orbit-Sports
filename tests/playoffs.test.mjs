@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { playoffModel, openRound, stageKey } from '../public/lib/playoffs.mjs';
+import { playoffModel, openRound, stageKey, nbaCupRound } from '../public/lib/playoffs.mjs';
 
 const rows = (p, n) => Array.from({ length: n }, (_, i) => ({ id: `${p}${i + 1}`, name: `${p}${i + 1}`, short: `${p}${i + 1}`, logo: '', stats: { GP: '20' } }));
 const seeds = t => t.sides.map((s, i) => (s ? `${s.id}` : `(${t.labels[i]})`)).join(' v ');
@@ -67,4 +67,36 @@ test('NBA: the play-in in the bracket, each conference its 9 v 10, 8th seed game
   assert.deepEqual(pi.ties.slice(0, 4).map(t => (t.gap ? '—' : t.winner)), ['—', 'PHI', 'ORL', 'CHA']);
   assert.equal(pi.ties[2].roundTitle.zh, '第八種子戰');
   assert.equal(pi.state, 'on');
+});
+
+test('the NBA Cup knockout: its rounds from the notes, each conference its own side of the draw', () => {
+  const T = { MIA: 14, ORL: 19, NY: 18, TOR: 28, PHX: 21, OKC: 25, SA: 24, LAL: 13 };
+  const side = (abbr, score, winner) => ({ id: String(T[abbr]), abbr, name: abbr, short: abbr, score: String(score), winner });
+  let n = 0;
+  // Last season's (2025-26), as ESPN has them: regular-season games, the round only in the note.
+  const game = (note, start, [a, as], [h, hs]) => ({ id: String(++n), league: 'nba', kind: 'match', note, start, status: { state: 'post' }, away: side(a, as, as > hs), home: side(h, hs, hs > as) });
+  const games = [
+    game('NBA Cup - Quarterfinals', '2025-12-10T00:00Z', ['MIA', 108], ['ORL', 117]),
+    game('NBA Cup - Quarterfinals', '2025-12-10T02:30Z', ['NY', 117], ['TOR', 101]),
+    game('NBA Cup - Quarterfinals', '2025-12-11T00:00Z', ['PHX', 89], ['OKC', 138]),
+    game('NBA Cup - Quarterfinals', '2025-12-11T02:30Z', ['SA', 132], ['LAL', 119]),
+    game('NBA Cup - Semifinals', '2025-12-13T22:00Z', ['NY', 132], ['ORL', 120]),
+    game('NBA Cup - Semifinals', '2025-12-14T01:30Z', ['SA', 111], ['OKC', 109]),
+    game('NBA Cup Championship', '2025-12-17T01:30Z', ['SA', 113], ['NY', 124]),
+    game('NBA Cup - Group Play', '2025-11-15T00:00Z', ['MIA', 140], ['NY', 132])
+  ];
+  assert.equal(nbaCupRound(games[7]), null);
+  assert.deepEqual([0, 4, 6].map(i => nbaCupRound(games[i]).key), ['QF', 'SF', 'F']);
+  assert.equal(nbaCupRound(games[2]).title, 'West Quarterfinals');
+  const events = games.flatMap(e => (nbaCupRound(e) ? [{ ...e, round: nbaCupRound(e) }] : []));
+  const m = playoffModel({ league: 'nbacup', mode: 'last', events, now: Date.parse('2026-10-24T00:00Z') });
+  assert.deepEqual(m.rounds.map(r => [r.key, r.ties.length, r.state]), [['QF', 4, 'done'], ['SF', 2, 'done'], ['F', 1, 'done']]);
+  // Each semifinal beside the two quarterfinals that fed it.
+  const ids = t => t.sides.map(s => s.abbr).sort().join('/');
+  const [qf, sf] = m.rounds;
+  for (const [i, t] of sf.ties.entries()) {
+    const fed = qf.ties.slice(i * 2, i * 2 + 2).map(x => x.sides.find(s => s.id === x.winner).abbr).sort().join('/');
+    assert.equal(fed, ids(t));
+  }
+  assert.equal(m.rounds[2].ties[0].winner, String(T.NY));
 });

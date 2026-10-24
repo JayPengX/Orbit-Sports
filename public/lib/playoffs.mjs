@@ -78,9 +78,25 @@ export const FORMATS = {
       ];
     }
   },
+  // The NBA Cup's knockout: each conference's four (three group winners and a wild card) in single games, the semifinals and the championship in Las Vegas.
+  nbacup: { rounds: [R('QF', '八強', 'Quarterfinals', 4), R('SF', '準決賽', 'Semifinals', 2), R('F', '冠軍賽', 'Championship', 1)] },
   facup: { rounds: [R('third-round', '第三輪', 'Third Round', 32), R('fourth-round', '第四輪', 'Fourth Round', 16), R('fifth-round', '第五輪', 'Fifth Round', 8), R('quarterfinals', '八強', 'Quarterfinals', 4), R('semifinals', '準決賽', 'Semifinals', 2), R('final', '決賽', 'Final', 1)] },
   worldcup: { rounds: [R('round-of-32', '32 強', 'Round of 32', 16), R('round-of-16', '16 強', 'Round of 16', 8), R('quarterfinals', '八強', 'Quarterfinals', 4), R('semifinals', '準決賽', 'Semifinals', 2), R('final', '決賽', 'Final', 1)] }
 };
+// An NBA Cup knockout game's round for the bracket (ESPN's season keeps
+// them regular-season games: only the note says, "NBA Cup - Quarterfinals",
+// "NBA Cup Championship"), its conference in the title so each side of the
+// draw keeps its own (a "TBD" side by the other); null for any other game,
+// group play too.
+const NBA_EAST = new Set(['1', '2', '4', '5', '8', '11', '14', '15', '17', '18', '19', '20', '27', '28', '30']);
+export function nbaCupRound(e) {
+  const note = e?.note || '';
+  if (e?.league !== 'nba' || !/nba cup|emirates cup|in-season tournament/i.test(note) || /group/i.test(note)) return null;
+  const key = /quarter/i.test(note) ? 'QF' : /semi/i.test(note) ? 'SF' : /championship|final/i.test(note) ? 'F' : '';
+  if (!key) return null;
+  const conf = key === 'F' ? '' : [e.home, e.away].some(x => NBA_EAST.has(String(x?.id))) ? 'East ' : 'West ';
+  return { key, title: `${conf}${{ QF: 'Quarterfinals', SF: 'Semifinals', F: 'Championship' }[key]}`, leg: 0, through: [] };
+}
 // A CPBL club as the table has it (any of its halves).
 const cpblClub = groups => en => {
   const row = en && (groups || []).flatMap(x => x.rows || []).find(r => r.id === en || r.en === en);

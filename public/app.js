@@ -29,8 +29,9 @@ import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
-import { playoffModel, openRound, FORMATS, seedPicture } from './lib/playoffs.mjs';
+import { playoffModel, openRound, FORMATS, seedPicture, nbaCupRound } from './lib/playoffs.mjs';
 import { stageOf } from './lib/stage.mjs';
+import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
@@ -1959,7 +1960,13 @@ function openScores(league, date, view = 'games') {
 // season's on, last season's when this one hasn't begun. Read once a league
 // is opened, kept 10 minutes.
 const brackets = new Map();
-const hasBracket = k => LEAGUES[k]?.kind === 'match' && (!LEAGUES[k].asia || k === 'cpbl') && Boolean(FORMATS[k]);
+// The NBA Cup's knockout (lib/playoffs.mjs nbaCupRound): a bracket of its own
+// beside the NBA's playoffs, kept as 'nbacup', drawn with the NBA's logos and sheets.
+const CUP = 'nbacup';
+const leagueOfBracket = k => (k === CUP ? 'nba' : k);
+const hasBracket = k => k === CUP || (LEAGUES[k]?.kind === 'match' && (!LEAGUES[k].asia || k === 'cpbl') && Boolean(FORMATS[k]));
+// The bracket 賽事 shows now: the open league's, or the NBA Cup's when it's picked.
+const shownBracket = () => (state.tab !== 'matches' ? '' : state.scores.league === 'nba' && state.scores.cup ? CUP : state.scores.league);
 const played = r => Number(r.stats?.GP ?? r.stats?.gamesPlayed ?? 0) || Number(r.stats?.W || 0) + Number(r.stats?.L || 0);
 // Playoff games read back a week of game days at a time from the latest of
 // `days`, until a week with none (the regular season): one small batch after
@@ -2010,7 +2017,27 @@ async function cpblPlayoffData() {
   if (!last.length) throw new Error('cpbl: last playoffs unread');
   return { mode: 'last', events: last, groups: null, seeds: null, season: String(year - 1) };
 }
+// The NBA Cup's: this season's knockout once a side of it is known (its
+// games are listed "TBD v TBD" from the start), else last season's (kept a
+// month: it's over). Its days' pages, December 1 to 18 (ESPN answers no
+// stretch of days for the NBA: "20251201-20251222" a 400).
+async function nbaCupData() {
+  const info = await seasonInfo('nba');
+  const y = new Date(Date.parse(info?.season?.start || '') || Date.now()).getUTCFullYear();
+  const days = year => Array.from({ length: 18 }, (_, i) => `${year}12${String(1 + i).padStart(2, '0')}`);
+  const ko = list => list.flatMap(e => {
+    const round = nbaCupRound(e);
+    // (A single game: the regular season's meetings ESPN counts as a series aren't its.)
+    return round ? [{ ...e, round, series: null }] : [];
+  });
+  const now = ko(await scoreboard('nba', days(y)));
+  if (now.some(e => [e.home, e.away].some(x => x && !undecided(x)))) return { mode: 'live', events: now, season: `${y}-${String(y + 1).slice(2)}` };
+  const last = ko(await scoreboard('nba', days(y - 1), 30 * 86_400_000));
+  if (!last.length) throw new Error('nbacup: last knockout unread');
+  return { mode: 'last', events: last, season: `${y - 1}-${String(y).slice(2)}` };
+}
 async function playoffData(league) {
+  if (league === CUP) return nbaCupData();
   if (league === 'cpbl') return cpblPlayoffData();
   // Unread is a failure (asked again soon), never taken for "no season".
   const info = await seasonInfo(league);
@@ -2058,9 +2085,9 @@ function loadBracket(league) {
     })
     .catch(() => {
       brackets.set(league, { model: had?.model || null, at: Date.now(), failed: true });
-      setTimeout(() => state.tab === 'matches' && state.scores.league === league && state.scores.view === 'bracket' && renderScores(), 61_500);
+      setTimeout(() => shownBracket() === league && state.scores.view === 'bracket' && renderScores(), 61_500);
     })
-    .finally(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+    .finally(() => state.tab === 'matches' && state.scores.league === leagueOfBracket(league) && renderScores());
 }
 // A playoff game starting or ending (seen in today's read or the open
 // league's) changes its bracket (the series, who's through, on now): read
@@ -2069,11 +2096,12 @@ const poState = new Map();
 function notePlayoffGames(events) {
   const changed = new Set();
   for (const e of events) {
-    if (!e.round || !hasBracket(e.league)) continue;
-    const key = `${e.league}:${e.id}`;
+    const k = e.round && hasBracket(e.league) ? e.league : nbaCupRound(e) ? CUP : '';
+    if (!k) continue;
+    const key = `${k}:${e.id}`;
     const was = poState.get(key);
     poState.set(key, e.status.state);
-    if (was && was !== e.status.state) changed.add(e.league);
+    if (was && was !== e.status.state) changed.add(k);
   }
   for (const league of changed) staleBracket(league);
 }
@@ -2083,7 +2111,7 @@ function staleBracket(league) {
   if (had.loading) had.again = true;
   else had.at = 0;
   // Open: read now (renderScores asks for it).
-  if (state.tab === 'matches' && state.scores.league === league && state.scores.view === 'bracket') renderScores();
+  if (shownBracket() === league && state.scores.view === 'bracket') renderScores();
 }
 // A game's whole series (or two-legged tie), for its match page: from the
 // league's bracket, the one 季後賽 shows (read now when not held fresh).
@@ -2114,6 +2142,7 @@ ctx.seriesOf = seriesOf;
 // A playoff game's page: 季後賽 in place of 排名 (the owner, 2026-10-23), the
 // same map the league's 季後賽 shows; null when there's none to show.
 ctx.hasBracket = league => hasBracket(league);
+// (`league`: a bracket's key, 'nbacup' the NBA Cup's: its games' pages show it.)
 ctx.playoffsOf = async league => {
   if (!hasBracket(league)) return null;
   const model = await bracketModel(league);
@@ -2134,16 +2163,18 @@ const md = ms => {
 const roundDates = r => (!r.dates ? '' : r.dates.about ? `${locale === 'en' ? 'c.' : '約'} ${md(r.dates.from)}${locale === 'en' ? '' : ' 起'}` : md(r.dates.from) === md(r.dates.to) ? md(r.dates.from) : `${md(r.dates.from)}–${md(r.dates.to)}`);
 // How many games a round's series runs to, where its games don't say yet.
 const SERIES_LEN = { mlb: { RD16: 3, QTR: 5, SEMI: 7, FINAL: 7 }, nba: { RD16: 7, QTR: 7, SEMI: 7, FINAL: 7 } };
-function playoffView(model, league) {
+// (`key`: the bracket's, 'nbacup' for the NBA Cup; its logos and sheets the league's.)
+function playoffView(model, key) {
+  const league = leagueOfBracket(key);
   const en = locale === 'en';
   const banner =
     model.mode === 'projected'
       ? el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Predicted' : '預測' }), document.createTextNode(en ? ' from the table as it stands: it changes until the playoffs start.' : '　依目前排名推算，開打前會變動。')])
       : model.mode === 'last'
-        ? el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Last season' : '上季' }), document.createTextNode(`${model.season ? ` ${model.season}` : ''}${en ? ': this season’s playoffs haven’t begun.' : '　本季季後賽尚未開打。'}`)])
+        ? el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Last season' : '上季' }), document.createTextNode(`${model.season ? ` ${model.season}` : ''}${key === CUP ? (en ? ': this season’s knockout hasn’t begun.' : '　本季淘汰賽尚未開打。') : en ? ': this season’s playoffs haven’t begun.' : '　本季季後賽尚未開打。'}`)])
         : null;
   // A round's length (七戰四勝): its games' series, else the league's format.
-  const lenOf = r => bestOf(r.ties.flatMap(t => t?.games || []).find(g => g.series?.games)) || bestOf({ series: { games: SERIES_LEN[league]?.[r.key] } });
+  const lenOf = r => key === CUP ? '' : bestOf(r.ties.flatMap(t => t?.games || []).find(g => g.series?.games)) || bestOf({ series: { games: SERIES_LEN[league]?.[r.key] } });
   const stateText = r => (r.state === 'done' ? (en ? 'Done' : '已完成') : r.state === 'live' ? (en ? 'On now' : '進行中') : roundDates(r) || (en ? 'TBD' : '待定'));
   const sideRow = (s, t, i) => {
     const id = s ? String(s.id) : '';
@@ -2190,7 +2221,8 @@ function playoffView(model, league) {
     // (The 8th seed game sits in the play-in's column: named on its card; English's words too long for 預測 beside them.)
     if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', t.labels?.find(Boolean) && t.sides.every(Boolean) ? t.labels.filter(Boolean).map(labelText).join(' v ') : '', en && t.roundTitle ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
-    if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}`;
+    // The last round's winner takes the title (道奇 奪冠), never "晉級".
+    if (won) return `${won.short || won.name} ${r === model.rounds.at(-1) ? (en ? 'champions' : '奪冠') : en ? 'through' : '晉級'}`;
     // The game on now as it stands, each live tick: "G5 3–2 · 7局下" (the sides in the card's order).
     if (t.live) {
       const g = t.games.find(x => x.status?.state === 'in');
@@ -2231,7 +2263,7 @@ function playoffView(model, league) {
     card.__open = () => openTie(t, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh);
     return card;
   };
-  const entry = brackets.get(league);
+  const entry = brackets.get(key);
   const fade = entry && !entry.shown;
   if (entry) entry.shown = true;
   // Two rounds or fewer (CPBL's challenge series and Taiwan Series): one
@@ -2802,12 +2834,21 @@ function renderScores() {
   const po = brackets.get(sc.league);
   const rounds = po?.model?.rounds || [];
   const reading = hasBracket(sc.league) && !po?.model;
-  const poFailed = reading && po?.failed && !po.loading;
   const knockView = sc.view === 'bracket' && hasBracket(sc.league) && (rounds.length > 0 || reading);
+  // The NBA's 季後賽 holds the NBA Cup's knockout too, a chip each, the cup's
+  // picked first while it's played (November and December), read once picked.
+  const cupNow = [11, 12].includes(new Date(Date.now() + 8 * 3_600_000).getUTCMonth() + 1);
+  if (sc.league === 'nba' && sc.cup == null) sc.cup = cupNow;
+  const poKey = sc.league === 'nba' && sc.cup ? CUP : sc.league;
+  if (knockView && poKey === CUP) loadBracket(CUP);
+  const shown = brackets.get(poKey);
+  const shownRounds = shown?.model?.rounds || [];
+  const poFailed = !shown?.model && shown?.failed && !shown.loading;
+  const cupChips = knockView && sc.league === 'nba' ? segmented([['po', L({ zh: '季後賽', en: 'Playoffs' })], ['cup', L({ zh: 'NBA 盃', en: 'NBA Cup' })]], sc.cup ? 'cup' : 'po', v => ((sc.cup = v === 'cup'), renderScores()), '', { chips: true }) : null;
   const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
   const leadersView = !knockView && !tableView && sc.view === 'leaders' && hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn);
   if (leadersView) list = leadersOf(sc.league);
-  else if (knockView) list = rounds.length ? playoffView(po.model, sc.league) : poFailed ? empty(t('failed')) : bracketShape();
+  else if (knockView) list = el('div', { class: 'po-wrap' }, [cupChips, shownRounds.length ? playoffView(shown.model, poKey) : poFailed ? empty(t('failed')) : bracketShape()]);
   else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));

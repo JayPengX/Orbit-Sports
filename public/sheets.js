@@ -303,31 +303,33 @@ export async function openMatch(e) {
   // drawn again at every live refresh after (the game's score and inning on
   // its card, a series won), changed in place on the map already there;
   // undefined before, null while it's first read, false when there's none.
-  let poView;
-  let poBusy = false;
-  const playoffsNode = () => {
-    if (poView === undefined) {
-      poView = null;
+  // (The same for an NBA Cup game's NBA 盃, the cup's knockout: a bracket each, by its key.)
+  const poViews = new Map();
+  const playoffsNode = (key, tab) => {
+    const po = poViews.get(key) || poViews.set(key, { view: undefined, busy: false }).get(key);
+    if (po.view === undefined) {
+      po.view = null;
       ctx
-        .playoffsOf(e.league)
-        .then(n => (poView = n || false))
-        .catch(() => (poView = false))
+        .playoffsOf(key)
+        .then(n => (po.view = n || false))
+        .catch(() => (po.view = false))
         .finally(() => paint());
-    } else if (poView && !poBusy) {
-      poBusy = true;
+    } else if (po.view && !po.busy) {
+      po.busy = true;
       ctx
-        .playoffsOf(e.league)
-        .then(n => n && (poView = poView.__patch ? poView.__patch(n) : n))
+        .playoffsOf(key)
+        .then(n => n && (po.view = po.view.__patch ? po.view.__patch(n) : n))
         .catch(() => {})
-        .finally(() => (poBusy = false));
+        .finally(() => (po.busy = false));
     }
     // On the page already: the same stack kept (built anew, the bracket was
     // taken out and put back each refresh: its fade played again, a flash
     // every few seconds, and its swipe went back to the first round).
     const shownStack = content.firstElementChild;
-    if (poView && poView.parentNode === shownStack && shownStack?.dataset.view === 'playoffs') return shownStack;
-    return el('div', { class: 'stack' }, [poView || spinner()]);
+    if (po.view && po.view.parentNode === shownStack && shownStack?.dataset.view === tab) return shownStack;
+    return el('div', { class: 'stack' }, [po.view || spinner()]);
   };
+  const poViewOf = key => poViews.get(key)?.view;
   const settle = () => {
     if (ready) return;
     ready = true;
@@ -358,9 +360,12 @@ export async function openMatch(e) {
     const shownTable = past() ? [] : table?.length ? table : data?.table.length ? [{ rows: data.table.map(r => ({ id: r.id, stats: r.stats })) }] : [];
     // A playoff game (a series, a knockout tie): 季後賽, the bracket, in place of 排名 (the owner, 2026-10-23).
     const playoff = Boolean(e.round && ctx.hasBracket?.(e.league) && ctx.playoffsOf);
-    if (playoff && poView !== false) tabs.push(['playoffs', L() === 'en' ? 'Playoffs' : '季後賽']);
+    if (playoff && poViewOf(e.league) !== false) tabs.push(['playoffs', L() === 'en' ? 'Playoffs' : '季後賽']);
     else if (!playoff && shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
-    if ((view === 'table' || view === 'playoffs') && !tabs.some(([k]) => k === view)) view = 'overview';
+    // An NBA Cup game (group play or knockout): NBA 盃, the cup's knockout, beside 排名 (its games count in the table too).
+    const cup = e.league === 'nba' && /nba cup|emirates cup|in-season tournament/i.test(e.note || '') && ctx.hasBracket?.('nbacup');
+    if (cup && poViewOf('nbacup') !== false) tabs.push(['cup', L() === 'en' ? 'NBA Cup' : 'NBA 盃']);
+    if ((view === 'table' || view === 'playoffs' || view === 'cup') && !tabs.some(([k]) => k === view)) view = 'overview';
     // The same row of tabs before, during and after (two of them or six).
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { chips: true }) : null);
     top.hidden = view !== 'overview';
@@ -368,7 +373,7 @@ export async function openMatch(e) {
     const over = (data?.status || e.status).state === 'post';
     const fresh = () => matchSection(view, data && { ...data, table: past() ? [] : data.table, injuries: over ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
-    const next = view === 'playoffs' ? playoffsNode() : keep || fresh();
+    const next = view === 'playoffs' ? playoffsNode(e.league, view) : view === 'cup' ? playoffsNode('nbacup', view) : keep || fresh();
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
     // chance chart, a finger on it) never leaves the page.
