@@ -5089,7 +5089,7 @@ export async function openPlayer(league, id, fallback = {}) {
     );
     paintTab();
     // 聯盟排名: where he stands in each of the league's 數據領先 lists (its
-    // top hundred), the best places first, put into 概況 once read.
+    // top hundred), the best places first, put into 概況 once read; two at least.
     if (!racing && hasLeaders(sport, LEAGUES[league]?.espn))
       leagueLeaders(league)
         .then(data => {
@@ -5098,11 +5098,14 @@ export async function openPlayer(league, id, fallback = {}) {
           const ranks = playerRanks(data, id, a.name)
             .filter(r => !above.has(leaderLabel(r.stat, sport, en)))
             .slice(0, 8);
-          if (!ranks.length || !s.dialog.isConnected) return;
+          // One place alone (a bench player's lone 第 74 名) says little and left a near-empty card: none then.
+          if (ranks.length < 2 || !s.dialog.isConnected) return;
+          // (The lists' length, not the best place's: a rate's 94 qualified made it "前 94 名".)
+          const top = Math.min(100, Math.max(...ranks.map(r => r.of)));
           const rc = card(
             W('聯盟排名', 'League ranks'),
             el('div', { class: 'stat-grid' }, ranks.map(r => tile(leaderLabel(r.stat, sport, en), r.value, W(`第 ${r.rank} 名`, `#${r.rank}`)))),
-            { sub: W(`各項前 ${ranks[0].of >= 100 ? 100 : ranks[0].of} 名裡`, `Within each top ${ranks[0].of >= 100 ? 100 : ranks[0].of}`) }
+            { sub: W(`各項前 ${top} 名裡`, `Within each top ${top}`) }
           );
           const at = overview.findIndex(c => c?.dataset?.kind === 'season');
           overview.splice(at >= 0 ? at + 1 : overview.length, 0, rc);

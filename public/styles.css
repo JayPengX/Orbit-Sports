@@ -539,7 +539,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .team-head > .follow-btn, .team-hero > .follow-btn { align-self: start; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
 /* Never a tile alone on a row: by how many there are, two or three a row
-   (2, 3: one row; 4: two and two; 5: three and two; 6: three and three; 8: two a row). */
+   (1: the whole width; 2, 3: one row; 4: two and two; 5: three and two; 6: three and three; 8: two a row). */
+.stat-grid:not(.dense):has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
 .stat-grid:not(.dense):has(> :nth-child(2):last-child),
 .stat-grid:not(.dense):has(> :nth-child(4):last-child),
 .stat-grid:not(.dense):has(> :nth-child(8):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
