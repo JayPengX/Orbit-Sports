@@ -34,7 +34,7 @@ import { stageOf } from './lib/stage.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, sessionTag, raceFlag, audioName, personPic } from './ui.js';
+import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, sessionTag, raceFlag, audioName, personPic } from './ui.js';
 import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
@@ -2189,7 +2189,14 @@ function playoffView(model, league) {
     if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', t.labels?.find(Boolean) && t.sides.every(Boolean) ? t.labels.filter(Boolean).map(labelText).join(' v ') : '', en && t.roundTitle ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
     if (won) return `${won.short || won.name} ${en ? 'through' : '晉級'}`;
-    if (t.live) return en ? 'On now' : '進行中';
+    // The game on now as it stands, each live tick: "G5 3–2 · 7局下" (the sides in the card's order).
+    if (t.live) {
+      const g = t.games.find(x => x.status?.state === 'in');
+      if (!g) return en ? 'On now' : '進行中';
+      const [a, b] = t.sides.map(x => [g.home, g.away].find(y => String(y?.id) === String(x?.id))?.score ?? '–');
+      const n = Number(/\bgame (\d+)/i.exec(g.note || '')?.[1]) || t.games.indexOf(g) + 1;
+      return [t.kind === 'series' ? `G${n} ${a}–${b}` : `${a}–${b}`, statusText(g)].join(' · ');
+    }
     if (t.next) return `${t.kind === 'series' ? `G${Number(/\bgame (\d+)/i.exec(t.next.note || '')?.[1]) || t.games.indexOf(t.next) + 1} · ` : ''}${dayLabel(localDate(Date.parse(t.next.start)))} ${timeText(t.next)}`;
     // A series under way with its next game not yet set: where it stands ("中信兄弟 2–1 領先", "1–1 平手").
     if (t.kind === 'series' && t.sides.every(Boolean) && t.score) {
@@ -2206,13 +2213,18 @@ function playoffView(model, league) {
     return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : t.pending ? (en ? 'To be decided' : '待定') : '';
   };
   const tie = (t, r) => {
+    // Its games as the newest read has them (the live tick's scoreboard), not as the bracket was read.
+    if (t?.games?.length) {
+      const games = t.games.map(freshGame);
+      t = { ...t, games, live: games.some(g => g.status?.state === 'in') };
+    }
     const blank = { projected: true, seeds: [], labels: [] };
     // An empty row (the play-in's): a card's height, unseen, so the columns line up.
     if (t?.gap) return el('div', { class: `br-tie gap${t.through ? ' through' : ''}`, 'aria-hidden': 'true' }, [sideRow(null, blank, 0), sideRow(null, blank, 1), el('small', { class: 'br-note', text: '·' })]);
     const said = note(t, r);
     const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said }) : null];
     return t && !t.projected && !t.pending
-      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openTie({ ...t, games: t.games.map(freshGame) }, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh) }, body)
+      ? el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => openTie(t, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh) }, body)
       : el('div', { class: `br-tie ${t?.pending ? 'pending' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
   };
   const entry = brackets.get(league);
