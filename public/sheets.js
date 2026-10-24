@@ -321,6 +321,11 @@ export async function openMatch(e) {
         .catch(() => {})
         .finally(() => (poBusy = false));
     }
+    // On the page already: the same stack kept (built anew, the bracket was
+    // taken out and put back each refresh: its fade played again, a flash
+    // every few seconds, and its swipe went back to the first round).
+    const shownStack = content.firstElementChild;
+    if (poView && poView.parentNode === shownStack && shownStack?.dataset.view === 'playoffs') return shownStack;
     return el('div', { class: 'stack' }, [poView || spinner()]);
   };
   const settle = () => {

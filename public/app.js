@@ -2249,6 +2249,8 @@ function playoffView(model, league) {
   if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.querySelectorAll(':scope > .br-col')[at]?.offsetLeft - map.offsetLeft - 16));
   const root = el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, map]);
   root.__patch = neu => patchPlayoffs(root, neu);
+  // Faded in once: never again if it's put back on the page (a tab tapped back to it).
+  if (fade) root.addEventListener('animationend', () => root.classList.remove('fade-in'), { once: true });
   return root;
 }
 // A live refresh's drawing put into the bracket on screen: the same ties
