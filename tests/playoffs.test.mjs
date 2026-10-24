@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { playoffModel, openRound, stageKey, nbaCupRound } from '../public/lib/playoffs.mjs';
+import { playoffModel, openRound, stageKey } from '../public/lib/playoffs.mjs';
+import { nbaCupRound } from '../public/lib/nbacup.mjs';
 
 const rows = (p, n) => Array.from({ length: n }, (_, i) => ({ id: `${p}${i + 1}`, name: `${p}${i + 1}`, short: `${p}${i + 1}`, logo: '', stats: { GP: '20' } }));
 const seeds = t => t.sides.map((s, i) => (s ? `${s.id}` : `(${t.labels[i]})`)).join(' v ');

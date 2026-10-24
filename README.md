@@ -71,9 +71,12 @@ couldn't be read is shown, never hidden.
   only, never a game still on. The title
   line says the lead the leader takes at the soonest clinch.
 - **Playoffs** (`lib/playoffs.mjs`, `bracket.mjs`): real ties, predicted
-  from the table while the season runs, or last season's. The NBA Cup's
-  knockout beside the NBA's (a chip in 季後賽, an NBA 盃 tab on a cup game),
-  last season's until this season's sides are known.
+  from the table while the season runs, or last season's. The NBA Cup
+  (`lib/nbacup.mjs`) beside the NBA's: its groups, found from who meets whom
+  in group play (no feed names them, so no letters), first and best second
+  marked, and its knockout; chips in 季後賽, an NBA 盃 tab on a cup game (a
+  group game's group, a knockout game's bracket); last season's until this
+  season's group play is on the schedule.
 - **Where to watch** (`lib/tv.mjs`): ELTA's own schedule (exact channel,
   commentary, MAX first); NBA.com's ELTA list (`public/nba-elta.json`,
   written every 6 h by the deploy); Apple TV's page per MLS game. Replays

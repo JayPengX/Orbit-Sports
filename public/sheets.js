@@ -303,21 +303,20 @@ export async function openMatch(e) {
   // drawn again at every live refresh after (the game's score and inning on
   // its card, a series won), changed in place on the map already there;
   // undefined before, null while it's first read, false when there's none.
-  // (The same for an NBA Cup game's NBA 盃, the cup's knockout: a bracket each, by its key.)
+  // (The same for an NBA Cup game's NBA 盃: a group-play game's group, a
+  // knockout game's bracket; each by its key, `load` drawing it.)
   const poViews = new Map();
-  const playoffsNode = (key, tab) => {
+  const playoffsNode = (key, tab, load = () => ctx.playoffsOf(key)) => {
     const po = poViews.get(key) || poViews.set(key, { view: undefined, busy: false }).get(key);
     if (po.view === undefined) {
       po.view = null;
-      ctx
-        .playoffsOf(key)
+      load()
         .then(n => (po.view = n || false))
         .catch(() => (po.view = false))
         .finally(() => paint());
     } else if (po.view && !po.busy) {
       po.busy = true;
-      ctx
-        .playoffsOf(key)
+      load()
         .then(n => n && (po.view = po.view.__patch ? po.view.__patch(n) : n))
         .catch(() => {})
         .finally(() => (po.busy = false));
@@ -364,7 +363,8 @@ export async function openMatch(e) {
     else if (!playoff && shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     // An NBA Cup game (group play or knockout): NBA 盃, the cup's knockout, beside 排名 (its games count in the table too).
     const cup = e.league === 'nba' && /nba cup|emirates cup|in-season tournament/i.test(e.note || '') && ctx.hasBracket?.('nbacup');
-    if (cup && poViewOf('nbacup') !== false) tabs.push(['cup', L() === 'en' ? 'NBA Cup' : 'NBA 盃']);
+    const cupKey = /group/i.test(e.note || '') && ctx.cupGroupOf ? 'nbacup:group' : 'nbacup';
+    if (cup && poViewOf(cupKey) !== false) tabs.push(['cup', L() === 'en' ? 'NBA Cup' : 'NBA 盃']);
     if ((view === 'table' || view === 'playoffs' || view === 'cup') && !tabs.some(([k]) => k === view)) view = 'overview';
     // The same row of tabs before, during and after (two of them or six).
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { chips: true }) : null);
@@ -373,7 +373,7 @@ export async function openMatch(e) {
     const over = (data?.status || e.status).state === 'post';
     const fresh = () => matchSection(view, data && { ...data, table: past() ? [] : data.table, injuries: over ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
-    const next = view === 'playoffs' ? playoffsNode(e.league, view) : view === 'cup' ? playoffsNode('nbacup', view) : keep || fresh();
+    const next = view === 'playoffs' ? playoffsNode(e.league, view) : view === 'cup' ? playoffsNode(cupKey, view, cupKey === 'nbacup' ? undefined : () => ctx.cupGroupOf([e.home?.id, e.away?.id])) : keep || fresh();
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
     // chance chart, a finger on it) never leaves the page.
@@ -4533,7 +4533,7 @@ function byPosition(list, sport) {
   return groups.size > 1 ? [...groups].map(([name, ps]) => ({ name, players: ps })) : list;
 }
 // A table column's short name in the reader's language.
-const COL_ZH = { POD: '頒獎台', GP: '場', W: '勝', D: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', GAP: '落後' };
+const COL_ZH = { PD: '得失分', POD: '頒獎台', GP: '場', W: '勝', D: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', GAP: '落後' };
 const colLabel = c => (L() === 'en' ? (c === 'GAP' ? T('col_GAP') : c) : COL_ZH[c] || c);
 // ESPN's rank under a number ("Tied-42nd", "3rd"), in Chinese: 並列第 42、第 3.
 const rankText = (sub, en = L() === 'en') => {
@@ -5454,10 +5454,11 @@ function raceBlock(race, g, league, many) {
   return kept.length ? el('div', { class: 'title-race' }, kept) : null;
 }
 // `open: false`: rows that open nothing (a club's own league from FotMob, its clubs not ESPN's).
-export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false, open = true } = {}) {
+// (`cols`: a table's own columns, the NBA Cup's groups' 勝 敗 得失分.)
+export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false, open = true, cols: own = null } = {}) {
   const sport = LEAGUES[league]?.sport;
-  const want = STANDING_COLUMNS[sport] || ['W', 'L'];
-  const small = COMPACT_COLUMNS[sport] || want;
+  const want = own || STANDING_COLUMNS[sport] || ['W', 'L'];
+  const small = own || COMPACT_COLUMNS[sport] || want;
   // Short headers in the reader's language.
   const colName = colLabel;
   return el(
