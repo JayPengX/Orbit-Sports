@@ -1417,7 +1417,7 @@ function renderHome() {
   const hero = heroItem ? heroGame(heroItem.event, { picked: isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }) : null;
   // The rest on now: a row each with 觀看; every game on is 轉播's.
   const liveBlock = liveRest.length
-    ? section(t('liveNow'), kitRail(liveRest.map(x => x.event)), {
+    ? section(t('liveNow'), el('div', { class: 'q-card list' }, liveRest.map(x => withWatch(eventRow(x.event), x.event))), {
         cls: 'live-now',
         action: allLive > liveShown.length ? moreButton(t('allN', { n: allLive }), () => showTab('live')) : null
       })
