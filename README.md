@@ -62,9 +62,14 @@ couldn't be read is shown, never hidden.
   while on or over; a split bar before. Each side in its colour, its
   chance written in it (`wpline.mjs sideColors`: two alike, or none, and
   one takes a spare colour); a draw grey.
-- **F1 live board:** F1's own timing (`f1-live`). Positions, tyres, gaps,
-  race control in Chinese by rule (`lib/racecontrol.mjs`), track map,
-  compare, stop window, championship as it stands.
+- **F1 live board:** F1's own timing (`f1-live`), in tabs 排名 · 賽道 · 輪胎 ·
+  圈速 · 積分. Race control in Chinese by rule (`lib/racecontrol.mjs`). 賽道
+  is 車手比較 on the track: one pick of up to four drivers (their faces on
+  the map, a tap on a car adds it), every car always moving at its own pace
+  between reads and in race order by its gap to the leader
+  (`lib/carpace.mjs`), then the drivers side by side. The win chance goes by
+  lap while a race runs too (each lap's end counted from the feed and the
+  leader's lap times), with its leads, stops and the start's own swing.
 - **勝負未定** (close finish): a live game in its last stretch and within reach (NBA 4th or OT, MLB 8th–9th, soccer from the 80th).
 - **Tables count results at once** (`lib/title.mjs liveTable`,
   `liveRacing`, `freshStandings`), on every page with a table: finals

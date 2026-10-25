@@ -485,3 +485,60 @@ export function asItStands(rows = [], gains = new Map()) {
     .sort((a, b) => b.total - a.total || a.was - b.was)
     .map((r, i) => ({ ...r, now: i + 1 }));
 }
+
+// Each lap's end on the clock while a race runs ([{ lap, t }], t in
+// seconds, lap 0 the lights going out), for the win chance by lap: counted
+// back from the feed's latest reading (`feed.at`, ms) by the leader's own
+// lap times (`laps`: sessionLaps' cars), less what it has run of the lap
+// it's on. F1's feed puts no clock to its laps, and OpenF1, which does, is
+// closed to all while a race runs. A lap the log missed takes the leader's
+// usual lap. Null before the second lap is done.
+export function liveLapEnds(feed, laps) {
+  const lead = feed?.cars?.find(c => c.pos === 1);
+  const done = lead?.laps || 0;
+  if (!lead || done < 2 || !feed.at) return null;
+  const ms = new Map((laps?.[lead.no] || []).filter(x => x[1] > 0).map(x => [x[0], x[1]]));
+  const sorted = [...ms.values()].sort((a, b) => a - b);
+  const usual = sorted[sorted.length >> 1] || lapMs(lead.best) || 95_000;
+  const into = lead.seg?.[1] ? (lead.seg[0] / lead.seg[1]) * (lapMs(lead.last) || usual) : 0;
+  let t = (feed.at - into) / 1000;
+  const out = [{ lap: done, t }];
+  for (let k = done; k >= 1; k--) out.push({ lap: k - 1, t: (t -= (ms.get(k) || usual) / 1000) });
+  return out.reverse();
+}
+
+// What turned a race so far, from F1's live feed, as raceEvents has it once
+// it's over (OpenF1 is closed while it runs): the drawn drivers' stops and
+// retirements ([lap, 'pit' | 'out', k]) and who led at each lap's end ([lap,
+// 'lead', k, or the name of one not drawn], lap 0 the grid). `names`: the
+// drawn drivers (the market's names), k a place among them.
+export function liveRaceEvents(feed, names) {
+  const flat = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const sur = name => flat(String(name).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1));
+  const cars = feed?.cars || [];
+  const kOf = no => {
+    const car = cars.find(c => String(c.no) === String(no));
+    const k = car ? names.findIndex(n => flat(n).endsWith(sur(car.name))) : -1;
+    return k >= 0 ? k : car?.name || null;
+  };
+  const ev = [];
+  for (const [no, stops] of Object.entries(feed?.stops || {})) {
+    const k = kOf(no);
+    if (typeof k === 'number') for (const [lap] of stops) if (lap) ev.push([lap, 'pit', k]);
+  }
+  for (const c of cars) {
+    const k = kOf(c.no);
+    if (typeof k === 'number' && (c.retired || c.stopped)) ev.push([Math.max(1, c.laps || 0), 'out', k]);
+  }
+  const places = Object.entries(feed?.places || {});
+  const laps = Math.max(0, ...places.map(([, p]) => p.length - 1));
+  let leader = null;
+  for (let lap = 0; lap <= laps; lap++) {
+    const now = places.find(([, p]) => p[lap] === 1)?.[0];
+    if (now == null || now === leader) continue;
+    leader = now;
+    const k = kOf(now);
+    if (k != null) ev.push([lap, 'lead', k]);
+  }
+  return ev.sort((a, b) => a[0] - b[0]);
+}

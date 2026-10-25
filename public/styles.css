@@ -1585,10 +1585,10 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-track { fill: none; stroke: var(--q-text-2, #c7c7cc); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; opacity: 0.55; }
 .tm-edge { fill: none; stroke: var(--q-surface-2, rgba(127,127,127,.25)); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; }
 .tm-car circle { fill: var(--team, #888); stroke: var(--q-surface, #1c1c1e); stroke-width: 1.6; }
-.tm-car .tm-tag { display: none; font-size: 10.5px; font-weight: 800; fill: var(--q-text); paint-order: stroke; stroke: var(--q-surface, #1c1c1e); stroke-width: 3px; }
+.tm-car .tm-tag { display: none; font-size: 11.5px; font-weight: 800; fill: var(--q-text); paint-order: stroke; stroke: var(--q-surface, #1c1c1e); stroke-width: 3px; }
 .tm-car.named .tm-tag { display: block; }
 .tm-car.tag-left .tm-tag { text-anchor: end; }
-.tm-car .tm-no { font-size: 7.5px; font-weight: 850; text-anchor: middle; fill: #fff; pointer-events: none; font-variant-numeric: tabular-nums; }
+.tm-car .tm-no { font-size: 9.5px; font-weight: 850; text-anchor: middle; fill: #fff; pointer-events: none; font-variant-numeric: tabular-nums; }
 .tm-car.light .tm-no { fill: #111; }
 .tm-car.dim .tm-no { opacity: 0.5; }
 .tm-car.pit { opacity: 0.45; }
@@ -1762,32 +1762,18 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-sector { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
 .tm-sector-t { fill: var(--q-muted); font-size: calc(9px / var(--z, 1)); font-weight: 800; text-anchor: middle; }
 .tm-car.dim .tm-dot { opacity: 0.45; }
-.tm-car.picked .tm-dot { r: 8.5; stroke-width: 2.2; }
+.tm-car.picked .tm-dot { r: 10.5; stroke-width: 2.2; }
+.tm-face { display: none; }
+.tm-faces { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.tm-car.face .tm-face { display: inline; }
+.tm-car.face .tm-dot, .tm-car.face .tm-no { display: none; }
+.tm-car .tm-ring { stroke: var(--q-surface, #1c1c1e); stroke-width: 2; }
 .tm-note { margin: 6px 0 0; text-align: center; }
-.tm-dom { fill: none; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
-.tm-dom.dash { stroke-dasharray: 7 5; }
-.tm-dom.faint { opacity: 0.25; }
-.tm-lit { fill: none; stroke: var(--q-text); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; opacity: 0.25; }
+.dc-table td.dc-segs-td { padding: 9px 4px; }
+.dc-segs { display: flex; gap: 1px; height: 8px; }
+.dc-segs i { flex: 1 1 0; min-width: 1px; border-radius: 1px; background: var(--q-sunken, rgba(127,127,127,.2)); }
 .tm-car.close .tm-dot { stroke: var(--q-text); stroke-width: 2.4; }
 /* Under the track: one block, the same height whichever view (no view moves the page). */
-.tm-dom-box { display: grid; gap: 10px; margin-top: 10px; }
-.tm-panel { display: grid; align-content: center; gap: 8px; min-height: 92px; }
-.tm-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.tm-sec { display: grid; justify-items: start; gap: 3px; padding: 8px 9px; border: 0; border-radius: 12px; background: var(--q-sunken); color: var(--q-text); font: inherit; text-align: left; cursor: pointer; box-shadow: inset 0 3px 0 var(--team, transparent); }
-.tm-sec.on { background: color-mix(in srgb, var(--team, var(--accent)) 18%, var(--q-sunken)); }
-.tm-sec > small { font-size: 11px; font-weight: 800; color: var(--q-muted); }
-.tm-sec-who { display: inline-flex; align-items: center; gap: 5px; font-size: 13.5px; white-space: nowrap; }
-.tm-sec-who .logo { width: 18px; height: 18px; }
-.tm-sec-t { font-size: 14px; font-weight: 750; }
-.tm-sec-gap { font-size: 11px; font-weight: 650; color: var(--q-muted); white-space: nowrap; }
-.tm-focus { display: flex; gap: 6px; justify-content: center; }
-.tm-focus-b { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px 3px 3px; border: 0; border-radius: 999px; background: var(--q-sunken); color: var(--q-muted); font: inherit; font-size: 12.5px; font-weight: 750; cursor: pointer; }
-.tm-focus-b[aria-pressed="true"] { color: var(--q-text); box-shadow: inset 0 0 0 2px var(--team); }
-.tm-lap-key { display: flex; justify-content: center; gap: 14px; margin: 0; font-size: 12px; font-weight: 650; color: var(--q-muted); }
-.tm-lap-key > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.tm-lap-key i { width: 12px; height: 4px; border-radius: 2px; }
-.tm-lap-key strong { color: var(--q-text); font-weight: 800; }
-.tm-lap-at { text-align: center; font-size: 11.5px; }
 /* 場上球員 (a game on): a sub's minute on, a player sent off, fouls from the fourth. */
 .sub-on { color: var(--q-muted); font-weight: 600; }
 .sent-off, .foul-trouble { color: var(--loss); font-weight: 700; }

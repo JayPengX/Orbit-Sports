@@ -1367,7 +1367,8 @@ export async function winLine(e) {
 // over, kept in Shared-Data (winprob/f1, by lap), else read by lap from
 // OpenF1's laps; a race on, by the clock (OpenF1 is closed while it runs);
 // a race to come, each driver's chance now. Null where there's no market.
-export async function raceWinLine(ss) {
+// `liveLaps`: a race on, each lap's end so far (f1.mjs liveLapEnds): the line by lap, not the clock.
+export async function raceWinLine(ss, liveLaps = null) {
   const state = ss.status.state;
   // A race to come: its prices as of now each time it's opened (kept half a minute, not five: a qualifying just over moves them).
   if (state === 'pre') return raceNow(ss.start, (url, { trim = '', kind }) => getJson(url, { trim, ttl: kind === 'now' ? 30_000 : PM_TTL[kind] ?? 5 * 60_000 }));
@@ -1378,10 +1379,10 @@ export async function raceWinLine(ss) {
     if (kept) return unpackRace(kept);
   }
   const get = (url, { trim = '', kind }) => getJson(url, { trim, ttl: PM_TTL[kind] ?? (state === 'in' ? 60_000 : 6 * 3_600_000) });
-  const laps = state === 'post' ? await raceLaps(ss.start, get).catch(() => null) : null;
-  const line = await raceLine(ss.start, get, laps);
-  // What turned it (the safety car, the drawn drivers' stops and leads), once the laps are in.
-  if (line && laps) Object.assign(line, (await raceEvents(ss.start, get, laps, line.drivers).catch(() => null)) || {});
+  const laps = state === 'post' ? await raceLaps(ss.start, get).catch(() => null) : liveLaps?.length > 2 ? liveLaps : null;
+  const line = await raceLine(ss.start, get, laps, state !== 'post');
+  // What turned it (the safety car, the drawn drivers' stops and leads), once the race is over (OpenF1 is closed while it runs).
+  if (line && laps && state === 'post') Object.assign(line, (await raceEvents(ss.start, get, laps, line.drivers).catch(() => null)) || {});
   return line;
 }
 

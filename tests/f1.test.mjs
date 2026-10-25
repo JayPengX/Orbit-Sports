@@ -136,3 +136,31 @@ test('the championship as it stands: the table before the race with the points e
   const t = asItStands([{ key: 'a', pts: '325', rank: '1' }, { key: 'b', pts: '236', rank: '2' }, { key: 'c', pts: '221', rank: '3' }], new Map([['a', 4], ['c', 25]]));
   assert.deepEqual(t.map(r => [r.key, r.total, r.was, r.now]), [['a', 329, 1, 1], ['c', 246, 3, 2], ['b', 236, 2, 3]]);
 });
+
+test('a race on: each lap’s end counted back from now by the leader’s lap times, the lap it is on taken off', async () => {
+  const { liveLapEnds } = await import('../public/lib/f1.mjs');
+  const at = Date.UTC(2026, 9, 25, 21, 0, 0);
+  const feed = { at, cars: [{ no: '12', pos: 1, laps: 3, seg: [11, 22], last: '1:40.000' }, { no: '16', pos: 2, laps: 3 }] };
+  const laps = { 12: [[1, 110_000], [3, 100_000]] };
+  const ends = liveLapEnds(feed, laps);
+  const s = at / 1000;
+  // Halfway round lap 4: lap 3 ended 50 s ago; lap 2 missed by the log, the usual (the median of what's there) lap.
+  assert.deepEqual(ends.map(x => x.lap), [0, 1, 2, 3]);
+  assert.equal(ends[3].t, s - 50);
+  assert.equal(ends[2].t, s - 150);
+  assert.equal(ends[1].t, s - 150 - 110);
+  assert.equal(ends[0].t, s - 150 - 110 - 110);
+  assert.equal(liveLapEnds({ at, cars: [{ no: '12', pos: 1, laps: 1 }] }, laps), null);
+});
+
+test('a race on: who led each lap, the drawn drivers’ stops and retirements, from F1’s feed', async () => {
+  const { liveRaceEvents } = await import('../public/lib/f1.mjs');
+  const feed = {
+    cars: [{ no: '12', name: 'Kimi Antonelli', laps: 40 }, { no: '1', name: 'Lando Norris', laps: 40 }, { no: '16', name: 'Charles Leclerc', laps: 33, retired: true }, { no: '3', name: 'Max Verstappen', laps: 40 }],
+    // Antonelli from pole, Leclerc ahead on laps 18–19 (Antonelli stopped on 17), Antonelli again.
+    places: { 12: [1, 1, 1, 2, 2, 1], 16: [2, 2, 2, 1, 1, 2], 1: [3, 3, 3, 3, 3, 3] },
+    stops: { 12: [[3, 2.4, 22]], 1: [[4, 2.6, 23]] }
+  };
+  const ev = liveRaceEvents(feed, ['Kimi Antonelli', 'Max Verstappen', 'Charles Leclerc']);
+  assert.deepEqual(ev, [[0, 'lead', 0], [3, 'pit', 0], [3, 'lead', 2], [5, 'lead', 0], [33, 'out', 2]]);
+});

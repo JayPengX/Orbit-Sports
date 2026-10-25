@@ -18,8 +18,9 @@ import { soccerLine } from './lib/soccerwp.mjs';
 import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, injuryWhatZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
+import { lapRate, readCar, stepCar, spread, behindLeader } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, settleScoring } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, settleScoring, liveLapEnds, liveRaceEvents } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
@@ -2218,8 +2219,9 @@ const axisRow = marks => (marks.length ? el('div', { class: 'wp-axis', 'aria-hid
 
 // An F1 race's chance for each driver (Polymarket's winner market): over or
 // on, a line per driver who ever had a real chance, in the team's colour (a
-// teammate's dashed), by lap once the laps are in (by the clock while it
-// runs); a finger on it reads each one's chance at that lap. To come: each
+// teammate's dashed), by lap (while it runs too, from F1's feed; by the
+// clock only till two laps are run); a finger on it reads each one's chance
+// at that lap. To come: each
 // one's chance now, the likeliest first.
 const driverShort = name => f1Driver(name).surname || name.split(' ').at(-1);
 function raceChanceCard(line, ss, feed = null) {
@@ -2283,18 +2285,25 @@ function raceChanceCard(line, ss, feed = null) {
   if (byLap && line.bands) {
     bands = line.bands.map(([from, to, kind, why, who]) => ({ i0: idxOfLap(from - 1), i1: idxOfLap(to), kind, from, to, why, who }));
     events = (line.events || []).map(([lap, kind, k]) => ({ i: idxOfLap(lap), kind, k }));
-  } else if (!byLap && feed?.control?.length) {
+  } else if (feed?.control?.length) {
+    // A race on: the live feed's race control, by its laps (or the clock, before two laps are run).
     const msgs = feed.control.map(m => ({ ...m, t: Date.parse(/Z|[+-]\d\d:?\d\d$/.test(m.at) ? m.at : `${m.at}Z`) / 1000 })).filter(m => Number.isFinite(m.t));
-    const lapOf = t => msgs.find(m => m.t === t)?.lap || null;
+    const byT = new Map(msgs.map(m => [m.t, m]));
     // A car's number to its driver's name (the feed's cars).
     const family = n => feed.cars?.find(c => String(c.no) === String(n))?.name || '';
-    bands = controlBands(msgs, m => m.t, pts.at(-1).t).map(([a, b, kind, m]) => {
+    bands = controlBands(msgs, m => m.t, pts.at(-1).t ?? Infinity).map(([a, b, kind, m]) => {
       const cause = causeOf(msgs, m?.t ?? a, [], family);
-      return { i0: idxOfT(a), i1: idxOfT(b), kind, from: lapOf(a), to: lapOf(b) || feed.lap?.now || null, why: cause?.kind, who: cause?.who };
+      const from = byT.get(a)?.lap || null;
+      const to = byT.get(b)?.lap || feed.lap?.now || null;
+      return { i0: byLap ? idxOfLap((from || 1) - 1) : idxOfT(a), i1: byLap ? idxOfLap(to || from || 1) : idxOfT(b), kind, from, to, why: cause?.kind, who: cause?.who };
     });
+    // By lap: who led each lap, the drawn drivers' stops and retirements, as a race over has them.
+    if (byLap) events = liveRaceEvents(feed, line.drivers).filter(([lap]) => lap <= pts.at(-1).lap).map(([lap, kind, k]) => ({ i: idxOfLap(lap), kind, k }));
   }
   const names = line.drivers.map(n => driverShort(n, en));
-  const moments = raceMoments(pts, names, bands, events, en, n => driverShort(n, en));
+  // (The start: the first lap's end, or three minutes in on the clock.)
+  const start = byLap ? idxOfLap(1) : idxOfT(pts[0].t + 180);
+  const moments = raceMoments(pts, names, bands, events, en, n => driverShort(n, en), start);
   // (Every moment, a band's start too, in the order of the race: the list under the chart.)
   const listed = [...moments].sort((a, b) => a.i - b.i);
   // The driver's face: the one a moment is about (a band, its cause).
@@ -2305,7 +2314,7 @@ function raceChanceCard(line, ss, feed = null) {
   };
   const colorOf = k => f1Driver(line.drivers[k]).color;
   // (None on a decided game's run to the result: no price there to move.)
-  const gainChip = m => pts[m.i]?.settled ? null : el('span', { class: 'wp-gain', style: `color:${colorOf(m.k)};background:color-mix(in srgb, ${colorOf(m.k)} 16%, transparent)`, text: `${names[m.k]} ${m.delta >= 0 ? '+' : '−'}${Math.round(Math.abs(m.delta) * 100)}%` });
+  const gainChip = m => pts[m.i]?.settled || Math.round(Math.abs(m.delta) * 100) < 1 ? null : el('span', { class: 'wp-gain', style: `color:${colorOf(m.k)};background:color-mix(in srgb, ${colorOf(m.k)} 16%, transparent)`, text: `${names[m.k]} ${m.delta >= 0 ? '+' : '−'}${Math.round(Math.abs(m.delta) * 100)}%` });
   const shade = bands.map(b => `<rect x="${(xs[b.i0] * w).toFixed(1)}" y="0" width="${Math.max(2, (xs[b.i1] - xs[b.i0]) * w).toFixed(1)}" height="${h}" class="rc-band ${b.kind}"/>`).join('');
   // Tagged in a strip above the chart (never over the lines), each at its band's start; one close after another (a virtual safety car turned real) just after it.
   let free = 0;
@@ -3006,56 +3015,59 @@ function circuitOf(b, ss, redraw) {
   return c && c !== 'loading' ? c : null;
 }
 
-// The track and every car on it where F1's feed has it now, the board's 5
-// seconds glided over (one drawing kept for the session, the cars moved in
-// it, not drawn again). The cars picked for 圈速比較 named and on top.
+// The track and every car on it, drawn in 車手比較 (the drivers picked
+// there named, bright and on top; a tap on a car picks it or drops it). One
+// drawing kept for the session, the cars moved in it, not drawn again. As
+// F1 stopped giving the cars' x/y in 2026, each car is placed by the
+// mini-sectors it has passed this lap, and between reads it runs on at its
+// own pace (lib/carpace.mjs), so no car stands still waiting for the feed.
 const f1Maps = new Map();
-let f1DomMode = 'who';
-let f1MapFocus = null;
-let f1MapSector = null;
-const f1MapPicks = new Map();
-// A car on the map moved to its new place: along the track over the next
-// read's time (a straight glide from one mini-sector to the next cut
-// across the infield at every corner), its offset beside the line eased
-// with it. One frame loop a map, stopped once every car is there.
-const TM_MOVE_MS = 4800;
-function tmMove(m, g, to) {
-  const now = performance.now();
-  const from = g.__to ? tmAt(m, g, now) : null;
-  g.__from = from && to.f != null && from.f != null ? from : null;
-  g.__to = to;
-  g.__t0 = now;
-  if (!g.__from || matchMedia('(prefers-reduced-motion: reduce)').matches) g.__t0 = now - TM_MOVE_MS;
-  tmPlace(m, g, now);
-  if (m.moving) return;
-  m.moving = true;
+// One frame loop a map while it's on the page (started again when it's back).
+function tmLoop(m) {
+  if (m.loop || matchMedia('(prefers-reduced-motion: reduce)').matches) return tmDraw(m, performance.now(), 0);
+  m.loop = true;
+  let last = performance.now();
   const step = t => {
-    let busy = false;
-    for (const car of m.cars.values()) if (car.__to && car.isConnected) busy = tmPlace(m, car, t) || busy;
-    if (busy && m.svg.isConnected) requestAnimationFrame(step);
-    else m.moving = false;
+    if (!m.svg.isConnected) return (m.loop = false);
+    tmDraw(m, t, Math.min(100, t - last));
+    last = t;
+    requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
 }
-// Where a car is drawn at a moment: { f, off } on the way, or its fixed spot.
-function tmAt(m, g, t) {
-  const to = g.__to;
-  const from = g.__from;
-  const p = Math.min(1, (t - g.__t0) / TM_MOVE_MS);
-  if (!from || to.f == null || p >= 1) return to;
-  const ahead = (((to.f - from.f) % 1) + 1) % 1;
-  // (Backwards, or more than half a lap: put there, not driven round.)
-  if (ahead > 0.5) return to;
-  return { f: from.f + ahead * p, off: [from.off[0] + (to.off[0] - from.off[0]) * p, from.off[1] + (to.off[1] - from.off[1]) * p] };
-}
-// The car put where it is now; true while it's still on its way.
-function tmPlace(m, g, t) {
-  const now = tmAt(m, g, t);
-  // (Beside the line by a car's width on the screen, zoomed or not.)
+// Every car moved on by `dt` ms and drawn: on the track line (a car on the
+// one ahead set back behind it, a train of dots), the same size zoomed or not.
+function tmDraw(m, t, dt) {
   const z = Math.max(1, m.z || 1);
-  const [x, y] = now.at || (([u, v]) => [u + now.off[0] / z, v + now.off[1] / z])(m.fit(...m.pointAt(now.f)));
-  g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})${m.z > 1 ? ` scale(${(1 / m.z).toFixed(3)})` : ''}`);
-  return now !== g.__to;
+  const gapU = (10 * 2.1) / z;
+  const moving = [];
+  for (const [no, s] of m.run) {
+    const g = m.cars.get(no);
+    if (!g?.isConnected) continue;
+    if (s.xy) {
+      const [x, y] = m.fit(...s.xy);
+      g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})${z > 1 ? ` scale(${(1 / z).toFixed(3)})` : ''}`);
+      s.drawn = [x, y];
+      continue;
+    }
+    if (dt) s.d = stepCar(s, t, dt);
+    moving.push([s, g, ((s.d % 1) + 1) % 1]);
+  }
+  // (A dot's width as a share of the lap, here: the line's pace varies round it.)
+  const sep = f => {
+    const [x, y] = m.fit(...m.pointAt(f));
+    const [x2, y2] = m.fit(...m.pointAt(f + 0.004));
+    return (gapU / (Math.hypot(x2 - x, y2 - y) || 1)) * 0.004;
+  };
+  const at = spread(moving.map(x => x[2]), sep);
+  moving.forEach(([s, g, f], i) => {
+    // (How far it's set back eased, not jumped: two close cars trade places in the train often.)
+    const back = at[i] - f;
+    s.back = s.back == null ? back : s.back + (back - s.back) * Math.min(1, dt / 350);
+    const [x, y] = m.fit(...m.pointAt(f + s.back));
+    g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})${z > 1 ? ` scale(${(1 / z).toFixed(3)})` : ''}`);
+    s.drawn = [x, y];
+  });
 }
 // The map zoomed with two fingers (dragged with one once in), or twice
 // tapped in close; back to the whole track a few seconds after the last
@@ -3076,7 +3088,7 @@ function tmZoom(m) {
     svg.style.setProperty('--z', m.z.toFixed(3));
     svg.classList.toggle('zoomed', m.z > 1.01);
     const t = performance.now();
-    for (const g of m.cars.values()) if (g.__to) tmPlace(m, g, t);
+    tmDraw(m, t, 0);
   };
   // A point on the screen in the drawing's own units.
   const at = (cx, cy) => {
@@ -3139,7 +3151,7 @@ function tmZoom(m) {
     }
   });
 }
-function f1TrackMap(b, ss, { redraw = false } = {}) {
+function f1TrackMap(b, ss) {
   const c = circuitOf(b, ss);
   // (Each car where F1's feed puts it, or, as F1 stopped giving the cars' x/y in 2026, by the mini-sectors it has passed this lap.)
   if (!c || !b.cars.some(x => x.at || x.seg?.[1])) return null;
@@ -3170,12 +3182,12 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', c.name || (en ? 'Track map' : '賽道'));
     const d = c.x.map((x, i) => fit(x, c.y[i]).map(n => n.toFixed(1)).join(',')).join(' ');
-    svg.innerHTML = `<polyline class="tm-edge" points="${d}"/><polyline class="tm-track" points="${d}"/>`;
-    // Over the track: the stretch between the first two picked (their gap), the sector lines and the finish, then the cars.
-    const gapLayer = document.createElementNS(ns, 'g');
+    // (One round clip for every face: in each car's own place, as it's drawn in it.)
+    svg.innerHTML = `<defs><clipPath id="tm-face-clip"><circle r="11"/></clipPath></defs><polyline class="tm-edge" points="${d}"/><polyline class="tm-track" points="${d}"/>`;
+    // Over the track: the sector lines and the finish, then the cars.
     const marks = document.createElementNS(ns, 'g');
     const layer = document.createElementNS(ns, 'g');
-    svg.append(gapLayer, marks, layer);
+    svg.append(marks, layer);
     // How far into a lap each point is: by the time the outline's own lap
     // took to get there (MultiViewer's, where it has it), else by distance
     // (the outline starts at the line).
@@ -3195,20 +3207,10 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
       const t = (want - scale[lo]) / (scale[hi] - scale[lo] || 1);
       return [c.x[lo] + t * (c.x[hi] - c.x[lo]), c.y[lo] + t * (c.y[hi] - c.y[lo]), lo];
     };
-    // The outline from one share of the lap to the next (round the line, if it is), fitted.
-    const pathBetween = (f0, f1) => {
-      const [ax, ay, ai] = pointAt(f0);
-      const [bx, by, bi] = pointAt(f1);
-      const out = [fit(ax, ay)];
-      for (let i = (ai + 1) % c.x.length, n = 0; i !== (bi + 1) % c.x.length && n < c.x.length; i = (i + 1) % c.x.length, n++) out.push(fit(c.x[i], c.y[i]));
-      out.push(fit(bx, by));
-      return out;
-    };
-    m = { svg, fit, layer, marks, gapLayer, cars: new Map(), fracOfIdx, pointAt, pathBetween, W, H };
+    m = { svg, fit, layer, marks, cars: new Map(), run: new Map(), faces: el('div', { class: 'tm-faces', 'aria-hidden': 'true' }), fracOfIdx, pointAt, W, H };
     tmZoom(m);
     f1Maps.set(ss.start, m);
   }
-  m.b = b;
   // A share of the lap for a car's mini-sectors passed: on the circuit's
   // own mini-sector point where it has them; else each sector's share of
   // the lap by the field's best sector times (sectors aren't the same
@@ -3231,7 +3233,6 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
     }
     return (done % total) / total;
   };
-  const carFrac = car => (car.seg?.[1] ? fracOf(car.seg[0], car.seg[1]) : null);
 
   // The finish (a chequered bar across the track) and the sector lines (a
   // bar across, S1, S2, S3 by each sector's middle).
@@ -3261,80 +3262,43 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
           .join('')
       : '');
 
-  // The cars: the picked ones named, on top and bright, the others faint; a
-  // tap on a car puts it in (or takes it out of) 車手比較, the two redrawn.
-  // The drivers picked in 車手比較, as they stood when its picker was last
-  // closed: while it's open, each tap there would redraw the map above it
-  // and move the page (the map follows on 完成).
-  // (Everyone taken out is the exception: the map is back to the plain
-  // field at once, as the picker can't be closed with nobody in it.)
-  const pickedNow = f1Picks.get(ss.start) || [];
-  if (!f1PickerOpen.has(ss.start) || !f1MapPicks.has(ss.start) || !pickedNow.length) f1MapPicks.set(ss.start, [...pickedNow]);
-  const picked = new Set(f1MapPicks.get(ss.start));
+  // Each car's reading: where it is and how fast it goes (its own pace, the
+  // flag's, the pit lane's) until the next.
+  const picked = new Set(f1Picks.get(ss.start) || []);
   const placed = x => !x.retired && !x.stopped && (x.at || x.seg?.[1]);
   const order = [...b.cars].filter(placed).sort((x, y) => (picked.has(x.no) ? 1 : 0) - (picked.has(y.no) ? 1 : 0) || y.pos - x.pos);
-  // Where each car is drawn: on the track line, always (moved beside it,
-  // a bunch looked scattered off the circuit). A car on top of the one
-  // ahead is set back along the line behind it, a train of dots, so each
-  // number can be read; a whole pack only so far (then they touch).
-  const R = 8.5;
-  const gapU = (R * 2.1) / Math.max(1, m.z || 1);
-  const spot = new Map();
-  const drawn = [];
-  for (const car of [...order].sort((x, y) => x.pos - y.pos)) {
+  const fieldMs = Math.min(...b.cars.map(x => lapMs(x.best) || Infinity));
+  const now = performance.now();
+  // (A race: the leader by its own timing points, everyone else by their gap to it.)
+  const race = ss.abbr === 'Race' || ss.abbr === 'SR';
+  const lead = race ? order.find(x => x.pos === 1 && !x.at) : null;
+  for (const car of lead ? [lead, ...order.filter(x => x !== lead)] : order) {
     if (car.at) {
-      const at = m.fit(car.at[0], car.at[1]);
-      drawn.push(at);
-      spot.set(car.no, { at });
+      m.run.set(car.no, { xy: car.at });
       continue;
     }
-    const f = carFrac(car);
-    const [x, y] = m.fit(...m.pointAt(f));
-    const [x2, y2] = m.fit(...m.pointAt(f + 0.004));
-    // (The share of a lap one dot's width is, here.)
-    const step = (gapU / (Math.hypot(x2 - x, y2 - y) || 1)) * 0.004 * 0.5;
-    let ff = f;
-    let at = [x, y];
-    for (let k = 1; k <= 10 && drawn.some(([u, v]) => Math.hypot(u - at[0], v - at[1]) < gapU); k++) {
-      ff = f - step * k;
-      at = m.fit(...m.pointAt(ff));
-    }
-    drawn.push(at);
-    spot.set(car.no, { f: ff, off: [0, 0] });
+    const v = lapRate({ lastMs: lapMs(car.last), bestMs: lapMs(car.pb?.v) || lapMs(car.best), inPit: car.inPit || car.pitOut }, Number.isFinite(fieldMs) ? fieldMs : undefined, b.track?.status);
+    const ls = lead && car !== lead ? m.run.get(lead.no) : null;
+    const gap = ls ? gapNum(car) : null;
+    m.run.set(car.no, gap != null ? readCar(m.run.get(car.no), behindLeader(ls.frac, gap, ls.v), v, now, 1 / car.seg[1], ls.at) : readCar(m.run.get(car.no), fracOf(car.seg[0], car.seg[1]), v, now, 1 / car.seg[1]));
   }
-  // A named car's tag on the side with room: right of its dot, else left
-  // (counting the other dots and the tags already put).
-  const boxes = [];
-  const tagSide = new Map();
-  for (const car of [...order].sort((x, y) => x.pos - y.pos)) {
-    const named = picked.size ? picked.has(car.no) : car.pos <= 3;
-    const sp = spot.get(car.no);
-    if (!named || !sp) continue;
-    const z = Math.max(1, m.z || 1);
-    const [x, y] = sp.at || m.fit(...m.pointAt(sp.f));
-    const w = (String(car.tla || car.no).length + 6) * 6.2 / z;
-    const h = 12 / z;
-    const box = left => (left ? [x - 11 / z - w, y - h / 2, x - 11 / z, y + h / 2] : [x + 11 / z, y - h / 2, x + 11 / z + w, y + h / 2]);
-    const hits = b2 => drawn.filter(([u, v]) => u + R / z > b2[0] && u - R / z < b2[2] && v + R / z > b2[1] && v - R / z < b2[3]).length + boxes.filter(o => o[0] < b2[2] && o[2] > b2[0] && o[1] < b2[3] && o[3] > b2[1]).length * 2;
-    const left = hits(box(true)) < hits(box(false));
-    boxes.push(box(left));
-    tagSide.set(car.no, left);
-  }
+  for (const no of m.run.keys()) if (!order.some(x => x.no === no)) m.run.delete(no);
+
+  // The cars: the picked ones named, on top and bright, the others faint
+  // (with nobody picked, the top three named).
   for (const car of order) {
     let g = m.cars.get(car.no);
     if (!g) {
       g = document.createElementNS(ns, 'g');
       g.setAttribute('class', 'tm-car');
-      g.innerHTML = `<circle r="12" class="tm-hit"/><circle r="7.5" class="tm-dot"/><text class="tm-no" y="2.7"></text><text class="tm-tag" x="11" y="3.5"></text>`;
+      g.innerHTML = `<circle r="15" class="tm-hit"/><circle r="9.5" class="tm-dot"/><text class="tm-no" y="3.3"></text><g class="tm-face"><circle r="12.5" class="tm-ring"/><image x="-13" y="-11" width="26" height="26" clip-path="url(#tm-face-clip)" preserveAspectRatio="xMidYMin slice"/></g><text class="tm-tag" x="14" y="4"></text>`;
       g.addEventListener('click', () => {
-        const now = f1Picks.get(ss.start) || [];
-        f1Picks.set(ss.start, now.includes(car.no) ? now.filter(x => x !== car.no) : [...now, car.no].slice(-4));
+        const now2 = f1Picks.get(ss.start) || [];
+        f1Picks.set(ss.start, now2.includes(car.no) ? now2.filter(x => x !== car.no) : [...now2, car.no].slice(-4));
         document.querySelectorAll(`[data-laps="${ss.start}"]`).forEach(n => n.__redraw?.());
-        f1TrackMap(m.b, ss, { redraw: true });
       });
       m.cars.set(car.no, g);
     }
-    tmMove(m, g, spot.get(car.no));
     g.style.setProperty('--team', car.colour || '#888');
     // The number on the dot, white or black as the team's colour is dark or light.
     const hex = /^#?([0-9a-f]{6})$/i.exec(car.colour || '')?.[1];
@@ -3345,101 +3309,62 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
     g.classList.toggle('picked', picked.has(car.no));
     g.classList.toggle('dim', picked.size > 0 && !picked.has(car.no));
     g.classList.toggle('pit', car.inPit);
-    g.querySelector('.tm-tag').textContent = car.tla || car.no;
-    g.classList.toggle('tag-left', tagSide.get(car.no) === true);
-    g.querySelector('.tm-tag').setAttribute('x', tagSide.get(car.no) ? '-11' : '11');
-    m.layer.append(g);
-  }
-  for (const [no, g] of m.cars) if (!b.cars.some(x => x.no === no && placed(x))) g.remove();
-
-  // The track and 車手比較 as one (the drivers picked there are the ones
-  // drawn here, and a tap on a car picks it), two ways to read it, under
-  // the map in a block of one height (no view moves the page):
-  //   - 誰比較快 (two or more picked): each sector in the colour of the
-  //     quickest of them there by their best sectors (F1's feed has no
-  //     times finer than the sector), and the three in a strip, each with
-  //     its quickest's face and time and the next one's gap (a sector
-  //     tapped lights it on the track);
-  //   - 本圈進度 (one or more): one driver's lap so far, mini-sector by
-  //     mini-sector in F1's own colours (purple the session's best, green
-  //     their own, yellow neither), the rest of the lap still grey.
-  const picks = [...picked].map(no => b.cars.find(x => x.no === no)).filter(Boolean).sort((x, y) => x.pos - y.pos);
-  const views = [...(picks.length >= 2 ? [['who', en ? 'Who is quicker' : '誰比較快']] : []), ...(picks.length ? [['lap', en ? 'This lap' : '本圈進度']] : [])];
-  const mode = views.some(([k]) => k === f1DomMode) ? f1DomMode : views[0]?.[0];
-  const poly = (pts, cls, style = '') => `<polyline class="${cls}" points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"${style ? ` style="${style}"` : ''}/>`;
-  const faceOf = car => personPic(fieldDriver(ss.field, car.name, driverShort(car.name)) || { name: car.name }, 'f1', 'xs round');
-  m.gapLayer.innerHTML = '';
-  let dom = null;
-  if (mode && cuts.length === 3) {
-    const pick = views.length > 1 ? segmented(views, mode, v => ((f1DomMode = v), f1TrackMap(m.b, ss, { redraw: true })), 'tm-dom-modes') : null;
-    if (mode === 'lap') {
-      const focus = picks.find(x => x.no === f1MapFocus) || picks[0];
-      const colour = st => (st === 2051 ? '#a855f7' : st === 2049 ? '#22c55e' : st === 2048 ? '#facc15' : st ? '#6b7280' : '');
-      const st = focus.segStatus || [];
-      m.gapLayer.innerHTML = st
-        .map((v, k) => (colour(v) ? poly(m.pathBetween(fracOf(k, st.length), k + 1 < st.length ? fracOf(k + 1, st.length) : 1), 'tm-dom', `stroke:${colour(v)}`) : ''))
-        .join('');
-      const count = v => st.filter(x => x === v).length;
-      dom = el('div', { class: 'tm-panel' }, [
-        // Whose lap: each picked one (a tap shows theirs).
-        el('div', { class: 'tm-focus' }, picks.map(car => el('button', { type: 'button', class: 'tm-focus-b', 'aria-pressed': String(car === focus), style: `--team:${car.colour || '#888'}`, onclick: () => ((f1MapFocus = car.no), f1TrackMap(m.b, ss, { redraw: true })) }, [faceOf(car), el('span', { text: car.tla || f1Sur(car) })]))),
-        el('p', { class: 'tm-lap-key' }, [
-          ...[['#a855f7', en ? 'best of all' : '全場最快', count(2051)], ['#22c55e', en ? 'own best' : '個人最快', count(2049)], ['#facc15', en ? 'slower' : '較慢', count(2048)]].map(([c2, t, n]) => el('span', {}, [el('i', { style: `background:${c2}` }), el('span', { text: t }), el('strong', { class: 'num', text: String(n) })]))
-        ]),
-        el('small', { class: 'muted tm-lap-at', text: en ? `Lap ${focus.laps + 1} · ${st.filter(Boolean).length} of ${st.length} done` : `第 ${focus.laps + 1} 圈 · 已跑 ${st.filter(Boolean).length}/${st.length} 段` })
-      ]);
-    } else {
-      const timeOf = (car, i) => lapMs(car.sectors?.[i]?.v) || 0;
-      const lit = f1MapSector;
-      const cells = [0, 1, 2].map(i => {
-        const ranked = picks.map(car => [car, timeOf(car, i)]).filter(([, t]) => t).sort((x, y) => x[1] - y[1]);
-        return ranked;
-      });
-      const dashedCar = car => picks.slice(0, picks.indexOf(car)).some(o => o.colour === car.colour);
-      m.gapLayer.innerHTML = [0, 1, 2]
-        .map(i => {
-          const w = cells[i][0]?.[0];
-          const path = m.pathBetween(cuts[i], i < 2 ? cuts[i + 1] : 1);
-          return (lit === i ? poly(path, 'tm-lit') : '') + (w ? poly(path, `tm-dom${dashedCar(w) ? ' dash' : ''}${lit != null && lit !== i ? ' faint' : ''}`, `stroke:${w.colour || '#888'}`) : '');
-        })
-        .join('');
-      dom = el('div', { class: 'tm-panel' }, [
-        el('div', { class: 'tm-strip' }, [0, 1, 2].map(i => {
-          const [win, next] = cells[i];
-          return el('button', { type: 'button', class: `tm-sec${lit === i ? ' on' : ''}`, style: win ? `--team:${win[0].colour || '#888'}` : null, onclick: () => ((f1MapSector = lit === i ? null : i), f1TrackMap(m.b, ss, { redraw: true })) }, [
-            el('small', { text: `S${i + 1}` }),
-            win ? el('span', { class: 'tm-sec-who' }, [faceOf(win[0]), el('strong', { text: win[0].tla || f1Sur(win[0]) })]) : el('span', { class: 'muted', text: '—' }),
-            el('span', { class: 'num tm-sec-t', text: win ? (win[1] / 1000).toFixed(3) : '' }),
-            el('small', { class: 'num tm-sec-gap', text: next ? `${next[0].tla || f1Sur(next[0])} +${((next[1] - win[1]) / 1000).toFixed(3)}` : '' })
-          ]);
-        }))
-      ]);
+    // A picked driver drawn as their face in their team's colour, once the photo has come (the numbered dot till then, or when there's none).
+    // (The photo is found on the page, out of sight: the kit swaps its stand-in for the photo only there.)
+    if (picked.has(car.no) && !g.__pic) {
+      g.__pic = el('span', {}, [personPic(fieldDriver(ss.field, car.name, driverShort(car.name)) || { name: car.name }, 'f1')]);
+      const show = () => {
+        const img = g.__pic.querySelector('img');
+        if (!img?.naturalWidth) return;
+        g.querySelector('image').setAttribute('href', img.currentSrc || img.src);
+        g.classList.add('has-face');
+        g.classList.toggle('face', g.classList.contains('picked'));
+      };
+      g.__pic.addEventListener('load', show, true);
+      m.faces.append(g.__pic);
+      show();
     }
-    dom = el('div', { class: 'tm-dom-box' }, [pick, dom]);
-  }
-  // On the cars: each picked one's gap to the first picked by its code; a ring on any car within a second of the car ahead (in range to pass).
-  const first = picks[0];
-  for (const car of b.cars) {
-    const g = m.cars.get(car.no);
-    if (!g) continue;
-    const gap = first && car !== first && picked.has(car.no) && gapNum(car) != null && gapNum(first) != null ? gapNum(car) - gapNum(first) : null;
-    if (gap != null) g.querySelector('.tm-tag').textContent = `${car.tla || car.no} +${gap.toFixed(1)}`;
+    g.classList.toggle('face', picked.has(car.no) && g.classList.contains('has-face'));
+    // A ring on any car within a second of the car ahead (in range to pass).
     const iv = Number(String(car.interval || '').replace('+', ''));
     g.classList.toggle('close', car.pos > 1 && Number.isFinite(iv) && iv > 0 && iv < 1 && !car.inPit);
+    m.layer.append(g);
   }
-  const holder = m.domBox || (m.domBox = el('div'));
-  put(holder, dom);
-  const note = !picks.length
-    ? en ? 'Tap a car to compare it below. ◯ within a second of the car ahead.' : '點車加入下方的車手比較 · ◯ 與前車 1 秒內'
-    : mode === 'lap'
-      ? en ? 'Their lap so far, as F1 times it. Tap a car to add or drop it.' : 'F1 計時顏色 · 點車加入或移出比較'
-      : en ? 'Each sector in the colour of the quickest there (best sectors); tap one to light it.' : '每段為最快者的顏色 · 點分段標出位置';
-  // (Kept with the drawing: a tap redraws it in place, the note with it.)
+  for (const [no, g] of m.cars) if (!m.run.has(no)) g.remove();
+  tmDraw(m, now, 0);
+
+  // A named car's tag (its code, and a picked one's gap to the first picked)
+  // on the side with room: right of its dot, else left (counting the other
+  // dots and the tags already put).
+  const picks = [...picked].map(no => b.cars.find(x => x.no === no)).filter(Boolean).sort((x, y) => x.pos - y.pos);
+  const first = picks[0];
+  const R = 10;
+  const z = Math.max(1, m.z || 1);
+  const dots = [...m.run.values()].map(s => s.drawn).filter(Boolean);
+  const boxes = [];
+  for (const car of [...order].sort((x, y) => x.pos - y.pos)) {
+    const g = m.cars.get(car.no);
+    const xy = m.run.get(car.no)?.drawn;
+    if (!g.classList.contains('named') || !xy) continue;
+    const gap = first && car !== first && gapNum(car) != null && gapNum(first) != null ? gapNum(car) - gapNum(first) : null;
+    const text = gap != null ? `${car.tla || car.no} +${gap.toFixed(1)}` : car.tla || car.no;
+    const [x, y] = xy;
+    const w = (text.length + 1) * 6.8 / z;
+    const h = 13 / z;
+    const off = (picked.has(car.no) ? 17 : 14) / z;
+    const box = left => (left ? [x - off - w, y - h / 2, x - off, y + h / 2] : [x + off, y - h / 2, x + off + w, y + h / 2]);
+    const hits = b2 => dots.filter(([u, v]) => u + R / z > b2[0] && u - R / z < b2[2] && v + R / z > b2[1] && v - R / z < b2[3]).length + boxes.filter(o => o[0] < b2[2] && o[2] > b2[0] && o[1] < b2[3] && o[3] > b2[1]).length * 2;
+    const left = hits(box(true)) < hits(box(false));
+    boxes.push(box(left));
+    const tag = g.querySelector('.tm-tag');
+    tag.textContent = text;
+    tag.setAttribute('x', String((left ? -1 : 1) * (picked.has(car.no) ? 17 : 14)));
+    g.classList.toggle('tag-left', left);
+  }
+  tmLoop(m);
   const noteEl = m.noteEl || (m.noteEl = el('p', { class: 'muted small tm-note' }));
-  noteEl.textContent = note;
-  // A redraw (a tap, a pick in 車手比較): the drawing on the page changed in place, no new card (it would take the drawing off the page).
-  if (redraw) return null;
-  return card(en ? 'On track' : '賽道位置', el('div', { class: 'tm-box' }, [m.svg, holder, noteEl]), { sub: c.name });
+  noteEl.textContent = en ? 'Tap a car to add or drop it. ◯ within a second of the car ahead.' : '點車加入或移出比較 · ◯ 與前車 1 秒內';
+  return m.box || (m.box = el('div', { class: 'tm-box' }, [m.svg, m.faces, noteEl]));
 }
 
 // Each car's laps (f1-live.js /laps.json, again each 15 seconds while it
@@ -3518,7 +3443,7 @@ function f1LapCompare(b, ss) {
     if (!f1Picks.has(ss.start)) f1Picks.set(ss.start, cars.slice(0, 2).map(c => c.no));
     const car = no => cars.find(c => c.no === no);
     const picks = f1Picks.get(ss.start).filter(no => car(no)).sort((x, y) => car(x).pos - car(y).pos);
-    const setPicks = next => (f1Picks.set(ss.start, next), draw(), (!f1PickerOpen.has(ss.start) || !next.length) && f1Maps.get(ss.start)?.b && f1TrackMap(f1Maps.get(ss.start).b, ss, { redraw: true }));
+    const setPicks = next => (f1Picks.set(ss.start, next), draw());
     const dashed = no => picks.slice(0, picks.indexOf(no)).some(o => car(o)?.colour === car(no)?.colour);
     const colourOf = no => car(no)?.colour || '#888';
     const pitsOf = no => pitLaps(laps[no] || [], stops[no] || [], car(no)?.stints || []);
@@ -3537,11 +3462,13 @@ function f1LapCompare(b, ss) {
           }
         }, [personPic(fieldDriver(ss.field, c.name, driverShort(c.name)) || { name: c.name }, 'f1', 'sm round'), el('small', { class: 'num', text: `${c.pos < 99 ? `P${c.pos} ` : ''}${c.tla || ''}` })])))
       : null;
-    const toggle = el('button', { type: 'button', class: 'dc-toggle', 'aria-expanded': String(open), onclick: () => (f1PickerOpen.has(ss.start) ? f1PickerOpen.delete(ss.start) : f1PickerOpen.add(ss.start), draw(), f1Maps.get(ss.start)?.b && f1TrackMap(f1Maps.get(ss.start).b, ss, { redraw: true })) }, [
+    const toggle = el('button', { type: 'button', class: 'dc-toggle', 'aria-expanded': String(open), onclick: () => (f1PickerOpen.has(ss.start) ? f1PickerOpen.delete(ss.start) : f1PickerOpen.add(ss.start), draw()) }, [
       el('span', { text: open ? (en ? 'Done' : '完成') : en ? 'Change drivers' : '選擇車手' }),
       el('small', { class: 'num', text: `${picks.length}/4` })
     ]);
-    if (!picks.length) return put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [picker, el('p', { class: 'muted small fs-empty', text: en ? 'Pick up to four drivers.' : '選最多 4 位車手來比較' })]), { sub: toggle }));
+    // The track with the cars on it, live (the picked ones named; a tap on a car picks it).
+    const map = over ? null : f1TrackMap(b, ss);
+    if (!picks.length) return put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [picker, map, el('p', { class: 'muted small fs-empty', text: en ? 'Pick up to four drivers.' : '選最多 4 位車手來比較' })]), { sub: toggle }));
 
     // The table.
     const [a, ...rest] = picks.map(car);
@@ -3625,6 +3552,18 @@ function f1LapCompare(b, ss) {
     const bests = picks.map(no => lapMs(car(no).pb?.v) || (Number.isFinite(bestOf(no)) ? bestOf(no) : 0));
     const bestest = Math.min(...bests.filter(Boolean));
     if (race) rows.push(row(en ? 'Best lap' : '最快圈', picks.map((no, i) => cell(bests[i] ? fmtLap(bests[i]) : '—', bests[i] && bests[i] === bestest ? 'best' : ''))));
+    // Who is quicker where: each one's best in each sector (purple the
+    // session's best, green the quickest of them), then their lap so far,
+    // mini-sector by mini-sector in F1's own colours (purple the session's
+    // best, green their own, yellow neither, the rest of the lap still grey).
+    for (const i of [0, 1, 2]) {
+      const ts = picks.map(no => lapMs(car(no).sectors?.[i]?.v));
+      if (!ts.some(Boolean)) continue;
+      const top = Math.min(...ts.filter(Boolean));
+      rows.push(row(en ? `S${i + 1} best` : `S${i + 1} 最佳`, picks.map((no, k) => cell(ts[k] ? (ts[k] / 1000).toFixed(3) : '—', !ts[k] ? 'muted' : car(no).sectors[i].p === 1 ? 'best' : picks.length > 1 && ts[k] === top ? 'quick' : ''))));
+    }
+    const SEG = { 2051: '#a855f7', 2049: '#22c55e', 2048: '#facc15', 2064: '#6b7280' };
+    if (!over && picks.some(no => car(no).segStatus?.length)) rows.push(row(en ? 'This lap' : '本圈', picks.map(no => el('td', { class: 'dc-segs-td' }, [el('span', { class: 'dc-segs', 'aria-hidden': 'true' }, (car(no).segStatus || []).map(v => el('i', { style: SEG[v] ? `background:${SEG[v]}` : null })))]))));
     const table = el('table', { class: `dc-table n${picks.length}` }, [el('thead', {}, [head]), el('tbody', {}, rows)]);
 
     // The chart.
@@ -3740,7 +3679,7 @@ function f1LapCompare(b, ss) {
         ])
       : null;
     const more = over && allNos.length > lapNos.length ? el('button', { class: 'q-btn small lc-more', type: 'button', text: en ? `All ${allNos.length} laps` : `顯示全部 ${allNos.length} 圈`, onclick: () => (f1AllLaps.add(ss.start), draw()) }) : null;
-    put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [picker, table, pick, chart, lapTable ? el('p', { class: 'dc-sub', text: over ? (en ? 'Lap by lap' : '每圈圈速') : en ? 'Last 5 laps' : '最近 5 圈' }) : null, lapTable, more]), { sub: toggle }));
+    put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [picker, map, table, pick, chart, lapTable ? el('p', { class: 'dc-sub', text: over ? (en ? 'Lap by lap' : '每圈圈速') : en ? 'Last 5 laps' : '最近 5 圈' }) : null, lapTable, more]), { sub: toggle }));
   };
   // (Drawn again when 數據 is shown: built behind 成績, its laps came while it wasn't on the page.)
   box.__redraw = draw;
@@ -3937,10 +3876,10 @@ function f1Stats(b, ss) {
   const named = {};
   const add = (k, x) => (named[k] = x);
   if (/^FP\d$/.test(ss.abbr)) add('pace', f1PracticePace(b, ss));
-  add('compare', f1LapCompare(b, ss));
+  // (Live, 車手比較 is the track with the cars on it: 賽道. Over, no track: with the laps.)
+  add(live ? 'track' : 'compare', f1LapCompare(b, ss));
   // (Over too, until ESPN's own table has the race in.)
   if (race) add('table', f1LiveTable(b, ss));
-  if (live) add('map', f1TrackMap(b, ss));
   if (live && race) add('stop', f1PitWindow(b, ss));
   if (tiles.length) add('tiles', el('div', { class: 'fs-tiles' }, tiles));
 
@@ -4069,15 +4008,15 @@ function f1Stats(b, ss) {
       )
     );
   }
-  // In the order they're read (the owner, 2026-10-11). Live: the weather in
-  // a line, the cars on the track, the drivers picked side by side, a race's
-  // stop window and tyres (the strategy), the headline numbers, a
-  // qualifying's parts, the race's fastest laps, the championship as it
-  // stands (context, after the race itself), the sectors and the speed
-  // trap. Over: the headline numbers first, then the same without the
-  // live-only cards. A practice's long runs after the compare.
+  // In the order they're read (the owner, 2026-10-11). Live: the drivers
+  // picked side by side with the cars on the track, a race's stop window and
+  // tyres (the strategy), the headline numbers, a qualifying's parts, the
+  // race's fastest laps, the championship as it stands (context, after the
+  // race itself), the sectors and the speed trap. Over: the headline numbers
+  // first, then the same without the live-only cards. A practice's long runs
+  // after the compare.
   const order = live
-    ? ['weather', 'map', 'compare', 'pace', 'stop', 'parts', 'tyres', 'tiles', 'laps', 'table', 'sectors', 'speed']
+    ? ['track', 'pace', 'stop', 'parts', 'tyres', 'tiles', 'laps', 'table', 'sectors', 'speed']
     : ['tiles', 'table', 'compare', 'pace', 'parts', 'tyres', 'laps', 'sectors', 'speed'];
   // (In that order within each tab, f1Views.)
   const out = Object.fromEntries(order.map(k => [k, named[k]]).filter(([, x]) => x));
@@ -4090,14 +4029,15 @@ let f1BoardView = 'order';
 // The tower's last column: the gap to the leader, or (tapped) to the car ahead; kept as the board refreshes.
 let f1GapAlt = false;
 // A session's views, each one thing (the owner, 2026-10-26: 數據 was a
-// dozen cards down one page, hard to use): 排名 the timing tower; 賽道 the
-// cars on the track and who's quicker where; 輪胎 the strategy (each car's
-// stints, where a stop now puts it); 圈速 the laps (the headline numbers,
-// two drivers side by side, the fastest laps, sectors, speed trap); 積分
+// dozen cards down one page, hard to use): 排名 the timing tower; 賽道 車手比較
+// with the cars on the track (one picking, the map and the drivers side by
+// side, who's quicker where); 輪胎 the strategy (each car's stints, where a
+// stop now puts it); 圈速 the laps (the headline numbers, the fastest laps,
+// sectors, speed trap; 車手比較 too once over, with no track); 積分
 // the championship as it would stand. A view with nothing in it isn't offered.
 const F1_TABS = [
   ['order', '排名', 'Order', null],
-  ['track', '賽道', 'Track', ['map']],
+  ['track', '賽道', 'Track', ['track']],
   ['tyres', '輪胎', 'Tyres', ['stop', 'tyres']],
   ['laps', '圈速', 'Laps', ['tiles', 'compare', 'pace', 'parts', 'laps', 'sectors', 'speed']],
   ['table', '積分', 'Points', ['table']]
@@ -4163,7 +4103,9 @@ function fillField(s, e) {
       // Read for the first time: the card in its shape meanwhile, the real one fading in.
       const shaped = !raceBox.childElementCount;
       if (shaped) put(raceBox, card(T(ss.status.state === 'pre' ? 'winChance' : 'winProb'), el('div', { class: 'wp waiting' }, [skeleton([30, 24, 30], 'wc-skel'), el('i', { class: `skel ${ss.status.state === 'pre' ? 'rc-skel-bars' : 'wp-skel-chart'}` })])));
-      raceWinLine(ss)
+      // (A race on: by lap too, each lap's end counted from F1's feed and the leader's laps.)
+      (ss.status.state === 'in' ? sessionLaps(ss.start, false).then(d => liveLapEnds(keptTiming(ss.abbr, ss.start), d?.cars)).catch(() => null) : Promise.resolve(null))
+        .then(laps => raceWinLine(ss, laps))
         .then(l => {
           if (at !== pick || !box.isConnected) return;
           if (!l) return shaped && put(raceBox);

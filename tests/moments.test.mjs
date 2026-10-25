@@ -443,3 +443,14 @@ test('baseball: the pitching that held it, the pitcher credited, a few at most',
   assert.equal(list[0].team, 'h');
   assert.equal(playMoments(pts, 'baseball', { ...side, en: true })[0].text, 'J. Misiorowski strikes out S. Ohtani');
 });
+
+test('F1: the start told as itself, not by the short virtual safety car on lap 2 (US GP, 2026-10-25)', async () => {
+  const { raceMoments } = await import('../public/lib/moments.mjs');
+  // Antonelli from pole 45% to 64% over the first lap, steady through a 14-second VSC on lap 2, then on.
+  const points = Array.from({ length: 12 }, (_, lap) => ({ lap, c: [lap === 0 ? 0.45 : lap === 1 ? 0.64 : 0.64 + (lap - 2) * 0.01, lap === 0 ? 0.48 : 0.3] }));
+  const list = raceMoments(points, ['安東內利', '維斯塔潘'], [{ i0: 1, i1: 2, kind: 'vsc', from: 2, to: 2 }], [], false, null, 1);
+  assert.deepEqual(list.map(m => m.text), ['起跑', '虛擬安全車']);
+  assert.ok(Math.abs(list[0].delta - 0.19) < 1e-9);
+  assert.equal(list[0].k, 0);
+  assert.ok(Math.abs(list[1].delta) < 0.02);
+});
