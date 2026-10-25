@@ -1158,6 +1158,10 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .f1-brief-top .pos { font-weight: 800; color: var(--q-muted); text-align: center; }
 .f1-brief-name { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .f1-brief-v { font-weight: 650; color: var(--q-muted); }
+.hc-brief { margin: 2px 0 12px; padding: 10px 12px; border-radius: 14px; background: rgba(0, 0, 0, 0.18); }
+.hc-brief .f1-brief { margin: 0; gap: 6px; }
+.hc-brief .f1-brief-head, .hc-brief .f1-brief-top li { color: #fff; font-size: 14px; }
+.hc-brief .f1-brief-top .pos, .hc-brief .f1-brief-v { color: rgba(255, 255, 255, 0.75); }
 /* ---- Basketball live: each side's top scorer as baseball's batter and pitcher, then the last plays ---- */
 .lp-bb { grid-template-columns: 1fr 1fr; gap: 10px; }
 .lp-bb .lp-person { align-items: flex-start; }
@@ -1700,7 +1704,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .st-lead { margin: 0; font-size: 13px; font-weight: 650; color: var(--q-muted); }
 .live-dot-text { display: inline-flex; align-items: center; gap: 5px; color: var(--q-bad, #f87171); font-weight: 750; }
 .live-dot-text::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.lb-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.lb-state { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .lb-live { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 750; color: var(--q-text); }
 .lb-live i { width: 8px; height: 8px; border-radius: 50%; background: var(--q-bad, #ef4444); box-shadow: 0 0 0 3px color-mix(in srgb, var(--q-bad, #ef4444) 25%, transparent); animation: lb-pulse 1.6s ease-in-out infinite; }
 @keyframes lb-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--q-bad, #ef4444) 0%, transparent); } }

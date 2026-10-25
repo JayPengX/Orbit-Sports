@@ -2936,7 +2936,7 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
   if (leftText) left.textContent = leftText;
   const marks = lapNow && b.lap.of ? neutralLaps(b.control || [], b.lap.now).map(p => el('b', { class: `lb-sc ${p.kind}`, style: `left:${((p.from - 1) / b.lap.of) * 100}%;width:${Math.max(0.8, ((p.to - p.from + 1) / b.lap.of) * 100)}%` })) : [];
   const head = el('div', { class: 'lb-top' }, [
-    el('div', { class: 'lb-row' }, [
+    el('div', { class: 'lb-state' }, [
       el('span', { class: 'lb-live' }, [el('i'), el('span', { text: sessionName(ss, L()) })]),
       flag ? el('span', { class: `lb-flag ${flag[2]}` }, [el('i'), el('span', { text: en ? flag[1] : flag[0] })]) : null
     ]),

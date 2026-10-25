@@ -3,7 +3,7 @@
 // hero game, a finished game's score card, a sport's tile. Markup only: what
 // a game is (onAir, sessionStatus, picks, standings) is decided elsewhere.
 import * as kitUI from '#kit/ui.mjs';
-import { el, ctx, sidesOf, logo, personPic, statusText, breakTick, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine } from './ui.js';
+import { el, ctx, sidesOf, logo, personPic, statusText, breakTick, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine, f1Brief } from './ui.js';
 import { channelsOf, watchOf } from './lib/tv.mjs';
 import { ALT_VIEW } from './lib/broadcast.mjs';
 import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
@@ -46,7 +46,7 @@ export function heroGame(e, { eyebrow = '', picked = false, mine = false, onOpen
   card.append(
     el('div', { class: 'hc-top' }, [
       el('span', { class: 'q-hc-eyebrow' }, [live || starting ? el('i', { class: 'hc-dot', 'aria-hidden': 'true' }) : el('span', { class: 'hc-ico', html: icon(post ? 'check' : 'clock') }), el('span', { text: eyebrow || (live ? (en() ? 'Live now' : '正在進行') : starting ? (en() ? 'On air' : '轉播中') : post ? (en() ? 'Final' : '已結束') : en() ? 'Up next' : '下一場') })]),
-      el('span', { class: 'hc-status num', text: status, ...(live ? breakTick(e, status) : {}) })
+      live && e.league === 'f1' ? null : el('span', { class: 'hc-status num', text: status, ...(live ? breakTick(e, status) : {}) })
     ])
   );
   if (e.kind === 'match') {
@@ -64,6 +64,9 @@ export function heroGame(e, { eyebrow = '', picked = false, mine = false, onOpen
   } else {
     card.append(el('div', { class: 'hc-event' }, [raceFlag(e, 'big'), el('strong', { class: 'q-hc-title', text: e.sessionKey || !e.session ? e.name : `${e.name} · ${e.session}` }), sessionTag(e)]));
     if (e.venue) card.append(el('p', { class: 'q-hc-sub', text: e.venue }));
+    // An F1 session on now: its lap (or time left) and top three, as its row has them.
+    const brief = live ? f1Brief(e) : null;
+    if (brief) card.append(el('div', { class: 'hc-brief' }, [brief]));
   }
   const stage = e.kind === 'match' ? stageTag(e, ctx.locale) : '';
   const tags = [
