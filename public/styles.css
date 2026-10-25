@@ -1582,7 +1582,6 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-svg { display: block; width: 100%; height: auto; overflow: visible; }
 .tm-track { fill: none; stroke: var(--q-text-2, #c7c7cc); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; opacity: 0.55; }
 .tm-edge { fill: none; stroke: var(--q-surface-2, rgba(127,127,127,.25)); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; }
-.tm-car { transition: transform 4.8s linear; }
 .tm-car circle { fill: var(--team, #888); stroke: var(--q-surface, #1c1c1e); stroke-width: 1.6; }
 .tm-car .tm-tag { display: none; font-size: 10.5px; font-weight: 800; fill: var(--q-text); paint-order: stroke; stroke: var(--q-surface, #1c1c1e); stroke-width: 3px; }
 .tm-car.named .tm-tag { display: block; }

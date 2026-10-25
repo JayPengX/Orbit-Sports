@@ -3062,6 +3062,47 @@ let f1DomMode = 'who';
 let f1MapFocus = null;
 let f1MapSector = null;
 const f1MapPicks = new Map();
+// A car on the map moved to its new place: along the track over the next
+// read's time (a straight glide from one mini-sector to the next cut
+// across the infield at every corner), its offset beside the line eased
+// with it. One frame loop a map, stopped once every car is there.
+const TM_MOVE_MS = 4800;
+function tmMove(m, g, to) {
+  const now = performance.now();
+  const from = g.__to ? tmAt(m, g, now) : null;
+  g.__from = from && to.f != null && from.f != null ? from : null;
+  g.__to = to;
+  g.__t0 = now;
+  if (!g.__from || matchMedia('(prefers-reduced-motion: reduce)').matches) g.__t0 = now - TM_MOVE_MS;
+  tmPlace(m, g, now);
+  if (m.moving) return;
+  m.moving = true;
+  const step = t => {
+    let busy = false;
+    for (const car of m.cars.values()) if (car.__to && car.isConnected) busy = tmPlace(m, car, t) || busy;
+    if (busy && m.svg.isConnected) requestAnimationFrame(step);
+    else m.moving = false;
+  };
+  requestAnimationFrame(step);
+}
+// Where a car is drawn at a moment: { f, off } on the way, or its fixed spot.
+function tmAt(m, g, t) {
+  const to = g.__to;
+  const from = g.__from;
+  const p = Math.min(1, (t - g.__t0) / TM_MOVE_MS);
+  if (!from || to.f == null || p >= 1) return to;
+  const ahead = (((to.f - from.f) % 1) + 1) % 1;
+  // (Backwards, or more than half a lap: put there, not driven round.)
+  if (ahead > 0.5) return to;
+  return { f: from.f + ahead * p, off: [from.off[0] + (to.off[0] - from.off[0]) * p, from.off[1] + (to.off[1] - from.off[1]) * p] };
+}
+// The car put where it is now; true while it's still on its way.
+function tmPlace(m, g, t) {
+  const now = tmAt(m, g, t);
+  const [x, y] = now.at || (([u, v]) => [u + now.off[0], v + now.off[1]])(m.fit(...m.pointAt(now.f)));
+  g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+  return now !== g.__to;
+}
 function f1TrackMap(b, ss, { redraw = false } = {}) {
   const c = circuitOf(b, ss);
   // (Each car where F1's feed puts it, or, as F1 stopped giving the cars' x/y in 2026, by the mini-sectors it has passed this lap.)
@@ -3218,7 +3259,8 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
       at = [x + nx * side - ny * on, y + ny * side + nx * on];
     }
     drawn.push(at);
-    spot.set(car.no, at);
+    // (Where on the lap, and how far beside the line: the car is moved round the track to it, never across.)
+    spot.set(car.no, f == null ? { at } : { f, off: [at[0] - x, at[1] - y] });
   }
   for (const car of order) {
     let g = m.cars.get(car.no);
@@ -3234,8 +3276,7 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
       });
       m.cars.set(car.no, g);
     }
-    const [x, y] = spot.get(car.no);
-    g.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    tmMove(m, g, spot.get(car.no));
     g.style.setProperty('--team', car.colour || '#888');
     // The number on the dot, white or black as the team's colour is dark or light.
     const hex = /^#?([0-9a-f]{6})$/i.exec(car.colour || '')?.[1];
