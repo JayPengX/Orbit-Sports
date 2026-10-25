@@ -1086,21 +1086,22 @@ export function parseSummary(data, league) {
     .map(({ w }) => ({ home: w.homeWinPercentage, ...(w.tiePercentage > 0 ? { draw: w.tiePercentage } : {}), ...playAt.get(String(w.playId)) }))
     // A point whose play ESPN left out: the period of the one before it (the first, of the first that has one).
     .map((p, i, all) => (p.n ? p : ((p.n = i ? all[i - 1].n : all.find(q => q.n)?.n), i && all[i - 1].half && (p.half = all[i - 1].half), p)));
-  // A game to come: each side's chance, ESPN's own prediction, else the
-  // sportsbook's moneylines (its margin taken out): { home, draw?, source }.
+  // A game to come: each side's chance, the sportsbook's moneylines (its
+  // margin taken out), else ESPN's own prediction: { home, draw?, source }.
+  // The book first: it's the market's price, what Longshot sells and what
+  // a search shows; ESPN's model (BPI) can disagree on the favourite (Jay
+  // 2026-10-26: 76人 59% here, the Pistons favoured everywhere else).
   const predictor = data?.predictor;
   const chance = v => (Number.isFinite(parseFloat(v)) ? parseFloat(v) / 100 : null);
   const implied = ml => (!Number.isFinite(ml) || !ml ? null : ml < 0 ? -ml / (100 - ml) : 100 / (ml + 100));
   let predict = null;
-  if (chance(predictor?.homeTeam?.gameProjection) != null && chance(predictor?.awayTeam?.gameProjection) != null) {
+  const book = (data?.pickcenter || []).find(x => implied(x.homeTeamOdds?.moneyLine) && implied(x.awayTeamOdds?.moneyLine));
+  if (book) {
+    const [h, a, d] = [implied(book.homeTeamOdds.moneyLine), implied(book.awayTeamOdds.moneyLine), implied(book.drawOdds?.moneyLine) || 0];
+    predict = { source: book.provider?.name || 'book', home: h / (h + a + d), ...(d ? { draw: d / (h + a + d) } : {}) };
+  } else if (chance(predictor?.homeTeam?.gameProjection) != null && chance(predictor?.awayTeam?.gameProjection) != null) {
     const [h, a, d] = [chance(predictor.homeTeam.gameProjection), chance(predictor.awayTeam.gameProjection), chance(predictor.homeTeam.teamChanceTie) || 0];
     predict = { source: 'espn', home: h / (h + a + d), ...(d ? { draw: d / (h + a + d) } : {}) };
-  } else {
-    const book = (data?.pickcenter || []).find(x => implied(x.homeTeamOdds?.moneyLine) && implied(x.awayTeamOdds?.moneyLine));
-    if (book) {
-      const [h, a, d] = [implied(book.homeTeamOdds.moneyLine), implied(book.awayTeamOdds.moneyLine), implied(book.drawOdds?.moneyLine) || 0];
-      predict = { source: book.provider?.name || 'book', home: h / (h + a + d), ...(d ? { draw: d / (h + a + d) } : {}) };
-    }
   }
   // The season series (a playoff or a season's meetings), or soccer's
   // head-to-head (the last meetings, any competition): `h2h` with each

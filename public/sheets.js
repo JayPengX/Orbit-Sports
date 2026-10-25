@@ -181,7 +181,7 @@ export async function openMatch(e) {
     const pre = now.status.state === 'pre';
     // (A soccer game on or over is drawn here, lib/soccerwp.mjs: the market's line only for its odds before the start, where ESPN has none.)
     const soccer = !pre && LEAGUES[e.league].sport === 'soccer' && e.kind === 'match';
-    if ((pre ? data?.predict?.source === 'espn' : soccer ? data?.predict || line : data?.winProb.length > 3) || Date.now() - lineAt < 60_000) return;
+    if ((pre ? data?.predict && data.predict.source !== 'espn' : soccer ? data?.predict || line : data?.winProb.length > 3) || Date.now() - lineAt < 60_000) return;
     lineAt = Date.now();
     (pre ? winNow : winLine)(now)
       .then(l => l && (line = l))
@@ -1287,15 +1287,19 @@ function highlights(e, waited = false) {
 function overview(d, e, table, nameOf, { line = null, wait = { summary: true, line: true } } = {}) {
   const sides = inOrder(e, [e.away, e.home]);
   const places = sides.map(s => placeOf(table, s.id));
+  const sm = side => d?.byId?.[side.id] || side;
   // Each side's form in this game's competition, as on its team card opened
   // from here (leagueForm): a soccer club's cup games left out once its
   // season's in; ESPN's last five (every competition) under three there yet.
   const forms = sides.map(s => {
     const own = d?.seasonGames && leagueForm(d.seasonGames, s.id, e.league, Date.parse(e.start));
     if (own) return own.map(x => ({ result: resultFor(x, s.id), opp: sidesFor(x, s.id).them.short || '', score: `${x.away.score}-${x.home.score}` }));
-    return d?.seasonGames === undefined ? [] : d?.form.find(f => f.team === s.id)?.games || [];
+    const games = d?.seasonGames === undefined ? [] : d?.form.find(f => f.team === s.id)?.games || [];
+    // ESPN's last five reach back into the preseason (a 2-0 team showed 敗勝勝勝勝,
+    // Jay 2026-10-26): no more than the games its record counts.
+    const played = /^\d+(-\d+)+$/.test(sm(s).record || '') ? sm(s).record.split('-').reduce((n, x) => n + +x, 0) : null;
+    return played == null ? games : games.slice(Math.max(0, games.length - played));
   });
-  const sm = side => d?.byId?.[side.id] || side;
   const compareRows = [
     // The record: the feed's, else the table's wins and losses.
     // (A game long over: its record then, said so, never read as today's.)
@@ -1719,8 +1723,8 @@ const cmpTeam = (s, cls, league) => teamTap(s, league, `cmp-team ${cls}`, [sideL
 const formPills = games => el('div', { class: 'form-pills' }, games.slice(-5).map(g => el('span', { class: `pill ${g.result}`, title: `${g.opp} ${g.score}`, text: L() === 'en' ? g.result : { W: '勝', D: '和', L: '敗' }[g.result] || g.result })));
 
 // The game's win chance card: to come, each side's chance; on or over, the
-// chart. One source for a game, decided before it shows: ESPN's own, else
-// (a league Polymarket covers) its market, else the sportsbook's; while the
+// chart. One source for a game, decided before it shows: the sportsbook's,
+// else (a league Polymarket covers) its market, else ESPN's own model; while the
 // one it waits for is coming, the card in its shape, the real one fading in.
 const waited = new WeakMap();
 function winCard(d, e, line, wait) {
@@ -1730,8 +1734,8 @@ function winCard(d, e, line, wait) {
   let real = null;
   let coming = false;
   if (state === 'pre') {
-    const espn = d?.predict?.source === 'espn' ? d.predict : null;
-    real = espn || (line?.home != null ? line : null) || (wait.summary && (!market || wait.line) ? d?.predict : null);
+    const book = d?.predict && d.predict.source !== 'espn' ? d.predict : null;
+    real = book || (line?.home != null ? line : null) || (wait.summary && (!market || wait.line) ? d?.predict : null);
     coming = !real && (!wait.summary || (market && !wait.line));
     if (real) real = winChanceCard(real, e);
   } else {
@@ -1770,7 +1774,7 @@ const sideVars = e => {
   return `--home:${tint.home};--away:${tint.away};--home-ink:${inkOf(tint.home)};--away-ink:${inkOf(tint.away)}`;
 };
 // A game to come: each side's chance (and a draw's), one bar split by them;
-// ESPN's prediction, else Polymarket's price, else a sportsbook's odds.
+// a sportsbook's odds, else Polymarket's price, else ESPN's prediction.
 function winChanceCard(odds, e) {
   if (odds?.home == null) return null;
   const en = L() === 'en';

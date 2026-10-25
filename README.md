@@ -53,7 +53,9 @@ couldn't be read is shown, never hidden.
     results.
   - A team page ranks its own players; a player page shows their league
     ranks; a match shows each side's season leaders.
-- **Win chance:** ESPN's line, else Polymarket's. Soccer on or over is
+- **Win chance:** ESPN's line, else Polymarket's. A game to come: the
+  sportsbook's moneylines first (the market, what Longshot prices from),
+  else Polymarket's, else ESPN's own model. Soccer on or over is
   worked out here (`lib/soccerwp.mjs`): each side's goals a Poisson count
   over the time left, its rate from the odds before the start (ESPN's or
   the sportsbook's, else the market's first price), from the score, the

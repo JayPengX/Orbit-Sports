@@ -77,8 +77,12 @@ test("ESPN's line in play order, never by its wall clocks (a play logged late)",
   assert.equal(stampAt(s.timeline, 'basketball', q2 + 600, false), '第2節');
 });
 
-test('a game to come: ESPN prediction first, else the sportsbook, its margin out', () => {
-  const espn = parseSummary({ predictor: { homeTeam: { gameProjection: '53.2' }, awayTeam: { gameProjection: '46.8' } }, pickcenter: [{ homeTeamOdds: { moneyLine: -185 }, awayTeamOdds: { moneyLine: 154 } }] }, 'cfb');
+test('a game to come: the sportsbook first, its margin out, else ESPN prediction', () => {
+  // Pistons at 76ers, 2026-10-25: ESPN's model 76ers 59%, DraftKings DET -125 / PHI +105.
+  const det = parseSummary({ predictor: { homeTeam: { gameProjection: '59' }, awayTeam: { gameProjection: '41' } }, pickcenter: [{ provider: { name: 'DraftKings' }, homeTeamOdds: { moneyLine: 105 }, awayTeamOdds: { moneyLine: -125 } }] }, 'nba').predict;
+  assert.equal(det.source, 'DraftKings');
+  assert.ok(det.home < 0.5);
+  const espn = parseSummary({ predictor: { homeTeam: { gameProjection: '53.2' }, awayTeam: { gameProjection: '46.8' } } }, 'cfb');
   assert.deepEqual(espn.predict, { source: 'espn', home: 0.532 });
   // Arsenal v Leeds, 2026-10-10: DraftKings -275 / 400 draw / +700.
   const book = parseSummary({ pickcenter: [{ provider: { name: 'DraftKings' }, homeTeamOdds: { moneyLine: -275 }, awayTeamOdds: { moneyLine: 700 }, drawOdds: { moneyLine: 400 } }] }, 'epl').predict;
