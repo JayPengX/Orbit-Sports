@@ -1318,6 +1318,9 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 }
 .race-t {
   display: grid;
+  /* (Its column the box's width, never its words': a line said to fit is measured against it.) */
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1 1 0;
   min-width: 0;
 }
 .race-t b {
@@ -1327,6 +1330,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
   color: var(--q-muted);
   font-size: 12.5px;
 }
+/* (Said the fullest way that fits one line: fitChoice.) */
+.race-t small.one-line { white-space: nowrap; min-width: 0; }
 .rank-cell .rank-lock {
   display: inline-grid;
   width: auto;

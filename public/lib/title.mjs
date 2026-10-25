@@ -151,6 +151,8 @@ export function liveTable(groups, events, sport, { teamOf = null } = {}) {
 // → { unit ('pts' | 'wins'), rows: [{ id, best, worst, settled }], title,
 // places: [{ pos, rows }] (the next places still open, who's in them),
 // zones: [{ note, color, from, to, bottom, sure: [ids] }] } or null.
+// A race's points by place (no point for the fastest lap since 2025).
+export const RACE_POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 const RACE_MAX = { driver: { race: 25, sprint: 8 }, team: { race: 25 + 18, sprint: 8 + 7 } };
 export function standingsRace(group, sport, { total = null, left = null, team = false } = {}) {
   const rows = group?.rows || [];
@@ -192,59 +194,95 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
   // The title: won, or how many more the leader needs if every rival wins
   // out (points, or wins and rivals' losses: baseball's magic number), and
   // the soonest it can be (each game the leader wins and the nearest rival
-  // doesn't, it comes closer by both).
-  const lead = rows[0];
-  const rivalBest = Math.max(...hi.slice(1));
-  const magic = Math.max(0, rivalBest - lo[0] + 1);
-  const step = sport === 'racing' ? 2 * RACE_MAX[team ? 'team' : 'driver'].race : sport === 'soccer' ? 6 : 2;
-  const leadLeft = sport === 'racing' ? left.races : sport === 'soccer' ? more(lead) / 3 : more(lead);
-  let soonest = magic === 0 ? 0 : Math.ceil(magic / step);
-  let atName = '';
-  if (sport === 'racing') {
-    // A weekend's most, the sprint's too while there are sprints.
-    soonest = null;
-    const m = RACE_MAX[team ? 'team' : 'driver'];
-    // (The calendar's own weekends when known: which have a sprint, and their names.)
-    const weeks = left.list?.length === left.races ? left.list : null;
-    for (let k = 1, gain = 0; k <= left.races; k++) {
-      gain += 2 * m.race + ((weeks ? weeks[k - 1].sprint : k <= left.sprints) ? 2 * m.sprint : 0);
-      if (gain >= magic) {
-        soonest = k;
-        break;
+  // doesn't, it comes closer by both). The same for any place `k` (0 the
+  // title, 1 the runner-up's once the title's won): its holder against those
+  // below it.
+  const m = sport === 'racing' ? RACE_MAX[team ? 'team' : 'driver'] : null;
+  const weeks = sport === 'racing' && left.list?.length === left.races ? left.list : null;
+  const sprintAt = k => (weeks ? Boolean(weeks[k - 1]?.sprint) : k <= left.sprints);
+  // A weekend's most (a race's, its sprint's).
+  const weekendMost = k => m.race + (sprintAt(k) ? m.sprint : 0);
+  const crown = k => {
+    const lead = rows[k];
+    const rivalBest = Math.max(...hi.slice(k + 1));
+    const magic = Math.max(0, rivalBest - lo[k] + 1);
+    const step = sport === 'racing' ? 2 * m.race : sport === 'soccer' ? 6 : 2;
+    const leadLeft = sport === 'racing' ? left.races : sport === 'soccer' ? more(lead) / 3 : more(lead);
+    let soonest = magic === 0 ? 0 : Math.ceil(magic / step);
+    let atName = '';
+    if (sport === 'racing') {
+      soonest = null;
+      for (let w = 1, gain = 0; w <= left.races; w++) {
+        gain += 2 * weekendMost(w);
+        if (gain >= magic) {
+          soonest = w;
+          break;
+        }
+      }
+      if (weeks && soonest) atName = weeks[soonest - 1].name;
+      if (magic === 0) soonest = 0;
+    } else if (soonest > leadLeft) soonest = null;
+    // The lead over the nearest rival, and the most that rival can still score: past it, it's settled.
+    const ri = hi.indexOf(rivalBest, k + 1);
+    // What side j can still score after the soonest (each weekend its most: a race's, a sprint's; a game's 3).
+    let span = 0;
+    for (let w = 1; w <= (soonest || 0); w++) span += sport === 'racing' ? weekendMost(w) : sport === 'soccer' ? 3 : 1;
+    const leftAfter = j => (sport === 'soccer' ? 3 * Math.max(0, more(rows[j]) / 3 - (soonest || 0)) : Math.max(0, hi[j] - lo[j] - span));
+    const t = { leader: lead, done: out[k].settled && out[k].best === k + 1, magic, soonest, gap: lo[k] - lo[ri], avail: hi[ri] - lo[ri], leadAt: leftAfter(ri) + 1, at: atName, round: sport === 'soccer' && soonest != null ? num(lead.stats.GP) + soonest : null, left: leadLeft };
+    if (unit !== 'pts' || !(soonest > 0)) return t;
+    // How much more than each rival the holder has to score by then (the
+    // lead it needs then less the lead now; under 0: how much it can be
+    // outscored by), for every rival that could still stop it then (the
+    // owner, 2026-10-26: one rule for every case, not a sentence for each).
+    // (Most a rival can outscore the holder by: a game's 3 each, a weekend's most.)
+    const swing = j => (sport === 'soccer' ? 3 * Math.min(soonest, more(rows[j]) / 3) : span);
+    t.margins = rows
+      .map((r, j) => ({ row: r, j, d: leftAfter(j) + 1 - (lo[k] - lo[j]) }))
+      .filter(x => x.j > k && x.d > -swing(x.j))
+      .sort((a, b) => b.d - a.d)
+      .map(({ row, d }) => ({ row, d }));
+    // Football, settled at the soonest by the next game: which results do it,
+    // when it turns on one rival alone ("{leader} win, or {rival} don't";
+    // the lead it takes read backwards: 14 ahead, 13 then). Ties not counted
+    // (the tiebreak decides), each side's next game its own.
+    if (sport === 'soccer' && soonest === 1) {
+      const R = [3, 1, 0];
+      const ok = (j, r, q) => lo[k] + r > lo[j] + q + Math.max(0, more(rows[j]) - 3);
+      const who = rows.map((_, j) => j).filter(j => j > k && R.some(r => R.some(q => !ok(j, r, q))));
+      if (who.length === 1) {
+        const j = who[0];
+        const mine = R.filter(r => R.every(q => ok(j, r, q)));
+        const theirs = R.filter(q => R.every(r => ok(j, r, q)));
+        if ((mine.length || theirs.length) && R.every(r => R.every(q => ok(j, r, q) === (mine.includes(r) || theirs.includes(q))))) t.next = { rival: rows[j], mine, theirs };
       }
     }
-    if (weeks && soonest) atName = weeks[soonest - 1].name;
-    if (magic === 0) soonest = 0;
-  } else if (soonest > leadLeft) soonest = null;
-  // The lead over the nearest rival, and the most that rival can still score: past it, it's settled.
-  const ri = hi.indexOf(rivalBest, 1);
-  // The lead that settles it at the soonest: more than that rival can still
-  // score after it (each weekend its most: a race's, a sprint's; a game's 3).
-  let after = hi[ri] - lo[ri];
-  if (soonest > 0)
-    for (let k = 1; k <= soonest; k++)
-      after -= sport === 'racing' ? RACE_MAX[team ? 'team' : 'driver'].race + ((left.list?.length === left.races ? left.list[k - 1]?.sprint : k <= left.sprints) ? RACE_MAX[team ? 'team' : 'driver'].sprint : 0) : sport === 'soccer' ? 3 : 1;
-  const title = { leader: lead, done: out[0].settled && out[0].best === 1, magic, soonest, gap: lo[0] - lo[ri], avail: hi[ri] - lo[ri], leadAt: Math.max(0, after) + 1, at: atName, round: sport === 'soccer' && soonest != null ? num(lead.stats.GP) + soonest : null, left: leadLeft };
-  // Football, settled at the soonest by the next game: which results do it,
-  // when it turns on one rival alone ("{leader} win, or {rival} don't";
-  // the lead it takes read backwards: 14 ahead, 13 then). Ties not counted
-  // (the tiebreak decides), each side's next game its own.
-  if (sport === 'soccer' && soonest === 1) {
-    const R = [3, 1, 0];
-    const ok = (j, r, q) => lo[0] + r > lo[j] + q + Math.max(0, more(rows[j]) - 3);
-    const who = rows.map((_, j) => j).filter(j => j > 0 && R.some(r => R.some(q => !ok(j, r, q))));
-    if (who.length === 1) {
-      const j = who[0];
-      const mine = R.filter(r => R.every(q => ok(j, r, q)));
-      const theirs = R.filter(q => R.every(r => ok(j, r, q)));
-      if ((mine.length || theirs.length) && R.every(r => R.every(q => ok(j, r, q) === (mine.includes(r) || theirs.includes(q))))) title.next = { rival: rows[j], mine, theirs };
+    // F1, settled at the soonest by the next weekend: as results (the owner,
+    // 2026-10-26: "領先 123 分，墨西哥站後需領先 101 分" was hard to read): the
+    // holder's points that do it whatever the rest score, and the rivals'
+    // that stop it should the holder score none. A race's place for them on
+    // a weekend without a sprint (a driver's), else points.
+    if (sport === 'racing' && soonest === 1) {
+      const most = weekendMost(1);
+      const mine = Math.max(0, ...t.margins.map(x => x.d + most));
+      const placeFor = pts => (team || sprintAt(1) ? 0 : RACE_POINTS.findLastIndex(p => p >= pts) + 1);
+      t.weekend = {
+        mine: mine <= most ? { pts: mine, place: placeFor(mine) } : null,
+        // (Two at most named: "Russell、Leclerc 都沒贏"; none when a rival stops it scoring nothing.)
+        theirs: t.margins.length && t.margins.length <= 2 && t.margins.every(x => x.d < 0) ? t.margins.map(x => ({ row: x.row, pts: 1 - x.d, place: placeFor(1 - x.d) })) : null
+      };
     }
-  }
+    return t;
+  };
+  const title = crown(0);
   // A table not in order of what's counted (MLB's, by playoff seed), or a
   // season over: no places to work out, only the title.
   const ordered = lo.every((v, i) => i === 0 || v <= lo[i - 1]);
   const over = rows.every(r => more(r) === 0);
   if (!ordered || over) for (const x of out) x.settled = false;
+  // The title won, the runner-up's place still open: its race the same way
+  // (F1's drivers: second in the world matters; a league's zones say what's
+  // at stake after its title).
+  if (sport === 'racing' && !team && ordered && !over && title.done && rows.length > 2 && !out[1].settled) title.second = crown(1);
   // A constructors' championship's close fights, once its champion is
   // decided (every place is the team's prize money; a driver's 7th or 8th
   // is nothing in itself):

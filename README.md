@@ -76,7 +76,12 @@ couldn't be read is shown, never hidden.
 - **Tables count results at once** (`lib/title.mjs liveTable`,
   `liveRacing`, `freshStandings`), on every page with a table: finals
   only, never a game still on. The title
-  line says the lead the leader takes at the soonest clinch.
+  line says when it can be won at the soonest and what it takes: one rule
+  for every sport (`title.mjs` margins: how much more than each rival who
+  could still stop it), said as results when one game or race does it
+  ("前 8 名，或 Russell、Hamilton 都沒贏"), baseball's and basketball's as a
+  magic number; the fullest wording that fits one line (`fitChoice`). F1's
+  title won, the runner-up's place is followed the same way.
 - **Playoffs** (`lib/playoffs.mjs`, `bracket.mjs`): real ties, predicted
   from the table while the season runs, or last season's. The NBA Cup
   (`lib/nbacup.mjs`) beside the NBA's: its groups, found from who meets whom

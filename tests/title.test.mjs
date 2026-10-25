@@ -207,3 +207,56 @@ test('MLS 2026-10-18: the race on the finals, so a win in the game on now is wha
   assert.deepEqual(race.title.next.mine, [3]);
   assert.deepEqual(race.title.next.theirs, [1, 0]);
 });
+
+test('F1 settled at the next race said as results: the leader’s place, or the rival’s', () => {
+  const t = (id, pts) => row(id, { PTS: String(pts) });
+  const list = [{ name: '墨西哥站', sprint: false }, { name: '巴西站', sprint: true }, { name: 'a' }, { name: 'b', sprint: true }, { name: 'c' }];
+  const left = { races: 5, sprints: 2, list };
+  // 123 ahead, 141 still to win: 117 ahead after Mexico settles it.
+  const r = standingsRace({ rows: [t('ANT', 400), t('RUS', 277), t('VER', 250)] }, 'racing', { left }).title;
+  assert.equal(r.soonest, 1);
+  assert.deepEqual(r.weekend.mine, { pts: 19, place: 1 });
+  assert.deepEqual(r.weekend.theirs.map(x => [x.row.id, x.pts, x.place]), [['RUS', 7, 6]]);
+  // A sprint weekend next: points, not places.
+  const s = standingsRace({ rows: [t('ANT', 400), t('RUS', 277)] }, 'racing', { left: { ...left, list: [list[1], ...list.slice(2), list[0]] } }).title;
+  assert.equal(s.weekend.mine.place, 0);
+  // Two near: both named; a rival already within reach without scoring: no "or".
+  const two = standingsRace({ rows: [t('ANT', 400), t('RUS', 277), t('LEC', 270)] }, 'racing', { left }).title;
+  assert.deepEqual(two.weekend.theirs.map(x => x.row.id), ['RUS', 'LEC']);
+  const near = standingsRace({ rows: [t('ANT', 400), t('RUS', 290)] }, 'racing', { left }).title;
+  assert.equal(near.soonest, 1);
+  assert.equal(near.weekend.theirs, null);
+});
+
+test('what a title takes by its soonest, one rule for every case: how much more than each rival who could still stop it', () => {
+  const t = (id, pts) => row(id, { PTS: String(pts) });
+  const list = [{ name: '墨西哥站' }, { name: '巴西站', sprint: true }, { name: 'a' }, { name: 'b', sprint: true }, { name: 'c' }];
+  const left = { races: 5, sprints: 2, list };
+  // 123 ahead: Russell may outscore him by 22 at Mexico (117 needed then); Verstappen 150 back can't stop it.
+  assert.deepEqual(standingsRace({ rows: [t('ANT', 400), t('RUS', 277), t('VER', 250)] }, 'racing', { left }).title.margins.map(x => [x.row.id, x.d]), [['RUS', -6]]);
+  // 110 ahead: he has to outscore Russell by 7 (no plain result does it alone).
+  const near = standingsRace({ rows: [t('ANT', 400), t('RUS', 290)] }, 'racing', { left }).title;
+  assert.deepEqual(near.margins.map(x => x.d), [7]);
+  assert.equal(near.weekend.mine, null);
+  // Two races away: the same, over both (Mexico's 25, Brazil's 33).
+  const two = standingsRace({ rows: [t('ANT', 400), t('RUS', 330)] }, 'racing', { left }).title;
+  assert.equal(two.soonest, 2);
+  assert.deepEqual(two.margins.map(x => x.d), [83 + 1 - 70]);
+  // Football: each rival by its own games left.
+  const s = (id, gp, p) => row(id, { GP: String(gp), P: String(p) });
+  const f = standingsRace({ rows: [s('A', 34, 80), s('B', 34, 72), s('C', 33, 70)] }, 'soccer', { total: 38 }).title;
+  // (A win and C losing settles it at once: 83 to C's most of 82.)
+  assert.equal(f.soonest, 1);
+  assert.deepEqual(f.margins.map(x => [x.row.id, x.d]), [['C', 12 + 1 - 10], ['B', 9 + 1 - 8]]);
+});
+
+test('the F1 title won, the runner-up’s place is the race the card follows', () => {
+  const t = (id, pts) => row(id, { PTS: String(pts) });
+  const r = standingsRace({ rows: [t('ANT', 500), t('RUS', 300), t('VER', 280), t('LEC', 200)] }, 'racing', { left: { races: 2, sprints: 0 } }).title;
+  assert.equal(r.done, true);
+  assert.equal(r.second.leader.id, 'RUS');
+  assert.equal(r.second.soonest, 1);
+  assert.deepEqual(r.second.margins.map(x => [x.row.id, x.d]), [['VER', 26 - 20]]);
+  // Settled too: nothing more to follow.
+  assert.equal(standingsRace({ rows: [t('ANT', 500), t('RUS', 400), t('VER', 280)] }, 'racing', { left: { races: 2, sprints: 0 } }).title.second, undefined);
+});
