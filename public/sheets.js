@@ -2819,6 +2819,14 @@ const teamShort = name => (/^[A-Za-z]+( [A-Za-z]+)+$/.test(name) ? name.split(' 
 // right the time or gap, and under it one more number (the points, the car
 // ahead). Nothing is ever cut: the full name, cut to "Lewis Ha…" beside the
 // tags, is the driver's page.
+// A car's word from the stewards by its name: each penalty still to serve
+// (+5 秒, 穿越罰, 停站罰), and 調查中 while an incident of its is looked at.
+function stewardPills(x) {
+  if (!x) return [];
+  const en = L() === 'en';
+  const pen = k => (/^\d+s$/.test(k) ? (en ? `+${parseInt(k)}s` : `+${parseInt(k)} 秒`) : k === 'DT' ? (en ? 'Drive-through' : '穿越罰') : en ? `Stop-go${k.slice(2) ? ` ${k.slice(2)}s` : ''}` : `停站罰${k.slice(2) ? ` ${k.slice(2)} 秒` : ''}`);
+  return [...x.pen.map(k => el('small', { class: 'f1-pill bad num', text: pen(k) })), x.probe ? el('small', { class: 'f1-pill warn', text: en ? 'Under investigation' : '調查中' }) : null];
+}
 function f1Row({ pos, posText = '', posOut = false, full, team, field, main = '', aside = null, notes = [], cls = '', colour = '' }) {
   const en = L() === 'en';
   const c = fieldDriver(field, full) || { name: full };
@@ -2974,7 +2982,7 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
         ? race
           ? [gainOf(c), c.no === fastestNo ? el('small', { class: 'f1-pill fl', text: en ? 'Fastest' : '最快圈' }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
           : [c.laps ? el('small', { class: 'num f1-laps', text: `${c.laps}${en ? ' laps' : ' 圈'}` }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
-        : [tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? ' laps' : ' 圈'}` }) : null]) : null, gainOf(c), state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null],
+        : [tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? ' laps' : ' 圈'}` }) : null]) : null, gainOf(c), state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])],
       aside: over
         ? race ? (pointsFor(ss.abbr, c.pos, c.retired || c.stopped) ? (en ? `${pointsFor(ss.abbr, c.pos)} pts` : `${pointsFor(ss.abbr, c.pos)} 分`) : null) : timed && i > 0 && c.gap ? c.gap : null
         : timed ? (i > 0 && c.gap ? c.gap : null) : i > 0 && c.interval && c.interval !== c.gap ? `${en ? 'int ' : '前車 '}${c.interval}` : null

@@ -1058,6 +1058,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .f1-pill { font-size: 11px !important; font-weight: 750 !important; line-height: 1.6; padding: 0 7px; border-radius: 999px; background: var(--q-fill, var(--q-sunken)); color: var(--q-text-2, var(--q-text)); }
 .f1-pill.fl { color: #a855f7; background: color-mix(in srgb, #a855f7 16%, transparent); }
 .f1-pill.bad { color: var(--q-bad); background: color-mix(in srgb, var(--q-bad) 14%, transparent); }
+.f1-pill.warn { color: #ca8a04; background: color-mix(in srgb, #eab308 18%, transparent); }
 /* A game still to come: its time on the first line, at the right; where it's
    on gets a line of its own under the opponent (never squeezing the name). */
 .pill.sm { width: 18px; height: 18px; border-radius: 5px; font-size: 10px; }
