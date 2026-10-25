@@ -3042,7 +3042,7 @@ function tmLoop(m) {
 // one ahead set back behind it, a train of dots), the same size zoomed or not.
 function tmDraw(m, t, dt) {
   const z = Math.max(1, m.z || 1);
-  const gapU = (10 * 2.1) / z;
+  const gapU = (11.5 * 2) / z;
   const moving = [];
   for (const [no, s] of m.run) {
     const g = m.cars.get(no);
@@ -3294,10 +3294,12 @@ function f1TrackMap(b, ss) {
     if (!g) {
       g = document.createElementNS(ns, 'g');
       g.setAttribute('class', 'tm-car');
-      g.innerHTML = `<circle r="15" class="tm-hit"/><circle r="9.5" class="tm-dot"/><text class="tm-no" y="3.3"></text><g class="tm-face"><circle r="12.5" class="tm-ring"/><image x="-13" y="-11" width="26" height="26" clip-path="url(#tm-face-clip)" preserveAspectRatio="xMidYMin slice"/></g><text class="tm-tag" x="14" y="4"></text>`;
+      g.innerHTML = `<circle r="15" class="tm-hit"/><circle r="11" class="tm-dot"/><text class="tm-no" y="2.9"></text><g class="tm-face"><circle r="12.5" class="tm-ring"/><image x="-13" y="-11" width="26" height="26" clip-path="url(#tm-face-clip)" preserveAspectRatio="xMidYMin slice"/></g><text class="tm-tag" x="15.5" y="4"></text>`;
       g.addEventListener('click', () => {
         const now2 = f1Picks.get(ss.start) || [];
-        f1Picks.set(ss.start, now2.includes(car.no) ? now2.filter(x => x !== car.no) : [...now2, car.no].slice(-4));
+        const next = now2.includes(car.no) ? now2.filter(x => x !== car.no) : [...now2, car.no].slice(-4);
+        if (!next.length) return;
+        f1Picks.set(ss.start, next);
         document.querySelectorAll(`[data-laps="${ss.start}"]`).forEach(n => n.__redraw?.());
       });
       m.cars.set(car.no, g);
@@ -3307,10 +3309,10 @@ function f1TrackMap(b, ss) {
     const hex = /^#?([0-9a-f]{6})$/i.exec(car.colour || '')?.[1];
     const light = hex && [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16)).reduce((n, v, i) => n + v * [0.299, 0.587, 0.114][i], 0) > 160;
     g.classList.toggle('light', Boolean(light));
-    g.querySelector('.tm-no').textContent = car.no;
+    // (Its code, not its number: who it is, without knowing the numbers.)
+    g.querySelector('.tm-no').textContent = car.tla || car.no;
     g.classList.toggle('named', picked.size ? picked.has(car.no) : car.pos <= 3);
     g.classList.toggle('picked', picked.has(car.no));
-    g.classList.toggle('dim', picked.size > 0 && !picked.has(car.no));
     g.classList.toggle('pit', car.inPit);
     // A picked driver drawn as their face in their team's colour, once the photo has come (the numbered dot till then, or when there's none).
     // (The photo is found on the page, out of sight: the kit swaps its stand-in for the photo only there.)
@@ -3341,7 +3343,7 @@ function f1TrackMap(b, ss) {
   // dots and the tags already put).
   const picks = [...picked].map(no => b.cars.find(x => x.no === no)).filter(Boolean).sort((x, y) => x.pos - y.pos);
   const first = picks[0];
-  const R = 10;
+  const R = 11;
   const z = Math.max(1, m.z || 1);
   const dots = [...m.run.values()].map(s => s.drawn).filter(Boolean);
   const boxes = [];
@@ -3354,14 +3356,14 @@ function f1TrackMap(b, ss) {
     const [x, y] = xy;
     const w = (text.length + 1) * 6.8 / z;
     const h = 13 / z;
-    const off = (picked.has(car.no) ? 17 : 14) / z;
+    const off = (picked.has(car.no) ? 17 : 15.5) / z;
     const box = left => (left ? [x - off - w, y - h / 2, x - off, y + h / 2] : [x + off, y - h / 2, x + off + w, y + h / 2]);
     const hits = b2 => dots.filter(([u, v]) => u + R / z > b2[0] && u - R / z < b2[2] && v + R / z > b2[1] && v - R / z < b2[3]).length + boxes.filter(o => o[0] < b2[2] && o[2] > b2[0] && o[1] < b2[3] && o[3] > b2[1]).length * 2;
     const left = hits(box(true)) < hits(box(false));
     boxes.push(box(left));
     const tag = g.querySelector('.tm-tag');
     tag.textContent = text;
-    tag.setAttribute('x', String((left ? -1 : 1) * (picked.has(car.no) ? 17 : 14)));
+    tag.setAttribute('x', String((left ? -1 : 1) * (picked.has(car.no) ? 17 : 15.5)));
     g.classList.toggle('tag-left', left);
   }
   tmLoop(m);
@@ -3446,7 +3448,8 @@ function f1LapCompare(b, ss) {
     if (!f1Picks.has(ss.start)) f1Picks.set(ss.start, cars.slice(0, 2).map(c => c.no));
     const car = no => cars.find(c => c.no === no);
     const picks = f1Picks.get(ss.start).filter(no => car(no)).sort((x, y) => car(x).pos - car(y).pos);
-    const setPicks = next => (f1Picks.set(ss.start, next), draw());
+    // (Never none: the last one dropped, the table went and the picker opened, the whole card jumping.)
+    const setPicks = next => next.length && (f1Picks.set(ss.start, next), draw());
     const dashed = no => picks.slice(0, picks.indexOf(no)).some(o => car(o)?.colour === car(no)?.colour);
     const colourOf = no => car(no)?.colour || '#888';
     const pitsOf = no => pitLaps(laps[no] || [], stops[no] || [], car(no)?.stints || []);
@@ -3486,7 +3489,7 @@ function f1LapCompare(b, ss) {
           f1Face(ss, c.name, 'sm round'),
           // (Four abreast, the code: four surnames don't fit a phone.) A tap on the face or the name opens the driver; × takes them off.
           picks.length > 3 ? f1NameTap(ss, c, c.tla || f1Sur(c), 'dc-name') : fitName(f1NameTap(ss, c, f1Whole(c.name), 'dc-name'), f1Whole(c.name), f1Sur(c)),
-          el('button', { type: 'button', class: 'dc-x', 'aria-label': en ? `Remove ${f1Shown(c.name)}` : `移除 ${f1Shown(c.name)}`, text: '×', onclick: () => setPicks(picks.filter(x => x !== no)) })
+          picks.length < 2 ? null : el('button', { type: 'button', class: 'dc-x', 'aria-label': en ? `Remove ${f1Shown(c.name)}` : `移除 ${f1Shown(c.name)}`, text: '×', onclick: () => setPicks(picks.filter(x => x !== no)) })
         ])
       ]);
     })]);
@@ -3565,8 +3568,6 @@ function f1LapCompare(b, ss) {
       const top = Math.min(...ts.filter(Boolean));
       rows.push(row(en ? `S${i + 1} best` : `S${i + 1} 最佳`, picks.map((no, k) => cell(ts[k] ? (ts[k] / 1000).toFixed(3) : '—', !ts[k] ? 'muted' : car(no).sectors[i].p === 1 ? 'best' : picks.length > 1 && ts[k] === top ? 'quick' : ''))));
     }
-    const SEG = { 2051: '#a855f7', 2049: '#22c55e', 2048: '#facc15', 2064: '#6b7280' };
-    if (!over && picks.some(no => car(no).segStatus?.length)) rows.push(row(en ? 'This lap' : '本圈', picks.map(no => el('td', { class: 'dc-segs-td' }, [el('span', { class: 'dc-segs', 'aria-hidden': 'true' }, (car(no).segStatus || []).map(v => el('i', { style: SEG[v] ? `background:${SEG[v]}` : null })))]))));
     const table = el('table', { class: `dc-table n${picks.length}` }, [el('thead', {}, [head]), el('tbody', {}, rows)]);
 
     // The chart.
@@ -3586,13 +3587,17 @@ function f1LapCompare(b, ss) {
       const X = lap => L0 + ((lap - lapLo) / (lapHi - lapLo)) * (W - L0 - R0);
       // Better is up in every view (the owner, 2026-10-11): quicker laps, a
       // smaller gap (the first of them along the top line), a higher place.
-      let top, bottom, label, ticks;
+      let top, bottom, label, ticks, pad = 0;
       if (mode === 'gap') {
         const vs = all.map(p => p[1]);
-        top = Math.min(0, ...vs);
-        bottom = Math.max(top + 1, ...vs);
+        const [lo, hi] = [Math.min(...vs), Math.max(...vs)];
+        // (The first of them's line along the top only while they're near it:
+        // 16 s back, the lines sat in the bottom third under an empty top.)
+        pad = Math.max(0.5, (hi - lo) * 0.15);
+        top = lo > Math.max(2, hi - lo) ? lo - pad : Math.min(0, lo);
+        bottom = Math.max(top + 1, hi + (top < 0 || top > 0 ? pad : 0));
         label = v => (Math.abs(v) < 0.05 ? a.tla : `${v > 0 ? '+' : ''}${v.toFixed(Math.abs(bottom - top) < 5 ? 1 : 0)}`);
-        ticks = [...new Set([top, 0, (top + bottom) / 2, bottom])];
+        ticks = top > 0 ? [top + pad, (top + bottom) / 2, bottom - pad] : [...new Set([top, 0, (top + bottom) / 2, bottom])];
       } else if (mode === 'place') {
         top = Math.max(0.5, Math.min(...all.map(p => p[1])) - 0.5);
         bottom = Math.max(...all.map(p => p[1])) + 0.5;
@@ -3621,8 +3626,10 @@ function f1LapCompare(b, ss) {
         const col = colourOf(s.no);
         const pits = pitsOf(s.no);
         const d = s.pts.map((p, i) => `${i && s.pts[i - 1][0] === p[0] - 1 ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('');
+        // A lap alone (the laps either side of it not had) as a dot: a line through one point draws nothing, the chart blank from it on.
+        const lone = s.pts.filter((p, i) => s.pts[i - 1]?.[0] !== p[0] - 1 && s.pts[i + 1]?.[0] !== p[0] + 1).map(p => `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="2.2" style="fill:${col}"/>`).join('');
         const dots = s.pts.filter(p => pits.has(p[0])).map(p => `<circle class="lc-pit" cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="3.2" style="stroke:${col}"/>`).join('');
-        return `<path class="lc-line${dashed(s.no) ? ' dash' : ''}" d="${d}" style="stroke:${col}"/>${dots}`;
+        return `<path class="lc-line${dashed(s.no) ? ' dash' : ''}" d="${d}" style="stroke:${col}"/>${lone}${dots}`;
       }).join('');
       // A finger (or a mouse) on it reads every line at that lap, as every chart here: the chips above say each one's number, a rule and a dot on each line mark it.
       const laps = Array.from({ length: lapHi - lapLo + 1 }, (_, k) => lapLo + k);
@@ -3659,7 +3666,7 @@ function f1LapCompare(b, ss) {
       };
       const plot = scrubPlot(xs, show, [el('div', { class: 'lc-box', html: `<svg viewBox="0 0 ${W} ${H}" class="lc-svg" aria-hidden="true">${shade}${grid}${xt}${lines}</svg>` }), rule, ...marks]);
       show();
-      const note = mode === 'gap' ? (en ? `Up: closer to ${f1Sur(a)} (the dashes). ○ a stop.` : `越高越接近 ${f1Sur(a)}（虛線）· ○ 進站`) : mode === 'place' ? (en ? 'Each lap\'s place, from the start. ○ a stop.' : '每圈名次，從起跑開始 · ○ 進站') : en ? 'Up: quicker. ○ a stop.' : '越高越快 · ○ 進站';
+      const note = mode === 'gap' ? (top > 0 ? (en ? `Seconds behind ${f1Sur(a)}; up: closer. ○ a stop.` : `落後 ${f1Sur(a)} 秒數 · 越高越接近 · ○ 進站`) : en ? `Up: closer to ${f1Sur(a)} (the dashes). ○ a stop.` : `越高越接近 ${f1Sur(a)}（虛線）· ○ 進站`) : mode === 'place' ? (en ? 'Each lap\'s place, from the start. ○ a stop.' : '每圈名次，從起跑開始 · ○ 進站') : en ? 'Up: quicker. ○ a stop.' : '越高越快 · ○ 進站';
       chart = el('div', { class: 'lc-chart' }, [chips, at, plot, el('p', { class: 'muted small lc-key-note', text: note })]);
     }
     const pick = modes.length > 1 ? segmented(modes, mode, v => ((f1LapMode = v), draw()), 'lc-modes') : null;

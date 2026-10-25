@@ -1588,9 +1588,8 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-car .tm-tag { display: none; font-size: 11.5px; font-weight: 800; fill: var(--q-text); paint-order: stroke; stroke: var(--q-surface, #1c1c1e); stroke-width: 3px; }
 .tm-car.named .tm-tag { display: block; }
 .tm-car.tag-left .tm-tag { text-anchor: end; }
-.tm-car .tm-no { font-size: 9.5px; font-weight: 850; text-anchor: middle; fill: #fff; pointer-events: none; font-variant-numeric: tabular-nums; }
+.tm-car .tm-no { font-size: 8.2px; font-weight: 850; letter-spacing: -0.2px; text-anchor: middle; fill: #fff; pointer-events: none; }
 .tm-car.light .tm-no { fill: #111; }
-.tm-car.dim .tm-no { opacity: 0.5; }
 .tm-car.pit { opacity: 0.45; }
 .lc { display: grid; gap: 10px; }
 .lc-svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -1761,17 +1760,13 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-finish { stroke: #fff; stroke-width: 4; stroke-dasharray: 2.2 2.2; stroke-linecap: butt; }
 .tm-sector { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
 .tm-sector-t { fill: var(--q-muted); font-size: calc(9px / var(--z, 1)); font-weight: 800; text-anchor: middle; }
-.tm-car.dim .tm-dot { opacity: 0.45; }
-.tm-car.picked .tm-dot { r: 10.5; stroke-width: 2.2; }
+.tm-car.picked .tm-dot { r: 12; stroke-width: 2.2; }
 .tm-face { display: none; }
 .tm-faces { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
 .tm-car.face .tm-face { display: inline; }
 .tm-car.face .tm-dot, .tm-car.face .tm-no { display: none; }
 .tm-car .tm-ring { stroke: var(--q-surface, #1c1c1e); stroke-width: 2; }
 .tm-note { margin: 6px 0 0; text-align: center; }
-.dc-table td.dc-segs-td { padding: 9px 4px; }
-.dc-segs { display: flex; gap: 1px; height: 8px; }
-.dc-segs i { flex: 1 1 0; min-width: 1px; border-radius: 1px; background: var(--q-sunken, rgba(127,127,127,.2)); }
 .tm-car.close .tm-dot { stroke: var(--q-text); stroke-width: 2.4; }
 /* Under the track: one block, the same height whichever view (no view moves the page). */
 /* 場上球員 (a game on): a sub's minute on, a player sent off, fouls from the fourth. */

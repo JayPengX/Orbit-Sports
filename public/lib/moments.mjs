@@ -561,7 +561,6 @@ export function raceMoments(points, names, bands, events, en, nameOf = null, sta
   const last = points.length - 1;
   const c = (i, k) => points[Math.max(0, Math.min(last, i))].c[k];
   const found = [];
-  const most = gains => gains.reduce((m, g, j) => (Math.abs(g) > Math.abs(gains[m]) ? j : m), 0);
   if (start > 0) {
     const gains = names.map((_, k) => c(start, k) - c(0, k));
     // (Told by who gained most: Antonelli +19% from pole, not Verstappen −18%.)
@@ -573,7 +572,8 @@ export function raceMoments(points, names, bands, events, en, nameOf = null, sta
     // one out over laps, to the lap after, the restart's), not the laps around it.
     const after = b.from != null && b.to > b.from ? 1 : 0;
     const gains = names.map((_, k) => c(b.i1 + after, k) - c(b.i0, k));
-    const k = most(gains);
+    // (Told by who gained, as the start is: "Leclerc −9%" on a VSC read as a fault.)
+    const k = gains.reduce((m, g, j) => (g > gains[m] ? j : m), 0);
     const who = (b.who || []).map(n => (nameOf ? nameOf(n) : n)).join(en ? ' and ' : '、');
     // What sent it out, in a few words (the drivers who stopped under it show on the chart).
     const cause = !who ? '' : en ? ` · ${who} ${b.why === 'crash' ? 'collided' : b.why === 'stopped' ? 'stopped' : 'out'}` : ` · ${who} ${b.why === 'crash' ? '碰撞' : b.why === 'stopped' ? '停車' : '退賽'}`;
