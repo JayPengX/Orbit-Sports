@@ -1530,7 +1530,6 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lb-bar { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--q-text) 10%, transparent); overflow: hidden; }
 .lb-bar i { display: block; height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.9s linear; }
 .lb-views { margin: 4px 0 8px; }
-.lb-views button { flex: 1; }
 /* 數據: grouped cards as a native app's stats screen. Every name whole: the
    name column is made for the grid's longest surname (Verstappen, Hülkenberg). */
 .fs-stats { margin-top: 4px; }
