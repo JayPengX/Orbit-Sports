@@ -66,8 +66,10 @@ couldn't be read is shown, never hidden.
   圈速 · 積分. Race control in Chinese by rule (`lib/racecontrol.mjs`). 賽道
   is 車手比較 on the track: one pick of up to four drivers (their faces on
   the map, a tap on a car adds it), every car always moving at its own pace
-  between reads and in race order by its gap to the leader
-  (`lib/carpace.mjs`), then the drivers side by side. The win chance goes by
+  between reads and in race order by its gap to the leader, each by its
+  code; a heap where the track folds back pushed apart with a line to each
+  car's place, the tags where they cover least (`lib/carpace.mjs`), then
+  the drivers side by side. The win chance goes by
   lap while a race runs too (each lap's end counted from the feed and the
   leader's lap times), with its leads, stops and the start's own swing.
 - **勝負未定** (close finish): a live game in its last stretch and within reach (NBA 4th or OT, MLB 8th–9th, soccer from the 80th).

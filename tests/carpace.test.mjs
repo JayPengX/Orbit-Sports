@@ -2,7 +2,7 @@
 // never backwards, never piled on the car ahead.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { lapRate, unwrap, readCar, stepCar, spread, behindLeader } from '../public/lib/carpace.mjs';
+import { lapRate, unwrap, readCar, stepCar, spread, behindLeader, apart, placeTags } from '../public/lib/carpace.mjs';
 
 test('pace: the last lap while it is a racing lap, else the best; slower behind the safety car and in the pits', () => {
   assert.equal(lapRate({ lastMs: 100_000, bestMs: 99_000 }), 1 / 100_000);
@@ -85,4 +85,31 @@ test('a race: each car placed from the leader by its gap, so the order is the ra
   assert.ok(Math.abs(s.d - 0.502) < 1e-9);
   // The leader read again at the same place and time: the follower keeps going.
   assert.equal(readCar(s, 0.482, v, 6_000, 0.05, 0).at, 0);
+});
+
+test('a heap where the track folds back is opened on the screen, each dot kept near its place', () => {
+  // Five cars in one spot and one beside them.
+  const out = apart([...Array.from({ length: 5 }, (_, i) => ({ x: 100 + i * 0.5, y: 100, r: 10 })), { x: 104, y: 103, r: 10 }]);
+  for (let i = 0; i < out.length; i++) {
+    for (let j = i + 1; j < out.length; j++) assert.ok(Math.hypot(out[i].x - out[j].x, out[i].y - out[j].y) > 20 * 0.75, `${i} ${j}`);
+    assert.ok(Math.hypot(out[i].x - out[i].hx, out[i].y - out[i].hy) <= 22 + 1e-9);
+  }
+  // Apart already: left where they are.
+  const two = apart([{ x: 0, y: 0, r: 10 }, { x: 30, y: 0, r: 10 }]);
+  assert.deepEqual([two[0].x, two[1].x], [0, 30]);
+});
+
+test('a tag goes where it covers nothing: right, else left, above or below; kept where it was unless clearly better', () => {
+  const view = [0, 0, 300, 300];
+  // Free all round: right.
+  assert.equal(placeTags([{ at: [100, 100], w: 50, off: 15 }], [[100, 100]], view)[0][0], 'r');
+  // A dot to the right: left.
+  assert.equal(placeTags([{ at: [100, 100], w: 50, off: 15 }], [[100, 100], [130, 100]], view)[0][0], 'l');
+  // By the right edge of the map: not off it.
+  assert.notEqual(placeTags([{ at: [280, 100], w: 50, off: 15 }], [[280, 100]], view)[0][0], 'r');
+  // Two cars side by side: their tags apart, not on one another.
+  const two = placeTags([{ at: [100, 100], w: 50, off: 15 }, { at: [100, 112], w: 50, off: 15 }], [[100, 100], [100, 112]], view).map(x => x[0]);
+  assert.notDeepEqual(two[0], two[1]);
+  // Left last time, right free too: stays left (no flicking).
+  assert.equal(placeTags([{ at: [100, 100], w: 50, off: 15, was: 'l' }], [[100, 100]], view)[0][0], 'l');
 });

@@ -69,3 +69,65 @@ export function spread(fracs, sep) {
   }
   return out;
 }
+
+// Dots apart on the screen where the track folds back on itself (a hairpin,
+// the esses: a train along the line still sits in a heap there): each pair
+// nearer than their two radii pushed off one another, each pulled a little
+// back to its place and never more than 2.2 of its radii from it.
+// [{ x, y, r }] → [{ x, y, r, hx, hy }] (hx, hy: its place).
+export function apart(dots, rounds = 10) {
+  const pts = dots.map(d => ({ ...d, hx: d.x, hy: d.y }));
+  for (let it = 0; it < rounds; it++) {
+    for (let i = 0; i < pts.length; i++)
+      for (let j = i + 1; j < pts.length; j++) {
+        const [p, q] = [pts[i], pts[j]];
+        const d0 = Math.hypot(q.x - p.x, q.y - p.y);
+        const need = p.r + q.r;
+        if (d0 >= need) continue;
+        // (Right on one another: apart across the line between their places, else sideways.)
+        let [dx, dy] = d0 > 0.01 ? [q.x - p.x, q.y - p.y] : [-(q.hy - p.hy) || 0.01, q.hx - p.hx || 0.01];
+        const d = Math.hypot(dx, dy);
+        [dx, dy] = [dx / d, dy / d];
+        const push = (need - d0) / 2;
+        [p.x, p.y, q.x, q.y] = [p.x - dx * push, p.y - dy * push, q.x + dx * push, q.y + dy * push];
+      }
+    for (const p of pts) {
+      p.x += (p.hx - p.x) * 0.08;
+      p.y += (p.hy - p.y) * 0.08;
+      const off = Math.hypot(p.x - p.hx, p.y - p.hy);
+      const most = p.r * 2.2;
+      if (off > most) [p.x, p.y] = [p.hx + ((p.x - p.hx) * most) / off, p.hy + ((p.y - p.hy) * most) / off];
+    }
+  }
+  return pts;
+}
+
+// Where each tag goes (in order: the first picks first): right of its dot,
+// left, above or below, whichever covers fewest other dots and tags placed
+// and stays inside `view` ([x0, y0, x1, y1]); where it was (`was`), unless
+// another is clearly better (a tag flicking side to side as cars pass).
+// [{ at: [x, y], w, off, was }] (w, off in the tag's own units, z the zoom)
+// → [[side, x, y, anchor]…] in those units.
+export function placeTags(tags, dots, view, z = 1) {
+  const R = 11.5 / z;
+  const h = 14 / z;
+  const boxes = [];
+  return tags.map(({ at: [x, y], w: w0, off, was }) => {
+    const [w, o] = [w0 / z, off / z];
+    const spots = [
+      ['r', [x + o, y - h / 2, x + o + w, y + h / 2], off, 4, 'start'],
+      ['l', [x - o - w, y - h / 2, x - o, y + h / 2], -off, 4, 'end'],
+      ['u', [x - w / 2, y - o - h, x + w / 2, y - o], 0, -off - 3, 'middle'],
+      ['d', [x - w / 2, y + o, x + w / 2, y + o + h], 0, off + 11, 'middle']
+    ];
+    const cost = ([side, b]) =>
+      dots.filter(([u, v]) => (u !== x || v !== y) && u + R > b[0] && u - R < b[2] && v + R > b[1] && v - R < b[3]).length +
+      boxes.filter(q => q[0] < b[2] && q[2] > b[0] && q[1] < b[3] && q[3] > b[1]).length * 2 +
+      (b[0] < view[0] || b[2] > view[2] || b[1] < view[1] || b[3] > view[3] ? 3 : 0) +
+      (side === 'r' ? 0 : 0.2) -
+      (side === was ? 0.6 : 0);
+    const best = spots.reduce((a, b) => (cost(b) < cost(a) ? b : a));
+    boxes.push(best[1]);
+    return [best[0], best[2], best[3], best[4]];
+  });
+}

@@ -18,7 +18,7 @@ import { soccerLine } from './lib/soccerwp.mjs';
 import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, injuryWhatZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
-import { lapRate, readCar, stepCar, spread, behindLeader } from './lib/carpace.mjs';
+import { lapRate, readCar, stepCar, spread, behindLeader, apart, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
 import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, settleScoring, liveLapEnds, liveRaceEvents } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
@@ -2660,6 +2660,14 @@ const fieldDriver = (field = [], full, family = String(full || '').split(' ').sl
 // ResizeObserver: before the screen is painted, so it never flickers), and
 // the surname put in if the whole one runs past its box; again whenever
 // the box changes size (a turned phone).
+// Wider than its box, measured exactly (scrollWidth rounds: "George Russell"
+// 0.7px over its 105 read as fitting, and was cut to "George Russ…").
+const overflows = n => {
+  if (n.scrollWidth > n.clientWidth) return true;
+  const r = document.createRange();
+  r.selectNodeContents(n);
+  return r.getBoundingClientRect().width > n.getBoundingClientRect().width + 0.1;
+};
 const fitWatch = typeof ResizeObserver === 'function'
   ? new ResizeObserver(list => {
       for (const { target: n } of list) {
@@ -2670,7 +2678,7 @@ const fitWatch = typeof ResizeObserver === 'function'
         }
         n.dataset.fitted = '1';
         n.textContent = n.dataset.full;
-        if (n.scrollWidth > n.clientWidth + 0.5) n.textContent = n.dataset.short;
+        if (overflows(n)) n.textContent = n.dataset.short;
       }
     })
   : null;
@@ -2705,7 +2713,7 @@ const lineWatch = typeof ResizeObserver === 'function'
           continue;
         }
         n.style.fontSize = '';
-        for (let i = 0; i < 30 && n.scrollWidth > n.clientWidth + 0.5; i++) {
+        for (let i = 0; i < 30 && overflows(n); i++) {
           const size = parseFloat(getComputedStyle(n).fontSize) - 0.5;
           if (size < 10) break;
           n.style.fontSize = `${size}px`;
@@ -3040,17 +3048,20 @@ function tmLoop(m) {
 }
 // Every car moved on by `dt` ms and drawn: on the track line (a car on the
 // one ahead set back behind it, a train of dots), the same size zoomed or not.
+// Where the track folds back on itself (a hairpin, the esses) a train along
+// it still sits in a heap: dots on one another are pushed apart on the
+// screen (a short line from each back to where it is on the track), and the
+// named ones' tags put where they cover least (tmTags).
 function tmDraw(m, t, dt) {
   const z = Math.max(1, m.z || 1);
   const gapU = (11.5 * 2) / z;
   const moving = [];
+  const cars = [];
   for (const [no, s] of m.run) {
     const g = m.cars.get(no);
     if (!g?.isConnected) continue;
     if (s.xy) {
-      const [x, y] = m.fit(...s.xy);
-      g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})${z > 1 ? ` scale(${(1 / z).toFixed(3)})` : ''}`);
-      s.drawn = [x, y];
+      cars.push([s, g, m.fit(...s.xy)]);
       continue;
     }
     if (dt) s.d = stepCar(s, t, dt);
@@ -3067,9 +3078,53 @@ function tmDraw(m, t, dt) {
     // (How far it's set back eased, not jumped: two close cars trade places in the train often.)
     const back = at[i] - f;
     s.back = s.back == null ? back : s.back + (back - s.back) * Math.min(1, dt / 350);
-    const [x, y] = m.fit(...m.pointAt(f + s.back));
+    cars.push([s, g, m.fit(...m.pointAt(f + s.back))]);
+  });
+  // Apart on the screen (a heap where the track folds back), eased there, so a heap opens and closes smoothly.
+  const rOf = g => (g.classList.contains('face') ? 13 : 11.5) / z;
+  const pts = apart(cars.map(([, g, xy]) => ({ x: xy[0], y: xy[1], r: rOf(g) })));
+  cars.forEach(([s, g], i) => {
+    const p = pts[i];
+    const ease = s.shown && dt ? Math.min(1, dt / 220) : 1;
+    s.shown = s.shown ? [s.shown[0] + (p.x - p.hx - s.shown[0]) * ease, s.shown[1] + (p.y - p.hy - s.shown[1]) * ease] : [p.x - p.hx, p.y - p.hy];
+    const [x, y] = [p.hx + s.shown[0], p.hy + s.shown[1]];
     g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})${z > 1 ? ` scale(${(1 / z).toFixed(3)})` : ''}`);
     s.drawn = [x, y];
+    // The line back to its place, once it's been pushed a dot's half off it.
+    const lead = g.querySelector('.tm-lead');
+    const far = Math.hypot(s.shown[0], s.shown[1]) > p.r * 0.6;
+    lead.toggleAttribute('hidden', !far);
+    if (far) {
+      lead.querySelector('line').setAttribute('x2', (-s.shown[0] * z).toFixed(1));
+      lead.querySelector('line').setAttribute('y2', (-s.shown[1] * z).toFixed(1));
+      lead.querySelector('circle').setAttribute('cx', (-s.shown[0] * z).toFixed(1));
+      lead.querySelector('circle').setAttribute('cy', (-s.shown[1] * z).toFixed(1));
+    }
+  });
+  // The tags again a few times a second (not each frame: they'd flicker side to side).
+  if (!dt || t - (m.tagsAt || 0) > 300) {
+    m.tagsAt = t;
+    tmTags(m);
+  }
+}
+// The named cars' tags (each its code, a picked one's gap to the first
+// picked: set in g.__tag), each where it covers fewest dots and other tags
+// and stays on the map: right of its dot, left, above or below; where it
+// was, unless another place is clearly better.
+function tmTags(m) {
+  const z = Math.max(1, m.z || 1);
+  const dots = [];
+  for (const [, s] of m.run) if (s.drawn) dots.push(s.drawn);
+  const [vx, vy, vw, vh] = (m.svg.getAttribute('viewBox') || `0 0 ${m.W} ${m.H}`).split(' ').map(Number);
+  const tags = (m.tagged || []).filter(g => g.isConnected && g.__tag && m.run.get(g.__no)?.drawn);
+  const spots = placeTags(tags.map(g => ({ at: m.run.get(g.__no).drawn, w: g.__tag.text.length * 6.9 + 4, off: g.__tag.off, was: g.__side })), dots, [vx, vy, vx + vw, vy + vh], z);
+  tags.forEach((g, i) => {
+    const [side, x, y, anchor] = spots[i];
+    g.__side = side;
+    const tag = g.querySelector('.tm-tag');
+    tag.setAttribute('x', String(x));
+    tag.setAttribute('y', String(y));
+    tag.setAttribute('text-anchor', anchor);
   });
 }
 // The map zoomed with two fingers (dragged with one once in), or twice
@@ -3294,7 +3349,7 @@ function f1TrackMap(b, ss) {
     if (!g) {
       g = document.createElementNS(ns, 'g');
       g.setAttribute('class', 'tm-car');
-      g.innerHTML = `<circle r="15" class="tm-hit"/><circle r="11" class="tm-dot"/><text class="tm-no" y="2.9"></text><g class="tm-face"><circle r="12.5" class="tm-ring"/><image x="-13" y="-11" width="26" height="26" clip-path="url(#tm-face-clip)" preserveAspectRatio="xMidYMin slice"/></g><text class="tm-tag" x="15.5" y="4"></text>`;
+      g.innerHTML = `<g class="tm-lead" hidden><line x1="0" y1="0"/><circle r="2.6"/></g><circle r="15" class="tm-hit"/><circle r="11" class="tm-dot"/><text class="tm-no" y="2.9"></text><g class="tm-face"><circle r="12.5" class="tm-ring"/><image x="-13" y="-11" width="26" height="26" clip-path="url(#tm-face-clip)" preserveAspectRatio="xMidYMin slice"/></g><text class="tm-tag" x="15.5" y="4"></text>`;
       g.addEventListener('click', () => {
         const now2 = f1Picks.get(ss.start) || [];
         const next = now2.includes(car.no) ? now2.filter(x => x !== car.no) : [...now2, car.no].slice(-4);
@@ -3338,34 +3393,20 @@ function f1TrackMap(b, ss) {
   for (const [no, g] of m.cars) if (!m.run.has(no)) g.remove();
   tmDraw(m, now, 0);
 
-  // A named car's tag (its code, and a picked one's gap to the first picked)
-  // on the side with room: right of its dot, else left (counting the other
-  // dots and the tags already put).
+  // A named car's tag: its code, a picked one's gap to the first picked (put by tmTags).
   const picks = [...picked].map(no => b.cars.find(x => x.no === no)).filter(Boolean).sort((x, y) => x.pos - y.pos);
   const first = picks[0];
-  const R = 11;
-  const z = Math.max(1, m.z || 1);
-  const dots = [...m.run.values()].map(s => s.drawn).filter(Boolean);
-  const boxes = [];
+  m.tagged = [];
   for (const car of [...order].sort((x, y) => x.pos - y.pos)) {
     const g = m.cars.get(car.no);
-    const xy = m.run.get(car.no)?.drawn;
-    if (!g.classList.contains('named') || !xy) continue;
+    if (!g.classList.contains('named')) continue;
     const gap = first && car !== first && gapNum(car) != null && gapNum(first) != null ? gapNum(car) - gapNum(first) : null;
-    const text = gap != null ? `${car.tla || car.no} +${gap.toFixed(1)}` : car.tla || car.no;
-    const [x, y] = xy;
-    const w = (text.length + 1) * 6.8 / z;
-    const h = 13 / z;
-    const off = (picked.has(car.no) ? 17 : 15.5) / z;
-    const box = left => (left ? [x - off - w, y - h / 2, x - off, y + h / 2] : [x + off, y - h / 2, x + off + w, y + h / 2]);
-    const hits = b2 => dots.filter(([u, v]) => u + R / z > b2[0] && u - R / z < b2[2] && v + R / z > b2[1] && v - R / z < b2[3]).length + boxes.filter(o => o[0] < b2[2] && o[2] > b2[0] && o[1] < b2[3] && o[3] > b2[1]).length * 2;
-    const left = hits(box(true)) < hits(box(false));
-    boxes.push(box(left));
-    const tag = g.querySelector('.tm-tag');
-    tag.textContent = text;
-    tag.setAttribute('x', String((left ? -1 : 1) * (picked.has(car.no) ? 17 : 15.5)));
-    g.classList.toggle('tag-left', left);
+    g.__no = car.no;
+    g.__tag = { text: gap != null ? `${car.tla || car.no} +${gap.toFixed(1)}` : car.tla || car.no, off: picked.has(car.no) ? 17 : 15.5 };
+    g.querySelector('.tm-tag').textContent = g.__tag.text;
+    m.tagged.push(g);
   }
+  tmTags(m);
   tmLoop(m);
   const noteEl = m.noteEl || (m.noteEl = el('p', { class: 'muted small tm-note' }));
   noteEl.textContent = en ? 'Tap a car to add or drop it. ◯ within a second of the car ahead.' : '點車加入或移出比較 · ◯ 與前車 1 秒內';
