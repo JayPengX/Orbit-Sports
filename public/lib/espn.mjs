@@ -1954,11 +1954,26 @@ async function f1Leaders(league) {
   const opts = { ttl: LEADERS_TTL, trim: 'jolpica-results' };
   // (One after another: Jolpica allows four a second.)
   const table = standings(league).catch(() => []);
-  const first = await getJson(f1ResultsUrl(), opts);
+  // (A page turned away (Jolpica's four a second) asked again a little
+  // later; still missing, nothing: a page lost was a whole stretch of races
+  // gone, 分站冠軍 Antonelli 4 for 7, and kept so for hours.)
+  const page = async url => {
+    for (let k = 0; ; k++) {
+      try {
+        const d = await getJson(url, opts);
+        if (d?.MRData) return d;
+        throw new Error('empty');
+      } catch (error) {
+        if (k >= 2) throw error;
+        await new Promise(r => setTimeout(r, 700 * (k + 1)));
+      }
+    }
+  };
+  const first = await page(f1ResultsUrl());
   const total = Number(first?.MRData?.total) || 0;
   const rest = [];
-  for (let i = 1; i < Math.min(10, Math.ceil(total / 100)); i++) rest.push(await getJson(f1ResultsUrl(i * 100), opts).catch(() => null));
-  const poles = await getJson(f1PolesUrl(), opts).catch(() => null);
+  for (let i = 1; i < Math.min(10, Math.ceil(total / 100)); i++) rest.push(await page(f1ResultsUrl(i * 100)));
+  const poles = await page(f1PolesUrl()).catch(() => null);
   const drivers = ((await table) || []).flatMap(g => g.rows || []).filter(r => r.athlete);
   return parseF1Leaders([first, ...rest], poles, drivers);
 }
