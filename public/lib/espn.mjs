@@ -1826,7 +1826,7 @@ export function parseRosterInjuries(data) {
   return (data?.athletes || [])
     .flatMap(x => (Array.isArray(x?.items) ? x.items : [x]))
     .filter(a => a?.injuries?.length)
-    .map(a => ({ id: String(a.id ?? ''), headshot: freshHeadshot(a.headshot?.href) || null, name: a.displayName || a.fullName || '', status: a.injuries[0].status || a.injuries[0].type?.description || '', detail: '' }));
+    .map(a => ({ id: String(a.id ?? ''), headshot: freshHeadshot(a.headshot?.href) || null, name: a.displayName || a.fullName || '', jersey: a.jersey || '', status: a.injuries[0].status || a.injuries[0].type?.description || '', detail: '' }));
 }
 export async function teamInjuries(league, id) {
   return parseRosterInjuries(await getJson(`${SITE}/${LEAGUES[league].espn}/teams/${encodeURIComponent(id)}/roster?enable=injuries`, { ttl: 10 * 60_000, trim: 'espn-roster' }));
