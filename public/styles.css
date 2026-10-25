@@ -598,9 +598,11 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .cmp-row.form > span { grid-column: 1 / -1; grid-row: 1; }
 .cmp-row.form .form-pills:first-child { grid-column: 1; grid-row: 2; }
 .cmp-row.form .form-pills:last-child { grid-column: 2; grid-row: 2; }
-.cmp-row.form .form-pills { flex-wrap: nowrap; gap: 3px; min-width: 0; }
-/* Five games on one line at 320 (each pill gives a little, never a sixth on a row of its own). */
-.cmp-row.form .pill { width: auto; flex: 0 1 22px; min-width: 16px; }
+/* Each side its whole half (the home side's sat shrink-wrapped at the end, and
+   WebKit squeezed its pills thin, Jay 2026-10-26); every pill one square size,
+   five of them fitting a half at 320. */
+.cmp-row.form .form-pills { flex-wrap: nowrap; gap: 3px; min-width: 0; justify-self: stretch; }
+.cmp-row.form .pill { flex: none; width: 22px; height: 22px; }
 .info-list { list-style: none; margin: 0; padding: 0; display: grid; }
 .info-list li { display: grid; grid-template-columns: minmax(5.5em, auto) minmax(0, 1fr); align-items: start; column-gap: 10px; padding: 10px 0; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 14px; line-height: 1.45; }
 .info-list li:first-child { border-top: 0; }
