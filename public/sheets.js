@@ -3628,14 +3628,21 @@ function f1LapCompare(b, ss) {
       const X = lap => L0 + ((lap - lapLo) / (lapHi - lapLo)) * (W - L0 - R0);
       // Better is up in every view (the owner, 2026-10-11): quicker laps, a
       // smaller gap (the first of them along the top line), a higher place.
+      // A lap that isn't the race's run (a stop's in- and out-lap, a lap
+      // behind the safety car) doesn't set the range: one pit lap 30 s down
+      // squeezed every other lap into a strip. Off the range, the line breaks there.
+      const neutral = neutralLaps(b.control || [], b.lap?.now || lapHi);
+      const odd = (no, lap) => mode !== 'place' && (pitsOf(no).has(lap) || pitsOf(no).has(lap - 1) || neutral.some(p => lap >= p.from && lap <= p.to + 1));
+      const usual = series.flatMap(sr => sr.pts.filter(p => !odd(sr.no, p[0])));
+      const ranged = usual.length ? usual : all;
       let top, bottom, label, ticks, pad = 0;
       if (mode === 'gap') {
-        const vs = all.map(p => p[1]);
+        const vs = ranged.map(p => p[1]);
         const [lo, hi] = [Math.min(...vs), Math.max(...vs)];
         // (The first of them's line along the top only while they're near it:
         // 16 s back, the lines sat in the bottom third under an empty top.)
         pad = Math.max(0.5, (hi - lo) * 0.15);
-        top = lo > Math.max(2, hi - lo) ? lo - pad : Math.min(0, lo);
+        top = lo > 3 ? lo - pad : Math.min(0, lo);
         bottom = Math.max(top + 1, hi + (top < 0 || top > 0 ? pad : 0));
         label = v => (Math.abs(v) < 0.05 ? a.tla : `${v > 0 ? '+' : ''}${v.toFixed(Math.abs(bottom - top) < 5 ? 1 : 0)}`);
         ticks = top > 0 ? [top + pad, (top + bottom) / 2, bottom - pad] : [...new Set([top, 0, (top + bottom) / 2, bottom])];
@@ -3647,15 +3654,18 @@ function f1LapCompare(b, ss) {
         ticks = [...new Set([first, Math.round((first + last) / 2), last])];
       } else {
         // Racing laps set the range: a pit lap or one behind the safety car runs off the bottom.
-        const best = Math.min(...all.map(p => p[1]));
+        const best = Math.min(...ranged.map(p => p[1]));
         const cap = best * 1.06;
         top = best - 300;
-        bottom = Math.max(top + 1000, Math.min(cap, Math.max(...all.map(p => p[1]).filter(v => v <= cap))) + 300);
+        bottom = Math.max(top + 1000, Math.min(cap, Math.max(...ranged.map(p => p[1]).filter(v => v <= cap))) + 300);
         label = v => fmtLap(v).replace(/(\.\d)\d\d$/, '$1');
         ticks = [top + 300, (top + bottom) / 2, bottom - 300];
       }
       const Y = v => T0 + ((Math.min(Math.max(v, top), bottom) - top) / (bottom - top)) * (H - T0 - B0);
-      const shade = neutralLaps(b.control || [], b.lap?.now || lapHi)
+      const inRange = v => v >= top - (bottom - top) * 0.04 && v <= bottom + (bottom - top) * 0.04;
+      // Places: lines on one row side by side, a hair apart (four cars a lap at P1 and P2 read as one line).
+      const nudge = k => (mode === 'place' ? (k - (series.length - 1) / 2) * 2.4 : 0);
+      const shade = neutral
         .filter(p => p.to >= lapLo && p.from <= lapHi)
         .map(p => `<rect class="lc-sc ${p.kind}" x="${X(Math.max(lapLo, p.from - 0.5)).toFixed(1)}" y="${T0}" width="${Math.max(3, X(Math.min(lapHi, p.to + 0.5)) - X(Math.max(lapLo, p.from - 0.5))).toFixed(1)}" height="${H - T0 - B0}"/><text class="lc-sc-t" x="${(X(Math.max(lapLo, p.from - 0.5)) + 3).toFixed(1)}" y="${H - B0 - 4}">${p.kind === 'sc' ? 'SC' : 'VSC'}</text>`)
         .join('');
@@ -3663,13 +3673,34 @@ function f1LapCompare(b, ss) {
       const step = Math.max(1, Math.ceil((lapHi - lapLo) / 5 / 5) * 5);
       const xsLaps = [lapLo, ...Array.from({ length: 6 }, (_, k) => Math.ceil(lapLo / step) * step + k * step).filter(l => l > lapLo + step / 2 && l < lapHi - step / 2), lapHi];
       const xt = xsLaps.map(l => `<text class="lc-x" x="${X(l).toFixed(1)}" y="${H - 5}">${l}</text>`).join('');
-      const lines = series.map(s => {
+      const lines = series.map((s, k) => {
         const col = colourOf(s.no);
         const pits = pitsOf(s.no);
-        const d = s.pts.map((p, i) => `${i && s.pts[i - 1][0] === p[0] - 1 ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('');
-        // A lap alone (the laps either side of it not had) as a dot: a line through one point draws nothing, the chart blank from it on.
-        const lone = s.pts.filter((p, i) => s.pts[i - 1]?.[0] !== p[0] - 1 && s.pts[i + 1]?.[0] !== p[0] + 1).map(p => `<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="2.2" style="fill:${col}"/>`).join('');
-        const dots = s.pts.filter(p => pits.has(p[0])).map(p => `<circle class="lc-pit" cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="3.2" style="stroke:${col}"/>`).join('');
+        const xy = p => `${X(p[0]).toFixed(1)},${(Y(p[1]) + nudge(k)).toFixed(1)}`;
+        // Runs of laps drawn as lines: on across a few laps not had (the log
+        // missed them), broken at a lap off the range (a stop, the safety car).
+        const runs = [];
+        let prev = null;
+        for (const p of s.pts) {
+          // (A stop's laps and the safety car's: the shading says why it breaks there.)
+          if (!inRange(p[1]) || odd(s.no, p[0])) {
+            prev = null;
+            continue;
+          }
+          if (prev && p[0] - prev[0] <= 3) runs.at(-1).push(p);
+          else runs.push([p]);
+          prev = p;
+        }
+        const d = runs.filter(r => r.length > 1).map(r => r.map((p, i) => `${i ? 'L' : 'M'}${xy(p)}`).join('')).join('');
+        // A lap alone as a dot (a line through one point draws nothing).
+        const lone = runs.filter(r => r.length === 1).map(([p]) => `<circle cx="${X(p[0]).toFixed(1)}" cy="${(Y(p[1]) + nudge(k)).toFixed(1)}" r="2.2" style="fill:${col}"/>`).join('');
+        // A stop marked where it's drawn, or (its lap off the range) on the last lap drawn before it.
+        const drawn = runs.flat();
+        const dots = [...pits]
+          .map(lap => drawn.find(p => p[0] === lap) || [...drawn].reverse().find(p => p[0] < lap && lap - p[0] <= 3))
+          .filter(Boolean)
+          .map(p => `<circle class="lc-pit" cx="${X(p[0]).toFixed(1)}" cy="${(Y(p[1]) + nudge(k)).toFixed(1)}" r="3.2" style="stroke:${col}"/>`)
+          .join('');
         return `<path class="lc-line${dashed(s.no) ? ' dash' : ''}" d="${d}" style="stroke:${col}"/>${lone}${dots}`;
       }).join('');
       // A finger (or a mouse) on it reads every line at that lap, as every chart here: the chips above say each one's number, a rule and a dot on each line mark it.
@@ -3691,8 +3722,8 @@ function f1LapCompare(b, ss) {
         series.forEach((sr, k) => {
           const p = lap == null ? sr.pts.at(-1) : sr.pts.find(x => x[0] === lap);
           chipVal[k].textContent = valueText(p?.[1]);
-          marks[k].hidden = lap == null || !p;
-          if (p && lap != null) Object.assign(marks[k].style, { left: `${(X(p[0]) / W) * 100}%`, top: `${(Y(p[1]) / H) * 100}%` });
+          marks[k].hidden = lap == null || !p || !inRange(p[1]) || odd(sr.no, p[0]);
+          if (p && lap != null) Object.assign(marks[k].style, { left: `${(X(p[0]) / W) * 100}%`, top: `${((Y(p[1]) + nudge(k)) / H) * 100}%` });
         });
         const under = lap != null && neutralLaps(b.control || [], b.lap?.now || lapHi).find(p => lap >= p.from && lap <= p.to);
         at.textContent = lap == null ? `${en ? `Lap ${series[0]?.pts.at(-1)?.[0] ?? lapHi}` : `第 ${series[0]?.pts.at(-1)?.[0] ?? lapHi} 圈`}` : `${en ? `Lap ${lap}` : `第 ${lap} 圈`}${pitsAt(lap)}${under ? ` · ${under.kind === 'sc' ? (en ? 'Safety car' : '安全車') : en ? 'VSC' : '虛擬安全車'}` : ''}`;
