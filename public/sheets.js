@@ -2827,11 +2827,26 @@ function stewardPills(x) {
   const pen = k => (/^\d+s$/.test(k) ? (en ? `+${parseInt(k)}s` : `+${parseInt(k)} 秒`) : k === 'DT' ? (en ? 'Drive-through' : '穿越罰') : en ? `Stop-go${k.slice(2) ? ` ${k.slice(2)}s` : ''}` : `停站罰${k.slice(2) ? ` ${k.slice(2)} 秒` : ''}`);
   return [...x.pen.map(k => el('small', { class: 'f1-pill bad num', text: pen(k) })), x.probe ? el('small', { class: 'f1-pill warn', text: en ? 'Under investigation' : '調查中' }) : null];
 }
-function f1Row({ pos, posText = '', posOut = false, full, team, field, main = '', aside = null, notes = [], cls = '', colour = '' }) {
+function f1Row({ pos, posText = '', posOut = false, full, team, field, main = '', aside = null, notes = [], cls = '', colour = '', tower = null }) {
   const en = L() === 'en';
   const c = fieldDriver(field, full) || { name: full };
   const who = { ...c, name: f1Whole(full) };
   const car = f1Constructor(team || f1Driver(full).team);
+  // A live session's timing tower: one line a car (its team the colour bar),
+  // the tyre in a column of its own, the gap at the right; a tag under the
+  // name only when there's one (in the pits, a penalty, an investigation).
+  if (tower) {
+    const pills = (tower.pills || []).filter(Boolean);
+    const row = el('li', { class: `tower${ctx.isFollowed('f1', c.id) ? ' mine' : ''}${cls ? ` ${cls}` : ''}` }, [
+      el('span', { class: `pos num${posOut ? ' out' : ''}`, text: posText || String(pos) }),
+      c.id ? el('button', { class: 'face-btn', type: 'button', 'aria-label': f1Shown(full), onclick: () => ctx.openPlayer('f1', c.id, c) }, [personPic(c, 'f1', 'xs round')]) : personPic(c, 'f1', 'xs round'),
+      el('span', { class: 'f1-who' }, [fitName(personName('f1', who), who.name, f1Sur({ name: full })), pills.length ? el('span', { class: 'f1-sub' }, pills) : null]),
+      el('span', { class: 'tw-tyre' }, (tower.tyre || []).filter(Boolean)),
+      el('span', { class: 'f1-res' }, [el('span', { class: 'num f1-main tw-a', text: main }), el('span', { class: 'num f1-main tw-b', text: tower.alt ?? main })])
+    ]);
+    row.style.setProperty('--team', colour || car.color);
+    return row;
+  }
   const row = el('li', { class: `${ctx.isFollowed('f1', c.id) ? 'mine' : ''}${cls ? ` ${cls}` : ''}`.trim() }, [
     el('span', { class: `pos num${posOut ? ' out' : ''}`, text: posText || String(pos) }),
     // (The face opens the driver too.)
@@ -2983,6 +2998,7 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
           ? [gainOf(c), c.no === fastestNo ? el('small', { class: 'f1-pill fl', text: en ? 'Fastest' : '最快圈' }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
           : [c.laps ? el('small', { class: 'num f1-laps', text: `${c.laps}${en ? ' laps' : ' 圈'}` }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
         : [tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? ' laps' : ' 圈'}` }) : null]) : null, gainOf(c), state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])],
+      tower: over ? null : { alt: timed ? (i > 0 && c.gap ? c.gap : '') : i === 0 ? (en ? 'Leader' : '領先') : race && (c.retired || c.stopped) ? (c.laps ? (en ? `${c.laps} laps` : `${c.laps} 圈`) : en ? 'DNS' : '未起跑') : c.interval || c.gap, tyre: [gainOf(c), tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: String(c.tyreLaps) }) : null]) : null], pills: [state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])] },
       aside: over
         ? race ? (pointsFor(ss.abbr, c.pos, c.retired || c.stopped) ? (en ? `${pointsFor(ss.abbr, c.pos)} pts` : `${pointsFor(ss.abbr, c.pos)} 分`) : null) : timed && i > 0 && c.gap ? c.gap : null
         : timed ? (i > 0 && c.gap ? c.gap : null) : i > 0 && c.interval && c.interval !== c.gap ? `${en ? 'int ' : '前車 '}${c.interval}` : null
@@ -3004,18 +3020,31 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
     const showAll = f1AllMsgs.has(ss.start);
     const box = el('div', { class: 'lb-msg' }, [
       el('small', { class: 'lb-msg-h', text: en ? 'Race control' : '賽事控制' }),
-      el('ol', { class: 'lb-msgs' }, said.slice(0, showAll ? 8 : 3).map(msgRow)),
-      said.length > 3 ? el('button', { type: 'button', class: 'link lb-msg-more', text: showAll ? (en ? 'Fewer' : '收起') : en ? `${said.length - 3} more` : `再看 ${said.length - 3} 則`, onclick: () => (showAll ? f1AllMsgs.delete(ss.start) : f1AllMsgs.add(ss.start), box.replaceWith(makeMsg())) }) : null
+      el('ol', { class: 'lb-msgs' }, said.slice(0, showAll ? 8 : 1).map(msgRow)),
+      said.length > 1 ? el('button', { type: 'button', class: 'link lb-msg-more', text: showAll ? (en ? 'Fewer' : '收起') : en ? `${said.length - 1} more` : `再看 ${said.length - 1} 則`, onclick: () => (showAll ? f1AllMsgs.delete(ss.start) : f1AllMsgs.add(ss.start), box.replaceWith(makeMsg())) }) : null
     ]);
     return box;
   };
   const msg = said.length && !over ? makeMsg() : null;
-  const order = el('ol', { class: 'field f1-field lb-rows' }, rows);
+  // Live: the tower's head, its last column one number (the gap to the
+  // leader, or a tap and the car ahead; a qualifying's best lap, or its gap),
+  // each car one line.
+  const [colA, colB] = timed ? (en ? ['Best', 'Gap'] : ['最快圈', '差距']) : en ? ['Leader', 'Ahead'] : ['差距', '前車'];
+  const towerHead = over
+    ? null
+    : el('li', { class: 'tw-head' }, [
+        el('small', { text: en ? 'Driver' : '車手' }),
+        el('small', { class: 'tw-h-tyre', text: en ? 'Tyre' : '輪胎' }),
+        el('button', { type: 'button', class: 'tw-h-gap', onclick: ev => { f1GapAlt = !f1GapAlt; ev.currentTarget.closest('ol').classList.toggle('alt', f1GapAlt); ev.currentTarget.querySelector('b').textContent = f1GapAlt ? colB : colA; ev.currentTarget.querySelector('i').textContent = f1GapAlt ? colA : colB; } }, [el('b', { text: f1GapAlt ? colB : colA }), el('span', { text: ' ⇄ ' }), el('i', { text: f1GapAlt ? colA : colB })])
+      ]);
+  const order = el('ol', { class: `field f1-field lb-rows${f1GapAlt ? ' alt' : ''}` }, [towerHead, ...rows].filter(Boolean));
   if (orderOnly) return order;
   // Over: no head (its part, clock and flag are gone; "最終成績" over the
   // results said nothing), the order and its 數據 as every finished session.
   // On: the head, race control's latest, then 成績 or 數據 (F1 timing's other numbers).
   if (msg) head.append(msg);
+  // (The weather a line under it, not a card of its own.)
+  if (!over) head.append(f1Weather(b) || '');
   return el('div', { class: 'live-board' }, over ? [f1Views(order, f1Stats(b, ss))] : [head, f1Views(order, f1Stats(b, ss))]);
 }
 // A session's other numbers, as F1's timing has them, for every session
@@ -3992,7 +4021,6 @@ function f1Stats(b, ss) {
   const live = !feedOver(b);
   const named = {};
   const add = (k, x) => (named[k] = x);
-  if (live) add('weather', f1Weather(b));
   if (/^FP\d$/.test(ss.abbr)) add('pace', f1PracticePace(b, ss));
   add('compare', f1LapCompare(b, ss));
   // (Over too, until ESPN's own table has the race in.)
@@ -4136,24 +4164,42 @@ function f1Stats(b, ss) {
   const order = live
     ? ['weather', 'map', 'compare', 'pace', 'stop', 'parts', 'tyres', 'tiles', 'laps', 'table', 'sectors', 'speed']
     : ['tiles', 'table', 'compare', 'pace', 'parts', 'tyres', 'laps', 'sectors', 'speed'];
-  const cards = order.map(k => named[k]).filter(Boolean);
-  return cards.length ? el('div', { class: 'stack fs-stats' }, cards) : null;
+  // (In that order within each tab, f1Views.)
+  const out = Object.fromEntries(order.map(k => [k, named[k]]).filter(([, x]) => x));
+  return Object.keys(out).length ? out : null;
 
 }
 // The session's two views, 成績 (the order) and 數據 (f1Stats), the choice
 // kept for the next session opened.
 let f1BoardView = 'order';
-function f1Views(order, stats) {
+// The tower's last column: the gap to the leader, or (tapped) to the car ahead; kept as the board refreshes.
+let f1GapAlt = false;
+// A session's views, each one thing (the owner, 2026-10-26: 數據 was a
+// dozen cards down one page, hard to use): 排名 the timing tower; 賽道 the
+// cars on the track and who's quicker where; 輪胎 the strategy (each car's
+// stints, where a stop now puts it); 圈速 the laps (the headline numbers,
+// two drivers side by side, the fastest laps, sectors, speed trap); 積分
+// the championship as it would stand. A view with nothing in it isn't offered.
+const F1_TABS = [
+  ['order', '排名', 'Order', null],
+  ['track', '賽道', 'Track', ['map']],
+  ['tyres', '輪胎', 'Tyres', ['stop', 'tyres']],
+  ['laps', '圈速', 'Laps', ['tiles', 'compare', 'pace', 'parts', 'laps', 'sectors', 'speed']],
+  ['table', '積分', 'Points', ['table']]
+];
+function f1Views(order, named) {
   const en = L() === 'en';
-  if (!stats) return order;
-  const body = el('div', {}, [f1BoardView === 'stats' ? stats : order]);
-  const views = [['order', en ? 'Results' : '成績'], ['stats', en ? 'Stats' : '數據']];
-  const pick = segmented(views, f1BoardView, v => {
+  if (!named) return order;
+  const tabs = F1_TABS.filter(([k, , , keys]) => (k === 'order' ? order : keys.some(x => named[x])));
+  const nodeOf = k => (k === 'order' ? order : el('div', { class: 'stack fs-stats' }, F1_TABS.find(t => t[0] === k)[3].map(x => named[x]).filter(Boolean)));
+  const now = tabs.some(([k]) => k === f1BoardView) ? f1BoardView : 'order';
+  const body = el('div', {}, [nodeOf(now)]);
+  const pick = segmented(tabs.map(([k, zh, eng]) => [k, en ? eng : zh]), now, v => {
     f1BoardView = v;
-    put(body, v === 'stats' ? stats : order);
-    if (v === 'stats') for (const n of stats.querySelectorAll('[data-laps], [data-pace]')) n.__redraw?.();
-    pick.querySelectorAll('button').forEach((x, i) => x.setAttribute('aria-pressed', String(views[i][0] === v)));
-  }, 'lb-views');
+    const node = nodeOf(v);
+    put(body, node);
+    for (const n of node.querySelectorAll?.('[data-laps], [data-pace]') || []) n.__redraw?.();
+  }, 'lb-views', { chips: true });
   return el('div', { class: 'f1-views' }, [pick, body]);
 }
 // A session that's over: the official order (a race's points and grid, a
