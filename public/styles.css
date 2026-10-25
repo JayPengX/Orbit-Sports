@@ -1579,7 +1579,9 @@ button.lp-person.tap:active { opacity: 0.6; }
 .info-line { display: block; }
 /* F1 數據 live: the weather, the track with the cars, laps compared, the stop window. */
 .tm-box { margin: 2px -4px 0; }
-.tm-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tm-svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+.tm-svg.zoomed { overflow: hidden; touch-action: none; }
+.tm-svg polyline, .tm-svg line { vector-effect: non-scaling-stroke; }
 .tm-track { fill: none; stroke: var(--q-text-2, #c7c7cc); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; opacity: 0.55; }
 .tm-edge { fill: none; stroke: var(--q-surface-2, rgba(127,127,127,.25)); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; }
 .tm-car circle { fill: var(--team, #888); stroke: var(--q-surface, #1c1c1e); stroke-width: 1.6; }
@@ -1757,7 +1759,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-finish-b { stroke: #111; stroke-width: 4; stroke-linecap: butt; }
 .tm-finish { stroke: #fff; stroke-width: 4; stroke-dasharray: 2.2 2.2; stroke-linecap: butt; }
 .tm-sector { stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
-.tm-sector-t { fill: var(--q-muted); font-size: 9px; font-weight: 800; text-anchor: middle; }
+.tm-sector-t { fill: var(--q-muted); font-size: calc(9px / var(--z, 1)); font-weight: 800; text-anchor: middle; }
 .tm-car.dim .tm-dot { opacity: 0.45; }
 .tm-car.picked .tm-dot { r: 8.5; stroke-width: 2.2; }
 .tm-note { margin: 6px 0 0; text-align: center; }

@@ -3099,9 +3099,93 @@ function tmAt(m, g, t) {
 // The car put where it is now; true while it's still on its way.
 function tmPlace(m, g, t) {
   const now = tmAt(m, g, t);
-  const [x, y] = now.at || (([u, v]) => [u + now.off[0], v + now.off[1]])(m.fit(...m.pointAt(now.f)));
-  g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+  // (Beside the line by a car's width on the screen, zoomed or not.)
+  const z = Math.max(1, m.z || 1);
+  const [x, y] = now.at || (([u, v]) => [u + now.off[0] / z, v + now.off[1] / z])(m.fit(...m.pointAt(now.f)));
+  g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})${m.z > 1 ? ` scale(${(1 / m.z).toFixed(3)})` : ''}`);
   return now !== g.__to;
+}
+// The map zoomed with two fingers (dragged with one once in), or twice
+// tapped in close; back to the whole track a few seconds after the last
+// touch. The cars and the line keep their size, so a bunch spreads out.
+function tmZoom(m) {
+  const { svg, W, H } = m;
+  const whole = { x: 0, y: 0, w: W, h: H };
+  let view = { ...whole };
+  let back = 0;
+  let easing = 0;
+  m.z = 1;
+  const show = v => {
+    const w = Math.max(W / 6, Math.min(W, v.w));
+    const h = (w / W) * H;
+    view = { x: Math.max(0, Math.min(W - w, v.x)), y: Math.max(0, Math.min(H - h, v.y)), w, h };
+    svg.setAttribute('viewBox', `${view.x.toFixed(1)} ${view.y.toFixed(1)} ${view.w.toFixed(1)} ${view.h.toFixed(1)}`);
+    m.z = W / view.w;
+    svg.style.setProperty('--z', m.z.toFixed(3));
+    svg.classList.toggle('zoomed', m.z > 1.01);
+    const t = performance.now();
+    for (const g of m.cars.values()) if (g.__to) tmPlace(m, g, t);
+  };
+  // A point on the screen in the drawing's own units.
+  const at = (cx, cy) => {
+    const r = svg.getBoundingClientRect();
+    return [view.x + ((cx - r.left) / r.width) * view.w, view.y + ((cy - r.top) / r.height) * view.h];
+  };
+  const zoomAt = ([px, py], w) => show({ x: px - ((px - view.x) / view.w) * w, y: py - ((py - view.y) / view.h) * ((w / W) * H), w });
+  const later = () => {
+    clearTimeout(back);
+    back = setTimeout(() => {
+      const from = { ...view };
+      const t0 = performance.now();
+      const step = t => {
+        const p = Math.min(1, (t - t0) / 450);
+        const e = 1 - (1 - p) ** 3;
+        show({ x: from.x + (0 - from.x) * e, y: from.y + (0 - from.y) * e, w: from.w + (W - from.w) * e });
+        if (p < 1) easing = requestAnimationFrame(step);
+      };
+      easing = requestAnimationFrame(step);
+    }, 4000);
+  };
+  let pinch = null;
+  let pan = null;
+  let tapAt = 0;
+  svg.addEventListener('touchstart', ev => {
+    clearTimeout(back);
+    cancelAnimationFrame(easing);
+    const [a, b2] = ev.touches;
+    if (b2) {
+      pinch = { d: Math.hypot(a.clientX - b2.clientX, a.clientY - b2.clientY), w: view.w, mid: at((a.clientX + b2.clientX) / 2, (a.clientY + b2.clientY) / 2) };
+      pan = null;
+    } else if (m.z > 1.01) pan = { x: a.clientX, y: a.clientY, v: { ...view } };
+    // Twice tapped off the cars: in, or back out.
+    if (!b2 && !ev.target.closest('.tm-car')) {
+      const now = Date.now();
+      if (now - tapAt < 300) {
+        ev.preventDefault();
+        m.z > 1.01 ? show(whole) : zoomAt(at(a.clientX, a.clientY), W / 2.5);
+        tapAt = 0;
+        later();
+      } else tapAt = now;
+    }
+  }, { passive: false });
+  svg.addEventListener('touchmove', ev => {
+    const [a, b2] = ev.touches;
+    if (pinch && b2) {
+      ev.preventDefault();
+      zoomAt(pinch.mid, pinch.w * (pinch.d / (Math.hypot(a.clientX - b2.clientX, a.clientY - b2.clientY) || 1)));
+    } else if (pan && a) {
+      ev.preventDefault();
+      const r = svg.getBoundingClientRect();
+      show({ x: pan.v.x - ((a.clientX - pan.x) / r.width) * view.w, y: pan.v.y - ((a.clientY - pan.y) / r.height) * view.h, w: view.w });
+    }
+  }, { passive: false });
+  svg.addEventListener('touchend', ev => {
+    if (ev.touches.length < 2) pinch = null;
+    if (!ev.touches.length) {
+      pan = null;
+      if (m.z > 1.01) later();
+    }
+  });
 }
 function f1TrackMap(b, ss, { redraw = false } = {}) {
   const c = circuitOf(b, ss);
@@ -3169,6 +3253,7 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
       return out;
     };
     m = { svg, fit, layer, marks, gapLayer, cars: new Map(), fracOfIdx, pointAt, pathBetween, W, H };
+    tmZoom(m);
     f1Maps.set(ss.start, m);
   }
   m.b = b;
