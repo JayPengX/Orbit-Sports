@@ -454,3 +454,12 @@ test('F1: the start told as itself, not by the short virtual safety car on lap 2
   assert.equal(list[0].k, 0);
   assert.ok(Math.abs(list[1].delta) < 0.02);
 });
+
+test('F1: a lead the market doubts (its chance down) is told by who gained over it', async () => {
+  const { raceMoments } = await import('../public/lib/moments.mjs');
+  const pts = [[0.6, 0.35], [0.6, 0.35], [0.66, 0.3], [0.66, 0.3]].map(c => ({ c }));
+  const [m] = raceMoments(pts, ['Antonelli', 'Verstappen'], [], [{ i: 1, kind: 'lead', k: 1 }], false);
+  assert.equal(m.text, 'Verstappen 取得領先');
+  assert.equal(m.gain.k, 0);
+  assert.ok(Math.abs(m.gain.delta - 0.06) < 1e-9);
+});

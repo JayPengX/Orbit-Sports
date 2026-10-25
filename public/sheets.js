@@ -2314,7 +2314,10 @@ function raceChanceCard(line, ss, feed = null) {
   };
   const colorOf = k => f1Driver(line.drivers[k]).color;
   // (None on a decided game's run to the result: no price there to move.)
-  const gainChip = m => pts[m.i]?.settled || Math.round(Math.abs(m.delta) * 100) < 1 ? null : el('span', { class: 'wp-gain', style: `color:${colorOf(m.k)};background:color-mix(in srgb, ${colorOf(m.k)} 16%, transparent)`, text: `${names[m.k]} ${m.delta >= 0 ? '+' : '−'}${Math.round(Math.abs(m.delta) * 100)}%` });
+  const gainChip = m => {
+    const { k, delta } = m.gain || m;
+    return pts[m.i]?.settled || Math.round(Math.abs(delta) * 100) < 1 ? null : el('span', { class: 'wp-gain', style: `color:${colorOf(k)};background:color-mix(in srgb, ${colorOf(k)} 16%, transparent)`, text: `${names[k]} ${delta >= 0 ? '+' : '−'}${Math.round(Math.abs(delta) * 100)}%` });
+  };
   const shade = bands.map(b => `<rect x="${(xs[b.i0] * w).toFixed(1)}" y="0" width="${Math.max(2, (xs[b.i1] - xs[b.i0]) * w).toFixed(1)}" height="${h}" class="rc-band ${b.kind}"/>`).join('');
   // Tagged in a strip above the chart (never over the lines), each at its band's start; one close after another (a virtual safety car turned real) just after it.
   let free = 0;
@@ -3714,7 +3717,7 @@ function f1LiveTable(b, ss) {
     const view = f1TableView === 'teams' && tRows.length ? 'teams' : 'drivers';
     const list = view === 'teams' ? tRows : dRows;
     const all = f1TableAll.has(ss.start);
-    const shown = all ? list : list.slice(0, 10);
+    const shown = all || list.length <= 12 ? list : list.slice(0, 10);
     const [first, second] = list;
     const lead = first && second ? (en ? `${view === 'teams' ? f1Constructor(first.en || first.name).name : f1Sur({ name: first.en || first.name })} leads by ${first.total - second.total}` : `${view === 'teams' ? f1Constructor(first.en || first.name).zh : f1Sur({ name: first.en || first.name })} 領先 ${first.total - second.total} 分`) : '';
     const rows = shown.map(r => {
@@ -3732,7 +3735,8 @@ function f1LiveTable(b, ss) {
       ]);
     });
     const pick = tRows.length ? segmented([['drivers', en ? 'Drivers' : '車手'], ['teams', en ? 'Teams' : '車隊']], view, v => ((f1TableView = v), draw(groups)), 'st-modes') : null;
-    const more = list.length > 10 ? el('button', { class: 'q-btn small lc-more', type: 'button', text: all ? (en ? 'Top 10' : '只看前 10') : en ? `All ${list.length}` : `全部 ${list.length} ${view === 'teams' ? '隊' : '位'}`, onclick: () => (all ? f1TableAll.delete(ss.start) : f1TableAll.add(ss.start), draw(groups)) }) : null;
+    // (Ten teams and an eleventh: all of them, no button for one more row.)
+    const more = list.length > 12 ? el('button', { class: 'q-btn small lc-more', type: 'button', text: all ? (en ? 'Top 10' : '只看前 10') : en ? `All ${list.length}` : `全部 ${list.length} ${view === 'teams' ? '隊' : '位'}`, onclick: () => (all ? f1TableAll.delete(ss.start) : f1TableAll.add(ss.start), draw(groups)) }) : null;
     const what = ss.abbr === 'SR' ? (en ? 'sprint' : '衝刺賽') : en ? 'race' : '正賽';
     const key = over ? (en ? `▲▼ places moved; + points from this ${what}.` : `▲▼ 名次變化 · + 本場得分`) : en ? `If the ${what} ended now. ▲▼ places moved; + points from this ${what}.` : `假如${what}現在結束 · ▲▼ 名次變化 · + 本場得分`;
     put(box, card(over ? (en ? 'Championship' : '積分榜') : en ? 'Championship, as it stands' : '即時積分榜', el('div', { class: 'lc' }, [pick, lead ? el('p', { class: 'st-lead', text: lead }) : null, el('ol', { class: 'fs-rows st-rows' }, rows), more, el('p', { class: 'muted small lc-key-note', text: key })]), { sub: over ? null : el('span', { class: 'live-dot-text', text: en ? 'Live' : '即時' }) }));

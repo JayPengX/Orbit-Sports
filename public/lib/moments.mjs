@@ -589,7 +589,15 @@ export function raceMoments(points, names, bands, events, en, nameOf = null, sta
     if (ev.kind === 'pit' && Math.abs(delta) < 0.08) continue;
     const name = names[ev.k];
     const text = ev.kind === 'lead' ? (en ? `${name} takes the lead` : `${name} 取得領先`) : ev.kind === 'out' ? (en ? `${name} retires` : `${name} 退賽`) : en ? `${name} pits` : `${name} 進站`;
-    found.push({ i: ev.i, k: ev.k, delta, icon: ev.kind === 'lead' ? '🏁' : ev.kind === 'out' ? '❌' : '🔧', text });
+    // A lead the market doesn't believe in (taken on another's stop, its
+    // chance down): told by who gained over it, not "Verstappen −5%" on his own lead.
+    let gain = null;
+    if (ev.kind === 'lead' && delta < 0) {
+      const gains = names.map((_, k) => c(ev.i + 1, k) - c(ev.i - 1, k));
+      const g = gains.reduce((m, x, j) => (x > gains[m] ? j : m), 0);
+      if (gains[g] > 0) gain = { k: g, delta: gains[g] };
+    }
+    found.push({ i: ev.i, k: ev.k, delta, gain, icon: ev.kind === 'lead' ? '🏁' : ev.kind === 'out' ? '❌' : '🔧', text });
   }
   return [...found]
     .sort((a, b) => Number(Boolean(b.band)) - Number(Boolean(a.band)) || Math.abs(b.delta) - Math.abs(a.delta))
