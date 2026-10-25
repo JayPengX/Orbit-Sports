@@ -1042,7 +1042,7 @@ export function parseSummary(data, league) {
   const leaders = (data?.leaders || []).flatMap(t =>
     (t.leaders || []).map(l => ({ team: String(t.team?.id ?? ''), stat: l.displayName || l.name, id: String(l.leaders?.[0]?.athlete?.id ?? ''), name: l.leaders?.[0]?.athlete?.shortName || l.leaders?.[0]?.athlete?.displayName || '', full: l.leaders?.[0]?.athlete?.displayName || '', headshot: freshHeadshot(l.leaders?.[0]?.athlete?.headshot?.href) || null, value: l.leaders?.[0]?.displayValue || '' }))
   );
-  const injuries = (data?.injuries || []).map(t => ({ team: String(t.team?.id ?? ''), list: (t.injuries || []).map(i => ({ id: String(i.athlete?.id ?? ''), headshot: freshHeadshot(i.athlete?.headshot?.href) || null, name: i.athlete?.displayName || '', status: i.status || i.type?.description || '', detail: i.details?.type || '', what: [i.details?.type, i.details?.detail].filter(x => x && x !== 'Other' && x !== 'Not Specified' && !/^rest$/i.test(x)).join(' '), back: i.details?.returnDate || '' })) }));
+  const injuries = (data?.injuries || []).map(t => ({ team: String(t.team?.id ?? ''), list: (t.injuries || []).map(i => ({ id: String(i.athlete?.id ?? ''), headshot: freshHeadshot(i.athlete?.headshot?.href) || null, name: i.athlete?.displayName || '', jersey: i.athlete?.jersey || '', status: i.status || i.type?.description || '', detail: i.details?.type || '', what: [i.details?.type, i.details?.detail].filter(x => x && x !== 'Other' && x !== 'Not Specified' && !/^rest$/i.test(x)).join(' '), back: i.details?.returnDate || '' })) }));
   // ESPN's win probability, play by play: the home side's chance (and a draw's, where there can be one).
   // The game's plays by the wall clock (t in seconds): what the chart's marks and a finger on it go by.
   const wall = p => Date.parse(p?.wallclock || '') / 1000;
@@ -1842,7 +1842,7 @@ export function mergeInjuries(injuries = [], byTeam = {}) {
       const i = t.list.findIndex(y => (x.id && y.id === x.id) || y.name === x.name);
       if (i < 0) t.list.push(x);
       // (The why and when back from the league's report where the game's page leaves them out.)
-      else t.list[i] = { ...t.list[i], what: t.list[i].what || x.what || '', back: t.list[i].back || x.back || '' };
+      else t.list[i] = { ...t.list[i], what: t.list[i].what || x.what || '', jersey: t.list[i].jersey || x.jersey || '', back: t.list[i].back || x.back || '' };
     }
   }
   return out;
@@ -2374,6 +2374,7 @@ export function parseLeagueInjuries(data) {
       .map(i => ({
         id: String(i.athlete.links?.find(l => l.rel?.includes('playercard'))?.href?.match(/\/id\/(\d+)/)?.[1] ?? ''),
         name: i.athlete.displayName,
+        jersey: i.athlete.jersey || '',
         headshot: freshHeadshot(i.athlete.headshot?.href) || null,
         status: i.status || i.type?.description || '',
         what: [i.details?.type, i.details?.detail].filter(x => x && x !== 'Other' && x !== 'Not Specified').join(' '),
