@@ -3321,31 +3321,52 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
   const picked = new Set(f1MapPicks.get(ss.start));
   const placed = x => !x.retired && !x.stopped && (x.at || x.seg?.[1]);
   const order = [...b.cars].filter(placed).sort((x, y) => (picked.has(x.no) ? 1 : 0) - (picked.has(y.no) ? 1 : 0) || y.pos - x.pos);
-  // Where each car is drawn: on the track, but a car on top of another
-  // (a train, a car right behind) moved across the track beside it, one
-  // side then the other, so each dot and its number can be read.
+  // Where each car is drawn: on the track line, always (moved beside it,
+  // a bunch looked scattered off the circuit). A car on top of the one
+  // ahead is set back along the line behind it, a train of dots, so each
+  // number can be read; a whole pack only so far (then they touch).
   const R = 8.5;
+  const gapU = (R * 2.1) / Math.max(1, m.z || 1);
   const spot = new Map();
   const drawn = [];
   for (const car of [...order].sort((x, y) => x.pos - y.pos)) {
-    const f = car.at ? null : carFrac(car);
-    const [x, y] = car.at ? m.fit(car.at[0], car.at[1]) : m.fit(...m.pointAt(f));
-    let nx = 0, ny = 1;
-    if (f != null) {
-      const [x2, y2] = m.fit(...m.pointAt(f + 0.004));
-      const n = Math.hypot(x2 - x, y2 - y) || 1;
-      [nx, ny] = [-(y2 - y) / n, (x2 - x) / n];
+    if (car.at) {
+      const at = m.fit(car.at[0], car.at[1]);
+      drawn.push(at);
+      spot.set(car.no, { at });
+      continue;
     }
+    const f = carFrac(car);
+    const [x, y] = m.fit(...m.pointAt(f));
+    const [x2, y2] = m.fit(...m.pointAt(f + 0.004));
+    // (The share of a lap one dot's width is, here.)
+    const step = (gapU / (Math.hypot(x2 - x, y2 - y) || 1)) * 0.004 * 0.5;
+    let ff = f;
     let at = [x, y];
-    // (One car's width to either side at most, then half a car further along the track: never off it.)
-    for (let k = 1; k < 5 && drawn.some(([u, v]) => Math.hypot(u - at[0], v - at[1]) < R * 1.7); k++) {
-      const side = (k % 2 ? 1 : -1) * R * 1.7;
-      const on = k > 2 ? R : 0;
-      at = [x + nx * side - ny * on, y + ny * side + nx * on];
+    for (let k = 1; k <= 10 && drawn.some(([u, v]) => Math.hypot(u - at[0], v - at[1]) < gapU); k++) {
+      ff = f - step * k;
+      at = m.fit(...m.pointAt(ff));
     }
     drawn.push(at);
-    // (Where on the lap, and how far beside the line: the car is moved round the track to it, never across.)
-    spot.set(car.no, f == null ? { at } : { f, off: [at[0] - x, at[1] - y] });
+    spot.set(car.no, { f: ff, off: [0, 0] });
+  }
+  // A named car's tag on the side with room: right of its dot, else left
+  // (counting the other dots and the tags already put).
+  const boxes = [];
+  const tagSide = new Map();
+  for (const car of [...order].sort((x, y) => x.pos - y.pos)) {
+    const named = picked.size ? picked.has(car.no) : car.pos <= 3;
+    const sp = spot.get(car.no);
+    if (!named || !sp) continue;
+    const z = Math.max(1, m.z || 1);
+    const [x, y] = sp.at || m.fit(...m.pointAt(sp.f));
+    const w = (String(car.tla || car.no).length + 6) * 6.2 / z;
+    const h = 12 / z;
+    const box = left => (left ? [x - 11 / z - w, y - h / 2, x - 11 / z, y + h / 2] : [x + 11 / z, y - h / 2, x + 11 / z + w, y + h / 2]);
+    const hits = b2 => drawn.filter(([u, v]) => u + R / z > b2[0] && u - R / z < b2[2] && v + R / z > b2[1] && v - R / z < b2[3]).length + boxes.filter(o => o[0] < b2[2] && o[2] > b2[0] && o[1] < b2[3] && o[3] > b2[1]).length * 2;
+    const left = hits(box(true)) < hits(box(false));
+    boxes.push(box(left));
+    tagSide.set(car.no, left);
   }
   for (const car of order) {
     let g = m.cars.get(car.no);
@@ -3373,6 +3394,8 @@ function f1TrackMap(b, ss, { redraw = false } = {}) {
     g.classList.toggle('dim', picked.size > 0 && !picked.has(car.no));
     g.classList.toggle('pit', car.inPit);
     g.querySelector('.tm-tag').textContent = car.tla || car.no;
+    g.classList.toggle('tag-left', tagSide.get(car.no) === true);
+    g.querySelector('.tm-tag').setAttribute('x', tagSide.get(car.no) ? '-11' : '11');
     m.layer.append(g);
   }
   for (const [no, g] of m.cars) if (!b.cars.some(x => x.no === no && placed(x))) g.remove();

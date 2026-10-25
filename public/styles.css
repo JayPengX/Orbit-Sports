@@ -1587,6 +1587,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-car circle { fill: var(--team, #888); stroke: var(--q-surface, #1c1c1e); stroke-width: 1.6; }
 .tm-car .tm-tag { display: none; font-size: 10.5px; font-weight: 800; fill: var(--q-text); paint-order: stroke; stroke: var(--q-surface, #1c1c1e); stroke-width: 3px; }
 .tm-car.named .tm-tag { display: block; }
+.tm-car.tag-left .tm-tag { text-anchor: end; }
 .tm-car .tm-no { font-size: 7.5px; font-weight: 850; text-anchor: middle; fill: #fff; pointer-events: none; font-variant-numeric: tabular-nums; }
 .tm-car.light .tm-no { fill: #111; }
 .tm-car.dim .tm-no { opacity: 0.5; }
