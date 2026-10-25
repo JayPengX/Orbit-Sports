@@ -1509,7 +1509,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .inj-who small { color: var(--q-muted); font-size: 12px; }
 /* A long name or why on its one line, a little smaller (fitLine), never broken onto two. */
 .inj-who .one-line { display: block; min-width: 0; white-space: nowrap; overflow: hidden; }
-.inj-more { margin-top: 6px; }
+.inj-more { margin-top: 8px; font-size: 15px; }
 .inj-status { justify-self: inherit; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.6; white-space: nowrap; }
 .inj-status.bad { background: color-mix(in srgb, var(--q-bad, #ef4444) 16%, transparent); color: var(--q-bad, #ef4444); }
 .inj-status.warn { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #d97706; }

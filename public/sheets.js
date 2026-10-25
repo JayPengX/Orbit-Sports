@@ -969,19 +969,23 @@ function injuryLine(x, league, { lead = false } = {}) {
 // (a long report pushed the team's own tabs off the screen).
 const INJ_ORDER = ['bad', 'warn', 'good'];
 const INJ_SHOWN = 3;
+// (Opened stays open: a live game's page draws again every few seconds.)
+const injOpen = new Set();
 // One side's injuries, the same on a team's page and a game's: the most
 // serious first, three until 全部 is tapped.
 function injuryBox(list, league) {
   const sorted = [...list].sort((a, b) => INJ_ORDER.indexOf(injTone(a.status)) - INJ_ORDER.indexOf(injTone(b.status)));
-  const box = el('div', { class: 'inj-report' }, sorted.slice(0, sorted.length > INJ_SHOWN + 1 ? INJ_SHOWN : sorted.length).map(x => injuryLine(x, league)));
-  const rest = sorted.length > INJ_SHOWN + 1 ? sorted.length - INJ_SHOWN : 0;
+  const key = `${league}|${sorted.map(x => x.id || x.name).join(',')}`;
+  const all = injOpen.has(key) || sorted.length <= INJ_SHOWN + 1;
+  const box = el('div', { class: 'inj-report' }, sorted.slice(0, all ? sorted.length : INJ_SHOWN).map(x => injuryLine(x, league)));
+  const rest = all ? 0 : sorted.length - INJ_SHOWN;
   const more =
     rest > 0
       ? el('button', {
           class: 'section-more inj-more',
           type: 'button',
           text: L() === 'en' ? `All ${sorted.length}` : `全部 ${sorted.length} 人`,
-          onclick: ev => (box.append(...sorted.slice(INJ_SHOWN).map(x => injuryLine(x, league))), ev.currentTarget.remove())
+          onclick: ev => (injOpen.add(key), box.append(...sorted.slice(INJ_SHOWN).map(x => injuryLine(x, league))), ev.currentTarget.remove())
         })
       : null;
   return el('div', {}, [box, more]);
@@ -1205,10 +1209,13 @@ function matchSection(view, d, e, table, lw = {}) {
       const box = d.players.find(p => p.team === id)?.tables[0]?.rows || [];
       if (box.length && (d.status || e.status).state !== 'pre') {
         const out = box.filter(x => x.dnp || !x.stats?.some(v => v !== '' && v != null));
+        // (The inactive aren't in the box score at all: the injury report's, while it's tonight's.)
+        const boxed = new Set(box.flatMap(x => [x.id, x.name].filter(Boolean)));
+        const away = hurtRows(hurtOf(t)).filter(x => !boxed.has(x.id) && !boxed.has(x.name));
         return sideSquad(tag(id), [
           { name: W('先發', 'Starters'), list: box.filter(x => x.starter && !out.includes(x)), note: pos },
           { name: T('bench'), list: box.filter(x => !x.starter && !out.includes(x)), note: pos },
-          { name: W('未上場', 'Did not play'), list: out.map(sat), out: true }
+          { name: W('未上場', 'Did not play'), list: [...out.map(sat), ...away], out: true }
         ], e.league, sport);
       }
       // A game to come: the squad (its roster), the named starters first,
