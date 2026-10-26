@@ -9,6 +9,7 @@
 //   nbaCupRound(event) -> { key: 'QF' | 'SF' | 'F', title, leg, through } | null
 //   nbaCupGroups(games) -> [{ conf: 'East' | 'West', rows: [{ id, name, short, abbr, logo, w, l, pd, pf, left, zone }] }]
 //     zone: 'lead' (first in its group: the quarterfinals) | 'card' (the conference's best second: its wild card) | ''
+//   cupQuarters(groups) -> the quarterfinals as the groups stand: [predicted tie] (East 1 v 4, 2 v 3, then West's)
 
 const NBA_EAST = new Set(['1', '2', '4', '5', '8', '11', '14', '15', '17', '18', '19', '20', '27', '28', '30']);
 export const isEast = id => NBA_EAST.has(String(id));
@@ -98,5 +99,24 @@ function rank(rows, result) {
     if (pct(a) !== pct(b) || a.w !== b.w) return byRecord(a, b);
     const level = rows.filter(r => pct(r) === pct(a) && r.w === a.w);
     return h2h(b, level) - h2h(a, level) || b.pd - a.pd || b.pf - a.pf;
+  });
+}
+
+// The quarterfinals as the groups stand (Jay, 2026-10-26: the groups and
+// the knockout one view, the six winners and two wild cards going in):
+// each conference's group winners seeded 1-3 by record, its wild card 4th;
+// 1 v 4 and 2 v 3, the better seed at home. Before a group's first game: the
+// places by what fills them (東區分組第一, 東區外卡), no team.
+export function cupQuarters(groups) {
+  const side = (r, seed) => (r ? { id: r.id, name: r.name, short: r.short, abbr: r.abbr, logo: r.logo, seed } : null);
+  return ['East', 'West'].flatMap(conf => {
+    const list = (groups || []).filter(g => g.conf === conf);
+    const zh = conf === 'East' ? '東區' : '西區';
+    const lead = list.flatMap(g => g.rows.filter(r => r.zone === 'lead')).sort(byRecord);
+    const card = list.flatMap(g => g.rows.filter(r => r.zone === 'card'))[0];
+    const by = [...lead, card];
+    const label = seed => (seed === 4 ? `${zh}外卡` : `${zh}分組第一`);
+    const known = lead.length === list.length && list.length === 3 && card;
+    return [[1, 4], [2, 3]].map(([a, b]) => ({ projected: true, sides: known ? [side(by[a - 1], a), side(by[b - 1], b)] : [null, null], seeds: [a, b], labels: [label(a), label(b)] }));
   });
 }

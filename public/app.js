@@ -30,7 +30,7 @@ import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR } from './lib/playoffs.mjs';
-import { nbaCupRound, nbaCupGroups, isGroupPlay } from './lib/nbacup.mjs';
+import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters } from './lib/nbacup.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
@@ -1956,11 +1956,11 @@ const leagueOfBracket = k => (k === CUP ? 'nba' : k);
 const hasBracket = k => k === CUP || (LEAGUES[k]?.kind === 'match' && (!LEAGUES[k].asia || k === 'cpbl') && Boolean(FORMATS[k]));
 // The bracket 賽事 shows now: the open league's, or the NBA Cup's when it's picked.
 const shownBracket = () => (state.tab !== 'matches' ? '' : state.scores.league === 'nba' && cupPicked(state.scores) ? CUP : state.scores.league);
-// The NBA's 季後賽: the playoffs, the cup's groups or its knockout, a chip
-// each; the cup's picked first while it's played (its groups in November,
-// its knockout in December).
+// The NBA's 季後賽: the playoffs or the NBA Cup, a chip each (the cup's
+// groups and knockout one view: Jay, 2026-10-26); the cup's picked first
+// while it's played (November, December).
 const cupPicked = sc => {
-  if (sc.po == null) sc.po = { 11: 'groups', 12: 'ko' }[new Date(Date.now() + 8 * 3_600_000).getUTCMonth() + 1] || 'po';
+  if (sc.po == null) sc.po = [11, 12].includes(new Date(Date.now() + 8 * 3_600_000).getUTCMonth() + 1) ? 'cup' : 'po';
   return sc.po !== 'po';
 };
 const played = r => Number(r.stats?.GP ?? r.stats?.gamesPlayed ?? 0) || Number(r.stats?.W || 0) + Number(r.stats?.L || 0);
@@ -2046,7 +2046,15 @@ async function nbaCupData() {
   return { mode: 'last', ...last };
 }
 // A bracket's model from its data: the NBA Cup's with its groups too.
-const bracketOf = (league, d) => Object.assign(playoffModel({ league, ...d }), league === CUP ? { groups: nbaCupGroups(d.groupGames) } : {});
+const bracketOf = (league, d) => {
+  const model = playoffModel({ league, ...d });
+  if (league !== CUP) return model;
+  model.groups = nbaCupGroups(d.groupGames);
+  // The quarterfinals not drawn yet: as the groups stand (this season's).
+  const qf = model.rounds.find(r => r.key === 'QF');
+  if (model.mode !== 'last' && qf?.ties.every(t => !t) && model.groups.length) qf.ties = cupQuarters(model.groups);
+  return model;
+};
 async function playoffData(league) {
   if (league === CUP) return nbaCupData();
   if (league === 'cpbl') return cpblPlayoffData();
@@ -2252,6 +2260,8 @@ function playoffView(model, key) {
           .replace(/^(\S+) 敗者$/, '$1 loser')
           .replace(/^附加賽勝者$/, 'Play-off winner')
           .replace(/^附加賽$/, 'Play-In')
+          .replace(/^(東|西)區分組第一$/, (_, c) => `${c === '東' ? 'East' : 'West'} group winner`)
+          .replace(/^(東|西)區外卡$/, (_, c) => `${c === '東' ? 'East' : 'West'} wild card`)
           .replace(/^挑戰賽勝者$/, 'Challenge winner')
           .replace(/^一勝優勢$/, '1 win up')
           .replace(/^(\S+) 組$/, 'Group $1');
@@ -2888,12 +2898,13 @@ function renderScores() {
   const shown = brackets.get(poKey);
   const shownRounds = shown?.model?.rounds || [];
   const poFailed = !shown?.model && shown?.failed && !shown.loading;
-  const cupChips = knockView && sc.league === 'nba' ? segmented([['po', L({ zh: '季後賽', en: 'Playoffs' })], ['groups', L({ zh: 'NBA 盃小組賽', en: 'Cup groups' })], ['ko', L({ zh: 'NBA 盃淘汰賽', en: 'Cup knockout' })]], sc.po, v => ((sc.po = v), renderScores()), '', { chips: true }) : null;
-  const cupGroups = poKey === CUP && sc.po === 'groups' && shown?.model ? cupGroupsView(shown.model) : null;
+  const cupChips = knockView && sc.league === 'nba' ? segmented([['po', L({ zh: '季後賽', en: 'Playoffs' })], ['cup', L({ zh: 'NBA 盃', en: 'NBA Cup' })]], poKey === CUP ? 'cup' : 'po', v => ((sc.po = v), renderScores()), '', { chips: true }) : null;
+  // The cup: its knockout (the quarterfinals from the groups as they stand, bracketOf) and the groups under it.
+  const cupGroups = poKey === CUP && shown?.model ? cupGroupsView(shown.model) : null;
   const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
   const leadersView = !knockView && !tableView && sc.view === 'leaders' && hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn);
   if (leadersView) list = leadersOf(sc.league);
-  else if (knockView) list = el('div', { class: 'po-wrap' }, [cupChips, cupGroups || (poKey === CUP && sc.po === 'groups' ? (poFailed || shown?.model ? empty(t('failed')) : spinner()) : shownRounds.length ? playoffView(shown.model, poKey) : poFailed ? empty(t('failed')) : bracketShape())]);
+  else if (knockView) list = el('div', { class: 'po-wrap' }, [cupChips, shownRounds.length ? playoffView(shown.model, poKey) : poFailed ? empty(t('failed')) : bracketShape(), cupGroups]);
   else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
