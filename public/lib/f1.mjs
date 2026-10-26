@@ -165,15 +165,22 @@ export async function raceResult(start, sprint = false, en = false) {
   if (!race) return [];
   const d = await getJson(`${JOLPICA}/${year}/${race.round}/${sprint ? 'sprint' : 'results'}.json?limit=40`, { ttl: HOUR });
   const r = d?.MRData?.RaceTable?.Races?.[0];
-  return (r?.[sprint ? 'SprintResults' : 'Results'] || []).map(x => ({
+  const list = r?.[sprint ? 'SprintResults' : 'Results'] || [];
+  // A car laps down said so (+1 圈), from its laps and the winner's: Jolpica's
+  // 2026 rows say "Lapped" with a time that's no gap (Gasly "+2.171", a lap down).
+  const lead = Math.max(0, ...list.map(x => Number(x.laps) || 0));
+  const down = x => (/^(Finished|Lapped|\+\d+ Laps?)$/.test(x.status || '') ? lead - (Number(x.laps) || 0) : 0);
+  return list.map(x => ({
     ...finishOf(x, en),
+    // (Out but classified, 90% run: Albon P18 in Singapore 2026, its place kept, drawn as out.)
+    ...(x.status === 'Retired' ? { out: true, text: OUT.R[en ? 1 : 0], code: 'DNF' } : {}),
     driver: x.Driver || {},
     team: x.Constructor?.name || '',
     grid: Number(x.grid) || 0,
     // (Where a car out was put, and the laps it ran: drawn as the live board draws it.)
     place: Number(x.position) || 0,
     laps: Number(x.laps) || 0,
-    time: x.Time?.time || (/^\+\d+ Laps?$/.test(x.status) ? x.status : ''),
+    time: down(x) > 0 ? (en ? `+${down(x)} lap${down(x) > 1 ? 's' : ''}` : `+${down(x)} 圈`) : x.Time?.time || '',
     status: x.status || '',
     points: Number(x.points || 0),
     fastest: x.FastestLap?.rank === '1'
