@@ -317,8 +317,10 @@ export function askFinishes(events = [], then = () => {}) {
 // A session that's over, from F1's archive (f1-live.js /session.json): each
 // car's best lap and gap (a practice: ESPN keeps only the order), in the live
 // board's shape. Null when it isn't there (yet).
-// (v=2: the copies kept before a retired car had its place, "99" on the board, asked no more.)
-const ARCHIVE = start => `https://f1-live.orbit/session.json?start=${encodeURIComponent(new Date(start).toISOString())}&v=2`;
+// (v=2: the copies kept before a retired car had its place, "99" on the board,
+// asked no more; a practice's v=3: its best lap a deleted one before, P2
+// quicker than P1. Shared-Proxy builders/f1kept.js keeps the same addresses.)
+const ARCHIVE = (start, abbr = '') => `https://f1-live.orbit/session.json?start=${encodeURIComponent(new Date(start).toISOString())}&v=${/^FP/.test(abbr) ? 3 : 2}`;
 // Every car's laps in a session ({ cars: { no: [[lap, ms, gap, place, pit]…] } },
 // f1-live.js /laps.json): again each 15 seconds while it runs, kept once over.
 // Over but not in F1's archive yet (it comes an hour or more after the
@@ -335,7 +337,7 @@ export const sessionLaps = async (start, over) => {
 };
 // A circuit's outline, corners and the time a stop costs there (f1-live.js /circuit.json).
 export const circuitMap = (key, year) => getJson(`https://f1-live.orbit/circuit.json?key=${Number(key)}&year=${Number(year)}`, { ttl: 7 * 24 * 3_600_000 }).then(c => (c?.x?.length ? c : null));
-export const sessionTiming = start => getJson(ARCHIVE(start), { ttl: 24 * 3_600_000 }).then(b => (b?.cars?.length ? b : null));
+export const sessionTiming = (start, abbr) => getJson(ARCHIVE(start, abbr), { ttl: 24 * 3_600_000 }).then(b => (b?.cars?.length ? b : null));
 // The last reading of this session if it's recent (10 minutes), or its last
 // word (the session over: it stands until the official numbers come), else null.
 export const keptTiming = (abbr, start) => (last && sameSession(last, abbr, start) && (Date.now() - last.at < 10 * 60_000 || (feedOver(last) && Date.now() - last.at < 2 * 86_400_000)) ? last : null);
