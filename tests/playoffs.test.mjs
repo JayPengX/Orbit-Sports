@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { playoffModel, openRound, stageKey } from '../public/lib/playoffs.mjs';
+import { playoffModel, openRound, stageKey, unlGroupColumn } from '../public/lib/playoffs.mjs';
 import { nbaCupRound } from '../public/lib/nbacup.mjs';
 
 const rows = (p, n) => Array.from({ length: n }, (_, i) => ({ id: `${p}${i + 1}`, name: `${p}${i + 1}`, short: `${p}${i + 1}`, logo: '', stats: { GP: '20' } }));
@@ -51,6 +51,14 @@ test("The Nations League: League A's winners v another group's runners-up", () =
   const m = playoffModel({ league: 'nationsleague', mode: 'projected', groups: g });
   assert.deepEqual(m.rounds[0].ties.map(seeds), ['A11 v A22', 'A21 v A12', 'A31 v A42', 'A41 v A32']);
   assert.deepEqual(m.rounds[0].ties[0].labels, ['A1 組', 'A2 組']);
+  // League A's groups the column before it, each beside its winner's tie, its first two marked.
+  const col = unlGroupColumn(g, m.rounds[0].ties);
+  assert.deepEqual(col.map(c => c.group.name), ['A1', 'A2', 'A3', 'A4']);
+  assert.deepEqual(col[0].group.rows.map(r => r.zone), ['lead', 'card', '', '']);
+  // The draw made: each by where its winner went (A1's v A3's runner-up), B's never.
+  const tie = (a, b) => ({ sides: [{ id: a }, { id: b }] });
+  assert.deepEqual(unlGroupColumn(g, [tie('A41', 'A12'), tie('A11', 'A32'), tie('A21', 'A42'), tie('A31', 'A22')]).map(c => c.group.name), ['A4', 'A1', 'A2', 'A3']);
+  assert.deepEqual(unlGroupColumn(g.slice(1), m.rounds[0].ties), []);
 });
 
 test('NBA: the play-in in the bracket, each conference its 9 v 10, 8th seed game and 7 v 8', async () => {

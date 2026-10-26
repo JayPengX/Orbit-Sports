@@ -52,6 +52,7 @@ export const FORMATS = {
       return { quarterfinals: [[0, 1], [1, 0], [2, 3], [3, 2]].map(([w, r]) => ({ projected: true, sides: [t(w, 0), t(r, 1)], seeds: [1, 2], labels: [`${name(w)} 組`, `${name(r)} 組`] })) };
     }
   },
+  // (Its League A groups the bracket's first column: unlGroupColumn.)
   // The challenge (best of five, the half champion a win given) and the
   // Taiwan Series against the better half champion, who waits (espn.mjs cpblSeeds).
   cpbl: {
@@ -153,7 +154,7 @@ function cupProject(groups) {
 // waiting on another tie ("8/9 勝者") settled by what it is. `sure: true`
 // on the tie, and on each side clinched at its seed.
 // (A league by points or wins in seed order; MLB's seeds aren't its wins' order.)
-const SPORT = { mls: 'soccer', ucl: 'soccer', uel: 'soccer', uecl: 'soccer', nba: 'basketball' };
+const SPORT = { nationsleague: 'soccer', mls: 'soccer', ucl: 'soccer', uel: 'soccer', uecl: 'soccer', nba: 'basketball' };
 function markSure(rounds, groups, league) {
   if (!SPORT[league]) return;
   const place = new Map();
@@ -198,7 +199,9 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
     const games = events.filter(e => (r.keys || [r.key]).includes(e.round?.key));
     const stage = stages.find(s => stageKey(s.label) === r.key);
     const times = games.map(e => Date.parse(e.start)).filter(Number.isFinite);
-    r.dates = times.length ? { from: Math.min(...times), to: Math.max(...times) } : stage?.start ? { from: Date.parse(stage.start), to: Date.parse(stage.end) - 1 } : null;
+    // (A stage over a month and a half long is ESPN's window, not the games' days: the Nations League's quarterfinals "11/19–4/1", played 3/25–3/30. Said as by its end.)
+    const window = stage?.start ? { from: Date.parse(stage.start), to: Date.parse(stage.end) - 1 } : null;
+    r.dates = times.length ? { from: Math.min(...times), to: Math.max(...times) } : window ? (window.to - window.from > 45 * 86_400_000 ? { ...window, by: true } : window) : null;
     if (!r.dates && r === rounds[0] && startsAfter) r.dates = { from: startsAfter + 3 * 86_400_000, to: startsAfter + 3 * 86_400_000, about: true };
     const real = r.ties.filter(t => t && !t.projected && !t.gap);
     const live = real.some(t => t.live) || games.some(e => e.status?.state === 'in' && !undecided(e.home) && !undecided(e.away));
@@ -344,3 +347,28 @@ function alignFeeders(rounds) {
 }
 // The round to open on: the one on now, else the next unfinished, else the last.
 export const openRound = model => model.rounds.findIndex(r => r.state === 'live') + 1 || model.rounds.findIndex(r => r.state !== 'done') + 1 || model.rounds.length;
+
+// The Nations League's League A as the bracket's first column (Jay,
+// 2026-10-26: the NBA Cup's way, the tables in the bracket): its four
+// groups, each beside the quarterfinal its winner plays in (A1's winner v
+// A2's runner-up, A2's v A1's: the pair of groups beside the pair of ties
+// they feed), its first two marked (分組第一 green, 第二 blue).
+//   unlGroupColumn(groups, quarters) -> [{ group: { kind: 'unl', name: 'A1', rows } } | null] (a tie each), or []
+export function unlGroupColumn(groups, quarters) {
+  const list = (groups || []).filter(g => /^group a\d/i.test(g.en || g.name) && g.rows?.length);
+  if (list.length < 4 || !quarters?.length) return [];
+  const name = g => (g.en || g.name).replace(/^group\s*/i, '');
+  const used = new Set();
+  const card = g => ({ group: { kind: 'unl', name: name(g), rows: g.rows.map((r, i) => ({ ...r, zone: i === 0 ? 'lead' : i === 1 ? 'card' : '' })) } });
+  // A tie's group: the one whose winner is in it (as the table stands or the draw made it), else the one its label names (A1 組).
+  const out = quarters.map(t => {
+    const ids = new Set((t?.sides || []).filter(Boolean).map(x => String(x.id)));
+    const g = list.find(g => !used.has(g) && ids.has(String(g.rows[0].id))) || list.find(g => !used.has(g) && t?.labels?.[0] === `${name(g)} 組`);
+    if (!g) return null;
+    used.add(g);
+    return card(g);
+  });
+  // Any left over (a tie of two runners-up as the table stands): in the empty places, in order.
+  for (const g of list) if (!used.has(g)) { const i = out.indexOf(null); if (i < 0) break; out[i] = card(g); used.add(g); }
+  return out;
+}

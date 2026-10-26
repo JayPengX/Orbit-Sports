@@ -29,7 +29,7 @@ import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
-import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR } from './lib/playoffs.mjs';
+import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
 import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn } from './lib/nbacup.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { undecided } from './lib/bracket.mjs';
@@ -2048,6 +2048,7 @@ async function nbaCupData() {
 // A bracket's model from its data: the NBA Cup's with its groups too.
 const bracketOf = (league, d) => {
   const model = playoffModel({ league, ...d });
+  if (league === 'nationsleague') return withUnlGroups(model, d);
   if (league !== CUP) return model;
   model.groups = nbaCupGroups(d.groupGames);
   // The quarterfinals not drawn yet: as the groups stand (this season's).
@@ -2064,6 +2065,21 @@ const bracketOf = (league, d) => {
   }
   return model;
 };
+// The Nations League's League A groups in front of its quarterfinals (this season's, the draw made or not).
+function withUnlGroups(model, d) {
+  const qf = model.rounds.find(r => r.key === 'quarterfinals');
+  const column = model.mode !== 'last' && qf ? unlGroupColumn(d.groups, qf.ties) : [];
+  if (!column.length) return model;
+  const games = d.groupGames || [];
+  const times = games.map(e => Date.parse(e.start)).filter(Number.isFinite);
+  const groups = column.filter(Boolean).map(c => c.group.rows);
+  const rows = groups.flat();
+  // (Each meets each of its group twice.)
+  const done = groups.every(g => g.every(r => played(r) >= 2 * (g.length - 1)));
+  const on = games.some(e => e.status?.state === 'in');
+  model.rounds.unshift({ key: 'GROUPS', title: { zh: 'A 級小組賽', en: 'League A groups' }, ties: column, dates: times.length ? { from: Math.min(...times), to: Math.max(...times) } : null, state: on ? 'live' : done ? 'done' : rows.some(r => played(r) > 0) ? 'on' : 'later' });
+  return model;
+}
 async function playoffData(league) {
   if (league === CUP) return nbaCupData();
   if (league === 'cpbl') return cpblPlayoffData();
@@ -2077,12 +2093,18 @@ async function playoffData(league) {
   };
   if (LEAGUES[league].cup) {
     const start = Date.parse(season.start) || 0;
-    const all = (await seasonEvents(league).catch(() => [])).filter(e => e.round);
+    const every = await seasonEvents(league).catch(() => []);
+    const all = every.filter(e => e.round);
     const now = all.filter(e => Date.parse(e.start) >= start);
     // ESPN can keep a finished season as its current one (the FA Cup's, all summer): last season, said so.
-    if (now.length) return { mode: Date.parse(season.end) < Date.now() ? 'last' : 'live', events: now, stages, season: season.name };
+    // (The Nations League's: its table and group games too, League A's groups in its bracket.)
+    const unl = league === 'nationsleague' ? { groupGames: every.filter(e => !e.round && Date.parse(e.start) >= start) } : {};
+    if (now.length) {
+      const mode = Date.parse(season.end) < Date.now() ? 'last' : 'live';
+      return { mode, events: now, stages, season: season.name, ...unl, ...(league === 'nationsleague' && mode === 'live' ? { groups: await table().catch(() => null) } : {}) };
+    }
     const groups = FORMATS[league].project ? await table() : null;
-    if (groups) return { mode: 'projected', events: [], groups, stages, season: season.name };
+    if (groups) return { mode: 'projected', events: [], groups, stages, season: season.name, ...unl };
     // A season under way with no knockout games or table yet (the FA Cup's early rounds): its rounds' dates.
     if (season.phase && season.phase !== 'off' && stages.length && !FORMATS[league].project) return { mode: 'live', events: [], stages, season: season.name };
     let before = all.filter(e => Date.parse(e.start) < start);
@@ -2213,7 +2235,7 @@ const md = ms => {
   const d = new Date(ms);
   return `${d.getMonth() + 1}/${d.getDate()}`;
 };
-const roundDates = r => (!r.dates ? '' : r.dates.about ? `${locale === 'en' ? 'c.' : '約'} ${md(r.dates.from)}${locale === 'en' ? '' : ' 起'}` : md(r.dates.from) === md(r.dates.to) ? md(r.dates.from) : `${md(r.dates.from)}–${md(r.dates.to)}`);
+const roundDates = r => (!r.dates ? '' : r.dates.by ? (locale === 'en' ? `By ${md(r.dates.to)}` : `${md(r.dates.to)} 前`) : r.dates.about ? `${locale === 'en' ? 'c.' : '約'} ${md(r.dates.from)}${locale === 'en' ? '' : ' 起'}` : md(r.dates.from) === md(r.dates.to) ? md(r.dates.from) : `${md(r.dates.from)}–${md(r.dates.to)}`);
 // How many games a round's series runs to, where its games don't say yet.
 const SERIES_LEN = { mlb: { RD16: 3, QTR: 5, SEMI: 7, FINAL: 7 }, nba: { RD16: 7, QTR: 7, SEMI: 7, FINAL: 7 } };
 // (`key`: the bracket's, 'nbacup' for the NBA Cup; its logos and sheets the league's.)
@@ -2232,7 +2254,9 @@ function playoffView(model, key) {
           : el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Last season' : '上季' }), document.createTextNode(`${model.season ? ` ${model.season}` : ''}${en ? ': this season’s playoffs haven’t begun.' : '　本季季後賽尚未開打。'}`)])
         : null;
   // The NBA Cup's groups in it: what their bars mean, as a table's legend says (each group's first in, and each conference's best second, the wild card).
-  const legend = model.rounds[0]?.key === 'GROUPS' ? el('p', { class: 'po-legend' }, [['lead', en ? 'Group winner' : '分組第一'], ['card', en ? 'Wild card: best 2nd' : '外卡・各區最佳第二']].map(([k, w]) => el('span', { class: 'po-key', style: `--zone: ${PICTURE_COLOR[k]}`, text: w }))) : null;
+  // (The Nations League's: each group's first two, the winner against another group's runner-up.)
+  const keys = key === CUP ? [['lead', en ? 'Group winner' : '分組第一'], ['card', en ? 'Wild card: best 2nd' : '外卡・各區最佳第二']] : [['lead', en ? 'Group winner' : '分組第一'], ['card', en ? 'Runner-up: v another winner' : '分組第二・對他組第一']];
+  const legend = model.rounds[0]?.key === 'GROUPS' ? el('p', { class: 'po-legend' }, keys.map(([k, w]) => el('span', { class: 'po-key', style: `--zone: ${PICTURE_COLOR[k]}`, text: w }))) : null;
   // A round's length (七戰四勝): its games' series, else the league's format.
   const lenOf = r => key === CUP ? '' : bestOf(r.ties.flatMap(t => t?.games || []).find(g => g.series?.games)) || bestOf({ series: { games: SERIES_LEN[league]?.[r.key] } });
   const stateText = r => (r.state === 'done' ? (en ? 'Done' : '已完成') : r.state === 'live' ? (en ? 'On now' : '進行中') : roundDates(r) || (en ? 'TBD' : '待定'));
@@ -2313,6 +2337,12 @@ function playoffView(model, key) {
   // as a small table, its place in the quarterfinals marked (分組第一 green,
   // the wild card blue), beside the tie it fills.
   const groupCard = g => {
+    // A Nations League group: its four by points, its first two marked.
+    if (g.kind === 'unl')
+      return el('div', { class: 'br-tie br-group' }, [
+        el('small', { class: 'br-gname', text: en ? `Group ${g.name}` : `${g.name} 組` }),
+        ...g.rows.map(x => el('div', { class: 'br-grow', ...(x.zone ? { style: `--zone: ${PICTURE_COLOR[x.zone]}` } : {}) }, [sideLogo(x, league, 'xs'), el('span', { class: 'br-name', text: x.short || x.name }), el('span', { class: 'num br-rec', text: en ? `${x.stats.P} pts` : `${x.stats.P} 分` })]))
+      ]);
     const conf = g.conf === 'East' ? (en ? 'East' : '東區') : en ? 'West' : '西區';
     return el('div', { class: `br-tie br-group${g.kind === 'card' ? ' br-card' : ''}` }, [
       el('small', { class: 'br-gname', text: g.kind === 'card' ? (en ? `${conf} wild card · 2nds` : `${conf}外卡・各組第二`) : en ? `${conf} group` : `${conf}小組` }),
