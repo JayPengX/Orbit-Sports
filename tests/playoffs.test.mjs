@@ -101,3 +101,17 @@ test('the NBA Cup knockout: its rounds from the notes, each conference its own s
   }
   assert.equal(m.rounds[2].ties[0].winner, String(T.NY));
 });
+
+test('A predicted tie the table has settled is sure (Nashville first in the East, 3 to go)', () => {
+  // MLS East on 2026-10-26: 31 of 34 played.
+  const pts = [70, 55, 55, 51, 47, 46, 42, 42, 39, 38, 36, 35, 33, 30, 25];
+  const east = pts.map((p, i) => ({ id: `E${i + 1}`, name: `E${i + 1}`, short: `E${i + 1}`, logo: '', stats: { GP: '31', P: String(p) } }));
+  const m = playoffModel({ league: 'mls', mode: 'projected', groups: [{ en: 'Eastern Conference', rows: east }, { en: 'Western Conference', rows: rows('W', 15) }] });
+  const [first, ...rest] = m.rounds[1].ties.filter(t => t && !t.gap && t.sides[0].id.startsWith('E'));
+  // 1 v the wild card's winner: 1st is clinched, the other place is whoever wins 8 v 9.
+  assert.equal(first.sure, true);
+  assert.ok(rest.every(t => !t.sure));
+  assert.ok(!m.rounds[0].ties[0].sure);
+  // Nothing settled yet: still a prediction.
+  assert.ok(!m.rounds[1].ties.some(t => t?.sure && t.sides[0].id.startsWith('W')));
+});

@@ -324,9 +324,11 @@ const ARCHIVE = start => `https://f1-live.orbit/session.json?start=${encodeURICo
 // Over but not in F1's archive yet (it comes an hour or more after the
 // flag): the proxy's own log of it, read again each minute until it is
 // (`live` says which).
-const lapsUrl = (start, final) => `https://f1-live.orbit/laps.json?start=${encodeURIComponent(new Date(start).toISOString())}${final ? '&final=1' : ''}`;
+// (Over: v=2, phones kept the log's part a day as the whole, Austin 2026's
+// laps 42–56; now 10 minutes, the proxy's whole copy kept for good anyway.)
+const lapsUrl = (start, final) => `https://f1-live.orbit/laps.json?start=${encodeURIComponent(new Date(start).toISOString())}${final ? '&final=1&v=2' : ''}`;
 export const sessionLaps = async (start, over) => {
-  const got = await getJson(lapsUrl(start, over), { ttl: over ? 24 * 3_600_000 : 2_000 }).catch(() => null);
+  const got = await getJson(lapsUrl(start, over), { ttl: over ? 10 * 60_000 : 2_000 }).catch(() => null);
   if (got?.cars || !over) return got?.cars ? got : null;
   const kept = await getJson(lapsUrl(start, false), { ttl: 60_000 });
   return kept?.cars ? { ...kept, live: true } : null;

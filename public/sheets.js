@@ -3675,7 +3675,11 @@ function f1LapCompare(b, ss) {
       const neutral = neutralLaps(b.control || [], b.lap?.now || lapHi);
       const odd = (no, lap) => mode !== 'place' && (pitsOf(no).has(lap) || pitsOf(no).has(lap - 1) || neutral.some(p => lap >= p.from && lap <= p.to + 1));
       const usual = series.flatMap(sr => sr.pts.filter(p => !odd(sr.no, p[0])));
-      const ranged = usual.length ? usual : all;
+      // (The gap is one line through it all, stops and the safety car too:
+      // broken there, Singapore's read as broken, the owner 2026-10-26; a
+      // stop's jump is the race, its ring says why.)
+      const whole = mode !== 'time';
+      const ranged = whole || !usual.length ? all : usual;
       let top, bottom, label, ticks, pad = 0;
       if (mode === 'gap') {
         const vs = ranged.map(p => p[1]);
@@ -3684,7 +3688,7 @@ function f1LapCompare(b, ss) {
         // 16 s back, the lines sat in the bottom third under an empty top.)
         pad = Math.max(0.5, (hi - lo) * 0.15);
         top = lo > 3 ? lo - pad : Math.min(0, lo);
-        bottom = Math.max(top + 1, hi + (top < 0 || top > 0 ? pad : 0));
+        bottom = Math.max(top + 1, hi + pad);
         label = v => (Math.abs(v) < 0.05 ? a.tla : `${v > 0 ? '+' : ''}${v.toFixed(Math.abs(bottom - top) < 5 ? 1 : 0)}`);
         ticks = top > 0 ? [top + pad, (top + bottom) / 2, bottom - pad] : [...new Set([top, 0, (top + bottom) / 2, bottom])];
       } else if (mode === 'place') {
@@ -3724,7 +3728,7 @@ function f1LapCompare(b, ss) {
         let prev = null;
         for (const p of s.pts) {
           // (A stop's laps and the safety car's: the shading says why it breaks there.)
-          if (!inRange(p[1]) || odd(s.no, p[0])) {
+          if (!whole && (!inRange(p[1]) || odd(s.no, p[0]))) {
             prev = null;
             continue;
           }

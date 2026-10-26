@@ -2257,6 +2257,7 @@ function playoffView(model, key) {
     // A play-in game not decided: what winning and losing it means.
     if (t.outcome && !t.winner && !t.live && (t.projected || t.pending || !t.next)) return en ? t.outcome.en : t.outcome.zh;
     // (The 8th seed game sits in the play-in's column: named on its card; English's words too long for 預測 beside them.)
+    if (t.projected && t.sure) return en ? 'Confirmed' : '已確定';
     if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', t.labels?.find(Boolean) && t.sides.every(Boolean) ? t.labels.filter(Boolean).map(labelText).join(' v ') : '', en && t.roundTitle ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
     // The last round's winner takes the title (道奇 奪冠), never "晉級".
@@ -2297,7 +2298,7 @@ function playoffView(model, key) {
     // A game on at a break (中場休息, 暫停): its countdown ticking in the note as everywhere else.
     const on = t?.live && t.games.find(g => g.status?.state === 'in');
     const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said, ...(on ? breakTick(on, said) : {}) }) : null];
-    if (!t || t.projected || t.pending) return el('div', { class: `br-tie ${t?.pending ? 'pending' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
+    if (!t || t.projected || t.pending) return el('div', { class: `br-tie ${t?.pending ? 'pending' : t?.sure ? 'sure' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
     // (Its sheet from the card as last drawn: patchPlayoffs moves __open over with the newer games.)
     const card = el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => card.__open() }, body);
     card.__open = () => openTie(t, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh);
