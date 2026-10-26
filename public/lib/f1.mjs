@@ -355,9 +355,17 @@ export const qualiCut = (part, entries = []) => (part >= 1 && part < entries.len
 // tyre is the stint in the same place when the runs and stints agree in
 // number (a used set's stint counts the laps it had before, so laps can't be
 // matched by counting). A long run needs MIN_RUN clean laps; laps over 104%
-// of the run's median are cool-down or traffic, not pace.
+// of the run's median are cool-down or traffic, not pace. `gone`: the times
+// taken away for track limits (f1-live.js deletedOf): still pace in a run
+// (Austin 2026's Friday took most of Norris's long run), never the best a
+// run is measured from.
 export const MIN_RUN = 5;
-export function practicePace(laps = [], stints = []) {
+// A practice's laps within this of the car's best are its running (a long
+// run's fuel-heavy laps sit 6-8% off a push lap): the long runs here and
+// 車手比較's timed laps (pushLaps) by the one span, so the two count the
+// same laps (13 laps against 9, Austin 2026's Leclerc, the owner 2026-10-26).
+export const PRACTICE_SPAN = 1.08;
+export function practicePace(laps = [], stints = [], gone = []) {
   const timed = laps.filter(x => x[1] > 0).sort((a, b) => a[0] - b[0]);
   const runs = [];
   let cur = null;
@@ -377,18 +385,19 @@ export function practicePace(laps = [], stints = []) {
   let from = 1;
   for (const st of stints) spans.push([from, (from += st.laps || 0) - 1, st.c]);
   const tyreAt = lap => spans.find(([a, b]) => lap >= a && lap <= b)?.[2] || null;
-  // Pace is within 8% of the driver's own best: slower is a cool-down,
-  // traffic or a flag, whatever the run's median.
-  const own = Math.min(...list.flat().map(x => x[1]));
+  // Pace is within PRACTICE_SPAN of the driver's own best: slower is a
+  // cool-down, traffic or a flag, whatever the run's median.
+  const kept = list.flat().filter(x => !gone.includes(x[1]));
+  const own = Math.min(...(kept.length ? kept : list.flat()).map(x => x[1]));
   const best = {};
   const long = [];
   list.forEach(run => {
     const c = tyreAt(run[Math.floor(run.length / 2)][0]);
-    for (const x of run) if (c && (!best[c] || x[1] < best[c].ms)) best[c] = { ms: x[1], lap: x[0] };
+    for (const x of run) if (c && !gone.includes(x[1]) && (!best[c] || x[1] < best[c].ms)) best[c] = { ms: x[1], lap: x[0] };
     if (run.length < MIN_RUN) return;
     const sorted = run.map(x => x[1]).sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
-    const clean = run.filter(x => x[1] <= median * 1.04 && x[1] <= own * 1.08);
+    const clean = run.filter(x => x[1] <= median * 1.04 && x[1] <= own * PRACTICE_SPAN);
     if (clean.length < MIN_RUN) return;
     const avg = clean.reduce((n, x) => n + x[1], 0) / clean.length;
     // Falling off: the last third against the first (ms a lap, + slower).
@@ -409,13 +418,27 @@ export function practicePace(laps = [], stints = []) {
 // or out of the pits (`pits`, pitLaps), within `within` of the car's best
 // (a cool-down, a lap sat in the garage, out of it; a qualifying's 105%, a
 // run given up under a flag out too: Antonelli's 1:39 at Austin 2026 set
-// the chart's range; a practice's 107%, its long runs in). Their laps by
-// number line nobody up: one car's eighth a flying lap, another's in the garage.
-// `gone`: its times taken away for track limits (f1-live.js deletedOf), out.
-export function pushLaps(laps = [], pits = new Set(), within = 1.07, gone = []) {
-  const run = laps.filter(x => x[1] > 0 && !pits.has(x[0]) && !gone.includes(x[1]));
-  const best = Math.min(...run.map(x => x[1]));
+// the chart's range; a practice's PRACTICE_SPAN, its long runs in). Their
+// laps by number line nobody up: one car's eighth a flying lap, another's in
+// the garage. `gone`: its times taken away for track limits (f1-live.js
+// deletedOf): kept, marked `.gone` (shown struck out), never the best the
+// span is measured from (Verstappen's deleted 1:35.860 at Austin 2026).
+export function pushLaps(laps = [], pits = new Set(), within = PRACTICE_SPAN, gone = []) {
+  const run = laps.filter(x => x[1] > 0 && !pits.has(x[0])).map(x => (gone.includes(x[1]) ? Object.assign([...x], { gone: true }) : x));
+  const kept = run.filter(x => !x.gone);
+  const best = Math.min(...(kept.length ? kept : run).map(x => x[1]));
   return run.filter(x => x[1] <= best * within);
+}
+// A row of times' tick marks on round numbers (ms): 0.5s, 1s, 2s or 5s apart,
+// as many as fit between `top` and `bottom` up to four, each `label`led to
+// the tenth only when the step needs it (1:34.0 / 1:35.0 / 1:36.1 read as
+// three different steps, the owner 2026-10-26).
+export function lapTicks(top, bottom) {
+  const span = bottom - top;
+  const step = [500, 1000, 2000, 5000, 10000].find(s => span / s <= 4) || 20000;
+  const out = [];
+  for (let v = Math.ceil(top / step) * step; v <= bottom; v += step) out.push(v);
+  return { ticks: out, tenths: step < 1000 };
 }
 export function pitLaps(laps = [], stops = [], stints = []) {
   return new Set([...stops.map(s => s[0]), ...laps.filter(x => x[4]).map(x => x[0]), ...stintStops(stints)]);

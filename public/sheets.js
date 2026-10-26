@@ -20,7 +20,7 @@ import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, apart, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
@@ -1293,7 +1293,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // season's in; ESPN's last five (every competition) under three there yet.
   const forms = sides.map(s => {
     const own = d?.seasonGames && leagueForm(d.seasonGames, s.id, e.league, Date.parse(e.start));
-    if (own) return own.map(x => ({ result: resultFor(x, s.id), opp: sidesFor(x, s.id).them.short || '', score: `${x.away.score}-${x.home.score}` }));
+    if (own) return own.map(x => ({ result: resultFor(x, s.id), opp: sidesFor(x, s.id).them.short || '', score: sidesOf(x).map(t => t.score).join('-') }));
     const games = d?.seasonGames === undefined ? [] : d?.form.find(f => f.team === s.id)?.games || [];
     // ESPN's last five reach back into the preseason (a 2-0 team showed 敗勝勝勝勝,
     // Jay 2026-10-26): no more than the games its record counts.
@@ -3552,7 +3552,7 @@ function f1LapCompare(b, ss) {
     // side by side, the second (lap numbers lined nobody up: one car's eighth
     // a flying lap, another's in the garage; Austin 2026's was all pit laps).
     const quali = /^(Qual|SS|SQ)$/.test(ss.abbr);
-    const timed = race ? {} : Object.fromEntries(picks.map(no => [no, pushLaps(laps[no] || [], pitsOf(no), quali ? 1.05 : 1.07, b.deleted?.[no] || [])]));
+    const timed = race ? {} : Object.fromEntries(picks.map(no => [no, pushLaps(laps[no] || [], pitsOf(no), quali ? 1.05 : PRACTICE_SPAN, b.deleted?.[no] || [])]));
 
     // The picker: every car by its place, face and code, folded unless asked for (or nobody's picked).
     // (Opened by itself with nobody picked, it stays open as they're picked: it closed after the first, before.)
@@ -3704,7 +3704,7 @@ function f1LapCompare(b, ss) {
         ? picks.map(no => ({ no, c: car(no), pts: (places[no] || []).map((p, lap) => [lap, p]).filter(([, p]) => p > 0) }))
         : race
           ? picks.map(no => ({ no, c: car(no), pts: (laps[no] || []).filter(x => x[1] > 0).map(x => [x[0], x[1]]) }))
-          : picks.map(no => ({ no, c: car(no), pts: timed[no].map((x, k) => [k + 1, x[1]]) }));
+          : picks.map(no => ({ no, c: car(no), pts: timed[no].map((x, k) => Object.assign([k + 1, x[1]], { gone: x.gone })) }));
     const all = series.flatMap(s => s.pts);
     let chart = el('p', { class: 'muted small fs-empty', text: en ? 'Laps show here as they are run.' : '跑完的圈會出現在這裡' });
     if (all.length) {
@@ -3745,13 +3745,17 @@ function f1LapCompare(b, ss) {
         const first = Math.ceil(top), last = Math.floor(bottom);
         ticks = [...new Set([first, Math.round((first + last) / 2), last])];
       } else {
-        // Racing laps set the range: a pit lap or one behind the safety car runs off the bottom.
+        // Racing laps set the range: a pit lap or one behind the safety car
+        // runs off the bottom. A qualifying's or a practice's timed laps are
+        // already only its running (pushLaps): every one in (a 6% cap sat
+        // Austin 2026's Friday long runs flat along the bottom).
         const best = Math.min(...ranged.map(p => p[1]));
-        const cap = best * 1.06;
+        const cap = race ? best * 1.06 : Infinity;
         top = best - 300;
         bottom = Math.max(top + 1000, Math.min(cap, Math.max(...ranged.map(p => p[1]).filter(v => v <= cap))) + 300);
-        label = v => fmtLap(v).replace(/(\.\d)\d\d$/, '$1');
-        ticks = [top + 300, (top + bottom) / 2, bottom - 300];
+        const t = lapTicks(top, bottom);
+        label = v => fmtLap(v).replace(/\.(\d)\d\d$/, t.tenths ? '.$1' : '');
+        ticks = t.ticks;
       }
       const Y = v => T0 + ((Math.min(Math.max(v, top), bottom) - top) / (bottom - top)) * (H - T0 - B0);
       const inRange = v => v >= top - (bottom - top) * 0.04 && v <= bottom + (bottom - top) * 0.04;
@@ -3793,7 +3797,7 @@ function f1LapCompare(b, ss) {
           .map(p => `<circle class="lc-pit" cx="${X(p[0]).toFixed(1)}" cy="${(Y(p[1]) + nudge(k)).toFixed(1)}" r="3.2" style="stroke:${col}"/>`)
           .join('');
         // (Timed laps: a ring on each one's best.)
-        const pb = race ? null : s.pts.reduce((x, p) => (!x || p[1] < x[1] ? p : x), null);
+        const pb = race ? null : s.pts.filter(p => !p.gone).reduce((x, p) => (!x || p[1] < x[1] ? p : x), null);
         const ring = pb ? `<circle class="lc-pit" cx="${X(pb[0]).toFixed(1)}" cy="${Y(pb[1]).toFixed(1)}" r="3.2" style="stroke:${col}"/>` : '';
         return `<path class="lc-line${dashed(s.no) ? ' dash' : ''}" d="${d}" style="stroke:${col}"/>${lone}${dots}${ring}`;
       }).join('');
@@ -3815,7 +3819,7 @@ function f1LapCompare(b, ss) {
         const lap = i == null ? null : laps[i];
         series.forEach((sr, k) => {
           // (Untouched: the latest lap of a race, each one's best of the timed laps.)
-          const p = lap == null ? (race ? sr.pts.at(-1) : sr.pts.reduce((x, q) => (!x || q[1] < x[1] ? q : x), null)) : sr.pts.find(x => x[0] === lap);
+          const p = lap == null ? (race ? sr.pts.at(-1) : sr.pts.filter(q => !q.gone).reduce((x, q) => (!x || q[1] < x[1] ? q : x), null)) : sr.pts.find(x => x[0] === lap);
           chipVal[k].textContent = valueText(p?.[1]);
           marks[k].hidden = lap == null || !p || !inRange(p[1]) || odd(sr.no, p[0]);
           if (p && lap != null) Object.assign(marks[k].style, { left: `${(X(p[0]) / W) * 100}%`, top: `${((Y(p[1]) + nudge(k)) / H) * 100}%` });
@@ -3854,10 +3858,12 @@ function f1LapCompare(b, ss) {
           el('thead', {}, [el('tr', {}, [el('th', { class: 'dc-label', text: race ? (en ? 'Lap' : '圈') : '#' }), ...picks.map(no => el('th', { class: 'dc-colour', style: `--team:${colourOf(no)}` }, [el('span', { class: 'dc-code' }, [f1Face(ss, car(no).name), f1NameTap(ss, car(no), car(no).tla || f1Sur(car(no)))])]))])]),
           el('tbody', {}, lapNos.map(l => {
             const ts = picks.map(no => lapAt(no, l));
-            const best = Math.min(...ts.filter(x => x?.[1]).map(x => x[1]));
+            // Green: the quickest of two or more on the row (one alone beats nobody; a deleted time, struck out, never).
+            const fair = ts.filter(x => x?.[1] && !x.gone);
+            const best = fair.length > 1 ? Math.min(...fair.map(x => x[1])) : null;
             return el('tr', {}, [
               el('th', { class: 'dc-label num', text: String(l) }),
-              ...ts.map((x, i) => cell(x?.[1] ? `${fmtLap(x[1])}${pitAt(picks[i], l) ? ' P' : ''}` : '—', `${x?.[1] === best && picks.length > 1 ? 'quick' : ''}${pitAt(picks[i], l) ? ' pit' : ''}`))
+              ...ts.map((x, i) => cell(x?.[1] ? `${fmtLap(x[1])}${pitAt(picks[i], l) ? ' P' : ''}` : '—', [x?.[1] && !x.gone && x[1] === best ? 'quick' : '', x?.gone ? 'gone' : '', pitAt(picks[i], l) ? 'pit' : ''].filter(Boolean).join(' ')))
             ]);
           }))
         ])
@@ -3968,7 +3974,7 @@ function f1PracticePace(b, ss) {
   const draw = () => {
     const { laps } = lapsFor(b, ss, over, () => box.isConnected && draw());
     const cars = b.cars.filter(c => c.name && c.stints?.length);
-    const paced = cars.map(c => ({ c, p: practicePace(laps[c.no] || [], c.stints) }));
+    const paced = cars.map(c => ({ c, p: practicePace(laps[c.no] || [], c.stints, b.deleted?.[c.no] || []) }));
     const runs = paced.filter(x => x.p.long).sort((x, y) => x.p.long.avg - y.p.long.avg);
     const cards = [];
     if (runs.length) {

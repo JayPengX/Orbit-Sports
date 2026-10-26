@@ -475,7 +475,7 @@ export function eventRow(e, { league = true, day = true, picked = false } = {}) 
     const attrs = e.abroad ? { class: `event-row abroad${live ? ' live' : ''}` } : { class: `event-row${live ? ' live' : ''}${mine ? ' mine' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) };
     return el(e.abroad ? 'div' : 'button', attrs, [
       el('div', { class: 'event-meta' }, [statusEl(e, day)]),
-      el('div', { class: 'event-sides' }, [sideLine(e.away, e, w.away), sideLine(e.home, e, w.home), series ? el('small', { class: 'series-line', text: series }) : null, liveLine(e), rowTags(e, { league, picked, tag: stageTag(e, ctx.locale) })])
+      el('div', { class: 'event-sides' }, [...sidesOf(e).map(s => sideLine(s, e, s === e.home ? w.home : w.away)), series ? el('small', { class: 'series-line', text: series }) : null, liveLine(e), rowTags(e, { league, picked, tag: stageTag(e, ctx.locale) })])
     ]);
   }
   // A race weekend (or one of its sessions): one row.

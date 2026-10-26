@@ -182,7 +182,31 @@ test('pushLaps: a qualifying\'s timed laps, no pit lap, no cool-down', () => {
   assert.deepEqual(pushLaps(laps, pits).map(x => x[0]), [2, 5, 8, 14, 17]);
   // (A qualifying's: the run given up, 1:39, out.)
   assert.deepEqual(pushLaps(laps, pits, 1.05).map(x => x[0]), [2, 5, 8, 14]);
-  // (A time taken away for track limits: out, the 105% from the next best, 1:34.756.)
-  assert.deepEqual(pushLaps(laps, pits, 1.05, [94035]).map(x => x[0]), [2, 5, 8, 17]);
+  // (A time taken away for track limits: kept, marked gone, the 105% from the next best, 1:34.756.)
+  const gone = pushLaps(laps, pits, 1.05, [94035]);
+  assert.deepEqual(gone.map(x => x[0]), [2, 5, 8, 14, 17]);
+  assert.deepEqual(gone.filter(x => x.gone).map(x => x[0]), [14]);
   assert.deepEqual(pushLaps([], new Set()), []);
+});
+
+test('a practice: every lap of a long run is among the timed laps, deleted ones too', async () => {
+  const { practicePace, pitLaps, PRACTICE_SPAN } = await import('../public/lib/f1.mjs');
+  // Austin 2026's Friday, Leclerc: softs from lap 13, a long run at 6-7% off his 1:35.291, five of its times deleted.
+  const t = [[2, 97502], [4, 96600], [7, 96500], [8, 128100], [9, 420600, null, 1, 1], [10, 95291], [11, 127400], [12, 445700, null, 1, 1], [13, 101088], [14, 100691], [15, 100644], [16, 100656], [17, 101217], [18, 102086], [19, 102075], [20, 101539], [21, 101962], [22, 102075], [23, 102200], [24, 116605], [25, 126700], [26, 101242], [27, 102100], [28, 144900]];
+  const stints = [{ c: 'HARD', laps: 8 }, { c: 'SOFT', laps: 3 }, { c: 'SOFT', laps: 19 }];
+  const gone = [97502, 102086, 102075, 101962, 101242];
+  const timed = pushLaps(t, pitLaps(t, [], stints), PRACTICE_SPAN, gone);
+  const run = practicePace(t, stints, gone).long;
+  assert.equal(run.laps, 13);
+  const shown = new Set(timed.map(x => x[0]));
+  for (let lap = run.from; lap <= run.to; lap++) if (lap !== 24 && lap !== 25) assert.ok(shown.has(lap), `lap ${lap}`);
+  // (A deleted lap is never the best on its compound.)
+  assert.equal(practicePace([[1, 99000, null, 1, 1], [2, 90000], [3, 95000], [4, 96000]], [{ c: 'SOFT', laps: 5 }], [90000]).best.SOFT.ms, 95000);
+});
+
+test('lapTicks: round numbers, to the tenth only when the step is under a second', async () => {
+  const { lapTicks } = await import('../public/lib/f1.mjs');
+  assert.deepEqual(lapTicks(93735, 96424), { ticks: [94000, 95000, 96000], tenths: false });
+  assert.deepEqual(lapTicks(94991, 102462), { ticks: [96000, 98000, 100000, 102000], tenths: false });
+  assert.deepEqual(lapTicks(94000, 95200), { ticks: [94000, 94500, 95000], tenths: true });
 });

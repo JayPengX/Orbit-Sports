@@ -1701,6 +1701,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .dc-table td.quick { color: var(--q-good, #22c55e); font-weight: 750; }
 .dc-table td.best { color: #a855f7; font-weight: 800; }
 .dc-table td.pit { color: var(--q-muted); }
+.dc-table td.gone { color: var(--q-muted); text-decoration: line-through; }
 .dc-tyre span { display: inline-flex; align-items: center; gap: 4px; }
 .dc-tyre .tyre { width: 20px; height: 20px; }
 .dc-tyre small { font-size: 12px; color: var(--q-muted); }
