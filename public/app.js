@@ -2969,7 +2969,10 @@ function renderScores() {
   const head = pageHead(name, followButton(() => mine.has(sc.league), () => (toggleLeague(sc.league), renderScores()), t('followLeague')));
   if (name.length > (locale === 'en' ? 14 : 7)) head.classList.add('long');
   const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : []), ...(hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn) ? [['leaders', L({ zh: '數據領先', en: 'Leaders' })]] : [])];
-  const views = viewList.length > 1 ? segmented(viewList, knockView ? 'bracket' : tableView ? 'table' : leadersView ? 'leaders' : 'games', v => ((sc.view = v), renderScores()), 'views') : null;
+  const viewNow = knockView ? 'bracket' : tableView ? 'table' : leadersView ? 'leaders' : 'games';
+  const views = viewList.length > 1 ? segmented(viewList, viewNow, v => ((sc.view = v), renderScores()), 'views') : null;
+  // (For the page's swipe: the tab beside this one.)
+  sc.views = { list: viewList.map(([k]) => k), now: viewNow };
   const other = tableView || knockView || leadersView;
   const parts = [head, leagueChips, views, other ? null : strip, other ? null : stages, list].filter(Boolean);
   if (scoresQuiet && box.childNodes.length === parts.length) return parts.forEach((n, i) => morph(box.childNodes[i], n));
@@ -3535,15 +3538,16 @@ kitUI.daySwipe($('panel-live'), dir => {
   const d = stripStep(liveRange, liveDay(), dir);
   return Boolean(d && (pickLiveDay(d), true));
 });
-// 賽事's too: 全部's days, or a league's game days (its schedule shown, not its table).
+// 賽事's too: 全部's days; a league's tabs (Jay, 2026-10-26: 賽程, 排名,
+// 季後賽, 數據領先 one swipe apart; its days are the strip's).
 kitUI.daySwipe($('panel-matches'), dir => {
   const sc = state.scores;
   if (sc.league === ALL) {
     const d = stripStep(allRange, allDay(), dir);
     return Boolean(d && (pickAllDay(d), true));
   }
-  const d = scoresBarEl.isConnected && sc.range && stripStep(sc.range, sc.date, dir);
-  return Boolean(d && (pickScoresDay(d), true));
+  const v = sc.views?.list[sc.views.list.indexOf(sc.views.now) + dir];
+  return Boolean(v && ((sc.view = v), renderScores(), true));
 });
 // The refresh button: today (or the day on screen) and the open league again.
 async function reloadNow() {
