@@ -317,7 +317,8 @@ export function askFinishes(events = [], then = () => {}) {
 // A session that's over, from F1's archive (f1-live.js /session.json): each
 // car's best lap and gap (a practice: ESPN keeps only the order), in the live
 // board's shape. Null when it isn't there (yet).
-const ARCHIVE = start => `https://f1-live.orbit/session.json?start=${encodeURIComponent(new Date(start).toISOString())}`;
+// (v=2: the copies kept before a retired car had its place, "99" on the board, asked no more.)
+const ARCHIVE = start => `https://f1-live.orbit/session.json?start=${encodeURIComponent(new Date(start).toISOString())}&v=2`;
 // Every car's laps in a session ({ cars: { no: [[lap, ms, gap, place, pit]…] } },
 // f1-live.js /laps.json): again each 15 seconds while it runs, kept once over.
 // Over but not in F1's archive yet (it comes an hour or more after the
@@ -486,6 +487,20 @@ export const pointsFor = (abbr, pos, out = false) => (out ? 0 : POINTS[abbr]?.[p
 // The table as it stands: each row ({ key, pts, rank, … }) with the points
 // it takes now (`gains`: key → points) added, in the new order (the points,
 // then the order it stood in), each with where it was and is.
+// The championship just after one weekend (its column `roundKey` in ESPN's
+// table, a column a weekend in the season's order): each row's points before
+// it (`before`, the columns ahead of it), its place then (`rank`) and that
+// weekend's (`add`); null when the table has no such column.
+export function standingAfter(group, roundKey) {
+  const keys = (group?.rounds || []).map(r => r.key);
+  const i = keys.indexOf(roundKey);
+  if (i < 0) return null;
+  const n = v => Number(String(v ?? '').replace(/[^\d.]/g, '')) || 0;
+  return (group.rows || [])
+    .map(r => ({ ...r, before: keys.slice(0, i).reduce((sum, k) => sum + n(r.stats?.[k]), 0), add: n(r.stats?.[keys[i]]) }))
+    .sort((a, b) => b.before - a.before)
+    .map((r, j) => ({ ...r, rank: j + 1 }));
+}
 export function asItStands(rows = [], gains = new Map()) {
   return rows
     .map((r, i) => ({ ...r, was: Number(r.rank) || i + 1, add: gains.get(r.key) || 0, total: (Number(r.pts) || 0) + (gains.get(r.key) || 0) }))

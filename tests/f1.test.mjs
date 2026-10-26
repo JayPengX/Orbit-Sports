@@ -164,3 +164,13 @@ test('a race on: who led each lap, the drawn drivers’ stops and retirements, f
   const ev = liveRaceEvents(feed, ['Kimi Antonelli', 'Max Verstappen', 'Charles Leclerc']);
   assert.deepEqual(ev, [[0, 'lead', 0], [3, 'pit', 0], [3, 'lead', 2], [5, 'lead', 0], [33, 'out', 2]]);
 });
+
+test('the championship just after a past weekend: its points before, its place then, and that weekend’s', async () => {
+  const { standingAfter, asItStands } = await import('../public/lib/f1.mjs');
+  const group = { rounds: [{ key: 'AUS' }, { key: 'CHN' }, { key: 'JPN' }], rows: [{ id: 'a', stats: { AUS: '25', CHN: '0', JPN: '18' } }, { id: 'b', stats: { AUS: '18', CHN: '25', JPN: '25' } }, { id: 'c', stats: { AUS: '-', CHN: '18', JPN: '' } }] };
+  const s = standingAfter(group, 'CHN');
+  assert.deepEqual(s.map(r => [r.id, r.before, r.rank, r.add]), [['a', 25, 1, 0], ['b', 18, 2, 25], ['c', 0, 3, 18]]);
+  const t = asItStands(s.map(r => ({ ...r, key: r.id, pts: r.before })), new Map(s.map(r => [r.id, r.add])));
+  assert.deepEqual(t.map(r => [r.id, r.total, r.was, r.now]), [['b', 43, 2, 1], ['a', 25, 1, 2], ['c', 18, 3, 3]]);
+  assert.equal(standingAfter(group, 'USA'), null);
+});

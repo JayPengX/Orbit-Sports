@@ -20,7 +20,7 @@ import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, apart, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, settleScoring, liveLapEnds, liveRaceEvents } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
@@ -1869,8 +1869,11 @@ function winProbCard(line, e, timeline, events = []) {
     const [a, b] = m.periods || [];
     // 第2–3節, 2–3局 (one word for both ends).
     const when = a && b && b > a ? (en ? `${periodName(sport, a, en)}–${periodName(sport, b, en)}` : `${periodName(sport, a, en).replace(/[節局]$/, '')}–${periodName(sport, b, en).replace(/^第/, '')}`) : pointStamp(timeline, sport, m.t != null ? { ...pts[m.i], t: m.t } : pts[m.i], en);
-    const score = scoreAt(pts, m.i, events, e.home.id);
-    return [when, lateClock(sport, pts[m.i]), score ? inOrder(e, score).join('–') : ''].filter(Boolean).join(' · ');
+    // A run that took the lead (or tied it): the score on the play that did,
+    // not where the lagging price peaked (98–91 for a lead taken at 89–88).
+    const at = m.lead ?? m.i;
+    const score = scoreAt(pts, at, events, e.home.id);
+    return [when, lateClock(sport, pts[at]), score ? inOrder(e, score).join('–') : ''].filter(Boolean).join(' · ');
   };
   // Whose chance it lifted, and by how much.
   const gain = m => `${side[m.delta >= 0 ? 'home' : 'away'].name} +${Math.round(Math.abs(m.delta) * 100)}%`;
@@ -3824,13 +3827,28 @@ function f1LiveTable(b, ss) {
     if (!drivers.length) return put(box);
     const cars = b.cars.filter(c => c.name);
     const carOf = r => cars.find(c => fold(c.name) === fold(r.en || r.name)) || cars.find(c => surname(c.name) === surname(r.en || r.name));
-    if (over && counted(groups[0])) return put(box);
     const gain = c => pointsFor(ss.abbr, c.pos, c.retired || c.stopped);
-    const dRows = asItStands(drivers.map(r => ({ ...r, key: r.id, pts: r.stats?.PTS, rank: r.stats?.RK })), new Map(drivers.map(r => [r.id, carOf(r) ? gain(carOf(r)) : 0])));
     const teamOf = name => f1Constructor(name).name;
-    const tGain = new Map();
-    for (const c of cars) tGain.set(teamOf(c.team), (tGain.get(teamOf(c.team)) || 0) + gain(c));
-    const tRows = asItStands(teams.map(r => ({ ...r, key: teamOf(r.en || r.name), pts: r.stats?.PTS, rank: r.stats?.RK })), tGain);
+    // Counted in the table (any race over a while): the championship just
+    // after this weekend, from its own column (the tab stood empty for every
+    // past race, 2026-10-26); its column not found, nothing.
+    const settled = over && counted(groups[0]);
+    const after = (group, key) => {
+      const s = standingAfter(group, roundOf(group, b.meeting || '')?.key);
+      return s && asItStands(s.map(r => ({ ...r, key: key(r), pts: r.before })), new Map(s.map(r => [key(r), r.add])));
+    };
+    let dRows;
+    let tRows;
+    if (settled) {
+      dRows = after(groups[0], r => r.id);
+      tRows = (groups[1] && after(groups[1], r => teamOf(r.en || r.name))) || [];
+      if (!dRows) return put(box);
+    } else {
+      dRows = asItStands(drivers.map(r => ({ ...r, key: r.id, pts: r.stats?.PTS, rank: r.stats?.RK })), new Map(drivers.map(r => [r.id, carOf(r) ? gain(carOf(r)) : 0])));
+      const tGain = new Map();
+      for (const c of cars) tGain.set(teamOf(c.team), (tGain.get(teamOf(c.team)) || 0) + gain(c));
+      tRows = asItStands(teams.map(r => ({ ...r, key: teamOf(r.en || r.name), pts: r.stats?.PTS, rank: r.stats?.RK })), tGain);
+    }
     const view = f1TableView === 'teams' && tRows.length ? 'teams' : 'drivers';
     const list = view === 'teams' ? tRows : dRows;
     const all = f1TableAll.has(ss.start);
@@ -3855,7 +3873,7 @@ function f1LiveTable(b, ss) {
     // (Ten teams and an eleventh: all of them, no button for one more row.)
     const more = list.length > 12 ? el('button', { class: 'q-btn small lc-more', type: 'button', text: all ? (en ? 'Top 10' : '只看前 10') : en ? `All ${list.length}` : `全部 ${list.length} ${view === 'teams' ? '隊' : '位'}`, onclick: () => (all ? f1TableAll.delete(ss.start) : f1TableAll.add(ss.start), draw(groups)) }) : null;
     const what = ss.abbr === 'SR' ? (en ? 'sprint' : '衝刺賽') : en ? 'race' : '正賽';
-    const key = over ? (en ? `▲▼ places moved; + points from this ${what}.` : `▲▼ 名次變化 · + 本場得分`) : en ? `If the ${what} ended now. ▲▼ places moved; + points from this ${what}.` : `假如${what}現在結束 · ▲▼ 名次變化 · + 本場得分`;
+    const key = settled ? (en ? 'Just after this weekend. ▲▼ places moved; + its points.' : '本站結束時 · ▲▼ 名次變化 · + 本站得分') : over ? (en ? `▲▼ places moved; + points from this ${what}.` : `▲▼ 名次變化 · + 本場得分`) : en ? `If the ${what} ended now. ▲▼ places moved; + points from this ${what}.` : `假如${what}現在結束 · ▲▼ 名次變化 · + 本場得分`;
     put(box, card(over ? (en ? 'Championship' : '積分榜') : en ? 'Championship, as it stands' : '即時積分榜', el('div', { class: 'lc' }, [pick, lead ? el('p', { class: 'st-lead', text: lead }) : null, el('ol', { class: 'fs-rows st-rows' }, rows), more, el('p', { class: 'muted small lc-key-note', text: key })]), { sub: over ? null : el('span', { class: 'live-dot-text', text: en ? 'Live' : '即時' }) }));
   };
   // Over, until ESPN's table has it in (title.mjs roundCounted, the rule the
@@ -4314,7 +4332,10 @@ function fillField(s, e) {
           return draw(rows, board, !lastWord);
         }
         draw(rows, lastWord ? { ...lastWord, final: true } : null, !lastWord);
-        sessionTiming(ss.start)
+        // (A session's first read is rebuilt from OpenF1, up to half a
+        // minute: asked again, three times 15 s apart, the proxy's copy kept by then.)
+        const late = (n = 3) => sessionTiming(ss.start).catch(() => null).then(x => x || (n > 1 && at === pick && box.isConnected ? new Promise(r => setTimeout(r, 15_000)).then(() => late(n - 1)) : null));
+        late()
           .then(late => {
             if (!late) return;
             f1Numbers.set(key, { rows, board: late });
