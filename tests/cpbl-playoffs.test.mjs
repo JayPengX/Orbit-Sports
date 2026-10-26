@@ -83,3 +83,25 @@ test('a side held scoreless shows 0, not an empty score', () => {
   assert.equal(e.away.score, 0);
   assert.equal(e.home.winner, true);
 });
+
+test('a CPBL play-off game that may not be played says 如需, as MLB’s do; a series won drops the rest', () => {
+  const post = (id, start, home, away, h, a) => game(id, start, home, away, { playoff: 'final', state: 'post', homeScore: h, awayScore: a });
+  const pre = (id, start, home, away) => game(id, start, home, away, { playoff: 'final' });
+  // Brothers lead 3-2 after five: G6 is sure, G7 only if needed.
+  const five = [
+    post('t1', '2026-10-18T09:05:00.000Z', monkeys, brothers, 1, 2),
+    post('t2', '2026-10-19T09:05:00.000Z', monkeys, brothers, 3, 2),
+    post('t3', '2026-10-21T10:35:00.000Z', brothers, monkeys, 5, 0),
+    post('t4', '2026-10-22T10:35:00.000Z', brothers, monkeys, 1, 4),
+    post('t5', '2026-10-23T10:35:00.000Z', brothers, monkeys, 6, 2)
+  ];
+  const rounds = list => cpblPlayoffs(parseAsia(list, 'cpbl', 'zh')).map(e => e.stage.round.zh);
+  const later = [pre('t6', '2026-10-25T09:05:00.000Z', monkeys, brothers), pre('t7', '2026-10-26T09:05:00.000Z', monkeys, brothers)];
+  assert.deepEqual(rounds([...five, ...later]).slice(5), ['台灣大賽 G6', '台灣大賽 G7（如需）']);
+  assert.equal(cpblPlayoffs(parseAsia([...five, ...later], 'cpbl', 'en'))[6].stage.round.en, 'Taiwan Series - Game 7 If Necessary');
+  // Before any game: G5 to G7 may not be played.
+  assert.deepEqual(rounds(['t1', 't2', 't3', 't4', 't5', 't6', 't7'].map((id, i) => pre(id, `2026-10-${18 + i}T09:05:00.000Z`, monkeys, brothers))), ['台灣大賽 G1', '台灣大賽 G2', '台灣大賽 G3', '台灣大賽 G4', '台灣大賽 G5（如需）', '台灣大賽 G6（如需）', '台灣大賽 G7（如需）']);
+  // 3-3: G7 is sure; Brothers win G6 (4-2): G7 goes.
+  assert.deepEqual(rounds([...five, post('t6', '2026-10-25T09:05:00.000Z', monkeys, brothers, 3, 1), later[1]]).at(-1), '台灣大賽 G7');
+  assert.equal(rounds([...five, post('t6', '2026-10-25T09:05:00.000Z', monkeys, brothers, 1, 3), later[1]]).length, 6);
+});

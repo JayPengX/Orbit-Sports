@@ -778,8 +778,17 @@ export function cpblPlayoffs(events, seeds = null) {
       if (h !== a) series.wins[h > a ? e.home.id : e.away.id] += 1;
     }
     const s = CPBL_SERIES[series.kind];
-    tagged.set(e.id, { series, stage: { key: s.key, zh: s.key === 'final' ? '總冠軍賽' : '季後賽', en: s.key === 'final' ? 'Finals' : 'Playoffs', round: { zh: `${s.zh} G${series.n}`, en: `${s.en} - Game ${series.n}` }, special: true } });
+    tagged.set(e.id, { series, n: series.n, stage: { key: s.key, zh: s.key === 'final' ? '總冠軍賽' : '季後賽', en: s.key === 'final' ? 'Finals' : 'Playoffs', round: { zh: `${s.zh} G${series.n}`, en: `${s.en} - Game ${series.n}` }, special: true } });
   }
+  // A game to come that may not be played (as MLB's "If Necessary"): one side
+  // could have won the series before it, whatever happens till then. 如需 on
+  // it; a series won drops the games left in it.
+  const maybe = t => {
+    const need = (CPBL_BEST[t.series.kind] + 1) / 2;
+    const over = t.series.games.filter(g => g.status.state === 'post').length;
+    const lead = Math.max(...Object.values(t.series.wins));
+    return lead + Math.max(0, t.n - 1 - over) >= need;
+  };
   // How each series stands now, on every one of its games (as ESPN's do).
   const standing = new Map(
     list.map(x => {
@@ -795,11 +804,14 @@ export function cpblPlayoffs(events, seeds = null) {
     })
   );
   const regular = { key: 'regular', zh: '例行賽', en: 'Regular season', round: null, special: false };
-  return events.map(e => {
+  return events.flatMap(e => {
     const t = tagged.get(e.id);
-    if (!t) return { ...e, stage: e.playoff ? e.stage : regular };
+    if (!t) return [{ ...e, stage: e.playoff ? e.stage : regular }];
     const s = CPBL_SERIES[t.series.kind];
-    return { ...e, stage: t.stage, round: { key: t.series.kind, title: s.en, leg: 0, through: standing.get(t.series).completed ? Object.keys(t.series.wins).filter(id => t.series.wins[id] >= (CPBL_BEST[t.series.kind] + 1) / 2) : [] }, series: standing.get(t.series) };
+    const pre = e.status.state === 'pre';
+    if (pre && standing.get(t.series).completed) return [];
+    const stage = pre && maybe(t) ? { ...t.stage, round: { zh: `${t.stage.round.zh}（如需）`, en: `${t.stage.round.en} If Necessary` } } : t.stage;
+    return [{ ...e, stage, round: { key: t.series.kind, title: s.en, leg: 0, through: standing.get(t.series).completed ? Object.keys(t.series.wins).filter(id => t.series.wins[id] >= (CPBL_BEST[t.series.kind] + 1) / 2) : [] }, series: standing.get(t.series) }];
   });
 }
 // A month to come with no list yet (the season over, next month's not
