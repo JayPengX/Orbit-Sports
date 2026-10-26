@@ -538,3 +538,11 @@ test('a return date the report itself says there is none of: its own word instea
   assert.equal(returnWord("Beal (knee) will not be ready for the start of the regular season."), '');
   assert.equal(returnWord(), '');
 });
+
+test("an injury's report word kept through the game page's merge (its 回歸待定 is read from it)", async () => {
+  const { mergeInjuries, returnWord } = await import('../public/lib/espn.mjs');
+  const game = [{ team: '30', list: [{ id: '5', name: 'Kon Knueppel', status: 'Out', what: 'Hamstring', back: '2026-10-31' }] }];
+  const report = { 30: [{ id: '5', name: 'Kon Knueppel', back: '2026-10-31', comment: 'Knueppel (hamstring) is without a timetable for a return.' }] };
+  const x = mergeInjuries(game, report)[0].list[0];
+  assert.equal(returnWord(x.comment), 'tbd');
+});

@@ -493,7 +493,8 @@ export async function openMatch(e) {
 // One player's why and when back from the league's report (by id, else name).
 function whyOf(list, x) {
   const r = (list || []).find(y => (x.id && y.id === x.id) || y.name === x.name);
-  return r ? { what: x.what || r.what || '', back: x.back || r.back || '' } : {};
+  // (The report's word too: its 回歸待定 / 本季報銷 is read from it, the date alone said Saturday.)
+  return r ? { what: x.what || r.what || '', back: x.back || r.back || '', comment: x.comment || r.comment || '' } : {};
 }
 
 // Basketball: each side's top scorer (the face, then who and their line, the team fouls), live or over.
