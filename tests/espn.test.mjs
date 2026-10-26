@@ -522,3 +522,19 @@ test('standings: MLB playoff picture, seeds across the divisions', async () => {
   assert.deepEqual(east.rows.map(r => r.note), ['分區第一', '外卡', '外卡', '', '']);
   assert.equal(seedPicture(parseStandings(fx('epl-standings')), 'epl').picture.length, 0);
 });
+
+test('a return date the report itself says there is none of: its own word instead', async () => {
+  const { returnWord } = await import('../public/lib/espn.mjs');
+  // ESPN's NBA report, 2026-10-27 (each with a return date filled in).
+  assert.equal(returnWord('Knueppel (hamstring) is without a timetable for a return, Rod Boone of The Charlotte Observer reports.'), 'tbd');
+  assert.equal(returnWord("Head coach Charles Lee said Monday that White (calf) remains without a timeline for a return."), 'tbd');
+  assert.equal(returnWord("At this point in time, the team isn't ready to commit to a return date."), 'tbd');
+  assert.equal(returnWord('Furphy was diagnosed with a torn right ACL on Monday and will miss the remainder of the season.'), 'season');
+  assert.equal(returnWord('Veesaar was diagnosed with a torn right ACL and is expected to miss the 2026-27 season.'), 'season');
+  assert.equal(returnWord('Hukporti has sustained a season-ending ruptured right Achilles tendon.'), 'season');
+  // A date that stands.
+  assert.equal(returnWord('Strawther (knee) was diagnosed with a left knee sprain Friday and will be re-evaluated in six weeks.'), '');
+  assert.equal(returnWord("Boswell (knee) is out for Wednesday's season opener against the Nets."), '');
+  assert.equal(returnWord("Beal (knee) will not be ready for the start of the regular season."), '');
+  assert.equal(returnWord(), '');
+});

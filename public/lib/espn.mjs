@@ -2407,6 +2407,13 @@ export function normalizeTeamName(name) {
 
 // ---- Injury report (ESPN's) ----------------------------------------------------------------
 //
+// What a report says of his return when ESPN's date can't be trusted: it
+// fills one in anyway (Knueppel "without a timetable for a return" read
+// 10/31 週六 回歸, the owner 2026-10-27). 'season': out for the season;
+// 'tbd': no telling when; '' the date stands.
+const SEASON_OUT = /season[- ]ending|\bout for the (rest of the )?season\b|\bmiss (the )?(rest|remainder) of the( \d{4}-\d{2})? season\b|\bmiss the \d{4}-\d{2} season\b/i;
+const NO_TIMETABLE = /\b(without|no|not have|n't have)\b[^.]{0,20}\b(timetable|timeline|time ?frame)\b|(\bnot|n't) ready to commit to a return\b|\bindefinitely\b/i;
+export const returnWord = (comment = '') => (SEASON_OUT.test(comment) ? 'season' : NO_TIMETABLE.test(comment) ? 'tbd' : '');
 // A league's whole injury report in one read ({ teamId: [player] }): the
 // NBA and MLB have one; the rest answer none. Live (ten minutes):
 // statuses change on game day.

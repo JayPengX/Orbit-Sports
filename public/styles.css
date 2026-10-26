@@ -898,10 +898,12 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .q-btn.with-mark { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .injury-tag { margin-top: 6px; font-size: 12.5px; font-weight: 650; color: var(--loss); }
 .injury-note { margin-top: 8px; font-size: 13px; line-height: 1.45; }
-/* A player's injury under his hero: the status, what's wrong, when he's back, on a line (wrapping by whole parts). */
-.player-inj { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.player-inj strong { font-size: 15px; font-weight: 650; }
-.player-inj small { font-size: 13px; }
+/* A player's injury under his hero: the status and what's wrong, when he's back under it, the report's word below a hairline. */
+.player-injury { margin-bottom: 12px; }
+.player-inj { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.player-inj strong { font-size: 17px; font-weight: 700; }
+.player-inj-back { margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--q-label-2); }
+.player-injury .injury-note { margin-top: 12px; padding-top: 12px; border-top: 0.5px solid var(--q-sep); font-size: 14px; line-height: 1.55; }
 .mate-grid { display: grid; grid-template-columns: minmax(0, 1fr) 84px 84px; align-items: center; gap: 8px 10px; font-size: 14px; }
 /* Each side's face over their name; the teammate's opens their sheet. */
 .mate-who { display: grid; justify-items: center; gap: 5px; min-width: 0; font: inherit; color: inherit; background: none; border: 0; padding: 0; }

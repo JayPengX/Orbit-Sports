@@ -5,7 +5,7 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/orbit.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, logSeasonLine, logSeason, clubAbroad } from './lib/espn.mjs';
+import { returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, logSeasonLine, logSeason, clubAbroad } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -948,7 +948,9 @@ function gameCards(game, id, league) {
 const INJ_TONE = { out: 'bad', 'injured reserve': 'bad', 'injured list': 'bad', suspension: 'bad', doubtful: 'bad', questionable: 'warn', 'day-to-day': 'warn', probable: 'good' };
 const injTone = status => Object.entries(INJ_TONE).find(([k]) => String(status).toLowerCase().includes(k))?.[1] || 'warn';
 // When he's due back ("11/8 週日 回歸"); a date already gone by is the report's old guess: left off.
-function backText(at) {
+function backText(at, comment = '') {
+  const word = returnWord(comment);
+  if (word) return L() === 'en' ? (word === 'season' ? 'out for the season' : 'return TBD') : word === 'season' ? '本季報銷' : '回歸待定';
   if (!at || !(localDate(Date.parse(at)) >= localDate(Date.now()))) return '';
   return L() === 'en' ? `back ${dayLabel(localDate(Date.parse(at)))}` : `${dayLabel(localDate(Date.parse(at)))} 回歸`;
 }
@@ -956,7 +958,7 @@ function backText(at) {
 // (`lead`: a 陣容 card's, the number's column first, so its rows line up with the squad's above.)
 function injuryLine(x, league, { lead = false } = {}) {
   const en = L() === 'en';
-  const back = backText(x.back);
+  const back = backText(x.back, x.comment);
   // One row a player: the face and name, what and when under it on one line, the status at the right.
   const sub = [x.whatText ?? (x.what ? (en ? x.what : injuryWhatZh(x.what)) : null), back || null].filter(Boolean);
   return el('button', { class: `inj-row${lead ? ' lead' : ''}`, type: 'button', disabled: x.id ? null : true, onclick: () => x.id && ctx.openPlayer(league, x.id, { name: x.name, logo: x.headshot }) }, [
@@ -5371,7 +5373,8 @@ export async function openPlayer(league, id, fallback = {}) {
       // Why he's out and when he's back (Jay, 2026-10-22: said only on the
       // team's page), the report's word under it: a card of its own under
       // the hero, whatever the tab.
-      a.injury ? el('div', { class: 'q-card pad player-injury' }, [el('div', { class: 'player-inj' }, [el('span', { class: `inj-status ${injTone(a.injury.status)}`, text: injuryText(a.injury.status) }), (en ? a.injury.what : injuryWhatZh(a.injury.what)) ? el('strong', { text: en ? a.injury.what : injuryWhatZh(a.injury.what) }) : null, backText(a.injury.back) ? el('small', { class: 'muted nb', text: backText(a.injury.back) }) : null]), a.injury.comment ? el('p', { class: 'injury-note muted' }, [zhLater(a.injury.comment)]) : null]) : null,
+      // (Three tiers, not one crowded line: the status and what's wrong, when he's back under it, the report's word below a hairline.)
+      a.injury ? el('div', { class: 'q-card pad player-injury' }, [el('div', { class: 'player-inj' }, [el('span', { class: `inj-status ${injTone(a.injury.status)}`, text: injuryText(a.injury.status) }), (en ? a.injury.what : injuryWhatZh(a.injury.what)) ? el('strong', { text: en ? a.injury.what : injuryWhatZh(a.injury.what) }) : null]), backText(a.injury.back, a.injury.comment) ? el('p', { class: 'player-inj-back num', text: backText(a.injury.back, a.injury.comment) }) : null, a.injury.comment ? el('p', { class: 'injury-note muted' }, [zhLater(a.injury.comment)]) : null]) : null,
       strip,
       tabsBox,
       tabBody
