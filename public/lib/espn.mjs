@@ -46,6 +46,16 @@ export const LIVE_TTL = 2_000;
 // ---- Parsing: statuses and sides --------------------------------------------------
 
 const logoOf = team => team?.logo || team?.logos?.[0]?.href || null;
+// A side's short name, ESPN's unless it cut the full one mid-word or
+// squeezed it ("Worcester Ci", "Kid'minster": the FA Cup's non-league
+// clubs, 2026-10): then the full one ("Man United" kept).
+const shortName = who => {
+  const [short, full] = [who.shortDisplayName || who.shortName || '', who.displayName || ''];
+  if (!short) return full;
+  const cut = full !== short && full.startsWith(short) && /\w$/.test(short) && /^\w/.test(full.slice(short.length));
+  const squeezed = /\w'\w/.test(short) && !full.includes("'");
+  return full && (cut || squeezed) ? full : short;
+};
 function parseSide(c) {
   if (!c) return null;
   const team = c.team || {};
@@ -56,7 +66,7 @@ function parseSide(c) {
     id: String(who.id ?? c.id ?? ''),
     athlete: !c.team && Boolean(c.athlete),
     name: who.displayName || who.fullName || who.name || '',
-    short: who.shortDisplayName || who.shortName || who.displayName || '',
+    short: shortName(who),
     abbr: who.abbreviation || (who.shortName || '').slice(0, 3).toUpperCase(),
     logo: logoOf(team) || athlete.flag?.href || freshHeadshot(athlete.headshot?.href) || null,
     color: team.color ? `#${team.color}` : null,
@@ -2023,7 +2033,12 @@ export function cupBadges(league) {
     badgesRead.set(
       league,
       getJson(fotmobLeagueUrl(league), { ttl: LEADERS_TTL })
-        .then(d => (noteBadges(d?.teams || []), Boolean(d?.teams?.length)))
+        .then(d => {
+          // (A cup without a table, the FA Cup's, has its clubs in its fixtures alone.)
+          const teams = [...(d?.teams || []), ...(d?.fixtures?.allMatches || []).flatMap(m => [m.home, m.away]).filter(t => t?.id != null)];
+          noteBadges(teams);
+          return teams.length > 0;
+        })
         .catch(() => (badgesRead.delete(league), false))
     );
   return badgesRead.get(league);

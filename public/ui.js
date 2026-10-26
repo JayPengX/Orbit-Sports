@@ -210,21 +210,22 @@ export const withWatch = (row, e) => {
 // never the dark screen's version (the Rays' light mark vanished on it).
 // A game's two sides in the kit's order (soccer home first, the rest away first).
 export const sidesOf = e => sidesInOrder({ home: e.home, away: e.away, sport: e.league });
-export function logo(url, name, cls = '', { onWhite = false } = {}) {
+// `club`: its English name, a cup's badges found by it (the name shown may be Chinese: 牛津城).
+export function logo(url, name, cls = '', { onWhite = false, club = name, guess = false } = {}) {
   const plain = () => {
     const flag = countryFlag(name);
     if (flag) return el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: flag });
     const n = markPic('shield', name, cls) || el('span', { class: `logo logo-fallback ${cls}`, 'aria-hidden': 'true', text: (name || '?').trim().slice(0, 1) });
     // (Swapped for the club's badge if one comes later: refreshBadges.)
-    if (name) n.dataset.club = name;
+    if (club) n.dataset.club = club;
     return n;
   };
   // A club ESPN has no badge for: FotMob's, where a cup's page gave it (leaders.mjs badgeOf).
   const fallback = () => {
-    const badge = badgeOf(name);
+    const badge = badgeOf(club);
     return badge && badge !== url ? logoPicture(badge, null, `logo ${cls}`, plain) : plain();
   };
-  return logoPicture(smallPhoto(freshHeadshot(url)), onWhite ? null : darkLogo(url), `logo ${cls}${PLATED.test(url || '') ? ' plate' : ''}`, fallback);
+  return logoPicture(smallPhoto(freshHeadshot(url)), onWhite ? null : darkLogo(url), `logo ${cls}${PLATED.test(url || '') ? ' plate' : ''}`, fallback, { guess });
 }
 // A cup's badges come in (espn.mjs cupBadges): every shield drawn for a
 // club that has one now shows it, in place.
@@ -419,7 +420,8 @@ function statusEl(e, day = true) {
   return el('span', { class: `event-status ${e.status.state}`, text });
 }
 // A side's picture: a person's photo (a driver), a team's badge.
-export const sideLogo = (side, league, cls = '') => (side && side.athlete ? personPic(side, league, `${cls} round`) : logo(side?.logo, side?.name, cls));
+// (A logo the feed didn't give, guessed by the club's id, `logoGuess`: no tries again on a 404, its badge or shield at once.)
+export const sideLogo = (side, league, cls = '') => (side && side.athlete ? personPic(side, league, `${cls} round`) : logo(side?.logo, side?.name, cls, { club: side?.en || side?.name, guess: Boolean(side?.logoGuess) }));
 // A side's score as shown: a dash while there's none (a game just begun,
 // a list that has only its state), never a made-up 0.
 export const scoreText = v => (v == null || String(v).trim() === '' ? '–' : String(v));

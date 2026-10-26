@@ -81,7 +81,8 @@ export const FORMATS = {
   },
   // The NBA Cup's knockout: each conference's four (three group winners and a wild card) in single games, the semifinals and the championship in Las Vegas.
   nbacup: { rounds: [R('QF', '八強', 'Quarterfinals', 4), R('SF', '準決賽', 'Semifinals', 2), R('F', '冠軍賽', 'Championship', 1)] },
-  facup: { rounds: [R('third-round', '第三輪', 'Third Round', 32), R('fourth-round', '第四輪', 'Fourth Round', 16), R('fifth-round', '第五輪', 'Fifth Round', 8), R('quarterfinals', '八強', 'Quarterfinals', 4), R('semifinals', '準決賽', 'Semifinals', 2), R('final', '決賽', 'Final', 1)] },
+  // (From the first round proper, the one played in November: the third, when the top clubs come in, after it.)
+  facup: { rounds: [R('first-round', '第一輪', 'First Round', 40), R('second-round', '第二輪', 'Second Round', 20), R('third-round', '第三輪', 'Third Round', 32), R('fourth-round', '第四輪', 'Fourth Round', 16), R('fifth-round', '第五輪', 'Fifth Round', 8), R('quarterfinals', '八強', 'Quarterfinals', 4), R('semifinals', '準決賽', 'Semifinals', 2), R('final', '決賽', 'Final', 1)] },
   worldcup: { rounds: [R('round-of-32', '32 強', 'Round of 32', 16), R('round-of-16', '16 強', 'Round of 16', 8), R('quarterfinals', '八強', 'Quarterfinals', 4), R('semifinals', '準決賽', 'Semifinals', 2), R('final', '決賽', 'Final', 1)] }
 };
 // A CPBL club as the table has it (any of its halves).
@@ -189,6 +190,9 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
   if (mode !== 'projected') fmt?.fill?.(rounds, groups, seeds);
   mergePlayIn(rounds);
   alignFeeders(rounds);
+  // A big round nothing of which is drawn yet (the FA Cup's 32 of the third,
+  // in November): one place saying so, not a column of empty ties.
+  for (const r of rounds) if (r.ties.length > 8 && r.ties.every(t => !t)) (r.ties = []), (r.undrawn = true);
   // Each round's dates: its games' (games not drawn yet count too), else the calendar's stage.
   for (const r of rounds) {
     const games = events.filter(e => (r.keys || [r.key]).includes(e.round?.key));

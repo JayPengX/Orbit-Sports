@@ -2348,7 +2348,7 @@ function playoffView(model, key) {
   const map = el(
     'div',
     { class: `bracket${stacked ? ' stacked' : ''}${model.rounds.some(r => r.ties.some(t => t?.seeds?.some(Boolean) || t?.sides?.some(x => x?.seed))) ? '' : ' no-seeds'}` },
-    model.rounds.map(r => el('section', { class: `br-col ${r.state}` }, [el('div', { class: 'br-head' }, [el('strong', { text: en ? r.title.en : r.title.zh }), el('small', { text: [lenOf(r), stateText(r)].filter(Boolean).join(' · ') })]), el('div', { class: 'br-ties' }, r.ties.map(t => tie(t, r)))]))
+    model.rounds.map(r => el('section', { class: `br-col ${r.state}` }, [el('div', { class: 'br-head' }, [el('strong', { text: en ? r.title.en : r.title.zh }), el('small', { text: [lenOf(r), stateText(r)].filter(Boolean).join(' · ') })]), el('div', { class: 'br-ties' }, r.undrawn ? [el('div', { class: 'br-undrawn' }, en ? 'Not drawn yet' : '尚未抽籤')] : r.ties.map(t => tie(t, r)))]))
   );
   if (!stacked) linkTies(map, model);
   // Opened on the round that's on (or next), not always the first.
@@ -2420,6 +2420,8 @@ function linkTies(map, model) {
     const waits = key ? next.findIndex(x => x?.labels?.includes(key)) : -1;
     if (waits >= 0) return [i + 1, waits];
     if (past) return R[i + 2] ? [i + 2, j] : null;
+    // (Into a round that isn't two of these to one, the top clubs joining it (the FA Cup's third): no line by place.)
+    if (next.length * 2 !== R[i].ties.length && next.length !== R[i].ties.length) return null;
     const m = Math.floor((j * next.length) / R[i].ties.length);
     return next.length && !next[m]?.gap ? [i + 1, m] : null;
   };
