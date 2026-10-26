@@ -1268,6 +1268,9 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .br-grow .logo { width: 16px; height: 16px; }
 .br-grow .br-name { font-weight: 600; }
 .br-rec { font-size: 12px; font-weight: 650; color: var(--q-muted); }
+.po-legend { display: flex; gap: 14px; margin: 0 0 2px; font-size: 12px; font-weight: 650; color: var(--q-muted); white-space: nowrap; }
+.po-key { display: inline-flex; align-items: center; gap: 5px; }
+.po-key::before { content: ''; width: 3px; height: 12px; border-radius: 2px; background: var(--zone); }
 .po-sure { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; white-space: nowrap; }
 .br-opt { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .br-maybe .br-name { overflow: visible; }

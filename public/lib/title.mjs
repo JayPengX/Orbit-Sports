@@ -279,12 +279,10 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
   const ordered = lo.every((v, i) => i === 0 || v <= lo[i - 1]);
   const over = rows.every(r => more(r) === 0);
   if (!ordered || over) for (const x of out) x.settled = false;
-  // The title won: the next place still open, its race the same way, down
-  // the table as each is settled (Jay, 2026-10-26: Nashville sure of first,
-  // the fight for second next; every place settled, only who won). `place`:
-  // its index (1 second). A constructors' table has its fights instead.
-  const open = out.findIndex((x, i) => i > 0 && !x.settled);
-  if (!(sport === 'racing' && team) && ordered && !over && title.done && rows.length > 2 && open > 0 && open < rows.length - 1) title.second = { ...crown(open), place: open };
+  // The title won: no race for second (Jay, 2026-10-26: after a title,
+  // what's at stake by each table's own tradition: a league's zones,
+  // Europe, the play-offs, relegation; a constructors' close fights, every
+  // place prize money; a drivers' table nothing more).
   // A constructors' championship's close fights, once its champion is
   // decided (every place is the team's prize money; a driver's 7th or 8th
   // is nothing in itself):

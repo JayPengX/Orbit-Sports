@@ -2231,6 +2231,8 @@ function playoffView(model, key) {
           ? cupBanner(model)
           : el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Last season' : '上季' }), document.createTextNode(`${model.season ? ` ${model.season}` : ''}${en ? ': this season’s playoffs haven’t begun.' : '　本季季後賽尚未開打。'}`)])
         : null;
+  // The NBA Cup's groups in it: what their bars mean, as a table's legend says (each group's first in, and each conference's best second, the wild card).
+  const legend = model.rounds[0]?.key === 'GROUPS' ? el('p', { class: 'po-legend' }, [['lead', en ? 'Group winner' : '分組第一'], ['card', en ? 'Wild card: best 2nd' : '外卡・各區最佳第二']].map(([k, w]) => el('span', { class: 'po-key', style: `--zone: ${PICTURE_COLOR[k]}`, text: w }))) : null;
   // A round's length (七戰四勝): its games' series, else the league's format.
   const lenOf = r => key === CUP ? '' : bestOf(r.ties.flatMap(t => t?.games || []).find(g => g.series?.games)) || bestOf({ series: { games: SERIES_LEN[league]?.[r.key] } });
   const stateText = r => (r.state === 'done' ? (en ? 'Done' : '已完成') : r.state === 'live' ? (en ? 'On now' : '進行中') : roundDates(r) || (en ? 'TBD' : '待定'));
@@ -2353,7 +2355,7 @@ function playoffView(model, key) {
   const at = stacked ? 0 : openRound(model) - 1;
   // (By the rounds themselves: the lines' drawing sits first in the map.)
   if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.querySelectorAll(':scope > .br-col')[at]?.offsetLeft - map.offsetLeft - 16));
-  const root = el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, map]);
+  const root = el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, legend, map]);
   root.__patch = neu => patchPlayoffs(root, neu);
   // Faded in once: never again if it's put back on the page (a tab tapped back to it).
   if (fade) root.addEventListener('animationend', () => root.classList.remove('fade-in'), { once: true });
