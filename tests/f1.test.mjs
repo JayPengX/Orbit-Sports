@@ -182,5 +182,7 @@ test('pushLaps: a qualifying\'s timed laps, no pit lap, no cool-down', () => {
   assert.deepEqual(pushLaps(laps, pits).map(x => x[0]), [2, 5, 8, 14, 17]);
   // (A qualifying's: the run given up, 1:39, out.)
   assert.deepEqual(pushLaps(laps, pits, 1.05).map(x => x[0]), [2, 5, 8, 14]);
+  // (A time taken away for track limits: out, the 105% from the next best, 1:34.756.)
+  assert.deepEqual(pushLaps(laps, pits, 1.05, [94035]).map(x => x[0]), [2, 5, 8, 17]);
   assert.deepEqual(pushLaps([], new Set()), []);
 });

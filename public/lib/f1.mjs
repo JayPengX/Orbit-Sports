@@ -317,10 +317,11 @@ export function askFinishes(events = [], then = () => {}) {
 // A session that's over, from F1's archive (f1-live.js /session.json): each
 // car's best lap and gap (a practice: ESPN keeps only the order), in the live
 // board's shape. Null when it isn't there (yet).
-// (v=2: the copies kept before a retired car had its place, "99" on the board,
-// asked no more; a practice's v=3: its best lap a deleted one before, P2
-// quicker than P1. Shared-Proxy builders/f1kept.js keeps the same addresses.)
-const ARCHIVE = (start, abbr = '') => `https://f1-live.orbit/session.json?start=${encodeURIComponent(new Date(start).toISOString())}&v=${/^FP/.test(abbr) ? 3 : 2}`;
+// (v=4: the copies kept before had a retired car with no place ("99" on the
+// board), a practice's best a lap deleted for track limits (P2 quicker than
+// P1), no deleted laps said; asked no more. Shared-Proxy builders/f1kept.js
+// keeps the same addresses.)
+const ARCHIVE = start => `https://f1-live.orbit/session.json?start=${encodeURIComponent(new Date(start).toISOString())}&v=4`;
 // Every car's laps in a session ({ cars: { no: [[lap, ms, gap, place, pit]…] } },
 // f1-live.js /laps.json): again each 15 seconds while it runs, kept once over.
 // Over but not in F1's archive yet (it comes an hour or more after the
@@ -337,7 +338,7 @@ export const sessionLaps = async (start, over) => {
 };
 // A circuit's outline, corners and the time a stop costs there (f1-live.js /circuit.json).
 export const circuitMap = (key, year) => getJson(`https://f1-live.orbit/circuit.json?key=${Number(key)}&year=${Number(year)}`, { ttl: 7 * 24 * 3_600_000 }).then(c => (c?.x?.length ? c : null));
-export const sessionTiming = (start, abbr) => getJson(ARCHIVE(start, abbr), { ttl: 24 * 3_600_000 }).then(b => (b?.cars?.length ? b : null));
+export const sessionTiming = start => getJson(ARCHIVE(start), { ttl: 24 * 3_600_000 }).then(b => (b?.cars?.length ? b : null));
 // The last reading of this session if it's recent (10 minutes), or its last
 // word (the session over: it stands until the official numbers come), else null.
 export const keptTiming = (abbr, start) => (last && sameSession(last, abbr, start) && (Date.now() - last.at < 10 * 60_000 || (feedOver(last) && Date.now() - last.at < 2 * 86_400_000)) ? last : null);
@@ -410,8 +411,9 @@ export function practicePace(laps = [], stints = []) {
 // run given up under a flag out too: Antonelli's 1:39 at Austin 2026 set
 // the chart's range; a practice's 107%, its long runs in). Their laps by
 // number line nobody up: one car's eighth a flying lap, another's in the garage.
-export function pushLaps(laps = [], pits = new Set(), within = 1.07) {
-  const run = laps.filter(x => x[1] > 0 && !pits.has(x[0]));
+// `gone`: its times taken away for track limits (f1-live.js deletedOf), out.
+export function pushLaps(laps = [], pits = new Set(), within = 1.07, gone = []) {
+  const run = laps.filter(x => x[1] > 0 && !pits.has(x[0]) && !gone.includes(x[1]));
   const best = Math.min(...run.map(x => x[1]));
   return run.filter(x => x[1] <= best * within);
 }

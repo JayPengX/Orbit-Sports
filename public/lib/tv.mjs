@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson, packJson, taipeiDay } from '#kit/orbit.mjs';
-import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio, camPlayer } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio, camPlayer, withEltaNames } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { watchOf as packOf, loadWatchMonth } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
@@ -125,12 +125,12 @@ const now = () => {
 };
 const knownNow = () => (now().known ??= known());
 // A game's sides in Chinese, every way they're written (ELTA writes "海盜",
-// "統一"): [home's names, away's names].
+// "統一", its own for some clubs: ELTA_AS): [home's names, away's names].
 function zhSides(e) {
   const l = LEAGUES[e.league];
   return [e.home, e.away].map(s => {
     const zh = teamNameZh(l?.play || e.league, s?.en || s?.name, l?.sport);
-    return [s?.name, s?.short, zh?.full, zh?.short].filter(Boolean);
+    return withEltaNames([s?.name, s?.short, zh?.full, zh?.short].filter(Boolean));
   });
 }
 // The commentary the person likes ('en' 原音, 'zh' 中文): their channels sort by it.

@@ -3552,7 +3552,7 @@ function f1LapCompare(b, ss) {
     // side by side, the second (lap numbers lined nobody up: one car's eighth
     // a flying lap, another's in the garage; Austin 2026's was all pit laps).
     const quali = /^(Qual|SS|SQ)$/.test(ss.abbr);
-    const timed = race ? {} : Object.fromEntries(picks.map(no => [no, pushLaps(laps[no] || [], pitsOf(no), quali ? 1.05 : 1.07)]));
+    const timed = race ? {} : Object.fromEntries(picks.map(no => [no, pushLaps(laps[no] || [], pitsOf(no), quali ? 1.05 : 1.07, b.deleted?.[no] || [])]));
 
     // The picker: every car by its place, face and code, folded unless asked for (or nobody's picked).
     // (Opened by itself with nobody picked, it stays open as they're picked: it closed after the first, before.)
@@ -4333,7 +4333,7 @@ function fillField(s, e) {
       // numbers behind 數據): every session, practice to race. A slow read
       // isn't waited on past 6 seconds (the official order shows; 數據 next time).
       const archive = () =>
-        Promise.race([sessionTiming(ss.start, ss.abbr).catch(() => null), new Promise(r => setTimeout(() => r(null), 6_000))]);
+        Promise.race([sessionTiming(ss.start).catch(() => null), new Promise(r => setTimeout(() => r(null), 6_000))]);
       // Each official source asked at once, the best one that has them taken.
       const first = (...asks) => Promise.all(asks.map(a => a.catch(() => []))).then(lists => lists.find(rows => rows.length) || []);
       const official =
@@ -4395,7 +4395,7 @@ function fillField(s, e) {
         draw(rows, lastWord ? { ...lastWord, final: true } : null, !lastWord);
         // (A session's first read is rebuilt from OpenF1, up to half a
         // minute: asked again, three times 15 s apart, the proxy's copy kept by then.)
-        const late = (n = 3) => sessionTiming(ss.start, ss.abbr).catch(() => null).then(x => x || (n > 1 && at === pick && box.isConnected ? new Promise(r => setTimeout(r, 15_000)).then(() => late(n - 1)) : null));
+        const late = (n = 3) => sessionTiming(ss.start).catch(() => null).then(x => x || (n > 1 && at === pick && box.isConnected ? new Promise(r => setTimeout(r, 15_000)).then(() => late(n - 1)) : null));
         late()
           .then(late => {
             if (!late) return;
