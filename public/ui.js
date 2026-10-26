@@ -666,12 +666,13 @@ export function tvLine(e) {
   if (e.status?.state === 'post') {
     const r = replayHint(e);
     if (!r) return null;
-    const again = el('span', { class: 'tv-again', text: r.apple ? (ctx.locale === 'en' ? 'Apple TV · replay' : 'Apple TV・重播') : ctx.locale === 'en' ? (r.replay ? ' · replay' : 'ELTA · replay') : r.replay ? '・回看' : '愛爾達・重播' });
-    if (r.video) return el('small', { class: 'tv-line' }, [again]);
-    const ch = r.channels.filter(b => !ALT_VIEW.has(b.audio)).slice(0, 1).map(b => el('span', { class: 'tv-ch', text: name(b) }));
-    // A channel's 回看 / replay reads as part of that channel, not a chip of its own.
-    if (r.replay && ch.length) ch.at(-1).append(again);
-    return el('small', { class: 'tv-line' }, r.replay && ch.length ? ch : [...ch, again]);
+    // The channel pill a game to come has, its word where the commentary goes:
+    // [愛爾達 重播], [MAX1台 回看] (Jay, 2026-10-27: not a line of white text).
+    const en = ctx.locale === 'en';
+    const pill = (label, word) => el('small', { class: 'tv-line' }, [el('span', { class: 'tv-ch' }, [document.createTextNode(label), el('span', { class: 'au-tag mine', text: word })])]);
+    if (r.apple) return pill('Apple TV', en ? 'Replay' : '重播');
+    const ch = r.replay && (r.channels.find(b => !ALT_VIEW.has(b.audio)) || r.channels[0]);
+    return ch ? pill(name(ch), en ? 'Replay' : '回看') : pill(en ? 'ELTA' : '愛爾達', en ? 'Replay' : '重播');
   }
   // One row on every card, its main broadcast (the best for the person):
   // never a 球員視角 or 數據視角, which only the game's page lists (a second

@@ -160,8 +160,6 @@ img { max-width: 100%; }
 .league-tag .league-badge { --s: 16px; }
 .au-tag { color: var(--q-label-3, var(--q-muted)); font-size: 11px; font-weight: 700; }
 .au-tag.mine { color: var(--accent); }
-.tv-again { font-weight: 600; }
-.tv-ch > .tv-again { margin-left: -4px; }
 /* 觀看: a live game's tap straight into ELTA.tv's (or Apple TV's) app, at the foot of its time column. */
 .watch-row.in-meta > .event-row { align-items: start; }
 .watch-row.in-meta .event-meta { padding: 2px 0 42px; }
