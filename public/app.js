@@ -3609,13 +3609,18 @@ kitUI.daySwipe($('panel-live'), dir => {
   const d = stripStep(liveRange, liveDay(), dir);
   return Boolean(d && (pickLiveDay(d), true));
 });
-// 賽事's too: 全部's days; a league's tabs (Jay, 2026-10-26: 賽程, 排名,
-// 季後賽, 數據領先 one swipe apart; its days are the strip's).
+// 賽事's too: 全部's days, a league's on its 賽程 (its date strip on top: a
+// swipe under one is a day everywhere, Jay 2026-10-27), and its other tabs
+// one swipe apart where there's no strip (排名, 季後賽, 數據領先: 2026-10-26).
 kitUI.daySwipe($('panel-matches'), dir => {
   const sc = state.scores;
   if (sc.league === ALL) {
     const d = stripStep(allRange, allDay(), dir);
     return Boolean(d && (pickAllDay(d), true));
+  }
+  if (sc.views?.now === 'games') {
+    const d = sc.range && stripStep(sc.range, sc.date, dir);
+    return Boolean(d && (pickScoresDay(d), true));
   }
   const v = sc.views?.list[sc.views.list.indexOf(sc.views.now) + dir];
   return Boolean(v && ((sc.view = v), renderScores(), true));
