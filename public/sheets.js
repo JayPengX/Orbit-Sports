@@ -29,7 +29,7 @@ import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mj
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, today, sidesOf } from './ui.js';
+import { f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, withHome, today, sidesOf } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -225,7 +225,7 @@ export async function openMatch(e) {
     const roundOnly = !stageTag(e, L()) && !seriesText(e) && Boolean(weekOf(e, () => headSm === sm && header.isConnected && paintHeader(sm)));
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
-        el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), el('strong', { text: raw.short || x.short || x.name })]),
+        el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [withHome(sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), e, raw), el('strong', { text: raw.short || x.short || x.name })]),
         rec(x, raw) ? el('small', { text: rec(x, raw) }) : x.guest || raw.guest ? el('small', { text: GUEST_FROM[raw.en || raw.name]?.[L() === 'en' ? 1 : 0] || (L() === 'en' ? 'Guest club' : '表演賽客隊') }) : null,
         // A guest club's game: neither side's follow here (the two sides even), the league side's under the score.
         hasTeamPage(e.league) && !guestGame ? followChip(e.league, x, () => paintHeader(sm)) : null

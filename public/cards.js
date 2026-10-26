@@ -3,7 +3,7 @@
 // hero game, a finished game's score card, a sport's tile. Markup only: what
 // a game is (onAir, sessionStatus, picks, standings) is decided elsewhere.
 import * as kitUI from '#kit/ui.mjs';
-import { el, ctx, sidesOf, logo, personPic, statusText, breakTick, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine, f1Brief } from './ui.js';
+import { el, ctx, sidesOf, withHome, logo, personPic, statusText, breakTick, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine, f1Brief } from './ui.js';
 import { channelsOf, watchOf } from './lib/tv.mjs';
 import { ALT_VIEW } from './lib/broadcast.mjs';
 import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
@@ -54,7 +54,7 @@ export function heroGame(e, { eyebrow = '', picked = false, mine = false, onOpen
     for (const side of sidesOf(e))
       card.append(
         el('div', { class: `hc-side${(side === e.home ? w.home : w.away) ? ' win' : ''}` }, [
-          el('span', { class: 'hc-logo' }, [sidePic({ ...side, league: e.league })]),
+          el('span', { class: 'hc-logo' }, [withHome(sidePic({ ...side, league: e.league }), e, side)]),
           el('strong', { class: 'hc-name', text: side.short || side.name }),
           live || post ? el('b', { class: 'hc-score num', 'data-q-live': live ? `sc:${e.league}:${e.id}:${side.id}` : null, text: scoreText(side.score) }) : null
         ])
@@ -90,7 +90,7 @@ export function heroGame(e, { eyebrow = '', picked = false, mine = false, onOpen
 // their scores (the winner's strong), where it can be watched again.
 export function scoreCard(e, onOpen) {
   const w = e.kind === 'match' ? winners(e) : null;
-  const side = (s, win) => el('span', { class: `sc-side${win ? ' win' : ''}` }, [s.athlete ? personPic(s, e.league, 'sm round') : logo(s.logo, s.name, 'sm'), el('span', { class: 'sc-name q-fit', text: s.short || s.name }), el('b', { class: 'num', text: e.status.void || e.status.state === 'pre' ? '' : scoreText(s.score) })]);
+  const side = (s, win) => el('span', { class: `sc-side${win ? ' win' : ''}` }, [withHome(s.athlete ? personPic(s, e.league, 'sm round') : logo(s.logo, s.name, 'sm'), e, s), el('span', { class: 'sc-name q-fit', text: s.short || s.name }), el('b', { class: 'num', text: e.status.void || e.status.state === 'pre' ? '' : scoreText(s.score) })]);
   const champ = e.kind !== 'match' ? (e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1))?.field?.[0] : null;
   return el('button', { class: `score-card q-press${e.status?.state === 'in' && !e.status.void ? ' live' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => onOpen(e) }, [
     el('span', { class: 'sc-top' }, [leagueMark(e.league, 'lg-mark xs'), el('span', { text: leagueName(e.league, ctx.locale).replace(/\s.*$/, '') }), el('small', { text: statusText(e), ...breakTick(e) })]),

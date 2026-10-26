@@ -425,9 +425,16 @@ export const sideLogo = (side, league, cls = '') => (side && side.athlete ? pers
 // A side's score as shown: a dash while there's none (a game just begun,
 // a list that has only its state), never a made-up 0.
 export const scoreText = v => (v == null || String(v).trim() === '' ? '–' : String(v));
+// The home side told at a glance, wherever a game's two sides show: a small
+// house on its badge's corner, the names left as they are (which side is on
+// the left changes with the sport, the owner 2026-10-27: too confusing
+// alone). None on neutral ground (a cup final, a World Cup's games).
+const HOME_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.4.6 6.1h1.7v4.5h2.8V7.7h1.8v2.9h2.8V6.1h1.7z"/></svg>';
+export const atHome = (e, side) => e?.kind === 'match' && !e.neutral && Boolean(side) && (side === e.home || side.homeAway === 'home' || (side.id != null && String(side.id) === String(e.home?.id)));
+export const withHome = (pic, e, side) => (atHome(e, side) ? el('span', { class: 'home-pic' }, [pic, el('span', { class: 'home-mark', role: 'img', 'aria-label': ctx.locale === 'en' ? 'Home' : '主場', html: HOME_ICON })]) : pic);
 export function sideLine(side, e, win) {
   return el('div', { class: `side${win ? ' win' : ''}` }, [
-    sideLogo(side, e.league, 'sm'),
+    withHome(sideLogo(side, e.league, 'sm'), e, side),
     el('span', { class: 'side-name', text: side.short || side.name }),
     e.status.state !== 'pre' && !e.status.void ? el('strong', { class: 'side-score num', 'data-q-live': e.status.state === 'in' ? `sc:${e.league}:${e.id}:${side.id}` : null, text: e.status.state === 'post' && (side.score === '' || side.score == null) ? '' : scoreText(side.score) }) : null
   ]);
