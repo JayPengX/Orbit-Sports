@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { f1Grids, f1Label, f1Value, finishOf, eventOfRace, lapMs, qualiRows, sameSession, qualiCut } from '../public/lib/f1.mjs';
+import { pushLaps, f1Grids, f1Label, f1Value, finishOf, eventOfRace, lapMs, qualiRows, sameSession, qualiCut } from '../public/lib/f1.mjs';
 
 test("formula1.com's grids are found by their first label, in the app's words", () => {
   const g = f1Grids([[['Season Position', '1st'], ['Season Points', '302']], [['Grands Prix Entered', '39'], ['Highest Race Finish', '1 (x8)']], [['Date of Birth', '25/08/2006']]]);
@@ -173,4 +173,14 @@ test('the championship just after a past weekend: its points before, its place t
   const t = asItStands(s.map(r => ({ ...r, key: r.id, pts: r.before })), new Map(s.map(r => [r.id, r.add])));
   assert.deepEqual(t.map(r => [r.id, r.total, r.was, r.now]), [['b', 43, 2, 1], ['a', 25, 1, 2], ['c', 18, 3, 3]]);
   assert.equal(standingAfter(group, 'USA'), null);
+});
+
+test('pushLaps: a qualifying\'s timed laps, no pit lap, no cool-down', () => {
+  // Austin 2026's qualifying, Antonelli: out, flying, in; the garage; out, flying…
+  const laps = [[1, 140000], [2, 96124], [3, 139805], [4, 136224], [5, 95390], [6, 120266], [7, 930851], [8, 94756], [14, 94035], [15, 118376], [17, 99211], [18, 135904]];
+  const pits = new Set([6, 7, 15]);
+  assert.deepEqual(pushLaps(laps, pits).map(x => x[0]), [2, 5, 8, 14, 17]);
+  // (A qualifying's: the run given up, 1:39, out.)
+  assert.deepEqual(pushLaps(laps, pits, 1.05).map(x => x[0]), [2, 5, 8, 14]);
+  assert.deepEqual(pushLaps([], new Set()), []);
 });

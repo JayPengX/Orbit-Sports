@@ -402,6 +402,17 @@ export function practicePace(laps = [], stints = []) {
 
 // The laps a car came into the pits on: its stops (PitStopSeries' laps), and
 // the laps flagged in or out of the pits.
+// A qualifying's or a practice's timed laps, in order: each lap not into
+// or out of the pits (`pits`, pitLaps), within `within` of the car's best
+// (a cool-down, a lap sat in the garage, out of it; a qualifying's 105%, a
+// run given up under a flag out too: Antonelli's 1:39 at Austin 2026 set
+// the chart's range; a practice's 107%, its long runs in). Their laps by
+// number line nobody up: one car's eighth a flying lap, another's in the garage.
+export function pushLaps(laps = [], pits = new Set(), within = 1.07) {
+  const run = laps.filter(x => x[1] > 0 && !pits.has(x[0]));
+  const best = Math.min(...run.map(x => x[1]));
+  return run.filter(x => x[1] <= best * within);
+}
 export function pitLaps(laps = [], stops = [], stints = []) {
   return new Set([...stops.map(s => s[0]), ...laps.filter(x => x[4]).map(x => x[0]), ...stintStops(stints)]);
 }

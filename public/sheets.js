@@ -20,7 +20,7 @@ import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, apart, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
@@ -3462,6 +3462,9 @@ const f1Seen = new Map();
 const f1Picks = new Map();
 let f1LapMode = 'gap';
 const f1AllLaps = new Set();
+// (Every card waiting on a session's laps drawn again as they come: only the
+// first to ask was, 練習's 車手比較 empty under 長距離模擬 until touched.)
+const f1LapWait = new Map();
 function lapsFor(b, ss, over, redraw) {
   const k = ss.start;
   const seen = f1Seen.get(k) || {};
@@ -3475,12 +3478,21 @@ function lapsFor(b, ss, over, redraw) {
   f1Seen.set(k, seen);
   const got = f1LapData.get(k);
   // (Over: again each minute while it's the proxy's log, or nothing, until F1's archive has it.)
-  if (!got?.loading && (!got || (!over && Date.now() - got.at > dev('f1Laps') * 1000) || (over && (got.live || !got.cars) && Date.now() - got.at > 60_000))) {
+  const due = !got?.loading && (!got || (!over && Date.now() - got.at > dev('f1Laps') * 1000) || (over && (got.live || !got.cars) && Date.now() - got.at > 60_000));
+  if (due || got?.loading) {
+    if (!f1LapWait.has(k)) f1LapWait.set(k, new Set());
+    f1LapWait.get(k).add(redraw);
+  }
+  if (due) {
     f1LapData.set(k, { ...(got || { at: 0 }), loading: true });
     sessionLaps(k, over)
       .then(d => f1LapData.set(k, d?.cars ? { at: Date.now(), cars: d.cars, places: d.places || {}, stops: d.stops || {}, live: Boolean(d.live) } : { ...(got || {}), at: Date.now(), loading: false }))
       .catch(() => f1LapData.set(k, { ...(got || {}), at: Date.now(), loading: false }))
-      .then(redraw);
+      .then(() => {
+        const waiting = [...(f1LapWait.get(k)?.values() || [])];
+        f1LapWait.delete(k);
+        waiting.forEach(f => f());
+      });
   }
   const base = got?.cars || {};
   const out = {};
@@ -3536,6 +3548,11 @@ function f1LapCompare(b, ss) {
     const colourOf = no => car(no)?.colour || '#888';
     const pitsOf = no => pitLaps(laps[no] || [], stops[no] || [], car(no)?.stints || []);
     const timeOf = (no, lap) => (laps[no] || []).find(x => x[0] === lap);
+    // A qualifying or a practice: each car's timed laps, the first of each
+    // side by side, the second (lap numbers lined nobody up: one car's eighth
+    // a flying lap, another's in the garage; Austin 2026's was all pit laps).
+    const quali = /^(Qual|SS|SQ)$/.test(ss.abbr);
+    const timed = race ? {} : Object.fromEntries(picks.map(no => [no, pushLaps(laps[no] || [], pitsOf(no), quali ? 1.05 : 1.07)]));
 
     // The picker: every car by its place, face and code, folded unless asked for (or nobody's picked).
     // (Opened by itself with nobody picked, it stays open as they're picked: it closed after the first, before.)
@@ -3611,6 +3628,23 @@ function f1LapCompare(b, ss) {
           return d == null ? cell(i ? '—' : '', 'muted') : cell(`${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(2)}`, d > 0 ? 'bad' : 'good');
         })));
       }
+    } else if (quali && picks.some(no => car(no).parts?.some(Boolean))) {
+      // Each part's time (purple the part's best, green the quickest of
+      // them), then the gap where it was decided: the last part both ran (the
+      // best lap alone put P4 ahead of P2, theirs in an earlier part).
+      const partOf = c => [2, 1, 0].find(i => lapMs(c.parts?.[i])) ?? -1;
+      const fastestIn = [0, 1, 2].map(i => Math.min(...cars.map(c => lapMs(c.parts?.[i]) || Infinity)));
+      for (const i of [0, 1, 2]) {
+        const ts = picks.map(no => lapMs(car(no).parts?.[i]));
+        if (!ts.some(Boolean)) continue;
+        const top = Math.min(...ts.filter(Boolean));
+        rows.push(row(`${ss.abbr === 'Qual' ? 'Q' : 'SQ'}${i + 1}`, picks.map((no, k) => cell(ts[k] ? fmtLap(ts[k]) : '—', !ts[k] ? 'muted' : ts[k] === fastestIn[i] ? 'best' : picks.length > 1 && ts[k] === top ? 'quick' : ''))));
+      }
+      rows.push(row(en ? 'Gap' : '差距', picks.map((no, i) => {
+        const at = Math.min(partOf(a), partOf(car(no)));
+        const d = i && at >= 0 ? (lapMs(car(no).parts[at]) - lapMs(a.parts[at])) / 1000 : null;
+        return cell(d == null ? (i ? '—' : '') : `${d < 0 ? '−' : '+'}${Math.abs(d).toFixed(3)}`, 'muted');
+      })));
     } else {
       rows.push(row(en ? 'Best' : '最快圈', picks.map(no => cell(car(no).best || '—', 'dc-big'))));
       rows.push(row(en ? 'Gap' : '差距', picks.map((no, i) => {
@@ -3628,7 +3662,7 @@ function f1LapCompare(b, ss) {
       const lastStop = s.at(-1);
       return el('td', { class: 'num' }, [el('span', { class: 'dc-two' }, [el('span', { text: String(n) }), lastStop?.[1] ? el('small', { text: `${lastStop[1].toFixed(1)}${en ? 's' : '秒'}` }) : null])]);
     })));
-    else rows.push(row(en ? 'Laps' : '圈數', picks.map(no => cell(String(car(no).laps || 0)))));
+    else rows.push(row(en ? 'Timed laps' : '計時圈', picks.map(no => cell(`${timed[no].length} / ${car(no).laps || 0}`))));
     const lastOf = no => (laps[no] || []).filter(x => x[1] > 0).at(-1);
     const bestOf = no => Math.min(...(laps[no] || []).filter(x => x[1] > 0).map(x => x[1]));
     const lastMs = picks.map(no => (!over && lapMs(car(no).last)) || lastOf(no)?.[1] || 0);
@@ -3650,6 +3684,15 @@ function f1LapCompare(b, ss) {
       const top = Math.min(...ts.filter(Boolean));
       rows.push(row(en ? `S${i + 1} best` : `S${i + 1} 最佳`, picks.map((no, k) => cell(ts[k] ? (ts[k] / 1000).toFixed(3) : '—', !ts[k] ? 'muted' : car(no).sectors[i].p === 1 ? 'best' : picks.length > 1 && ts[k] === top ? 'quick' : ''))));
     }
+    // The best sectors put together: the lap each had in them.
+    if (!race) {
+      const ideal = picks.map(no => {
+        const t = [0, 1, 2].map(i => lapMs(car(no).sectors?.[i]?.v));
+        return t.every(Boolean) ? t.reduce((x, y) => x + y, 0) : 0;
+      });
+      const top = Math.min(...ideal.filter(Boolean));
+      if (ideal.some(Boolean)) rows.push(row(en ? 'Ideal lap' : '理論最快', picks.map((no, k) => cell(ideal[k] ? fmtLap(ideal[k]) : '—', picks.length > 1 && ideal[k] === top ? 'quick' : ''))));
+    }
     const table = el('table', { class: `dc-table n${picks.length}` }, [el('thead', {}, [head]), el('tbody', {}, rows)]);
 
     // The chart.
@@ -3659,7 +3702,9 @@ function f1LapCompare(b, ss) {
       ? rest.map(c => ({ no: c.no, c, pts: gaps[c.no] }))
       : mode === 'place'
         ? picks.map(no => ({ no, c: car(no), pts: (places[no] || []).map((p, lap) => [lap, p]).filter(([, p]) => p > 0) }))
-        : picks.map(no => ({ no, c: car(no), pts: (laps[no] || []).filter(x => x[1] > 0).map(x => [x[0], x[1]]) }));
+        : race
+          ? picks.map(no => ({ no, c: car(no), pts: (laps[no] || []).filter(x => x[1] > 0).map(x => [x[0], x[1]]) }))
+          : picks.map(no => ({ no, c: car(no), pts: timed[no].map((x, k) => [k + 1, x[1]]) }));
     const all = series.flatMap(s => s.pts);
     let chart = el('p', { class: 'muted small fs-empty', text: en ? 'Laps show here as they are run.' : '跑完的圈會出現在這裡' });
     if (all.length) {
@@ -3672,13 +3717,15 @@ function f1LapCompare(b, ss) {
       // A lap that isn't the race's run (a stop's in- and out-lap, a lap
       // behind the safety car) doesn't set the range: one pit lap 30 s down
       // squeezed every other lap into a strip. Off the range, the line breaks there.
-      const neutral = neutralLaps(b.control || [], b.lap?.now || lapHi);
-      const odd = (no, lap) => mode !== 'place' && (pitsOf(no).has(lap) || pitsOf(no).has(lap - 1) || neutral.some(p => lap >= p.from && lap <= p.to + 1));
+      // (A qualifying's or a practice's timed laps: none of that.) The
+      // first lap neither, from the grid (Austin 2026's alone at the bottom).
+      const neutral = race ? neutralLaps(b.control || [], b.lap?.now || lapHi) : [];
+      const odd = (no, lap) => race && mode !== 'place' && ((mode === 'time' && lap === 1) || pitsOf(no).has(lap) || pitsOf(no).has(lap - 1) || neutral.some(p => lap >= p.from && lap <= p.to + 1));
       const usual = series.flatMap(sr => sr.pts.filter(p => !odd(sr.no, p[0])));
       // (The gap is one line through it all, stops and the safety car too:
       // broken there, Singapore's read as broken, the owner 2026-10-26; a
       // stop's jump is the race, its ring says why.)
-      const whole = mode !== 'time';
+      const whole = mode !== 'time' || !race;
       const ranged = whole || !usual.length ? all : usual;
       let top, bottom, label, ticks, pad = 0;
       if (mode === 'gap') {
@@ -3715,24 +3762,23 @@ function f1LapCompare(b, ss) {
         .map(p => `<rect class="lc-sc ${p.kind}" x="${X(Math.max(lapLo, p.from - 0.5)).toFixed(1)}" y="${T0}" width="${Math.max(3, X(Math.min(lapHi, p.to + 0.5)) - X(Math.max(lapLo, p.from - 0.5))).toFixed(1)}" height="${H - T0 - B0}"/><text class="lc-sc-t" x="${(X(Math.max(lapLo, p.from - 0.5)) + 3).toFixed(1)}" y="${H - B0 - 4}">${p.kind === 'sc' ? 'SC' : 'VSC'}</text>`)
         .join('');
       const grid = ticks.map(v => `<line class="lc-grid${mode === 'gap' && v === 0 ? ' zero' : ''}" x1="${L0}" x2="${W - R0}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="lc-y" x="${L0 - 6}" y="${(Y(v) + 3.5).toFixed(1)}">${label(v)}</text>`).join('');
-      const step = Math.max(1, Math.ceil((lapHi - lapLo) / 5 / 5) * 5);
-      const xsLaps = [lapLo, ...Array.from({ length: 6 }, (_, k) => Math.ceil(lapLo / step) * step + k * step).filter(l => l > lapLo + step / 2 && l < lapHi - step / 2), lapHi];
+      // (A few timed laps: each one numbered.)
+      const step = lapHi - lapLo <= 8 ? 1 : Math.max(1, Math.ceil((lapHi - lapLo) / 5 / 5) * 5);
+      const xsLaps = [lapLo, ...Array.from({ length: 9 }, (_, k) => Math.ceil(lapLo / step) * step + k * step).filter(l => l > lapLo + step / 2 && l < lapHi - step / 2), lapHi];
       const xt = xsLaps.map(l => `<text class="lc-x" x="${X(l).toFixed(1)}" y="${H - 5}">${l}</text>`).join('');
       const lines = series.map((s, k) => {
         const col = colourOf(s.no);
-        const pits = pitsOf(s.no);
+        const pits = race ? pitsOf(s.no) : new Set();
         const xy = p => `${X(p[0]).toFixed(1)},${(Y(p[1]) + nudge(k)).toFixed(1)}`;
         // Runs of laps drawn as lines: on across a few laps not had (the log
-        // missed them), broken at a lap off the range (a stop, the safety car).
+        // missed them). Lap times: one line, on over a lap off the range (a
+        // stop's, the safety car's: left out, its ring or shading says why;
+        // broken there, Austin 2026's read as broken, the owner 2026-10-26).
         const runs = [];
         let prev = null;
         for (const p of s.pts) {
-          // (A stop's laps and the safety car's: the shading says why it breaks there.)
-          if (!whole && (!inRange(p[1]) || odd(s.no, p[0]))) {
-            prev = null;
-            continue;
-          }
-          if (prev && p[0] - prev[0] <= 3) runs.at(-1).push(p);
+          if (!whole && (!inRange(p[1]) || odd(s.no, p[0]))) continue;
+          if (prev && (p[0] - prev[0] <= 3 || mode === 'time')) runs.at(-1).push(p);
           else runs.push([p]);
           prev = p;
         }
@@ -3746,7 +3792,10 @@ function f1LapCompare(b, ss) {
           .filter(Boolean)
           .map(p => `<circle class="lc-pit" cx="${X(p[0]).toFixed(1)}" cy="${(Y(p[1]) + nudge(k)).toFixed(1)}" r="3.2" style="stroke:${col}"/>`)
           .join('');
-        return `<path class="lc-line${dashed(s.no) ? ' dash' : ''}" d="${d}" style="stroke:${col}"/>${lone}${dots}`;
+        // (Timed laps: a ring on each one's best.)
+        const pb = race ? null : s.pts.reduce((x, p) => (!x || p[1] < x[1] ? p : x), null);
+        const ring = pb ? `<circle class="lc-pit" cx="${X(pb[0]).toFixed(1)}" cy="${Y(pb[1]).toFixed(1)}" r="3.2" style="stroke:${col}"/>` : '';
+        return `<path class="lc-line${dashed(s.no) ? ' dash' : ''}" d="${d}" style="stroke:${col}"/>${lone}${dots}${ring}`;
       }).join('');
       // A finger (or a mouse) on it reads every line at that lap, as every chart here: the chips above say each one's number, a rule and a dot on each line mark it.
       const laps = Array.from({ length: lapHi - lapLo + 1 }, (_, k) => lapLo + k);
@@ -3765,48 +3814,56 @@ function f1LapCompare(b, ss) {
       const show = i => {
         const lap = i == null ? null : laps[i];
         series.forEach((sr, k) => {
-          const p = lap == null ? sr.pts.at(-1) : sr.pts.find(x => x[0] === lap);
+          // (Untouched: the latest lap of a race, each one's best of the timed laps.)
+          const p = lap == null ? (race ? sr.pts.at(-1) : sr.pts.reduce((x, q) => (!x || q[1] < x[1] ? q : x), null)) : sr.pts.find(x => x[0] === lap);
           chipVal[k].textContent = valueText(p?.[1]);
           marks[k].hidden = lap == null || !p || !inRange(p[1]) || odd(sr.no, p[0]);
           if (p && lap != null) Object.assign(marks[k].style, { left: `${(X(p[0]) / W) * 100}%`, top: `${((Y(p[1]) + nudge(k)) / H) * 100}%` });
         });
-        const under = lap != null && neutralLaps(b.control || [], b.lap?.now || lapHi).find(p => lap >= p.from && lap <= p.to);
-        at.textContent = lap == null ? `${en ? `Lap ${series[0]?.pts.at(-1)?.[0] ?? lapHi}` : `第 ${series[0]?.pts.at(-1)?.[0] ?? lapHi} 圈`}` : `${en ? `Lap ${lap}` : `第 ${lap} 圈`}${pitsAt(lap)}${under ? ` · ${under.kind === 'sc' ? (en ? 'Safety car' : '安全車') : en ? 'VSC' : '虛擬安全車'}` : ''}`;
+        const under = lap != null && neutral.find(p => lap >= p.from && lap <= p.to);
+        if (!race) at.textContent = lap == null ? (en ? 'Each one\'s best' : '各自最快') : en ? `Timed lap ${lap}` : `第 ${lap} 個計時圈`;
+        else at.textContent = lap == null ? `${en ? `Lap ${series[0]?.pts.at(-1)?.[0] ?? lapHi}` : `第 ${series[0]?.pts.at(-1)?.[0] ?? lapHi} 圈`}` : `${en ? `Lap ${lap}` : `第 ${lap} 圈`}${pitsAt(lap)}${under ? ` · ${under.kind === 'sc' ? (en ? 'Safety car' : '安全車') : en ? 'VSC' : '虛擬安全車'}` : ''}`;
         at.classList.toggle('on', lap != null);
         rule.hidden = lap == null;
         if (lap != null) rule.style.left = `${xs[i] * 100}%`;
       };
       // (Who stopped on that lap, said beside it.)
       const pitsAt = lap => {
+        if (!race) return '';
         const who = series.filter(sr => pitsOf(sr.no).has(lap)).map(sr => sr.c.tla || f1Sur(sr.c));
         return who.length ? ` · ${who.join('、')} ${en ? 'pit' : '進站'}` : '';
       };
       const plot = scrubPlot(xs, show, [el('div', { class: 'lc-box', html: `<svg viewBox="0 0 ${W} ${H}" class="lc-svg" aria-hidden="true">${shade}${grid}${xt}${lines}</svg>` }), rule, ...marks]);
       show();
-      const note = mode === 'gap' ? (top > 0 ? (en ? `Seconds behind ${f1Sur(a)}; up: closer. ○ a stop.` : `落後 ${f1Sur(a)} 秒數 · 越高越接近 · ○ 進站`) : en ? `Up: closer to ${f1Sur(a)} (the dashes). ○ a stop.` : `越高越接近 ${f1Sur(a)}（虛線）· ○ 進站`) : mode === 'place' ? (en ? 'Each lap\'s place, from the start. ○ a stop.' : '每圈名次，從起跑開始 · ○ 進站') : en ? 'Up: quicker. ○ a stop.' : '越高越快 · ○ 進站';
+      const note = mode === 'gap' ? (top > 0 ? (en ? `Seconds behind ${f1Sur(a)}; up: closer. ○ a stop.` : `落後 ${f1Sur(a)} 秒數 · 越高越接近 · ○ 進站`) : en ? `Up: closer to ${f1Sur(a)} (the dashes). ○ a stop.` : `越高越接近 ${f1Sur(a)}（虛線）· ○ 進站`) : mode === 'place' ? (en ? 'Each lap\'s place, from the start. ○ a stop.' : '每圈名次，從起跑開始 · ○ 進站') : !race ? (en ? 'Timed laps only, the first of each side by side. Up: quicker. ○ each one\'s best.' : '只算計時圈，依各自第幾個對齊 · 越高越快 · ○ 最快圈') : en ? 'Up: quicker. ○ a stop.' : '越高越快 · ○ 進站';
       chart = el('div', { class: 'lc-chart' }, [chips, at, plot, el('p', { class: 'muted small lc-key-note', text: note })]);
     }
     const pick = modes.length > 1 ? segmented(modes, mode, v => ((f1LapMode = v), draw()), 'lc-modes') : null;
 
     // The last laps side by side. Live: the last 5. Over: every lap, the latest 10 first and the rest a tap away.
-    const allNos = [...new Set(picks.flatMap(no => (laps[no] || []).filter(x => x[1] > 0).map(x => x[0])))].sort((x, y) => y - x);
+    // (A qualifying's or a practice's: the timed laps, the n-th of each.)
+    const allNos = race
+      ? [...new Set(picks.flatMap(no => (laps[no] || []).filter(x => x[1] > 0).map(x => x[0])))].sort((x, y) => y - x)
+      : Array.from({ length: Math.max(0, ...picks.map(no => timed[no].length)) }, (_, k) => k + 1).reverse();
+    const lapAt = (no, l) => (race ? timeOf(no, l) : timed[no][l - 1]);
+    const pitAt = (no, l) => race && pitsOf(no).has(l);
     const opened = f1AllLaps.has(ss.start);
     const lapNos = over ? (opened ? allNos : allNos.slice(0, 10)) : allNos.slice(0, 5);
     const lapTable = lapNos.length
       ? el('table', { class: `dc-table dc-laps n${picks.length}` }, [
-          el('thead', {}, [el('tr', {}, [el('th', { class: 'dc-label', text: en ? 'Lap' : '圈' }), ...picks.map(no => el('th', { class: 'dc-colour', style: `--team:${colourOf(no)}` }, [el('span', { class: 'dc-code' }, [f1Face(ss, car(no).name), f1NameTap(ss, car(no), car(no).tla || f1Sur(car(no)))])]))])]),
+          el('thead', {}, [el('tr', {}, [el('th', { class: 'dc-label', text: race ? (en ? 'Lap' : '圈') : '#' }), ...picks.map(no => el('th', { class: 'dc-colour', style: `--team:${colourOf(no)}` }, [el('span', { class: 'dc-code' }, [f1Face(ss, car(no).name), f1NameTap(ss, car(no), car(no).tla || f1Sur(car(no)))])]))])]),
           el('tbody', {}, lapNos.map(l => {
-            const ts = picks.map(no => timeOf(no, l));
+            const ts = picks.map(no => lapAt(no, l));
             const best = Math.min(...ts.filter(x => x?.[1]).map(x => x[1]));
             return el('tr', {}, [
               el('th', { class: 'dc-label num', text: String(l) }),
-              ...ts.map((x, i) => cell(x?.[1] ? `${fmtLap(x[1])}${pitsOf(picks[i]).has(l) ? ' P' : ''}` : '—', `${x?.[1] === best && picks.length > 1 ? 'quick' : ''}${pitsOf(picks[i]).has(l) ? ' pit' : ''}`))
+              ...ts.map((x, i) => cell(x?.[1] ? `${fmtLap(x[1])}${pitAt(picks[i], l) ? ' P' : ''}` : '—', `${x?.[1] === best && picks.length > 1 ? 'quick' : ''}${pitAt(picks[i], l) ? ' pit' : ''}`))
             ]);
           }))
         ])
       : null;
-    const more = over && allNos.length > lapNos.length ? el('button', { class: 'q-btn small lc-more', type: 'button', text: en ? `All ${allNos.length} laps` : `顯示全部 ${allNos.length} 圈`, onclick: () => (f1AllLaps.add(ss.start), draw()) }) : null;
-    put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [picker, map, table, pick, chart, lapTable ? el('p', { class: 'dc-sub', text: over ? (en ? 'Lap by lap' : '每圈圈速') : en ? 'Last 5 laps' : '最近 5 圈' }) : null, lapTable, more]), { sub: toggle }));
+    const more = over && allNos.length > lapNos.length ? el('button', { class: 'q-btn small lc-more', type: 'button', text: race ? (en ? `All ${allNos.length} laps` : `顯示全部 ${allNos.length} 圈`) : en ? `All ${allNos.length}` : `顯示全部 ${allNos.length} 個`, onclick: () => (f1AllLaps.add(ss.start), draw()) }) : null;
+    put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [picker, map, table, pick, chart, lapTable ? el('p', { class: 'dc-sub', text: !race ? (en ? 'Timed laps' : '計時圈') : over ? (en ? 'Lap by lap' : '每圈圈速') : en ? 'Last 5 laps' : '最近 5 圈' }) : null, lapTable, more]), { sub: toggle }));
   };
   // (Drawn again when 數據 is shown: built behind 成績, its laps came while it wasn't on the page.)
   box.__redraw = draw;

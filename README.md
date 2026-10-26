@@ -71,7 +71,10 @@ couldn't be read is shown, never hidden.
   between reads and in race order by its gap to the leader, each by its
   code; a heap where the track folds back pushed apart with a line to each
   car's place, the tags where they cover least (`lib/carpace.mjs`), then
-  the drivers side by side. The win chance goes by
+  the drivers side by side. A qualifying or a practice compares their
+  timed laps (`lib/f1.mjs pushLaps`: no pit lap, no cool-down), the first
+  of each side by side, with a qualifying's Q1–Q3 and the gap where it was
+  decided; a race's lap times one line a car over its stops. The win chance goes by
   lap while a race runs too (each lap's end counted from the feed and the
   leader's lap times), with its leads, stops and the start's own swing.
 - **勝負未定** (close finish): a live game in its last stretch and within reach (NBA 4th or OT, MLB 8th–9th, soccer from the 80th).
