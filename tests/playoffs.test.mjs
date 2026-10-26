@@ -110,6 +110,9 @@ test('A predicted tie the table has settled is sure (Nashville first in the East
   const [first, ...rest] = m.rounds[1].ties.filter(t => t && !t.gap && t.sides[0].id.startsWith('E'));
   // 1 v the wild card's winner: 1st is clinched, the other place is whoever wins 8 v 9.
   assert.equal(first.sure, true);
+  // Each side marked: Nashville clinched, the 4 v 5's both still a guess.
+  assert.equal(first.sides[0].sure, true);
+  assert.ok(rest[0].sides.every(x => !x.sure));
   assert.ok(rest.every(t => !t.sure));
   assert.ok(!m.rounds[0].ties[0].sure);
   // Nothing settled yet: still a prediction.

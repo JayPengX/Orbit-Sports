@@ -2205,7 +2205,10 @@ function playoffView(model, key) {
   const en = locale === 'en';
   const banner =
     model.mode === 'projected'
-      ? el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Predicted' : '預測' }), document.createTextNode(en ? ' from the table as it stands: it changes until the playoffs start.' : '　依目前排名推算，開打前會變動。')])
+      ? el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Predicted' : '預測' }), ...(model.rounds.some(r => r.ties.some(t => t?.sides?.some(x => x?.sure)))
+          ? // (One line: the legend in place of 開打前會變動.)
+            [document.createTextNode(en ? ' from the table as it stands' : '　依目前排名推算'), el('span', { class: 'po-sure' }, [el('span', { class: 'br-seed num', text: '1' }), document.createTextNode(en ? 'clinched' : '已確定')])]
+          : [document.createTextNode(en ? ' from the table as it stands: it changes until the playoffs start.' : '　依目前排名推算，開打前會變動。')])])
       : model.mode === 'last'
         ? key === CUP
           ? cupBanner(model)
@@ -2233,7 +2236,7 @@ function playoffView(model, key) {
         // Each side's logo beside its own name: "🅼 釀酒人 / 🆂 教士".
         el('span', { class: 'br-maybe' }, maybe.flatMap((x, j) => [j ? el('span', { class: 'br-or', text: '/' }) : null, el('span', { class: 'br-opt' }, [sideLogo(x, league, 'xs'), el('span', { class: 'br-name', text: x.short || x.name })])]))
       ]);
-    return el('div', { class: `br-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}${s ? '' : ' tbd'}` }, [
+    return el('div', { class: `br-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}${s ? '' : ' tbd'}${t.projected && s?.sure ? ' sure' : ''}` }, [
       el('span', { class: 'br-seed num', text: seed ? String(seed) : '' }),
       s ? sideLogo(s, league, 'xs') : el('span', { class: 'logo xs br-tbd-logo', 'aria-hidden': 'true' }),
       el('span', { class: 'br-name q-fit', text: s ? s.short || s.name : label || (en ? 'TBD' : '待定'), ...(s?.abbr ? { 'data-abbr': s.abbr } : {}) }),

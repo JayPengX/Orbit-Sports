@@ -149,14 +149,20 @@ function cupProject(groups) {
 // A predicted tie the table has settled (Jay, 2026-10-26: Nashville sure of
 // first, its tie still said 預測): every side clinched at its seed, by the
 // table's own sums (standingsRace, as its title and zone lines say), a place
-// waiting on another tie ("8/9 勝者") settled by what it is. `sure: true`.
+// waiting on another tie ("8/9 勝者") settled by what it is. `sure: true`
+// on the tie, and on each side clinched at its seed.
 // (A league by points or wins in seed order; MLB's seeds aren't its wins' order.)
 const SPORT = { mls: 'soccer', ucl: 'soccer', uel: 'soccer', uecl: 'soccer', nba: 'basketball' };
 function markSure(rounds, groups, league) {
   if (!SPORT[league]) return;
   const place = new Map();
   for (const g of bySeed(groups)) for (const x of standingsRace(g, SPORT[league], { total: SEASON_GAMES[league] })?.rows || []) if (x.settled) place.set(String(x.id), x.best);
-  for (const t of rounds.flatMap(r => r.ties)) if (t?.projected && t.sides.some(Boolean) && t.sides.every((s, i) => (s ? place.get(String(s.id)) === s.seed : Boolean(t.labels?.[i])))) t.sure = true;
+  // (Each side too, `sure` on it: the bracket marks the clinched ones apart from the predicted.)
+  for (const t of rounds.flatMap(r => r.ties)) {
+    if (!t?.projected) continue;
+    t.sides = t.sides.map(s => (s && place.get(String(s.id)) === s.seed ? { ...s, sure: true } : s));
+    if (t.sides.some(Boolean) && t.sides.every((s, i) => (s ? s.sure : Boolean(t.labels?.[i])))) t.sure = true;
+  }
 }
 // A calendar stage's name as its round key ("Rd of 16" -> round-of-16).
 export const stageKey = label =>

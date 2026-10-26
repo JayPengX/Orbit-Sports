@@ -260,3 +260,16 @@ test('the F1 title won, the runner-up’s place is the race the card follows', (
   // Settled too: nothing more to follow.
   assert.equal(standingsRace({ rows: [t('ANT', 500), t('RUS', 400), t('VER', 280)] }, 'racing', { left: { races: 2, sprints: 0 } }).title.second, undefined);
 });
+
+test('First won: the race moves to the next place still open, and none once every place is settled', () => {
+  // MLS East on 2026-10-26, 31 of 34 played: Nashville sure of first, second open.
+  const row = (id, p, gp = 31) => ({ id, stats: { P: String(p), GP: String(gp) } });
+  const east = { rows: [70, 55, 55, 51, 47, 46, 42, 42, 39, 38, 36, 35, 33, 30, 25].map((p, i) => row(`E${i + 1}`, p)) };
+  const r = standingsRace(east, 'soccer', { total: 34 });
+  assert.equal(r.title.done, true);
+  assert.equal(r.title.second.place, 1);
+  assert.equal(r.title.second.leader.id, 'E2');
+  // Every place settled with games to go: only who won.
+  const apart = { rows: Array.from({ length: 6 }, (_, i) => row(`T${i + 1}`, 100 - 10 * i, 33)) };
+  assert.equal(standingsRace(apart, 'soccer', { total: 34 }).title.second, undefined);
+});

@@ -5583,7 +5583,7 @@ function raceBlock(race, g, league, many) {
   // 126 分即封王; a sum against the runner-up was wrong, a third can catch up).
   const leadLine = t => {
     const span = sport === 'racing' ? (t.at || (t.soonest === 1 ? W('下一站', 'the next race') : W(`${t.soonest} 站`, `${t.soonest} races`))) : perRound && t.soonest === 1 ? W('這一輪', 'this round') : W(`${t.soonest} ${perRound ? '輪' : '場'}`, `${t.soonest} ${perRound ? 'rounds' : 'games'}`);
-    const now = t.gap > 0 ? W(`領先 ${t.gap} 分`, `${t.gap} pts ahead`) : W('與第二名同分', 'level on points');
+    const now = t.gap > 0 ? W(`領先 ${t.gap} 分`, `${t.gap} pts ahead`) : W(`與第${'二三四五六七八九十'[t.place || 0] || ` ${(t.place || 0) + 2} `}名同分`, 'level on points');
     // (Short, on one line: the title above says what for; a lead is over everyone.)
     return W(`${now}，${span}後需領先 ${t.leadAt} 分`, `${now}; needs ${t.leadAt} after ${span}`);
   };
@@ -5641,7 +5641,7 @@ function raceBlock(race, g, league, many) {
       // Wins: baseball's magic number (the leader's wins and the rivals' losses together).
       // Points: a title closes from both sides (the leader scoring, the rival
       // not), so say when at the soonest, and what it takes by then.
-      if (race.unit === 'wins') return line('clock', W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`), when(t));
+      if (race.unit === 'wins') return line('clock', W(`${b(nm(t.leader))} ${k ? `第 ${k + 1} 名` : many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: ${k ? `P${k + 1} ` : ''}magic number ${b(t.magic)}`), when(t));
       const what = k ? W(`確定第 ${k + 1} 名`, `clinch P${k + 1}`) : many ? W(`確定${top}`, 'clinch 1st') : W('封王', 'clinch the title');
       const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : t.soonest === 1 && onNow(t.leader.id) ? W('最快這場', 'this game') : W(`最快 ${b(t.soonest)} 場後`, `in ${b(t.soonest)} game${t.soonest === 1 ? '' : 's'}`);
       return line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} could ${what} ${at}`), [nextLine(t), ...weekendLine(t), ...marginLine(t), leadLine(t)]);
@@ -5655,8 +5655,8 @@ function raceBlock(race, g, league, many) {
   if (t.done) {
     const early = t.left > 0;
     lines.push(line('trophy', many ? W(`${b(nm(t.leader))} 拿下${top}`, `${b(nm(t.leader))} have clinched ${top}`) : W(`${b(nm(t.leader))} ${early ? '提前封王' : '奪冠'}`, `${b(nm(t.leader))} ${early ? 'have clinched the title' : 'are champions'}`), early ? leftWord(t.left) : '', 'won'));
-    // Then the runner-up's (F1's drivers).
-    const second = t.second && chase(t.second, 1);
+    // Then the next place still open (第 2 名, then 第 3 名… as each is settled).
+    const second = t.second && chase(t.second, t.second.place);
     if (second) lines.push(second);
   } else {
     const l = chase(t);
