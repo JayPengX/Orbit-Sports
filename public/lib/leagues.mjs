@@ -41,3 +41,24 @@ export function leagueLogoDark(key) {
   // (The original or the kit's small one through ESPN's resizer: its path inside.)
   return /^https:\/\/a\.espncdn\.com\/(i|combiner)\b/.test(light || '') && light.includes('/500/') ? light.replace('/500/', '/500-dark/') : null;
 }
+
+// The order 賽事's leagues come in after the ones followed (Jay, 2026-10-26):
+// what's at stake first, how far through its season a league is (its last
+// quarter: a title or the play-offs being settled, 中華職棒's 台灣大賽,
+// MLS's run-in; past half: getting there), then, stakes alike, how watchable
+// it is in Taiwan (every league here is on ELTA or Apple TV: how much it's
+// followed here and at what hour), then its level.
+export const TAIWAN_WATCH = ['cpbl', 'mlb', 'nba', 'epl', 'f1', 'ucl', 'bundesliga', 'seriea', 'ligue1', 'uel', 'mls', 'facup', 'nationsleague', 'uecl', 'scotland'];
+// `bounds`: a league's season ({ from, to } days, lib/bounds.mjs) or null; `day` today.
+export function stakesOf(bounds, day) {
+  if (!bounds) return 0;
+  const [from, to, now] = [bounds.from, bounds.to, day].map(d => Date.parse(`${d}T00:00:00Z`));
+  const gone = to > from ? (now - from) / (to - from) : 0;
+  return gone >= 0.75 ? 2 : gone >= 0.5 ? 1 : 0;
+}
+export function byStakes(keys, boundsOf, day) {
+  const watch = k => (TAIWAN_WATCH.indexOf(k) + 1 || TAIWAN_WATCH.length + 1);
+  // (A cup's only at its end, the late rounds: its days span its rounds months apart, the FA Cup's two seasons.)
+  const stakes = new Map(keys.map(k => [k, stakesOf(boundsOf(k), day)]).map(([k, x]) => [k, LEAGUES[k]?.cup && x < 2 ? 0 : x]));
+  return [...keys].sort((a, b) => stakes.get(b) - stakes.get(a) || watch(a) - watch(b));
+}

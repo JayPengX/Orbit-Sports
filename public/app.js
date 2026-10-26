@@ -22,7 +22,7 @@ import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
 import { setWatchPack, prefetchHighlights, watchMonthWanted, watchMonthPath, loadWatchMonth } from './lib/highlights.mjs';
-import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams } from './lib/leagues.mjs';
+import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams, byStakes } from './lib/leagues.mjs';
 import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
@@ -2554,6 +2554,11 @@ let scoresQuiet = false;
 // node the same kept (its scroll, its handlers), text changed in place, an
 // element whose tag, attributes or children's count differ replaced whole.
 function morph(old, neu) {
+  if (old === neu) return;
+  // A node kept across draws (the league rail): put in whole, never patched
+  // from (its chips moved into the old one, the kept rail lost them: a rail
+  // reordered with as many chips showed five of fifteen).
+  if (neu.__kept) return old.replaceWith(neu);
   if (old.nodeType !== neu.nodeType || old.nodeName !== neu.nodeName) return old.replaceWith(neu);
   // (The bracket: its own, keeping its swipe and lines.)
   if (old.__patch && neu.__patch) return void old.__patch(neu);
@@ -2880,15 +2885,17 @@ function leagueRail(rail) {
       ])
     };
   }
+  railKept.node.__kept = true;
   for (const chip of railKept.node.querySelectorAll('[data-league]')) chip.setAttribute('aria-pressed', String(chip.dataset.league === state.scores.league));
   return railKept.node;
 }
 function scoresRail() {
   const mine = new Set(state.prefs.leagues);
-  // Every league on one rail, theirs first (in their order), then by sport;
-  // the search first of all, then 全部.
-  const sportOrder = shownSports().sort((a, b) => followedSports().includes(b) - followedSports().includes(a));
-  return [...state.prefs.leagues.filter(isActive), ...sportOrder.flatMap(sp => shownLeaguesOf(sp).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top)).filter(k => !mine.has(k)))];
+  // Every league on one rail, theirs first (in their order), then by what's
+  // at stake and how watchable in Taiwan (leagues.mjs byStakes); the search
+  // first of all, then 全部.
+  const rest = shownSports().flatMap(sp => shownLeaguesOf(sp)).filter(k => !mine.has(k));
+  return [...state.prefs.leagues.filter(isActive), ...byStakes(rest, leagueBounds, today())];
 }
 function renderScores() {
   const sc = state.scores;
