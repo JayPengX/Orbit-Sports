@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { nbaCupGroups, isGroupPlay, cupQuarters } from '../public/lib/nbacup.mjs';
+import { nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn } from '../public/lib/nbacup.mjs';
 
 // Last season's (2025-26) group play as ESPN listed it: 60 games, the note alone saying which.
 const raw = JSON.parse(readFileSync(new URL('./fixtures/nbacup-2025.json', import.meta.url), 'utf8'));
@@ -42,4 +42,17 @@ test('The quarterfinals as the groups stand: the winners 1-3 by record, the wild
   // Before a group's first game: the places, no team.
   const [none] = cupQuarters(east.map(g => ({ ...g, rows: g.rows.map(x => ({ ...x, zone: '' })) })));
   assert.deepEqual([none.sides, none.labels], [[null, null], ['東區分組第一', '東區外卡']]);
+});
+
+test("The groups as the bracket's first column: each card beside the quarterfinal place it fills", () => {
+  const r = (id, w, l, zone = '') => ({ id, name: id, short: id, abbr: id, logo: '', w, l, pd: 0, pf: 0, zone });
+  // (East ids: 1 Hawks, 2 Celtics, 4 Bulls, 5 Cavaliers, 8 Pistons, 11 Pacers…)
+  const groups = [
+    { conf: 'East', rows: [r('1', 3, 0, 'lead'), r('2', 2, 1, 'card')] },
+    { conf: 'East', rows: [r('5', 4, 0, 'lead'), r('11', 1, 2)] },
+    { conf: 'East', rows: [r('8', 2, 1, 'lead'), r('4', 1, 2)] }
+  ];
+  const col = cupGroupColumn(groups, cupQuarters(groups));
+  // 1 v 4: the 4-0 group, the wild card; 2 v 3: the 3-0 group, the 2-1 one (no West groups here: its places empty).
+  assert.deepEqual(col.map(c => c && `${c.group.kind}:${c.group.rows[0].id}`), ['group:5', 'card:2', 'group:1', 'group:8', null, null, null, null]);
 });

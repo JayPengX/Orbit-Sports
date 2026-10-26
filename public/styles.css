@@ -1261,6 +1261,13 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 /* A side clinched at its seed (a predicted bracket's): its seed filled green, the rest still a guess. */
 .br-side.sure .br-seed, .po-sure .br-seed { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--q-green); color: #fff; font-size: 10px; }
 .br-tie.sure { border-style: solid; }
+/* The NBA Cup's groups in the bracket: a small table a card, its place in the quarterfinals barred. */
+.br-tie.br-group { gap: 3px; padding: 8px 9px; align-content: start; }
+.br-gname { font-size: 11px; font-weight: 700; color: var(--q-muted); margin-bottom: 1px; }
+.br-grow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 5px; font-size: 12.5px; padding-left: 5px; border-left: 3px solid var(--zone, transparent); border-radius: 2px; }
+.br-grow .logo { width: 16px; height: 16px; }
+.br-grow .br-name { font-weight: 600; }
+.br-rec { font-size: 12px; font-weight: 650; color: var(--q-muted); }
 .po-sure { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; white-space: nowrap; }
 .br-opt { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .br-maybe .br-name { overflow: visible; }

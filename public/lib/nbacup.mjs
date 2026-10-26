@@ -10,6 +10,8 @@
 //   nbaCupGroups(games) -> [{ conf: 'East' | 'West', rows: [{ id, name, short, abbr, logo, w, l, pd, pf, left, zone }] }]
 //     zone: 'lead' (first in its group: the quarterfinals) | 'card' (the conference's best second: its wild card) | ''
 //   cupQuarters(groups) -> the quarterfinals as the groups stand: [predicted tie] (East 1 v 4, 2 v 3, then West's)
+//   cupGroupColumn(groups, quarters) -> the bracket's first column: a card a place in the quarterfinals,
+//     [{ group: { conf, kind: 'group' | 'card', rows } }], two beside each quarterfinal (its sides' order)
 
 const NBA_EAST = new Set(['1', '2', '4', '5', '8', '11', '14', '15', '17', '18', '19', '20', '27', '28', '30']);
 export const isEast = id => NBA_EAST.has(String(id));
@@ -119,4 +121,35 @@ export function cupQuarters(groups) {
     const known = lead.length === list.length && list.length === 3 && card;
     return [[1, 4], [2, 3]].map(([a, b]) => ({ projected: true, sides: known ? [side(by[a - 1], a), side(by[b - 1], b)] : [null, null], seeds: [a, b], labels: [label(a), label(b)] }));
   });
+}
+
+// The groups as the bracket's first column (Jay, 2026-10-26: the bracket
+// starting at the groups, the tables in it): each conference's three
+// groups and its wild card race (the three seconds), a card each, so every
+// place in the quarterfinals has the card it comes from beside it, in the
+// order of the quarterfinals' sides (a group by its winner, the wild card
+// by its own; a place not known yet by its label, 東區外卡, else the next
+// group of its conference).
+export function cupGroupColumn(groups, quarters) {
+  const cards = { East: [], West: [] };
+  for (const conf of ['East', 'West']) {
+    const list = (groups || []).filter(g => g.conf === conf);
+    if (!list.length) continue;
+    cards[conf].push(...list.map(g => ({ conf, kind: 'group', rows: g.rows })));
+    cards[conf].push({ conf, kind: 'card', rows: list.map(g => g.rows[1]).filter(Boolean).sort(byRecord) });
+  }
+  const used = new Set();
+  const take = c => (c && !used.has(c) ? (used.add(c), c) : null);
+  const out = [];
+  for (const t of quarters || []) {
+    const confOf = (s, i) => (s ? (isEast(s.id) ? 'East' : 'West') : /^東/.test(t?.labels?.[i] || '') ? 'East' : /^西/.test(t?.labels?.[i] || '') ? 'West' : t?.sides?.find(Boolean) ? (isEast(t.sides.find(Boolean).id) ? 'East' : 'West') : null);
+    for (let i = 0; i < 2; i++) {
+      const s = t?.sides?.[i];
+      const conf = confOf(s, i);
+      const mine = cards[conf] || [];
+      const card = (s && take(mine.find(c => (c.kind === 'group' ? c.rows[0]?.id === String(s.id) : c.rows.some(r => r.zone === 'card' && r.id === String(s.id)))))) || (/外卡/.test(t?.labels?.[i] || '') && take(mine.find(c => c.kind === 'card'))) || take(mine.find(c => !used.has(c) && (c.kind === 'group') === !/外卡/.test(t?.labels?.[i] || ''))) || take(mine.find(c => !used.has(c)));
+      out.push(card ? { group: card } : null);
+    }
+  }
+  return out.some(Boolean) ? out : [];
 }

@@ -30,7 +30,7 @@ import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR } from './lib/playoffs.mjs';
-import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters } from './lib/nbacup.mjs';
+import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn } from './lib/nbacup.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
@@ -2053,6 +2053,15 @@ const bracketOf = (league, d) => {
   // The quarterfinals not drawn yet: as the groups stand (this season's).
   const qf = model.rounds.find(r => r.key === 'QF');
   if (model.mode !== 'last' && qf?.ties.every(t => !t) && model.groups.length) qf.ties = cupQuarters(model.groups);
+  // The groups the bracket's first column, each card beside the place it fills (its tables in it, not under it).
+  const column = qf ? cupGroupColumn(model.groups, qf.ties) : [];
+  if (column.length) {
+    const games = (d.groupGames || []).filter(isGroupPlay);
+    const times = games.map(e => Date.parse(e.start)).filter(Number.isFinite);
+    const on = games.some(e => e.status?.state === 'in');
+    const done = games.length && games.every(e => e.status?.state === 'post' || e.status?.void);
+    model.rounds.unshift({ key: 'GROUPS', title: { zh: '小組賽', en: 'Group play' }, ties: column, dates: times.length ? { from: Math.min(...times), to: Math.max(...times) } : null, state: on ? 'live' : done ? 'done' : times.length && Math.min(...times) <= Date.now() ? 'on' : 'later' });
+  }
   return model;
 };
 async function playoffData(league) {
@@ -2298,6 +2307,16 @@ function playoffView(model, key) {
     if (t.options?.some(Boolean) && before) return en ? `Waiting on the ${before.title.en} winner` : `等待${before.title.zh}勝隊`;
     return t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : t.pending ? (en ? 'To be decided' : '待定') : '';
   };
+  // The NBA Cup's first column: a group (or its conference's wild card race)
+  // as a small table, its place in the quarterfinals marked (分組第一 green,
+  // the wild card blue), beside the tie it fills.
+  const groupCard = g => {
+    const conf = g.conf === 'East' ? (en ? 'East' : '東區') : en ? 'West' : '西區';
+    return el('div', { class: `br-tie br-group${g.kind === 'card' ? ' br-card' : ''}` }, [
+      el('small', { class: 'br-gname', text: g.kind === 'card' ? (en ? `${conf} wild card · 2nds` : `${conf}外卡・各組第二`) : en ? `${conf} group` : `${conf}小組` }),
+      ...g.rows.map(x => el('div', { class: 'br-grow', ...(g.kind === 'card' ? x.zone === 'card' : x.zone === 'lead' || x.zone === 'card') ? { style: `--zone: ${PICTURE_COLOR[x.zone]}` } : {} }, [sideLogo(x, 'nba', 'xs'), el('span', { class: 'br-name', text: x.short || x.name }), el('span', { class: 'num br-rec', text: `${x.w}-${x.l}` })]))
+    ]);
+  };
   const tie = (t, r) => {
     // Its games as the newest read has them (the live tick's scoreboard), not as the bracket was read.
     if (t?.games?.length) {
@@ -2305,6 +2324,7 @@ function playoffView(model, key) {
       t = { ...t, games, live: games.some(g => g.status?.state === 'in') };
     }
     const blank = { projected: true, seeds: [], labels: [] };
+    if (t?.group) return groupCard(t.group);
     // An empty row (the play-in's): a card's height, unseen, so the columns line up.
     if (t?.gap) return el('div', { class: `br-tie gap${t.through ? ' through' : ''}`, 'aria-hidden': 'true' }, [sideRow(null, blank, 0), sideRow(null, blank, 1), el('small', { class: 'br-note', text: '·' })]);
     const said = note(t, r);
@@ -2417,7 +2437,8 @@ function linkTies(map, model) {
     // lines of words ran taller than a side's logo row; 約 4/14 起 under a
     // head), so the rows line up across columns and a line between two
     // cards side by side runs straight (Jay, 2026-10-23: "not straight").
-    for (const sel of [':scope > .br-col > .br-head', ':scope > .br-col .br-tie']) {
+    // (The NBA Cup's group cards among themselves: a tie isn't a table's height; its wild card race, three rows, its own.)
+    for (const sel of [':scope > .br-col > .br-head', ':scope > .br-col .br-tie:not(.br-group)', ':scope > .br-col .br-tie.br-group:not(.br-card)']) {
       const all = [...map.querySelectorAll(sel)];
       const tall = Math.max(...all.map(n => n.offsetHeight));
       for (const n of all) if (n.offsetHeight < tall) n.style.minHeight = `${tall}px`;
@@ -2899,12 +2920,10 @@ function renderScores() {
   const shownRounds = shown?.model?.rounds || [];
   const poFailed = !shown?.model && shown?.failed && !shown.loading;
   const cupChips = knockView && sc.league === 'nba' ? segmented([['po', L({ zh: '季後賽', en: 'Playoffs' })], ['cup', L({ zh: 'NBA 盃', en: 'NBA Cup' })]], poKey === CUP ? 'cup' : 'po', v => ((sc.po = v), renderScores()), '', { chips: true }) : null;
-  // The cup: its knockout (the quarterfinals from the groups as they stand, bracketOf) and the groups under it.
-  const cupGroups = poKey === CUP && shown?.model ? cupGroupsView(shown.model) : null;
   const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
   const leadersView = !knockView && !tableView && sc.view === 'leaders' && hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn);
   if (leadersView) list = leadersOf(sc.league);
-  else if (knockView) list = el('div', { class: 'po-wrap' }, [cupChips, shownRounds.length ? playoffView(shown.model, poKey) : poFailed ? empty(t('failed')) : bracketShape(), cupGroups]);
+  else if (knockView) list = el('div', { class: 'po-wrap' }, [cupChips, shownRounds.length ? playoffView(shown.model, poKey) : poFailed ? empty(t('failed')) : bracketShape()]);
   else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
