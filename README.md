@@ -27,12 +27,6 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
   <img src="docs/screenshots/sports-6.webp" width="30%" alt="The championship race">
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/sports-4.webp" width="30%" alt="Standings for every league">
-  <img src="docs/screenshots/sports-5.webp" width="30%" alt="Your teams come first">
-  <img src="docs/screenshots/sports-6.webp" width="30%" alt="The whole playoff bracket">
-</p>
-
 ## Features
 
 - **Today:** a sticky date strip, what's on now, a no-clash plan of the day's best games, your own teams' games, and what already finished.
