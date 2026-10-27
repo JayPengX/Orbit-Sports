@@ -6,14 +6,14 @@
 
 <p align="center">
   <b>Every game, live.</b><br>
-  <a href="https://jaypengx.com/sports/"><b>jaypengx.com/sports</b></a>
+  <a href="https://orbit.jaypengx.com/sports/"><b>orbit.jaypengx.com/sports</b></a>
 </p>
 
 <p align="center">
   <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES_modules-F7DF1E?logo=javascript&logoColor=000"> <img alt="PWA" src="https://img.shields.io/badge/PWA-works_offline-5A0FC8?logo=pwa&logoColor=fff"> <img alt="Cloudflare" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=fff"> <img alt="GitHub" src="https://img.shields.io/badge/GitHub-Pages-24292F?logo=github&logoColor=fff"> <img alt="Tests" src="https://img.shields.io/badge/Tests-node_--test-339933?logo=nodedotjs&logoColor=fff">
 </p>
 
-Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan for your day and one tap to watch. Part of **Orbit**, a family of phone apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [jaypengx.com](https://jaypengx.com/).
+Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan for your day and one tap to watch. Part of **Orbit**, a family of phone apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
 
 <p align="center">
   <img src="docs/screenshots/sports-1.webp" width="30%" alt="Today">
@@ -41,7 +41,7 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 | Platform | Installable web app (Add to Home Screen) with a service worker; phones from 320 to 440 px |
 | Shared | The look, the Orbit Pass sign-in, notices and data reads come from the kit in [Orbit-Core](https://github.com/JayPengX/Orbit-Core) |
 | Data | ESPN, MLB's API, CPBL, F1 timing, Jolpica, FotMob and ELTA, all through the Orbit proxy on Cloudflare Workers; seasons and finished games kept in Cloudflare R2 |
-| Hosting | GitHub Pages, served at jaypengx.com by a Cloudflare Worker |
+| Hosting | GitHub Pages, served at orbit.jaypengx.com by a Cloudflare Worker |
 | Tests | `node --test` (about 50 test files on the logic: tables, picks, playoffs, F1, live state) |
 
 ## How it works
@@ -108,7 +108,7 @@ node ../Orbit-Core/tools/preview.mjs sports --live --serve --port 8123
 
 ## Deploying
 
-Push to `main`. GitHub Actions runs the tests, writes `nba-elta.json`, stamps every file with its content hash (so a phone downloads only what changed) and publishes `public/` to GitHub Pages; the site Worker serves it at its jaypengx.com address. It also runs every 6 hours. There are no pull requests or release branches.
+Push to `main`. GitHub Actions runs the tests, writes `nba-elta.json`, stamps every file with its content hash (so a phone downloads only what changed) and publishes `public/` to GitHub Pages; the site Worker serves it at its orbit.jaypengx.com address. It also runs every 6 hours. There are no pull requests or release branches.
 
 ## Part of Orbit
 
