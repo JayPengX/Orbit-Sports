@@ -44,7 +44,7 @@ couldn't be read is shown, never hidden.
   - **A race weekend:** a hero (flag, circuit, countdown to the next session),
     the sessions on one timeline (a tap picks whose order shows), then F1's
     冠軍之爭, 台灣轉播, 賽道 (outline, formula1.com's figures and lap record,
-    Open-Meteo's weather there each day) and last year's podium there.
+    Open-Meteo's weather there each day, through the proxy) and last year's podium there.
   - **A team:** 賽程, 戰績, 陣容, 數據領先 with 隊內排行, 排名.
   - **A player:** 概況 with 聯盟排名, 數據, 近期比賽, 資料; opened from a
     game, its 本場 line.

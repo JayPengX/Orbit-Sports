@@ -195,21 +195,13 @@ export async function weekendCircuit(start) {
   return (await circuitMap(m.circuit_key, year).catch(() => null)) || circuitMap(m.circuit_key, year - 1).catch(() => null);
 }
 // The weather at the circuit on the weekend's days there (Open-Meteo, no key,
-// read straight from the phone): [{ date, code, hi, lo, rain }] for the given
-// local dates within its 16 days, or [].
-const weathers = new Map();
+// through the proxy: one read a circuit for every phone): [{ date, code, hi,
+// lo, rain }] for the sessions' local dates within its 16 days, or [].
 export async function circuitWeather(start, starts) {
   const race = await roundOf(start);
   const loc = race?.Circuit?.Location;
   if (!loc?.lat) return [];
-  const key = `${loc.lat},${loc.long}`;
-  if (!weathers.has(key) || Date.now() - weathers.get(key).at > HOUR) {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.long}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=16`;
-    const got = fetch(url).then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
-    weathers.set(key, { at: Date.now(), got });
-    got.catch(() => weathers.delete(key));
-  }
-  const w = await weathers.get(key).got;
+  const w = await getJson(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.long}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=16`, { ttl: HOUR });
   const off = Number(w?.utc_offset_seconds) || 0;
   const days = [...new Set(starts.map(s => new Date(Date.parse(s) + off * 1000).toISOString().slice(0, 10)))];
   const d = w?.daily || {};

@@ -2651,7 +2651,7 @@ function weekendHero(e, sessions) {
     tick();
     const timer = setInterval(() => (count.isConnected ? tick() : clearInterval(timer)), 20_000);
     panel = el('div', { class: `wkh-now${now.abbr === 'Race' ? ' race' : ''}` }, [
-      el('span', { class: 'wkh-k' }, [document.createTextNode(en ? 'Next' : '下一節'), sessionTag({ sessionKey: now.abbr, session: sessionName(now, L()) })]),
+      el('span', { class: 'wkh-k', text: `${en ? 'Next' : '下一節'} · ${sessionName(now, L())}` }),
       count,
       el('small', { class: 'wkh-at num', text: `${dayLabel(localDate(Date.parse(now.start)))} ${timeText(now)}` })
     ]);
@@ -2754,7 +2754,8 @@ function circuitCard(e, sessions) {
       title,
       el('div', { class: 'stack tight' }, [
         map || tiles.length ? el('div', { class: `cc-top${map ? '' : ' flat'}` }, [map, tiles.length ? el('div', { class: 'cc-facts' }, tiles.map(([k, v]) => el('span', { class: 'cc-fact' }, [el('small', { text: k }), el('strong', { class: 'num', text: v })]))) : null]) : null,
-        rec?.v ? el('div', { class: 'cc-record' }, [el('small', { text: en ? 'Lap record' : '單圈紀錄' }), el('strong', { class: 'num', text: rec.v }), rec.sub ? el('span', { class: 'cc-who', text: rec.sub }) : null]) : null,
+        // The lap record, who and when on the line under it.
+        rec?.v ? el('div', { class: 'cc-record' }, [el('small', { text: en ? 'Lap record' : '單圈紀錄' }), el('span', { class: 'cc-v' }, [el('strong', { class: 'num', text: rec.v }), rec.sub ? el('small', { text: rec.sub }) : null])]) : null,
         wx.length
           ? el('div', { class: 'cc-wx', style: `--n:${wx.length}` }, wx.map(w => el('span', { class: 'cc-day' }, [el('small', { text: day(w.date) }), el('span', { class: `cc-sky ${skyIcon(w.code)}`, html: kitUI.icons[skyIcon(w.code)] || '' }), el('strong', { class: 'num', text: `${w.hi}°` }), el('small', { class: 'num', text: `${w.lo}°${w.rain != null ? ` · ${w.rain}%` : ''}` })])))
           : null
