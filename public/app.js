@@ -37,7 +37,7 @@ import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
 import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, sessionTag, raceFlag, audioName, personPic, refreshBadges } from './ui.js';
-import { followButton, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
+import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
 import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
@@ -1461,8 +1461,13 @@ function renderHome() {
         .filter(e => !pastSeen.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && pastSeen.add(`${e.league}:${e.id}:${e.sessionKey || ''}`))
         .sort((x, y) => Date.parse(x.start) - Date.parse(y.start))
     : [];
+  // A light day (three games of theirs or fewer, a weekday's one or two,
+  // Jay 2026-10-23): each game over as a card with who led each side; a
+  // busy day stays a plain list. Only the day's own games.
+  const light = filtered(mine).length <= 3;
   function pastDay() {
     const games = pastGames;
+    if (light && games.length) return section(t('pastEvents'), recapList(games, rowDay), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
     const title = t('pastEvents');
     if (!games.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
     return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))), games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
@@ -1470,8 +1475,9 @@ function renderHome() {
   // Shelves under the picks (each game once: the hero and 正在進行 first, then
   // 我的球隊, the picks, 今晚, the ended): my teams' games still to come, the
   // rest of the day's picks, my leagues, my teams' places in them.
-  // (Today over is still today: what's next of theirs, their leagues and places stay.)
-  const gone = past && !todayOver;
+  // (Today over is still today: what's next of theirs, their leagues and places stay;
+  // a light day gone by keeps their leagues and places under its few games.)
+  const gone = past && !todayOver && !light;
   const seenKeys = new Set([heroKey, ...liveRest.map(x => keyOf(x.event))]);
   // (A followed team's next game from its own schedule, whatever day is open, and the open day's.)
   const nextOf = f => (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame).filter(e => e.status?.state === 'pre' && !e.status.void && Date.parse(e.start) > now).sort((x, y) => Date.parse(x.start) - Date.parse(y.start))[0];
@@ -1487,7 +1493,9 @@ function renderHome() {
   planShown.forEach(x => seenKeys.add(keyOf(x.event)));
   const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, 12);
   const leaguesShelf = gone || h.picking || !hasFollows ? null : section(t('yourLeagues'), el('div', { class: 'q-rail league-rail' }, state.prefs.leagues.map(k => leagueTile(k, lk => openScores(lk)))));
-  const placeRows = gone || h.picking ? [] : followedTeams().filter(f => state.home.tables[f.league]?.[f.id]?.pos && !f.athlete).slice(0, 6);
+  // (Each team once: a followed player's team is often followed too.)
+  const placeSeen = new Set();
+  const placeRows = gone || h.picking ? [] : followedTeams().filter(f => state.home.tables[f.league]?.[f.id]?.pos && !f.athlete && !placeSeen.has(`${f.league}:${f.id}`) && placeSeen.add(`${f.league}:${f.id}`)).slice(0, 6);
   const placesShelf = placeRows.length
     ? section(
         L({ zh: '我的球隊排名', en: 'My teams in the table' }),
@@ -1525,10 +1533,26 @@ function renderHome() {
     !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
     leaguesShelf,
     placesShelf,
-    endedGames.length ? section(t('pastEvents'), kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
+    endedGames.length ? section(t('pastEvents'), light ? recapList(endedGames, rowDay) : kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
   );
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
+}
+// A light day's games over: a card each, with who led each side
+// (sheets.js gameRecap); each game's leaders read once.
+const homeBest = new Map();
+function recapList(games, opts) {
+  return el('div', { class: 'recap-list' }, games.map(e => {
+    const k = `${e.league}:${e.id}`;
+    if (!homeBest.has(k)) {
+      homeBest.set(k, null);
+      summary(e.league, e.id)
+        .then(d => homeBest.set(k, d || {}))
+        .catch(() => homeBest.set(k, {}))
+        .finally(() => state.tab === 'home' && renderHome());
+    }
+    return el('div', { class: 'q-card recap' }, [eventRow(e, opts), ...(e.kind === 'match' && !e.status.void ? gameRecap(e, homeBest.get(k)) : [])]);
+  }));
 }
 // Cards that scroll sideways (the kit's rail).
 // A rail of games as cards; a lone game as a row in a full-width card (one
