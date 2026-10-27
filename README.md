@@ -39,7 +39,7 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 | --- | --- |
 | App | Plain JavaScript (ES modules), HTML and CSS; no framework, no build step, no dependencies |
 | Platform | Installable web app (Add to Home Screen) with a service worker; phones from 320 to 440 px |
-| Shared | The look, the Orbit Pass sign-in, notices and data reads come from the kit in [Shared-Proxy](https://github.com/JayPengX/Shared-Proxy) |
+| Shared | The look, the Orbit Pass sign-in, notices and data reads come from the kit in [Orbit-Core](https://github.com/JayPengX/Orbit-Core) |
 | Data | ESPN, MLB's API, CPBL, F1 timing, Jolpica, FotMob and ELTA, all through the Orbit proxy on Cloudflare Workers; seasons and finished games kept in Cloudflare R2 |
 | Hosting | GitHub Pages, served at jaypengx.com by a Cloudflare Worker |
 | Tests | `node --test` (about 50 test files on the logic: tables, picks, playoffs, F1, live state) |
@@ -47,7 +47,7 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 ## How it works
 
 ```
-phone ── public/ (this repo, GitHub Pages) + the kit (Shared-Proxy's Pages)
+phone ── public/ (this repo, GitHub Pages) + the kit (Orbit-Core's Pages)
   │  kit proxyJson: memory → the phone's cache → R2 packs → the proxy's edge cache → upstream
   ▼
 api.jaypengx.com (Cloudflare Worker) ── ESPN · MLB · CPBL · F1 timing · FotMob · ELTA · …
@@ -79,10 +79,10 @@ MAP.md                     how it works, file by file
 
 ## Getting started
 
-The app loads the shared kit from a sibling folder, so clone this repo next to [Shared-Proxy](https://github.com/JayPengX/Shared-Proxy):
+The app loads the shared kit from a sibling folder, so clone this repo next to [Orbit-Core](https://github.com/JayPengX/Orbit-Core):
 
 ```bash
-git clone https://github.com/JayPengX/Shared-Proxy.git
+git clone https://github.com/JayPengX/Orbit-Core.git
 git clone https://github.com/JayPengX/Orbit-Sports.git
 cd Orbit-Sports
 ```
@@ -90,19 +90,19 @@ cd Orbit-Sports
 Requirements: Node.js 22 or newer. There is nothing to install: no framework, no `node_modules`.
 
 ```bash
-npm test   # links ../Shared-Proxy/kit as .kit, then runs node --test
+npm test   # links ../Orbit-Core/kit as .kit, then runs node --test
 ```
 
 See it on a phone-sized screen, signed in with a made-up wallet and real data (needs Playwright):
 
 ```bash
 # a screenshot, saved in /tmp/orbit-preview
-node ../Shared-Proxy/tools/preview.mjs sports --live --width 375
+node ../Orbit-Core/tools/preview.mjs sports --live --width 375
 # serve it, then open http://localhost:8123/Orbit-Sports/
-node ../Shared-Proxy/tools/preview.mjs sports --live --serve --port 8123
+node ../Orbit-Core/tools/preview.mjs sports --live --serve --port 8123
 ```
 
-`--dark`, `--lang en`, `--webkit` (Safari's engine) and the other flags are listed in [Shared-Proxy/tools/README.md](https://github.com/JayPengX/Shared-Proxy/blob/main/tools/README.md).
+`--dark`, `--lang en`, `--webkit` (Safari's engine) and the other flags are listed in [Orbit-Core/tools/README.md](https://github.com/JayPengX/Orbit-Core/blob/main/tools/README.md).
 
 `node scripts/label-audit.mjs` lists any ESPN stat label still missing a Chinese name.
 
@@ -123,6 +123,6 @@ Push to `main`. GitHub Actions runs the tests, writes `nba-elta.json`, stamps ev
 | [Orbit Beats](https://github.com/JayPengX/Orbit-Beats) | Endless music and your own beats |
 | [Orbit Law](https://github.com/JayPengX/Orbit-Law) | Laws, rulings and bills, linked |
 | [Orbit Money](https://github.com/JayPengX/Orbit-Money) | Your own books |
-| [Shared-Proxy](https://github.com/JayPengX/Shared-Proxy) | The kit, the Orbit Pass and the Workers behind them all |
+| [Orbit-Core](https://github.com/JayPengX/Orbit-Core) | The kit, the Orbit Pass and the Workers behind them all |
 
 How it was all built, in pictures and numbers: [jaypengx.com/showcase](https://jaypengx.com/showcase/).

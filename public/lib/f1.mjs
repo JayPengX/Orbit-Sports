@@ -372,7 +372,7 @@ export function askFinishes(events = [], then = () => {}) {
 // board's shape. Null when it isn't there (yet).
 // (v=4: the copies kept before had a retired car with no place ("99" on the
 // board), a practice's best a lap deleted for track limits (P2 quicker than
-// P1), no deleted laps said; asked no more. Shared-Proxy builders/f1kept.js
+// P1), no deleted laps said; asked no more. Orbit-Core builders/f1kept.js
 // keeps the same addresses.)
 const ARCHIVE = start => `https://f1-live.orbit/session.json?start=${encodeURIComponent(new Date(start).toISOString())}&v=4`;
 // Every car's laps in a session ({ cars: { no: [[lap, ms, gap, place, pit]…] } },

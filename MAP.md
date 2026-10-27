@@ -169,7 +169,7 @@ npm test
 ```
 
 ```bash
-node ../Shared-Proxy/tools/preview.mjs sports --live --width 375
+node ../Orbit-Core/tools/preview.mjs sports --live --width 375
 ```
 
 `scripts/label-audit.mjs` lists any ESPN stat label without Chinese. A push
@@ -180,8 +180,8 @@ every 6 hours).
 
 | This | Also check |
 | --- | --- |
-| A league | `leagues.mjs`, picks, Shared-Proxy's `builders/` |
+| A league | `leagues.mjs`, picks, Orbit-Core's `builders/` |
 | `liveTable` / `title.mjs` | Every table and the title line |
 | A session's status | Home cards, 轉播, the weekend sheet, standings, notices |
-| `trimF1Live` (Shared-Proxy) | The F1 board, 數據, Play's settling |
+| `trimF1Live` (Orbit-Core) | The F1 board, 數據, Play's settling |
 | A saved key's meaning | Bump its version, remove the old key |

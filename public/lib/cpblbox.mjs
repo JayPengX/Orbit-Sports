@@ -1,5 +1,5 @@
 // A CPBL game's box score, the league's own (cpbl.com.tw's box page, read
-// by the sports proxy: Shared-Proxy's asia-baseball.js, its `/cpbl/box/`),
+// by the sports proxy: Orbit-Core's asia-baseball.js, its `/cpbl/box/`),
 // in the shape the match sheet reads ESPN's in (espn.mjs parseSummary): the
 // line score, each side's batters and pitchers with their totals, the team
 // numbers (數據), the game's notes (二壘安打, 盜壘, 最快球速…) and every
