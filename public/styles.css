@@ -1355,7 +1355,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
   font-size: 12.5px;
 }
 /* (Said the fullest way that fits one line: fitChoice.) */
-.race-t small.one-line { white-space: nowrap; min-width: 0; }
+.race-t small.one-line, .race-t .race-main.one-line { white-space: nowrap; min-width: 0; }
 .rank-cell .rank-lock {
   display: inline-grid;
   width: auto;

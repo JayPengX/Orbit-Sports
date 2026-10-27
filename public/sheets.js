@@ -2917,7 +2917,8 @@ const choiceWatch = typeof ResizeObserver === 'function'
         const ways = n.__ways || [];
         n.style.fontSize = '';
         for (const w of ways) {
-          n.textContent = w;
+          if (w?.html != null) n.innerHTML = w.html;
+          else n.textContent = w;
           if (!overflows(n)) break;
         }
         for (let i = 0; i < 30 && overflows(n); i++) {
@@ -2930,7 +2931,9 @@ const choiceWatch = typeof ResizeObserver === 'function'
   : null;
 function fitChoice(n, ways) {
   n.__ways = ways;
-  n.textContent = ways[0];
+  // (A way may be { html }: words with their <b>, escaped where they're made.)
+  if (ways[0]?.html != null) n.innerHTML = ways[0].html;
+  else n.textContent = ways[0];
   n.classList.add('one-line');
   choiceWatch?.observe(n);
   return n;
@@ -5803,9 +5806,11 @@ function raceBlock(race, g, league, many) {
   // A side playing now (its game isn't in the table till it's over: liveTable).
   const onNow = id => (ctx.recentOf?.(league) || []).some(e => e.status?.state === 'in' && (e.home?.id === id || e.away?.id === id));
   // (`sub` said several ways, fullest first: the first that fits one line.)
+  // (`main` too: several ways, fullest first, e.g. the leader's full name then the family name.)
   const line = (icon, main, sub = '', cls = '') => {
     const ways = [].concat(sub).filter(Boolean);
-    return el('div', { class: `race-line ${cls}`.trim() }, [glyph(icon), el('span', { class: 'race-t' }, [el('span', { html: main }), ways.length > 1 ? fitChoice(el('small'), ways) : ways.length ? el('small', { text: ways[0] }) : null])]);
+    const mains = [].concat(main).filter(Boolean);
+    return el('div', { class: `race-line ${cls}`.trim() }, [glyph(icon), el('span', { class: 'race-t' }, [mains.length > 1 ? fitChoice(el('span', { class: 'race-main' }), mains.map(html => ({ html }))) : el('span', { html: mains[0] || '' }), ways.length > 1 ? fitChoice(el('small'), ways) : ways.length ? el('small', { text: ways[0] }) : null])]);
   };
   // (Its words go in as HTML for the <b>: every name and word from a feed escaped, never read as markup, an & kept.)
   const b = x => `<b>${esc(x)}</b>`;
@@ -5893,7 +5898,8 @@ function raceBlock(race, g, league, many) {
       if (race.unit === 'wins') return line('clock', W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`), when(t));
       const what = k ? W(`確定第 ${k + 1} 名`, `clinch P${k + 1}`) : many ? W(`確定${top}`, 'clinch 1st') : W('封王', 'clinch the title');
       const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : t.soonest === 1 && onNow(t.leader.id) ? W('最快這場', 'this game') : W(`最快 ${b(t.soonest)} 場後`, `in ${b(t.soonest)} game${t.soonest === 1 ? '' : 's'}`);
-      return line('clock', W(`${b(nm(t.leader))} ${at}${what}`, `${b(nm(t.leader))} could ${what} ${at}`), [nextLine(t), ...weekendLine(t), ...marginLine(t), leadLine(t)]);
+      const says = who => W(`${b(who)} ${at}${what}`, `${b(who)} could ${what} ${at}`);
+      return line('clock', [...new Set([says(nm(t.leader)), says(last(t.leader))])], [nextLine(t), ...weekendLine(t), ...marginLine(t), leadLine(t)]);
     }
     if (t.soonest == null) return null;
     const next = g.rows[k + 1];
