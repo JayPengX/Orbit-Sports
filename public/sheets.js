@@ -2973,7 +2973,7 @@ function sideStar(d, e, team) {
   if (sport === 'basketball') {
     const x = rowsWith('PTS').sort((p, q) => val(q, 'PTS') - val(p, 'PTS'))[0];
     if (!x || !val(x, 'PTS')) return null;
-    return { p: x.r, line: en ? join([`${val(x, 'PTS')} PTS`, `${val(x, 'REB')} REB`, `${val(x, 'AST')} AST`]) : join([`${val(x, 'PTS')} 分`, `${val(x, 'REB')} 籃板`, `${val(x, 'AST')} 助攻`]) };
+    return { p: x.r, line: en ? join([`${val(x, 'PTS')} PTS`, `${val(x, 'REB')} REB`, `${val(x, 'AST')} AST`]) : join([`${val(x, 'PTS')} 分`, `${val(x, 'REB')} 籃板`, `${val(x, 'AST')} 助攻`]), tight: en ? null : join([`${val(x, 'PTS')} 分`, `${val(x, 'REB')} 板`, `${val(x, 'AST')} 助`]) };
   }
   if (sport === 'baseball') {
     // A starter who shut them down, else the bat that drove the runs in,
@@ -2982,7 +2982,8 @@ function sideStar(d, e, team) {
     const arms = rowsWith('IP').filter(x => x.t.name === 'pitching' || col(x.t, 'ERA') >= 0).sort((p, q) => outs(q) - outs(p));
     const arm = arms[0];
     const armLine = x => (en ? join([`${x.r.stats[col(x.t, 'IP')]} IP`, `${val(x, 'K')} K`, `${val(x, 'ER')} ER`]) : join([`${x.r.stats[col(x.t, 'IP')]} 局`, `${val(x, 'K')} 次三振`, `失 ${val(x, 'ER')} 分`]));
-    if (arm && outs(arm) >= 18 && val(arm, 'ER') <= 1) return { p: arm.r, line: armLine(arm) };
+    const armTight = x => (en ? null : join([`${x.r.stats[col(x.t, 'IP')]} 局`, `${val(x, 'K')}K`, `失 ${val(x, 'ER')}`]));
+    if (arm && outs(arm) >= 18 && val(arm, 'ER') <= 1) return { p: arm.r, line: armLine(arm), tight: armTight(arm) };
     const bats = rowsWith('RBI', 'HR').filter(x => x.t.name !== 'pitching' && col(x.t, 'IP') < 0);
     const weight = x => val(x, 'HR') * 3 + val(x, 'RBI') * 2 + val(x, 'H') + val(x, 'R');
     const bat = bats.filter(x => val(x, 'RBI') > 0 || val(x, 'HR') > 0).sort((p, q) => weight(q) - weight(p))[0];
@@ -2990,9 +2991,9 @@ function sideStar(d, e, team) {
       const h = val(bat, 'H');
       const hr = val(bat, 'HR');
       const rbi = val(bat, 'RBI');
-      return { p: bat.r, line: en ? join([`${bat.r.stats[col(bat.t, 'H-AB')] || h + ' H'}`, hr ? `${hr > 1 ? hr + ' ' : ''}HR` : '', rbi ? `${rbi} RBI` : '']) : join([h ? `${h} 安` : '', hr ? `${hr} 轟` : '', rbi ? `${rbi} 分打點` : '']) };
+      return { p: bat.r, line: en ? join([`${bat.r.stats[col(bat.t, 'H-AB')] || h + ' H'}`, hr ? `${hr > 1 ? hr + ' ' : ''}HR` : '', rbi ? `${rbi} RBI` : '']) : join([h ? `${h} 安` : '', hr ? `${hr} 轟` : '', rbi ? `${rbi} 分打點` : '']), tight: en ? null : join([h ? `${h} 安` : '', hr ? `${hr} 轟` : '', rbi ? `${rbi} 打點` : '']) };
     }
-    return arm ? { p: arm.r, line: armLine(arm) } : null;
+    return arm ? { p: arm.r, line: armLine(arm), tight: armTight(arm) } : null;
   }
   if (sport === 'hockey') {
     const pts = x => val(x, 'G') * 2 + val(x, 'A');
@@ -3010,12 +3011,21 @@ export function gameRecap(e, d) {
   const best = sides.map(s => ({ s, star: d ? sideStar(d, e, String(s.id)) : null })).filter(x => x.star);
   // One line a side, under the scores as a race's top three is under its
   // name (Jay 2026-10-27: not two big cards that make one game twice as tall).
+  // Never cut (Jay 2026-10-27, "why it text wrap"): the full name first, then
+  // its short form (R. Gasser), then the stats' short words (3K, 12 板),
+  // then smaller (fitChoice).
+  const ways = (p, line, tight) => {
+    const full = playerName(p.full || p.name, 'full', p.name);
+    const short = p.name && p.name !== full ? p.name : shortWords(full);
+    const way = (who, what) => ({ html: `<strong>${esc(who)}</strong><small>${esc(what)}</small>` });
+    return [way(full, line), way(short, line), ...(tight && tight !== line ? [way(short, tight)] : [])];
+  };
   return best.length
     ? [
-        el('div', { class: 'recap-best' }, best.map(({ star: { p, line } }) =>
+        el('div', { class: 'recap-best' }, best.map(({ star: { p, line, tight } }) =>
           el('button', { class: 'recap-lead', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
             personPic({ ...p, name: p.full || p.name }, e.league, 'xs round'),
-            el('span', { class: 'recap-text' }, [el('strong', { text: playerName(p.full || p.name, 'full', p.name) }), el('small', { text: line })])
+            fitChoice(el('span', { class: 'recap-text' }), ways(p, line, tight))
           ])
         ))
       ]
