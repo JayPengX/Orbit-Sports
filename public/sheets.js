@@ -2,6 +2,7 @@
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
 import { translate, proxyJson, packJson, everyDev, dev } from '#kit/orbit.mjs';
+import * as kitUI from '#kit/ui.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
@@ -2554,6 +2555,8 @@ function twCard(league, e = null) {
                 { class: 'tw-exact' },
                 exact.map(b =>
                   watchLink(b, { class: 'tw-watch' }, [
+                    // The service's own mark (ELTA's, Apple TV's), else a TV's.
+                    b.svc === 'elta' ? eltaLogo() : b.svc === 'appletv' ? el('span', { class: 'replay-icon apple', 'aria-hidden': 'true', text: '\uF8FFtv' }) : kitUI.tile(kitUI.icons.tv, 'var(--accent)'),
                     el('span', { class: 'tw-watch-name' }, [
                       el('strong', { text: tvName(b) }),
                       // Short lines, each designed for its own row (one long one wrapped):
@@ -2564,7 +2567,7 @@ function twCard(league, e = null) {
                     ]),
                     // (Who a 球員視角 follows, looked up on ELTA.tv: its line said again once found.)
                     b.audio === 'cam' && e && !camKnownOf(e, b) ? camLater(e, b) : null,
-                    b.url ? el('span', { class: 'tw-watch-go', text: `${L() === 'en' ? 'Watch' : '觀看'} ›` }) : null
+                    b.url ? el('span', { class: 'tw-watch-go' }, [el('span', { class: 'watch-play', 'aria-hidden': 'true' }), document.createTextNode(L() === 'en' ? 'Watch' : '觀看')]) : null
                   ])
                 )
               )
@@ -2576,40 +2579,97 @@ function twCard(league, e = null) {
   );
 }
 
-// A race weekend's sessions as a timeline, by day: each session's time,
-// its badge (正賽 marked out), and whether it's over, on or to come.
+// A race weekend's sessions as one timeline, by day (the owner, 2026-10-27:
+// the session pills and a list of the same sessions under them read as old):
+// each session a stop on one line (done, on, next, to come; 正賽 its
+// chequered mark), its short name and hour under it, the days over them. A
+// tap picks the session whose order shows below.
 const SESSION_KIND = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' };
-function weekendTimeline(sessions) {
-  const byDay = new Map();
+// The session on, else the next to come (one rule for the hero and the line).
+const nextSession = (sessions, now = Date.now()) => sessions.find(x => x.status.state === 'in') || sessions.find(x => x.status.state === 'pre' && Date.parse(x.start) > now);
+function sessionLine(sessions, pick, onPick) {
+  const en = L() === 'en';
+  const next = nextSession(sessions);
+  const days = [];
   for (const x of sessions) {
     const d = localDate(Date.parse(x.start));
-    if (!byDay.has(d)) byDay.set(d, []);
-    byDay.get(d).push(x);
+    if (days.at(-1)?.d === d) days.at(-1).n++;
+    else days.push({ d, n: 1 });
   }
-  const now = Date.now();
-  const next = sessions.find(x => x.status.state === 'in') || sessions.find(x => x.status.state === 'pre' && Date.parse(x.start) > now);
-  return el(
-    'div',
-    { class: 'wk-timeline' },
-    [...byDay].map(([d, list]) =>
-      el('div', { class: 'wk-day' }, [
-        el('div', { class: 'wk-date' }, [el('strong', { text: dayLabel(d) })]),
-        el(
-          'div',
-          { class: 'wk-sessions' },
-          list.map(x => {
-            const kind = SESSION_KIND[x.abbr] || 'other';
-            const state = x.status.state;
-            return el('div', { class: `wk-row ${kind}${state === 'in' ? ' live' : ''}${x === next ? ' next' : ''}${state === 'post' ? ' done' : ''}` }, [
-              el('span', { class: 'wk-time num', text: timeText(x) }),
-              el('span', { class: 'wk-name' }, [el('span', { class: `sess-tag ${kind}`, text: sessionName(x, L()) })]),
-              el('span', { class: `wk-state ${state}`, text: state === 'post' ? T('final') : state === 'in' ? T('live') : x === next ? (L() === 'en' ? 'Next' : '下一場') : '' })
-            ]);
-          })
-        )
-      ])
-    )
-  );
+  const word = x => (x.status.state === 'in' ? T('live') : x.status.state === 'post' ? T('final') : x === next ? (en ? 'Next' : '下一節') : '');
+  const stops = sessions.map((x, i) => {
+    const kind = SESSION_KIND[x.abbr] || 'other';
+    const state = x.status.state === 'in' ? 'live' : x.status.state === 'post' ? 'done' : x === next ? 'next' : 'later';
+    // The line to it filled once the one before is over; on from it once this one is.
+    const from = i > 0 && sessions[i - 1].status.state === 'post';
+    return el(
+      'button',
+      {
+        class: `wkt-stop ${kind} ${state}${from ? ' from' : ''}${x.status.state === 'post' ? ' to' : ''}`,
+        type: 'button',
+        'aria-pressed': String(i === pick),
+        'aria-label': [sessionName(x, L()), dayLabel(localDate(Date.parse(x.start))), timeText(x), word(x)].filter(Boolean).join(' '),
+        onclick: () => onPick(i)
+      },
+      [el('span', { class: 'wkt-dot', 'aria-hidden': 'true' }), el('span', { class: 'wkt-name', text: sessionName(x, L(), true) }), el('span', { class: 'wkt-time num', text: timeText(x) })]
+    );
+  });
+  return el('div', { class: 'q-card wkt', style: `--n:${sessions.length}` }, [
+    ...days.map(({ d, n }) => el('span', { class: 'wkt-day num', style: `grid-column:span ${n}`, text: dayLabel(d) })),
+    ...stops
+  ]);
+}
+// How long until a time, in the largest two parts: 3 天 14 小時, 5 小時 12 分, 12 分.
+function untilText(ms, en) {
+  const m = Math.max(0, Math.floor(ms / 60_000));
+  const d = Math.floor(m / 1440);
+  const h = Math.floor((m % 1440) / 60);
+  const mm = m % 60;
+  if (m < 1) return en ? 'Starting' : '即將開始';
+  if (d) return en ? `${d}d ${h}h` : `${d} 天 ${h} 小時`;
+  if (h) return en ? `${h}h ${mm}m` : `${h} 小時 ${mm} 分`;
+  return en ? `${mm} min` : `${mm} 分`;
+}
+// A race weekend's hero: its flag, name, circuit and days; then what's next:
+// the session on, the countdown to the next, or (all over) the race's winner;
+// following it, and watching what's on.
+function weekendHero(e, sessions) {
+  const en = L() === 'en';
+  const first = localDate(Date.parse(sessions[0]?.start || e.start));
+  const last = localDate(Date.parse(sessions.at(-1)?.start || e.start));
+  const md = d => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+  const span = first === last ? dayLabel(first) : `${md(first)} – ${md(last)}`;
+  const now = nextSession(sessions);
+  const race = sessions.find(x => x.abbr === 'Race') || sessions.at(-1);
+  const winner = !now && race?.status.state === 'post' ? race.field?.[0] : null;
+  let panel = null;
+  if (now?.status.state === 'in') {
+    panel = el('div', { class: 'wkh-now live' }, [el('span', { class: 'wkh-k' }, [el('i', { class: 'wkh-live', 'aria-hidden': 'true' }), document.createTextNode(T('live'))]), el('strong', { class: 'wkh-big', text: sessionName(now, L()) })]);
+  } else if (now) {
+    const count = el('strong', { class: 'wkh-big num' });
+    const tick = () => (count.textContent = untilText(Date.parse(now.start) - Date.now(), en));
+    tick();
+    const timer = setInterval(() => (count.isConnected ? tick() : clearInterval(timer)), 20_000);
+    panel = el('div', { class: `wkh-now${now.abbr === 'Race' ? ' race' : ''}` }, [
+      el('span', { class: 'wkh-k' }, [document.createTextNode(en ? 'Next' : '下一節'), sessionTag({ sessionKey: now.abbr, session: sessionName(now, L()) })]),
+      count,
+      el('small', { class: 'wkh-at num', text: `${dayLabel(localDate(Date.parse(now.start)))} ${timeText(now)}` })
+    ]);
+  } else if (winner) {
+    panel = el('div', { class: 'wkh-now done' }, [
+      personPic(winner, e.league, 'round wkh-pic'),
+      el('span', { class: 'wkh-win' }, [el('span', { class: 'wkh-k', text: en ? 'Race winner' : '正賽冠軍' }), el('strong', { class: 'wkh-big', text: winner.short || winner.name })])
+    ]);
+  }
+  return el('div', { class: 'q-hero-card wk-hero' }, [
+    el('div', { class: 'wkh-top' }, [
+      raceFlag(e, 'big wkh-flag'),
+      el('div', { class: 'wkh-text' }, [el('small', { class: 'wkh-over num', text: span }), el('h3', { class: `wkh-name${e.name.length > 16 ? ' long' : ''}`, text: e.name }), e.venue ? el('small', { class: 'wkh-where', text: e.venue }) : null])
+    ]),
+    panel,
+    weekendFollow(e),
+    watchButton(e, 'wide')
+  ]);
 }
 
 export function openFieldEvent(e) {
@@ -4274,10 +4334,16 @@ function f1Final(rows, board, ss) {
   return order ? el('div', { class: 'f1-final' }, [f1Views(order, board ? f1Stats(board, ss) : null)]) : null;
 }
 function fillField(s, e) {
-  s.body.append(el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]), // The place, then the day and the official start: two designed lines (the
-      // titles' time isn't said: the broadcast card says when the channel's on air).
-      // The day and time, then the place, on one line: the time always whole, a long place cut (two lines read as one wrapped).
-      el('p', { class: 'muted sess-line' }, [el('span', { class: 'sess-when num', text: whenOf(e) }), e.venue ? el('span', { class: 'sess-where', text: e.venue }) : null]), weekendFollow(e), watchButton(e, 'wide')]));
+  // (Each session as F1's feed has it where it has said: on or over before
+  // ESPN; the home's cards' rule: a session long past its start is over, ESPN's "on" or not.)
+  const sessions = e.kind === 'field' ? [...(e.sessions || [])].map(x => ({ ...x, status: sessionStatus(x) })).sort((a, b) => Date.parse(a.start) - Date.parse(b.start)) : [];
+  s.body.append(
+    sessions.length
+      ? weekendHero(e, sessions)
+      : el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'sess-head field-title' }, [raceFlag(e, 'big'), sessionTag(e), el('h3', { text: e.name })]),
+          // The day and time, then the place, on one line: the time always whole, a long place cut (two lines read as one wrapped).
+          el('p', { class: 'muted sess-line' }, [el('span', { class: 'sess-when num', text: whenOf(e) }), e.venue ? el('span', { class: 'sess-where', text: e.venue }) : null]), weekendFollow(e), watchButton(e, 'wide')])
+  );
   // A race weekend's replay and highlights go with the session picked below
   // (they're that session's); anything else's here.
   if (e.kind !== 'field') {
@@ -4287,12 +4353,7 @@ function fillField(s, e) {
     if (yt) s.body.append(yt);
   }
   if (e.kind === 'field') {
-    // The weekend's (or week's) sessions, then the chosen one's order.
-    // (Each as F1's feed has it where it has said: on or over before ESPN.)
-    // (The home's cards' rule: a session long past its start is over, ESPN's "on" or not.)
-    const sessions = [...e.sessions].map(x => ({ ...x, status: sessionStatus(x) })).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
-    // The weekend's schedule under the session's results (not a long list on top of them).
-    const schedule = sessions.length > 1 ? card(T('schedule'), weekendTimeline(sessions)) : null;
+    // The weekend's (or week's) sessions on one line, then the chosen one's order.
     let pick = e.sessionKey ? Math.max(0, sessions.findIndex(x => x.abbr === e.sessionKey)) : Math.max(0, sessions.findLastIndex(x => x.status.state !== 'pre'));
     // Its parts spaced as the sheet's (the owner, 2026-10-16: the sessions' chips sat on the card above).
     const box = el('div', { class: 'stack race-box' });
@@ -4369,11 +4430,11 @@ function fillField(s, e) {
       const holder = el('div', { class: 'f1-holder' }, [known ? f1Final(known.rows, known.board, ss) : lastWord ? f1Final(null, { ...lastWord, final: true }, ss) : numbers ? shape() : ss.status.state === 'pre' && !ss.field.length ? null : espnList()]);
       put(
         box,
-        sessions.length > 1 ? segmented(sessions.map((x, i) => [String(i), sessionName(x, L(), true)]), String(pick), v => ((pick = Number(v)), paint())) : null,
-        // (A live F1 session's own card says it: the line said it twice.)
+        sessions.length > 1 ? sessionLine(sessions, pick, i => i !== pick && ((pick = i), paint())) : null,
+        // (A live F1 session's own card says it, and the line above says a session's hour or that it's over.)
         // The chosen session's own hour (the weekend's opened one's official start
         // said every session's: the owner, 2026-10-21).
-        e.league === 'f1' && ss.status.state === 'in' ? null : el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, official: ss.start, timeTbd: ss.timeTbd, status: ss.status })}` }),
+        (e.league === 'f1' && ss.status.state === 'in') || (sessions.length > 1 && ['pre', 'post'].includes(ss.status.state) && !ss.status.void && !ss.status.delayed) ? null : el('p', { class: 'muted small', text: `${sessionName(ss, L())} · ${statusText({ ...e, start: ss.start, official: ss.start, timeTbd: ss.timeTbd, status: ss.status })}` }),
         // The picked session's whole replay and highlights, once it's over.
         ...(() => {
           const one = { ...e, id: `${weekend}~${ss.abbr}`, weekend, sessionKey: ss.abbr, session: sessionName(ss, L()), start: ss.start, official: ss.start, status: ss.status };
@@ -4446,7 +4507,6 @@ function fillField(s, e) {
     };
     paint();
     s.body.append(box);
-    if (schedule) s.body.append(schedule);
   }
   s.body.append(twCard(e.league, e));
 }

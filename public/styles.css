@@ -615,11 +615,14 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 /* Where a game is on: its channel under the sides, the ELTA guide, the watch links. */
 .tw-chip.exact { font-weight: 700; }
 .tw-exact { display: grid; gap: 8px; }
-.tw-watch { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--q-sunken); color: inherit; text-decoration: none; }
-.tw-watch-name { display: grid; gap: 1px; min-width: 0; flex: 1; }
-.tw-watch-name small { font-size: 12px; color: var(--q-muted); }
+.tw-watch { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 12px; border-radius: 16px; background: var(--q-sunken); color: inherit; text-decoration: none; }
+.tw-watch > .replay-icon, .tw-watch > .q-tile { flex: none; width: 40px; height: 40px; border-radius: 10px; }
+.tw-watch-name { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.tw-watch-name strong { font-size: 15px; line-height: 1.25; }
+.tw-watch-name small { font-size: 12px; line-height: 1.3; color: var(--q-muted); }
 .tw-watch-name small.one-line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.tw-watch-go { flex: none; font-weight: 700; color: var(--accent); font-size: 14px; }
+.tw-watch-go { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px 7px 11px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 800; white-space: nowrap; }
+.tw-watch-go .watch-play { border-width: 4.5px 0 4.5px 7px; }
 .stack.tight { gap: 10px; }
 /* A season's results: the race or match (two lines if need be), its result on the right. */
 .info-list.results li { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
@@ -1069,21 +1072,16 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 /* A game still to come: its time on the first line, at the right; where it's
    on gets a line of its own under the opponent (never squeezing the name). */
 .pill.sm { width: 18px; height: 18px; border-radius: 5px; font-size: 10px; }
-/* A race weekend's timeline: days, then each session's time, badge and state. */
-.wk-timeline { display: grid; gap: 12px; }
-.wk-day { display: grid; gap: 6px; }
-.wk-date strong { font-size: 13px; color: var(--q-muted); font-weight: 700; letter-spacing: 0.02em; }
+/* A race weekend's sessions in its card on 賽事: each one's time, badge and state. */
 .wk-sessions { display: grid; gap: 6px; }
 .wk-row { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--q-surface-2, rgba(127, 127, 127, 0.08)); }
 .wk-row.race { background: color-mix(in srgb, var(--q-accent, #ea580c) 12%, transparent); box-shadow: inset 3px 0 0 var(--q-accent, #ea580c); }
-.wk-row.next { outline: 1.5px solid var(--q-accent, #ea580c); }
 .wk-row.live { box-shadow: inset 3px 0 0 var(--live, #e11d48); }
 .wk-row.done { opacity: 0.6; }
 .wk-time { font-size: 17px; font-weight: 800; }
 .wk-name { min-width: 0; }
 .wk-state { font-size: 12px; font-weight: 700; color: var(--q-muted); }
 .wk-state.in { color: var(--live, #e11d48); }
-.wk-row.next .wk-state { color: var(--q-accent, #ea580c); }
 /* 賽事 for a race series: a card per weekend. */
 .wk-cards { display: grid; gap: 10px; }
 .wk-card { display: grid; gap: 10px; width: 100%; padding: 14px; text-align: left; font: inherit; color: inherit; border: 1px solid transparent; cursor: pointer; }
@@ -2022,3 +2020,75 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .tw-h-gap { justify-self: end; border: 0; background: var(--q-sunken, rgba(127,127,127,.12)); color: var(--q-text); border-radius: 999px; padding: 3px 10px; font: 650 12px/1.4 inherit; cursor: pointer; white-space: nowrap; }
 .tw-h-gap i { font-style: normal; color: var(--q-muted); }
 .f1-field .tw-head + li .f1-main { color: var(--accent); }
+
+/* A race weekend's hero (the kit's hero card): the flag, name, circuit and
+   days; what's next in a glass panel (on now, the countdown, or the race's
+   winner); following it and watching. */
+.wk-hero { gap: 14px; margin: 4px 0 14px; padding: 18px 16px 16px; }
+.wkh-top { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.wk-hero .race-flag.wkh-flag { width: 52px; height: 52px; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55), 0 6px 16px -6px rgba(0, 0, 0, 0.5); }
+.wk-hero .race-flag.emoji.wkh-flag { font-size: 44px; box-shadow: none; }
+.wkh-text { display: grid; gap: 2px; min-width: 0; }
+.wkh-over { font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em; opacity: 0.85; }
+.wkh-name { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 850; letter-spacing: -0.01em; white-space: nowrap; }
+.wkh-name.long { font-size: 21px; }
+.wkh-where { font-size: 13px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wkh-now { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 2px 10px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.wkh-k { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; opacity: 0.9; }
+.wkh-k .sess-tag { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.wkh-now.race .wkh-k .sess-tag { background: #fff; color: var(--q-hc-b, var(--accent)); }
+.wkh-big { font-size: 26px; line-height: 1.1; font-weight: 850; white-space: nowrap; }
+.wkh-at { font-size: 13px; font-weight: 650; opacity: 0.9; white-space: nowrap; padding-bottom: 3px; }
+.wkh-live { width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); animation: wkh-pulse 1.6s ease-out infinite; }
+@keyframes wkh-pulse { to { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); } }
+.wkh-now.done { display: flex; align-items: center; gap: 12px; }
+.wkh-now .wkh-pic { width: 44px; height: 44px; }
+.wkh-win { display: grid; gap: 2px; min-width: 0; }
+.wkh-win .wkh-k { font-weight: 700; }
+.wk-hero > .mh-follow { margin: 0; justify-content: stretch; }
+.wk-hero .game-follow { flex: 1; justify-content: center; min-height: 40px; background: rgba(255, 255, 255, 0.16); color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); }
+.wk-hero .game-follow .gf-star { color: #fff; }
+.wk-hero .game-follow.on { background: rgba(255, 255, 255, 0.95); color: #1c1c1e; }
+.wk-hero .game-follow.on .gf-star { color: #d4a017; }
+.wk-hero > .watch-btn.wide { margin: 0; background: #fff; color: var(--q-hc-b, var(--accent)); }
+@media (max-width: 360px) {
+  .wkh-top { gap: 12px; }
+  .wk-hero .race-flag.wkh-flag { width: 44px; height: 44px; }
+  .wkh-name { font-size: 23px; } .wkh-name.long { font-size: 19px; } .wkh-big { font-size: 23px; } .wkh-where { font-size: 12px; }
+  /* The broadcast's play button alone, its name and lines whole. */
+  .tw-watch { gap: 10px; padding-inline: 10px; }
+  .tw-watch > .replay-icon, .tw-watch > .q-tile { width: 34px; height: 34px; border-radius: 9px; }
+  .tw-watch-go { width: 34px; height: 34px; padding: 0 0 0 2px; justify-content: center; font-size: 0; }
+  .tw-watch-go .watch-play { border-width: 6px 0 6px 9px; }
+}
+
+/* The weekend's sessions as one line: the days over their sessions, each
+   session a stop (done ✓, on, next ringed, to come hollow; 正賽 chequered),
+   its short name and hour; the picked one on a soft tile. */
+.wkt { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); column-gap: 0; row-gap: 6px; padding: 12px 8px 8px; }
+.wkt-day { position: relative; margin: 0 4px; padding-bottom: 5px; text-align: center; font-size: 11.5px; font-weight: 700; color: var(--q-muted); white-space: nowrap; border-bottom: 1.5px solid var(--q-divider); }
+.wkt-stop { position: relative; display: grid; justify-items: center; gap: 4px; min-width: 0; padding: 8px 0 8px; border: 0; border-radius: 14px; background: none; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.wkt-stop[aria-pressed='true'] { background: var(--accent-wash); }
+/* The line through the stops: each half its own, filled once the session it leads from is over. */
+.wkt-stop::before, .wkt-stop::after { content: ''; position: absolute; top: 18px; height: 2px; background: var(--q-divider); }
+.wkt-stop::before { left: 0; right: 50%; }
+.wkt-stop::after { left: 50%; right: 0; }
+.wkt-stop:first-of-type::before, .wkt-stop:last-child::after { display: none; }
+.wkt-stop.from::before, .wkt-stop.to::after { background: var(--accent); }
+.wkt-dot { position: relative; z-index: 1; box-sizing: border-box; width: 20px; height: 20px; border-radius: 50%; background: var(--q-surface); border: 2px solid color-mix(in srgb, var(--q-muted) 55%, transparent); }
+.wkt-stop.done .wkt-dot { border: 0; background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 10.3l3 3 6-6.4' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat; }
+.wkt-stop.next .wkt-dot { border: 2.5px solid var(--accent); box-shadow: 0 0 0 4px var(--accent-wash); }
+.wkt-stop.live .wkt-dot { border: 0; background: var(--live, #e11d48); animation: wkt-pulse 1.6s ease-out infinite; }
+@keyframes wkt-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live, #e11d48) 55%, transparent); } 100% { box-shadow: 0 0 0 9px transparent; } }
+/* 正賽: a chequered stop, ringed in its state's colour. */
+.wkt-stop.race .wkt-dot { border: 2.5px solid var(--q-text, #111); background: repeating-conic-gradient(#111 0 25%, #fff 0 50%) 50% / 7px 7px; }
+.wkt-stop.race.next .wkt-dot { border-color: var(--accent); }
+.wkt-stop.race.live .wkt-dot { border-color: var(--live, #e11d48); }
+.wkt-stop.race.done .wkt-dot { border-color: var(--accent); }
+.wkt-name { max-width: 100%; font-size: 12.5px; font-weight: 700; color: var(--q-text-2); white-space: nowrap; }
+.wkt-time { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
+.wkt-stop.done :is(.wkt-name, .wkt-time) { color: var(--q-muted); }
+.wkt-stop.next .wkt-name, .wkt-stop.race .wkt-name { color: var(--accent); }
+.wkt-stop.live .wkt-name { color: var(--live, #e11d48); }
+.wkt-stop.race .wkt-name { font-weight: 850; }
+@media (max-width: 360px) { .wkt { padding-inline: 4px; } .wkt-day { margin: 0 2px; font-size: 10.5px; } .wkt-name { font-size: 11.5px; } .wkt-time { font-size: 14px; } }
