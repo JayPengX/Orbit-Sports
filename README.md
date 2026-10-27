@@ -41,7 +41,10 @@ couldn't be read is shown, never hidden.
     場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊. Every sport shares one
     先發陣容 card, one 陣容 card per side (先發 or 打序, 替補, then 未上場 or
     傷兵 in the injury report's rows) and one 傷兵 list (three, then 全部).
-  - **A race weekend.**
+  - **A race weekend:** a hero (flag, circuit, countdown to the next session),
+    the sessions on one timeline (a tap picks whose order shows), then F1's
+    冠軍之爭, 台灣轉播, 賽道 (outline, formula1.com's figures and lap record,
+    Open-Meteo's weather there each day) and last year's podium there.
   - **A team:** 賽程, 戰績, 陣容, 數據領先 with 隊內排行, 排名.
   - **A player:** 概況 with 聯盟排名, 數據, 近期比賽, 資料; opened from a
     game, its 本場 line.

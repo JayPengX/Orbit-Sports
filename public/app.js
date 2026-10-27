@@ -3450,6 +3450,15 @@ function racesLeft(league) {
   const weeks = ahead.filter(e => e.sessions.some(x => x.abbr === 'Race' && left(x))).sort((a, b) => Date.parse(a.start || a.date || 0) - Date.parse(b.start || b.date || 0)).map(e => ({ name: e.name, sprint: e.sessions.some(x => x.abbr === 'SR' && left(x)) }));
   return { races: open('Race'), sprints: open('SR'), list: weeks };
 }
+// The title fight going into a race weekend (its sheet): each table as 排名
+// has it now (the finals in), with its race (title.mjs), or null before any.
+ctx.titleFight = async league => {
+  const groups = tables.get(league) || (await standings(league).catch(() => null));
+  if (!Array.isArray(groups) || !groups.some(tableStarted)) return null;
+  if (league === 'f1' && !f1Rounds?.length) f1Rounds = ((await seasonEvents(league).catch(() => [])) || []).filter(e => e.sessions?.length);
+  const sport = LEAGUES[league].sport;
+  return tableNow(groups, league, recentOf(league)).map(g => ({ g, race: standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league), team: sport === 'racing' && !g.rows.some(r => r.athlete) }) }));
+};
 // Last seasons' final tables ('<league>:<year>'), read once.
 const lastTables = new Map();
 // Read as soon as a league opens in 賽事 (not on the tap on 排名): the copy

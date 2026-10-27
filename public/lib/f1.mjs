@@ -159,6 +159,67 @@ async function roundOf(start) {
   const t = Date.parse(start);
   return (sched?.MRData?.RaceTable?.Races || []).find(r => Math.abs(Date.parse(r.date) - t) < 3 * 86_400_000) || null;
 }
+// ---- A race weekend's background (its sheet before and around the sessions) ----
+// The circuit's figures, formula1.com's race page (by the round's slug on
+// its season page): { 'Circuit Length': { v: '4.304km' }, 'Number of Laps',
+// 'Race Distance', 'First Grand Prix', 'Fastest lap time': { v, sub: 'Valtteri Bottas (2021)' } }, or null.
+export async function circuitFacts(start) {
+  const race = await roundOf(start);
+  if (!race) return null;
+  const year = new Date(start).getFullYear();
+  const season = await getJson(`${F1}/racing/${year}`, { ttl: 24 * HOUR });
+  const slug = season?.races?.find(r => r.round === Number(race.round))?.slug;
+  if (!slug) return null;
+  const d = await getJson(`${F1}/racing/${year}/${slug}`, { ttl: 24 * HOUR });
+  const facts = Object.fromEntries((d?.facts || []).map(([k, v, sub]) => [k, { v, sub: sub || '' }]));
+  return facts['Circuit Length'] ? facts : null;
+}
+// Last year's podium at this weekend's circuit: [{ pos, driver, team, time }] (none: a new circuit).
+export async function lastPodium(start) {
+  const race = await roundOf(start);
+  const id = race?.Circuit?.circuitId;
+  if (!id) return { year: 0, rows: [] };
+  const year = new Date(start).getFullYear() - 1;
+  const d = await getJson(`${JOLPICA}/${year}/circuits/${id}/results.json?limit=3`, { ttl: 24 * HOUR });
+  const r = d?.MRData?.RaceTable?.Races?.[0];
+  return { year, rows: (r?.Results || []).slice(0, 3).map(x => ({ pos: Number(x.position), driver: x.Driver || {}, team: x.Constructor?.name || '', time: x.Time?.time || '' })) };
+}
+// The weekend's circuit outline: its key from OpenF1's meetings (by the
+// weekend's dates), MultiViewer's drawing of it (this year's, else last year's).
+export async function weekendCircuit(start) {
+  const year = new Date(start).getFullYear();
+  const meetings = await getJson(`https://api.openf1.org/v1/meetings?year=${year}`, { ttl: 24 * HOUR });
+  const t = Date.parse(start);
+  const m = (Array.isArray(meetings) ? meetings : []).find(x => Math.abs(Date.parse(x.date_start) - t) < 4 * 86_400_000);
+  if (!m?.circuit_key) return null;
+  return (await circuitMap(m.circuit_key, year).catch(() => null)) || circuitMap(m.circuit_key, year - 1).catch(() => null);
+}
+// The weather at the circuit on the weekend's days there (Open-Meteo, no key,
+// read straight from the phone): [{ date, code, hi, lo, rain }] for the given
+// local dates within its 16 days, or [].
+const weathers = new Map();
+export async function circuitWeather(start, starts) {
+  const race = await roundOf(start);
+  const loc = race?.Circuit?.Location;
+  if (!loc?.lat) return [];
+  const key = `${loc.lat},${loc.long}`;
+  if (!weathers.has(key) || Date.now() - weathers.get(key).at > HOUR) {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.long}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=16`;
+    const got = fetch(url).then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
+    weathers.set(key, { at: Date.now(), got });
+    got.catch(() => weathers.delete(key));
+  }
+  const w = await weathers.get(key).got;
+  const off = Number(w?.utc_offset_seconds) || 0;
+  const days = [...new Set(starts.map(s => new Date(Date.parse(s) + off * 1000).toISOString().slice(0, 10)))];
+  const d = w?.daily || {};
+  return days
+    .map(date => {
+      const i = (d.time || []).indexOf(date);
+      return i < 0 || d.temperature_2m_max?.[i] == null ? null : { date, code: d.weather_code[i], hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]), rain: d.precipitation_probability_max?.[i] ?? null };
+    })
+    .filter(Boolean);
+}
 export async function raceResult(start, sprint = false, en = false) {
   const year = new Date(start).getFullYear();
   const race = await roundOf(start);

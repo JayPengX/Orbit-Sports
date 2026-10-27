@@ -2092,3 +2092,59 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .wkt-stop.live .wkt-name { color: var(--live, #e11d48); }
 .wkt-stop.race .wkt-name { font-weight: 850; }
 @media (max-width: 360px) { .wkt { padding-inline: 4px; } .wkt-day { margin: 0 2px; font-size: 10.5px; } .wkt-name { font-size: 11.5px; } .wkt-time { font-size: 14px; } }
+
+/* A race weekend's background cards: a shape while each is read. */
+.wk-skel { width: 100%; border-radius: 12px; }
+/* 冠軍之爭: the top three on bars of their points, the teams in a line. */
+.tf-rows { display: grid; gap: 4px; }
+.tf-row { display: grid; grid-template-columns: 16px auto minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 6px 2px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tf-pos { font-size: 14px; font-weight: 800; color: var(--q-muted); text-align: center; }
+.tf-row:first-child .tf-pos { color: var(--accent); }
+.tf-main { display: grid; gap: 5px; min-width: 0; }
+.tf-name { font-size: 15px; font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tf-bar { display: block; height: 6px; border-radius: 3px; background: var(--q-sunken); overflow: hidden; }
+.tf-bar i { display: block; height: 100%; border-radius: 3px; background: var(--c, var(--accent)); }
+.tf-pts { display: grid; justify-items: end; line-height: 1.1; }
+.tf-pts strong { font-size: 17px; font-weight: 850; }
+.tf-pts small { font-size: 11.5px; color: var(--q-muted); font-weight: 650; }
+.tf-teams { display: flex; align-items: center; gap: 8px; margin: 0; padding-top: 10px; border-top: 1px solid var(--q-divider); font-size: 13px; color: var(--q-text-2); white-space: nowrap; overflow: hidden; }
+.stack.tight > .title-race { margin: 0; }
+.tf-teams .team-disc, .pd-team .team-disc { width: 18px; height: 18px; }
+.tf-teams > span { overflow: hidden; text-overflow: ellipsis; }
+/* 賽道: the outline beside its figures, the lap record, the weekend's weather. */
+.cc-top { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: center; gap: 14px; }
+.cc-top.flat { grid-template-columns: minmax(0, 1fr); }
+.cc-map svg { display: block; width: 100%; height: auto; overflow: visible; }
+.cc-edge { fill: none; stroke: color-mix(in srgb, var(--accent) 22%, transparent); stroke-width: 7; stroke-linejoin: round; stroke-linecap: round; }
+.cc-line { fill: none; stroke: var(--accent); stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; }
+.cc-start { fill: var(--q-surface); stroke: var(--q-text); stroke-width: 1.6; }
+.cc-facts { display: grid; gap: 0; }
+.cc-fact { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; padding: 6px 0; }
+.cc-fact + .cc-fact { border-top: 1px solid var(--q-divider); }
+.cc-fact small { font-size: 12.5px; color: var(--q-muted); font-weight: 650; white-space: nowrap; }
+.cc-record small, .cc-day small { font-size: 11.5px; color: var(--q-muted); font-weight: 650; white-space: nowrap; }
+.cc-fact strong { font-size: 15px; font-weight: 800; white-space: nowrap; }
+.cc-record { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 2px 10px; padding: 10px 12px; border-radius: 12px; background: var(--q-sunken); }
+.cc-record small { grid-column: 1 / -1; }
+.cc-record strong { font-size: 15px; font-weight: 800; }
+.cc-who { font-size: 12.5px; color: var(--q-text-2); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-wx { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 6px; }
+.cc-day { display: grid; justify-items: center; gap: 3px; padding: 10px 4px; border-radius: 12px; background: var(--q-sunken); }
+.cc-day strong { font-size: 16px; font-weight: 800; }
+.cc-sky { display: grid; width: 24px; height: 24px; }
+.cc-sky svg { width: 24px; height: 24px; }
+.cc-sky.sun { color: #f59e0b; }
+.cc-sky.cloud { color: var(--q-text-2); }
+.cc-sky.rain { color: #3b82f6; }
+/* 去年這一站: the podium, second, first, third, the winner's step tallest. */
+.pd { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 8px; }
+.pd-step { display: grid; justify-items: center; gap: 3px; min-width: 0; }
+.pd-step .pd-pic { width: 52px; height: 52px; }
+.pd-step.p1 .pd-pic { width: 64px; height: 64px; }
+.pd-name { max-width: 100%; font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd-team { display: flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; }
+.pd-team small { font-size: 11.5px; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pd-block { display: grid; place-items: center; width: 100%; margin-top: 4px; border-radius: 10px 10px 4px 4px; font-size: 18px; font-weight: 850; color: var(--q-text-2); background: var(--q-sunken); }
+.pd-step.p1 .pd-block { height: 46px; color: var(--accent-ink); background: var(--accent); }
+.pd-step.p2 .pd-block { height: 32px; }
+.pd-step.p3 .pd-block { height: 22px; }

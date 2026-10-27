@@ -21,7 +21,7 @@ import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, apart, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents } from './lib/f1.mjs';
+import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
@@ -2672,6 +2672,115 @@ function weekendHero(e, sessions) {
   ]);
 }
 
+// A part of a weekend's sheet read on its own: its card's shape meanwhile,
+// the card faded in when it comes, nothing left where there's nothing.
+function lateCard(title, height, load) {
+  const box = card(title, el('i', { class: 'skel wk-skel', style: `height:${height}px` }));
+  load()
+    .then(node => (node ? (node.classList.add('fade-in'), box.replaceWith(node)) : box.remove()))
+    .catch(() => box.remove());
+  return box;
+}
+const pts = r => Number(r?.stats?.PTS) || 0;
+// The championship going into the weekend: what the leader needs (the
+// table's race line), the top three drivers on bars of their points (a tap
+// to their page), and the teams' lead in a line.
+function titleFightCard(e) {
+  const en = L() === 'en';
+  const title = en ? 'Title fight' : '冠軍之爭';
+  if (!ctx.titleFight) return null;
+  return lateCard(title, 168, async () => {
+    const all = await ctx.titleFight(e.league);
+    const d = all?.find(x => x.g.rows.some(r => r.athlete));
+    if (!d || pts(d.g.rows[0]) <= 0) return null;
+    const top = d.g.rows.slice(0, 3);
+    const lead = pts(top[0]);
+    const teams = all.find(x => x !== d)?.g.rows;
+    const tn = r => (en ? r.en || r.name : f1Constructor(r.en || r.name)?.zh || r.short || r.name);
+    const teamLine = teams?.length > 1 && pts(teams[0]) > 0 ? el('p', { class: 'tf-teams' }, [constructorBadge(teams[0].en || teams[0].name, 'xs'), el('span', { text: en ? `${tn(teams[0])} lead the teams by ${pts(teams[0]) - pts(teams[1])}` : `車隊：${tn(teams[0])}領先 ${pts(teams[0]) - pts(teams[1])} 分` })]) : null;
+    return card(
+      title,
+      el('div', { class: 'stack tight' }, [
+        raceBlock(d.race, d.g, e.league, false),
+        el(
+          'div',
+          { class: 'tf-rows' },
+          top.map((r, i) =>
+            el('button', { class: 'tf-row', type: 'button', style: r.color ? `--c:${r.color}` : null, onclick: () => r.id && ctx.openPlayer(e.league, r.id, r) }, [
+              el('span', { class: 'tf-pos num', text: String(i + 1) }),
+              personPic(r, e.league, 'sm round'),
+              el('span', { class: 'tf-main' }, [el('span', { class: 'tf-name', text: r.short || r.name }), el('span', { class: 'tf-bar' }, [el('i', { style: `width:${Math.max(4, Math.round((pts(r) / lead) * 100))}%` })])]),
+              el('span', { class: 'tf-pts' }, [el('strong', { class: 'num', text: String(pts(r)) }), el('small', { class: 'num', text: i ? `−${lead - pts(r)}` : en ? 'pts' : '分' })])
+            ])
+          )
+        ),
+        teamLine
+      ])
+    );
+  });
+}
+// A weather code (WMO's) as the kit's icon.
+const skyIcon = code => (code >= 51 ? 'rain' : code >= 2 ? 'cloud' : 'sun');
+// The circuit: its outline, figures (length, laps, distance, first race, the
+// lap record and who holds it) and, while the weekend's to come or on, the
+// weather there each of its days.
+function circuitCard(e, sessions) {
+  const en = L() === 'en';
+  const title = en ? 'The circuit' : '賽道';
+  const race = sessions.find(x => x.abbr === 'Race') || sessions.at(-1);
+  const ahead = sessions.some(x => x.status.state !== 'post');
+  return lateCard(title, 200, async () => {
+    const [facts, c, wx] = await Promise.all([circuitFacts(race.start).catch(() => null), weekendCircuit(race.start).catch(() => null), ahead ? circuitWeather(race.start, sessions.map(x => x.start)).catch(() => []) : []]);
+    if (!facts && !c && !wx.length) return null;
+    const km = v => String(v || '').replace(/km$/, ' km');
+    const tiles = facts
+      ? [
+          [en ? 'Length' : '單圈長度', km(facts['Circuit Length']?.v)],
+          [en ? 'Laps' : '圈數', facts['Number of Laps']?.v],
+          [en ? 'Distance' : '比賽距離', km(facts['Race Distance']?.v)],
+          [en ? 'First race' : '首次舉辦', facts['First Grand Prix']?.v]
+        ].filter(([, v]) => v)
+      : [];
+    let map = null;
+    if (c) {
+      const W = 120;
+      const { fit, H } = trackFit(c, W, 84, 120, 8);
+      const d = c.x.map((x, i) => fit(x, c.y[i]).map(n => n.toFixed(1)).join(',')).join(' ');
+      map = el('div', { class: 'cc-map', html: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.name || title)}"><polyline class="cc-edge" points="${d}"/><polyline class="cc-line" points="${d}"/><circle class="cc-start" r="3.2" cx="${fit(c.x[0], c.y[0])[0].toFixed(1)}" cy="${fit(c.x[0], c.y[0])[1].toFixed(1)}"/></svg>` });
+    }
+    const rec = facts?.['Fastest lap time'];
+    const day = date => new Date(`${date}T12:00:00`).toLocaleDateString(en ? 'en-US' : 'zh-TW', { weekday: 'short' });
+    return card(
+      title,
+      el('div', { class: 'stack tight' }, [
+        map || tiles.length ? el('div', { class: `cc-top${map ? '' : ' flat'}` }, [map, tiles.length ? el('div', { class: 'cc-facts' }, tiles.map(([k, v]) => el('span', { class: 'cc-fact' }, [el('small', { text: k }), el('strong', { class: 'num', text: v })]))) : null]) : null,
+        rec?.v ? el('div', { class: 'cc-record' }, [el('small', { text: en ? 'Lap record' : '單圈紀錄' }), el('strong', { class: 'num', text: rec.v }), rec.sub ? el('span', { class: 'cc-who', text: rec.sub }) : null]) : null,
+        wx.length
+          ? el('div', { class: 'cc-wx', style: `--n:${wx.length}` }, wx.map(w => el('span', { class: 'cc-day' }, [el('small', { text: day(w.date) }), el('span', { class: `cc-sky ${skyIcon(w.code)}`, html: kitUI.icons[skyIcon(w.code)] || '' }), el('strong', { class: 'num', text: `${w.hi}°` }), el('small', { class: 'num', text: `${w.lo}°${w.rain != null ? ` · ${w.rain}%` : ''}` })])))
+          : null
+      ])
+    );
+  });
+}
+// Last year's podium here: second, first and third side by side, the winner raised.
+function podiumCard(e, sessions) {
+  const en = L() === 'en';
+  const race = sessions.find(x => x.abbr === 'Race') || sessions.at(-1);
+  if (race.status.state === 'post') return null;
+  return lateCard(en ? 'Last year here' : '去年這一站', 150, async () => {
+    const { year, rows } = await lastPodium(race.start);
+    if (rows.length < 3) return null;
+    const step = r =>
+      el('span', { class: `pd-step p${r.pos}` }, [
+        personPic({ name: `${r.driver.givenName} ${r.driver.familyName}`, en: `${r.driver.givenName} ${r.driver.familyName}` }, 'f1', 'round pd-pic'),
+        el('strong', { class: 'pd-name', text: r.driver.familyName || '' }),
+        el('span', { class: 'pd-team' }, [constructorBadge(r.team, 'xxs'), el('small', { text: en ? r.team : f1Constructor(r.team)?.zh || r.team })]),
+        el('span', { class: 'pd-block num', text: String(r.pos) })
+      ]);
+    return card(en ? `Here in ${year}` : `${year} 年這一站`, el('div', { class: 'pd' }, [2, 1, 3].map(p => step(rows.find(r => r.pos === p))).filter(Boolean)));
+  });
+}
+
 export function openFieldEvent(e) {
   const s = sheet(leagueName(e.league, L()), { league: e.league });
   fillField(s, e);
@@ -3313,6 +3422,29 @@ function tmZoom(m) {
     }
   });
 }
+// A circuit's outline turned as MultiViewer draws it (its rotation and a
+// quarter turn, y as it comes), then fitted to W wide, between minH and maxH
+// high: fit(x, y) → [x, y] in the drawing, and its height.
+function trackFit(c, W, minH, maxH, pad) {
+  const a = ((c.rotation + 90) * Math.PI) / 180;
+  const cx = (Math.min(...c.x) + Math.max(...c.x)) / 2;
+  const cy = (Math.min(...c.y) + Math.max(...c.y)) / 2;
+  const turn = (x, y) => [(x - cx) * Math.cos(a) - (y - cy) * Math.sin(a), (y - cy) * Math.cos(a) + (x - cx) * Math.sin(a)];
+  const pts = c.x.map((x, i) => turn(x, c.y[i]));
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const k = (W - pad * 2) / (x1 - x0);
+  const H = Math.round(Math.min(maxH, Math.max(minH, (y1 - y0) * k + pad * 2)));
+  const kk = Math.min(k, (H - pad * 2) / (y1 - y0));
+  const ox = (W - (x1 - x0) * kk) / 2, oy = (H - (y1 - y0) * kk) / 2;
+  return {
+    H,
+    fit: (x, y) => {
+      const [u, v] = turn(x, y);
+      return [ox + (u - x0) * kk, oy + (v - y0) * kk];
+    }
+  };
+}
 function f1TrackMap(b, ss) {
   const c = circuitOf(b, ss);
   // (Each car where F1's feed puts it, or, as F1 stopped giving the cars' x/y in 2026, by the mini-sectors it has passed this lap.)
@@ -3321,23 +3453,8 @@ function f1TrackMap(b, ss) {
   const ns = 'http://www.w3.org/2000/svg';
   let m = f1Maps.get(ss.start);
   if (!m) {
-    const a = ((c.rotation + 90) * Math.PI) / 180;
-    const cx = (Math.min(...c.x) + Math.max(...c.x)) / 2;
-    const cy = (Math.min(...c.y) + Math.max(...c.y)) / 2;
-    // Turned as MultiViewer draws it (its rotation and a quarter turn, y as it comes), then fitted to the card.
-    const turn = (x, y) => [(x - cx) * Math.cos(a) - (y - cy) * Math.sin(a), (y - cy) * Math.cos(a) + (x - cx) * Math.sin(a)];
-    const pts = c.x.map((x, i) => turn(x, c.y[i]));
-    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
-    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-    const W = 340, pad = 16;
-    const k = (W - pad * 2) / (x1 - x0);
-    const H = Math.round(Math.min(340, Math.max(180, (y1 - y0) * k + pad * 2)));
-    const kk = Math.min(k, (H - pad * 2) / (y1 - y0));
-    const ox = (W - (x1 - x0) * kk) / 2, oy = (H - (y1 - y0) * kk) / 2;
-    const fit = (x, y) => {
-      const [u, v] = turn(x, y);
-      return [ox + (u - x0) * kk, oy + (v - y0) * kk];
-    };
+    const W = 340;
+    const { fit, H } = trackFit(c, W, 180, 340, 16);
     const svg = document.createElementNS(ns, 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('class', 'tm-svg');
@@ -4508,7 +4625,11 @@ function fillField(s, e) {
     paint();
     s.body.append(box);
   }
-  s.body.append(twCard(e.league, e));
+  // A race weekend (the owner, 2026-10-27: before its sessions the sheet
+  // stood nearly empty): the title fight, where to watch, the circuit and
+  // its weather, last year's podium there.
+  if (sessions.length) s.body.append(...[e.league === 'f1' ? titleFightCard(e) : null, twCard(e.league, e), e.league === 'f1' ? circuitCard(e, sessions) : null, e.league === 'f1' ? podiumCard(e, sessions) : null].filter(Boolean));
+  else s.body.append(twCard(e.league, e));
 }
 
 // A finished session's official numbers, once read (they don't change).
