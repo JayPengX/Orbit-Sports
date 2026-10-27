@@ -5981,8 +5981,10 @@ function raceBlock(race, g, league, many) {
       if (race.unit === 'wins') return line('clock', W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`), when(t));
       const what = k ? W(`確定第 ${k + 1} 名`, `clinch P${k + 1}`) : many ? W(`確定${top}`, 'clinch 1st') : W('封王', 'clinch the title');
       const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : t.soonest === 1 && onNow(t.leader.id) ? W('最快這場', 'this game') : W(`最快 ${b(t.soonest)} 場後`, `in ${b(t.soonest)} game${t.soonest === 1 ? '' : 's'}`);
-      const says = who => W(`${b(who)} ${at}${what}`, `${b(who)} could ${what} ${at}`);
-      return line('clock', [...new Set([says(nm(t.leader)), says(last(t.leader))])], [nextLine(t), ...weekendLine(t), ...marginLine(t), leadLine(t)]);
+      // (English runs long: last, the place alone, "at the earliest" left to "could".)
+      const near = sport === 'racing' && t.at ? `at ${b(t.at)}` : at;
+      const says = (who, short) => W(`${b(who)} ${at}${what}`, `${b(who)} could ${what} ${short ? near : at}`);
+      return line('clock', [...new Set([says(nm(t.leader)), says(last(t.leader)), says(last(t.leader), true)])], [nextLine(t), ...weekendLine(t), ...marginLine(t), leadLine(t)]);
     }
     if (t.soonest == null) return null;
     const next = g.rows[k + 1];
