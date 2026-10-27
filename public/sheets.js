@@ -147,7 +147,11 @@ export async function openMatch(e) {
   // tabs on 概況, so a game's page is one layout whatever its state (the
   // hero, the tabs, then the cards; the owner, 2026-10-21).
   const top = el('div', { class: 'match-top' });
-  const content = el('div', { class: 'match-content' }, [spinner()]);
+  // While the game's own page is read: the tabs and two cards in their
+  // shape, where they'll be, not a lone spinner under the line score (Jay
+  // 2026-10-27, "when it's loading don't cramp together").
+  const content = el('div', { class: 'match-content' }, [el('div', { class: 'stack' }, [0, 1].map(i => el('div', { class: 'q-card match-skel' }, [skeleton(i ? [30, 88, 72, 80] : [26, 92, 64])])))]);
+  if (LEAGUES[e.league].espn) put(sections, el('div', { class: 'match-tabs-skel', 'aria-hidden': 'true' }, [0, 1, 2, 3].map(() => el('i', { class: 'skel' }))));
   s.body.append(header, sections, top, content);
   let view = 'overview';
   let data = null;
