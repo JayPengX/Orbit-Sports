@@ -71,9 +71,9 @@ export function heroGame(e, { eyebrow = '', picked = false, mine = false, onOpen
   const stage = e.kind === 'match' ? stageTag(e, ctx.locale) : '';
   const tags = [
     el('span', { class: 'q-tag on-hero', text: stage || leagueName(e.league, ctx.locale).replace(/\s.*$/, '') }),
-    mine ? el('span', { class: 'q-tag on-hero strong', text: en() ? 'Following' : '追蹤中' }) : picked ? el('span', { class: 'q-tag on-hero strong', text: en() ? '★ Pick' : '★ 推薦' }) : null,
-    ...channelTags(e)
-  ];
+    ...channelTags(e),
+    mine ? el('span', { class: 'q-tag on-hero strong', text: en() ? 'Following' : '追蹤中' }) : picked ? el('span', { class: 'q-tag on-hero strong', text: en() ? '★ Pick' : '★ 推薦' }) : null
+  ].filter(Boolean);
   card.append(el('div', { class: 'hc-tags' }, tags));
   // 觀看 while it's on (or within half an hour of its start), straight into ELTA.tv's or Apple TV's app.
   const b = !e.status?.void && (live || (e.status?.state === 'pre' && Date.parse(e.start) - Date.now() < 30 * 60_000)) ? watchOf(e) : null;
