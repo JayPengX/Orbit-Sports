@@ -3008,19 +3008,18 @@ function sideStar(d, e, team) {
 export function gameRecap(e, d) {
   const sides = inOrder(e, [e.away, e.home]);
   const best = sides.map(s => ({ s, star: d ? sideStar(d, e, String(s.id)) : null })).filter(x => x.star);
-  return [
-    best.length
-      ? el('div', { class: 'recap-best' }, best.map(({ s, star: { p, line } }) =>
+  // One line a side, under the scores as a race's top three is under its
+  // name (Jay 2026-10-27: not two big cards that make one game twice as tall).
+  return best.length
+    ? [
+        el('div', { class: 'recap-best' }, best.map(({ star: { p, line } }) =>
           el('button', { class: 'recap-lead', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
-            personPic({ ...p, name: p.full || p.name }, e.league, 'sm round'),
-            el('span', { class: 'recap-text' }, [
-              fitLine(el('strong', { text: playerName(p.full || p.name, 'full', p.name) })),
-              el('small', { class: 'recap-line' }, [sideLogo(s, e.league, 'xs'), fitLine(el('span', { text: line }))])
-            ])
+            personPic({ ...p, name: p.full || p.name }, e.league, 'xs round'),
+            el('span', { class: 'recap-text' }, [el('strong', { text: playerName(p.full || p.name, 'full', p.name) }), el('small', { text: line })])
           ])
         ))
-      : null
-  ].filter(Boolean);
+      ]
+    : [];
 }
 function fitLine(n) {
   if (!n) return n;

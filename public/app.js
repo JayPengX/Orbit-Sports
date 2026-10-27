@@ -1544,7 +1544,7 @@ const homeBest = new Map();
 function recapList(games, opts) {
   return el('div', { class: 'recap-list' }, games.map(e => {
     const k = `${e.league}:${e.id}`;
-    if (!homeBest.has(k)) {
+    if (e.kind === 'match' && !homeBest.has(k)) {
       homeBest.set(k, null);
       summary(e.league, e.id)
         .then(d => homeBest.set(k, d || {}))

@@ -2007,19 +2007,16 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .all-day > .day-head:first-child { margin-top: 4px; }
 .tv-guide + .section-sub { margin-top: 12px; }
 .set-follow.on + .set-acts { background: var(--q-fill-4, rgba(120,120,128,.08)); }
-/* A light day's games over on 首頁: the row, who led each side. */
+/* A light day's games over on 首頁: the row, then who led each side, a line each under the scores (as a race's top three). */
 .recap-list { display: grid; gap: 12px; }
-.q-card.recap { padding: 0 0 14px; overflow: hidden; border-radius: var(--q-r-card, 22px); }
-.recap-best { display: grid; gap: 8px; padding: 2px 14px 0; }
-.recap-lead { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px; border: 0; border-radius: 16px; background: var(--q-fill-4); color: inherit; font: inherit; text-align: left; }
+.q-card.recap { overflow: hidden; border-radius: var(--q-r-card, 22px); }
+.recap-best { display: grid; gap: 4px; margin-top: -6px; padding: 0 16px 14px 92px; }
+.recap-lead { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.recap-lead:disabled { opacity: 1; }
 .recap-lead .logo { flex: none; }
-.recap-text { display: grid; gap: 2px; min-width: 0; }
-.recap-text > * { display: block; min-width: 0; overflow: hidden; white-space: nowrap; }
-.recap-text strong { font: 600 15px/1.25 var(--q-font); }
-.recap-text small { color: var(--q-muted); font-size: 13px; }
-.recap-text .recap-line { display: flex; align-items: center; gap: 6px; }
-.recap-line .logo { flex: none; }
-.recap-line > span { min-width: 0; }
+.recap-text { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
+.recap-text strong { font-weight: 600; }
+.recap-text small { margin-left: 6px; color: var(--q-muted); font-size: 13px; }
 
 /* F1 timing tower: one line a car. */
 .f1-field li.tower { grid-template-columns: 22px 24px minmax(0, 1fr) auto 76px; gap: 8px; padding: 6px 12px 6px 16px; min-height: 44px; align-items: center; }
