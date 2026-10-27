@@ -16,15 +16,15 @@
 Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan for your day and one tap to watch. Part of **Orbit**, a family of phone apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
 
 <p align="center">
-  <img src="docs/screenshots/sports-1.webp" width="30%" alt="F1, race by race">
+  <img src="docs/screenshots/sports-1.webp" width="30%" alt="Your games, live">
   <img src="docs/screenshots/sports-2.webp" width="30%" alt="Line-ups before tip-off">
   <img src="docs/screenshots/sports-3.webp" width="30%" alt="Who is likely to win">
 </p>
 
 <p align="center">
   <img src="docs/screenshots/sports-4.webp" width="30%" alt="Every stat, every game">
-  <img src="docs/screenshots/sports-5.webp" width="30%" alt="What's on TV in Taiwan">
-  <img src="docs/screenshots/sports-6.webp" width="30%" alt="The championship race">
+  <img src="docs/screenshots/sports-5.webp" width="30%" alt="F1, race by race">
+  <img src="docs/screenshots/sports-6.webp" width="30%" alt="What's on TV in Taiwan">
 </p>
 
 ## Features
