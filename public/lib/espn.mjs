@@ -1980,17 +1980,21 @@ async function f1Leaders(league) {
   // (A page turned away (Jolpica's four a second) asked again a little
   // later; still missing, nothing: a page lost was a whole stretch of races
   // gone, 分站冠軍 Antonelli 4 for 7, and kept so for hours.)
+  // Jolpica turning the proxy away (its limit counts per address, and the
+  // proxy's is shared): this phone asks it itself (it answers any page).
   const page = async url => {
-    for (let k = 0; ; k++) {
+    for (let k = 0; k < 2; k++) {
       try {
         const d = await getJson(url, opts);
         if (d?.MRData) return d;
-        throw new Error('empty');
-      } catch (error) {
-        if (k >= 2) throw error;
-        await new Promise(r => setTimeout(r, 700 * (k + 1)));
-      }
+      } catch {}
+      await new Promise(r => setTimeout(r, 700 * (k + 1)));
     }
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const d = await res.json();
+    if (d?.MRData) return d;
+    throw new Error('empty');
   };
   const first = await page(f1ResultsUrl());
   const total = Number(first?.MRData?.total) || 0;

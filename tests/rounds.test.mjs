@@ -177,9 +177,9 @@ test('greyed out once there is a champion: nothing left to play for (Jay, 2026-1
   const place = (id, best, worst) => ({ id, best, worst, settled: best === worst });
   const race = { title: { done: true }, rows: [place('t1', 1, 1), place('t2', 2, 3), place('t3', 2, 4), place('t4', 3, 5), place('t5', 4, 6), place('t6', 5, 7), place('t7', 6, 7)] };
   assert.deepEqual([...outOfIt(g, race, 'epl')], ['t4', 't7'], 't4 mid-table whatever happens, t7 sure of the drop; t5 and t6 still in the relegation fight');
-  // F1 won: a drivers' table everyone but the champion; a constructors' only the places settled.
+  // F1 won: only the places settled, a drivers' table as a constructors' (the race moves down the places, Jay 10-27).
   const f1 = athlete => ({ rows: ['a', 'b', 'c'].map(id => ({ id, ...(athlete ? { athlete: true } : {}), stats: {} })) });
   const won = { title: { done: true }, rows: [place('a', 1, 1), place('b', 2, 3), place('c', 3, 3)] };
-  assert.deepEqual([...outOfIt(f1(true), won, 'f1')], ['b', 'c']);
+  assert.deepEqual([...outOfIt(f1(true), won, 'f1')], ['c']);
   assert.deepEqual([...outOfIt(f1(false), won, 'f1')], ['c']);
 });

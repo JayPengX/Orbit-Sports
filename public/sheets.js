@@ -136,6 +136,16 @@ export function recordNow(rec, side, other, { state, seasonType, before } = {}) 
   if (!Number.isFinite(a) || !Number.isFinite(b) || a === b || !(w + l === 0 || before === rec)) return rec;
   return a > b ? `${w + 1}-${l}` : `${w}-${l + 1}`;
 }
+// A team's or player's tabs: a swipe across what's under them is the tab
+// beside (Jay 2026-10-27, swipes where they fit; not a game's page, whose
+// charts and pitch take a finger sideways).
+function swipeTabs(node, at) {
+  kitUI.daySwipe?.(node, dir => {
+    const { list, now, go } = at();
+    const k = list[list.indexOf(now) + dir];
+    return Boolean(k && (go(k), true));
+  });
+}
 // The game page open now (openMatch), for a player opened from it.
 let openGame = null;
 export async function openMatch(e) {
@@ -4838,6 +4848,7 @@ export async function openTeam(league, id, fallback = {}) {
       : null;
     const tabsBox = el('div');
     const body = el('div', { class: 'team-tab' });
+    swipeTabs(body, () => ({ list: views.map(v => v[0]), now: view, go: k => ((view = k), paint()) }));
     const views = [['schedule', W('賽程', 'Schedule')], ['results', W('戰績', 'Results')]];
     if (espn && !outside) views.push(['roster', W('陣容', 'Roster')]);
     if ((!outside || away) && hasLeaders(sport, LEAGUES[league]?.espn)) views.push(['leaders', W('數據領先', 'Leaders')]);
@@ -4907,8 +4918,7 @@ export async function openTeam(league, id, fallback = {}) {
           leadersData
             ? el('div', { class: 'stack' }, [
                 teamLeadersCard(leadersData, league),
-                ranked ? el('p', { class: 'mini-h lb-head', text: W('隊內排行', 'Within the team') }) : null,
-                ranked ? leagueLeadersView({ ...leadersData, stats: leadersData.stats.filter(st => st.list.length > 1) }, league, { pick: teamPick, onPick: k => ((teamPick = k), paint()) }) : null
+                ranked ? el('div', { class: 'lb-team' }, [el('p', { class: 'mini-h lb-head', text: W('隊內排行', 'Within the team') }), leagueLeadersView({ ...leadersData, stats: leadersData.stats.filter(st => st.list.length > 1) }, league, { pick: teamPick, onPick: k => ((teamPick = k), paint()) })]) : null
               ])
             : empty(W('本季還沒有數據。', 'No numbers yet this season.'))
         );
@@ -5614,6 +5624,7 @@ export async function openPlayer(league, id, fallback = {}) {
     let view = views[0]?.[0];
     const tabsBox = el('div');
     const tabBody = el('div', { class: 'team-tab' });
+    swipeTabs(tabBody, () => ({ list: views.map(v => v[0]), now: view, go: k => ((view = k), paintTab()) }));
     const paintTab = () => {
       put(tabsBox, views.length > 1 ? segmented(views.map(([k, label]) => [k, label]), view, v => ((view = v), paintTab())) : null);
       const v = views.find(x => x[0] === view)?.[2];
@@ -5934,7 +5945,7 @@ function raceBlock(race, g, league, many) {
   // 126 分即封王; a sum against the runner-up was wrong, a third can catch up).
   const leadLine = t => {
     const span = sport === 'racing' ? (t.at || (t.soonest === 1 ? W('下一站', 'the next race') : W(`${t.soonest} 站`, `${t.soonest} races`))) : perRound && t.soonest === 1 ? W('這一輪', 'this round') : W(`${t.soonest} ${perRound ? '輪' : '場'}`, `${t.soonest} ${perRound ? 'rounds' : 'games'}`);
-    const now = t.gap > 0 ? W(`領先 ${t.gap} 分`, `${t.gap} pts ahead`) : W('與第二名同分', 'level on points');
+    const now = t.gap > 0 ? W(`領先 ${t.gap} 分`, `${t.gap} pts ahead`) : W(`與第${'二三四五六七八九十'[t.place || 0] || ` ${(t.place || 0) + 2} `}名同分`, 'level on points');
     // (Short, on one line: the title above says what for; a lead is over everyone.)
     return W(`${now}，${span}後需領先 ${t.leadAt} 分`, `${now}; needs ${t.leadAt} after ${span}`);
   };
@@ -5992,7 +6003,7 @@ function raceBlock(race, g, league, many) {
       // Wins: baseball's magic number (the leader's wins and the rivals' losses together).
       // Points: a title closes from both sides (the leader scoring, the rival
       // not), so say when at the soonest, and what it takes by then.
-      if (race.unit === 'wins') return line('clock', W(`${b(nm(t.leader))} ${many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: magic number ${b(t.magic)}`), when(t));
+      if (race.unit === 'wins') return line('clock', W(`${b(nm(t.leader))} ${k ? `第 ${k + 1} 名` : many ? top : '封王'}魔術數字 ${b(t.magic)}`, `${b(nm(t.leader))}: ${k ? `P${k + 1} ` : ''}magic number ${b(t.magic)}`), when(t));
       const what = k ? W(`確定第 ${k + 1} 名`, `clinch P${k + 1}`) : many ? W(`確定${top}`, 'clinch 1st') : W('封王', 'clinch the title');
       const at = perRound ? W(`最快${roundAt(t.round, b)}`, `in ${roundAt(t.round, b)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快在${b(t.at)}`, `at ${b(t.at)} at the earliest`) : t.soonest === 1 ? W('最快下一站就', 'at the next race at the earliest') : W(`最快再 ${b(t.soonest)} 站`, `${b(t.soonest)} race weekends from now at the earliest`)) : t.soonest === 1 && onNow(t.leader.id) ? W('最快這場', 'this game') : W(`最快 ${b(t.soonest)} 場後`, `in ${b(t.soonest)} game${t.soonest === 1 ? '' : 's'}`);
       // (English runs long: last, the place alone, "at the earliest" left to "could".)
@@ -6009,6 +6020,9 @@ function raceBlock(race, g, league, many) {
   if (t.done) {
     const early = t.left > 0;
     lines.push(line('trophy', many ? W(`${b(nm(t.leader))} 拿下${top}`, `${b(nm(t.leader))} have clinched ${top}`) : W(`${b(nm(t.leader))} ${early ? '提前封王' : '奪冠'}`, `${b(nm(t.leader))} ${early ? 'have clinched the title' : 'are champions'}`), early ? leftWord(t.left) : '', 'won'));
+    // Then the next place still open (第 2 名, then 第 3 名… as each is settled).
+    const second = t.second && chase(t.second, t.second.place);
+    if (second) lines.push(second);
   } else {
     const l = chase(t);
     if (l) lines.push(l);
@@ -6138,13 +6152,11 @@ export function outOfIt(g, race, league) {
   // A playoff league's season over: the sides outside its playoff zones.
   if (ended && zones && FORMATS[league] && !LEAGUES[league]?.cup) return new Set(rows.filter(r => !r.note || /relegat|eliminat/i.test(r.note)).map(r => r.id));
   if (!race || ended) return new Set();
-  // A championship (F1's): those who can't win it; once it's won, a
-  // drivers' table everyone but the champion (the title all it plays for),
-  // a constructors' each team whose place is settled (every place prize money).
+  // A championship (F1's): those who can't win it; once it's won, each
+  // one whose place is settled (the race moves down the places still open).
   if (sport === 'racing') {
     if (!race.title.done) return new Set(race.rows.filter(x => x.best > 1).map(x => x.id));
-    const team = !rows.some(r => r.athlete);
-    return new Set(race.rows.filter((x, i) => i > 0 && (!team || x.settled)).map(x => x.id));
+    return new Set(race.rows.filter((x, i) => i > 0 && x.settled).map(x => x.id));
   }
   if (!zones) return new Set();
   // Nothing left to play for (Jay, 2026-10-26): no good zone in reach, and

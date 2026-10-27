@@ -352,13 +352,17 @@ setInterval(() => {
 const watched = () => watchedLeagues(state.prefs.leagues, state.prefs.follows);
 let tvGen = 0;
 const chosenMemo = { key: '', set: new Set() };
+// Each league's playoff map read (季後賽, a series sheet): every playoff game in it.
+const brackets = new Map();
 function chosenGames() {
   const w = watched();
   if (!w.length) return new Set();
   const slots = [...state.days.values()];
-  const key = `${w.join()}|${tvGen}|${tvReady()}|${slots.map(x => `${x.at}:${x.events?.length}`).join()}|${Object.keys(state.home.tables || {}).join()}`;
+  const key = `${w.join()}|${tvGen}|${tvReady()}|${slots.map(x => `${x.at}:${x.events?.length}`).join()}|${[...brackets.values()].map(b => b.at).join()}|${Object.keys(state.home.tables || {}).join()}`;
   if (chosenMemo.key === key) return chosenMemo.set;
-  const all = slots.flatMap(x => x.events || []);
+  // The days read, and the playoff games of any map read: a series' games
+  // are marked on days not visited yet (all of a playoff day's games are in it).
+  const all = [...slots.flatMap(x => x.events || []), ...[...brackets.values()].flatMap(b => b.model?.rounds?.flatMap(r => r.ties.flatMap(t => t?.games || [])) || [])];
   const ctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, tables: state.home.tables, aff: affinity(null, Date.now(), ['match']), featured: featuredIn(all) };
   chosenMemo.key = key;
   chosenMemo.set = leagueChoices(all, { watched: w, onTv, tvKnown, awake: e => new Date(officialMs(e)).getHours() >= AWAKE_FROM, ctx });
@@ -1970,8 +1974,7 @@ function openScores(league, date, view = 'games') {
 // games while they're on (MLB, the NBA, MLS: the days around now; a cup:
 // its season's games), the first round predicted from the table while the
 // season's on, last season's when this one hasn't begun. Read once a league
-// is opened, kept 10 minutes.
-const brackets = new Map();
+// is opened, kept 10 minutes (`brackets`, kept up by chosenGames, which reads them too).
 // The NBA Cup's knockout (lib/playoffs.mjs nbaCupRound): a bracket of its own
 // beside the NBA's playoffs, kept as 'nbacup', drawn with the NBA's logos and sheets.
 const CUP = 'nbacup';
@@ -2925,12 +2928,7 @@ let railKept = null;
 function leagueRail(rail) {
   const key = `${locale}|${rail.join()}`;
   if (railKept?.key !== key) {
-    const pick = k => {
-      const sc = state.scores;
-      if (sc.league === k) return;
-      state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games' };
-      loadScores();
-    };
+    const pick = k => pickLeague(k);
     railKept = {
       key,
       node: el('div', { class: 'q-chips league-rail' }, [
@@ -2943,6 +2941,24 @@ function leagueRail(rail) {
   railKept.node.__kept = true;
   for (const chip of railKept.node.querySelectorAll('[data-league]')) chip.setAttribute('aria-pressed', String(chip.dataset.league === state.scores.league));
   return railKept.node;
+}
+// A league of 賽事's rail opened (`view`: on that tab, else the one open now where it has it).
+function pickLeague(k, view = null) {
+  const sc = state.scores;
+  if (sc.league === k) return;
+  state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: view || (hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games') };
+  loadScores();
+}
+// A swipe past a league's first or last tab: the league beside it on the
+// rail (全部 first), on its first tab going on, its last coming back (Jay 2026-10-27).
+function stepLeague(dir) {
+  const rail = [ALL, ...scoresRail()];
+  const k = rail[rail.indexOf(state.scores.league) + dir];
+  if (!k) return false;
+  if (k === ALL) return openAll(today()), true;
+  const sport = LEAGUES[k].sport;
+  pickLeague(k, dir > 0 ? 'games' : hasLeaders(sport, LEAGUES[k].espn) ? 'leaders' : hasBracket(k) ? 'bracket' : hasStandings(k) ? 'table' : 'games');
+  return true;
 }
 function scoresRail() {
   const mine = new Set(state.prefs.leagues);
@@ -3066,8 +3082,9 @@ function renderScores() {
   const viewNow = knockView ? 'bracket' : tableView ? 'table' : leadersView ? 'leaders' : 'games';
   const views = viewList.length > 1 ? segmented(viewList, viewNow, v => ((sc.view = v), renderScores()), 'views') : null;
   // (For the page's swipe: the tab beside this one.)
-  sc.views = { list: viewList.map(([k]) => k), now: viewNow };
   const other = tableView || knockView || leadersView;
+  // (A league of games has a date strip on 賽程, a race series none.)
+  sc.views = { list: viewList.map(([k]) => k), now: viewNow, strip: !other && LEAGUES[sc.league].kind === 'match' };
   const parts = [head, leagueChips, views, other ? null : strip, other ? null : stages, list].filter(Boolean);
   if (scoresQuiet && box.childNodes.length === parts.length) return parts.forEach((n, i) => morph(box.childNodes[i], n));
   put(box, ...parts);
@@ -3401,7 +3418,8 @@ function boxLine(f, e) {
         }
       boxes.set(key, { out: true, labels: [], stats: [] });
     })
-    .catch(() => boxes.delete(key))
+    // (Failed: asked again on a redraw a minute on, not by the redraw this one makes.)
+    .catch(() => setTimeout(() => boxes.delete(key), 60_000))
     .then(() => state.tab === 'following' && renderFollowing());
   return null;
 }
@@ -3513,16 +3531,22 @@ function warmTable(league) {
 // (kept 6 h on the device), each player's team named from its table.
 const leaders = new Map();
 const leaderPick = new Map();
+const FAILED = Symbol('failed');
 function leadersOf(league) {
+  const key = `leaders:${league}`;
+  const shown = () => state.tab === 'matches' && state.scores.league === league;
   if (!leaders.has(league)) {
     leaders.set(league, undefined);
+    // (A failed read says so and is asked again a little later while it's on
+    // screen: forgetting it at once had the redraw read it again, a spinner
+    // flickering for ever on F1's, 2026-10-27.)
     leagueLeaders(league)
-      .then(d => leaders.set(league, d))
-      .catch(() => leaders.delete(league))
-      .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+      .then(d => (leaders.set(league, d), retries.done(key)))
+      .catch(() => (leaders.set(league, FAILED), retryLater(key, true, () => (leaders.delete(league), shown() && renderScores()), shown)))
+      .then(() => shown() && renderScores());
   }
-  if (!leaders.has(league)) return empty(t('failed'));
   const d = leaders.get(league);
+  if (d === FAILED) return empty(t('failed'));
   if (d === undefined) return spinner();
   if (!d) return empty(L({ zh: '本季還沒有數據。', en: 'No numbers yet this season.' }));
   warmTable(league);
@@ -3538,7 +3562,8 @@ function leadersOf(league) {
     leaderLists.set(st.url, null);
     leaderList(st.url, st.key)
       .then(list => leaderLists.set(st.url, list))
-      .catch(() => leaderLists.delete(st.url))
+      // (Failed: its top three stay, not read again at once by the redraw.)
+      .catch(() => {})
       .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
   }
   return leagueLeadersView(d, league, { teamOf: (id, x) => rows.get(String(id)) || clubs.get(String(x?.fotmobTeam ?? '')) || (x?.teamName ? byName(x.teamName) : null), pick: st.key, full: st.url ? leaderLists.get(st.url) : null, onPick: k => (leaderPick.set(league, k), renderScores()) });
@@ -3643,19 +3668,22 @@ kitUI.daySwipe($('panel-live'), dir => {
 });
 // 賽事's too: 全部's days, a league's on its 賽程 (its date strip on top: a
 // swipe under one is a day everywhere, Jay 2026-10-27), and its other tabs
-// one swipe apart where there's no strip (排名, 季後賽, 數據領先: 2026-10-26).
+// one swipe apart where there's no strip (排名, 季後賽, 數據領先: 2026-10-26;
+// F1's 賽程 too, a season's weekends with no strip), then past the last
+// (or first) tab the next league on the rail (Jay 2026-10-27).
 kitUI.daySwipe($('panel-matches'), dir => {
   const sc = state.scores;
   if (sc.league === ALL) {
     const d = stripStep(allRange, allDay(), dir);
     return Boolean(d && (pickAllDay(d), true));
   }
-  if (sc.views?.now === 'games') {
+  if (sc.views?.now === 'games' && sc.views.strip) {
     const d = sc.range && stripStep(sc.range, sc.date, dir);
     return Boolean(d && (pickScoresDay(d), true));
   }
   const v = sc.views?.list[sc.views.list.indexOf(sc.views.now) + dir];
-  return Boolean(v && ((sc.view = v), renderScores(), true));
+  if (v) return (sc.view = v), renderScores(), true;
+  return stepLeague(dir);
 });
 // The refresh button: today (or the day on screen) and the open league again.
 async function reloadNow() {

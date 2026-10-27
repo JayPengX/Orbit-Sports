@@ -273,6 +273,8 @@ img { max-width: 100%; }
 .league-rail .q-chip.all-chip { justify-content: center; padding: 0 18px; }
 .search-chip svg { display: block; width: 18px; height: 18px; }
 .q-seg.views { margin: 12px 0 4px; }
+/* 排名, 季後賽, 數據領先 (no date strip under the tabs): the card 16 below them, not 4 (Jay 10-27 "too less gap"). */
+.q-seg.views + :not(.q-day-bar) { margin-top: 12px; }
 .q-seg.views > button { padding-inline: 4px; font-size: 14px; }
 .by-day > .day-head:first-child { margin-top: 0; }
 .day-head { margin: 16px 4px 8px; color: var(--q-label-2); font: 600 13px/18px var(--q-font); }
@@ -1154,6 +1156,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 /* ---- F1 live board: the part or lap, the time left and the flag on top, then the cars in the result's own rows ---- */
 .live-board { display: grid; gap: 8px; }
 .lb-head { display: flex; align-items: center; gap: 8px; }
+/* A team's 隊內排行: its heading right over its chips (the stack's gap and the chips' own had left a hole, Jay 10-27). */
+.lb-team > .lb-head { margin: 4px 2px 0; }
 .lb-part { font-size: 18px; font-weight: 600; }
 .lb-clock { font-weight: 600; color: var(--q-muted); }
 .lb-flag { margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--q-sunken); }
@@ -2018,7 +2022,11 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .set-follow.on + .set-acts { background: var(--q-fill-4, rgba(120,120,128,.08)); }
 /* A light day's games over on 首頁: the row, then who led each side, a line each under the scores (as a race's top three). */
 .recap-list { display: grid; gap: 12px; }
-.q-card.recap { overflow: hidden; border-radius: var(--q-r-card, 22px); }
+.q-card.recap { position: relative; overflow: hidden; border-radius: var(--q-r-card, 22px); transition: background-color 0.25s; }
+/* Pressed, the whole card lights (not the row above who led: a square band across its top, Jay 10-27); a followed game's edge runs the card's height. */
+.q-card.recap > .event-row { position: static; }
+.q-card.recap > .event-row:active { background: none; }
+.q-card.recap:has(> .event-row:active:not(:disabled)) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
 .recap-best { display: grid; gap: 4px; margin-top: -6px; padding: 0 16px 14px 92px; }
 .recap-lead { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
 .recap-lead:disabled { opacity: 1; }
