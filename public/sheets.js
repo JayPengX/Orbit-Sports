@@ -2697,20 +2697,20 @@ function titleFightCard(e) {
     const lead = pts(top[0]);
     const teams = all.find(x => x !== d)?.g.rows;
     const tn = r => (en ? r.en || r.name : f1Constructor(r.en || r.name)?.zh || r.short || r.name);
-    const teamLine = teams?.length > 1 && pts(teams[0]) > 0 ? el('p', { class: 'tf-teams' }, [constructorBadge(teams[0].en || teams[0].name, 'xs'), el('span', { text: en ? `${tn(teams[0])} lead the teams by ${pts(teams[0]) - pts(teams[1])}` : `車隊：${tn(teams[0])}領先 ${pts(teams[0]) - pts(teams[1])} 分` })]) : null;
+    const teamLine = teams?.length > 1 && pts(teams[0]) > 0 ? el('p', { class: 'fight-teams' }, [constructorBadge(teams[0].en || teams[0].name, 'xs'), el('span', { text: en ? `${tn(teams[0])} lead the teams by ${pts(teams[0]) - pts(teams[1])}` : `車隊：${tn(teams[0])}領先 ${pts(teams[0]) - pts(teams[1])} 分` })]) : null;
     return card(
       title,
       el('div', { class: 'stack tight' }, [
         raceBlock(d.race, d.g, e.league, false),
         el(
           'div',
-          { class: 'tf-rows' },
+          { class: 'fight-rows' },
           top.map((r, i) =>
-            el('button', { class: 'tf-row', type: 'button', style: r.color ? `--c:${r.color}` : null, onclick: () => r.id && ctx.openPlayer(e.league, r.id, r) }, [
-              el('span', { class: 'tf-pos num', text: String(i + 1) }),
+            el('button', { class: 'fight-row', type: 'button', style: r.color ? `--c:${r.color}` : null, onclick: () => r.id && ctx.openPlayer(e.league, r.id, r) }, [
+              el('span', { class: 'fight-pos num', text: String(i + 1) }),
               personPic(r, e.league, 'sm round'),
-              el('span', { class: 'tf-main' }, [el('span', { class: 'tf-name', text: r.short || r.name }), el('span', { class: 'tf-bar' }, [el('i', { style: `width:${Math.max(4, Math.round((pts(r) / lead) * 100))}%` })])]),
-              el('span', { class: 'tf-pts' }, [el('strong', { class: 'num', text: String(pts(r)) }), el('small', { class: 'num', text: i ? `−${lead - pts(r)}` : en ? 'pts' : '分' })])
+              el('span', { class: 'fight-main' }, [el('span', { class: 'fight-name', text: r.short || r.name }), el('span', { class: 'fight-bar' }, [el('i', { style: `width:${Math.max(4, Math.round((pts(r) / lead) * 100))}%` })])]),
+              el('span', { class: 'fight-pts' }, [el('strong', { class: 'num', text: String(pts(r)) }), el('small', { class: 'num', text: i ? `−${lead - pts(r)}` : en ? 'pts' : '分' })])
             ])
           )
         ),

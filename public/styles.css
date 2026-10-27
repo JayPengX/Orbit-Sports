@@ -2105,21 +2105,21 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 /* A race weekend's background cards: a shape while each is read. */
 .wk-skel { width: 100%; border-radius: var(--q-r-cell, 12px); }
 /* 冠軍之爭: the top three on bars of their points, the teams in a line. */
-.tf-rows { display: grid; gap: var(--q-s-1, 4px); }
-.tf-row { display: grid; grid-template-columns: 16px auto minmax(0, 1fr) auto; align-items: center; gap: var(--q-s-3, 12px); width: 100%; padding: 8px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.tf-pos { font-size: 15px; font-weight: 500; color: var(--q-muted); text-align: center; font-variant-numeric: tabular-nums; }
-.tf-main { display: grid; gap: 6px; min-width: 0; }
-.tf-name { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tf-bar { display: block; height: 4px; border-radius: 2px; background: var(--q-fill-3, var(--q-sunken)); overflow: hidden; }
-.tf-bar i { display: block; height: 100%; border-radius: 2px; background: var(--q-muted); }
-.tf-row:first-child .tf-bar i { background: var(--accent); }
-.tf-pts { display: grid; justify-items: end; line-height: 1.15; }
-.tf-pts strong { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.tf-pts small { font-size: 12px; color: var(--q-muted); font-variant-numeric: tabular-nums; }
-.tf-teams { display: flex; align-items: center; gap: 8px; margin: 0; padding-top: var(--q-s-3, 12px); border-top: 1px solid var(--q-divider); font-size: 15px; color: var(--q-muted); white-space: nowrap; overflow: hidden; }
-.tf-teams > span { overflow: hidden; text-overflow: ellipsis; }
+.fight-rows { display: grid; gap: var(--q-s-1, 4px); }
+.fight-row { display: grid; grid-template-columns: 16px auto minmax(0, 1fr) auto; align-items: center; gap: var(--q-s-3, 12px); width: 100%; padding: 8px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.fight-pos { font-size: 15px; font-weight: 500; color: var(--q-muted); text-align: center; font-variant-numeric: tabular-nums; }
+.fight-main { display: grid; gap: 6px; min-width: 0; }
+.fight-name { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fight-bar { display: block; height: 4px; border-radius: 2px; background: var(--q-fill-3, var(--q-sunken)); overflow: hidden; }
+.fight-bar i { display: block; height: 100%; border-radius: 2px; background: var(--q-muted); }
+.fight-row:first-child .fight-bar i { background: var(--accent); }
+.fight-pts { display: grid; justify-items: end; line-height: 1.15; }
+.fight-pts strong { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fight-pts small { font-size: 12px; color: var(--q-muted); font-variant-numeric: tabular-nums; }
+.fight-teams { display: flex; align-items: center; gap: 8px; margin: 0; padding-top: var(--q-s-3, 12px); border-top: 1px solid var(--q-divider); font-size: 15px; color: var(--q-muted); white-space: nowrap; overflow: hidden; }
+.fight-teams > span { overflow: hidden; text-overflow: ellipsis; }
 .stack.tight > .title-race { margin: 0; }
-.tf-teams .team-disc, .pd-team .team-disc { width: 18px; height: 18px; }
+.fight-teams .team-disc, .pd-team .team-disc { width: 18px; height: 18px; }
 /* 賽道: the outline beside its figures, the lap record, the weekend's weather; rows by hairlines, no boxes. */
 .cc-top { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: var(--q-s-4, 16px); }
 .cc-top.flat { grid-template-columns: minmax(0, 1fr); }
