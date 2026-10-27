@@ -16,9 +16,9 @@
 Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan for your day and one tap to watch. Part of **Orbit**, a family of phone apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [jaypengx.com](https://jaypengx.com/).
 
 <p align="center">
-  <img src="docs/screenshots/sports-1.webp" width="240" alt="Today">
-  <img src="docs/screenshots/sports-2.webp" width="240" alt="A league">
-  <img src="docs/screenshots/sports-3.webp" width="240" alt="On TV">
+  <img src="docs/screenshots/sports-1.webp" width="30%" alt="Today">
+  <img src="docs/screenshots/sports-2.webp" width="30%" alt="A league">
+  <img src="docs/screenshots/sports-3.webp" width="30%" alt="On TV">
 </p>
 
 ## Features
