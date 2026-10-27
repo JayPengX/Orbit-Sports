@@ -242,7 +242,7 @@ img { max-width: 100%; }
 .score-card .tv-line { display: flex; flex-wrap: wrap; gap: 6px; }
 /* First run: the sports as colour tiles, tapped in order. */
 .sport-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.sport-card { --t: var(--accent); position: relative; display: grid; align-content: space-between; gap: 18px; min-height: 132px; padding: 16px; border: 0; border-radius: var(--q-r-card, 22px); background: var(--q-surface); box-shadow: none; color: var(--q-label); text-align: left; }
+.sport-card { --t: var(--accent); position: relative; display: grid; align-content: space-between; gap: 18px; min-height: 132px; padding: 14px; border: 0; border-radius: 22px; background: radial-gradient(120% 120% at 100% 0%, color-mix(in srgb, var(--t) 55%, #fff), transparent 60%), linear-gradient(150deg, color-mix(in srgb, var(--t) 70%, #000), var(--t)); box-shadow: 0 14px 28px -20px var(--t); color: #fff; text-align: left; }
 .sport-card.on { box-shadow: inset 0 0 0 2px var(--accent); }
 .sc-marks { display: flex; }
 .sport-card .league-badge { --s: 34px; box-shadow: 0 0 0 2px var(--q-surface), inset 0 0 0 1px var(--q-sep); }
@@ -886,7 +886,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .live-line.base .live-text { display: grid; gap: 1px; min-width: 0; }
 .live-line.base .live-text > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
 /* The head in the team's colour: a soft wash, the picture on a ring of it. */
-.player-hero.tinted { padding: 14px; border-radius: var(--q-r-card, 22px); background: var(--q-surface); border: 0; }
+.player-hero.tinted { padding: 14px; border-radius: 18px; background: linear-gradient(135deg, color-mix(in srgb, var(--hero) 22%, var(--q-surface)) 0%, var(--q-surface) 78%); border: 1px solid color-mix(in srgb, var(--hero) 30%, var(--q-border)); }
 .player-hero.tinted > .logo.round { box-shadow: 0 0 0 3px var(--q-surface), 0 0 0 5px var(--hero); }
 .hero-form { display: flex; align-items: center; gap: 4px; margin-top: 8px; min-width: 0; overflow: hidden; }
 .hero-form small { flex: none; margin-right: 2px; white-space: nowrap; }
@@ -1115,7 +1115,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .wk-winner small { font-size: 11.5px; }
 /* A team's page. */
 .team-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 16px; margin: 4px 0 12px; border-radius: var(--q-r-card, 22px); background: var(--q-surface); border: 0; }
-.team-hero.tinted { background: var(--q-surface); }
+.team-hero.tinted { background: linear-gradient(135deg, color-mix(in srgb, var(--hero) 20%, var(--q-surface)) 0%, var(--q-surface) 80%); }
 .team-hero h3 { font-size: 21px; font-weight: 600; line-height: 1.2; }
 .team-hero-text { min-width: 0; display: grid; gap: 2px; }
 .team-hero-text small { font-size: 12.5px; }
@@ -1677,7 +1677,7 @@ button.lp-person.tap:active { opacity: 0.6; }
    for it under them); the scorer's face in the logos' column. */
 .live-line.base.goal { gap: 4px; }
 /* Apple TV's tile for a replay there (MLS): its mark on black, as the app's icon. */
-.replay-icon.apple { display: grid; place-items: center; background: #000; color: #fff; font: 600 15px/1 -apple-system, system-ui, sans-serif; letter-spacing: -0.02em; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.replay-icon.apple { display: grid; place-items: center; background: #000; color: #fff; font: 700 15px/1 -apple-system, system-ui, sans-serif; letter-spacing: -0.02em; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
 /* No one named yet: an empty head, a player's face in outline (待定). */
 .logo.empty-face { --q-face-blank: color-mix(in srgb, var(--q-muted) 55%, transparent); display: inline-block; flex: none; background: radial-gradient(circle at 50% 40%, var(--q-face-blank) 0 17%, transparent 18%), radial-gradient(ellipse 36% 26% at 50% 96%, var(--q-face-blank) 0 98%, transparent 100%), var(--q-sunken); }
 /* ---- F1 數據, live: the head's race control, the compare, the stop window, the weather ---- */
@@ -2011,7 +2011,9 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .all-league .q-section-head { align-items: center; justify-content: flex-start; gap: 8px; }
 .all-league .q-section-head > .league-badge { --s: 24px; }
 .all-league .q-section-head h2 { flex: 1; min-width: 0; }
-.all-day > .day-head:first-child { margin-top: 4px; }
+.all-day > .day-head:first-child { margin-top: 0; }
+/* (The day's line names what follows: the first league sits right under it, Jay 2026-10-27 "so much gap".) */
+.all-day > .day-head + .q-section { margin-top: 8px; }
 .tv-guide + .section-sub { margin-top: 12px; }
 .set-follow.on + .set-acts { background: var(--q-fill-4, rgba(120,120,128,.08)); }
 /* A light day's games over on 首頁: the row, then who led each side, a line each under the scores (as a race's top three). */
