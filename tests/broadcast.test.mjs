@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhLike, eltaVodOf, eltaVodsOf, parseEltaIndex, eltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart, camPlayer } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhLike, eltaVodOf, eltaVodsOf, parseEltaIndex, eltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart, camPlayer, roundOff } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -476,4 +476,19 @@ test('球員視角: the player it follows, from ELTA\'s listing or its video of 
   assert.equal(eltaEpisode(episodes, e, [['艾佛頓'], ['切爾西']], { cam: true })?.id, '73326');
   assert.equal(eltaEpisode(episodes, e, [['艾佛頓'], ['切爾西']])?.id, '73330', 'the game itself, never its player cam');
   assert.equal(eltaEpisode(episodes, { ...e, start: '2026-10-18T14:00:00Z' }, [['里茲聯'], ['曼聯']], { cam: true }), null, 'only a 數據視角 that day');
+});
+
+// Jay 2026-10-28: the FA Cup's first round (11/7–11/10, lower-league clubs)
+// showed 愛爾達; ELTA has it from the third round, its list none of these.
+test('the FA Cup is on ELTA from the third round, not its first two', () => {
+  const at = '2026-11-07T15:00Z';
+  const game = key => ({ league: 'facup', kind: 'match', start: at, round: key ? { key } : null, home: { id: '1' }, away: { id: '2' } });
+  for (const key of ['first-round', 'second-round']) {
+    assert.equal(roundOff(game(key)), true);
+    assert.deepEqual(broadcastsFor(game(key), []), []);
+  }
+  assert.equal(roundOff(game('third-round')), false);
+  assert.equal(broadcastsFor(game('third-round'), [])[0]?.svc, 'elta');
+  assert.equal(roundOff(game(null)), false);
+  assert.equal(roundOff({ league: 'ucl', round: { key: 'first-round' } }), false);
 });

@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson, packJson, taipeiDay } from '#kit/orbit.mjs';
-import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio, camPlayer, withEltaNames } from './broadcast.mjs';
+import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio, camPlayer, withEltaNames, roundOff } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { watchOf as packOf, loadWatchMonth } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
@@ -184,9 +184,10 @@ export const tvUnread = () => eltaSchedule.failed;
 export const tvUntil = () => eltaDays(eltaSchedule() || [])?.to || null;
 // Whether it's known if a game is on TV: MLS and F1 always (Apple TV's
 // every game, ELTA's every session), the NBA once NBA.com's list is in, the
-// rest within ELTA's list.
+// rest within ELTA's list; a cup's round ELTA doesn't carry (the FA Cup's first two) always.
 export const tvKnown = e =>
   e.league === 'mls' ||
+  roundOff(e) ||
   e.league === 'f1' || (e.league === 'nba' && Boolean(nbaSchedule()?.length)) || eltaListed(eltaSchedule() || [], e);
 
 // Who a game's 球員視角 follows (`b`: its channel): ELTA's listing when it
