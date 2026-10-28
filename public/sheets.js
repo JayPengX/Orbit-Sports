@@ -1971,7 +1971,8 @@ function winProbCard(line, e, timeline, events = []) {
     const score = scoreAt(pts, i ?? pts.length - 1, events, e.home.id);
     const tally = score ? ` · ${inOrder(e, score).join('–')}` : '';
     const stamp = [pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`, lateClock(sport, p)].filter(Boolean).join(' ');
-    at.textContent = i == null ? `${rest}${tally}` : `${stamp}${tally}`;
+    // (On a key moment: its own words, as its row in the list has them, so the two never differ: Jay, 2026-10-28.)
+    at.textContent = i == null ? `${rest}${tally}` : m ? momentAt(m) : `${stamp}${tally}`;
     at.classList.toggle('on', i != null);
     const latest = latestOf();
     tell(i == null ? latest : m, i == null && latest ? (en ? 'Just now' : '剛剛') : '');
