@@ -54,11 +54,34 @@ export function stakesOf(bounds, day) {
   if (!bounds) return 0;
   const [from, to, now] = [bounds.from, bounds.to, day].map(d => Date.parse(`${d}T00:00:00Z`));
   const gone = to > from ? (now - from) / (to - from) : 0;
-  return gone >= 0.75 ? 2 : gone >= 0.5 ? 1 : 0;
+  // (Past its last day: nothing at stake any more.)
+  return gone > 1 ? 0 : gone >= 0.75 ? 2 : gone >= 0.5 ? 1 : 0;
 }
 export function byStakes(keys, boundsOf, day) {
   const watch = k => (TAIWAN_WATCH.indexOf(k) + 1 || TAIWAN_WATCH.length + 1);
   // (A cup's only at its end, the late rounds: its days span its rounds months apart, the FA Cup's two seasons.)
   const stakes = new Map(keys.map(k => [k, stakesOf(boundsOf(k), day)]).map(([k, x]) => [k, LEAGUES[k]?.cup && x < 2 ? 0 : x]));
   return [...keys].sort((a, b) => stakes.get(b) - stakes.get(a) || watch(a) - watch(b));
+}
+
+// Where a league is in its season on `day`, from its game days this season
+// (Taipei dates; null not read yet): 'on' a game within two weeks, 'break'
+// its next one further off (between rounds or windows), 'over' none left
+// (中華職棒 the day after its 台灣大賽). Unread counts as on.
+export const SEASON_NEAR = 14;
+export function seasonState(days, day) {
+  if (!days) return 'on';
+  const near = new Date(Date.parse(`${day}T00:00:00Z`) + SEASON_NEAR * 86_400_000).toISOString().slice(0, 10);
+  let next = null;
+  for (const d of days) if (d >= day && (!next || d < next)) next = d;
+  return !next ? 'over' : next <= near ? 'on' : 'break';
+}
+// Every list of leagues (賽事's rail, 全部's groups, 首頁's leagues and sport
+// chips; Jay 2026-10-28, 中華職棒 still first the day its season ended):
+// those in season first, then those on a break, those whose season is over
+// last; inside each, the order they came in (the person's own, then byStakes).
+const SEASON_RANK = { on: 0, break: 1, over: 2 };
+export function bySeason(keys, stateOf) {
+  const rank = new Map(keys.map(k => [k, SEASON_RANK[stateOf(k)] ?? 0]));
+  return [...keys].sort((a, b) => rank.get(a) - rank.get(b));
 }

@@ -22,7 +22,7 @@ import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
 import { setWatchPack, prefetchHighlights, watchMonthWanted, watchMonthPath, loadWatchMonth } from './lib/highlights.mjs';
-import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams, byStakes } from './lib/leagues.mjs';
+import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams, byStakes, bySeason, seasonState } from './lib/leagues.mjs';
 import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
@@ -1165,6 +1165,44 @@ function leagueDays(league, then) {
   return seasonDays.get(league);
 }
 
+// Leagues in season first, on a break next, over last, each kept in the
+// order given (leagues.mjs bySeason); a league's days not read yet are read
+// now, and the page drawn again once they're in.
+let seasonRedraw = 0;
+const redrawForSeason = () => {
+  clearTimeout(seasonRedraw);
+  seasonRedraw = setTimeout(() => {
+    if (state.tab === 'home') renderHome();
+    else if (state.tab === 'matches') renderScores();
+  }, 300);
+};
+// (Each league's last answer kept on the device for the day, so the order
+// stands from the first draw instead of moving once the days are read.)
+const SEASON_KEY = 'fx.season.v1';
+const seasonKept = (() => {
+  try {
+    const x = JSON.parse(localStorage.getItem(SEASON_KEY) || 'null');
+    return x?.day === today() && x.s ? x.s : {};
+  } catch {
+    return {};
+  }
+})();
+function seasonOf(k) {
+  const days = leagueDays(k, redrawForSeason);
+  if (!days) return seasonKept[k] || 'on';
+  const s = seasonState(days, today());
+  if (seasonKept[k] !== s) {
+    seasonKept[k] = s;
+    try {
+      localStorage.setItem(SEASON_KEY, JSON.stringify({ day: today(), s: seasonKept }));
+    } catch {}
+  }
+  return s;
+}
+const inSeasonFirst = keys => bySeason(keys, seasonOf);
+// 首頁's sport chips: the sports of their leagues, those in season first.
+const homeSports = () => [...new Set(inSeasonFirst(state.prefs.leagues).map(k => LEAGUES[k].sport))];
+
 // ---- 賽事's 全部: every league's games of a day ----------------------------------------------
 //
 // What 賽事 opens on (it used to open on the first league followed: F1,
@@ -1496,7 +1534,7 @@ function renderHome() {
   const planShown = planList.filter(x => !seenKeys.has(keyOf(x.event)));
   planShown.forEach(x => seenKeys.add(keyOf(x.event)));
   const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, 12);
-  const leaguesShelf = gone || h.picking || !hasFollows ? null : section(t('yourLeagues'), el('div', { class: 'q-rail league-rail' }, state.prefs.leagues.map(k => leagueTile(k, lk => openScores(lk)))));
+  const leaguesShelf = gone || h.picking || !hasFollows ? null : section(t('yourLeagues'), el('div', { class: 'q-rail league-rail' }, inSeasonFirst(state.prefs.leagues).map(k => leagueTile(k, lk => openScores(lk)))));
   // (Each team once: a followed player's team is often followed too.)
   const placeSeen = new Set();
   const placeRows = gone || h.picking ? [] : followedTeams().filter(f => state.home.tables[f.league]?.[f.id]?.pos && !f.athlete && !placeSeen.has(`${f.league}:${f.id}`) && placeSeen.add(`${f.league}:${f.id}`)).slice(0, 6);
@@ -1605,7 +1643,7 @@ function homeBar() {
 function homeFilters() {
   const h = state.home;
   if (h.picking || !state.prefs.leagues.length) return null;
-  const filters = [['all', t('f_all')], ...(watched().length ? [['teams', t('f_mine')]] : state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...followedSports().filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
+  const filters = [['all', t('f_all')], ...(watched().length ? [['teams', t('f_mine')]] : state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...homeSports().filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
   if (filters.length < 3) return null;
   return el('div', { class: 'q-chips day-filters' }, filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => h.filter !== k && ((stripRange.recenter = true), pickFilter(k)) })));
 }
@@ -2966,7 +3004,7 @@ function scoresRail() {
   // at stake and how watchable in Taiwan (leagues.mjs byStakes); the search
   // first of all, then 全部.
   const rest = shownSports().flatMap(sp => shownLeaguesOf(sp)).filter(k => !mine.has(k));
-  return [...state.prefs.leagues.filter(isActive), ...byStakes(rest, leagueBounds, today())];
+  return inSeasonFirst([...state.prefs.leagues.filter(isActive), ...byStakes(rest, leagueBounds, today())]);
 }
 function renderScores() {
   const sc = state.scores;
