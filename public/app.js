@@ -2080,34 +2080,73 @@ async function cpblPlayoffData() {
 // The NBA Cup's: this season's once its group play is on the schedule (the
 // draw known, every record 0-0 till the first night), else last season's
 // (kept a month: it's over). Group play from its nights (October 28 to
-// November 30), the knockout from December 1 to 18: each day's page, a week
-// at a time (ESPN answers no stretch of days for the NBA: "20251201-20251222"
-// a 400; a month's 34 pages at once could meet the proxy's limit).
+// November 30), the knockout from December 1 to 18: each day's page (ESPN
+// answers no stretch of days for the NBA: "20251201-20251222" a 400), its
+// 52 pages in the kit's batches of 24.
+// It came up "暫時無法取得資料" now and then (Jay, 2026-10-28): one week of
+// pages refused failed the whole cup. Now a week unread is asked again, days
+// still missing make it `partial` (read again in a minute, what came shown),
+// days three or more off are kept 30 minutes (not re-read every time), and
+// the season's year never waits on another read.
 async function nbaCupData() {
-  const info = await seasonInfo('nba');
-  const y = new Date(Date.parse(info?.season?.start || '') || Date.now()).getUTCFullYear();
+  const info = await seasonInfo('nba').catch(() => null);
+  // (The season starts in October: from August on, this year's.)
+  const tw = new Date(Date.now() + 8 * 3_600_000);
+  const y = info?.season?.start ? new Date(Date.parse(info.season.start)).getUTCFullYear() : tw.getUTCMonth() >= 7 ? tw.getUTCFullYear() : tw.getUTCFullYear() - 1;
   const dates = (from, n) => Array.from({ length: n }, (_, i) => yyyymmdd(new Date(Date.UTC(from.y, from.m - 1, from.d + i, 12))));
+  const missing = new Set();
+  const week = async (days, keep) => {
+    const got = await scoreboard('nba', days, keep, 30 * 60_000).catch(() => null);
+    if (got && !got.unread) return got;
+    // Asked again once (a batch's slow item, a refused minute), whatever's still unread noted.
+    await new Promise(r => setTimeout(r, 1_500));
+    const again = await scoreboard('nba', got ? got.unread : days, keep, 30 * 60_000).catch(() => null);
+    for (const d of again ? again.unread || [] : got ? got.unread : days) missing.add(d);
+    return [...(got || []), ...(again || [])];
+  };
+  // The weeks side by side (the kit puts them in batches of 24 a call): one
+  // after another, a first read took most of a minute.
   const read = async (days, keep) => {
-    const out = [];
-    for (let i = 0; i < days.length; i += 7) out.push(...(await scoreboard('nba', days.slice(i, i + 7), keep)));
-    return out;
+    const weeks = [];
+    for (let i = 0; i < days.length; i += 7) weeks.push(week(days.slice(i, i + 7), keep));
+    return (await Promise.all(weeks)).flat();
   };
   const ko = list => list.flatMap(e => {
     const round = nbaCupRound(e);
     // (A single game: the regular season's meetings ESPN counts as a series aren't its.)
     return round ? [{ ...e, round, series: null }] : [];
   });
-  const season = (year, keep) =>
-    read(dates({ y: year, m: 10, d: 28 }, 34), keep).then(async all => {
-      const groupGames = all.filter(isGroupPlay);
-      return groupGames.length ? { groupGames, events: ko(await read(dates({ y: year, m: 12, d: 1 }, 18), keep)), season: `${year}-${String(year + 1).slice(2)}` } : null;
-    });
+  // Group play and the knockout read together.
+  const season = async (year, keep) => {
+    const [all, knock] = await Promise.all([read(dates({ y: year, m: 10, d: 28 }, 34), keep), read(dates({ y: year, m: 12, d: 1 }, 18), keep)]);
+    const seen = new Set();
+    const groupGames = all.filter(e => isGroupPlay(e) && !seen.has(e.id) && seen.add(e.id));
+    return groupGames.length ? { groupGames, events: ko(knock), season: `${year}-${String(year + 1).slice(2)}` } : null;
+  };
   const now = await season(y);
-  if (now) return { mode: 'live', ...now };
+  if (now) return { mode: 'live', ...now, partial: missing.size > 0 };
+  // Pages missing, none of the cup's in what came: unread, not "no cup this season".
+  if (missing.size) throw new Error('nbacup: unread');
   const last = await season(y - 1, 30 * 86_400_000);
   // Every season here had its cup: none found is a read gone wrong.
   if (!last?.events.length) throw new Error('nbacup: last season unread');
-  return { mode: 'last', ...last };
+  return { mode: 'last', ...last, partial: missing.size > 0 };
+}
+// The cup as last read whole, kept on the phone: shown while a read fails
+// (or before the first is in), never "暫時無法取得資料" once it has been read.
+const CUP_KEY = 'orbit-sports-nbacup';
+function keptCup() {
+  try {
+    const x = JSON.parse(localStorage.getItem(CUP_KEY) || 'null');
+    return x?.d?.groupGames?.length ? x.d : null;
+  } catch {
+    return null;
+  }
+}
+function keepCup(d) {
+  try {
+    localStorage.setItem(CUP_KEY, JSON.stringify({ at: Date.now(), d: { mode: d.mode, groupGames: d.groupGames, events: d.events, season: d.season } }));
+  } catch {}
 }
 // A bracket's model from its data: the NBA Cup's with its groups too.
 const bracketOf = (league, d) => {
@@ -2186,20 +2225,36 @@ async function playoffData(league) {
 // A read that failed is asked again after a minute (the kit holds a failure
 // that long), its last good model kept meanwhile; with none, the view says so.
 function loadBracket(league) {
-  const had = brackets.get(league);
+  let had = brackets.get(league);
   if (!hasBracket(league) || (had && (had.loading || Date.now() - had.at < (had.failed ? 61_000 : 10 * 60_000)))) return;
+  // The NBA Cup's last whole read (this phone's), drawn at once while today's is read.
+  if (league === CUP && !had?.model) {
+    const kept = keptCup();
+    let model = null;
+    try {
+      model = kept && bracketOf(league, kept);
+    } catch {}
+    if (model) had = { model, at: 0, shown: false };
+  }
   brackets.set(league, { ...(had || {}), loading: true, again: false });
   playoffData(league)
     // A game started or ended while it was read: read again at once (at 0).
     .then(d => {
       const model = bracketOf(league, d);
-      brackets.set(league, { model, at: brackets.get(league)?.again ? 0 : Date.now() });
+      if (league === CUP && !d.partial) keepCup(d);
+      // Days unread (d.partial): what came drawn, the rest asked again in a minute.
+      brackets.set(league, { model, at: brackets.get(league)?.again ? 0 : d.partial ? Date.now() - 10 * 60_000 + 61_000 : Date.now() });
+      if (d.partial) setTimeout(() => shownBracket() === league && state.scores.view === 'bracket' && renderScores(), 61_500);
       // A series' games from weeks back: their watch links ready for its sheet.
       watchMonthsOf(model.rounds.flatMap(r => r.ties.flatMap(t => t?.games || [])));
     })
     .catch(() => {
-      brackets.set(league, { model: had?.model || null, at: Date.now(), failed: true });
-      setTimeout(() => shownBracket() === league && state.scores.view === 'bracket' && renderScores(), 61_500);
+      // A first failure with nothing to show: asked again in 20 seconds, its
+      // shape drawn meanwhile (a refused minute isn't "no data"); a second says so.
+      const fails = (had?.fails || 0) + 1;
+      const wait = fails === 1 && !had?.model ? 20_000 : 61_000;
+      brackets.set(league, { model: had?.model || null, at: Date.now() - 61_000 + wait, failed: true, fails });
+      setTimeout(() => shownBracket() === league && state.scores.view === 'bracket' && renderScores(), wait + 500);
     })
     .finally(() => state.tab === 'matches' && state.scores.league === leagueOfBracket(league) && renderScores());
 }
@@ -3036,7 +3091,7 @@ function renderScores() {
   if (knockView && poKey === CUP) loadBracket(CUP);
   const shown = brackets.get(poKey);
   const shownRounds = shown?.model?.rounds || [];
-  const poFailed = !shown?.model && shown?.failed && !shown.loading;
+  const poFailed = !shown?.model && shown?.failed && shown.fails > 1 && !shown.loading;
   const cupChips = knockView && sc.league === 'nba' ? segmented([['po', L({ zh: '季後賽', en: 'Playoffs' })], ['cup', L({ zh: 'NBA 盃', en: 'NBA Cup' })]], poKey === CUP ? 'cup' : 'po', v => ((sc.po = v), renderScores()), '', { chips: true }) : null;
   const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
   const leadersView = !knockView && !tableView && sc.view === 'leaders' && hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn);

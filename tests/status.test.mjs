@@ -3,7 +3,7 @@
 // and the days and hours a game is filed under.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { onAir, dueToStart, sessionStatus, feedStatus, feedEnded, feedOnAt, settleField, splitWeekend, titlesAt, usDayOf, pastPage, startOf, parseStatus, overByRule, seriesWinner, decidedSide, settleSeries, favChance } from '../public/lib/espn.mjs';
+import { onAir, dueToStart, sessionStatus, feedStatus, feedEnded, feedOnAt, settleField, splitWeekend, titlesAt, usDayOf, pastPage, farPage, startOf, parseStatus, overByRule, seriesWinner, decidedSide, settleSeries, favChance } from '../public/lib/espn.mjs';
 
 const now = Date.parse('2026-10-11T10:05:00Z');
 const g = (state, start, extra = {}) => ({ kind: 'match', start, status: { state, ...(extra.status || {}) }, ...extra });
@@ -112,6 +112,13 @@ test('a page over for good: a day two or more back, or a month before that dayâ€
   assert.equal(pastPage('202609', at), true);
   assert.equal(pastPage('202610', at), false);
   assert.equal(pastPage('', at), false);
+});
+
+test('a page far off: a day three or more ahead (kept longer: a schedule, nothing live)', () => {
+  const at = Date.parse('2026-10-28T12:00Z');
+  assert.equal(farPage('20261030', at), false);
+  assert.equal(farPage('20261031', at), true);
+  assert.equal(farPage('202611', at), false);
 });
 
 test('statuses: called off is void; a final by the rules only when the rules settle it', () => {

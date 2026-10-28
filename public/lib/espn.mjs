@@ -309,15 +309,18 @@ export function pastPage(d, now = Date.now()) {
   const old = yyyymmdd(new Date(now - 2 * 86_400_000));
   return /^\d{8}$/.test(d) ? d < old : /^\d{6}$/.test(d) && d < old.slice(0, 6);
 }
-// `keep`: how long a past day is kept on the phone (6 hours unless said).
-export async function scoreboard(league, dates, keep = 6 * 3_600_000) {
+// A day three or more days from now (nothing on it live yet).
+export const farPage = (d, now = Date.now()) => /^\d{8}$/.test(d) && d > yyyymmdd(new Date(now + 2 * 86_400_000));
+// `keep`: how long a past day is kept on the phone (6 hours unless said);
+// `ahead`: a day three or more days off (its schedule, nothing live), live's unless said.
+export async function scoreboard(league, dates, keep = 6 * 3_600_000, ahead = LIVE_TTL) {
   const l = LEAGUES[league];
   if (l?.asia) return asiaEvents(league);
   const list = [].concat(dates || []);
   // Scores on now: read again after 10 seconds (the proxy's live copy).
   // A day or month over: kept on the phone 6 hours, not asked again every few seconds.
   const urlOf = d => `${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`;
-  const pages = list.length ? await Promise.all(list.map(d => getJson(urlOf(d), { ttl: pastPage(String(d)) ? keep : LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
+  const pages = list.length ? await Promise.all(list.map(d => getJson(urlOf(d), { ttl: pastPage(String(d)) ? keep : farPage(String(d)) ? ahead : LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
   // Not one page read: a failure, never "no games" (a day saved without the
   // league, or the league taken for out of season).
   if (!pages.some(Boolean)) throw new Error(`${league}: unread`);
