@@ -176,6 +176,17 @@ export async function openMatch(e) {
   s.dialog.addEventListener('close', () => openGame === game && (openGame = null));
   // Each side's injuries from its roster (ESPN's game page leaves some out).
   let hurt = {};
+  // A player's number where the box score leaves it out (Kevin McCullar Jr.,
+  // a two-way player, numberless under 未上場: Jay, 2026-10-28): his own page's.
+  const numbers = {};
+  const askedNumber = new Set();
+  const numbered = x => (x && !x.jersey && x.id && numbers[x.id] ? { ...x, jersey: numbers[x.id] } : x);
+  const fillNumbers = () => {
+    const missing = [...new Set([...(data?.players || []).flatMap(p => p.tables.flatMap(tb => tb.rows)), ...(data?.injuries || []).flatMap(t => t.list), ...Object.values(hurt).flat()].filter(x => x?.id && !x.jersey && !askedNumber.has(x.id)).map(x => x.id))].slice(0, 12);
+    if (!missing.length) return;
+    missing.forEach(id => askedNumber.add(id));
+    Promise.all(missing.map(id => athlete(e.league, id).then(a => a.jersey && (numbers[id] = a.jersey)).catch(() => null))).then(got => got.some(Boolean) && paint());
+  };
   // Who starts, before the game (pregameLineups).
   let lineups = null;
   // A basketball game to come: each side's averages (球員) and roster (陣容), by team id.
@@ -284,7 +295,7 @@ export async function openMatch(e) {
       const [list, sm] = await Promise.all([scoreboard(e.league, espn ? gameDays() : undefined).catch(() => []), espn ? summary(e.league, e.id).catch(() => data) : null]);
       const fresh = list.find(x => x.id === e.id);
       if (fresh) e = { ...e, ...fresh };
-      if (espn) data = behind(sm);
+      if (espn) (data = behind(sm)), fillNumbers();
       else if (e.league === 'cpbl') {
         const sm = await cpblGame(e).catch(() => null);
         boxUnread = !sm && !data;
@@ -386,9 +397,10 @@ export async function openMatch(e) {
     // The same row of tabs before, during and after (two of them or six).
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { chips: true }) : null);
     top.hidden = view !== 'overview';
-    // (A game over: ESPN's injuries are today's, not that night's: who sat out is its box score's, 未上場.)
     const over = (data?.status || e.status).state === 'post';
-    const fresh = () => matchSection(view, data && { ...data, table: past() ? [] : data.table, injuries: over ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
+    // (A game over a day and more ago: ESPN's injuries are today's, not that
+    // night's, so none. Just over: who was out hurt stays, with who sat out, 未上場: Jay, 2026-10-28.)
+    const fresh = () => matchSection(view, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
     const next = view === 'playoffs' ? playoffsNode(e.league, view) : view === 'cup' ? playoffsNode(cupKey, view, cupKey === 'nbacup' ? undefined : () => ctx.cupGroupOf([e.home?.id, e.away?.id])) : keep || fresh();
     // The same view again (a live refresh): its cards changed inside the
@@ -486,17 +498,19 @@ export async function openMatch(e) {
       squads = Object.fromEntries(got);
       paint();
     });
-  // A game to come or on: who's out, from each team's roster too (soccer's rosters say nothing of it).
-  if (e.kind === 'match' && e.status.state !== 'post' && LEAGUES[e.league].sport !== 'soccer')
+  // A game to come, on or just over: who's out, from each team's roster too (soccer's rosters say nothing of it).
+  if (e.kind === 'match' && !(e.status.state === 'post' && Date.now() - Date.parse(e.start) > 36 * 3_600_000) && LEAGUES[e.league].sport !== 'soccer')
     // (With the league's report, the same the team's page reads: each one's why and when back.)
     Promise.all([leagueInjuries(e.league).catch(() => ({})), ...[e.away, e.home].map(x => (x?.id ? teamInjuries(e.league, x.id).then(list => [x.id, list]).catch(() => null) : null))]).then(([report, ...got]) => {
       hurt = Object.fromEntries(got.filter(Boolean).map(([id, list]) => [id, list.map(x => ({ ...x, ...whyOf(report?.[String(id)], x) }))]));
       for (const id of [e.away?.id, e.home?.id].map(String)) for (const x of report?.[id] || []) if (!hurt[id]?.some(y => (x.id && y.id === x.id) || y.name === x.name)) (hurt[id] ||= []).push(x);
       if (Object.values(hurt).some(l => l.length)) paint();
+      fillNumbers();
     });
   try {
     data = behind(await summary(e.league, e.id));
   } catch {}
+  fillNumbers();
   wait.summary = true;
   if (ready) {
     paintHeader(data);
@@ -1355,6 +1369,9 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     .filter(Boolean)
     .filter(([, , v]) => v && (!Array.isArray(v) || v.length));
   const leadersBy = sides.map(s => (d?.leaders || []).filter(l => l.team === s.id && l.name).slice(0, 4));
+  // (A game over: those in its box score, who sat out, are 未上場's, not 傷兵's too.)
+  const boxed = new Set((d?.status || e.status).state === 'post' ? (d?.players || []).flatMap(p => p.tables.flatMap(tb => tb.rows.flatMap(r => [r.id, r.name]))).filter(Boolean) : []);
+  const hurtNow = (d?.injuries || []).map(t => ({ ...t, list: t.list.filter(x => !boxed.has(x.id) && !boxed.has(x.name)) }));
   const part = {
     replay: replayLink(e),
     highlights: highlights(e),
@@ -1381,13 +1398,15 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
       : null,
     season: seasonLeadCard(d?.seasonLead, e),
     series: d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.lastSeries ? lastSeriesCard(d.lastSeries, e) : d?.series[0]?.games?.length && ownSeriesCard(d.series[0], e) ? ownSeriesCard(d.series[0], e) : d?.series.length && d.series[0].summary && d.series[0].events.some(x => x.done) ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
-    injuries: d?.injuries.some(i => i.list.length) === false && (d?.status || e.status).state === 'post' ? satOutCard(d, e) : d?.injuries.some(i => i.list.length)
+    // A game over: who sat it out (its box score's), then who was out hurt (no one twice).
+    satOut: (d?.status || e.status).state === 'post' ? satOutCard(d, e) : null,
+    injuries: hurtNow.some(i => i.list.length)
       ? card(
           T('injuries'),
           el(
             'div',
             { class: 'injuries' },
-            d.injuries
+            hurtNow
               .filter(i => i.list.length)
               // The cards' order (soccer home first, the rest away first).
               .sort((x, y) => ((x.team === String(e.home.id)) - (y.team === String(e.home.id))) * (homeFirst(e) ? -1 : 1))
@@ -1404,7 +1423,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // before, during and after alike), only what's in it changing: the replay
   // and highlights once it's over, who's on (or starts), the chance, who
   // leads, the matchup, the season, the series, the rest.
-  const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'season', 'series', 'injuries', 'tv', 'info'];
+  const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'season', 'series', 'satOut', 'injuries', 'tv', 'info'];
   return el('div', { class: 'stack' }, ORDER.map(k => part[k] || (k === 'onField' ? part.lineups : null)));
 }
 
