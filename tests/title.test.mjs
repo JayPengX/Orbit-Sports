@@ -69,6 +69,8 @@ test('the title race: won, the magic number and the soonest round', () => {
   // Baseball: 162 games. X 95-60, the nearest Y 90-65: magic 162+1-95-65 = 3.
   const mlb = titleRace({ rows: [row('X', { W: '95', L: '60' }), row('Y', { W: '90', L: '65' })] }, 'baseball', { total: 162 });
   assert.deepEqual([mlb.magic, mlb.soonest, mlb.done], [3, 2, false]);
+  // Said as the game it could come in (the season's 157th: X has played 155), not "2 games away".
+  assert.equal(mlb.round, 157);
   // F1: 3 races (one sprint) left, worth 83 at most. Leader 350, next 300: 300+83-350+1 = 34.
   const f1 = titleRace({ rows: [row('V', { PTS: '350' }), row('N', { PTS: '300' })] }, 'racing', { left: { races: 3, sprints: 1 } });
   assert.deepEqual([f1.magic, f1.soonest, f1.done], [34, 1, false]);

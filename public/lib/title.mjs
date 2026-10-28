@@ -228,7 +228,7 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
     let span = 0;
     for (let w = 1; w <= (soonest || 0); w++) span += sport === 'racing' ? weekendMost(w) : sport === 'soccer' ? 3 : 1;
     const leftAfter = j => (sport === 'soccer' ? 3 * Math.max(0, more(rows[j]) / 3 - (soonest || 0)) : Math.max(0, hi[j] - lo[j] - span));
-    const t = { leader: lead, done: out[k].settled && out[k].best === k + 1, magic, soonest, gap: lo[k] - lo[ri], avail: hi[ri] - lo[ri], leadAt: leftAfter(ri) + 1, at: atName, round: sport === 'soccer' && soonest != null ? num(lead.stats.GP) + soonest : null, left: leadLeft };
+    const t = { leader: lead, done: out[k].settled && out[k].best === k + 1, magic, soonest, gap: lo[k] - lo[ri], avail: hi[ri] - lo[ri], leadAt: leftAfter(ri) + 1, at: atName, round: sport !== 'racing' && soonest != null ? played(lead) + soonest : null, left: leadLeft };
     if (unit !== 'pts' || !(soonest > 0)) return t;
     // How much more than each rival the holder has to score by then (the
     // lead it needs then less the lead now; under 0: how much it can be
