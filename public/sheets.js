@@ -1464,7 +1464,8 @@ function lineupCard(l, d, e, nameOf) {
   const sides = inOrder(e, [e.away, e.home]);
   const k = t => (t === e.away ? 0 : 1);
   const pos = p => (p.pos === 'SUB' ? '' : posZh(p.pos, sport, L()));
-  const side = (t, list, note = pos, extra = '') => (list.length ? [el('p', { class: 'mini-h' }, [teamTag(t, [nameOf(t.id), extra].filter(Boolean).join(' · '), e.league)]), squadList(list, e.league, sport, note)] : []);
+  // (Each side's name and rows held together, as 陣容's are: the card's gap only between the sides, Jay 2026-10-28.)
+  const side = (t, list, note = pos, extra = '') => (list.length ? [el('div', {}, [el('p', { class: 'mini-h' }, [teamTag(t, [nameOf(t.id), extra].filter(Boolean).join(' · '), e.league)]), squadList(list, e.league, sport, note, { bare: true })])] : []);
   const title = W('先發陣容', 'Starting lineups');
   const pending = text => card(title, el('p', { class: 'muted small', text }));
   const xi = sides.map(t => d?.rosters?.find(r => r.team === String(t.id) && r.players.some(p => p.starter)));
@@ -5094,8 +5095,9 @@ async function ownTeam(league, id, fallback) {
 const ROSTER_GROUP = { pitchers: '投手', catchers: '捕手', infielders: '內野手', outfielders: '外野手', 'designated hitter': '指定打擊', injured: '傷兵' };
 // A squad's rows: number, face and name (a tap opens the player), and a note
 // at the right (`note`: position, age, an injury). `hurt`: 🩹 by a hurt name.
-function squadList(ps, league, sport, note, { hurt = false } = {}) {
-  return el('ul', { class: 'roster-list' }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [p.tbd ? el('span', { class: 'logo xs round empty-face', 'aria-hidden': 'true' }) : personPic(p, league, 'xs round'), fitLine(el('span', { class: p.tbd ? 'muted' : null }, [playerName(p.full || p.name, 'full', p.name)])), hurt && p.injured ? el('span', { class: 'inj-dot', title: T('injuries'), text: '🩹' }) : null]), el('small', {}, [].concat(note(p) ?? ''))])));
+// (`bare`: a list on its own, none with a number (先發陣容's pitcher before the order's out): no empty number column pushing the rows in.)
+function squadList(ps, league, sport, note, { hurt = false, bare = false } = {}) {
+  return el('ul', { class: `roster-list${bare && !ps.some(p => p.jersey) ? ' no-num' : ''}` }, ps.map(p => el('li', {}, [el('span', { class: 'jersey num', text: p.jersey }), el('button', { class: 'link roster-name', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(league, p.id, { name: p.name, logo: p.headshot }) }, [p.tbd ? el('span', { class: 'logo xs round empty-face', 'aria-hidden': 'true' }) : personPic(p, league, 'xs round'), fitLine(el('span', { class: p.tbd ? 'muted' : null }, [playerName(p.full || p.name, 'full', p.name)])), hurt && p.injured ? el('span', { class: 'inj-dot', title: T('injuries'), text: '🩹' }) : null]), el('small', {}, [].concat(note(p) ?? ''))])));
 }
 // A position's place in a squad read by position: basketball's guards to
 // centres, soccer's keeper to forwards (each group in that order).

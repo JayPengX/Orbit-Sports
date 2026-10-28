@@ -521,6 +521,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .roster-list { list-style: none; margin: 0; padding: 0; display: grid; }
 .roster-list li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; border-top: 1px solid var(--q-divider, var(--q-border)); }
 .roster-list li:first-child { border-top: 0; }
+.roster-list.no-num li { grid-template-columns: minmax(0, 1fr) auto; }
+.roster-list.no-num .jersey { display: none; }
 .roster-list li.sub { color: var(--q-text-2); }
 /* A long name on one line, a little smaller till it fits (fitLine). */
 .roster-list li .roster-name { max-width: 100%; text-align: left; line-height: 1.3; }
