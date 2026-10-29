@@ -463,3 +463,24 @@ test('F1: a lead the market doubts (its chance down) is told by who gained over 
   assert.equal(m.gain.k, 0);
   assert.ok(Math.abs(m.gain.delta - 0.06) < 1e-9);
 });
+
+// Warriors at Timberwolves, 2026-10-28: a stretch over the 1st and 2nd
+// quarters, Warriors 47-29 超前, went ahead at 19-17 early in the 1st; the
+// chart's label and 關鍵時刻 read "第1–2節 · 19–17" under 47-29. A lead taken
+// in an earlier quarter than the stretch ended is no `lead`: told at its end.
+test('basketball: a stretch over two quarters that went ahead early is told at its end, not at the lead', () => {
+  const pts = [];
+  let [h, a] = [0, 0];
+  const add = (v, dh, da, n, id) => pts.push({ home: v, n, play: { id, home: (h += dh), away: (a += da), clock: '' } });
+  add(0.5, 0, 0, 1, 'p0');
+  add(0.45, 0, 3, 1, 'a0'); // 0-3
+  add(0.5, 3, 0, 1, 'b0'); // 3-3
+  add(0.55, 2, 0, 1, 'flip'); // 5-3: ahead, in the 1st
+  for (let i = 0; i < 20; i++) add(0.55 + (i + 1) * 0.018, i % 2 ? 2 : 3, i % 3 ? 1 : 0, i < 10 ? 1 : 2, `s${i}`);
+  for (let i = 0; i < 4; i++) add(0.91, 1, 1, 2, `t${i}`);
+  const run = playMoments(pts, 'basketball', { home: { id: 'h', name: '勇士' }, away: { id: 'a', name: '灰狼' }, en: false }).find(m => m.periods && m.side === 'home');
+  assert.ok(run, 'the stretch');
+  assert.deepEqual(run.periods, [1, 2]);
+  assert.match(run.text, /超前$/);
+  assert.equal(run.lead, undefined, 'no lead from the 1st for a stretch that ended in the 2nd');
+});

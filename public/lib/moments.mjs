@@ -202,7 +202,11 @@ function swingMoments(points, sport, side) {
       // A run that took the lead (or tied it): the play where the score did,
       // by the play-by-play (`lead`), for 過程's row. The price lags the plays,
       // so its peak (`i`, the chart's dot) can be a few plays on (the owner, 2026-10-23).
-      const flip = did[0] === '超前' || did[0] === '追平' ? leadAt(points, from, to, delta >= 0 ? 'home' : 'away', did[0] === '超前') : null;
+      // Only in the quarter it ended: a stretch over two quarters that went
+      // ahead early (Warriors 47-29 over the 1st and 2nd, ahead at 19-17) is
+      // told at its end, never at a score from long before (Jay, 2026-10-29).
+      const took = did[0] === '超前' || did[0] === '追平' ? leadAt(points, from, to, delta >= 0 ? 'home' : 'away', did[0] === '超前') : null;
+      const flip = took != null && points[took].n === points[to].n ? took : null;
       return { i: to, from, delta, side: home(delta), icon: ICON.basketball, text, team: who.id, periods: [points[from].n, points[to].n], ...(flip != null ? { lead: flip } : {}) };
     });
   // The biggest few (RUNS), in the game's order.
