@@ -27,7 +27,7 @@ import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
-import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText } from './lib/title.mjs';
+import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, nextNeeds } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, withHome, today, sidesOf } from './ui.js';
@@ -5995,15 +5995,16 @@ export const zoneName = n => {
 // The day a side plays its n-th game from now, from its own schedule (Jay,
 // 2026-10-28: "第 44 場" says nothing in the NBA; the Premier League's
 // 第 12 輪 does, a league without rounds has its calendar). null till it's in.
-const clinchDays = new Map();
-function clinchDay(league, id, n, redo) {
+// (Its opponent too: a game against the rival is a win for one, never both.)
+const clinchGames = new Map();
+function clinchGame(league, id, n, redo) {
   const key = `${league}:${id}:${n}`;
-  if (clinchDays.has(key)) return clinchDays.get(key);
-  clinchDays.set(key, null);
+  if (clinchGames.has(key)) return clinchGames.get(key);
+  clinchGames.set(key, null);
   teamSchedule(league, id).then(games => {
-    const at = games.filter(e => e.status?.state !== 'post')[n - 1]?.start;
-    if (!at || Number.isNaN(Date.parse(at))) return;
-    clinchDays.set(key, Date.parse(at));
+    const e = games.filter(e => e.status?.state !== 'post')[n - 1];
+    if (!e?.start || Number.isNaN(Date.parse(e.start))) return;
+    clinchGames.set(key, e);
     redo();
   }, () => {});
   return null;
@@ -6028,29 +6029,41 @@ function raceBlock(race, g, league, many) {
   };
   // (Its words go in as HTML for the <b>: every name and word from a feed escaped, never read as markup, an & kept.)
   const b = x => `<b>${esc(x)}</b>`;
-  // Settled by the next game, as the results that do it (title.mjs next):
-  // "納什維爾下一場贏球，或邁阿密國際下一場沒贏即可" (a lead of 13 "then",
-  // 14 now, read backwards).
-  const nextLine = t => {
-    const x = t.next;
-    if (!x) return '';
-    const mine = { '3': W('贏', 'win next'), '3,1': W('不輸', "don't lose next") }[x.mine.join()];
-    const theirs = { '0': W('輸', 'lose'), '1,0': W('沒贏', "don't win") }[x.theirs.join()];
-    if ((x.mine.length && !mine) || (x.theirs.length && !theirs)) return '';
-    // Each side's own next game (the rival may have played this round already:
-    // 邁阿密國際 3:1 won, its "next" is days later; one 下一場 for both read as that finished game).
-    // (The line above says what for; one line: 納什維爾下一場贏，或邁阿密國際下一場沒贏.)
+  // Football, settled by the next game: as results, never points (Jay
+  // 2026-10-30): "新英格蘭革命下一場贏邁阿密國際即可" when the two meet (a win
+  // is 3 for one and none for the other), else each side's own next game
+  // ("納什維爾下一場贏，或邁阿密國際下一場沒贏"). One rival to name (any other
+  // stopped by the same results); the opponent from the holder's schedule
+  // (said once it's in).
+  const resultLine = t => {
+    if (sport !== 'soccer' || t.soonest !== 1 || !t.margins?.length) return [];
+    const game = clinchGame(league, t.leader.id, 1, () => redo());
+    if (!game) return [];
+    const vs = game.home?.id === t.leader.id ? game.away?.id : game.away?.id === t.leader.id ? game.home?.id : null;
+    const needs = nextNeeds(t.margins, vs);
+    if (needs?.length !== 1) return [];
+    const [{ row, need }] = needs;
     // A side playing now: its next game is this one (這場).
-    const on = r => onNow(r.id);
-    const next = r => (on(r) ? W('這場', 'this game') : W('下一場', 'next'));
-    const parts = [mine && W(`${nm(t.leader)}${next(t.leader)}${mine}`, `${nm(t.leader)} ${mine.replace(' next', '')} ${next(t.leader)}`), theirs && W(`${nm(x.rival)}${next(x.rival)}${theirs}`, `${nm(x.rival)} ${theirs}${on(x.rival) ? ' this game' : ''}`)].filter(Boolean);
-    return parts.join(W('，或', ', or '));
+    const nx = r => (onNow(r.id) ? W('這場', ' this game') : W('下一場', ' next'));
+    const [me, R] = [nx(t.leader), nm(row)];
+    const they = nx(row);
+    const say = L => ({
+      beat: W(`${L}${me}贏${R}`, `${L} beat ${R}${me}`),
+      unbeaten: W(`${L}${me}對${R}不敗`, `${L} avoid defeat to ${R}${me}`),
+      winOrTheyDont: W(`${L}${me}贏，或${R}${they}沒贏`, `${L} win${me}, or ${R} don't win`),
+      unbeatenOrTheyDont: W(`${L}${me}不敗，或${R}${they}沒贏`, `${L} avoid defeat${me}, or ${R} don't win`),
+      noWorse: W(`${L}${me}戰果不比${R}差`, `${L} do no worse than ${R}${me}`),
+      better: W(`${L}${me}戰果比${R}好`, `${L} do better than ${R}${me}`),
+      winTheyDont: W(`${L}${me}贏且${R}${they}沒贏`, `${L} win${me} and ${R} don't`),
+      winTheyLose: W(`${L}${me}贏且${R}${they}輸`, `${L} win${me} and ${R} lose`)
+    })[need].trim();
+    return [say(nm(t.leader)) + W('即可', ''), say(nm(t.leader)), say(last(t.leader)), say('')].map(x => spaced(x[0].toUpperCase() + x.slice(1)));
   };
   // What the soonest clinch takes, as one number (the owner, 2026-10-16:
   // the lead it takes then, over everyone: 領先 102 分，美國站後領先達
   // 126 分即封王; a sum against the runner-up was wrong, a third can catch up).
   const leadLine = t => {
-    const span = sport === 'racing' ? (t.at || (t.soonest === 1 ? W('下一站', 'the next race') : W(`${t.soonest} 站`, `${t.soonest} races`))) : perRound && t.soonest === 1 ? W('這一輪', 'this round') : W(`${t.soonest} ${perRound ? '輪' : '場'}`, `${t.soonest} ${perRound ? 'rounds' : 'games'}`);
+    const span = sport === 'racing' ? (t.at || (t.soonest === 1 ? W('下一站', 'the next race') : W(`${t.soonest} 站`, `${t.soonest} races`))) : t.soonest === 1 ? (perRound ? W('這一輪', 'this round') : W('下一場', 'the next game')) : W(`${t.soonest} ${perRound ? '輪' : '場'}`, `${t.soonest} ${perRound ? 'rounds' : 'games'}`);
     const now = t.gap > 0 ? W(`領先 ${t.gap} 分`, `${t.gap} pts ahead`) : W(`與第${'二三四五六七八九十'[t.place || 0] || ` ${(t.place || 0) + 2} `}名同分`, 'level on points');
     // (Short, on one line: the title above says what for; a lead is over everyone.)
     return W(`${now}，${span}後需領先 ${t.leadAt} 分`, `${now}; needs ${t.leadAt} after ${span}`);
@@ -6093,9 +6106,9 @@ function raceBlock(race, g, league, many) {
   let redo = () => {};
   const dayOf = t => {
     if (perRound || sport === 'racing' || !(t.soonest > 0) || !t.leader?.id) return '';
-    const ms = clinchDay(league, t.leader.id, t.soonest, () => redo());
-    if (!ms) return '';
-    const d = new Date(ms);
+    const e = clinchGame(league, t.leader.id, t.soonest, () => redo());
+    if (!e) return '';
+    const d = new Date(Date.parse(e.start));
     return L() === 'en' ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `${d.getMonth() + 1}/${d.getDate()}`;
   };
   const when = t => (t.soonest == null ? '' : perRound ? W(`最快${roundAt(t.round)}`, `${roundAt(t.round)} at the earliest`) : sport === 'racing' ? (t.at ? W(`最快${t.at}`, `${t.at} at the earliest`) : W(`最快再 ${t.soonest} 站`, `${t.soonest} race weekends from now at the earliest`)) : (dayOf(t) ? W(`最快 ${dayOf(t)}`, `${dayOf(t)} at the earliest`) : W(`最快第 ${t.round} 場`, `game ${t.round} at the earliest`)));
@@ -6124,7 +6137,9 @@ function raceBlock(race, g, league, many) {
       // (English runs long: last, the place alone, "at the earliest" left to "could".)
       const near = sport === 'racing' && t.at ? `at ${b(t.at)}` : at;
       const says = (who, short) => W(`${b(who)} ${at}${what}`, `${b(who)} could ${what} ${short ? near : at}`);
-      return line('clock', [...new Set([says(nm(t.leader)), says(last(t.leader)), says(last(t.leader), true)])], [nextLine(t), ...weekendLine(t), ...marginLine(t), leadLine(t)]);
+      // (Chinese short of room: without the spaces, 最快11/2確定第2名, then made smaller: one row.)
+      const tight = x => (L() === 'en' ? x : x.replace(/ (?=[\d<])|(?<=[\d>]) /g, '').replace(/(?<=最快) |(?<=第) | (?=名)/g, ''));
+      return line('clock', [...new Set([says(nm(t.leader)), says(last(t.leader)), says(last(t.leader), true), ...(L() === 'en' ? [] : [tight(says(last(t.leader)))])])], [...resultLine(t), ...weekendLine(t), ...(sport === 'soccer' ? [] : marginLine(t)), leadLine(t)]);
     }
     if (t.soonest == null) return null;
     const next = g.rows[k + 1];
@@ -6195,19 +6210,32 @@ function raceBlock(race, g, league, many) {
     const n = z.fight.rows.length;
     const head = z.bottom ? W(`避開${zn}`, `Avoiding ${zn}`) : W(`${zn}之爭`, `${zn[0].toUpperCase()}${zn.slice(1)} race`);
     const how = W(` ${n} 隊・${z.fight.spread > 0 ? `相差 ${z.fight.spread} 分` : '同分'}`, ` · ${n} teams, ${z.fight.spread > 0 ? `${z.fight.spread} pts apart` : 'level'}`);
-    const row = line('medal', `${b(head)}${esc(how)}`, '');
+    // (Short of room: 外卡之爭 for 季後賽外卡之爭, the count alone.)
+    const short = z.bottom ? head : W(`${zn.replace(/^季後賽/, '')}之爭`, head);
+    const row = line('medal', [...new Set([`${b(head)}${esc(how)}`, `${b(short)}${esc(how)}`, `${b(short)}${esc(W(` ${n} 隊`, ` · ${n} teams`))}`])], '');
+    // (Four names at most, the rest counted, on one line: fewer named where
+    // four don't fit, "另 2 隊" never split off onto a line of its own, Jay
+    // 2026-10-30; the head says how many.)
+    const names = z.fight.rows.map(nm);
+    const ways = [4, 3, 2, 1].filter(k => k <= names.length).map(k => {
+      const shownNames = names.length > k && k === 4 ? names.slice(0, 3) : names.slice(0, k);
+      const more = names.length - shownNames.length;
+      return shownNames.join(W('、', ', ')) + (more ? W(`，另 ${more} 隊`, ` +${more}`) : '');
+    });
     const small = row.querySelector('.race-t small') || row.querySelector('.race-t').appendChild(el('small'));
-    // (Four names at most, the rest counted: one line; the head says how many.)
-    const more = z.fight.rows.length > 4 ? z.fight.rows.length - 3 : 0;
-    const shownRows = more ? z.fight.rows.slice(0, 3) : z.fight.rows;
-    small.replaceChildren(...shownRows.flatMap((r, k) => [k ? document.createTextNode(W('、', ', ')) : null, el('span', { class: 'nm-one', text: nm(r) })].filter(Boolean)), ...(more ? [document.createTextNode(W(`，另 ${more} 隊`, ` +${more}`))] : []));
+    small.replaceWith(fitChoice(el('small'), [...new Set(ways)]));
     if (z.color) row.style.setProperty('--zone', z.color);
     row.classList.add('zone', 'fight');
     lines.push(row);
   }
-  // Two lines at most: the title's first, then a fight (F1's constructors',
-  // a zone's), then what's been locked in.
-  const rank = l => (l.classList.contains('fight') ? 1 : l.classList.contains('zone') ? 2 : 0);
+  // Two lines at most: the race still open first (the title's, or the next
+  // place's once it's won), then a fight (F1's constructors', a zone's), then
+  // a conference's or group's first already won (its row has the lock), then
+  // what's been locked in.
+  // (Jay 2026-10-30: the East said "Nashville have clinched first" and 2nd's
+  // race, the West 1st's race and the wild cards: each the open race and its
+  // fight now.) A league's own champion stays first: the season's news.
+  const rank = l => (l.classList.contains('fight') ? 1 : many && l.classList.contains('won') ? 2 : l.classList.contains('zone') ? 3 : 0);
   const kept = lines.map((l, k) => [l, k]).sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1]).slice(0, 2).map(([l]) => l);
   return kept.length ? el('div', { class: 'title-race' }, kept) : null;
 }

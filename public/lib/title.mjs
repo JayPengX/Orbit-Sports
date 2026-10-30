@@ -241,21 +241,6 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
       .filter(x => x.j > k && x.d > -swing(x.j))
       .sort((a, b) => b.d - a.d)
       .map(({ row, d }) => ({ row, d }));
-    // Football, settled at the soonest by the next game: which results do it,
-    // when it turns on one rival alone ("{leader} win, or {rival} don't";
-    // the lead it takes read backwards: 14 ahead, 13 then). Ties not counted
-    // (the tiebreak decides), each side's next game its own.
-    if (sport === 'soccer' && soonest === 1) {
-      const R = [3, 1, 0];
-      const ok = (j, r, q) => lo[k] + r > lo[j] + q + Math.max(0, more(rows[j]) - 3);
-      const who = rows.map((_, j) => j).filter(j => j > k && R.some(r => R.some(q => !ok(j, r, q))));
-      if (who.length === 1) {
-        const j = who[0];
-        const mine = R.filter(r => R.every(q => ok(j, r, q)));
-        const theirs = R.filter(q => R.every(r => ok(j, r, q)));
-        if ((mine.length || theirs.length) && R.every(r => R.every(q => ok(j, r, q) === (mine.includes(r) || theirs.includes(q))))) t.next = { rival: rows[j], mine, theirs };
-      }
-    }
     // F1, settled at the soonest by the next weekend: as results (the owner,
     // 2026-10-26: "領先 123 分，墨西哥站後需領先 101 分" was hard to read): the
     // holder's points that do it whatever the rest score, and the rivals'
@@ -340,6 +325,34 @@ export function standingsRace(group, sport, { total = null, left = null, team = 
     }
   }
   return { unit, rows: out, title, places, zones };
+}
+
+// Football, settled by the next game: what a side needs from it against
+// one rival, as results (Jay 2026-10-30: "得分不少於達拉斯" read oddly, a
+// game is won, drawn or lost). `d`: how much more it must take than the
+// rival from it (title.mjs margins: under 0, how much less it may). `vs`:
+// the two play each other next (New England v Miami, 2026-11-01): a win is
+// 3 for one and none for the other, so only a win (3 up), a draw (level)
+// or a loss (3 down). → 'beat' | 'unbeaten' (vs), 'win' | 'winOrTheyDont'
+// | 'unbeatenOrTheyDont' | 'noWorse' | 'better' | 'winTheyDont' |
+// 'winTheyLose' (each its own next game), null: nothing needed, or no
+// result does it.
+export function nextNeed(d, vs) {
+  if (d <= -3) return null;
+  if (vs) return d <= 0 ? 'unbeaten' : d <= 3 ? 'beat' : null;
+  return { '-2': 'unbeatenOrTheyDont', '-1': 'winOrTheyDont', 0: 'noWorse', 1: 'better', 2: 'winTheyDont', 3: 'winTheyLose' }[d] || null;
+}
+
+// Every rival that could still stop it (margins, [{ row, d }]), `vs` the
+// id of the holder's next opponent: the needs, less those another implies
+// (New England must beat Miami; Chicago, stopping it only if New England
+// lose, then needn't be said). null when one can't be said as results.
+export function nextNeeds(margins, vs) {
+  const R = [3, 1, 0];
+  const qs = (row, r) => (row.id === vs ? [{ 3: 0, 1: 1, 0: 3 }[r]] : R);
+  const all = margins.map(({ row, d }) => ({ row, need: nextNeed(d, row.id === vs), sure: R.filter(r => qs(row, r).every(q => r - q >= d)), can: R.filter(r => qs(row, r).some(q => r - q >= d)) }));
+  if (all.some(x => !x.need)) return null;
+  return all.filter(j => !all.some(i => i !== j && i.can.every(r => j.sure.includes(r)) && !(j.can.every(r => i.sure.includes(r)) && all.indexOf(j) < all.indexOf(i)))).map(({ row, need }) => ({ row, need }));
 }
 
 // F1: a race (or sprint) on now or just over, its points by the running

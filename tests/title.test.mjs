@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { liveTable, standingsRace } from '../public/lib/title.mjs';
+import { liveTable, standingsRace, nextNeed, nextNeeds } from '../public/lib/title.mjs';
 
 const row = (id, stats) => ({ id, name: id, stats });
 const soccerTable = () => [{ name: '', rows: [row('A', { GP: '30', W: '22', D: '4', L: '4', F: '60', A: '20', GD: '+40', P: '70' }), row('B', { GP: '30', W: '20', D: '6', L: '4', F: '55', A: '25', GD: '+30', P: '66' }), row('C', { GP: '30', W: '10', D: '5', L: '15', F: '30', A: '45', GD: '-15', P: '35' })] }];
@@ -189,11 +189,12 @@ test("a title the next game can settle says which results do it (Nashville 66, M
   assert.equal(r.title.soonest, 1);
   assert.equal(r.title.leadAt, 13);
   // Settled unless Miami win and Nashville don't: Nashville win, or Miami don't.
-  assert.deepEqual([r.title.next.rival.id, r.title.next.mine, r.title.next.theirs], ['MIA', [3], [1, 0]]);
-  // 12 ahead: A must do better than B (win and B not, or draw and B lose): no "this or that" to say, so the lead is said instead.
+  assert.deepEqual(r.title.margins.map(x => [x.row.id, x.d]), [['MIA', -1]]);
+  assert.equal(nextNeed(-1, false), 'winOrTheyDont');
+  // 12 ahead: A must do better than B (win and B not, or draw and B lose).
   const close = standingsRace({ rows: [row('A', { GP: '29', P: '64' }), row('B', { GP: '29', P: '52' })] }, 'soccer', { total: 34 });
   assert.equal(close.title.soonest, 1);
-  assert.equal(close.title.next, undefined);
+  assert.equal(nextNeed(close.title.margins[0].d, false), 'better');
 });
 
 test('MLS 2026-10-18: the race on the finals, so a win in the game on now is what settles it', () => {
@@ -206,8 +207,44 @@ test('MLS 2026-10-18: the race on the finals, so a win in the game on now is wha
   // …the race counts the finals only: Nashville must win the next (tonight's), or Miami not win.
   const race = standingsRace(group, 'soccer', { total: 34 });
   assert.equal(race.title.soonest, 1);
-  assert.deepEqual(race.title.next.mine, [3]);
-  assert.deepEqual(race.title.next.theirs, [1, 0]);
+  assert.equal(nextNeed(race.title.margins[0].d, false), 'winOrTheyDont');
+});
+
+test('MLS East 2026-10-30: New England 58, Miami 56 with 2 to go, and they meet next: a win settles 2nd, a draw does not', () => {
+  const rows = [row('NSH', { GP: '32', P: '71' }), row('NE', { GP: '32', P: '58' }), row('MIA', { GP: '32', P: '56' }), row('CHI', { GP: '32', P: '52' }), row('PHI', { GP: '32', P: '47' })];
+  const r = standingsRace({ rows }, 'soccer', { total: 34 });
+  const s = r.title.second;
+  assert.equal(s.place, 1);
+  assert.equal(s.soonest, 1);
+  // Chicago (52) could still catch them only if New England lose.
+  assert.deepEqual(s.margins.map(x => [x.row.id, x.d]), [['MIA', 2], ['CHI', -2]]);
+  // Each its own game: win and Miami not; against each other: beat them (61 to 56, Miami 59 at most), Chicago then out of it.
+  assert.deepEqual(nextNeeds(s.margins, 'X').map(x => [x.row.id, x.need]), [['MIA', 'winTheyDont']]);
+  assert.deepEqual(nextNeeds(s.margins, 'MIA').map(x => [x.row.id, x.need]), [['MIA', 'beat']]);
+});
+
+test('Football next-game needs, every lead it can take, as results', () => {
+  // (Results: 3, 1, 0 each; `d` how many more the holder must take than the rival.)
+  const R = [3, 1, 0];
+  const opp = { 3: 0, 1: 1, 0: 3 };
+  const holds = {
+    beat: (r, q) => r === 3,
+    unbeaten: (r, q) => r > 0,
+    winOrTheyDont: (r, q) => r === 3 || q < 3,
+    unbeatenOrTheyDont: (r, q) => r > 0 || q < 3,
+    noWorse: (r, q) => r >= q,
+    better: (r, q) => r > q,
+    winTheyDont: (r, q) => r === 3 && q < 3,
+    winTheyLose: (r, q) => r === 3 && q === 0
+  };
+  for (let d = -2; d <= 3; d++) {
+    for (const vs of [false, true]) {
+      const need = nextNeed(d, vs);
+      for (const r of R) for (const q of vs ? [opp[r]] : R) assert.equal(holds[need](r, q), r - q >= d, `${d} ${vs} ${r}:${q}`);
+    }
+  }
+  assert.equal(nextNeed(-3, false), null);
+  assert.equal(nextNeed(4, true), null);
 });
 
 test('F1 settled at the next race said as results: the leader’s place, or the rival’s', () => {

@@ -1498,7 +1498,6 @@ span.hero-team { cursor: default; }
 .zone-key i { width: 3px; height: 12px; border-radius: 2px; flex: none; }
 /* A zone's fight: every name under it, wrapping onto more lines (never cut short; a name kept whole). */
 .race-line.fight .race-t small { display: block; }
-.race-line.fight .race-t small .nm-one { white-space: nowrap; }
 .race-line.fight .race-t { min-width: 0; }
 /* The live panel's person as a tap: drawn as it was, a press dimming it. */
 button.lp-person.tap { all: unset; display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
