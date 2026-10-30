@@ -19,6 +19,7 @@ import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, m
 import { LEAGUES } from './leagues.mjs';
 import { athleteAverages, boxSeasonPage, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf, FOTMOB_LEAGUE, FOTMOB_HOME, fotmobLeagueLogo, fotmobTeamLogo, noteBadges } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
+import { teamStatsUrl, parseTeamStats, parseFotmobTeamStats, parseFotmobTeamList, teamRanks } from './teamstats.mjs';
 import { asiaMonth, asiaMonthOf, CATALOG } from '#kit/catalog.mjs';
 import { proxyJson, packJson, peekJson } from '#kit/orbit.mjs';
 import { mlbPostseason, mlbPostseasonUrl, mlbGameFor as postGameFor, mlbGone } from '#kit/postseason.mjs';
@@ -2012,6 +2013,37 @@ export async function leaderList(url, key) {
   return parseFotmobStat(await getJson(url, { ttl: LEADERS_TTL }), key);
 }
 // `side`: the team as ESPN names it (football's is found among FotMob's by name).
+// A league's teams by their own numbers (lib/teamstats.mjs): basketball's
+// and baseball's from ESPN, football's from FotMob (its page's top three a
+// stat; `full`: each stat's whole list too, every club ranked). Kept 6 h.
+export async function leagueTeamStats(league, { full = false } = {}) {
+  const l = LEAGUES[league];
+  if (!l?.espn) return null;
+  if (l.sport === 'soccer') {
+    if (!fotmobLeagueUrl(league)) return null;
+    const page = await getJson(fotmobLeagueUrl(league), { ttl: LEADERS_TTL });
+    const data = parseFotmobTeamStats(page);
+    if (!data) return null;
+    data.teams = page?.teams || [];
+    if (full) await Promise.all(data.stats.map(st => (st.url ? fotmobTeamList(st.url, st.key).then(list => list.length && ((st.list = list), (st.full = true))).catch(() => null) : null)));
+    return data;
+  }
+  if (l.sport !== 'basketball' && l.sport !== 'baseball') return null;
+  return parseTeamStats(await getJson(teamStatsUrl(l.espn), { ttl: LEADERS_TTL, trim: 'espn-teams' }), l.sport);
+}
+// One football stat's whole list of clubs, ranked.
+export const fotmobTeamList = (url, key) => getJson(url, { ttl: LEADERS_TTL }).then(d => parseFotmobTeamList(d, key));
+// A team's place in each of its league's team stats: { data, ranks }, or null.
+// (A football club found among FotMob's by its names.)
+export async function teamStatRanks(league, id, side = {}) {
+  const data = await leagueTeamStats(league, { full: true });
+  if (!data) return null;
+  const club = LEAGUES[league].sport === 'soccer' ? fotmobTeamOf(data.teams || [], side, sideWords(side)) : null;
+  if (LEAGUES[league].sport === 'soccer' && !club) return null;
+  // (A football stat whose whole list didn't come: its top three can't rank a club outside them.)
+  const ranks = teamRanks(club ? { stats: data.stats.filter(st => st.full) } : data, club ? x => x.fotmob === String(club.id) : x => x.id === String(id));
+  return ranks.length ? { data, ranks } : null;
+}
 export async function teamLeaders(league, id, side = {}) {
   const l = LEAGUES[league];
   if (!hasLeaders(l?.sport, l?.espn) || l.sport === 'racing') return null;

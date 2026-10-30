@@ -429,10 +429,14 @@ img { max-width: 100%; }
 /* The line score and the game's moment, over 概況's cards (on every state's page, under the same tabs). */
 .match-top:not(:empty) { display: grid; gap: 12px; margin-bottom: 16px; }
 /* No row of tabs (one view only): the line score its own room under the follows, never against them. */
-.match-tabs:empty + .match-top:not(:empty) { margin-top: 18px; }
+.match-tabs:empty + .match-sub:empty + .match-top:not(:empty) { margin-top: 18px; }
+/* 數據's 球隊 or 球員: a small switch under the tabs, centred, never as wide as them. */
+.match-sub:not(:empty) { display: flex; justify-content: center; margin: -4px 0 14px; }
+.match-sub .q-seg { width: min(240px, 100%); }
 /* Loading: the tabs and cards in their shape. */
-.match-tabs-skel { display: flex; gap: 8px; overflow: hidden; }
-.match-tabs-skel > .skel { flex: none; width: 64px; height: 40px; border-radius: 20px; }
+.match-tabs-skel { display: flex; gap: 0; overflow: hidden; height: 40px; border-radius: 20px; background: var(--q-surface); }
+.match-tabs-skel > .skel { flex: 1; margin: 4px; border-radius: 16px; opacity: .5; }
+.match-tabs-skel > .skel:not(:first-child) { opacity: 0; }
 .match-skel { padding: 16px; }
 .match-skel .skel-block { gap: 12px; }
 .match-top[hidden] { display: none; }
