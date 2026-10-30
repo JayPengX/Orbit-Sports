@@ -31,11 +31,13 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 
 - **Today:** a sticky date strip, what's on now, a no-clash plan of the day's best games, your own teams' games, and what already finished.
 - **Only what you can watch here:** MLB and CPBL, the NBA, the Premier League, Serie A, Bundesliga, Ligue 1, the UEFA cups, MLS on Apple TV, and every F1 session. A league out of season hides itself.
+- **One shape for every page:** a game, a team, a player and a league open the same way, with the competitions as chips (a team's 英超, 聯賽盃 and 歐冠 apart, or 全部).
 - **Match pages:** live score and line score, a win-chance chart with key moments, line-ups, box score, play by play, injuries, standings and season leaders, ordered by the moment of the game.
 - **F1 live board:** F1's own timing in tabs (order, track, tyres, lap times, points), every car moving on the track map, race control in Chinese.
-- **Live tables:** standings count results the moment a game ends, with a title line ("前 8 名，或 Russell、Hamilton 都沒贏") and magic numbers.
-- **Playoffs:** real brackets, or ones predicted from the table while the season runs; the NBA Cup's groups and knockout.
+- **Live tables:** standings count results the moment a game ends, with a title line ("前 8 名，或 Russell、Hamilton 都沒贏") and magic numbers; clinch cards name the head-to-head games still to come and what each side needs.
+- **Playoffs:** real brackets, or ones predicted from the table while the season runs; a game's 排名 holds its 季後賽, NBA 盃 (all six groups and the knockout) and the table as chips.
 - **Where to watch:** ELTA's own schedule (exact channel and commentary), NBA.com's ELTA list and Apple TV's MLS pages, plus replays and highlights.
+- **今日推薦** learns what you open and what you pass over (kept on the phone for 30 days).
 - **Follow** teams, players, leagues and drivers; get a notice when a game starts or ends, even with the app closed.
 - **Chinese first**, English second; teams in Chinese, players in their own names.
 
