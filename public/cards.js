@@ -8,7 +8,7 @@ import { channelsOf, watchOf } from './lib/tv.mjs';
 import { ALT_VIEW } from './lib/broadcast.mjs';
 import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
 import { onAir } from './lib/espn.mjs';
-import { stageTag } from './lib/stage.mjs';
+import { stageTag, stageOf } from './lib/stage.mjs';
 
 // An icon from the kit.
 export const icon = name => kitUI.icons[name] || '';
@@ -21,13 +21,32 @@ export function pageHead(title, action = null) {
 // A sport's colour: tiles and the hero's ground.
 const SPORT_COLOR = { soccer: '#16a34a', baseball: '#dc2626', basketball: '#ea580c', racing: '#4f46e5' };
 
-// A game's TV channels as tags on the hero (the first two real broadcasts: no 球員視角 or 數據視角).
-function channelTags(e, n = 2) {
+// A game's TV channels on the hero (the first two real broadcasts: no 球員視角 or 數據視角).
+function channelNames(e, n = 2) {
   if (!e || e.status?.void || e.status?.state === 'post') return [];
   return channelsOf(e)
     .filter(b => !ALT_VIEW.has(b.audio))
     .slice(0, n)
-    .map(b => el('span', { class: 'q-tag on-hero', text: b.short?.[en() ? 'en' : 'zh'] || b.zh || '' }));
+    .map(b => b.short?.[en() ? 'en' : 'zh'] || b.zh || '')
+    .filter(Boolean);
+}
+
+// The hero's foot, three kinds of thing apart: the competition (its name
+// strong, the stage after it), where it's on (a TV mark), and the reader's own
+// mark (追蹤中 / 推薦) as a pill at the right edge.
+function heroFoot(e, { mine, picked }) {
+  const stage = e.kind === 'match' ? stageTag(e, ctx.locale) : '';
+  const league = leagueName(e.league, ctx.locale).replace(/\s.*$/, '');
+  // A cup's tag starts with the cup's own name ("NBA 盃 · 小組賽"): that is the competition.
+  const cup = stageOf(e).key === 'cup' && stage ? stage.split(' · ') : null;
+  const [name, sub] = cup ? [cup[0], cup.slice(1).join(' · ')] : [league, stage];
+  const tv = channelNames(e);
+  const mark = mine ? ['star', en() ? 'Following' : '追蹤中'] : picked ? ['spark', en() ? 'Pick' : '推薦'] : null;
+  return el('div', { class: 'hc-foot' }, [
+    el('span', { class: 'hc-comp' }, [el('b', { text: name }), sub ? el('span', { text: sub }) : null]),
+    tv.length ? el('span', { class: 'hc-tv' }, [el('span', { class: 'hc-tv-ico', 'aria-hidden': 'true', html: icon('tv') }), el('span', { text: tv.join(en() ? ', ' : '、') })]) : null,
+    mark ? el('span', { class: `hc-mark${mine ? ' mine' : ''}` }, [el('span', { 'aria-hidden': 'true', html: icon(mark[0]) }), el('span', { text: mark[1] })]) : null
+  ]);
 }
 
 const sidePic = side => (side?.athlete ? personPic(side, side.league, 'hc-pic round') : logo(side?.logo, side?.name, 'hc-pic'));
@@ -68,13 +87,7 @@ export function heroGame(e, { eyebrow = '', picked = false, mine = false, onOpen
     const brief = live ? f1Brief(e) : null;
     if (brief) card.append(el('div', { class: 'hc-brief' }, [brief]));
   }
-  const stage = e.kind === 'match' ? stageTag(e, ctx.locale) : '';
-  const tags = [
-    el('span', { class: 'q-tag on-hero', text: stage || leagueName(e.league, ctx.locale).replace(/\s.*$/, '') }),
-    ...channelTags(e),
-    mine ? el('span', { class: 'q-tag on-hero strong', text: en() ? 'Following' : '追蹤中' }) : picked ? el('span', { class: 'q-tag on-hero strong', text: en() ? '★ Pick' : '★ 推薦' }) : null
-  ].filter(Boolean);
-  card.append(el('div', { class: 'hc-tags' }, tags));
+  card.append(heroFoot(e, { mine, picked }));
   // 觀看 while it's on (or within half an hour of its start), straight into ELTA.tv's or Apple TV's app.
   const b = !e.status?.void && (live || (e.status?.state === 'pre' && Date.parse(e.start) - Date.now() < 30 * 60_000)) ? watchOf(e) : null;
   if (b)
