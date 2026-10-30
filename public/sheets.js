@@ -5339,7 +5339,9 @@ async function newerGames(league, id, teamId, log, scheduleOf, name = '') {
   const newest = Date.parse(log.games[0]?.date || '') || 0;
   // (The game on now too: his line so far, said to be live.)
   const done = (await scheduleOf()).filter(x => (x.status?.state === 'post' || x.status?.state === 'in') && !x.status.void && Date.parse(x.start) > newest + 6 * 3_600_000).reverse().slice(0, 5);
-  const lines = await Promise.all(done.map(x => summary(league, x.id).catch(() => null)));
+  // (Each game under its own competition: a League Cup night among a club's league games was said to be 英超.)
+  const compOf = x => (x.league && LEAGUES[x.league] && !x.other ? x.league : null);
+  const lines = await Promise.all(done.map(x => (compOf(x) || !x.other ? summary(compOf(x) || league, x.id).catch(() => null) : null)));
   // MLB: his line from MLB's own box score, every column of the log (ESPN's has no 2B, 3B, GS, CG, SHO).
   const mlb = league === 'mlb' && name ? await Promise.all(done.map(x => mlbGameLog(x, name, log.labels).catch(() => null))) : [];
   return done.map((x, i) => {
@@ -5360,7 +5362,9 @@ async function newerGames(league, id, teamId, log, scheduleOf, name = '') {
       return m ? (Number(m[2]) ? ((100 * Number(m[1])) / Number(m[2])).toFixed(1) : '0.0') : '–';
     };
     const stats = mlb[i] || (best ? log.labels.map(val) : log.labels.map((_, k) => (k ? '' : 'DNP')));
-    return { id: String(x.id), date: x.start, live, at: home ? 'vs' : '@', home, league, leagueName: '', pre: Boolean(x.preseason || /preseason/i.test(x.note || '')), team: { id: String(teamId), abbr: us?.abbr || '', logo: us?.logo || null }, opp: { id: String(them?.id ?? ''), name: them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: sideScore(us, them), stats };
+    // (A box score with nobody's numbers in it, football's at ESPN: his line unknown, never "didn't play".)
+    const unknown = !mlb[i] && !(d?.players || []).some(p => p.tables.some(tb => tb.rows.some(r => r.stats?.some(v => v !== '' && v != null))));
+    return { unknown, id: String(x.id), date: x.start, live, at: home ? 'vs' : '@', home, league: compOf(x) || (x.other ? null : league), leagueName: x.other ? otherName(x.other, L() === 'en') : '', pre: Boolean(x.preseason || /preseason/i.test(x.note || '')), team: { id: String(teamId), abbr: us?.abbr || '', logo: us?.logo || null }, opp: { id: String(them?.id ?? ''), name: them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: sideScore(us, them), stats };
   });
 }
 
@@ -5644,14 +5648,19 @@ export async function openPlayer(league, id, fallback = {}) {
                     ? el('span', { class: 'result-pill live', text: [W('進行中', 'Live'), g.score].filter(Boolean).join(' ') })
                     : el('span', { class: `result-pill ${g.result === 'W' ? 'w' : g.result === 'L' ? 'l' : g.result === 'D' || g.result === 'T' ? 'd' : ''}`, text: [g.result ? (en ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result) : '', g.score].filter(Boolean).join(' ') })
                 ]),
-                big.length
+                // (Not in the box score at all: said, not a row of empty figures.)
+                g.unknown
+                  ? null
+                  : !g.live && g.stats.every(v => v === '' || v == null || v === 'DNP')
+                  ? el('p', { class: 'glog-more muted', text: W('未上場', 'Did not play') })
+                  : big.length
                   ? el(
                       'div',
                       { class: 'glog-big' },
                       big.map(k => el('div', { class: 'glog-fig' }, [el('b', { class: 'num', text: said(at(k) ?? '–') }), el('small', { text: LOG_BIG[k]?.[en ? 1 : 0] || name(k) })]))
                     )
                   : null,
-                small.length
+                small.length && !g.unknown && !g.stats.every(v => v === '' || v == null || v === 'DNP')
                   ? el(
                       'p',
                       { class: 'glog-more' },
@@ -5673,7 +5682,24 @@ export async function openPlayer(league, id, fallback = {}) {
     };
     // (This season begun, none of his yet: said so, not last season's.)
     const noGamesCard = () => card(W('近期比賽', 'Games'), el('p', { class: 'muted glog-none', text: W(`${ov.now.name} 例行賽還沒出賽`, `No ${ov.now.name} regular-season games yet`) }));
-    let logCard = log?.games.length ? logCardOf(log) : ov?.now?.none ? noGamesCard() : null;
+    // His games in more than one competition (a club's league, a European
+    // cup, his country's): a chip each and 全部, the page's own first (a
+    // team's page has the same, Jay 2026-10-30).
+    const logBox = lg => {
+      const comps = [...new Set(lg.games.map(g => g.league || g.leagueName).filter(Boolean))].sort((a, b) => (b === league) - (a === league) || Boolean(LEAGUES[b]) - Boolean(LEAGUES[a]));
+      if (comps.length < 2) return logCardOf(lg);
+      let pick = comps.includes(league) ? league : 'all';
+      const box = el('div', { class: 'log-box' });
+      const draw = () =>
+        put(
+          box,
+          segmented([...comps.map(k => [k, LEAGUES[k] ? leagueName(k, L()) : k]), ['all', W('全部', 'All')]], pick, v => ((pick = v), draw()), 'scroll stage-filter', { chips: true }),
+          logCardOf(pick === 'all' ? lg : { ...lg, games: lg.games.filter(g => (g.league || g.leagueName) === pick) })
+        );
+      draw();
+      return box;
+    };
+    let logCard = log?.games.length ? logBox(log) : ov?.now?.none ? noGamesCard() : null;
     const awardsCard = ov?.awards?.length
       ? card(W('榮譽', 'Honours'), el('ul', { class: 'award-list' }, ov.awards.map(w => el('li', {}, [el('strong', {}, [zhLater(w.name)]), w.count ? el('span', { class: 'award-count num', text: w.count.replace(/x$/i, '×') }) : null, w.seasons.length ? el('small', { class: 'muted', text: w.seasons.slice(0, 6).join(' · ') + (w.seasons.length > 6 ? ' …' : '') }) : null]))))
       : null;
@@ -5904,7 +5930,7 @@ export async function openPlayer(league, id, fallback = {}) {
           if (old?.isConnected) old.replaceWith(fresh);
           return fresh;
         };
-        logCard = swap(games, logCard, logCardOf({ ...log, games: all.slice(0, Math.max(log.games.length, 5)) }));
+        logCard = swap(games, logCard, logBox({ ...log, games: all.slice(0, Math.max(log.games.length, 5)) }));
         if (lastCard) lastCard = swap(overview, lastCard, lastOf({ ...log, games: all }));
         if (!views.some(v => v[0] === 'games')) {
           const at = views.findIndex(v => v[0] === 'numbers' || v[0] === 'bio');

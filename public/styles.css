@@ -1156,6 +1156,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .q-card + .team-next { margin-top: 20px; }
 .team-next .mini-h { margin: 0 2px 6px; }
 .team-comps { margin: 0 0 12px; }
+.log-box { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .team-comps .q-chips { margin: 0; }
 .team-tab { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .res-row { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
