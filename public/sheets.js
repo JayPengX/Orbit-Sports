@@ -4796,11 +4796,20 @@ const raceLines = new Map();
 // of our cups (Benfica in 歐霸): only its games in our competitions (ELTA's),
 // its league named, no roster (its home games, opponents and players are
 // ones ELTA doesn't show, ESPN half-covers and nobody here has heard of).
-export async function openTeam(league, id, fallback = {}) {
+// `scope`: the competition shown (Jay 2026-10-30: a club opened from 英超
+// saw only 英超, yet 全部 mixed is too much when one league is wanted):
+// the one it's opened from, another of its competitions, or 'all'; the
+// chips under the hero switch it in the same sheet (`into`), on the same tab.
+export async function openTeam(league, id, fallback = {}, { into = null, scope = league, tab = '' } = {}) {
   if (!id || !hasTeamPage(league) || fallback.guest) return;
-  const s = sheet(leagueName(league, L()), { league });
+  const s = into || sheet(leagueName(league, L()), { league });
   const content = el('div', {}, [spinner()]);
-  s.body.append(content);
+  if (into) {
+    s.body.replaceChildren(content);
+    // (The sheet's head names the competition shown, a tap to it.)
+    const head = s.dialog.querySelector('.sheet-league');
+    if (head) head.replaceWith(el('button', { class: 'sheet-league', type: 'button', onclick: () => ctx.openLeague?.(league) }, [leagueMark(league), el('span', { text: leagueName(league, L()) })]));
+  } else s.body.append(content);
   ctx.track([teamKey(league, fallback.name || ''), `league:${leagueKey(league)}`].filter(k => !k.endsWith(':')), 1.5);
   const espn = Boolean(LEAGUES[league]?.espn);
   const en = L() === 'en';
@@ -4837,7 +4846,12 @@ export async function openTeam(league, id, fallback = {}) {
     // Only the competitions Orbit Sports has: a friendly or another country's
     // cup has nothing of its own here (its table, its names, its page). And
     // a club's own league from FotMob (its games no page of their own).
-    const sched = [...all.filter(x => !x.other && LEAGUES[x.league]), ...(away?.games || [])].sort((a, b) => a.start.localeCompare(b.start));
+    const every = [...all.filter(x => !x.other && LEAGUES[x.league]), ...(away?.games || [])].sort((a, b) => a.start.localeCompare(b.start));
+    // Its competitions (ours, and a club's own league from FotMob), the one shown first among them.
+    const compOf = x => (x.abroad ? 'abroad' : x.league);
+    const compKeys = [...new Set(every.map(compOf))];
+    if (!compKeys.includes(league) && !away) compKeys.unshift(league);
+    const sched = scope === 'all' ? every : every.filter(x => compOf(x) === (scope === 'abroad' ? 'abroad' : league));
     const now = Date.now();
     const played = sched.filter(x => x.status.state === 'post' && !x.status.void);
     const upcoming = sched.filter(x => x.status.state !== 'post' && !x.status.void && Date.parse(x.start) > now - 4 * 3_600_000);
@@ -4881,6 +4895,18 @@ export async function openTeam(league, id, fallback = {}) {
           return el('button', { class: 'team-domestic', type: 'button', onclick: () => ((view = 'table'), paint(), body.scrollIntoView({ behavior: 'smooth', block: 'start' })) }, [chip, el('span', { class: 'td-text', text: [W(`第 ${away.place.pos} 名`, ord(away.place.pos)), wdl].filter(Boolean).join(' · ') }), el('span', { class: 'td-chev', 'aria-hidden': 'true', text: '›' })]);
         })()
       : null;
+    // One competition or all of them (a club in 英超 and 歐冠, the FA Cup):
+    // chips when it plays in more than one of ours; a tap draws the page for that one.
+    const compName = k => (k === 'abroad' ? away?.league?.name || '' : leagueName(k, L()));
+    const compChips = compKeys.length > 1 ? [...compKeys.map(k => [k, compName(k)]), ['all', W('全部', 'All')]] : [];
+    const compBox = compChips.length
+      ? el('div', { class: 'team-comps' }, [
+          segmented(compChips, scope === 'all' ? 'all' : scope === 'abroad' ? 'abroad' : league, k => {
+            if (k === 'abroad') return openTeam(league, id, fallback, { into: s, scope: 'abroad', tab: view });
+            openTeam(k === 'all' ? league : k, id, fallback, { into: s, scope: k === 'all' ? 'all' : k, tab: view });
+          }, 'scroll stage-filter', { chips: true })
+        ])
+      : null;
     const tabsBox = el('div');
     const body = el('div', { class: 'team-tab' });
     swipeTabs(body, () => ({ list: views.map(v => v[0]), now: view, go: k => ((view = k), paint()) }));
@@ -4894,12 +4920,13 @@ export async function openTeam(league, id, fallback = {}) {
     if (leaders || ranksOn) views.push(['stats', W('數據', 'Stats')]);
     if (espn && !outside) views.push(['roster', W('陣容', 'Roster')]);
     if (place || away?.place) views.push(['table', W('排名', 'Table')]);
-    let view = 'overview';
+    let view = views.some(v => v[0] === tab) ? tab : 'overview';
     let rosterList = null;
     let leadersData = leaders ? undefined : null;
     let ranksData = ranksOn ? undefined : null;
     let teamPick = null;
     let shownResults = 10;
+    let allTables = null;
     if (leaders)
       teamLeaders(league, id, { name: info.en || info.name, en: info.en, short: info.enShort })
         .then(d => (leadersData = d))
@@ -5021,6 +5048,20 @@ export async function openTeam(league, id, fallback = {}) {
         ].filter(Boolean);
         put(body, ...(parts.length ? parts : [empty(W('本季還沒有數據。', 'No numbers yet this season.'))]));
       }
+      if (view === 'table' && scope === 'all' && compKeys.length > 1) {
+        // Every competition's table it's in, this one first (a cup without a table, the FA Cup's: none).
+        if (!allTables) {
+          allTables = Promise.all(compKeys.filter(k => k !== 'abroad' && hasStandings(k)).map(k => (k === league ? Promise.resolve(groups) : freshStandings(k).catch(() => null)).then(g => [k, g])));
+          allTables.then(list => ((allTables = list), view === 'table' && paint()));
+        }
+        if (allTables instanceof Promise) return put(body, spinner());
+        const parts = allTables.flatMap(([k, gs]) => {
+          const g = (gs || []).find(x => x.rows.some(r => r.id === String(id)));
+          return g ? [standingsTables([{ ...g, name: [leagueName(k, L()), (gs.length > 1 && g.name) || ''].filter(Boolean).join(' · ') }], k, { mark: [String(id)], compact: true })] : [];
+        });
+        const home = away?.place ? standingsTables([{ ...away.group, name: away.league.name }], league, { mark: [String(id)], compact: true, open: false }) : null;
+        return put(body, parts.length || home ? el('div', { class: 'stack' }, [home, ...parts]) : empty(T('noStandings')));
+      }
       if (view === 'table') {
         const g = (groups || []).find(x => x.rows.some(r => r.id === String(id)));
         // Its own league's table first (FotMob's: its rows open nothing), then the cup's.
@@ -5044,6 +5085,7 @@ export async function openTeam(league, id, fallback = {}) {
         followBtn
       ]),
       strip,
+      compBox,
       tabsBox,
       body
     );

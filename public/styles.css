@@ -552,6 +552,12 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .pill.W { background: var(--win); }
 .pill.D, .pill.T { background: var(--draw); }
 .pill.L { background: var(--loss); }
+/* A phone of 320: the hero's words take the follow button's column too (the button over the name's end), so five form pills and the place fit. */
+@media (max-width: 360px) {
+  .team-hero > .team-hero-text { grid-column: 2 / 4; grid-row: 1; }
+  .team-hero > .follow-btn { grid-column: 3; grid-row: 1; align-self: start; z-index: 1; }
+  .team-hero-text > h3, .team-hero-text > h3 + small { padding-right: 84px; }
+}
 .wp-chart { display: block; width: 100%; height: 90px; }
 /* Which side the line leans to: the home side at the top, the away side at the bottom. */
 .wp-plot { position: relative; margin-top: 6px; }
@@ -1149,6 +1155,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 /* Under a card (傷兵): the section's room above its head, never tight on the card (Jay, 2026-10-21). */
 .q-card + .team-next { margin-top: 20px; }
 .team-next .mini-h { margin: 0 2px 6px; }
+.team-comps { margin: 0 0 12px; }
+.team-comps .q-chips { margin: 0; }
 .team-tab { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .res-row { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .res-row:first-child { border-top: 0; }
