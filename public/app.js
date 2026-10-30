@@ -15,7 +15,7 @@ import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { transition } from './lib/notice.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
@@ -37,7 +37,7 @@ import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
 import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, sessionTag, raceFlag, audioName, personPic, refreshBadges } from './ui.js';
-import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, tableNow } from './sheets.js';
+import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
 import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
@@ -117,7 +117,7 @@ const state = {
 };
 
 const q = orbitSession('match', { lang: locale });
-Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, isFollowed, toggleFollow, track, isFollowedEvent, isFollowedGame, toggleFollowGame });
+Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, openLeague, isFollowed, toggleFollow, track, isFollowedEvent, isFollowedGame, toggleFollowGame });
 
 // ---- What the person follows (on the pass) ---------------------------------------------
 
@@ -3016,6 +3016,17 @@ function leagueRail(rail) {
   for (const chip of railKept.node.querySelectorAll('[data-league]')) chip.setAttribute('aria-pressed', String(chip.dataset.league === state.scores.league));
   return railKept.node;
 }
+// A league opened from a page of it (a game's, team's or player's sheet,
+// by the league's name at its top): 賽事 on that league, the sheets put
+// away (Jay 2026-10-30: every page leads to the others).
+function openLeague(k, view = null) {
+  if (!LEAGUES[k]) return;
+  for (const d of document.querySelectorAll('dialog[open]')) d.close();
+  if (state.scores.league !== k) pickLeague(k, view);
+  else if (view) state.scores.view = view;
+  if (state.tab !== 'matches') showTab('matches');
+  else renderScores();
+}
 // A league of 賽事's rail opened (`view`: on that tab, else the one open now where it has it).
 function pickLeague(k, view = null) {
   const sc = state.scores;
@@ -3152,7 +3163,7 @@ function renderScores() {
   const name = leagueName(sc.league, locale);
   const head = pageHead(name, followButton(() => mine.has(sc.league), () => (toggleLeague(sc.league), renderScores()), t('followLeague')));
   if (name.length > (locale === 'en' ? 14 : 7)) head.classList.add('long');
-  const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : []), ...(hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn) ? [['leaders', L({ zh: '數據領先', en: 'Leaders' })]] : [])];
+  const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : []), ...(hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn) ? [['leaders', L({ zh: '數據', en: 'Stats' })]] : [])];
   const viewNow = knockView ? 'bracket' : tableView ? 'table' : leadersView ? 'leaders' : 'games';
   const views = viewList.length > 1 ? segmented(viewList, viewNow, v => ((sc.view = v), renderScores()), 'views') : null;
   // (For the page's swipe: the tab beside this one.)
@@ -3583,7 +3594,7 @@ const tableAt = new Map();
 function warmTable(league) {
   if (!hasStandings(league) || Date.now() - (tableAt.get(league) ?? -Infinity) < 10 * 60_000) return;
   tableAt.set(league, Date.now());
-  const shown = () => state.tab === 'matches' && state.scores.league === league && state.scores.view === 'table' && renderScores();
+  const shown = () => state.tab === 'matches' && state.scores.league === league && (state.scores.view === 'table' || state.scores.view === 'leaders') && renderScores();
   if (!tables.has(league)) {
     tables.set(league, null);
     savedStandings(league)
@@ -3606,7 +3617,51 @@ function warmTable(league) {
 const leaders = new Map();
 const leaderPick = new Map();
 const FAILED = Symbol('failed');
+// 數據 of a league: its players' leaders (球員) and, where there are any,
+// its teams by their own numbers (球隊, lib/teamstats.mjs), one switch.
+const teamNums = new Map();
+const teamPick = new Map();
+const teamLists = new Map();
 function leadersOf(league) {
+  const sport = LEAGUES[league]?.sport;
+  const has = ['basketball', 'baseball', 'soccer'].includes(sport) && LEAGUES[league]?.espn;
+  if (has && !teamNums.has(league)) {
+    teamNums.set(league, undefined);
+    leagueTeamStats(league)
+      .then(d => teamNums.set(league, d))
+      .catch(() => teamNums.set(league, null))
+      .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+  }
+  const teams = teamNums.get(league);
+  const part = teams && state.scores.statPart === 'teams' ? 'teams' : 'players';
+  const pick = teams ? segmented([['players', L({ zh: '球員', en: 'Players' })], ['teams', L({ zh: '球隊', en: 'Teams' })]], part, v => ((state.scores.statPart = v), renderScores()), 'views stat-part') : null;
+  return el('div', {}, [pick, part === 'teams' ? teamsOf(league, teams) : playersOf(league)]);
+}
+function teamsOf(league, d) {
+  warmTable(league);
+  const all = (tables.get(league) || []).flatMap(g => g.rows || []);
+  const rows = new Map(all.map(r => [String(r.id), r]));
+  const clubs = d.teams?.length ? fotmobClubRows(d.teams, all, r => sideWords({ name: r.en || r.name, en: r.en, short: r.short })) : new Map();
+  const st = d.stats.find(x => x.key === teamPick.get(league)) || d.stats[0];
+  // A football stat's whole list: read when its chip is chosen.
+  if (st.url && !teamLists.has(st.url)) {
+    teamLists.set(st.url, null);
+    fotmobTeamList(st.url, st.key)
+      .then(list => teamLists.set(st.url, list))
+      .catch(() => {})
+      .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
+  }
+  // (A team's name and logo as the table has them: 勇士, not Golden State Warriors.)
+  const teamOf = x => {
+    const r = x.id ? rows.get(String(x.id)) : clubs.get(String(x.fotmob ?? ''));
+    if (r) return { id: String(r.id), name: r.name, short: r.short, logo: r.logo || x.logo };
+    // (Not matched yet, the table still coming: FotMob's short name, Brighton not Brighton & Hove Albion.)
+    const club = x.fotmob ? d.teams?.find(t => String(t.id) === x.fotmob) : null;
+    return club ? { id: '', name: club.shortName || club.name, short: club.shortName || club.name, logo: x.logo } : null;
+  };
+  return teamStatsView(d, league, { teamOf, pick: st.key, full: st.url ? teamLists.get(st.url) : null, onPick: k => (teamPick.set(league, k), renderScores()) });
+}
+function playersOf(league) {
   const key = `leaders:${league}`;
   const shown = () => state.tab === 'matches' && state.scores.league === league;
   if (!leaders.has(league)) {

@@ -412,7 +412,9 @@ img { max-width: 100%; }
 .sheet-lg { display: inline-flex; align-items: center; gap: 8px; }
 /* A league's sheet: its mark and name centred as every sheet's title, the ✕ at the right. */
 .q-sheet-head > h2.sheet-lg { justify-self: center; justify-content: center; min-width: 0; max-width: 100%; }
-.q-sheet-head > h2.sheet-lg > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-sheet-head > h2.sheet-lg > span:last-child, .sheet-league > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The league's mark and name: a tap to the league (賽事), drawn as the title it is. */
+.sheet-league { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .sheet-lg .lg-mark { --s: 28px; }
 /* A race weekend's country: a round flag before its name. */
 .race-flag { flex: none; width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
@@ -1146,7 +1148,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 /* Under a card (傷兵): the section's room above its head, never tight on the card (Jay, 2026-10-21). */
 .q-card + .team-next { margin-top: 20px; }
 .team-next .mini-h { margin: 0 2px 6px; }
-.team-tab { margin-top: 10px; display: grid; gap: 10px; }
+.team-tab { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .res-row { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .res-row:first-child { border-top: 0; }
 .res-row.abroad { cursor: default; }
@@ -1432,6 +1434,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .rc-name > span { white-space: nowrap; }
 .rc-name .logo { width: 24px; height: 24px; flex: none; vertical-align: 0; font-size: 9.5px; }
 .views.race-part { margin: 4px 0 12px; }
+.q-seg.views.stat-part { width: min(240px, 100%); margin: 4px auto 12px; }
 /* The one follow button (sheets.js followButton): a small pill, the app's
    colour until followed, then quiet with a tick; the same on every page. */
 .follow-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent, #fff); font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }

@@ -38,7 +38,7 @@ test("FotMob's clubs: the page's top three, then a stat's whole list ranking eve
   assert.deepEqual(d.stats.map(s => s.zh), ['場均失球', '控球率']);
   assert.equal(d.stats[1].list[0].value, '64.2%');
   assert.equal(d.stats[0].list[0].logo, 'https://images.fotmob.com/image_resources/logo/teamlogo/9825.png');
-  const list = parseFotmobTeamList({ decimals: 1, list: [{ id: 1, name: 'A', value: 1.2 }, { id: 2, name: 'B', value: 0.9 }, { id: 3, name: 'C', value: 0.9 }] }, 'goals_conceded_team_match');
+  const list = parseFotmobTeamList({ decimals: 1, list: [{ id: 0, teamId: 1, name: 'A', value: 1.2 }, { id: 2, name: 'B', value: 0.9 }, { id: 3, name: 'C', value: 0.9 }] }, 'goals_conceded_team_match');
   assert.deepEqual(list.map(x => [x.fotmob, x.rank]), [['2', 1], ['3', 1], ['1', 3]]);
   assert.equal(parseFotmobTeamStats({ teamStats: [] }), null);
 });

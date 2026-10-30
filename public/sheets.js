@@ -4950,7 +4950,7 @@ export async function openTeam(league, id, fallback = {}) {
       return card(
         all ? W('球隊數據', 'Team stats') : W('聯盟排名', 'League ranks'),
         el('div', {}, [
-          el('div', { class: 'stat-grid' }, list.map(r => tile(en ? r.stat.en : r.stat.zh, r.value, W(`第 ${r.rank} 名`, `#${r.rank}`)))),
+          el('div', { class: `stat-grid${all ? ' dense' : ''}` }, list.map(r => tile(en ? r.stat.en : r.stat.zh, r.value, W(`第 ${r.rank} 名`, `#${r.rank}`)))),
           all ? null : el('button', { class: 'section-more lb-more', type: 'button', onclick: () => ((view = 'stats'), paint()), text: W('全部球隊數據 ›', 'All team stats ›') })
         ]),
         { sub: [all ? leadersSeason(ranksData.data, sport, en) : '', W(`共 ${of} 隊`, `of ${of}`)].filter(Boolean).join(' · ') }
@@ -5116,6 +5116,25 @@ export function leagueLeadersView(data, league, { teamOf = () => null, pick = nu
   label();
   const sub = [leadersSeason(data, sport, en), list.length > 10 ? (en ? `top ${list.length}` : `前 ${list.length} 名`) : ''].filter(Boolean).join(' · ');
   return el('div', {}, [chips, card(leaderLabel(st, sport, en), el('div', {}, [box, more]), { sub })]);
+}
+
+// A league's teams by one of their own numbers (lib/teamstats.mjs), as its
+// players' are drawn: the stat's chips, then every team in its order, its
+// place, logo and name; a tap opens its page. `teamOf(x)` the table's row
+// for a team (its Chinese name, its id: a FotMob club matched by name).
+export function teamStatsView(data, league, { teamOf = () => null, pick = null, onPick = () => {}, full = null } = {}) {
+  const en = L() === 'en';
+  const chosen = data.stats.find(x => x.key === pick) || data.stats[0];
+  const list = full?.length ? full : chosen.list;
+  const chips = data.stats.length > 1 ? segmented(data.stats.map(x => [x.key, en ? x.en : x.zh]), chosen.key, onPick, 'scroll stage-filter') : null;
+  const row = x => {
+    const t = teamOf(x) || (x.id ? { id: x.id, name: x.name, short: x.short, logo: x.logo } : null);
+    const name = t?.short || t?.name || x.short || x.name;
+    const kids = [el('span', { class: 'lb-rank num', text: String(x.rank) }), logo(t?.logo || x.logo, name, 'sm'), el('span', { class: 'lb-name' }, [fitLine(el('strong', { class: 'one-line', text: name }))]), el('b', { class: 'lb-value num', text: x.value })];
+    return t?.id && hasTeamPage(league) ? el('button', { class: 'lb-row', type: 'button', onclick: () => ctx.openTeam(league, String(t.id), t) }, kids) : el('div', { class: 'lb-row' }, kids);
+  };
+  const sub = [data.season?.name ? `${data.season.name}${LEAGUES[league]?.sport === 'soccer' ? '' : en ? ' regular season' : ' 例行賽'}` : '', chosen.low ? (en ? 'lower is better' : '越低越好') : ''].filter(Boolean).join(' · ');
+  return el('div', {}, [chips, card(en ? chosen.en : chosen.zh, el('div', { class: 'lb-list' }, list.map(row)), { sub })]);
 }
 
 // "8-4-2" from a list of results (wins, draws, losses; no draws: "8-4").
@@ -5552,12 +5571,12 @@ export async function openPlayer(league, id, fallback = {}) {
       const board = days.length ? (await scoreboard(g.league, days).catch(() => [])).find(x => String(x.id) === String(g.id)) : null;
       ctx.openEvent(board || listed || matchOf(g));
     };
-    const logCardOf = log => {
+    const logCardOf = (log, head = '') => {
       // (One competition for all its games: said once, at the top.)
       const oneComp = new Set(log.games.map(g => g.league || g.leagueName)).size === 1 ? log.games[0] : null;
       return card(
           // Last season's (ESPN's until a player's first game of the new one: April's in October), said to be.
-          Date.now() - (Date.parse(log.games[0]?.date || '') || Date.now()) > 45 * 86_400_000 ? W(`上季最後 ${log.games.length} 場`, `Last season's last ${log.games.length}`) : W(`近 ${log.games.length} 場`, `Last ${log.games.length} games`),
+          head || (Date.now() - (Date.parse(log.games[0]?.date || '') || Date.now()) > 45 * 86_400_000 ? W(`上季最後 ${log.games.length} 場`, `Last season's last ${log.games.length}`) : W(`近 ${log.games.length} 場`, `Last ${log.games.length} games`)),
           el(
             'div',
             { class: 'glog' },
@@ -5677,6 +5696,30 @@ export async function openPlayer(league, id, fallback = {}) {
       mateCard,
       seasonCard
     ]);
+    // A team sport's player as his team's page has it (Jay 2026-10-30, one
+    // shape for every page): 概況 opens on his team's next game and his last
+    // line, 賽程 the next game then his game log.
+    const nextBox = el('div', { class: 'team-next', hidden: true });
+    const lastOf = lg => (lg?.games.length ? logCardOf({ ...lg, games: lg.games.slice(0, 1) }, W('上一場', 'Last game')) : null);
+    let lastCard = racing ? null : lastOf(log);
+    if (!racing) overview.unshift(...[nextBox, lastCard].filter(Boolean));
+    if (!racing && a.teamId)
+      scheduleOf().then(list => {
+        const next = list.find(x => x.status.state !== 'post' && !x.status.void && Date.parse(x.start) > Date.now() - 4 * 3_600_000);
+        if (!next || !s.dialog.isConnected) return;
+        put(nextBox, el('p', { class: 'mini-h', text: W('下一場', 'Next game') }), el('div', { class: 'q-card list' }, [eventRow(next, { league: false })]));
+        nextBox.hidden = false;
+        const box2 = nextBox.cloneNode(false);
+        put(box2, el('p', { class: 'mini-h', text: W('下一場', 'Next game') }), el('div', { class: 'q-card list' }, [eventRow(next, { league: false })]));
+        box2.hidden = false;
+        games.unshift(box2);
+        if (!views.some(v => v[0] === 'games')) {
+          const at = views.findIndex(v => v[0] === 'numbers' || v[0] === 'bio');
+          views.splice(at >= 0 ? at : views.length, 0, ['games', W('賽程', 'Games'), games]);
+          paintTab();
+        }
+        if (view === 'games') paintTab();
+      });
     const numbers = keep([
       og.gp ? card(W('正賽', 'Grand Prix'), f1Tiles(og.gp, en)) : summaryTiles.length ? card(W('本季表現', 'This season'), el('div', { class: 'stat-grid' }, summaryTiles)) : null,
       og.sprint ? card(W('衝刺賽', 'Sprint'), f1Tiles(og.sprint, en)) : null,
@@ -5707,8 +5750,8 @@ export async function openPlayer(league, id, fallback = {}) {
     const views = [
       game ? ['game', W('本場', 'This game'), () => gameCards(game, id, league)] : null,
       ['overview', W('概況', 'Overview'), overview],
+      ['games', W('賽程', 'Games'), games],
       ['numbers', W('數據', 'Stats'), numbers],
-      ['games', racing ? W('各站成績', 'Races') : W('近期比賽', 'Games'), games],
       ['bio', W('資料', 'Bio'), bio]
     ].filter(v => v && (typeof v[2] === 'function' || v[2].length));
     let view = views[0]?.[0];
@@ -5771,22 +5814,29 @@ export async function openPlayer(league, id, fallback = {}) {
         .then(data => {
           // (Not those the season's card above already ranks.)
           const above = new Set((a.stats?.list || []).filter(x => x.rank).map(x => statName(x.label, L(), { sport, long: x.name })));
-          const ranks = playerRanks(data, id, a.name)
-            .filter(r => !above.has(leaderLabel(r.stat, sport, en)))
-            .slice(0, 8);
+          const every = playerRanks(data, id, a.name);
+          const ranks = every.filter(r => !above.has(leaderLabel(r.stat, sport, en))).slice(0, 6);
           // One place alone (a bench player's lone 第 74 名) says little and left a near-empty card: none then.
           if (ranks.length < 2 || !s.dialog.isConnected) return;
           // (The lists' length, not the best place's: a rate's 94 qualified made it "前 94 名".)
-          const top = Math.min(100, Math.max(...ranks.map(r => r.of)));
+          const top = Math.min(100, Math.max(...every.map(r => r.of)));
           const rc = card(
             W('聯盟排名', 'League ranks'),
-            el('div', { class: 'stat-grid' }, ranks.map(r => tile(leaderLabel(r.stat, sport, en), r.value, W(`第 ${r.rank} 名`, `#${r.rank}`)))),
+            el('div', {}, [
+              el('div', { class: 'stat-grid' }, ranks.map(r => tile(leaderLabel(r.stat, sport, en), r.value, W(`第 ${r.rank} 名`, `#${r.rank}`)))),
+              every.length > ranks.length ? el('button', { class: 'section-more lb-more', type: 'button', onclick: () => ((view = 'numbers'), paintTab()), text: W('全部聯盟排名 ›', 'All league ranks ›') }) : null
+            ]),
             { sub: W(`各項前 ${top} 名裡`, `Within each top ${top}`) }
           );
+          // 數據: every list he's in, in the lists' own order (a team's 數據 ranks every stat too).
+          const all = card(W('聯盟排名', 'League ranks'), el('div', { class: 'stat-grid dense' }, every.map(r => tile(leaderLabel(r.stat, sport, en), r.value, W(`第 ${r.rank} 名`, `#${r.rank}`)))), { sub: W(`各項前 ${top} 名裡`, `Within each top ${top}`) });
+          const rowsAt = numbers.indexOf(rowsCard);
+          numbers.splice(rowsAt >= 0 ? rowsAt + 1 : numbers.length, 0, all);
+          if (!views.some(v => v[0] === 'numbers')) views.splice(views.findIndex(v => v[0] === 'bio') >= 0 ? views.findIndex(v => v[0] === 'bio') : views.length, 0, ['numbers', W('數據', 'Stats'), numbers]);
           const at = overview.findIndex(c => c?.dataset?.kind === 'season');
           overview.splice(at >= 0 ? at + 1 : overview.length, 0, rc);
           if (!views.some(v => v[0] === 'overview')) views.splice(game ? 1 : 0, 0, ['overview', W('概況', 'Overview'), overview]);
-          if (view === 'overview') paintTab();
+          if (view === 'overview' || view === 'numbers') paintTab();
         })
         .catch(() => {});
     // The games ESPN's log hasn't caught up with (it's a day behind, and
@@ -5806,9 +5856,10 @@ export async function openPlayer(league, id, fallback = {}) {
           return fresh;
         };
         logCard = swap(games, logCard, logCardOf({ ...log, games: all.slice(0, Math.max(log.games.length, 5)) }));
+        if (lastCard) lastCard = swap(overview, lastCard, lastOf({ ...log, games: all }));
         if (!views.some(v => v[0] === 'games')) {
-          const bioAt = views.findIndex(v => v[0] === 'bio');
-          views.splice(bioAt >= 0 ? bioAt : views.length, 0, ['games', W('近期比賽', 'Games'), games]);
+          const at = views.findIndex(v => v[0] === 'numbers' || v[0] === 'bio');
+          views.splice(at >= 0 ? at : views.length, 0, ['games', W('賽程', 'Games'), games]);
           paintTab();
         }
         // ESPN's card still last season's: this season's numbers with these games (the one on now counted, said so).

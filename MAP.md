@@ -29,7 +29,7 @@ couldn't be read is shown, never hidden.
     the page for the next or last day), 正在進行, 推薦 (a no-clash plan), 我的比賽, 更多賽事,
     已結束, followed teams today.
   - **賽事:** a league. Sport and league chips, game days, then 賽程, 排名,
-    季後賽, 數據領先.
+    季後賽, 數據 (球員's leaders, 球隊: every team by each of its own stats).
   - **轉播:** when and where. The same date strip (yesterday to two weeks
     on). Today: on now with 觀看, yours in the next 7 days, the next 24 h,
     ELTA's whole guide; another day: its best game, then all it has on TV.
@@ -38,17 +38,30 @@ couldn't be read is shown, never hidden.
 - **Sheets** (full height):
   - **A match:** header and line score, a live panel, then sections drawn
     once in an order set by the game's moment: 概況, 數據, 球員, 過程, 先發,
-    場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊. Every sport shares one
+    場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊. 數據 holds both
+    球隊 and 球員 (the box score; before the start, the season's). Every sport shares one
     先發陣容 card, one 陣容 card per side (先發 or 打序, 替補, then 未上場 or
     傷兵 in the injury report's rows) and one 傷兵 list (three, then 全部).
   - **A race weekend:** a hero (flag, circuit, countdown to the next session),
     the sessions on one timeline (a tap picks whose order shows), then F1's
     冠軍之爭, 台灣轉播, 賽道 (outline, formula1.com's figures and lap record,
     Open-Meteo's weather there each day, through the proxy) and last year's podium there.
-  - **A team:** 賽程, 戰績, 陣容, 數據領先 with 隊內排行, 排名.
-  - **A player:** 概況 with 聯盟排名, 數據, 近期比賽, 資料; opened from a
-    game, its 本場 line.
+  - **One word, one meaning, one order on every page** (Jay 2026-10-30):
+    概況 the glance, 賽程 every game (to come, then results), 數據 the
+    numbers and where they rank, 陣容 the people, 排名 the table, 資料 the
+    facts. Every tab row is one full-width row (never a few pills and a gap).
+    The league's name at a sheet's top opens that league in 賽事.
+  - **A team:** 概況 (next and last game, 傷兵, home/away/last 10 and
+    scored/let in from its games, 聯盟排名, 數據領先), 賽程, 數據 (its own
+    numbers ranked among the league's teams, then 隊內排行), 陣容, 排名.
+  - **A player:** 概況 (his team's next game, his last line, the season,
+    聯盟排名), 賽程 (next game, game log), 數據 (every league rank), 資料;
+    opened from a game, its 本場 line.
   - **An F1 constructor.**
+- **Team numbers** (`lib/teamstats.mjs`): NBA and MLB from ESPN's
+  statistics/byteam (the proxy's `espn-teams` trim), football from FotMob's
+  club lists (its league page's `teamStats`, each list's file for the whole
+  order); ranked here (level on the number, level in the list).
 - **數據領先** (`lib/leaders.mjs`):
   - Basketball's 12 stats and baseball's 23 come from ESPN's whole-league
     list; rates only among qualified players.
@@ -154,6 +167,7 @@ couldn't be read is shown, never hidden.
 | `lib/f1.mjs`, `racecontrol.mjs` | F1 data and the board's maths; race control in Chinese |
 | `lib/title.mjs`, `playoffs.mjs`, `bracket.mjs` | Live tables and title race; playoffs |
 | `lib/leaders.mjs` | 數據領先: stats, ranks, team and player |
+| `lib/teamstats.mjs` | Teams' own numbers ranked in their league (數據 球隊) |
 | `lib/picks.mjs`, `foryou.mjs` | Today's picks; affinity (shared with Play) |
 | `lib/broadcast.mjs`, `tv.mjs`, `highlights.mjs` | Where to watch (the kit's, shared with the proxy); channels; videos |
 | `lib/winprob.mjs`, `soccerwp.mjs`, `wpline.mjs`, `moments.mjs` | Win chance line and key moments |

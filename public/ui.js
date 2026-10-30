@@ -700,7 +700,8 @@ export function sessionTag(e) {
 export function sheet(title, { accent, league } = {}) {
   // The kit's sheet (a game's, a team's, a player's: large from the start, as iOS's, not rising to a spinner's and jumping up later).
   const body = el('div', { class: 'sheet-body' });
-  const head = league ? (() => { const f = document.createDocumentFragment(); f.append(leagueMark(league), el('span', { text: title })); return f; })() : title;
+  // (The league's name a tap to its page in 賽事.)
+  const head = league ? (() => { const f = document.createDocumentFragment(); f.append(el('button', { class: 'sheet-league', type: 'button', onclick: () => ctx.openLeague?.(league) }, [leagueMark(league), el('span', { text: title })])); return f; })() : title;
   const s = kitUI.sheet({ title: head, body: [body], cls: `fx-sheet${league ? ' q-full' : ''}`, detent: league ? 'large' : '', label: title, closeLabel: ctx.t('close') });
   if (league) s.head?.querySelector('h2')?.classList.add('sheet-lg');
   if (accent) s.el.style.setProperty('--q-accent', accent);

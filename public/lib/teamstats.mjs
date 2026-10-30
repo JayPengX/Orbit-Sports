@@ -55,7 +55,7 @@ export const SOCCER_TEAM_STATS = [
   ['ontarget_scoring_att_team', '場均射正', 'Shots on target per game'],
   ['big_chance_team', '絕佳機會', 'Big chances'],
   ['touches_in_opp_box_team', '禁區內觸球', 'Touches in the box'],
-  ['accurate_pass_team', '場均傳球成功', 'Accurate passes per game'],
+  ['accurate_pass_team', '場均傳球', 'Accurate passes per game'],
   ['clean_sheet_team', '零封', 'Clean sheets'],
   ['total_tackle_team', '場均搶斷', 'Tackles per game'],
   ['interception_team', '場均攔截', 'Interceptions per game'],
@@ -111,6 +111,8 @@ export function parseFotmobTeamStats(page) {
   return { season: season ? { name: season } : null, stats };
 }
 const fotmobClub = (x, key, fractions) => {
+  // (A club list's file names the club by TeamId, its ParticiantId 0.)
+  x = { ...x, id: x.id || x.teamId || x.id };
   const n = Number(x.value);
   const dp = key === 'rating_team' ? 2 : Math.max(1, Math.min(2, Number(fractions) || 1));
   const value = !Number.isFinite(n) ? String(x.value ?? '') : key === 'possession_percentage_team' ? `${shown(n, 1)}%` : shown(n, dp);
