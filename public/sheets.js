@@ -330,8 +330,8 @@ export async function openMatch(e) {
   // drawn again at every live refresh after (the game's score and inning on
   // its card, a series won), changed in place on the map already there;
   // undefined before, null while it's first read, false when there's none.
-  // (The same for an NBA Cup game's NBA 盃: a group-play game's group, a
-  // knockout game's bracket; each by its key, `load` drawing it.)
+  // (The same for an NBA Cup game's NBA 盃: the whole cup, its six groups and
+  // the knockout, a group-play game's too: Jay, 2026-10-30.)
   const poViews = new Map();
   const playoffsNode = (key, tab, load = () => ctx.playoffsOf(key)) => {
     const po = poViews.get(key) || poViews.set(key, { view: undefined, busy: false }).get(key);
@@ -391,8 +391,7 @@ export async function openMatch(e) {
     else if (!playoff && shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
     // An NBA Cup game (group play or knockout): NBA 盃, the cup's knockout, beside 排名 (its games count in the table too).
     const cup = e.league === 'nba' && /nba cup|emirates cup|in-season tournament/i.test(e.note || '') && ctx.hasBracket?.('nbacup');
-    const cupKey = /group/i.test(e.note || '') && ctx.cupGroupOf ? 'nbacup:group' : 'nbacup';
-    if (cup && poViewOf(cupKey) !== false) tabs.push(['cup', L() === 'en' ? 'NBA Cup' : 'NBA 盃']);
+    if (cup && poViewOf('nbacup') !== false) tabs.push(['cup', L() === 'en' ? 'NBA Cup' : 'NBA 盃']);
     if ((view === 'table' || view === 'playoffs' || view === 'cup') && !tabs.some(([k]) => k === view)) view = 'overview';
     // The same row of tabs before, during and after (two of them or six).
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { chips: true }) : null);
@@ -402,7 +401,7 @@ export async function openMatch(e) {
     // night's, so none. Just over: who was out hurt stays, with who sat out, 未上場: Jay, 2026-10-28.)
     const fresh = () => matchSection(view, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
-    const next = view === 'playoffs' ? playoffsNode(e.league, view) : view === 'cup' ? playoffsNode(cupKey, view, cupKey === 'nbacup' ? undefined : () => ctx.cupGroupOf([e.home?.id, e.away?.id])) : keep || fresh();
+    const next = view === 'playoffs' ? playoffsNode(e.league, view) : view === 'cup' ? playoffsNode('nbacup', view) : keep || fresh();
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
     // chance chart, a finger on it) never leaves the page.

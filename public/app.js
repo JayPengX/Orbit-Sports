@@ -2324,25 +2324,6 @@ ctx.playoffsOf = async league => {
   notePlayoffGames(model.rounds.flatMap(r => r.ties.flatMap(t => t?.games || [])).map(freshGame));
   return model?.rounds?.length ? playoffView(model, league) : null;
 };
-// A group-play game's page: its group's table (the teams `ids` play in).
-ctx.cupGroupOf = async ids => cupGroupsView(await bracketModel(CUP), ids);
-// The NBA Cup's groups (lib/nbacup.mjs), under 東區 and 西區 (no letters:
-// no feed names them), each one's first and the conference's best second
-// marked, as MLB's playoff picture marks its places; `only`: the groups of
-// these teams alone. Null when there's none.
-function cupGroupsView(model, only = null) {
-  const en = locale === 'en';
-  const zone = { lead: { note: en ? 'Group winner' : '分組第一', color: PICTURE_COLOR.lead }, card: { note: en ? 'Wild card' : '外卡', color: PICTURE_COLOR.card } };
-  const table = g => ({ name: '', rows: g.rows.map(r => ({ id: r.id, name: r.name, short: r.short, abbr: r.abbr, logo: r.logo, stats: { W: String(r.w), L: String(r.l), PD: r.pd > 0 ? `+${r.pd}` : String(r.pd) }, ...(zone[r.zone] || { note: '', color: '' }) })) });
-  const groups = (model?.groups || []).filter(g => !only || g.rows.some(r => only.map(String).includes(r.id)));
-  if (!groups.length) return null;
-  const banner = model.mode === 'last' && !only ? cupBanner(model) : null;
-  const confs = ['East', 'West'].flatMap(c => {
-    const list = groups.filter(g => g.conf === c);
-    return list.length ? [only ? null : el('p', { class: 'day-head', text: c === 'East' ? (en ? 'East' : '東區') : en ? 'West' : '西區' }), standingsTables(list.map(table), 'nba', { cols: ['W', 'L', 'PD'] })] : [];
-  });
-  return el('div', { class: 'stack cup-groups' }, [banner, ...confs]);
-}
 const cupBanner = model => el('p', { class: 'po-banner' }, [el('strong', { text: locale === 'en' ? 'Last season' : '上季' }), document.createTextNode(`${model.season ? ` ${model.season}` : ''}${locale === 'en' ? ': this season’s NBA Cup hasn’t begun.' : '　本季 NBA 盃尚未開打。'}`)]);
 // The playoffs as a map you swipe across: a column a round (its name, and
 // done / on now / its dates under it), the later rounds between the ties
