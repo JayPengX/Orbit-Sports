@@ -9,7 +9,7 @@
 // What the person follows lives on the pass (this app's payload): leagues in
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
-import { orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, fitNumbers, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
+import { orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
 import { stripDays } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
@@ -3916,7 +3916,10 @@ const repaintOpen = () => {
 };
 onTvChange(() => (tvGen++, repaintOpen()));
 
-new MutationObserver(() => fitNumbers([...document.querySelectorAll('.mh-score, .team-head h3, .mh-team strong')])).observe(document.body, { childList: true, subtree: true });
+// (Only those new or changed since they were last fitted, the kit's watchFit:
+// every one measured at every change anywhere on the page laid the whole page
+// out each time, most of a tap on 過程 and of each slice of its rows.)
+watchFit('.mh-score, .team-head h3, .mh-team strong');
 
 // An F1 session on now: F1's own live timing every 10 seconds, its cards'
 // briefs (the top three) filled again in place, never the whole page.

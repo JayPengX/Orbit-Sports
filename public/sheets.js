@@ -330,6 +330,8 @@ export async function openMatch(e) {
   // 過程 drawn once for the game's data as it is (an NBA game's 500-odd rows):
   // a tab tapped back to it puts the same list back, drawn again only when the data changes.
   let playsKept = null;
+  // (Its rows by what they show, kept across a live game's refreshes: playsNav.)
+  const playsKeep = { rows: new Map(), shown: null };
   // 季後賽 (a playoff game): the league's bracket, read when first shown and
   // drawn again at every live refresh after (the game's score and inning on
   // its card, a series won), changed in place on the map already there;
@@ -416,7 +418,7 @@ export async function openMatch(e) {
     // (A game over a day and more ago: ESPN's injuries are today's, not that
     // night's, so none. Just over: who was out hurt stays, with who sat out, 未上場: Jay, 2026-10-28.)
     const shownView = view === 'stats' && part === 'players' ? 'players' : view === 'table' ? standPart : view;
-    const fresh = () => matchSection(shownView, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
+    const fresh = () => matchSection(shownView, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait, plays: Object.assign(playsKeep, { shown: view === 'plays' ? content.firstElementChild : null }) });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
     const next = shownView === 'playoffs' ? playoffsNode(e.league, shownView) : shownView === 'cup' ? playoffsNode('nbacup', shownView) : keep || fresh();
     // The same view again (a live refresh): its cards changed inside the
@@ -1170,41 +1172,65 @@ function matchSection(view, d, e, table, lw = {}) {
         if (id) marks.set(id, m);
       }
     }
-    const said = p => feedText(sport, p, en, '');
+    // (Each play's words worked out once: three looks at each below.)
+    const words = new Map();
+    const said = p => (words.has(p) ? words.get(p) : words.set(p, feedText(sport, p, en, '')).get(p));
     // Baseball has no clock (the inning's in the headers): no column for one.
     const clockless = list.every(p => !p.clock);
     const shown = list
       // ESPN logs some twice in a row (a delay with its words and without): said once.
       .filter((p, i) => !i || said(p) !== said(list[i - 1]) || p.clock !== list[i - 1].clock || (p.team !== list[i - 1].team && Boolean(p.who || list[i - 1].who)));
-    const rows = [];
+    // Each row a recipe (its key: what it shows), made only when it's needed:
+    // a live refresh's rows are the ones already on the page (an NBA game's
+    // 500 rebuilt every 3 seconds were a second of a phone's time each), and a
+    // long game's first screen is drawn first, the rest behind it (playsNav).
+    const items = [];
     let at = '';
     for (const p of live ? [...shown].reverse() : shown) {
       const period = playPeriod(p, sport, L());
-      if (period && period !== at && sport !== 'soccer') rows.push(el('li', { class: 'period-head', text: period }));
+      if (period && period !== at && sport !== 'soccer') items.push({ key: `h|${period}`, head: period, make: () => el('li', { class: 'period-head', text: period }) });
       at = period || at;
       const m = p.id ? marks.get(p.id) : null;
-      const chip = m ? el('span', { class: `wp-gain ${m.side}`, style: tint[m.side] ? `--side:${tint[m.side]}` : null, text: `${m.side === 'home' ? sideShort(e.home.id) : sideShort(e.away.id)} +${Math.round(Math.abs(m.delta) * 100)}%` }) : null;
+      const runs = Boolean(m && (m.periods || m.rally));
+      const delta = m ? Math.round(Math.abs(m.delta) * 100) : 0;
+      const chip = () => el('span', { class: `wp-gain ${m.side}`, style: tint[m.side] ? `--side:${tint[m.side]}` : null, text: `${m.side === 'home' ? sideShort(e.home.id) : sideShort(e.away.id)} +${delta}%` });
+      const what = [p.id, p.clock, said(p), p.home, p.away, p.scoring, p.team, p.pic?.id, sport === 'soccer' ? period : '', m ? [m.side, delta, m.text, m.team, runs] : 0, clockless, L()];
       // A run: a line of its own after the play that ended it (its words, its swing).
       // (Its side's logo where a play has its face; the row tinted in the shirt that side wore, the chart's colour.)
-      const runSide = m ? side(m.team) || (m.side === 'home' ? e.home : e.away) : null;
       // (The logo in the clock's column where there is one, so the words have the row: 76人 16-3 超前 on one line at 320 px.)
-      const runLogo = () => (runSide?.logo ? logo(runSide.logo, sideShort(m.team), 'xs play-team') : el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(e.league)]));
-      const runWords = () => el('span', { class: 'play-words' }, [el('span', { class: 'play-main q-fit-wrap', text: m.text })]);
-      const run = m && (m.periods || m.rally) ? el('li', { class: 'run-mark', style: tint[m.side] ? `--side:${tint[m.side]}` : null }, [clockless ? null : el('span', { class: 'play-when run-logo' }, [runLogo()]), el('span', { class: `play-text${clockless ? ' has-face' : ''}` }, [clockless ? runLogo() : null, runWords()]), chip]) : null;
-      // A key play: its swing under its words (the score stays on the right).
-      const line = playLine(e.league, p, side(p.team));
-      if (m && !run) line.querySelector('.play-words')?.append(chip);
-      // (A score tinted in the shirt its side wore, as the chart colours it.)
-      const by = String(p.team) === String(e.home.id) ? 'home' : String(p.team) === String(e.away.id) ? 'away' : '';
-      const row = el('li', { class: [p.scoring ? 'scoring' : '', m && !run ? 'key' : ''].filter(Boolean).join(' '), style: (p.scoring || (m && !run)) && tint[by] ? `--side:${tint[by]}` : null }, [
-        // The period over the clock, a designed two lines in a narrow column.
-        clockless ? null : el('span', { class: 'play-when' }, [sport === 'soccer' && period ? el('small', { text: period }) : null, el('span', { class: 'num', text: p.clock })]),
-        line,
-        p.home != null && p.away != null ? el('strong', { class: 'num', text: inOrder(e, [p.away, p.home]).join('-') }) : null
-      ]);
-      rows.push(...(live ? [run, row] : [row, run]).filter(Boolean));
+      const run = runs
+        ? {
+            key: `r|${JSON.stringify(what)}`,
+            run: true,
+            make: () => {
+              const runSide = side(m.team) || (m.side === 'home' ? e.home : e.away);
+              const runLogo = () => (runSide?.logo ? logo(runSide.logo, sideShort(m.team), 'xs play-team') : el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(e.league)]));
+              const runWords = () => el('span', { class: 'play-words' }, [el('span', { class: 'play-main q-fit-wrap', text: m.text })]);
+              return el('li', { class: 'run-mark', style: tint[m.side] ? `--side:${tint[m.side]}` : null }, [clockless ? null : el('span', { class: 'play-when run-logo' }, [runLogo()]), el('span', { class: `play-text${clockless ? ' has-face' : ''}` }, [clockless ? runLogo() : null, runWords()]), chip()]);
+            }
+          }
+        : null;
+      const row = {
+        key: `p|${JSON.stringify(what)}`,
+        scoring: Boolean(p.scoring),
+        moment: Boolean(m && !runs),
+        make: () => {
+          // A key play: its swing under its words (the score stays on the right).
+          const line = playLine(e.league, p, side(p.team));
+          if (m && !runs) line.querySelector('.play-words')?.append(chip());
+          // (A score tinted in the shirt its side wore, as the chart colours it.)
+          const by = String(p.team) === String(e.home.id) ? 'home' : String(p.team) === String(e.away.id) ? 'away' : '';
+          return el('li', { class: [p.scoring ? 'scoring' : '', m && !runs ? 'key' : ''].filter(Boolean).join(' '), style: (p.scoring || (m && !runs)) && tint[by] ? `--side:${tint[by]}` : null }, [
+            // The period over the clock, a designed two lines in a narrow column.
+            clockless ? null : el('span', { class: 'play-when' }, [sport === 'soccer' && period ? el('small', { text: period }) : null, el('span', { class: 'num', text: p.clock })]),
+            line,
+            p.home != null && p.away != null ? el('strong', { class: 'num', text: inOrder(e, [p.away, p.home]).join('-') }) : null
+          ]);
+        }
+      };
+      items.push(...(live ? [run, row] : [row, run]).filter(Boolean));
     }
-    return playsNav(el('ol', { class: `plays${clockless ? ' clockless' : ''}` }, rows));
+    return playsNav(items, clockless, lw.plays);
   }
   // 陣容: each side a card of the one shape (sideSquad), every sport and
   // moment alike (the owner, 2026-10-23: starters shown one way across the
@@ -2197,36 +2223,138 @@ const momentWords = (text, label = '') => {
 // the scores, the chart's key moments) and a chip a period that jumps to
 // it. Only when the list is long; the filter kept across a live game's
 // refreshes (and other games: a way of reading).
+// `items`: the rows' recipes in order ({ key, make, head?, scoring?, moment?, run? });
+// `keep`: the sheet's own ({ rows: the rows made so far by key, shown: the
+// list on the page now }). Only the rows in reach are made: the first
+// screen's at once, more as the list is scrolled near its end, and a live
+// refresh changes only what changed in the list already there (a new play
+// on top, a run's swing), where it's read and its filter as they were. (A
+// tap on 過程 made all 500 rows and their 1,000 pictures at once, over a
+// second on a phone, and again at every 3-second refresh of a game on.)
 const PLAYS_LONG = 40;
+const PLAYS_PAGE = 40;
 let playsShow = 'all';
-function playsNav(ol) {
-  const items = [...ol.children];
-  const heads = items.filter(li => li.classList.contains('period-head'));
-  const rows = items.filter(li => !li.classList.contains('period-head'));
-  if (rows.length < PLAYS_LONG) return ol;
+function playsNav(items, clockless, keep = { rows: new Map() }) {
   const en = L() === 'en';
-  const kinds = [['all', en ? 'All' : '全部'], ['score', en ? 'Scores' : '得分'], ['key', en ? 'Key' : '關鍵']].filter(
-    ([k]) => k === 'all' || rows.some(li => (k === 'score' ? li.classList.contains('scoring') : li.classList.contains('key') || li.classList.contains('run-mark')))
-  );
+  const was = keep.shown?.__plays && keep.shown.isConnected ? keep.shown : null;
+  const wrap = was || el('div', { class: 'plays-wrap' });
+  const st = (wrap.__plays ||= { ol: el('ol', { class: 'plays' }), nav: el('div', { class: 'plays-nav' }), filter: el('div'), end: el('div', { class: 'plays-end', 'aria-hidden': 'true' }), heads: '', kinds: '', count: 0 });
+  const { ol } = st;
+  ol.className = `plays${clockless ? ' clockless' : ''}`;
+  const long = items.filter(it => !it.head).length >= PLAYS_LONG;
+  const kinds = long ? [['all', en ? 'All' : '全部'], ['score', en ? 'Scores' : '得分'], ['key', en ? 'Key' : '關鍵']].filter(([k]) => k === 'all' || items.some(it => (k === 'score' ? it.scoring : it.moment || it.run))) : [];
   if (!kinds.some(([k]) => k === playsShow)) playsShow = 'all';
-  const apply = () => {
-    for (const li of rows) li.hidden = playsShow === 'score' ? !li.classList.contains('scoring') && !li.classList.contains('run-mark') : playsShow === 'key' ? !li.classList.contains('key') && !li.classList.contains('run-mark') : false;
-    // A period with nothing shown under it: its header goes too.
-    for (const h of heads) {
-      let next = h.nextElementSibling;
-      let any = false;
-      while (next && !next.classList.contains('period-head')) {
-        any ||= !next.hidden;
-        next = next.nextElementSibling;
+  // The rows the filter shows (a period's header only over a row of its own).
+  const shownItems = () => {
+    if (playsShow === 'all') return items;
+    const out = [];
+    let head = null;
+    for (const it of items) {
+      if (it.head) head = it;
+      else if (it.run || (playsShow === 'score' ? it.scoring : it.moment)) {
+        if (head) out.push(head), (head = null);
+        out.push(it);
       }
-      h.hidden = !any;
     }
-    put(filter, segmented(kinds, playsShow, k => ((playsShow = k), apply()), 'plays-filter'));
+    return out;
   };
-  const filter = el('div');
-  const jumps = heads.length > 1 ? el('div', { class: 'plays-jump' }, heads.map(h => el('button', { type: 'button', class: 'q-chip', text: h.textContent, onclick: () => (h.hidden ? null : h.scrollIntoView({ block: 'start', behavior: 'smooth' })) }))) : null;
-  apply();
-  return el('div', { class: 'plays-wrap' }, [el('div', { class: 'plays-nav' }, [kinds.length > 1 ? filter : null, jumps]), ol]);
+  // Each recipe's row: the one made before for the same play as it was, else made now.
+  const made = new Map();
+  const nodeOf = it => {
+    let n = made.has(it.key) ? null : keep.rows.get(it.key);
+    if (!n) n = it.make();
+    made.set(it.key, n);
+    return n;
+  };
+  let list = shownItems();
+  // The first `n` of them in the list, the ones already there left where they are.
+  const draw = n => {
+    made.clear();
+    let cur = ol.firstElementChild;
+    for (const it of list.slice(0, n)) {
+      const node = nodeOf(it);
+      if (node === cur) cur = cur.nextElementSibling;
+      else ol.insertBefore(node, cur);
+    }
+    while (cur) {
+      const next = cur.nextElementSibling;
+      cur.remove();
+      cur = next;
+    }
+    st.count = Math.min(n, list.length);
+    for (const [k, v] of made) keep.rows.set(k, v);
+  };
+  // More once the list's end comes near (a screen and a half ahead).
+  const more = n => {
+    if (st.count >= list.length) return;
+    const add = document.createDocumentFragment();
+    for (const it of list.slice(st.count, st.count + n)) add.append(nodeOf(it));
+    ol.append(add);
+    st.count = Math.min(st.count + n, list.length);
+    for (const [k, v] of made) keep.rows.set(k, v);
+    // (Still near: looked at again, the observer only tells of a change.)
+    watch();
+  };
+  st.more = () => more(PLAYS_PAGE);
+  // (Watched against the sheet's own scrolling box once it's on the page: against the screen, the box's edge cut the margin off.)
+  const watch = () => {
+    if (typeof IntersectionObserver !== 'function' || !wrap.isConnected) return;
+    if (!st.io) {
+      const root = wrap.closest('.q-sheet');
+      st.io = new IntersectionObserver(seen => seen.some(x => x.isIntersecting) && st.more(), { root, rootMargin: '0px 0px 1200px 0px' });
+    }
+    st.io.unobserve(st.end);
+    if (st.count < list.length) st.io.observe(st.end);
+  };
+  // (Where a live game's reader had read to stays made; the rows the game no longer has, let go.)
+  const keys = new Set(items.map(it => it.key));
+  for (const k of keep.rows.keys()) if (!keys.has(k)) keep.rows.delete(k);
+  draw(Math.max(PLAYS_PAGE, st.count));
+  if (typeof IntersectionObserver !== 'function') more(list.length);
+  else if (wrap.isConnected) watch();
+  else requestAnimationFrame(watch);
+  const pick = k => {
+    playsShow = k;
+    list = shownItems();
+    draw(PLAYS_PAGE);
+    watch();
+    put(st.filter, segmented(kinds, playsShow, pick, 'plays-filter'));
+  };
+  // The bar: drawn again only when its chips change (a jump row kept where it was scrolled).
+  const headKey = items.filter(it => it.head).map(it => it.head).join('|');
+  const kindKey = kinds.map(([k]) => k).join('|');
+  if (st.kinds !== kindKey || !was) {
+    st.kinds = kindKey;
+    put(st.filter, kinds.length > 1 ? segmented(kinds, playsShow, pick, 'plays-filter') : null);
+  }
+  st.pick = pick;
+  // A period's chip: its rows made if they aren't yet, then its header at the top.
+  st.jump = head => {
+    const at = list.findIndex(it => it.head === head);
+    if (at < 0) return;
+    if (at + PLAYS_PAGE > st.count) more(at + PLAYS_PAGE - st.count);
+    const node = keep.rows.get(list[at].key);
+    if (!node) return;
+    // (The rows above it are laid out only as they come near, sized as
+    // guessed until then: put right just under the bar once they are.)
+    const settle = (tries = 3) => {
+      const scroller = wrap.closest('.q-sheet');
+      const off = node.getBoundingClientRect().top - st.nav.getBoundingClientRect().bottom;
+      if (scroller && Math.abs(off) > 2) scroller.scrollTop += off;
+      if (tries > 1) requestAnimationFrame(() => settle(tries - 1));
+    };
+    node.scrollIntoView({ block: 'start' });
+    requestAnimationFrame(() => settle());
+  };
+  if (st.heads !== headKey || !was) {
+    st.heads = headKey;
+    const heads = items.filter(it => it.head).map(it => it.head);
+    const jumps = long && heads.length > 1 ? el('div', { class: 'plays-jump' }, heads.map(h => el('button', { type: 'button', class: 'q-chip', text: h, onclick: () => st.jump(h) }))) : null;
+    put(st.nav, kinds.length > 1 ? st.filter : null, jumps);
+  }
+  st.nav.style.display = long ? '' : 'none';
+  if (!was) wrap.append(st.nav, ol, st.end);
+  return wrap;
 }
 
 // A chart scrolled into view when a moment under it is picked (a long list leaves it off the screen).
