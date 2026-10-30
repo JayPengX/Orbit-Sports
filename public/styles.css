@@ -830,6 +830,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .standings.compact .extra { display: none; }
 .standings.compact .nm-full { display: none; }
 .standings.compact .nm-short { display: inline; }
+@media (max-width: 360px) { .standings .gp { display: none; } .standings th, .standings td { padding-inline: 4px; } }
 /* People in races, tournaments and fights */
 .field li.mine { background: var(--accent-wash); }
 /* A leader's line: the name, then the numbers under it (never cut). */

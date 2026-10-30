@@ -167,6 +167,7 @@ export async function openMatch(e) {
   s.body.append(header, sections, subBox, top, content);
   let view = 'overview';
   let statsPart = 'team';
+  let standPart = '';
   let data = null;
   // A CPBL game begun whose box score (cpbl.com.tw, read through the proxy) failed: said, not left blank.
   let boxUnread = false;
@@ -387,31 +388,37 @@ export async function openMatch(e) {
     const playerNums = before ? season.length > 0 : Boolean(data?.players.some(p => p.tables.some(tb => tb.rows.length)));
     if (teamNums || playerNums) tabs.push(['stats', T('stats')]);
     const part = teamNums && playerNums ? statsPart : teamNums ? 'team' : 'players';
-    put(subBox, view === 'stats' && teamNums && playerNums ? segmented([['team', L() === 'en' ? 'Teams' : '球隊'], ['players', L() === 'en' ? 'Players' : '球員']], statsPart, v => ((statsPart = v), paint()), 'match-part') : null);
     if (data?.plays.length || data?.keyEvents.length || data?.commentary?.length) tabs.push(['plays', T('plays')]);
     // 陣容: soccer's line-ups; basketball's from its box score (先發, 替補, 未上場 and why: a player who didn't play is left off 球員); baseball's active roster; before the start, each side's squad.
     if (data?.rosters.some(r => r.players.length) || Object.keys(data?.squads || {}).length || (LEAGUES[e.league]?.sport === 'basketball' && data?.players.some(p => p.tables[0]?.rows.length)) || (before && squads && Object.values(squads).some(x => x.roster.length))) tabs.push(['lineups', T('lineups')]);
     // The table only once it has a game in it (a preseason's is all zeros in the feed's order).
     const shownTable = past() ? [] : table?.length ? table : data?.table.length ? [{ rows: data.table.map(r => ({ id: r.id, stats: r.stats })) }] : [];
-    // A playoff game (a series, a knockout tie): 季後賽, the bracket, in place of 排名 (the owner, 2026-10-23).
+    // 排名: the league's table, the playoffs' bracket (a series, a knockout
+    // tie: 季後賽, a cup's 淘汰賽) and the NBA Cup's (group play or knockout),
+    // chips inside the one tab as every page has its 排名 (Jay 2026-10-30);
+    // a playoff or cup game opens on its own bracket.
     const playoff = Boolean(e.round && ctx.hasBracket?.(e.league) && ctx.playoffsOf);
-    // (A cup's: 淘汰賽, as 賽事 names it.)
-    if (playoff && poViewOf(e.league) !== false) tabs.push(['playoffs', LEAGUES[e.league]?.cup ? (L() === 'en' ? 'Knockouts' : '淘汰賽') : L() === 'en' ? 'Playoffs' : '季後賽']);
-    else if (!playoff && shownTable.some(tableStarted)) tabs.push(['table', T('table')]);
-    // An NBA Cup game (group play or knockout): NBA 盃, the cup's knockout, beside 排名 (its games count in the table too).
     const cup = e.league === 'nba' && /nba cup|emirates cup|in-season tournament/i.test(e.note || '') && ctx.hasBracket?.('nbacup');
-    if (cup && poViewOf('nbacup') !== false) tabs.push(['cup', L() === 'en' ? 'NBA Cup' : 'NBA 盃']);
-    if ((view === 'table' || view === 'playoffs' || view === 'cup') && !tabs.some(([k]) => k === view)) view = 'overview';
+    const en = L() === 'en';
+    const stands = [
+      playoff && poViewOf(e.league) !== false ? ['playoffs', LEAGUES[e.league]?.cup ? (en ? 'Knockouts' : '淘汰賽') : en ? 'Playoffs' : '季後賽'] : null,
+      cup && poViewOf('nbacup') !== false ? ['cup', en ? 'NBA Cup' : 'NBA 盃'] : null,
+      shownTable.some(tableStarted) ? ['table', en ? 'Table' : LEAGUES[e.league]?.cup ? '積分榜' : '聯盟排名'] : null
+    ].filter(Boolean);
+    if (stands.length) tabs.push(['table', T('table')]);
+    if (!stands.some(([k]) => k === standPart)) standPart = stands[0]?.[0] || 'table';
+    if (view === 'table' && !stands.length) view = 'overview';
+    put(subBox, view === 'stats' && teamNums && playerNums ? segmented([['team', en ? 'Teams' : '球隊'], ['players', en ? 'Players' : '球員']], statsPart, v => ((statsPart = v), paint()), 'match-part') : view === 'table' && stands.length > 1 ? segmented(stands, standPart, v => ((standPart = v), paint()), 'match-part') : null);
     // The same row of tabs before, during and after (two of them or six).
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { seg: true }) : null);
     top.hidden = view !== 'overview';
     const over = (data?.status || e.status).state === 'post';
     // (A game over a day and more ago: ESPN's injuries are today's, not that
     // night's, so none. Just over: who was out hurt stays, with who sat out, 未上場: Jay, 2026-10-28.)
-    const shownView = view === 'stats' && part === 'players' ? 'players' : view;
+    const shownView = view === 'stats' && part === 'players' ? 'players' : view === 'table' ? standPart : view;
     const fresh = () => matchSection(shownView, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
-    const next = view === 'playoffs' ? playoffsNode(e.league, view) : view === 'cup' ? playoffsNode('nbacup', view) : keep || fresh();
+    const next = shownView === 'playoffs' ? playoffsNode(e.league, shownView) : shownView === 'cup' ? playoffsNode('nbacup', shownView) : keep || fresh();
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
     // chance chart, a finger on it) never leaves the page.
@@ -6305,7 +6312,8 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
       const cols = want.filter(c => g.rows.some(r => r.stats[c] != null && r.stats[c] !== ''));
       const rows = top ? g.rows.filter((r, i) => i < top || ctx.isFollowed(league, r.id)) : g.rows;
       // Columns beyond the essentials go on narrow screens (and in compact tables).
-      const cls = c => `num${!small.includes(c) ? ' extra' : ''}${c === 'GAP' || c === 'GB' ? ' gap' : ''}`;
+      // (場 the first to go on the narrowest screens where 落後 is there too: every side's mostly the same, and 落後 was cut at 320.)
+      const cls = c => `num${!small.includes(c) ? ' extra' : ''}${c === 'GAP' || c === 'GB' ? ' gap' : ''}${c === 'GP' && cols.includes('GAP') ? ' gp' : ''}`;
       const race = races[groups.indexOf(g)];
       // A lock on a settled place (not when the whole table is: the season's over).
       const settled = new Set(race && race.rows.some(x => !x.settled) ? race.rows.filter(x => x.settled).map(x => x.id) : []);
