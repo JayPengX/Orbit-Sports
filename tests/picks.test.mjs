@@ -227,3 +227,12 @@ test("a holiday or a typhoon day off where the person works isn't working hours:
   setPlace('work', place);
   assert.ok(scoreMatch(at11('2026-10-22'), ctx).score > before, 'a typhoon day off where they work');
 });
+
+test('picks passed over sink and picks opened rise (the kit feedback lift)', async () => {
+  const { scoreMatch } = await import('../public/lib/picks.mjs');
+  const e = { id: '1', league: 'epl', kind: 'match', start: '2026-11-01T15:00:00Z', status: { state: 'pre' }, home: { id: 'h', name: 'Arsenal' }, away: { id: 'a', name: 'Fulham' } };
+  const plain = scoreMatch(e, {}).score;
+  assert.ok(scoreMatch(e, { lift: () => 0.5 }).score < plain);
+  assert.ok(scoreMatch(e, { lift: () => 1.6 }).score > plain);
+  assert.equal(scoreMatch(e, { lift: () => 1 }).score, plain);
+});

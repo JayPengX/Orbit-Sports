@@ -539,6 +539,7 @@ function openFollowEditor() {
 function openEvent(e) {
   if (e?.status?.void) return;
   track(eventKeys(e), 1);
+  if (state.todayPicks?.some(p => p.league === e.league && p.id === e.id)) feedback?.picked('match', pickItem(e));
   if (e.kind === 'match') return openMatch(e);
   return openFieldEvent(e);
 }
@@ -993,7 +994,13 @@ function rankOnNow(list, ctx, also = new Set()) {
   return list.map(e => ({ event: e, ...scoreMatch(e, ctx) })).sort((x, y) => isFollowedEvent(y.event) - isFollowedEvent(x.event) || picked.has(k(y)) - picked.has(k(x)) || y.score - x.score);
 }
 // The picks' context for a day held (what rankOnNow and the plan weigh).
-const pickContext = (slot, now = Date.now()) => ({ leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(dayAll(slot)), chosen: chosenGames() });
+// What the picks showed and what was opened from them (kit feedback.mjs, on
+// the device): a pick passed over day after day sinks, one opened rises.
+// (Loaded on the side: an older kit without it ranks as before.)
+let feedback = null;
+import('#kit/feedback.mjs').then(m => (feedback = m)).catch(() => {});
+const pickItem = e => ({ id: `${e.league}:${e.id}`, keys: eventKeys(e) });
+const pickContext = (slot, now = Date.now()) => ({ leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(dayAll(slot)), chosen: chosenGames(), lift: feedback?.lifter('match', now) });
 function notePicked(events) {
   const keys = pickedToday();
   const had = keys.size;
@@ -1486,6 +1493,7 @@ function renderHome() {
       state.todayPicks = picks;
       state.todayPicksSig = sig;
       notePicked([...picks, ...ownWas[0].map(x => x.event)]);
+      feedback?.shown('match', picks.map(pickItem));
       clearTimeout(pushTimer);
       pushTimer = setTimeout(syncPush, 1500);
     }

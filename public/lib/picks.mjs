@@ -17,6 +17,9 @@
 //              the one ELTA puts on a main channel with its commentators
 //              (the rest on MAX's English feed)
 //   now        live now, or starting soon
+//   feedback   what the person opened, and passed over, among the picks
+//              shown before (the kit's feedback.mjs `lift`, by the game's
+//              league and teams): about ±0.15
 //
 // Then a plan: the best match first, then the best one that doesn't clash
 // with those already in (a match takes its sport's usual length), so the
@@ -73,7 +76,7 @@ const tableWeight = (...rows) => {
   return gp.length ? Math.min(1, Math.min(...gp) / TABLE_GAMES) : 1;
 };
 
-export function scoreMatch(e, { leagues = [], follows = [], games = [], tables = {}, aff = {}, now = Date.now(), featured = null, chosen = null } = {}) {
+export function scoreMatch(e, { leagues = [], follows = [], games = [], tables = {}, aff = {}, now = Date.now(), featured = null, chosen = null, lift = null } = {}) {
   const reasons = [];
   let score = 0.2;
   // A match followed on its own: the person asked for this one.
@@ -140,6 +143,7 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   const habit = Math.max(0, ...keys.map(k => (aff[k] || 0) / max));
   score += 0.4 * habit;
   if (habit > 0.35 && !reasons.includes('team')) reasons.push('habit');
+  if (lift) score += 0.3 * Math.log(lift({ id: `${e.league}:${e.id}`, keys }));
   // Now.
   if (e.status?.state === 'in') {
     score += 0.2;
@@ -215,7 +219,7 @@ export function leagueChoices(events, { watched = [], onTv = () => true, tvKnown
     if (!byLeague.has(e.league)) byLeague.set(e.league, []);
     byLeague.get(e.league).push(e);
   }
-  const sctx = { ...ctx, games: [], chosen: null, featured: null, aff: {} };
+  const sctx = { ...ctx, games: [], chosen: null, featured: null, aff: {}, lift: null };
   const featured = ctx.featured || (() => false);
   const before = e => ({ ...e, status: { ...e.status, state: 'pre' } });
   const choose = slot => {
