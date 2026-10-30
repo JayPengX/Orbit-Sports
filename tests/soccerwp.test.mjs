@@ -15,14 +15,14 @@ test('strengths: the odds before the start come back out at kickoff', () => {
 
 test('a late level game is a draw\'s, more so each minute', () => {
   const at = m => chances({ lh, la, home: 1, away: 1, minute: m, period: 2 }).draw;
-  assert.ok(at(70) > 0.5);
-  assert.ok(at(85) > 0.7, `85': ${at(85)}`);
+  assert.ok(at(70) > 0.45);
+  assert.ok(at(85) > 0.65, `85': ${at(85)}`);
   assert.ok(at(92) > at(85) && at(85) > at(70));
 });
 
 test('a goal late all but settles it; a red card helps the other side', () => {
   const ahead = chances({ lh, la, home: 0, away: 1, minute: 88, period: 2 });
-  assert.ok(1 - ahead.home - ahead.draw > 0.9);
+  assert.ok(1 - ahead.home - ahead.draw > 0.85);
   const even = chances({ lh, la, home: 0, away: 0, minute: 30, period: 1 });
   const homeDown = chances({ lh, la, home: 0, away: 0, minute: 30, period: 1, reds: [1, 0] });
   assert.ok(homeDown.home < even.home);
@@ -47,7 +47,7 @@ test('soccerLine: a point a minute, the equaliser moving it, ending at the statu
   const before = pts.findLast(p => p.t < k + 87 * 60);
   const after = pts.find(p => p.t > k + 88 * 60);
   assert.ok(after.draw - before.draw > 0.2, 'the equaliser lifts the draw');
-  assert.ok(pts.at(-1).draw > 0.7, `the end: ${JSON.stringify(pts.at(-1))}`);
+  assert.ok(pts.at(-1).draw > 0.65, `the end: ${JSON.stringify(pts.at(-1))}`);
 });
 
 test('soccerLine: no moments by the clock, still drawn from kickoff', () => {

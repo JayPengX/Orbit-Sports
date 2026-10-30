@@ -4,7 +4,12 @@
 // Every game on or over gets the line (a market's price on a thin game
 // stood still: Lech–Sunderland 1–1 at 85' read Sunderland 77%, a draw 16%;
 // the Conference League had no line at all). A late level game is a draw's
-// to lose; a goal, a red card and every minute move it. No imports.
+// to lose; a goal, a red card and every minute move it. A side behind
+// pushes and scores more, one ahead sits deeper and lets in a little more,
+// so the line is walked minute by minute on the goal difference. Tuned on
+// 2,473 finished league and European games of 2025–26 with their closing
+// odds (scripts/backtest-soccerwp.mjs): a side given 75% won 76% of the
+// time (67% before), at 89' the line's error a seventh smaller. No imports.
 //
 //   strengths(prior)  → [home goals, away goals] per game a prior's chances
 //                       ({ home, draw }) point to; none: a home side's usual edge
@@ -38,54 +43,86 @@ export function outcome(lh, la, home = 0, away = 0) {
 }
 
 // Each side's goals in a whole game that its chances before the start
-// imply: the pair whose full-game result matches them best (a coarse look,
-// then a fine one around it).
+// imply: the pair whose full-game result matches them best (a coarse look
+// with plain goal counts, then a fine one with the model itself).
 export function strengths(prior) {
   if (!(prior?.home > 0 && prior.home < 1)) return USUAL;
   const draw = prior.draw > 0 && prior.draw < 1 ? prior.draw : null;
-  const err = (h, a) => {
-    const o = outcome(h, a);
+  const errOf = f => (h, a) => {
+    const o = f(h, a);
     return (o.home - prior.home) ** 2 + (draw == null ? 0 : (o.draw - draw) ** 2) + (draw == null ? 0.01 * (h + a - 2.6) ** 2 : 0);
   };
   let best = USUAL;
   let least = Infinity;
-  const look = (h0, h1, a0, a1, step) => {
-    for (let h = h0; h <= h1; h += step)
-      for (let a = a0; a <= a1; a += step) {
+  const look = (err, h0, h1, a0, a1, step) => {
+    for (let h = h0; h <= h1 + 1e-9; h += step)
+      for (let a = a0; a <= a1 + 1e-9; a += step) {
         const x = err(h, a);
         if (x < least) [least, best] = [x, [h, a]];
       }
   };
-  look(0.2, 4.2, 0.2, 4.2, 0.1);
-  look(Math.max(0.05, best[0] - 0.1), best[0] + 0.1, Math.max(0.05, best[1] - 0.1), best[1] + 0.1, 0.01);
+  look(errOf(outcome), 0.2, 4.2, 0.2, 4.2, 0.1);
+  const model = errOf((h, a) => walk(h, a, 0, 0, 0, 1));
+  least = model(...best);
+  for (const [step, w] of [[0.1, 4], [0.04, 2], [0.01, 2]]) look(model, Math.max(0.05, best[0] - w * step), best[0] + w * step, Math.max(0.05, best[1] - w * step), best[1] + w * step, step);
   return best;
 }
 
-// The minutes still to play from a minute (the broadcast's: 90+2 is 92) in
-// a period, and how much of a whole game's goals they hold. Each half runs
-// a few minutes on (2 and 4 on average), and more goals come in the second
-// (55% of them). Extra time: 30 minutes more, played a little slower.
-const ADDED = [0, 2, 4, 1, 1];
-function share(minute, period) {
-  const left = (end, n) => Math.max(0, end - minute) + Math.max(0.5, ADDED[n] - Math.max(0, minute - end));
-  if (period >= 5) return 0;
-  if (period >= 3) {
-    const rate = (0.8 * 30) / 90 / 32;
-    return period === 3 ? (left(105, 3) + 16) * rate : left(120, 4) * rate;
-  }
-  const [first, second] = [0.45 / 47, 0.55 / 49];
-  return period === 1 ? left(45, 1) * first + 49 * second : left(90, 2) * second;
-}
-
+// Each period's length and the minutes usually played on after it (3 and
+// 7 in 2025–26's games), and its share of a whole game's goals: 45% in the
+// first half, 55% in the second; extra time 80% of a half hour's.
+const LEN = [0, 45, 45, 15, 15];
+const ADDED = [0, 3, 7, 1, 2];
+const FROM = [0, 0, 45, 90, 105];
+const rateIn = n => (n === 1 ? 0.45 : n === 2 ? 0.55 : 0.4) / (LEN[n] + ADDED[n]);
+// The minutes left in period n from a minute (the broadcast's: 90+2 is 92).
+const leftIn = (minute, n) => Math.max(0, FROM[n] + LEN[n] - minute) + Math.max(0.5, ADDED[n] - Math.max(0, minute - FROM[n] - LEN[n]));
+// A side behind scores more, one ahead lets in a little more (fitted).
+const BEHIND = 1.2;
+const AHEAD = 1.05;
 // A man down: a side scores less and lets in more (per red card more than the other side's).
-const SHORT = 0.7;
-const LONG = 1.2;
+const SHORT = 0.6;
+const LONG = 1.3;
+const SPAN = 8;
 
-export function chances({ lh, la, home = 0, away = 0, minute = 0, period = 1, reds = [0, 0] }) {
-  const f = share(minute, period);
+// From each side's goals in a whole game (lh, la) and the game as it stands:
+// the rest walked a minute at a time on the goal difference, each side's
+// chance to score that minute by its rate, the score and the men on the
+// pitch. → the chance the home side ends ahead, and of a draw.
+function walk(lh, la, home, away, minute, period, reds = [0, 0], last = 2) {
+  let pr = new Float64Array(2 * SPAN + 1);
+  pr[Math.max(-SPAN, Math.min(SPAN, home - away)) + SPAN] = 1;
   const down = Math.max(-3, Math.min(3, (reds[0] || 0) - (reds[1] || 0)));
   const [mh, ma] = down > 0 ? [SHORT ** down, LONG ** down] : [LONG ** -down, SHORT ** -down];
-  return outcome(lh * f * mh, la * f * ma, home, away);
+  for (let n = period; n <= last; n++) {
+    const left = n === period ? leftIn(minute, n) : LEN[n] + ADDED[n];
+    const r = rateIn(n);
+    for (let s = 0; s < left; s++) {
+      const dt = Math.min(1, left - s);
+      const nx = new Float64Array(2 * SPAN + 1);
+      for (let i = 0; i <= 2 * SPAN; i++) {
+        const q = pr[i];
+        if (!q) continue;
+        const d = i - SPAN;
+        const gh = 1 - Math.exp(-lh * mh * r * dt * (d < 0 ? BEHIND : d > 0 ? AHEAD : 1));
+        const ga = 1 - Math.exp(-la * ma * r * dt * (d > 0 ? BEHIND : d < 0 ? AHEAD : 1));
+        const up = gh * (1 - ga);
+        const dn = ga * (1 - gh);
+        nx[i] += q * (1 - up - dn);
+        nx[Math.min(2 * SPAN, i + 1)] += q * up;
+        nx[Math.max(0, i - 1)] += q * dn;
+      }
+      pr = nx;
+    }
+  }
+  let win = 0;
+  for (let i = SPAN + 1; i <= 2 * SPAN; i++) win += pr[i];
+  return { home: win, draw: pr[SPAN] };
+}
+
+export function chances({ lh, la, home = 0, away = 0, minute = 0, period = 1, reds = [0, 0] }) {
+  if (period >= 5) return outcome(0, 0, home, away);
+  return walk(lh, la, home, away, minute, period, reds, period >= 3 ? 4 : 2);
 }
 
 // The broadcast's minute ("67'", "90'+3'") as a number.
