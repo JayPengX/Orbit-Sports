@@ -1020,7 +1020,7 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 /* A cut-out (TheSportsDB): the whole figure, from the top, on the disc. */
 .logo.round.cutout { object-fit: cover; object-position: center top; }
 /* A race weekend's session at a glance: a coloured badge before the name (the race the boldest). */
-.sess-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 7px; min-width: 0; }
+.sess-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .sess-head strong, .sess-head h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sess-head h3 { margin: 0; }
 .sess-tag { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; line-height: 1; padding: 4px 8px 4px 6px; border-radius: 999px; white-space: nowrap; }
@@ -1206,7 +1206,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .f1-brief-top { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
 .f1-brief-top li { display: grid; grid-template-columns: 14px auto minmax(0, 1fr) auto; align-items: center; gap: 6px; font-size: 13px; }
 .f1-brief-top .pos { font-weight: 600; color: var(--q-muted); text-align: center; }
-.f1-brief-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f1-brief-name { min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; }
 .f1-brief-v { font-weight: 600; color: var(--q-muted); }
 .hc-brief { margin: 2px 0 12px; padding: 10px 12px; border-radius: 14px; background: rgba(0, 0, 0, 0.18); }
 .hc-brief .f1-brief { margin: 0; gap: 6px; }

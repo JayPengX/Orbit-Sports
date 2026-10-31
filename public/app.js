@@ -9,7 +9,7 @@
 // What the person follows lives on the pass (this app's payload): leagues in
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
-import { onScreen, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
+import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
 import { stripDays } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
@@ -3809,14 +3809,15 @@ function tabAgain(tab) {
     pickAllDay(today());
   }
 }
-// Turned on its side, or a window made wider or narrower: the open tab laid
-// out again for its room (how many columns its cards stand in).
-let screenWas = '';
+// Turned on its side, or a window made wider or narrower: 賽事's 全部 dealt
+// again into as many columns as fit (ui.js balanced; the other tabs' columns
+// are the stylesheet's alone).
+const fitKey = f => `${f.wide}${f.w3}`;
+let screenWas = fitKey(screenFit());
 onScreen(fit => {
-  const k = `${fit.wide}${fit.w3}`;
-  if (k === screenWas) return;
-  screenWas = k;
-  if (state.prefsLoaded) showTab(state.tab);
+  if (fitKey(fit) === screenWas) return;
+  screenWas = fitKey(fit);
+  if (state.tab === 'matches' && state.scores.league === ALL && state.prefsLoaded) renderAll();
 });
 // A swipe on 首頁 or 轉播: the day before or after.
 kitUI.daySwipe($('panel-home'), dir => {

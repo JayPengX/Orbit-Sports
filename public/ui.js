@@ -541,7 +541,7 @@ export function eventRow(e, { league = true, day = true, picked = false } = {}) 
   const sub = live && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.venue;
   return el('button', { class: `event-row wide${live ? ' live' : ''}${mine ? ' mine' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day)]),
-    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, el('strong', { text: e.name })]), e.league === 'f1' && live ? f1Brief(e) : podium(e) || (sub ? el('small', { text: sub }) : null), rowTags(e, { league, picked })])
+    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, fitForms(el('strong'), [e.name])]), e.league === 'f1' && live ? f1Brief(e) : podium(e) || (sub ? el('small', { text: sub }) : null), rowTags(e, { league, picked })])
   ]);
 }
 
@@ -643,6 +643,40 @@ export const f1Shown = full => {
   const page = f1Driver(full).page;
   return page ? page.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ').replace(/\bHulkenberg\b/, 'Hülkenberg').replace(/\bPerez\b/, 'Pérez') : full;
 };
+// Words that must stay on one line in a narrow place, said several ways,
+// fullest first ("Charles Leclerc", "Leclerc"): the first that fits its box,
+// else the last a half point smaller at a time (down to 11px), again
+// whenever the box changes size (a phone turned, a column narrower).
+const fitsBox = n => {
+  if (n.scrollWidth > n.clientWidth + 0.5) return false;
+  const r = document.createRange();
+  r.selectNodeContents(n);
+  return r.getBoundingClientRect().width <= n.getBoundingClientRect().width + 0.1;
+};
+const formsWatch = typeof ResizeObserver === 'function'
+  ? new ResizeObserver(list => {
+      for (const { target: n } of list) {
+        if (!n.isConnected) {
+          formsWatch.unobserve(n);
+          continue;
+        }
+        if (!n.clientWidth) continue;
+        n.style.fontSize = '';
+        for (const f of n.__forms) if (((n.textContent = f), fitsBox(n))) break;
+        for (let i = 0; i < 12 && !fitsBox(n); i++) {
+          const size = parseFloat(getComputedStyle(n).fontSize) - 0.5;
+          if (size < 11) break;
+          n.style.fontSize = `${size}px`;
+        }
+      }
+    })
+  : null;
+export function fitForms(node, forms) {
+  node.__forms = [...new Set(forms.filter(Boolean))];
+  node.textContent = node.__forms[0] || '';
+  formsWatch?.observe(node);
+  return node;
+}
 export function f1Brief(e) {
   if (e?.league !== 'f1' || e.status?.state !== 'in') return null;
   const box = el('div', { class: 'f1-brief', 'data-f1-brief': e.id });
@@ -677,7 +711,7 @@ export function fillF1Brief(box, e) {
         return el('li', {}, [
           el('span', { class: 'pos num', text: String(c.pos) }),
           personPic({ ...espn, en: c.name }, 'f1', 'xs round'),
-          el('span', { class: 'f1-brief-name', text: f1Shown(c.name) }),
+          fitForms(el('span', { class: 'f1-brief-name' }), [f1Shown(c.name), f1Shown(c.name).split(' ').at(-1)]),
           el('span', { class: 'num f1-brief-v', text: race ? (i === 0 ? '' : c.gap) : c.best || (i === 0 ? '' : c.gap) || '' })
         ]);
       })
