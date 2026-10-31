@@ -2414,7 +2414,11 @@ function playoffView(model, key) {
     if (t.outcome && !t.winner && !t.live && (t.projected || t.pending || !t.next)) return en ? t.outcome.en : t.outcome.zh;
     // (The 8th seed game sits in the play-in's column: named on its card; English's words too long for 預測 beside them.)
     if (t.projected && t.sure) return en ? 'Confirmed' : '已確定';
-    if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', t.labels?.find(Boolean) && t.sides.every(Boolean) ? t.labels.filter(Boolean).map(labelText).join(' v ') : '', en && t.roundTitle ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
+    // (Both places of one conference: said once by the column, so the line fits: 分組第一 v 外卡, not 東區分組第一 v 東區外卡 cut off. Jay 2026-10-31.)
+    const ls = (t.labels || []).filter(Boolean);
+    const same = ls.length === 2 && /^[東西]區/.test(ls[0]) && ls[0].slice(0, 2) === ls[1].slice(0, 2);
+    const said = same ? ls.map(x => (en ? labelText(`東區${x.slice(2)}`).replace(/^East /, '') : x.slice(2))) : ls.map(labelText);
+    if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', said.length && t.sides.every(Boolean) ? said.join(' v ') : '', en && t.roundTitle ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
     // The last round's winner takes the title (道奇 奪冠), never "晉級".
     if (won) return `${won.short || won.name} ${r === model.rounds.at(-1) ? (en ? 'champions' : '奪冠') : en ? 'through' : '晉級'}`;

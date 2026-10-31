@@ -562,6 +562,9 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 /* Which side the line leans to: the home side at the top, the away side at the bottom. */
 .wp-plot { position: relative; margin-top: 6px; }
 .wp-mid { stroke: var(--q-border); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+/* A game with no draw: the line itself, each side's lead shaded lightly under it. */
+.wp-line { fill: none; stroke: var(--q-text); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.wp-shade { opacity: 0.32; }
 /* Races, tournaments, fight cards, draws */
 .field { list-style: none; margin: 8px 0 0; padding: 0; background: var(--q-surface); border: 1px solid transparent; border-radius: var(--q-radius); }
 .field .link.field-name { text-align: left; font-weight: 600; }
@@ -1545,6 +1548,11 @@ button.lp-person.tap:active { opacity: 0.6; }
 .h2h-bar i.away { background: var(--away); }
 .h2h-bar i.draw { background: color-mix(in srgb, var(--q-muted) 60%, transparent); }
 .h2h-bar i.home { background: var(--home); }
+.h2h-pips { display: flex; justify-content: space-between; gap: 12px; }
+.h2h-pip-row { display: flex; gap: 4px; }
+.h2h-pip-row i { display: block; width: 18px; height: 6px; border-radius: 3px; background: var(--q-fill, color-mix(in srgb, var(--q-muted) 25%, transparent)); }
+.h2h-pip-row i.away { background: var(--away); }
+.h2h-pip-row i.home { background: var(--home); }
 /* (The race keeps room for five characters; the cars give way first.) */
 .race-weeks { display: grid; grid-template-columns: 18px minmax(96px, 1fr) repeat(var(--cols), minmax(38px, 56px)) 32px; column-gap: 6px; margin: 0 -2px; }
 .rw-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; min-height: 48px; padding: 6px 2px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
@@ -1978,10 +1986,10 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
   font-size: 14px;
   text-align: center;
 }
-/* Narrow phones (320/375): nothing cut, no word split. A live game with no score says so on its own line under the name; opponent and suggestion names wrap at spaces; a head-to-head name shrinks rather than break; a key moment's chip sits under its words. */
+/* Narrow phones (320/375): nothing cut, no word split. A live game with no score says so on its own line under the name; opponent and suggestion names wrap at spaces; a head-to-head name shrinks rather than break; a key moment's words wrap beside its chip. */
 .h2h-name { overflow-wrap: normal; word-break: keep-all; font-size: clamp(11px, 3.4vw, 13px); }
-.wp-mo-go { grid-template-columns: minmax(0, 1fr); justify-items: start; row-gap: 4px; }
-.wp-mo-go > .wp-gain { justify-self: start; }
+/* A key moment: its words (two lines at most), its chip at the right (Jay 2026-10-31: the chip under each made the list loose). */
+.wp-mo-go { grid-template-columns: minmax(0, 1fr) auto; }
 .wp-mo-text .mo-main.one-line { white-space: normal; overflow-wrap: break-word; word-break: keep-all; }
 
 /* Home shelves (round 4): my leagues as logo tiles, my teams' places, a replay mark on a finished card. */
@@ -2001,10 +2009,12 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 
 /* Last season's meetings (a game page with none this season yet): a row each, logos and scores. */
 .ls-games { display: grid; margin-top: 12px; border-top: 1px solid var(--q-divider, var(--q-border)); }
-.ls-game { display: grid; grid-template-columns: 3.2em 1fr auto 1fr 12px; align-items: center; gap: 10px; width: 100%; padding: 10px 0; border: 0; border-bottom: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ls-game { display: grid; grid-template-columns: 3.2em minmax(0, 1fr) 1em minmax(0, 1fr) 2.2em; align-items: center; gap: 10px; width: 100%; padding: 10px 0; border: 0; border-bottom: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .ls-game:last-child { border-bottom: 0; }
 /* The game open now, among its series' meetings. */
-.ls-game.now { cursor: default; opacity: 1; background: var(--q-fill, var(--q-surface-2)); border-radius: 10px; padding-inline: 8px; margin-inline: -8px; width: calc(100% + 16px); }
+/* This game among them: a small 本場 tag where the others' arrow is, the row itself as the rest (Jay 2026-10-31: the raised box looked off). */
+.ls-game.now { cursor: default; opacity: 1; }
+.ls-game.now .ls-chev { font-size: 11px; font-weight: 600; color: var(--accent); white-space: nowrap; }
 .ls-date { color: var(--q-label-2); font-size: 13px; }
 .ls-side { display: inline-flex; align-items: center; gap: 10px; color: var(--q-label-2); font-size: 17px; }
 .ls-side.right { justify-self: end; }
@@ -2013,7 +2023,8 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .ls-side.win b { font-weight: 600; }
 .ls-side .logo-wrap, .ls-side .logo { width: 22px; height: 22px; flex: none; object-fit: contain; }
 .ls-dash { color: var(--q-muted); }
-.ls-chev { color: var(--q-muted); font-size: 17px; }
+.ls-chev { color: var(--q-muted); font-size: 17px; justify-self: end; }
+.ls-dash { text-align: center; }
 /* A narrow phone: the line score's sides by their logos alone (the hero over it names them), never a name cut to 「塞爾..」. */
 @media (max-width: 360px) { .linescore .ls-who > span { display: none; } .linescore.innings tr > :first-child { padding-left: 8px; } }
 

@@ -190,6 +190,11 @@ const hhmm = t => {
 };
 
 // Never two marks on top of each other.
+// Each period's name in the middle of its stretch (`mid`), its line at its
+// start (Jay 2026-10-31: 第1節 at the edge and the rest on their lines read
+// as out of line).
+// (Only when every period kept its name: a name left out would centre the one before over two.)
+const centred = (all, marks) => (marks.length === all.filter(m => m.x >= 0 && m.x <= 1).length ? marks.map((m, i) => ({ ...m, mid: (m.x + (marks[i + 1]?.x ?? 1)) / 2 })) : marks);
 function spaced(marks) {
   const kept = [];
   for (const m of marks.filter(m => m.x >= 0 && m.x <= 1)) if (!kept.length || m.x - kept.at(-1).x >= 0.08) kept.push(m);
@@ -216,7 +221,7 @@ export function periodMarks(timeline, sport, points, en) {
     points.forEach((p, i) => {
       if (p.n > top) marks.push({ x: xs[i], label: periodName(sport, (top = p.n), en) });
     });
-    return spaced(marks);
+    return centred(marks, spaced(marks));
   }
   if (!byTime(points)) return [];
   const [t0, t1] = [points[0].t, points.at(-1).t];
@@ -229,8 +234,9 @@ export function periodMarks(timeline, sport, points, en) {
       const half = starts(timeline);
       for (const [n, from, ms] of [[1, 0, [15, 30]], [2, 45, [60, 75]]]) if (half.has(n)) for (const m of ms) marks.push({ x: x(half.get(n) + (m - from) * 60), label: `${m}'` });
       marks.sort((a, b) => a.x - b.x);
+      return spaced(marks);
     }
-    return spaced(marks);
+    return centred(marks, spaced(marks));
   }
   // No plays: the clock's hours.
   const marks = [];

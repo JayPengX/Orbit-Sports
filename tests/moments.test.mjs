@@ -147,7 +147,7 @@ test('basketball: the stretch it drifted over and the possessions that decided i
   // The last possessions, who did what.
   const texts = list.map(m => m.text);
   assert.ok(texts.includes('V. Wembanyama 跳投不進'));
-  assert.ok(texts.includes('J. Brunson 罰球命中 · 超前'));
+  assert.ok(texts.includes('J. Brunson 罰球命中 · 超前，此後未再落後'));
   assert.ok(!texts.some(t => /掌握局勢|\\b2-0 攻勢/.test(t)));
   // The clock where it tells: the final seconds.
   const last = list.at(-1);
@@ -161,7 +161,7 @@ test("the game's end: the stops that decided it, five at most, a lead taken or t
   const texts = list.map(m => m.text);
   // Brunson's fadeaway tying it at 104 with 39 seconds left, and his free throw ahead: never left out.
   assert.ok(texts.includes('J. Brunson 跳投命中 · 追平'));
-  assert.ok(texts.includes('J. Brunson 罰球命中 · 超前'));
+  assert.ok(texts.includes('J. Brunson 罰球命中 · 超前，此後未再落後'));
   // Few enough to read: five from the closing stretch, ten in all.
   assert.ok(list.filter(m => m.clutch).length <= 5);
   assert.ok(list.length <= 10, `${list.length} moments`);
@@ -183,10 +183,10 @@ test("a play ESPN filed late sits where it happened, never as a spike (Suns at P
   const texts = list.map(m => m.text);
   // The turnover at 11:41 of the first quarter, filed at 3:41, isn't a swing at 0–0.
   assert.ok(!texts.some(t => /D\. Booker 失誤/.test(t)));
-  assert.ok(texts.includes('K. Peat 灌籃命中 · 追平'));
-  assert.ok(texts.includes('E. Okorie 上籃命中 · 超前'));
-  // A thief by family name; a free throw made and one missed on the same clock count as one stop.
-  assert.ok(texts.includes('C. Lanier 失誤（Chandler 抄截）'));
+  // The go-ahead the winner never gave back, said so (Jay 2026-10-31); the loser's small late flickers left out.
+  assert.ok(texts.includes('E. Okorie 上籃命中 · 超前，此後未再落後'));
+  assert.ok(list.every(m => m.side === 'home' || Math.abs(m.delta) >= 0.25));
+  // A free throw made and one missed on the same clock count as one stop.
   assert.ok(!texts.some(t => /罰球不進/.test(t)) || !texts.some(t => /罰球命中$/.test(t)));
   assert.ok(list.length <= 10, `${list.length} moments`);
 });

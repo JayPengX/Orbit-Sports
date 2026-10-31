@@ -102,7 +102,7 @@ const firstOf = (list, ...texts) => list.find(([re]) => texts.some(t => re.test(
 // The doer from the play's words where ESPN names nobody ("Rice homered to right").
 const named = text => /^(?:\([^)]*\)\s*)?([A-Z][\w.'’-]*(?:\s+[A-Z][\w.'’-]*){0,2})/.exec(text || '')?.[1] || '';
 // The first sentence, never cut at an initial ("E. Hernández homered").
-const sentence = text => String(text || '').replace(/^\([^)]*\)\s*/, '').split(/(?<=(?<!\b[A-Z])\.)\s/)[0].slice(0, 90);
+export const sentence = text => String(text || '').replace(/^\([^)]*\)\s*/, '').split(/(?<=(?<!\b[A-Z])\.)\s/)[0].slice(0, 90);
 
 // Baseball's lineup changes (ESPN's "Lineup Change"): a pitcher replaced, a
 // pinch-hitter or -runner, a fielder moved; '' for any other play.
@@ -350,7 +350,33 @@ export function playMoments(points, sport, side) {
     if (!same) found.push(m);
     else if (m.turned && !same.turned) Object.assign(same, { turned: m.turned, text: m.text, delta: Math.abs(m.delta) > Math.abs(same.delta) ? m.delta : same.delta, side: Math.abs(m.delta) > Math.abs(same.delta) ? m.side : same.side });
   }
-  return found.sort((x, y) => x.i - y.i);
+  return decided(points, found, side).sort((x, y) => x.i - y.i);
+}
+
+// A game over (its line at the end, 3% from either edge): what the winner
+// did, and the play that won it. The loser's late flicker isn't key unless
+// it really moved the game (a quarter of it): Brunson's three to go ahead
+// with 1:32 left, +16%, in a game the 76ers took back (Jay 2026-10-31,
+// "don't know why it's a crucial moment"). The winner's last go-ahead
+// score is the one that won it, said so: 此後未再落後.
+const LOSER_KEEP = 0.25;
+function decided(points, found, side) {
+  const end = value(points.at(-1) || { home: 0.5 });
+  const won = end >= 0.97 ? 'home' : end <= 0.03 ? 'away' : '';
+  if (!won) return found;
+  // (In the last two minutes, only the winner's: what the loser did there
+  // didn't hold. A late run whose lead is a shot listed on its own is that
+  // shot: "L. James 跳投命中" says who, "76人 7-1" doesn't.)
+  const shots = new Set(found.filter(m => m.clutch).map(m => m.i));
+  const kept = found.filter(m => !(m.periods && shots.has(m.lead)) && (m.side === won || (Math.abs(m.delta) >= LOSER_KEEP && !lateClock('basketball', points[m.lead ?? m.i]))));
+  // The go-ahead: the winner's last moment that took the lead (a run's play that did, or the shot).
+  const k = (m => m?.lead ?? m?.i)([...kept].reverse().find(m => m.side === won && m.turned === 'lead' || (m.side === won && m.periods && /超前|takes the lead/.test(m.text))));
+  const last = k == null ? null : kept.filter(m => m.side === won && (m.i === k || m.lead === k)).at(-1);
+  // (Only if no one went ahead again after it: the score's sign stays the winner's.)
+  const sign = won === 'home' ? 1 : -1;
+  const held = k != null && points.slice(k).every(p => p.play?.home == null || sign * (Number(p.play.home) - Number(p.play.away)) > 0);
+  if (last && held) last.text = last.periods ? last.text.replace(/ 超前$/, ' 超前，此後未再落後').replace(/ · takes the lead$/, ' · ahead for good') : last.text.replace(/ · (超前|takes the lead)$/, '') + (side.en ? ' · ahead for good' : ' · 超前，此後未再落後');
+  return kept;
 }
 
 // One stop in play: the plays on the same clock (a foul and its free

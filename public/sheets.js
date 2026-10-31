@@ -14,7 +14,7 @@ import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod } from './lib/live.mjs';
 import { personKey, pitcherRole } from './lib/mlb.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors, readableOn, hasHue } from './lib/wpline.mjs';
-import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText, goalHowParts, basketEn } from './lib/moments.mjs';
+import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText, goalHowParts, basketEn, sentence } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { soccerLine } from './lib/soccerwp.mjs';
 import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, injuryWhatZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
@@ -71,6 +71,9 @@ function h2hView({ n, wins, draws, noDraw = false }, e) {
     // (A sport without draws: none between them.)
     el('div', { class: 'h2h-row' }, [side(homeFirst(e) ? e.home : e.away, 'away'), noDraw ? el('div', { class: 'h2h-draw' }, [el('small', { class: 'muted', text: 'vs' })]) : el('div', { class: 'h2h-draw' }, [el('strong', { class: 'num h2h-n', text: String(draws || 0) }), el('small', { text: en ? 'drawn' : '和局' })]), side(homeFirst(e) ? e.away : e.home, 'home')]),
     // Each side's bar in the shirt it wears in this game (the win chart's colours: tintOf), the draws grey.
+    // A sport without draws, a handful of meetings: a pip a game under each side, its wins filled in its colour
+    // (Jay 2026-10-31: 0–2 drew one bar all blue, as if the other side weren't there).
+    n && noDraw && n <= 7 ? el('div', { class: 'h2h-pips', 'aria-hidden': 'true', style: (c => `--home:${c.home};--away:${c.away}`)(tintOf(e)) }, inOrder(e, [['away', a], ['home', h]]).map(([k, won], i) => el('span', { class: `h2h-pip-row ${i ? 'right' : ''}` }, Array.from({ length: n }, (_, j) => el('i', { class: (i ? n - j <= won : j < won) ? k : '' }))))) :
     n ? el('div', { class: 'h2h-bar', 'aria-hidden': 'true', style: (c => `--home:${c.home};--away:${c.away}`)(tintOf(e)) }, inOrder(e, [a ? el('i', { class: 'away', style: share(a) }) : null, h ? el('i', { class: 'home', style: share(h) }) : null]).flatMap((x, i) => (i === 0 ? [x, draws ? el('i', { class: 'draw', style: share(draws) }) : null] : [x]))) : null
   ]);
 }
@@ -89,7 +92,7 @@ function meetingsCard(title, sub, games, e, { wins = null } = {}) {
     // (Each side by its logo and score: the names are the card's header.)
     const side = (t, right) => el('span', { class: `ls-side${right ? ' right' : ''}${t.winner ? ' win' : ''}`, title: team(t).short || t.short || t.abbr }, right ? [el('b', { class: 'num', text: t.score }), logo(team(t).logo || t.logo, t.name, 'xs')] : [logo(team(t).logo || t.logo, t.name, 'xs'), el('b', { class: 'num', text: t.score })]);
     const here = g.id === String(e.id);
-    return el('button', { class: `ls-game${here ? ' now' : ''}`, type: 'button', disabled: here ? true : null, onclick: () => ctx.openEvent({ id: g.id, league: e.league, kind: 'match', start: g.date, status: { state: 'post', detail: '', short: '', completed: true }, home: { ...team(g.home), score: g.home.score }, away: { ...team(g.away), score: g.away.score } }) }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(5).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), el('span', { class: 'ls-chev', 'aria-hidden': 'true', text: here ? '' : '›' })]);
+    return el('button', { class: `ls-game${here ? ' now' : ''}`, type: 'button', disabled: here ? true : null, onclick: () => ctx.openEvent({ id: g.id, league: e.league, kind: 'match', start: g.date, status: { state: 'post', detail: '', short: '', completed: true }, home: { ...team(g.home), score: g.home.score }, away: { ...team(g.away), score: g.away.score } }) }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(5).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), el('span', { class: 'ls-chev', 'aria-hidden': here ? null : 'true', text: here ? (L() === 'en' ? 'This' : '本場') : '›' })]);
   };
   return card(title, el('div', {}, [h2hView({ n: games.length, wins: tally, draws: 0, noDraw: true }, e), el('div', { class: 'ls-games' }, games.map(row))]), { sub });
 }
@@ -743,12 +746,18 @@ export function storyRows(e, sm) {
       // Who helped (an assist): the player's face, a tap away (not their name in brackets).
       const helper = helpersLine(e.league, p.helpers);
       const pic = p.pic ? personPic({ ...p.pic, en: p.pic.name }, e.league, 'sm round') : logo(team.logo, tname, 'sm');
-      const who = [pic, el('span', { class: 'lg-text' }, [fitLine(el('span', { class: 'lg-name', text: main })), helper || fitLine(el('small', { class: 'lg-sub' }, [teamTag(team, sport === 'baseball' && sub ? sub : [tname, sub].filter(Boolean).join(' · '), e.league, { tap: false })]))])];
+      // A trip that came up empty: who got the ball back under it (the rebounder's team badge), the score as it was, faint.
+      // (A defensive one just 籃板: "V. Edgecombe 防守籃板" was cut at 320; an offensive one said, a second chance.)
+      const off = p.reb && /offensive/i.test(`${p.reb.type} ${p.reb.text}`);
+      const back = p.reb ? [p.reb.who || '', en ? (off ? 'off. rebound' : 'rebound') : off ? '進攻籃板' : '籃板'].filter(Boolean).join(' ') : '';
+      const rebTeam = p.reb && [e.home, e.away].find(t => String(t.id) === p.reb.team);
+      const under = p.empty ? (back ? fitLine(el('small', { class: 'lg-sub' }, [rebTeam ? teamTag(rebTeam, back, e.league, { tap: false }) : document.createTextNode(back)])) : fitLine(el('small', { class: 'lg-sub' }, [teamTag(team, tname, e.league, { tap: false })]))) : null;
+      const who = [pic, el('span', { class: 'lg-text' }, [fitLine(el('span', { class: 'lg-name', text: p.empty ? (en ? sentence(p.text) : playParts(feedText(sport, p, false, tname), '').main) : main })), under || helper || fitLine(el('small', { class: 'lg-sub' }, [teamTag(team, sport === 'baseball' && sub ? sub : [tname, sub].filter(Boolean).join(' · '), e.league, { tap: false })]))])];
       const can = p.pic?.id && LEAGUES[e.league]?.espn && /^\d+$/.test(String(p.pic.id));
-      return el('li', { class: `lg-${s2}` }, [
+      return el('li', { class: `lg-${s2}${p.empty ? ' lg-empty' : ''}` }, [
         el('span', { class: 'lg-min num' }, [when(p)].flat().map(x => el('span', { text: x }))),
         can ? el('button', { class: 'lg-who tap', type: 'button', 'aria-label': p.pic.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, String(p.pic.id), { name: p.pic.name, logo: p.pic.headshot })) }, who) : el('span', { class: 'lg-who' }, who),
-        el('span', { class: 'lg-score num' }, inOrder(e, ['away', 'home']).flatMap((k, i) => [i ? document.createTextNode('–') : null, el('b', { class: k === s2 ? 'on' : '', text: String(p[k]) })]).filter(Boolean))
+        el('span', { class: 'lg-score num' }, inOrder(e, ['away', 'home']).flatMap((k, i) => [i ? document.createTextNode('–') : null, el('b', { class: k === s2 && !p.empty ? 'on' : '', text: String(p[k]) })]).filter(Boolean))
       ]);
     })
   );
@@ -760,19 +769,35 @@ function storyPanel(e, sm) {
   const parts = [sport === 'basketball' ? topScorers(e, sm) : null, storyRows(e, sm)].filter(Boolean);
   return parts.length ? el('div', { class: 'live-panel' }, parts) : null;
 }
-// The baskets from two minutes left in the fourth (or an overtime) on, when
-// it came down to one possession (3 points or fewer at some point in them,
-// or a tie); none in a game the leader saw out (Cavaliers–76ers, 2026-10-22:
-// 6 down at 2:00, never closer than 4, and ten free throws listed).
+// The closing stretch from two minutes left in the fourth (or an overtime),
+// when it came down to one possession (3 points or fewer at some point in
+// it, or a tie); none in a game the leader saw out (Cavaliers–76ers,
+// 2026-10-22: 6 down at 2:00, never closer than 4, and ten free throws
+// listed). Each basket, and each trip that came up empty: a missed shot
+// with who took the rebound, a turnover (Jay 2026-10-31: 1:10 to 33.6 said
+// nothing, Brunson's miss to go ahead and James's rebound in it). Fouls,
+// timeouts and changes aren't listed.
+const MISS = /\bmisses\b/i;
+const LOST = /turnover|bad pass|traveling|lost ball|offensive foul|shot clock/i;
 function clutchPlays(feed, secs) {
   const scored = feed.filter(p => p.scoring && p.team && p.home != null && p.away != null);
   const late = p => p.periodNum > 4 || (p.periodNum === 4 && secs(p.clock) <= 120);
   const first = scored.findIndex(late);
   if (first < 0) return [];
-  const plays = scored.slice(first).filter(late);
   const gap = p => Math.abs(Number(p.home) - Number(p.away));
-  if (Math.min(...[scored[first - 1] || { home: 0, away: 0 }, ...plays].map(gap)) > 3) return [];
-  return plays.slice(-10);
+  if (Math.min(...[scored[first - 1] || { home: 0, away: 0 }, ...scored.slice(first).filter(late)].map(gap)) > 3) return [];
+  const from = feed.indexOf(scored[first]);
+  const out = [];
+  feed.slice(from).forEach((p, k, rest) => {
+    if (!late(p) || !p.team || p.home == null || p.away == null) return;
+    if (p.scoring) return out.push(p);
+    const empty = (MISS.test(p.text) && !/free throw/i.test(p.text)) || LOST.test(`${p.type} ${p.text}`);
+    if (!empty) return;
+    // (Who got the ball back: the next play's rebound, on the same clock.)
+    const reb = MISS.test(p.text) ? rest.slice(k + 1, k + 3).find(q => /rebound/i.test(`${q.type} ${q.text}`) && q.clock === p.clock) : null;
+    out.push({ ...p, empty: true, ...(reb ? { reb } : {}) });
+  });
+  return out.slice(-14);
 }
 // A count as dots: balls of 4, strikes and outs of 3.
 const dots = (n, of, cls) => el('span', { class: `lp-dots ${cls}` }, Array.from({ length: of }, (_, i) => el('i', { class: i < n ? 'on' : '' })));
@@ -1936,6 +1961,7 @@ function winProbCard(line, e, timeline, events = []) {
   const homeArea = `M${x0},0 L${e1.join(' L')} L${x1},0 Z`;
   const drawArea = pts.some(p => p.draw) ? `M${e1.join(' L')} L${[...e2].reverse().join(' L')} Z` : '';
   const awayArea = `M${e2.join(' L')} L${x1},${h} L${x0},${h} Z`;
+  const asLine = !pts.some(p => p.draw);
   const isQuiet = i => quiet.some(([a, b]) => i > a && i < b);
   const gaps = quiet.map(([a, b]) => `<rect x="${X(a)}" y="0" width="${(Number(X(b)) - Number(X(a))).toFixed(1)}" height="${h}" class="wp-quiet"/>`).join('');
   const marks = periodMarks(timeline, sport, pts, en);
@@ -1995,7 +2021,7 @@ function winProbCard(line, e, timeline, events = []) {
   const weight = m => (m.always ? 2 : 0) + (m.rally ? 1 : 0) + (m.turned ? 1 : 0) + Math.abs(m.delta);
   // A moment's dot on the edge of the band of the side it helped (the home
   // side's above, the away side's below the draw), not in the draw's middle.
-  const pinY = m => (m.delta >= 0 ? pts[m.i].home : pts[m.i].home + (pts[m.i].draw ?? 0));
+  const pinY = m => (asLine ? 1 - pts[m.i].home : m.delta >= 0 ? pts[m.i].home : pts[m.i].home + (pts[m.i].draw ?? 0));
   const dotted = [];
   // (A soccer game's goals and red cards always: Ipswich–Man City's five goals moved a favourite's price little, and none had a dot.)
   // (A goal always: Messi's 2–0 at 56' and 3–0 at 60' sat closer than the
@@ -2031,14 +2057,24 @@ function winProbCard(line, e, timeline, events = []) {
     dot.hidden = i == null || !dotted.includes(m);
     if (i == null) return;
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
-    dot.style.top = `${(dotted.includes(m) ? pinY(m) : midAt(i)) * 100}%`;
+    dot.style.top = `${(dotted.includes(m) ? pinY(m) : asLine ? 1 - midAt(i) : midAt(i)) * 100}%`;
   };
   const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
   // Each band in its side's colour (a draw's grey), the even line dashed across.
   // A white or black side's band near solid, so it never reads as the draw's grey.
   const solid = c => (hasHue(c) ? '62%' : '92%');
   const band = (d, c, cls = '') => (d ? `<path d="${d}" class="wp-band${cls}" style="fill:${c}"/>` : '');
-  const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${band(homeArea, `color-mix(in srgb, ${homeC} ${solid(homeC)}, transparent)`)}${band(drawArea, 'color-mix(in srgb, var(--q-muted) 38%, transparent)', ' draw')}${band(awayArea, `color-mix(in srgb, ${awayC} ${solid(awayC)}, transparent)`)}${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/>${gaps}</svg>`;
+  // No draw (basketball, baseball): one line, up for the home side, down for
+  // the away side, each side's lead lightly shaded in its colour from the
+  // even line (Jay 2026-10-31: the two solid bands were heavy and ugly).
+  // A draw keeps the stacked bands (the owner's call, 2026-10-15).
+  const lineSvg = () => {
+    const pt = drawn.map(i => `${X(i)},${((1 - pts[i].home) * h).toFixed(1)}`);
+    const fill = `M${x0},${h / 2} L${pt.join(' L')} L${x1},${h / 2} Z`;
+    const id = `wp${String(e.id).replace(/\W/g, '')}`;
+    return `<defs><clipPath id="${id}t"><rect x="0" y="0" width="${w}" height="${h / 2}"/></clipPath><clipPath id="${id}b"><rect x="0" y="${h / 2}" width="${w}" height="${h / 2}"/></clipPath></defs><path d="${fill}" clip-path="url(#${id}t)" class="wp-shade" style="fill:${homeC}"/><path d="${fill}" clip-path="url(#${id}b)" class="wp-shade" style="fill:${awayC}"/>${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="M${pt.join(' L')}" class="wp-line"/>`;
+  };
+  const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${asLine ? lineSvg() : `${band(homeArea, `color-mix(in srgb, ${homeC} ${solid(homeC)}, transparent)`)}${band(drawArea, 'color-mix(in srgb, var(--q-muted) 38%, transparent)', ' draw')}${band(awayArea, `color-mix(in srgb, ${awayC} ${solid(awayC)}, transparent)`)}${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/>`}${gaps}</svg>`;
   const plot = scrubPlot(xs, show, [el('div', { html: svg }), ...pins, rule, dot]);
   dot.classList.add('ring');
   // Whose half is whose: each side's logo beside the chart (never over the line).
@@ -2410,7 +2446,7 @@ function scrubPlot(xs, show, kids) {
   return plot;
 }
 // The marks under a chart (periods, laps, hours).
-const axisRow = marks => (marks.length ? el('div', { class: 'wp-axis', 'aria-hidden': 'true' }, marks.map(m => el('span', { class: m.x < 0.04 ? 'start' : m.x > 0.96 ? 'end' : '', style: `left:${(m.x * 100).toFixed(2)}%`, text: m.label }))) : null);
+const axisRow = marks => (marks.length ? el('div', { class: 'wp-axis', 'aria-hidden': 'true' }, marks.map(m => el('span', { class: m.mid != null ? '' : m.x < 0.04 ? 'start' : m.x > 0.96 ? 'end' : '', style: `left:${((m.mid ?? m.x) * 100).toFixed(2)}%`, text: m.label }))) : null);
 
 // An F1 race's chance for each driver (Polymarket's winner market): over or
 // on, a line per driver who ever had a real chance, in the team's colour (a
