@@ -18,6 +18,7 @@ import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { soccerLine } from './lib/soccerwp.mjs';
 import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, injuryWhatZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
+import { isFlag } from '#kit/photos.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, apart, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
@@ -2920,19 +2921,17 @@ function circuitCard(e, sessions) {
           [en ? 'First race' : '首次舉辦', facts['First Grand Prix']?.v]
         ].filter(([, v]) => v)
       : [];
-    let map = null;
-    if (c) {
-      const W = 120;
-      const { fit, H } = trackFit(c, W, 84, 120, 8);
-      const d = c.x.map((x, i) => fit(x, c.y[i]).map(n => n.toFixed(1)).join(',')).join(' ');
-      map = el('div', { class: 'cc-map', html: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.name || title)}"><polyline class="cc-edge" points="${d}"/><polyline class="cc-line" points="${d}"/><circle class="cc-start" r="3.2" cx="${fit(c.x[0], c.y[0])[0].toFixed(1)}" cy="${fit(c.x[0], c.y[0])[1].toFixed(1)}"/></svg>` });
-    }
+    // Figures MultiViewer's map has (the corners, a stop's cost), beside formula1.com's.
+    if (c?.corners?.length) tiles.push([en ? 'Corners' : '彎道', String(c.corners.length)]);
+    if (c?.pitLoss?.normal) tiles.push([en ? 'Pit stop' : '進站損失', en ? `${c.pitLoss.normal.toFixed(1)} s` : `${c.pitLoss.normal.toFixed(1)} 秒`]);
+    const map = c ? circuitDrawing(c, title, en) : null;
     const rec = facts?.['Fastest lap time'];
     const day = date => new Date(`${date}T12:00:00`).toLocaleDateString(en ? 'en-US' : 'zh-TW', { weekday: 'short' });
     return card(
       title,
       el('div', { class: 'stack tight' }, [
-        map || tiles.length ? el('div', { class: `cc-top${map ? '' : ' flat'}` }, [map, tiles.length ? el('div', { class: 'cc-facts' }, tiles.map(([k, v]) => el('span', { class: 'cc-fact' }, [el('small', { text: k }), el('strong', { class: 'num', text: v })]))) : null]) : null,
+        map,
+        tiles.length ? el('div', { class: 'cc-facts' }, tiles.map(([k, v]) => el('span', { class: 'cc-fact' }, [el('small', { text: k }), el('strong', { class: 'num', text: v })]))) : null,
         // The lap record, who and when on the line under it.
         rec?.v ? el('div', { class: 'cc-record' }, [el('small', { text: en ? 'Lap record' : '單圈紀錄' }), el('span', { class: 'cc-v' }, [el('strong', { class: 'num', text: rec.v }), rec.sub ? el('small', { text: rec.sub }) : null])]) : null,
         wx.length
@@ -2942,21 +2941,83 @@ function circuitCard(e, sessions) {
     );
   });
 }
+// The circuit drawn the width of the card: the track, the start/finish line
+// (a chequered bar across it), an arrow the way the cars go, and each corner's
+// number beside it (MultiViewer's: the corner's point and the side its label
+// goes, as F1's own TV graphics put them).
+function circuitDrawing(c, title, en) {
+  const W = 320;
+  const { fit, H } = trackFit(c, W, 160, 280, 24);
+  const P = c.x.map((x, i) => fit(x, c.y[i]));
+  const f = n => n.toFixed(1);
+  const d = P.map(p => `${f(p[0])},${f(p[1])}`).join(' ');
+  // The way along the track at a point (a few points on, so one short step doesn't turn it).
+  const along = i => {
+    const a = P[i], b = P[Math.min(P.length - 1, i + 3)];
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+  };
+  const [s0, s1] = P[0];
+  const [tx, ty] = along(0);
+  const [nx, ny] = [-ty, tx];
+  const bar = 9;
+  // The start line: across the track, in two halves (white and black: chequered).
+  const line = `<line class="cc-sf" x1="${f(s0 - nx * bar)}" y1="${f(s1 - ny * bar)}" x2="${f(s0 + nx * bar)}" y2="${f(s1 + ny * bar)}"/><line class="cc-sf-c" x1="${f(s0 - nx * bar)}" y1="${f(s1 - ny * bar)}" x2="${f(s0 + nx * bar)}" y2="${f(s1 + ny * bar)}"/>`;
+  // The arrow a twentieth of the lap on, beside the track (on the side away from the corner labels' usual one).
+  const k = Math.max(4, Math.round(P.length / 20));
+  const [ax, ay] = P[k];
+  const [ux, uy] = along(k);
+  const [vx, vy] = [-uy, ux];
+  const o = 13;
+  const [cx, cy] = [ax + vx * o, ay + vy * o];
+  const arrow = `<path class="cc-dir" d="M${f(cx - ux * 7 - vx * 4.5)},${f(cy - uy * 7 - vy * 4.5)} L${f(cx + ux * 5)},${f(cy + uy * 5)} L${f(cx - ux * 7 + vx * 4.5)},${f(cy - uy * 7 + vy * 4.5)}"/>`;
+  // Each corner's number, its label set off the track the way MultiViewer says.
+  const R = Math.hypot(Math.max(...c.x) - Math.min(...c.x), Math.max(...c.y) - Math.min(...c.y)) * 0.045;
+  const labels = (c.corners || [])
+    .map(t => {
+      const a = (Number(t.angle) || 0) * (Math.PI / 180);
+      const [lx, ly] = fit(t.x + Math.cos(a) * R, t.y + Math.sin(a) * R);
+      return `<g class="cc-turn"><circle cx="${f(lx)}" cy="${f(ly)}" r="6.8"/><text x="${f(lx)}" y="${f(ly)}">${Number(t.n)}</text></g>`;
+    })
+    .join('');
+  return el('div', { class: 'cc-map' }, [
+    el('div', {
+      html: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.name || title)}"><polyline class="cc-edge" points="${d}"/><polyline class="cc-line" points="${d}"/>${line}${arrow}${labels}</svg>`
+    }),
+    el('div', { class: 'cc-key' }, [
+      el('span', {}, [el('i', { class: 'cc-key-sf' }), el('small', { text: en ? 'Start / finish' : '起終點' })]),
+      el('span', {}, [el('i', { class: 'cc-key-dir', html: '<svg viewBox="0 0 12 12"><path d="M3 2 L9 6 L3 10"/></svg>' }), el('small', { text: en ? 'Direction' : '行駛方向' })]),
+      c.corners?.length ? el('span', {}, [el('i', { class: 'cc-key-turn', text: '1' }), el('small', { text: en ? 'Corner' : '彎道編號' })]) : null
+    ])
+  ]);
+}
 // Last year's podium here: second, first and third side by side, the winner raised.
 function podiumCard(e, sessions) {
   const en = L() === 'en';
   const race = sessions.find(x => x.abbr === 'Race') || sessions.at(-1);
   if (race.status.state === 'post') return null;
   return lateCard(en ? 'Last year here' : '去年這一站', 150, async () => {
-    const { year, rows } = await lastPodium(race.start);
+    const [{ year, rows }, grid] = await Promise.all([lastPodium(race.start), seasonDrivers().catch(() => [])]);
     if (rows.length < 3) return null;
-    const step = r =>
-      el('span', { class: `pd-step p${r.pos}` }, [
-        personPic({ name: `${r.driver.givenName} ${r.driver.familyName}`, en: `${r.driver.givenName} ${r.driver.familyName}` }, 'f1', 'round pd-pic'),
+    // Each one as this season's standings know him (ESPN's name, id and
+    // headshot): Jolpica's "Andrea Kimi Antonelli" isn't ESPN's "Kimi
+    // Antonelli", so his search found only TheSportsDB's zoomed-out cutout.
+    // A driver in the standings opens; one gone from F1 doesn't.
+    const step = r => {
+      const full = `${r.driver.givenName} ${r.driver.familyName}`;
+      const found = fieldDriver(grid, full, r.driver.familyName);
+      // (The standings' picture is a driver's flag: his face comes by his id.)
+      const who = found && { id: found.id, name: found.name, headshot: isFlag(found.headshot) ? null : found.headshot };
+      const body = [
+        personPic(who || { name: full, en: full }, 'f1', 'round pd-pic'),
         el('strong', { class: 'pd-name', text: r.driver.familyName || '' }),
         el('span', { class: 'pd-team' }, [constructorBadge(r.team, 'xxs'), el('small', { text: en ? r.team : f1Constructor(r.team)?.zh || r.team })]),
         el('span', { class: 'pd-block num', text: String(r.pos) })
-      ]);
+      ];
+      return who?.id
+        ? el('button', { class: `pd-step p${r.pos}`, type: 'button', 'aria-label': `${r.pos}. ${who.name}`, onclick: () => ctx.openPlayer('f1', who.id, who) }, body)
+        : el('span', { class: `pd-step p${r.pos}` }, body);
+    };
     return card(en ? `Here in ${year}` : `${year} 年這一站`, el('div', { class: 'pd' }, [2, 1, 3].map(p => step(rows.find(r => r.pos === p))).filter(Boolean)));
   });
 }
