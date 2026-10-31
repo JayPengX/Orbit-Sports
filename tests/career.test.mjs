@@ -67,3 +67,10 @@ test('a team run: the same team in seasons next to each other, the newest first'
   const r = (year, id) => ({ year, team: { id } });
   assert.deepEqual(stintsOf([r(2007, 'mclaren'), r(2008, 'mclaren'), r(2013, 'mercedes'), r(2014, 'mercedes'), r(2025, 'ferrari')]).map(s => [s.team.id, s.from, s.to, s.seasons]), [['ferrari', 2025, 2025, 1], ['mercedes', 2013, 2014, 2], ['mclaren', 2007, 2008, 2]]);
 });
+
+test('a loan the club then bought him from is one spell (Cunha at Wolves)', async () => {
+  const { parseFotmobCareer } = await import('../public/lib/career.mjs');
+  const s = (team, from, to, apps, loan) => ({ teamId: 8602, team, from, to, active: false, loan, apps, goals: 1, assists: 0 });
+  const c = parseFotmobCareer({ clubs: [s('Wolverhampton Wanderers', '2023-07-01T00:00:00', '2025-06-30T00:00:00', 72, false), s('Wolverhampton Wanderers', '2023-01-01T00:00:00', '2023-06-30T00:00:00', 20, true)], national: [], seasons: [], trophies: [] });
+  assert.deepEqual(c.teams.map(t => [t.from, t.to, t.games, t.goals, Boolean(t.bought), t.loan]), [[2023, 2025, 92, 2, true, false]]);
+});

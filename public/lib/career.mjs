@@ -120,7 +120,16 @@ export function parseFotmobCareer(p) {
   if (!p?.clubs) return null;
   const stint = x => ({ team: { id: '', fotmob: String(x.teamId ?? ''), name: x.team, logo: fotmobLogo(x.teamId) }, from: Number(x.from.slice(0, 4)) || null, to: x.active || !x.to ? null : Number(x.to.slice(0, 4)) || null, loan: x.loan, games: x.apps, goals: x.goals, assists: x.assists });
   // (A few weeks back at his club between loans, not one game played: no row.)
-  const teams = p.clubs.filter(x => x.apps || x.active).map(stint);
+  // (A loan the club then bought him from, side by side: one spell, said so.)
+  const teams = p.clubs
+    .filter(x => x.apps || x.active)
+    .map(stint)
+    .reduce((out, x) => {
+      const later = out.at(-1);
+      if (later && x.loan && !later.loan && later.team.fotmob === x.team.fotmob) Object.assign(later, { from: x.from, bought: true, games: (later.games || 0) + (x.games || 0), goals: (later.goals || 0) + (x.goals || 0), assists: (later.assists || 0) + (x.assists || 0) });
+      else out.push(x);
+      return out;
+    }, []);
   const national = p.national.filter(x => SENIOR_SIDE(x.team) && x.apps).map(stint).slice(0, 1);
   const seasons = p.seasons
     .filter(x => x.apps)

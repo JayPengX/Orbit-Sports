@@ -7,7 +7,7 @@ import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, w
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad } from './lib/espn.mjs';
+import { SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad, europeanClubs } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -25,7 +25,7 @@ import { lapRate, readCar, stepCar, spread, behindLeader, apart, placeTags } fro
 import { fold, surname, esc } from './lib/text.mjs';
 import { driverAbout, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
-import { parseSearch } from './lib/search.mjs';
+import { parseSearch, placeTeams } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
@@ -5543,13 +5543,21 @@ function seasonRow(r, rows, sport, en) {
 // (至今 for the one he's with), and his seasons, games and goals there; a
 // footballer's loans said, his country's senior side last. A team of the
 // league's opens its page.
-const TROPHY_ZH = { 'Champions League': '歐洲冠軍聯賽', 'Europa League': '歐霸盃', 'Conference League': '歐協盃', 'UEFA Super Cup': '歐洲超級盃', 'FA Cup': '英足總盃', 'Premier League': '英超' };
+const OLYMPIC = /olympic/i;
+// (Our word for it; a second tier's, 2. Bundesliga, never the top one's.)
+const trophyWord = name => TROPHY_ZH[name] || (/^\d|\b(II|B)\b/.test(name) ? '' : compWord(name, false)) || '';
+const TROPHY_ZH = { 'World Cup': '世界盃', 'Copa América': '美洲盃', EURO: '歐洲盃', 'Africa Cup of Nations': '非洲國家盃', 'Asian Cup': '亞洲盃', 'Bundesliga': '德甲', 'LaLiga': '西甲', 'Serie A': '義甲', 'Ligue 1': '法甲', 'DFB Pokal': '德國盃', 'Copa del Rey': '國王盃', 'Coppa Italia': '義大利盃', 'Coupe de France': '法國盃', 'EFL Cup': '英格蘭聯賽盃', 'Community Shield': '社區盾', 'Club World Cup': '世俱盃', 'Champions League': '歐洲冠軍聯賽', 'Europa League': '歐霸盃', 'Conference League': '歐協盃', 'UEFA Super Cup': '歐洲超級盃', 'FA Cup': '英足總盃', 'Premier League': '英超' };
 // A club's page by its name (ESPN's search: one of our leagues', the name the same), or null.
 const clubKey = n => fold(n || '').replace(/\b(fc|afc|cf|sc|ac|club|de|the|hotspur)\b/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 const clubPage = name =>
   proxyJson(`https://site.api.espn.com/apis/search/v2?query=${encodeURIComponent(name)}&limit=12`, { ttl: 24 * 3_600_000 })
     .then(parseSearch)
-    .then(r => r.teams.find(t => t.league && hasTeamPage(t.league) && LEAGUES[t.league]?.sport === 'soccer' && clubKey(t.name) === clubKey(name)) || null)
+    // (A club whose league isn't ours, in a European cup this season, under that cup: Atlético Madrid, Jay 2026-10-31.)
+    .then(async r => {
+      const same = r.teams.filter(t => clubKey(t.name) === clubKey(name));
+      const cups = same.some(t => !t.league) ? await europeanClubs().catch(() => new Map()) : new Map();
+      return placeTeams(same, cups).find(t => hasTeamPage(t.league) && LEAGUES[t.league]?.sport === 'soccer') || null;
+    })
     .catch(() => null);
 function careerTeams(c, a, league, sport, en) {
   const W = (zh, eng) => (en ? eng : zh);
@@ -5564,7 +5572,7 @@ function careerTeams(c, a, league, sport, en) {
     const span = now ? W(`${x.from} 至今`, `${x.from}–`) : x.from === x.to || x.to == null ? String(x.from) : `${x.from}–${x.to}`;
     const sub = [
       national ? W('國家隊', 'National team') : '',
-      x.loan ? W('租借', 'Loan') : '',
+      x.loan ? W('租借', 'Loan') : x.bought ? W('租借後買斷', 'Loan, then bought') : '',
       !soccer && x.seasons ? W(`${x.seasons} 季`, `${x.seasons} season${x.seasons > 1 ? 's' : ''}`) : '',
       x.games ? W(`${x.games} 場`, `${x.games} games`) : '',
       soccer && x.goals ? W(`${x.goals} 球`, `${x.goals} goals`) : ''
@@ -6058,8 +6066,8 @@ export async function openPlayer(league, id, fallback = {}) {
     let logCard = log?.games.length ? logBox(log) : ov?.now?.none ? noGamesCard() : null;
     // (ESPN's honours; a footballer's from his career, its competitions in our words.)
     // (A footballer's: each competition won said in full, 歐霸盃冠軍, with the club he won it with; Jay 2026-10-31: "what is 歐霸".)
-    const trophyName = name => (en ? `${name} winner` : `${TROPHY_ZH[name] || compWord(name, false) || name}冠軍`);
-    const awardsOf = (list, comps = false) => card(W('榮譽', 'Honours'), el('ul', { class: 'award-list' }, list.map(w => el('li', {}, [el('strong', {}, [comps ? trophyName(w.name) : zhLater(w.name)]), w.count ? el('span', { class: 'award-count num', text: w.count.replace(/x$/i, '×') }) : null, w.seasons.length ? el('small', { class: 'muted', text: [...(w.teams || []).map(t => (en ? t : teamNameZh('', t, 'soccer')?.short || countryName(t, L()))), w.seasons.slice(0, 6).map(x => x.replace(/^(\d{4})\/\d\d(\d\d)$/, '$1/$2')).join(' · ') + (w.seasons.length > 6 ? ' …' : '')].join(' · ') }) : null]))));
+    const trophyName = name => (en ? `${name} winner` : OLYMPIC.test(name) ? '奧運足球金牌' : trophyWord(name) ? `${trophyWord(name)}冠軍` : zhLater(name, 'en', x => `${x}冠軍`));
+    const awardsOf = (list, comps = false) => card(W('榮譽', 'Honours'), el('ul', { class: 'award-list' }, list.map(w => el('li', {}, [el('strong', {}, [comps ? trophyName(w.name) : zhLater(w.name)]), w.count ? el('span', { class: 'award-count num', text: w.count.replace(/x$/i, '×') }) : null, w.seasons.length ? el('small', { class: 'muted', text: [...(w.teams || []).map(t => (en ? t : teamNameZh('', t, 'soccer')?.short || t.replace(/^(.+?)( U-?\d\d)?$/, (m, c, u = '') => countryName(c, L()) + u))), w.seasons.slice(0, 6).map(x => x.replace(/^(\d{4})\/\d\d(\d\d)$/, '$1/$2').replace(/^(\d{4})\s+\D+$/, '$1')).join(' · ') + (w.seasons.length > 6 ? ' …' : '')].join(' · ') }) : null]))));
     let awardsCard = ov?.awards?.length ? awardsOf(ov.awards) : null;
     const nextRace = (races || []).find(e => e.status.state !== 'post' && Date.parse(e.end || e.start) > Date.now() - 86_400_000);
     // A player in any league; a team sport's with their team, whose games are theirs.
