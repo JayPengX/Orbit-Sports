@@ -2234,3 +2234,15 @@ button.fp-out:active { opacity: 0.6; }
 .fp-out-main small { font-size: 13px; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fp-out-pos { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .about-text { margin: 0; font-size: 15px; line-height: 1.6; }
+/* A player's career (資料's teams, 數據's seasons). */
+.career-teams .info-k { gap: 3px; }
+.career-teams .fact-mark strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.career-teams .info-v { color: var(--q-text-2, var(--q-muted)); font-weight: 600; }
+.career-teams li.q-press { cursor: pointer; }
+.season-team { display: inline-flex; align-items: center; gap: 6px; }
+.season-team .logo-wrap, .season-team .logo { width: 18px; height: 18px; object-fit: contain; }
+.season-team small { font-size: 11px; }
+/* (Every column on a 320 phone: nothing to scroll.) */
+table.career-seasons th, table.career-seasons td { padding-left: 4px; padding-right: 4px; }
+table.career-seasons th:first-child, table.career-seasons td:first-child { padding-left: 0; }
+table.career-seasons th:last-child, table.career-seasons td:last-child { padding-right: 0; }

@@ -55,8 +55,14 @@ couldn't be read is shown, never hidden.
     scored/let in from its games, 聯盟排名, 數據領先), 賽程, 數據 (its own
     numbers ranked among the league's teams, then 隊內排行), 陣容, 排名.
   - **A player:** 概況 (his team's next game, his last line, the season,
-    聯盟排名), 賽程 (next game, game log), 數據 (every league rank), 資料;
-    opened from a game, its 本場 line.
+    聯盟排名), 賽程 (next game, game log), 數據 (every league rank, then
+    歷年數據: each season's team and numbers), 資料 (profile with 選秀,
+    初登場, 年資, 大學; 生涯球隊: every team with its years, seasons and
+    games, loans and the national side; 榮譽); opened from a game, its 本場
+    line. The career (`lib/career.mjs`, read behind the page): NBA and MLB
+    from ESPN's athletes/<id>/stats (proxy trim espn-career), football from
+    FotMob's player page (found by name and club, checked by birthday;
+    trims fotmob-search, fotmob-player), F1 teams from Jolpica.
   - **An F1 constructor.**
 - **Team numbers** (`lib/teamstats.mjs`): NBA and MLB from ESPN's
   statistics/byteam (the proxy's `espn-teams` trim), football from FotMob's

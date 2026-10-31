@@ -2302,6 +2302,11 @@ export function parseAthlete(data) {
     // The latest injury report: its status, what and where, when they're due back, ESPN's word on it.
     injury: a.injuries?.[0] ? { status: a.injuries[0].status || a.injuries[0].type?.description || '', date: a.injuries[0].date || '', what: [a.injuries[0].details?.type, a.injuries[0].details?.detail].filter(x => x && x !== 'Other' && x !== 'Not Specified').join(' '), back: a.injuries[0].details?.returnDate || '', comment: a.injuries[0].shortComment || a.injuries[0].longComment || '' } : null,
     stats: { title: a.statsSummary?.displayName || '', list: (a.statsSummary?.statistics || []).map(s => ({ label: s.shortDisplayName || s.abbreviation, name: s.displayName, value: s.displayValue, rank: s.rankDisplayValue || '' })) },
+    // How he came into the league (career.mjs reads them): the draft ("2017: Rd 1, Pk 13 (DEN)"), his first season, his seasons in it ("10th Season"), his college.
+    draft: a.displayDraft || '',
+    debut: Number(a.debutYear) || null,
+    experience: a.displayExperience || '',
+    college: a.collegeTeam?.shortDisplayName || a.college?.name || '',
     // A driver's country.
     country: a.flag?.alt || a.citizenship || a.citizenshipCountry?.abbreviation || '',
     flag: a.flag?.href || ''
