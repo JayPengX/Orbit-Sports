@@ -6,7 +6,7 @@ import * as kitUI from '#kit/ui.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName } from './lib/compname.mjs';
-import { returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad } from './lib/espn.mjs';
+import { SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -22,7 +22,7 @@ import { isFlag } from '#kit/photos.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, apart, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
-import { f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
+import { driverAbout, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
@@ -5678,6 +5678,51 @@ export function tableNow(groups, league, recent = []) {
 function freshStandings(league) {
   return standings(league).then(g => (g?.length ? tableNow(g, league, ctx.recentOf?.(league) || []) : g));
 }
+// Each session of the season a stand-in drove (in its entry list, ESPN's),
+// as F1's own timing has his car: [{ e, abbr, start, team, colour, number,
+// pos }], oldest first (a session not over yet: no place).
+async function sessionsDriven(events, id, name) {
+  const runs = (events || []).flatMap(e => (e.sessions || []).filter(x => (x.field || []).some(c => c.id === String(id))).map(x => ({ e, x })));
+  const want = fold(name);
+  const last = want.split(' ').at(-1);
+  const out = await Promise.all(
+    runs.map(async ({ e, x }) => {
+      const timing = await sessionTiming(x.start).catch(() => null);
+      const car = (timing?.cars || []).find(c => fold(c.name) === want) || (timing?.cars || []).find(c => fold(c.name).endsWith(last));
+      const at = x.field.findIndex(c => c.id === String(id));
+      return { e, abbr: x.abbr, start: x.start, team: car?.team || '', colour: car?.colour || '', number: car?.no || '', pos: x.status.state === 'post' ? car?.pos < 99 ? car.pos : at + 1 : 0 };
+    })
+  );
+  return out.sort((a, b) => a.start.localeCompare(b.start));
+}
+// The sessions a stand-in drove this season, latest first: the weekend, the
+// session, the car, where he finished it; a tap opens that session.
+function outingsCard(list, en) {
+  const rows = [...list].reverse();
+  return card(
+    en ? `${new Date().getFullYear()} sessions driven` : `${new Date().getFullYear()} 出賽紀錄`,
+    el(
+      'div',
+      { class: 'fp-outs' },
+      rows.map(o => {
+        const team = f1Constructor(o.team);
+        const session = SESSION_NAMES[o.abbr]?.[en ? 'en' : 'zh'] || o.abbr;
+        const open = o.e ? () => ctx.openEvent(splitWeekend(o.e, Date.now(), L()).find(x => x.sessionKey === o.abbr) || o.e) : null;
+        return el(open ? 'button' : 'div', { class: 'fp-out', type: open ? 'button' : null, onclick: open, style: `--team:${o.colour || team.color}` }, [
+          raceFlag(o.e) || el('span', { class: 'race-flag' }),
+          el('span', { class: 'fp-out-main' }, [el('strong', { text: o.e?.name || session || '' }), el('small', {}, [session || '', ' · ', en ? team.name : team.zh])]),
+          o.pos ? el('span', { class: 'fp-out-pos num', text: `P${o.pos}` }) : null
+        ]);
+      })
+    )
+  );
+}
+// Who he is (Wikipedia's first lines): in Chinese the Chinese article's own, else the English put into Chinese.
+function aboutCard(about, en) {
+  const text = en ? about.en : about.zh || (about.en ? zhLater(about.en, 'en') : '');
+  if (!text) return null;
+  return card(en ? 'About' : '車手背景', el('div', { class: 'stack tight' }, [el('p', { class: 'about-text' }, [text]), el('small', { class: 'muted', text: en ? 'From Wikipedia' : '資料來源：維基百科' })]));
+}
 export async function openPlayer(league, id, fallback = {}) {
   if (!id) return;
   // Opened from a game's page: that game, if he's in its box score.
@@ -5689,13 +5734,22 @@ export async function openPlayer(league, id, fallback = {}) {
     const sport = LEAGUES[league]?.sport;
     // This season, from the league's own tables and results (ESPN's player
     // card has little for drivers): the championship and each race.
-    const [a, ov, table, races, official] = await Promise.all([
+    const [a, ov, table, races, official, guest] = await Promise.all([
       athlete(league, id),
       athleteOverview(league, id).catch(() => null),
       sport === 'racing' && LEAGUES[league].standings ? freshStandings(league).catch(() => null) : null,
       sport === 'racing' ? seasonEvents(league).then(settleScoring).catch(() => []) : null,
       // F1: formula1.com's figures and each weekend's grid, finish and sprint.
-      league === 'f1' ? athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })).catch(() => null) : null
+      league === 'f1' ? athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })).catch(() => null) : null,
+      // A driver who isn't one of the season's twenty-two (a practice's
+      // stand-in, a reserve): the sessions he drove (OpenF1) and who he is
+      // (Wikipedia, f1-people.js), since ESPN and formula1.com have neither.
+      league === 'f1'
+        ? athlete(league, id)
+            .then(x => (f1Driver(x.name).team ? null : Promise.all([seasonEvents(league).then(evs => sessionsDriven(evs, id, x.name)).catch(() => []), driverAbout(x.name).catch(() => null)])))
+            .then(g => (g ? { outings: g[0], about: g[1] } : null))
+            .catch(() => null)
+        : null
     ]);
     // ESPN's player card can name a club record of its own ("RC STRASBOURG
     // ALSACE I", id 133232, no badge) for a club's real side (Strasbourg):
@@ -5725,8 +5779,13 @@ export async function openPlayer(league, id, fallback = {}) {
     const driver = league === 'f1' ? f1Driver(a.name) : null;
     const champ = table ? driverSeason(table, id) : null;
     const name = driver && !en && driver.zh !== a.name ? `${driver.zh}` : a.name;
+    // A stand-in's car now (the last session he drove): his team, colour and number.
+    const outings = guest?.outings || [];
+    const lastCar = outings.at(-1) || null;
+    const guestTeam = lastCar?.team ? f1Constructor(lastCar.team).name : '';
     const facts = [
-      [sport === 'racing' ? W('車隊', 'Team') : T('team'), withMark(driver?.team ? constructorBadge(driver.team, 'xs') : a.teamLogo ? logo(a.teamLogo, a.team, 'xs') : null, driver?.team && !en ? f1Constructor(driver.team).zh : (a.team && !en ? teamNameZh(LEAGUES[league]?.play || league, a.team, sport)?.short : '') || a.team || driver?.team || '')],
+      guestTeam ? [W('車隊', 'Team'), withMark(constructorBadge(guestTeam, 'xs'), en ? guestTeam : f1Constructor(guestTeam).zh)] : null,
+      guestTeam ? null : [sport === 'racing' ? W('車隊', 'Team') : T('team'), withMark(driver?.team ? constructorBadge(driver.team, 'xs') : a.teamLogo ? logo(a.teamLogo, a.team, 'xs') : null, driver?.team && !en ? f1Constructor(driver.team).zh : (a.team && !en ? teamNameZh(LEAGUES[league]?.play || league, a.team, sport)?.short : '') || a.team || driver?.team || '')],
       [T('country'), withMark(countryFlag(a.country) ? el('span', { class: 'fact-flag', 'aria-hidden': 'true', text: countryFlag(a.country) }) : null, countryName(a.country, L()))],
       [T('position'), zhLater(position)],
       [T('age'), a.age ? String(a.age) : ''],
@@ -5734,7 +5793,7 @@ export async function openPlayer(league, id, fallback = {}) {
       [T('weight'), metric(a.weight, L())],
       [T('born'), dateText(a.dob, a.born, L())],
       [T('birthPlace'), zhLater(a.birthPlace || official?.grids.bio?.find(([k]) => k === 'Place of Birth')?.[1])]
-    ].filter(([, v]) => v);
+    ].filter(x => x && x[1]);
     const og = official?.grids || {};
     const weekends = (official?.weekends || []).map(w => ({ ...w, me: w.rows[0], e: eventOfRace(races, w.date) }));
     // Each race this season: where they finished (the race, else the sprint), latest first.
@@ -5905,8 +5964,8 @@ export async function openPlayer(league, id, fallback = {}) {
     // A tap opens it in its own league, only when that's one of ours (a
     // national side's player's club in Cyprus: its name, no page).
     // A driver's team, as a player's: its badge and name, a tap to its page.
-    const teamChip = driver?.team
-      ? el('button', { class: 'hero-team', type: 'button', onclick: () => openConstructor({ id: '', name: driver.team, en: driver.team }) }, [constructorBadge(driver.team, 'xs'), el('span', { text: teamShown })])
+    const teamChip = driver?.team || guestTeam
+      ? el('button', { class: 'hero-team', type: 'button', onclick: () => openConstructor({ id: '', name: driver?.team || guestTeam, en: driver?.team || guestTeam }) }, [constructorBadge(driver?.team || guestTeam, 'xs'), el('span', { text: driver?.team ? teamShown : en ? guestTeam : f1Constructor(guestTeam).zh })])
       : team && teamShown
         ? el('span', { class: 'hero-team' }, [a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null, fitLine(el('span', { text: teamShown }))])
         : null;
@@ -5923,12 +5982,13 @@ export async function openPlayer(league, id, fallback = {}) {
           teamChip.replaceWith(tap);
         })
         .catch(() => {});
-    const sub = [a.jersey ? `#${a.jersey}` : '', zhLater(position), teamChip ? '' : teamShown || countryName(a.country, L())].filter(Boolean);
+    // (A stand-in: his number in that car, and what he is: one who drives a practice, not the races.)
+    const sub = guest ? [lastCar?.number ? `#${lastCar.number}` : '', W('試車手', 'Test driver')].filter(Boolean) : [a.jersey ? `#${a.jersey}` : '', zhLater(position), teamChip ? '' : teamShown || countryName(a.country, L())].filter(Boolean);
     const year = new Date().getFullYear();
-    const heroColor = driver?.team ? driver.color : a.teamColor;
+    const heroColor = driver?.team ? driver.color : guestTeam ? lastCar.colour || f1Constructor(guestTeam).color : a.teamColor;
     const lastFive = weekends.length ? weekends.slice(0, 5).reverse().map(w => ({ name: w.e?.name || w.name, e: w.e, ...finishOf(w.me?.result, en) })) : raceRows.slice(0, 5).reverse().map(r => ({ ...r, text: `P${r.pos}` }));
     // Their headshot (ESPN's; none, every footballer: TheSportsDB's cut-out, personPic finds it).
-    const pic = el('span', { class: 'pic-slot' }, [personPic({ id, name: a.name, headshot: a.headshot, logo: fallback.logo, flag: a.flag }, league, 'xxl round')]);
+    const pic = el('span', { class: 'pic-slot' }, [personPic({ id, name: a.name, headshot: a.headshot || guest?.about?.photo || null, logo: fallback.logo, flag: a.flag }, league, 'xxl round')]);
     // The key numbers in a strip under the hero (the season's first few).
     const stripOf = () => {
       const keyNums = a.stats.list.slice(0, 4);
@@ -5959,7 +6019,10 @@ export async function openPlayer(league, id, fallback = {}) {
             el('div', { class: 'stat-grid' }, [tile(W('排名', 'Place'), T('placeN', { n: champ.pos }), W(`共 ${champ.of} 位`, `of ${champ.of}`)), tile(W('積分', 'Points'), champ.points), champ.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null, tile(W('完成站數', 'Races'), String(champ.races.length))].filter(Boolean))
           )
         : null,
-      nextRace ? nextRaceCard(nextRace, en) : null,
+      // (Not a stand-in's: he isn't in the next race.)
+      nextRace && !guest ? nextRaceCard(nextRace, en) : null,
+      outings.length ? outingsCard(outings, en) : null,
+      guest?.about ? aboutCard(guest.about, en) : null,
       mateCard,
       seasonCard
     ]);
@@ -6010,7 +6073,7 @@ export async function openPlayer(league, id, fallback = {}) {
     const bio = keep([
       facts.length ? card(T('profile'), el('ul', { class: 'info-list' }, facts.map(([k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [v])])))) : null,
       awardsCard,
-      driver?.team ? el('button', { class: 'q-btn block with-mark', type: 'button', onclick: () => openConstructor({ id: '', name: driver.team, en: driver.team }) }, [constructorBadge(driver.team, 'sm'), el('span', { text: `${en ? driver.team : f1Constructor(driver.team).zh} ›` })]) : null
+      driver?.team || guestTeam ? el('button', { class: 'q-btn block with-mark', type: 'button', onclick: () => openConstructor({ id: '', name: driver?.team || guestTeam, en: driver?.team || guestTeam }) }, [constructorBadge(driver?.team || guestTeam, 'sm'), el('span', { text: `${en ? driver?.team || guestTeam : f1Constructor(driver?.team || guestTeam).zh} ›` })]) : null
     ]);
     // 本場 first when opened from a game: his numbers in it, live (drawn
     // again with each of the game page's refreshes while this one is open).

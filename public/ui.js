@@ -4,8 +4,8 @@
 import { LEAGUES, SPORTS, leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
 import { sidesInOrder } from '#kit/catalog.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
-import { keptTiming } from './lib/f1.mjs';
-import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, personPhoto } from '#kit/photos.mjs';
+import { keptTiming, cutoutFace } from './lib/f1.mjs';
+import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, isCutout, personPhoto } from '#kit/photos.mjs';
 import { liveLabel, liveNote, closeLabel, goalHead, withTimeout, liveParts } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
 import { badgeOf } from './lib/leaders.mjs';
@@ -254,6 +254,26 @@ export const raceFlag = (e, cls = '') => (e?.country ? logoPicture(flagUrl(e.cou
 // their id or name, TheSportsDB's cutout), never a flag while a face can be
 // had; the flag (or, for a driver, their team's colour) only when there's none.
 // `p`: { id, name, en?, logo?, headshot?, flag? }.
+// A driver's TheSportsDB cutout (a stand-in's, a practice's young driver:
+// mostly half-body, his head small in the circle): zoomed to his head and
+// shoulders, as ESPN's headshots are, by where the F1 live host read his
+// head to be (f1-people.js face): scaled about that point, clipped back to
+// the circle. One already head-and-shoulders is left as it is.
+const faces = new Map();
+export function frameFace(img) {
+  const url = img.currentSrc || img.src;
+  if (!isCutout(url)) return;
+  const put = f => {
+    if (!f || !(f.s > 1.02) || (img.currentSrc || img.src) !== url) return;
+    const o = k => `${(((0.5 - f.s * f[k]) / (1 - f.s)) * 100).toFixed(2)}%`;
+    Object.assign(img.style, { objectFit: 'cover', objectPosition: '50% 50%', transformOrigin: `${o('x')} ${o('y')}`, transform: `scale(${f.s})`, clipPath: `circle(${(50 / f.s).toFixed(2)}% at ${(f.x * 100).toFixed(1)}% ${(f.y * 100).toFixed(1)}%)` });
+  };
+  const known = faces.get(url);
+  if (known && !(known instanceof Promise)) return put(known);
+  if (!known) faces.set(url, cutoutFace(url).then(f => (faces.set(url, f), f)).catch(() => (faces.delete(url), null)));
+  faces.get(url).then(put);
+}
+if (typeof document !== 'undefined') document.addEventListener('load', ev => ev.target?.tagName === 'IMG' && ev.target.classList.contains('f1-face') && frameFace(ev.target), true);
 export function personPic(p, league, cls = '') {
   const name = p?.en || p?.name || '';
   const flag = p?.flag || (isFlag(p?.logo) ? p.logo : '');
@@ -261,7 +281,7 @@ export function personPic(p, league, cls = '') {
   // one found before, ESPN's by id (a guess), then a search by name; the
   // driver's badge, the flag or the initials meanwhile or when there's none.
   const stand = () => (league === 'f1' ? driverBadge(name, cls) : flag ? logoPicture(flag, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls));
-  return personPhoto(name, league, { urls: [p?.headshot, isFlag(p?.logo) ? null : p?.logo].map(freshHeadshot), guess: freshHeadshot(espnHeadshot(league, p?.id)), later: [espnCollegeHeadshot(league, p?.id)], cls: `logo ${cls}`, fallback: stand });
+  return personPhoto(name, league, { urls: [p?.headshot, isFlag(p?.logo) ? null : p?.logo].map(freshHeadshot), guess: freshHeadshot(espnHeadshot(league, p?.id)), later: [espnCollegeHeadshot(league, p?.id)], cls: `logo ${cls}${league === 'f1' ? ' f1-face' : ''}`, fallback: stand });
 }
 // No picture: a drawing of what it is (a shield, a person), never letters (an older kit without the icons: the letters).
 function markPic(icon, name, cls) {

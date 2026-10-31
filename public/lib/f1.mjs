@@ -194,6 +194,12 @@ export async function weekendCircuit(start) {
   if (!m?.circuit_key) return null;
   return (await circuitMap(m.circuit_key, year).catch(() => null)) || circuitMap(m.circuit_key, year - 1).catch(() => null);
 }
+// ---- A driver the F1 sites don't know (a practice's stand-in) ----
+// Who he is: Wikipedia's first lines ({ en, zh, url }; zh the Chinese
+// article's own, '' without one), through the F1 live host (f1-people.js).
+export const driverAbout = name => getJson(`https://f1-live.orbit/about.json?name=${encodeURIComponent(name)}`, { ttl: 7 * 24 * HOUR });
+// Where his head is in a TheSportsDB cutout ({ x, y, s }), so his round face is head and shoulders.
+export const cutoutFace = url => getJson(`https://f1-live.orbit/face.json?u=${encodeURIComponent(String(url).replace(/\/(small|medium|tiny)$/, ''))}`, { ttl: 30 * 24 * HOUR });
 // The weather at the circuit on the weekend's days there (Open-Meteo, no key,
 // through the proxy: one read a circuit for every phone): [{ date, code, hi,
 // lo, rain }] for the sessions' local dates within its 16 days, or [].
