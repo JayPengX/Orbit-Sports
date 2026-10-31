@@ -59,7 +59,7 @@ test("FotMob's career: clubs he played for (a weeks-long return between loans le
   assert.deepEqual(c.teams.map(t => [t.team.name, t.from, t.to, t.loan]), [['Tottenham Hotspur', 2026, null, false], ['Crystal Palace', 2021, 2022, true]]);
   assert.deepEqual(c.national.map(t => t.team.name), ['England']);
   assert.deepEqual(c.seasons.map(r => [r.season, r.cells.map(x => x.value)]), [['2021-22', ['39', '8', '5', '7.25']]]);
-  assert.deepEqual(c.awards, [{ name: 'Europa League', seasons: ['2018/2019'], count: '' }]);
+  assert.deepEqual(c.awards, [{ name: 'Europa League', seasons: ['2018/2019'], teams: [], count: '' }]);
 });
 
 test('a team run: the same team in seasons next to each other, the newest first', async () => {

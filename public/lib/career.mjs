@@ -141,8 +141,10 @@ export function parseFotmobCareer(p) {
   const won = new Map();
   for (const t of p.trophies || []) {
     if (!(t.leagueId > 0) || !t.won.length) continue;
-    const w = won.get(t.league) || { name: t.league, seasons: [] };
+    const w = won.get(t.league) || { name: t.league, seasons: [], teams: [] };
     w.seasons.push(...t.won);
+    // (The club he won it with, or his country.)
+    if (t.team && !w.teams.includes(t.team)) w.teams.push(t.team);
     won.set(t.league, w);
   }
   const awards = [...won.values()].map(w => ({ ...w, seasons: [...new Set(w.seasons)].sort().reverse(), count: w.seasons.length > 1 ? `${w.seasons.length}x` : '' })).sort((x, y) => y.seasons.length - x.seasons.length);

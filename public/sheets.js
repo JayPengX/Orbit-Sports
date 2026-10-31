@@ -5517,6 +5517,14 @@ function seasonRow(r, rows, sport, en) {
 // (至今 for the one he's with), and his seasons, games and goals there; a
 // footballer's loans said, his country's senior side last. A team of the
 // league's opens its page.
+const TROPHY_ZH = { 'Champions League': '歐洲冠軍聯賽', 'Europa League': '歐霸盃', 'Conference League': '歐協盃', 'UEFA Super Cup': '歐洲超級盃', 'FA Cup': '英足總盃', 'Premier League': '英超' };
+// A club's page by its name (ESPN's search: one of our leagues', the name the same), or null.
+const clubKey = n => fold(n || '').replace(/\b(fc|afc|cf|sc|ac|club|de|the|hotspur)\b/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const clubPage = name =>
+  proxyJson(`https://site.api.espn.com/apis/search/v2?query=${encodeURIComponent(name)}&limit=12`, { ttl: 24 * 3_600_000 })
+    .then(parseSearch)
+    .then(r => r.teams.find(t => t.league && hasTeamPage(t.league) && LEAGUES[t.league]?.sport === 'soccer' && clubKey(t.name) === clubKey(name)) || null)
+    .catch(() => null);
 function careerTeams(c, a, league, sport, en) {
   const W = (zh, eng) => (en ? eng : zh);
   const racing = sport === 'racing';
@@ -5536,11 +5544,22 @@ function careerTeams(c, a, league, sport, en) {
       soccer && x.goals ? W(`${x.goals} 球`, `${x.goals} goals`) : ''
     ].filter(Boolean);
     const mark = racing ? constructorBadge(x.team.name, 'xs') : x.team.logo ? logo(x.team.logo, name, 'xs') : null;
-    const taps = !soccer && !racing && x.team.id && hasTeamPage(league);
-    return el('li', { class: taps ? 'q-press' : '', ...(taps ? { role: 'button', tabindex: '0', onclick: () => ctx.openTeam(league, x.team.id, { id: x.team.id, name: x.team.name, logo: x.team.logo }) } : {}) }, [
+    const li = el('li', {}, [
       el('span', { class: 'info-k' }, [el('span', { class: 'fact-mark' }, [mark, el('strong', { text: name })]), sub.length ? el('small', { class: 'muted', text: sub.join(' · ') }) : null]),
       el('span', { class: 'info-v num', text: span })
     ]);
+    // A tap opens the team (Jay 2026-10-31): the league's own; F1's on today's grid; a club found
+    // among our leagues' by its name (its badge and a › once it's found; one abroad stays a row).
+    const opens = go => {
+      Object.assign(li, { role: 'button', tabIndex: 0, onclick: go });
+      li.classList.add('q-press');
+      li.append(el('span', { class: 'row-chev', 'aria-hidden': 'true', text: '›' }));
+    };
+    if (racing) f1Constructor(x.team.name).page && opens(() => openConstructor({ id: '', name: x.team.name, en: x.team.name }));
+    else if (!soccer) x.team.id && hasTeamPage(league) && opens(() => ctx.openTeam(league, x.team.id, { id: x.team.id, name: x.team.name, logo: x.team.logo }));
+    else if (!national && now && a.teamId && clubKey(a.team) === clubKey(x.team.name)) opens(() => ctx.openTeam(league, a.teamId, { id: a.teamId, name: a.team, logo: a.teamLogo }));
+    else clubPage(x.team.name).then(t => t && opens(() => ctx.openTeam(t.league, t.id, { id: t.id, name: t.name, logo: t.logo })));
+    return li;
   };
   const rows = [...(c.teams || []).map((x, i) => row(x, i)), ...(c.national || []).map((x, i) => row(x, i, { national: true }))];
   return rows.length ? card(racing ? W('生涯車隊', 'Teams') : W('生涯球隊', 'Teams'), el('ul', { class: 'info-list results career-teams' }, rows)) : null;
@@ -6012,7 +6031,9 @@ export async function openPlayer(league, id, fallback = {}) {
     };
     let logCard = log?.games.length ? logBox(log) : ov?.now?.none ? noGamesCard() : null;
     // (ESPN's honours; a footballer's from his career, its competitions in our words.)
-    const awardsOf = (list, comps = false) => card(W('榮譽', 'Honours'), el('ul', { class: 'award-list' }, list.map(w => el('li', {}, [el('strong', {}, [(comps && compWord(w.name, en)) || zhLater(w.name)]), w.count ? el('span', { class: 'award-count num', text: w.count.replace(/x$/i, '×') }) : null, w.seasons.length ? el('small', { class: 'muted', text: w.seasons.slice(0, 6).join(' · ') + (w.seasons.length > 6 ? ' …' : '') }) : null]))));
+    // (A footballer's: each competition won said in full, 歐霸盃冠軍, with the club he won it with; Jay 2026-10-31: "what is 歐霸".)
+    const trophyName = name => (en ? `${name} winner` : `${TROPHY_ZH[name] || compWord(name, false) || name}冠軍`);
+    const awardsOf = (list, comps = false) => card(W('榮譽', 'Honours'), el('ul', { class: 'award-list' }, list.map(w => el('li', {}, [el('strong', {}, [comps ? trophyName(w.name) : zhLater(w.name)]), w.count ? el('span', { class: 'award-count num', text: w.count.replace(/x$/i, '×') }) : null, w.seasons.length ? el('small', { class: 'muted', text: [...(w.teams || []).map(t => (en ? t : teamNameZh('', t, 'soccer')?.short || countryName(t, L()))), w.seasons.slice(0, 6).map(x => x.replace(/^(\d{4})\/\d\d(\d\d)$/, '$1/$2')).join(' · ') + (w.seasons.length > 6 ? ' …' : '')].join(' · ') }) : null]))));
     let awardsCard = ov?.awards?.length ? awardsOf(ov.awards) : null;
     const nextRace = (races || []).find(e => e.status.state !== 'post' && Date.parse(e.end || e.start) > Date.now() - 86_400_000);
     // A player in any league; a team sport's with their team, whose games are theirs.
@@ -6157,7 +6178,9 @@ export async function openPlayer(league, id, fallback = {}) {
     };
     // His career, read behind the page (資料 and 數據 aren't what it opens
     // on): 資料's teams and honours, 數據's seasons, the draft's team.
-    playerCareer(league, id, a)
+    // (A read turned away, Jolpica's too-many: asked again a minute on, twice, while the page is open.)
+    const careerRead = (tries = 0) => playerCareer(league, id, a).catch(e => (tries < 2 && s.dialog.isConnected ? new Promise(r => setTimeout(r, 65_000)).then(() => (s.dialog.isConnected ? careerRead(tries + 1) : null)) : Promise.reject(e)));
+    careerRead()
       .then(c => {
         if (!c || !s.dialog.isConnected) return;
         const draftTeam = c.draftTeam;

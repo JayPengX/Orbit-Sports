@@ -2246,3 +2246,6 @@ button.fp-out:active { opacity: 0.6; }
 table.career-seasons th, table.career-seasons td { padding-left: 4px; padding-right: 4px; }
 table.career-seasons th:first-child, table.career-seasons td:first-child { padding-left: 0; }
 table.career-seasons th:last-child, table.career-seasons td:last-child { padding-right: 0; }
+/* (A team row that opens its page: a › after its years.) */
+.career-teams li.q-press { grid-template-columns: minmax(0, 1fr) auto auto; }
+.career-teams .row-chev { color: var(--q-muted); font-size: 18px; line-height: 1; align-self: center; }
