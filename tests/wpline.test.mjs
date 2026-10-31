@@ -84,11 +84,11 @@ test('a game to come: the sportsbook first, its margin out, else ESPN prediction
   assert.ok(det.home < 0.5);
   const espn = parseSummary({ predictor: { homeTeam: { gameProjection: '53.2' }, awayTeam: { gameProjection: '46.8' } } }, 'cfb');
   assert.deepEqual(espn.predict, { source: 'espn', home: 0.532 });
-  // Arsenal v Leeds, 2026-10-10: DraftKings -275 / 400 draw / +700.
+  // Arsenal v Leeds, 2026-10-10: DraftKings -275 / 400 draw / +700 (the long shots bear most of the margin: 72/18/10, not 69/19/12).
   const book = parseSummary({ pickcenter: [{ provider: { name: 'DraftKings' }, homeTeamOdds: { moneyLine: -275 }, awayTeamOdds: { moneyLine: 700 }, drawOdds: { moneyLine: 400 } }] }, 'epl').predict;
   assert.equal(book.source, 'DraftKings');
-  assert.equal(Math.round(book.home * 100), 69);
-  assert.equal(Math.round(book.draw * 100), 19);
+  assert.equal(Math.round(book.home * 100), 72);
+  assert.equal(Math.round(book.draw * 100), 18);
   assert.equal(parseSummary({}, 'nba').predict, null);
 });
 

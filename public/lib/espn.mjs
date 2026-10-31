@@ -928,6 +928,23 @@ async function withKambiLive(events, league) {
 
 // ---- A match's summary --------------------------------------------------------------
 
+// A sportsbook's prices as each outcome's chance, its margin taken out. Not
+// by sharing it out evenly: a book loads more of it on the long shot, so an
+// even share left the underdog and the draw too high (Jay 2026-10-31,
+// 新英格蘭革命 v 邁阿密國際: DraftKings +165/+290/+125 read 35/24/41,
+// Polymarket's 35/23.5/42.5). Each price raised to the one power that makes
+// them sum to 1 (the "power" method), which takes more off the long shots.
+export function fairChances(prices) {
+  if (!prices.length || prices.some(p => !(p > 0 && p < 1))) return prices;
+  const sum = k => prices.reduce((s, p) => s + p ** k, 0);
+  let [lo, hi] = sum(1) > 1 ? [1, 20] : [0.05, 1];
+  for (let i = 0; i < 60; i++) {
+    const k = (lo + hi) / 2;
+    if (sum(k) > 1) lo = k;
+    else hi = k;
+  }
+  return prices.map(p => p ** ((lo + hi) / 2));
+}
 export function parseSummary(data, league) {
   const header = data?.header?.competitions?.[0];
   const sides = (header?.competitors || []).map(c => localSide(league, parseSide(c)));
@@ -1113,7 +1130,7 @@ export function parseSummary(data, league) {
     // A point whose play ESPN left out: the period of the one before it (the first, of the first that has one).
     .map((p, i, all) => (p.n ? p : ((p.n = i ? all[i - 1].n : all.find(q => q.n)?.n), i && all[i - 1].half && (p.half = all[i - 1].half), p)));
   // A game to come: each side's chance, the sportsbook's moneylines (its
-  // margin taken out), else ESPN's own prediction: { home, draw?, source }.
+  // margin taken out: fairChances), else ESPN's own prediction: { home, draw?, source }.
   // The book first: it's the market's price, what Longshot sells and what
   // a search shows; ESPN's model (BPI) can disagree on the favourite (Jay
   // 2026-10-26: 76人 59% here, the Pistons favoured everywhere else).
@@ -1123,8 +1140,9 @@ export function parseSummary(data, league) {
   let predict = null;
   const book = (data?.pickcenter || []).find(x => implied(x.homeTeamOdds?.moneyLine) && implied(x.awayTeamOdds?.moneyLine));
   if (book) {
-    const [h, a, d] = [implied(book.homeTeamOdds.moneyLine), implied(book.awayTeamOdds.moneyLine), implied(book.drawOdds?.moneyLine) || 0];
-    predict = { source: book.provider?.name || 'book', home: h / (h + a + d), ...(d ? { draw: d / (h + a + d) } : {}) };
+    const d = implied(book.drawOdds?.moneyLine);
+    const [h, a, x] = fairChances([implied(book.homeTeamOdds.moneyLine), implied(book.awayTeamOdds.moneyLine), ...(d ? [d] : [])]);
+    predict = { source: book.provider?.name || 'book', home: h / (h + a + (x || 0)), ...(x ? { draw: x / (h + a + x) } : {}) };
   } else if (chance(predictor?.homeTeam?.gameProjection) != null && chance(predictor?.awayTeam?.gameProjection) != null) {
     const [h, a, d] = [chance(predictor.homeTeam.gameProjection), chance(predictor.awayTeam.gameProjection), chance(predictor.homeTeam.teamChanceTie) || 0];
     predict = { source: 'espn', home: h / (h + a + d), ...(d ? { draw: d / (h + a + d) } : {}) };
@@ -1833,7 +1851,11 @@ export async function teamSchedule(league, id) {
     if (league === 'mlb') await loadPostseason(games);
     return (league === 'mlb' ? byMlbPostseason(games) : games).sort((a, b) => a.start.localeCompare(b.start));
   }
-  const [done, next] = await Promise.all([getJson(base, { ttl: 10 * 60_000 }), getJson(`${base}?fixture=true`, { ttl: 10 * 60_000 }).catch(() => null)]);
+  const [first, next] = await Promise.all([getJson(base, { ttl: 10 * 60_000 }), getJson(`${base}?fixture=true`, { ttl: 10 * 60_000 }).catch(() => null)]);
+  // (An MLS club's, end of October 2026: ESPN's list without a season came
+  // back empty, its fixtures already next season's; the season it names
+  // asked for by year has every game, its last two to come too.)
+  const done = !first?.events?.length && first?.season?.year ? (await getJson(`${base}?season=${first.season.year}`, { ttl: 10 * 60_000 }).catch(() => null)) || first : first;
   const seen = new Set();
   return [...parseSchedule(done, league), ...parseSchedule(next, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).map(freshGame).sort((a, b) => a.start.localeCompare(b.start));
 }
@@ -2176,6 +2198,15 @@ export async function pregameLineups(e, now = Date.now()) {
     );
     return { kind: 'mlb', pitchers: { away: away.pitcher, home: home.pitcher }, order: { away: away.order, home: home.order } };
   }
+  // Football: each side's eleven as it started its last game in this
+  // competition (上場先發, as the NBA's five before RotoWire's), shaped as
+  // its formation; the real one replaces it about an hour before kick-off
+  // (the summary's own rosters). Within two days of the game, as before.
+  if (LEAGUES[e.league]?.sport === 'soccer') {
+    if (ahead > 2 * 86_400_000 || !e.home?.id || !e.away?.id) return null;
+    const [away, home] = await Promise.all([e.away, e.home].map(t => lastEleven(e.league, t.id, e.start).catch(() => null)));
+    return away || home ? { kind: 'soccer', away, home, last: true } : null;
+  }
   const far = CORE_LINEUPS[e.league];
   if (!far || !LEAGUES[e.league]?.espn || !e.home?.id || !e.away?.id) return null;
   const rosters = [e.away, e.home].map(t => roster(e.league, t.id).catch(() => []));
@@ -2208,6 +2239,18 @@ export async function pregameLineups(e, now = Date.now()) {
     return five.length ? { five, last: true } : { five: await depthStarters(e.league, t.id, await rosters[i]).catch(() => []), last: false };
   }));
   return last.some(x => x.five.length) ? { kind: 'core', away: last[0].five, home: last[1].five, last: last.every(x => x.last || !x.five.length), projected: last.some(x => !x.last && x.five.length), pending: false } : null;
+}
+// A football side's last game over before `before`, in this competition
+// (a cup night's rotated side said nothing of a league game's: City's League
+// Cup eleven, Rulli in goal, before a Premier League game), else any: its
+// starting eleven in the formation's order, { formation, players }, or null.
+async function lastEleven(league, id, before) {
+  const done = (await teamSchedule(league, id)).filter(x => x.status?.state === 'post' && !x.status?.void && x.start < before);
+  const g = done.filter(x => x.league === league && !x.other).at(-1) || done.at(-1);
+  if (!g) return null;
+  const r = parseSummary(await getJson(`${SITE}/soccer/all/summary?event=${encodeURIComponent(g.id)}`, { ttl: 6 * 3_600_000 }), league).rosters.find(x => x.team === String(id));
+  const xi = (r?.players || []).filter(p => p.starter).sort((a, b) => (a.place || 99) - (b.place || 99));
+  return xi.length >= 11 ? { formation: r.formation, players: xi.map(({ id, name, short, headshot, jersey, pos }) => ({ id, name, short, headshot, jersey, pos, starter: true })) } : null;
 }
 // A side's depth chart's first at each position (ESPN's: pg, sg, sf, pf, c), with the roster's faces and numbers.
 async function depthStarters(league, id, roster) {

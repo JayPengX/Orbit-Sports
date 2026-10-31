@@ -1514,6 +1514,9 @@ function lineupCard(l, d, e, nameOf) {
   const xi = sides.map(t => d?.rosters?.find(r => r.team === String(t.id) && r.players.some(p => p.starter)));
   if (sport === 'soccer' && xi.some(Boolean))
     return card(title, el('div', { class: 'injuries' }, sides.flatMap((t, i) => (xi[i] ? side(t, xi[i].players.filter(p => p.starter), pos, xi[i].formation) : []))), { sub: W('已公布', 'Announced') });
+  // Not named yet: each side's eleven from its last game, said so (上場先發); the real one about an hour before.
+  if (sport === 'soccer' && l?.kind === 'soccer')
+    return card(title, el('div', { class: 'injuries' }, sides.flatMap(t => [l.away, l.home][k(t)] ? side(t, [l.away, l.home][k(t)].players, pos, [l.away, l.home][k(t)].formation) : [])), { sub: W('上場先發', 'Last game') });
   if (sport === 'soccer') return Date.parse(e.start) - Date.now() < 2 * 86_400_000 ? pending(W('開賽前約 1 小時公布。', 'Named about an hour before kick-off.')) : null;
   if (!l) return null;
   if (l.kind === 'mlb') {
