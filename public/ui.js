@@ -75,6 +75,34 @@ function keepPictures(node, list, keep) {
     }
   }
 }
+// Every screen (Orbit-Core DESIGN.md §10): on a wide screen a page's
+// sections stand in two columns, each a phone's width: what the tab answers
+// on the left, what goes with it on the right; on a phone, one column in the
+// same order. One side empty: the other alone, a phone's column, centred.
+export function cols(left, right) {
+  const l = left.flat().filter(Boolean);
+  const r = right.flat().filter(Boolean);
+  if (!l.length && !r.length) return null;
+  if (!l.length || !r.length) return el('div', { class: 'solo' }, l.length ? l : r);
+  return el('div', { class: 'q-cols tab-cols' }, [el('div', { class: 'col' }, l), el('div', { class: 'col' }, r)]);
+}
+// Like cards of a list (a day's leagues, the teams followed) in as many
+// columns as the screen has room for, each card to the shortest so far, so
+// they read left to right, top to bottom as on a phone. weight: a card's
+// rough height.
+export function balanced(items, weight = () => 1, { most = 3, cls = '' } = {}) {
+  const list = items.filter(Boolean);
+  const fit = kitQ.screenFit();
+  const n = Math.min(most, list.length, fit.w3 ? 3 : fit.wide ? 2 : 1);
+  if (n < 2) return el('div', { class: `one-col ${cls}`.trim() }, list);
+  const columns = Array.from({ length: n }, () => ({ h: 0, kids: [] }));
+  for (const it of list) {
+    const c = columns.reduce((a, b) => (b.h < a.h - 0.5 ? b : a));
+    c.kids.push(it);
+    c.h += weight(it);
+  }
+  return el('div', { class: `q-cols balanced ${cls}`.trim(), style: `--n:${n}` }, columns.map(c => el('div', { class: 'col' }, c.kids)));
+}
 export const spinner = () => el('div', { class: 'center-spin' }, [el('div', { class: 'spinner' })]);
 export const empty = text => kitUI.empty({ title: text });
 export const $ = id => document.getElementById(id);

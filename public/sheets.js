@@ -1039,7 +1039,7 @@ function injuryLine(x, league, { lead = false } = {}) {
   return el('button', { class: `inj-row${lead ? ' lead' : ''}`, type: 'button', disabled: x.id ? null : true, onclick: () => x.id && ctx.openPlayer(league, x.id, { name: x.name, logo: x.headshot }) }, [
     lead ? el('span', { class: 'jersey num', text: x.jersey || '' }) : null,
     personPic(x, league, 'xs round'),
-    el('span', { class: 'inj-who' }, [fitLine(el('strong', { class: 'one-line' }, [playerName(x.full || x.name, 'full', x.name)])), sub.length ? fitLine(el('small', { class: 'one-line' }, joinNodes(sub, ' · '))) : null]),
+    el('span', { class: 'inj-who' }, [fitName(el('strong'), playerName(x.full || x.name, 'full', x.name), shortWords(x.full || x.name)), sub.length ? fitLine(el('small', { class: 'one-line' }, joinNodes(sub, ' · '))) : null]),
     el('span', { class: `inj-status ${x.tone || injTone(x.status)}`, text: x.label || injuryText(x.status) })
   ]);
 }
@@ -1459,7 +1459,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
             leadersBy.map((list, i) =>
               el('div', {}, [
                 el('p', { class: 'mini-h' }, [teamTag(sides[i], sides[i].short || sides[i].name, e.league)]),
-                ...list.map(l => el('button', { class: 'leader', type: 'button', disabled: l.id ? null : true, onclick: () => l.id && ctx.openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) }, [personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'), el('span', { class: 'leader-text' }, [el('small', { text: statName(l.stat, L(), { sport: LEAGUES[e.league]?.sport }) }), el('span', {}, [fitLine(el('strong', { class: 'one-line' }, [playerName(l.full || l.name, 'full', l.name)])), el('b', { class: 'num', text: leaderValue(l.value, L()) })])])]))
+                ...list.map(l => el('button', { class: 'leader', type: 'button', disabled: l.id ? null : true, onclick: () => l.id && ctx.openPlayer(e.league, l.id, { name: l.full || l.name, logo: l.headshot }) }, [personPic({ ...l, name: l.full || l.name }, e.league, 'sm round'), el('span', { class: 'leader-text' }, [el('small', { text: statName(l.stat, L(), { sport: LEAGUES[e.league]?.sport }) }), el('span', {}, [fitName(el('strong'), playerName(l.full || l.name, 'full', l.name), shortWords(l.full || l.name)), el('b', { class: 'num', text: leaderValue(l.value, L()) })])])]))
               ])
             )
           )
@@ -1507,7 +1507,7 @@ function seasonLeadCard(lead, e) {
   const side = (st, x) =>
     el('button', { class: 'leader', type: 'button', onclick: () => openLeader(e.league, x) }, [
       personPic({ ...x, name: x.full || x.name }, e.league, 'sm round'),
-      el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitLine(el('strong', { class: 'one-line' }, [playerName(x.full || x.name, 'full', x.name)])), el('b', { class: 'num', text: x.value })])])
+      el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitName(el('strong'), playerName(x.full || x.name, 'full', x.name), shortWords(x.full || x.name)), el('b', { class: 'num', text: x.value })])])
     ]);
   return card(
     en ? 'Season leaders' : '本季數據領先',
@@ -3165,6 +3165,8 @@ const fitWatch = typeof ResizeObserver === 'function'
         n.dataset.fitted = '1';
         n.textContent = n.dataset.full;
         if (overflows(n)) n.textContent = n.dataset.short;
+        // (Even short, too long for a 320 phone's column, "S. Gilgeous-Alexander": the surname.)
+        if (overflows(n)) n.textContent = n.dataset.short.split(' ').at(-1);
       }
     })
   : null;
@@ -5378,7 +5380,7 @@ export function teamLeadersCard(data, league) {
       { class: 'leader-cols' },
       data.stats.map(st => {
         const x = st.list[0];
-        return el('button', { class: 'leader', type: 'button', onclick: () => openLeader(league, x) }, [personPic({ ...x, name: x.full || x.name }, league, 'sm round'), el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitLine(el('strong', { class: 'one-line' }, [playerName(x.full || x.name, 'full', x.name)])), el('b', { class: 'num', text: x.value })])])]);
+        return el('button', { class: 'leader', type: 'button', onclick: () => openLeader(league, x) }, [personPic({ ...x, name: x.full || x.name }, league, 'sm round'), el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitName(el('strong'), playerName(x.full || x.name, 'full', x.name), shortWords(x.full || x.name)), el('b', { class: 'num', text: x.value })])])]);
       })
     ),
     { sub: leadersSeason(data, sport, en) }
@@ -6807,7 +6809,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
   const colName = colLabel;
   return el(
     'div',
-    { class: 'stack' },
+    { class: `stack tables${groups.length > 1 && many ? ' many' : ''}` },
     groups.map(g => {
       const cols = want.filter(c => g.rows.some(r => r.stats[c] != null && r.stats[c] !== ''));
       const rows = top ? g.rows.filter((r, i) => i < top || ctx.isFollowed(league, r.id)) : g.rows;

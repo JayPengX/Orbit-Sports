@@ -9,7 +9,7 @@
 // What the person follows lives on the pass (this app's payload): leagues in
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
-import { orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
+import { onScreen, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
 import { stripDays } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
@@ -36,7 +36,7 @@ import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, sessionTag, raceFlag, audioName, personPic, refreshBadges } from './ui.js';
+import { cols, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, sessionTag, raceFlag, audioName, personPic, refreshBadges } from './ui.js';
 import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
@@ -1308,7 +1308,8 @@ function renderAll() {
     };
     list = el('div', { class: 'all-day' }, [
       el('p', { class: 'day-head', text: [dayLabel(date, { long: true }), t('gamesN', { n: games.length })].join(' · ') }),
-      ...(games.length ? groups.map(group) : [empty(unread ? t('someUnread') : t('noGames'))])
+      // (A wide screen: the leagues side by side, each a card of its games.)
+      games.length ? balanced(groups.map(group), g => 1.6 + g.querySelectorAll('.event-row').length + (g.querySelector('.show-more') ? 0.5 : 0)) : empty(unread ? t('someUnread') : t('noGames'))
     ]);
   }
   const parts = [head, leagueRail(scoresRail()), strip, list];
@@ -1563,27 +1564,32 @@ function renderHome() {
     box,
     homeBar(),
     homeFilters(),
-    h.picking ? sportPicker() : hero,
-    h.picking ? null : liveBlock,
-    // A day gone by: its games, every one, by the clock, as they ended (no
-    // picks: ranked again on today's tables, yesterday's changed; the owner,
-    // 2026-10-18). Theirs and the others on TV, under the sport chosen.
-    past ? pastDay() : null,
-    // (Nothing followed yet: the sport picker above already says so; no note under it.)
-    !past && (fallback || finding) && !endedGames.length && !(h.picking && !hasFollows && state.prefsLoaded && !finding) ? note(gap === 'leagues' ? t('someUnread') : gap === 'tv' ? t('tvUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet'), finding ? t('findingOthers') : planList.length ? t('othersSub') : gap ? t('notKnownYet') : noTvText(h.date), !finding && !planList.length) : null,
-    !past && finding ? spinner() : null,
-    past
-      ? null
-      : planShown.length
-        ? section(t('picks'), el('div', { class: 'q-card list' }, planShown.map(x => planRow(x, rowDay))), { action: !restShown.length && moreAll.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null })
-        : finding || fallback || liveBlock || hero || h.picking || mineNext.length || restShown.length
-          ? null
-          : section(t('picks'), note('', gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine'))),
-    mineNext.length ? section(t('myGames'), kitRail(mineNext)) : null,
-    !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
-    leaguesShelf,
-    placesShelf,
-    endedGames.length ? section(t('pastEvents'), light ? recapList(endedGames, rowDay) : kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
+    h.picking ? sportPicker() : null,
+    // (A wide screen: the day's answer on the left, what's next of theirs on the right.)
+    cols([
+      h.picking ? null : hero,
+      h.picking ? null : liveBlock,
+      // A day gone by: its games, every one, by the clock, as they ended (no
+      // picks: ranked again on today's tables, yesterday's changed; the owner,
+      // 2026-10-18). Theirs and the others on TV, under the sport chosen.
+      past ? pastDay() : null,
+      // (Nothing followed yet: the sport picker above already says so; no note under it.)
+      !past && (fallback || finding) && !endedGames.length && !(h.picking && !hasFollows && state.prefsLoaded && !finding) ? note(gap === 'leagues' ? t('someUnread') : gap === 'tv' ? t('tvUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet'), finding ? t('findingOthers') : planList.length ? t('othersSub') : gap ? t('notKnownYet') : noTvText(h.date), !finding && !planList.length) : null,
+      !past && finding ? spinner() : null,
+      past
+        ? null
+        : planShown.length
+          ? section(t('picks'), el('div', { class: 'q-card list' }, planShown.map(x => planRow(x, rowDay))), { action: !restShown.length && moreAll.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null })
+          : finding || fallback || liveBlock || hero || h.picking || mineNext.length || restShown.length
+            ? null
+            : section(t('picks'), note('', gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine')))
+    ], [
+      mineNext.length ? section(t('myGames'), kitRail(mineNext)) : null,
+      !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
+      leaguesShelf,
+      placesShelf,
+      endedGames.length ? section(t('pastEvents'), light ? recapList(endedGames, rowDay) : kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
+    ])
   );
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
@@ -1884,12 +1890,16 @@ function renderLive() {
   put(
     box,
     liveBar(),
-    hero,
-    !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })])) : null,
-    guide,
-    live.length > 1 ? section(t('liveNow'), el('div', { class: 'q-card list' }, live.slice(1).map(liveRow)), { cls: 'live-now' }) : null,
-    mineBlock,
-    later.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null
+    // (A wide screen: what's on now on the left, what's next on the right.)
+    cols(
+      [
+        hero,
+        !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })])) : null,
+        guide,
+        live.length > 1 ? section(t('liveNow'), el('div', { class: 'q-card list' }, live.slice(1).map(liveRow)), { cls: 'live-now' }) : null
+      ],
+      [mineBlock, later.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null]
+    )
   );
 }
 // Another day on 轉播: everything on TV here that day by the clock (the
@@ -1924,10 +1934,10 @@ function renderLiveDay(d) {
   put(
     box,
     liveBar(),
-    hero,
-    !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null,
-    guide,
-    rest.length ? section(L({ zh: '當天轉播', en: 'On TV that day' }), el('div', { class: 'q-card list' }, rest.map(e => eventRow(e, { day: false }))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null
+    cols(
+      [hero, !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null, guide],
+      [rest.length ? section(L({ zh: '當天轉播', en: 'On TV that day' }), el('div', { class: 'q-card list' }, rest.map(e => eventRow(e, { day: false }))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null]
+    )
   );
 }
 // ---- 愛爾達's guide -------------------------------------------------------------------------
@@ -3112,7 +3122,7 @@ function renderScores() {
     const past = events.filter(e => e.status.state === 'post').reverse();
     // A race series: one card per weekend (its sessions inside), not a row per session.
     const racing = LEAGUES[sc.league]?.sport === 'racing';
-    const block = (title, list) => section(title, el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { league: false }))));
+    const block = (title, list) => section(title, el('div', { class: 'q-card list game-grid' }, list.map(e => eventRow(e, { league: false }))));
     // A race series: one card per weekend (its sessions inside), placed by
     // the whole weekend: on while a session is, to come while one is (its
     // practice over or not), over once they all are.
@@ -3167,7 +3177,7 @@ function renderScores() {
     // cup night's 18 drawn at once froze a league switch for most of a second
     // on a phone). A quiet refresh redraws in place, every game at once.
     const row = e => eventRow(e, { league: false, day: false });
-    const card = shown.length ? el('div', { class: 'q-card list' }, (scoresQuiet ? shown : shown.slice(0, FIRST_ROWS)).map(row)) : null;
+    const card = shown.length ? el('div', { class: 'q-card list game-grid' }, (scoresQuiet ? shown : shown.slice(0, FIRST_ROWS)).map(row)) : null;
     if (card && !scoresQuiet) moreRows(card, shown.slice(FIRST_ROWS), row);
     list = el('div', {}, [el('p', { class: 'day-head', text: [dayLabel(sc.date, { long: true }), wk, t('gamesN', { n: shown.length })].filter(Boolean).join(' · ') }), card || empty(t('noGames'))]);
   }
@@ -3286,7 +3296,7 @@ function renderFollowing() {
   const gamesBlock = games.length
     ? section(
         L({ zh: '比賽', en: 'Matches' }),
-        el('div', { class: 'q-card list followed-games' }, games.map(e => el('div', { class: 'fg-row' }, [withWatch(eventRow(e), e), el('button', { class: 'fg-off', type: 'button', 'aria-label': L({ zh: '取消追蹤這場', en: 'Unfollow this match' }), text: '★', onclick: () => toggleFollowGame(e) })]))),
+        el('div', { class: 'q-card list followed-games game-grid' }, games.map(e => el('div', { class: 'fg-row' }, [withWatch(eventRow(e), e), el('button', { class: 'fg-off', type: 'button', 'aria-label': L({ zh: '取消追蹤這場', en: 'Unfollow this match' }), text: '★', onclick: () => toggleFollowGame(e) })]))),
         { sub: gamesNote(games) }
       )
     : null;
@@ -3298,10 +3308,11 @@ function renderFollowing() {
     el('div', { class: 'q-rowcard' }, [
       el('button', { class: 'q-ritem chevron set-open', type: 'button', onclick: openFollowEditor }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('list') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '聯賽與追蹤', en: 'Leagues and follows' }) }), el('small', { text: names || t('noLeaguesYet') })])]),
       el('button', { class: 'q-ritem chevron set-open', type: 'button', onclick: openFollowEditor }, [el('span', { class: 'q-tile', 'aria-hidden': 'true', html: icon('tv') }), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: t('tvAudio') })]), el('span', { class: 'q-ritem-value', text: (p.audio || 'en') === 'en' ? t('tvAudioEn') : t('tvAudioZh') })])
-    ])
+    ]),
+    { cls: 'following-settings' }
   );
   if (!teams.length && !people.length) {
-    put(box, pageHead(t('tab_following')), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'q-rowcard' }, SUGGEST.map(suggestCard))), settings);
+    put(box, pageHead(t('tab_following')), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'q-rowcard' }, SUGGEST.map(suggestCard)), { cls: 'suggest-teams' }), settings);
     return;
   }
   put(
@@ -3798,6 +3809,15 @@ function tabAgain(tab) {
     pickAllDay(today());
   }
 }
+// Turned on its side, or a window made wider or narrower: the open tab laid
+// out again for its room (how many columns its cards stand in).
+let screenWas = '';
+onScreen(fit => {
+  const k = `${fit.wide}${fit.w3}`;
+  if (k === screenWas) return;
+  screenWas = k;
+  if (state.prefsLoaded) showTab(state.tab);
+});
 // A swipe on 首頁 or 轉播: the day before or after.
 kitUI.daySwipe($('panel-home'), dir => {
   const d = !state.home.picking && stripStep(stripRange, state.home.date, dir);
