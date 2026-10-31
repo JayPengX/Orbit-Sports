@@ -2174,34 +2174,44 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .stack.tight > .title-race { margin: 0; }
 .fight-teams .team-disc, .pd-team .team-disc { width: 18px; height: 18px; }
 /* 賽道: the outline beside its figures, the lap record, the weekend's weather; rows by hairlines, no boxes. */
-.cc-map svg { display: block; width: 100%; height: auto; overflow: visible; }
-.cc-edge { fill: none; stroke: var(--q-fill-3, var(--q-sunken)); stroke-width: 11; stroke-linejoin: round; stroke-linecap: round; }
-.cc-line { fill: none; stroke: var(--q-text); stroke-width: 3.4; stroke-linejoin: round; stroke-linecap: round; }
-.cc-sf { stroke: var(--q-text); stroke-width: 4; }
-.cc-sf-c { stroke: var(--q-surface); stroke-width: 4; stroke-dasharray: 3 3; }
-.cc-dir { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
-.cc-turn circle { fill: var(--q-surface); stroke: var(--q-divider); stroke-width: 1; }
-.cc-turn text { font-size: 8px; font-weight: 600; fill: var(--q-muted); text-anchor: middle; dominant-baseline: central; font-variant-numeric: tabular-nums; }
-.cc-key { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px var(--q-s-4, 16px); padding-top: var(--q-s-2, 8px); }
-.cc-key > span { display: inline-flex; align-items: center; gap: 6px; }
-.cc-key small { font-size: 12px; color: var(--q-muted); white-space: nowrap; }
-.cc-key-sf { width: 14px; height: 4px; background: repeating-linear-gradient(90deg, var(--q-text) 0 3px, var(--q-surface) 3px 6px); border: 1px solid var(--q-text); border-radius: 1px; }
-.cc-key-dir { display: grid; width: 12px; height: 12px; }
-.cc-key-dir svg { width: 12px; height: 12px; fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.cc-key-turn { display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--q-divider); font-size: 9px; font-style: normal; font-weight: 600; color: var(--q-muted); }
-.cc-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--q-s-4, 16px); }
-.cc-fact { display: grid; gap: 2px; min-width: 0; padding: 8px 0; }
-.cc-fact, .cc-record { border-top: 1px solid var(--q-divider); }
-.cc-fact small, .cc-record > small { font-size: 13px; color: var(--q-muted); white-space: nowrap; }
-.cc-fact strong { font-size: 17px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.cc-record { display: flex; align-items: baseline; justify-content: space-between; gap: var(--q-s-3, 12px); padding-top: var(--q-s-3, 12px); }
-.cc-v { display: grid; justify-items: end; gap: 2px; min-width: 0; }
-.cc-v strong { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.cc-v small { max-width: 100%; font-size: 13px; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cc-wx { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: var(--q-s-2, 8px); padding-top: var(--q-s-3, 12px); border-top: 1px solid var(--q-divider); }
-.cc-day { display: grid; justify-items: center; gap: 4px; }
-.cc-day small { font-size: 13px; color: var(--q-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.cc-day strong { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cc { display: grid; gap: var(--q-s-3, 12px); }
+/* The map on a panel of its own, the track drawn as a road on it. */
+.cc-map { border-radius: var(--q-r-cell, 14px); background: var(--q-fill-3, var(--q-sunken)); }
+.cc-map svg { display: block; width: 100%; height: auto; }
+.cc-edge { fill: none; stroke: var(--q-surface); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; }
+.cc-line { fill: none; stroke: var(--q-text); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.cc-dir { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.cc-sf { stroke: var(--q-text); stroke-width: 3.2; }
+.cc-sf-c { stroke: var(--q-surface); stroke-width: 3.2; stroke-dasharray: 2.4 2.4; }
+.cc-start-tag rect { fill: var(--accent); }
+.cc-start-tag text { font-size: 7.5px; font-weight: 700; letter-spacing: 0.04em; fill: #fff; text-anchor: middle; dominant-baseline: central; }
+.cc-turn { font-size: 8.5px; font-weight: 600; fill: var(--q-muted); text-anchor: middle; dominant-baseline: central; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--q-fill-3, var(--q-sunken)); stroke-width: 3px; stroke-linejoin: round; }
+/* Three big numbers in a row, the rest as chips. */
+.cc-big { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
+.cc-big > span { display: grid; gap: 2px; min-width: 0; padding: 0 var(--q-s-2, 8px); }
+.cc-big > span:first-child { padding-left: 0; }
+.cc-big > span + span { border-left: 1px solid var(--q-divider); }
+.cc-big small { font-size: 12px; color: var(--q-muted); white-space: nowrap; }
+.cc-big strong { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cc-big em { font-style: normal; font-size: 13px; font-weight: 600; color: var(--q-muted); }
+.cc-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.cc-chip { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; padding: 8px 12px; border-radius: 12px; background: var(--q-fill-3, var(--q-sunken)); }
+.cc-chip small { font-size: 12px; color: var(--q-muted); }
+.cc-chip strong { font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cc-record { display: flex; align-items: center; justify-content: space-between; gap: var(--q-s-3, 12px); padding: 10px 12px; border-radius: var(--q-r-cell, 14px); background: var(--q-fill-3, var(--q-sunken)); }
+.cc-rec-k { display: grid; gap: 2px; min-width: 0; }
+.cc-rec-k small { font-size: 12px; color: var(--q-muted); }
+.cc-rec-k span { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-record > strong { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Each day of the weekend on a line: the day, the sky, high and low, the chance of rain. */
+.cc-wx { display: grid; border-top: 1px solid var(--q-divider); }
+.cc-day { display: grid; grid-template-columns: 3.2em 24px minmax(0, 1fr) auto; align-items: center; gap: var(--q-s-3, 12px); padding: 8px 0; }
+.cc-day + .cc-day { border-top: 1px solid var(--q-divider); }
+.cc-day-k { font-size: 14px; color: var(--q-text-2, var(--q-muted)); }
+.cc-t strong { font-size: 16px; font-weight: 600; }
+.cc-t small { font-size: 14px; color: var(--q-muted); }
+.cc-rain { font-size: 13px; color: var(--q-muted); }
+.cc-rain.wet { color: #3b82f6; font-weight: 600; }
 .cc-sky { display: grid; width: 24px; height: 24px; }
 .cc-sky svg { width: 24px; height: 24px; }
 .cc-sky.sun { color: #f59e0b; }
@@ -2220,7 +2230,7 @@ button.pd-step:active { opacity: 0.6; }
 .pd-step.p1 .pd-block { height: 48px; color: var(--q-text); }
 .pd-step.p2 .pd-block { height: 32px; }
 .pd-step.p3 .pd-block { height: 24px; }
-@media (max-width: 360px) { .pd-name { font-size: 14px; } .cc-facts { gap: 0 var(--q-s-3, 12px); } .cc-fact small { font-size: 12px; } .cc-fact strong { font-size: 15px; } }
+@media (max-width: 360px) { .pd-name { font-size: 14px; } .cc-big strong { font-size: 19px; } }
 
 /* A stand-in's sessions this season (an F1 driver the season's 22 don't include): the weekend, the session and car, where he finished. */
 .fp-outs { display: grid; }

@@ -2916,84 +2916,110 @@ function circuitCard(e, sessions) {
   return lateCard(title, 200, async () => {
     const [facts, c, wx] = await Promise.all([circuitFacts(race.start).catch(() => null), weekendCircuit(race.start).catch(() => null), ahead ? circuitWeather(race.start, sessions.map(x => x.start)).catch(() => []) : []]);
     if (!facts && !c && !wx.length) return null;
-    const km = v => String(v || '').replace(/km$/, ' km');
-    const tiles = facts
+    const km = v => String(v || '').replace(/km$/, '');
+    const big = facts
       ? [
-          [en ? 'Length' : '單圈長度', km(facts['Circuit Length']?.v)],
-          [en ? 'Laps' : '圈數', facts['Number of Laps']?.v],
-          [en ? 'Distance' : '比賽距離', km(facts['Race Distance']?.v)],
-          [en ? 'First race' : '首次舉辦', facts['First Grand Prix']?.v]
+          [en ? 'Lap' : '單圈', km(facts['Circuit Length']?.v), 'km'],
+          [en ? 'Laps' : '圈數', facts['Number of Laps']?.v, ''],
+          // (To a tenth: 305.354 km ran past its third of a phone.)
+          [en ? 'Race' : '總距離', Number.isFinite(parseFloat(km(facts['Race Distance']?.v))) ? parseFloat(km(facts['Race Distance'].v)).toFixed(1) : km(facts['Race Distance']?.v), 'km']
         ].filter(([, v]) => v)
       : [];
-    // Figures MultiViewer's map has (the corners, a stop's cost), beside formula1.com's.
-    if (c?.corners?.length) tiles.push([en ? 'Corners' : '彎道', String(c.corners.length)]);
-    if (c?.pitLoss?.normal) tiles.push([en ? 'Pit stop' : '進站損失', en ? `${c.pitLoss.normal.toFixed(1)} s` : `${c.pitLoss.normal.toFixed(1)} 秒`]);
+    // The smaller figures, each a chip: the first race, the corners and a pit
+    // stop's cost (MultiViewer's), the height above the sea (Open-Meteo's).
+    const chips = [
+      facts?.['First Grand Prix']?.v ? [en ? 'Since' : '首屆', facts['First Grand Prix'].v] : null,
+      c?.corners?.length ? [en ? 'Corners' : '彎道', en ? String(c.corners.length) : `${c.corners.length} 個`] : null,
+      c?.pitLoss?.normal ? [en ? 'Pit stop' : '進站損失', en ? `${c.pitLoss.normal.toFixed(1)} s` : `${c.pitLoss.normal.toFixed(1)} 秒`] : null,
+      wx.elevation != null ? [en ? 'Altitude' : '海拔', `${wx.elevation.toLocaleString('en-US')} m`] : null
+    ].filter(Boolean);
     const map = c ? circuitDrawing(c, title, en) : null;
     const rec = facts?.['Fastest lap time'];
     const day = date => new Date(`${date}T12:00:00`).toLocaleDateString(en ? 'en-US' : 'zh-TW', { weekday: 'short' });
     return card(
       title,
-      el('div', { class: 'stack tight' }, [
+      el('div', { class: 'cc' }, [
         map,
-        tiles.length ? el('div', { class: 'cc-facts' }, tiles.map(([k, v]) => el('span', { class: 'cc-fact' }, [el('small', { text: k }), el('strong', { class: 'num', text: v })]))) : null,
-        // The lap record, who and when on the line under it.
-        rec?.v ? el('div', { class: 'cc-record' }, [el('small', { text: en ? 'Lap record' : '單圈紀錄' }), el('span', { class: 'cc-v' }, [el('strong', { class: 'num', text: rec.v }), rec.sub ? el('small', { text: rec.sub }) : null])]) : null,
+        big.length ? el('div', { class: 'cc-big', style: `--n:${big.length}` }, big.map(([k, v, unit]) => el('span', {}, [el('small', { text: k }), el('strong', { class: 'num' }, [v, unit ? el('em', { text: ` ${unit}` }) : null])]))) : null,
+        chips.length ? el('div', { class: 'cc-chips' }, chips.map(([k, v]) => el('span', { class: 'cc-chip' }, [el('small', { text: k }), el('strong', { class: 'num', text: v })]))) : null,
+        // The lap record, who and when beside it.
+        // (Who on the line, the year with the label: "Valtteri Bottas (2021)" ran past a 320 phone.)
+        rec?.v
+          ? (() => {
+              const [, who = rec.sub || '', yr = ''] = /^(.*?)\s*\((\d{4})\)\s*$/.exec(rec.sub || '') || [];
+              return el('div', { class: 'cc-record' }, [el('span', { class: 'cc-rec-k' }, [el('small', { text: [en ? 'Lap record' : '單圈紀錄', yr].filter(Boolean).join(' · ') }), who ? el('span', { text: who }) : null]), el('strong', { class: 'num', text: rec.v })]);
+            })()
+          : null,
         wx.length
-          ? el('div', { class: 'cc-wx', style: `--n:${wx.length}` }, wx.map(w => el('span', { class: 'cc-day' }, [el('small', { text: day(w.date) }), el('span', { class: `cc-sky ${skyIcon(w.code)}`, html: kitUI.icons[skyIcon(w.code)] || '' }), el('strong', { class: 'num', text: `${w.hi}°` }), el('small', { class: 'num', text: `${w.lo}°${w.rain != null ? ` · ${w.rain}%` : ''}` })])))
+          ? el('div', { class: 'cc-wx' }, wx.map(w => el('span', { class: 'cc-day' }, [el('small', { class: 'cc-day-k', text: day(w.date) }), el('span', { class: `cc-sky ${skyIcon(w.code)}`, html: kitUI.icons[skyIcon(w.code)] || '' }), el('span', { class: 'cc-t num' }, [el('strong', { text: `${w.hi}°` }), el('small', { text: ` ${w.lo}°` })]), w.rain != null ? el('small', { class: `cc-rain num${w.rain >= 40 ? ' wet' : ''}`, text: `${w.rain}%` }) : null])))
           : null
       ])
     );
   });
 }
-// The circuit drawn the width of the card: the track, the start/finish line
-// (a chequered bar across it), an arrow the way the cars go, and each corner's
-// number beside it (MultiViewer's: the corner's point and the side its label
-// goes, as F1's own TV graphics put them).
+// The circuit drawn across the card on a panel of its own, turned a quarter
+// where that draws it bigger (Mexico's long and thin): the track as a road,
+// arrows painted on it the way the cars go, the start/finish line chequered
+// with START by it, and each corner's number where MultiViewer puts it (the
+// corner's point and the side its label goes), a number that would sit on
+// another left out.
 function circuitDrawing(c, title, en) {
-  const W = 320;
-  const { fit, H } = trackFit(c, W, 160, 280, 24);
-  const P = c.x.map((x, i) => fit(x, c.y[i]));
+  const W = 320, H = 196, pad = 26;
+  const area = r => {
+    const { fit } = trackFit({ ...c, rotation: r }, W, H, H, pad);
+    const P = c.x.map((x, i) => fit(x, c.y[i]));
+    const xs = P.map(p => p[0]), ys = P.map(p => p[1]);
+    return { fit, P, size: (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys)) };
+  };
+  const a0 = area(c.rotation), a1 = area(c.rotation + 90);
+  const { fit, P } = a1.size > a0.size * 1.25 ? a1 : a0;
   const f = n => n.toFixed(1);
   const d = P.map(p => `${f(p[0])},${f(p[1])}`).join(' ');
   // The way along the track at a point (a few points on, so one short step doesn't turn it).
   const along = i => {
-    const a = P[i], b = P[Math.min(P.length - 1, i + 3)];
-    const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    return [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+    const p = P[i], q = P[Math.min(P.length - 1, i + 3)];
+    const l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+    return [(q[0] - p[0]) / l, (q[1] - p[1]) / l];
   };
   const [s0, s1] = P[0];
   const [tx, ty] = along(0);
   const [nx, ny] = [-ty, tx];
-  const bar = 9;
-  // The start line: across the track, in two halves (white and black: chequered).
+  const bar = 7;
   const line = `<line class="cc-sf" x1="${f(s0 - nx * bar)}" y1="${f(s1 - ny * bar)}" x2="${f(s0 + nx * bar)}" y2="${f(s1 + ny * bar)}"/><line class="cc-sf-c" x1="${f(s0 - nx * bar)}" y1="${f(s1 - ny * bar)}" x2="${f(s0 + nx * bar)}" y2="${f(s1 + ny * bar)}"/>`;
-  // The arrow a twentieth of the lap on, beside the track (on the side away from the corner labels' usual one).
-  const k = Math.max(4, Math.round(P.length / 20));
-  const [ax, ay] = P[k];
-  const [ux, uy] = along(k);
-  const [vx, vy] = [-uy, ux];
-  const o = 13;
-  const [cx, cy] = [ax + vx * o, ay + vy * o];
-  const arrow = `<path class="cc-dir" d="M${f(cx - ux * 7 - vx * 4.5)},${f(cy - uy * 7 - vy * 4.5)} L${f(cx + ux * 5)},${f(cy + uy * 5)} L${f(cx - ux * 7 + vx * 4.5)},${f(cy - uy * 7 + vy * 4.5)}"/>`;
-  // Each corner's number, its label set off the track the way MultiViewer says.
-  const R = Math.hypot(Math.max(...c.x) - Math.min(...c.x), Math.max(...c.y) - Math.min(...c.y)) * 0.045;
-  const labels = (c.corners || [])
-    .map(t => {
-      const a = (Number(t.angle) || 0) * (Math.PI / 180);
-      const [lx, ly] = fit(t.x + Math.cos(a) * R, t.y + Math.sin(a) * R);
-      return `<g class="cc-turn"><circle cx="${f(lx)}" cy="${f(ly)}" r="6.8"/><text x="${f(lx)}" y="${f(ly)}">${Number(t.n)}</text></g>`;
+  // START by the line, on the side away from the track's middle.
+  const mx = P.reduce((t, p) => t + p[0], 0) / P.length, my = P.reduce((t, p) => t + p[1], 0) / P.length;
+  const side = (s0 - mx) * nx + (s1 - my) * ny >= 0 ? 1 : -1;
+  const [lx, ly] = [s0 + nx * side * 17, s1 + ny * side * 17];
+  const startTag = `<g class="cc-start-tag"><rect x="${f(lx - 17)}" y="${f(ly - 7)}" width="34" height="14" rx="7"/><text x="${f(lx)}" y="${f(ly)}">${en ? 'START' : '起點'}</text></g>`;
+  // Arrows on the road, a few along the lap.
+  const arrows = [0.07, 0.38, 0.69]
+    .map(k => {
+      const i = Math.round(P.length * k);
+      const [ax, ay] = P[i];
+      const [ux, uy] = along(i);
+      const [vx, vy] = [-uy, ux];
+      return `<path class="cc-dir" d="M${f(ax - ux * 3 - vx * 3)},${f(ay - uy * 3 - vy * 3)} L${f(ax + ux * 2)},${f(ay + uy * 2)} L${f(ax - ux * 3 + vx * 3)},${f(ay - uy * 3 + vy * 3)}"/>`;
     })
     .join('');
-  return el('div', { class: 'cc-map' }, [
-    el('div', {
-      html: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.name || title)}"><polyline class="cc-edge" points="${d}"/><polyline class="cc-line" points="${d}"/>${line}${arrow}${labels}</svg>`
-    }),
-    el('div', { class: 'cc-key' }, [
-      el('span', {}, [el('i', { class: 'cc-key-sf' }), el('small', { text: en ? 'Start / finish' : '起終點' })]),
-      el('span', {}, [el('i', { class: 'cc-key-dir', html: '<svg viewBox="0 0 12 12"><path d="M3 2 L9 6 L3 10"/></svg>' }), el('small', { text: en ? 'Direction' : '行駛方向' })]),
-      c.corners?.length ? el('span', {}, [el('i', { class: 'cc-key-turn', text: '1' }), el('small', { text: en ? 'Corner' : '彎道編號' })]) : null
-    ])
-  ]);
+  // Each corner's number, set off the track the way MultiViewer says; one that would sit on another (or on START) left out.
+  const R = Math.hypot(Math.max(...c.x) - Math.min(...c.x), Math.max(...c.y) - Math.min(...c.y)) * 0.055;
+  // (Every few points of the track: a number too near it would sit on the road.)
+  const road = P.filter((_, i) => i % 2 === 0);
+  const onRoad = (x, y) => road.some(p => Math.hypot(p[0] - x, p[1] - y) < 6.5);
+  const kept = [[lx, ly, 20]];
+  const labels = (c.corners || [])
+    .map(t => {
+      const ang = (Number(t.angle) || 0) * (Math.PI / 180);
+      const [x, y] = fit(t.x + Math.cos(ang) * R, t.y + Math.sin(ang) * R);
+      if (x < 6 || x > W - 6 || y < 6 || y > H - 6 || onRoad(x, y) || kept.some(([kx, ky, r]) => Math.hypot(kx - x, ky - y) < (r || 12))) return '';
+      kept.push([x, y]);
+      return `<text class="cc-turn" x="${f(x)}" y="${f(y)}">${Number(t.n)}</text>`;
+    })
+    .join('');
+  return el('div', {
+    class: 'cc-map',
+    html: `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.name || title)}"><polyline class="cc-edge" points="${d}"/><polyline class="cc-line" points="${d}"/>${arrows}${line}${labels}${startTag}</svg>`
+  });
 }
 // Last year's podium here: second, first and third side by side, the winner raised.
 function podiumCard(e, sessions) {
