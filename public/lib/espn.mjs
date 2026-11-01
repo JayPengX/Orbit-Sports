@@ -1834,8 +1834,22 @@ export function parseSchedule(data, league) {
     const lg = own || league;
     const home = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'home')));
     const away = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'away')));
-    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, ...startOf(e.date, comp), status: overByRule(parseStatus(comp?.status), away, home, lg), home, away, venue: comp?.venue?.fullName || '', note: comp?.notes?.[0]?.headline || '', ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
+    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, ...startOf(e.date, comp), status: overByRule(parseStatus(comp?.status), away, home, lg), home, away, venue: comp?.venue?.fullName || '', note: comp?.notes?.[0]?.headline || '', ...(e.season?.year ? { seasonYear: Number(e.season.year), seasonName: e.season.displayName || '' } : {}), ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
   });
+}
+// Where a team's games to come cross into its league's next season (Jay
+// 2026-11-01: Miami's list ran from Decision Day 11/8 straight into 2/20,
+// "is this cross season?"): the first of the club's own league's games in a
+// later season than its first one to come. → { at, name: '2027' | '2026-27' }
+// or null. (A cup's or a friendly's season never counts: a cup can name another year.)
+export function seasonBreak(games, league) {
+  const own = games.filter(g => g.league === league && g.seasonYear);
+  if (!own.length) return null;
+  const first = own[0].seasonYear;
+  const next = own.find(g => g.seasonYear > first);
+  if (!next) return null;
+  const name = (String(next.seasonName).match(/\d{4}(?:[-/]\d{2,4})?/) || [String(next.seasonYear)])[0].replace('/', '-');
+  return { at: games.indexOf(next), name };
 }
 // A team's season: its results and the games to come. A soccer club's across
 // all its competitions: ESPN gives the results, and the fixtures on their own.

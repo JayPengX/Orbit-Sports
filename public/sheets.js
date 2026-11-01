@@ -7,7 +7,7 @@ import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, w
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad, europeanClubs } from './lib/espn.mjs';
+import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad, europeanClubs } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -5316,7 +5316,7 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
           body,
           ...(upcoming.length || results.length
             ? [
-                upcoming.length ? block(W('接下來', 'Coming up'), el('div', { class: 'q-card list' }, upcoming.slice(0, 15).map(x => eventRow(x, { league: comps })))) : null,
+                upcoming.length ? block(W('接下來', 'Coming up'), el('div', { class: 'q-card list' }, withSeasonBreak(upcoming.slice(0, 15), league, x => eventRow(x, { league: comps })))) : null,
                 results.length ? block(W('已結束', 'Results'), el('div', {}, [el('div', { class: 'q-card list results-list' }, results.slice(0, shownResults).map(resultRow)), more])) : null
               ].filter(Boolean)
             : [empty(W('本季還沒有賽程。', 'Nothing scheduled this season yet.'))])
@@ -6600,6 +6600,22 @@ export const zoneName = n => {
   const zh = ZONE_ZH.find(([re]) => re.test(n))?.[1];
   return L() === 'en' ? ZONE_EN[zh] || n : zh || n;
 };
+// A list of games to come, a line where it crosses into the league's next
+// season (Jay 2026-11-01: 11/8 straight into 2/20 read as one season):
+// "2027 賽季", and in a league with playoffs, that they come first.
+function withSeasonBreak(games, league, row) {
+  const W = (zh, eng) => (L() === 'en' ? eng : zh);
+  const cut = seasonBreak(games, league);
+  const rows = games.map(row);
+  if (!cut || cut.at <= 0) return rows;
+  const post = FORMATS[league] && !LEAGUES[league]?.cup;
+  const sep = el('div', { class: 'season-break', role: 'separator' }, [
+    el('b', { text: W(`${cut.name} 賽季`, `${cut.name} season`) }),
+    post ? el('small', { text: W('季後賽後開打', 'after the playoffs') }) : null
+  ]);
+  rows.splice(cut.at, 0, sep);
+  return rows;
+}
 // The day a side plays its n-th game from now, from its own schedule (Jay,
 // 2026-10-28: "第 44 場" says nothing in the NBA; the Premier League's
 // 第 12 輪 does, a league without rounds has its calendar). null till it's in.
@@ -6979,15 +6995,20 @@ export function goodZoneReach(rows) {
 // What a table's coloured bars mean (晉級八強, 降級附加賽…), each once, in
 // the order they come down the table.
 // Then the faded rows and the lock, when the table has them (Jay 2026-11-01:
-// "what even is the grey out rule"): 淡色 已無緣季後賽外卡, 🔒 名次已確定.
+// "what even is the grey out rule"): 出局 drawn faded, 🔒 已確定.
 function zoneLegend(rows, out = null, settled = null) {
   const W = (zh, eng) => (L() === 'en' ? eng : zh);
   const seen = new Map();
   for (const r of rows) if (r.note && r.color && !seen.has(r.note)) seen.set(r.note, r.color);
-  const keys = [...seen].map(([note, color]) => el('span', { class: 'zone-key' }, [el('i', { style: `background:${color}`, 'aria-hidden': 'true' }), document.createTextNode(zoneName(note).replace(/^[a-z]/, c => c.toUpperCase()))]));
-  if (out?.size && out.why) keys.push(el('span', { class: 'zone-key out-key' }, [el('b', { text: W('淡色', 'Faded') }), document.createTextNode(W(out.why, `: ${out.why.replace(/^[A-Z]/, c => c.toLowerCase())}`))]));
-  if (settled?.size) keys.push(el('span', { class: 'zone-key' }, [glyph('lock', 'rank-lock'), document.createTextNode(W('名次已確定', 'Place settled'))]));
-  return keys.length ? el('div', { class: 'zone-legend' }, keys) : null;
+  // One row at 320 (Jay 2026-11-01: "wrap and too many text"): the bars'
+  // shared word said once (季後賽 ▍首輪 ▍外卡), a faded row's key the word
+  // 出局 drawn faded, the lock's 已確定.
+  const names = [...seen.keys()].map(n => zoneName(n).replace(/^[a-z]/, c => c.toUpperCase()));
+  const lead = L() === 'en' || names.length < 2 ? '' : (names.every(n => n.startsWith('季後賽') && n.length > 3) ? '季後賽' : '');
+  const keys = [...seen].map(([, color], i) => el('span', { class: 'zone-key' }, [el('i', { style: `background:${color}`, 'aria-hidden': 'true' }), document.createTextNode(lead ? names[i].slice(lead.length) : names[i])]));
+  if (out?.size && out.why) keys.push(el('span', { class: 'zone-key out-key', title: out.why }, [el('b', { text: /季後賽|playoff|wild card/i.test(out.why) ? W('出局', 'Out') : out.why })]));
+  if (settled?.size) keys.push(el('span', { class: 'zone-key', title: W('名次已確定', 'Place settled') }, [glyph('lock', 'rank-lock'), document.createTextNode(W('已確定', 'Settled'))]));
+  return keys.length ? el('div', { class: 'zone-legend' }, [lead ? el('span', { class: 'zone-lead', text: lead }) : null, ...keys].filter(Boolean)) : null;
 }
 
 // ---- A playoff series or a knockout tie: every game of it ---------------------------------

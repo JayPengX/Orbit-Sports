@@ -1511,8 +1511,8 @@ span.hero-team { cursor: default; }
 .zone-key { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .zone-key i { width: 3px; height: 12px; border-radius: 2px; flex: none; }
 /* The faded rows' key: the word itself faded as they are; the lock as in the # column. */
-.zone-key.out-key { gap: 5px; }
-.zone-key.out-key b { font-weight: 600; color: var(--q-text); opacity: 0.55; }
+.zone-key.out-key b { font-weight: 600; color: var(--q-text); opacity: 0.45; }
+.zone-lead { color: var(--q-muted); margin-right: -6px; }
 .zone-key { gap: 4px 6px; }
 .zone-key .race-g.rank-lock { display: inline-grid; width: auto; height: auto; margin: 0; padding: 0; background: none; border-radius: 0; color: var(--q-muted); }
 .zone-key .rank-lock svg { width: 11px; height: 11px; }
@@ -2467,3 +2467,7 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 .tie-why { margin-top: 8px; font-size: 12.5px; }
 .tie-why summary { cursor: pointer; color: var(--q-muted); font-weight: 600; }
 .tie-why p { margin: 4px 0 0; }
+/* Where a team's games to come cross into the next season: a quiet line with the season's name. */
+.season-break { display: flex; align-items: baseline; gap: 8px; padding: 10px 16px 8px; border-top: 1px solid var(--q-sep); background: color-mix(in srgb, var(--q-text) 4%, transparent); font-size: 13px; }
+.season-break b { font-weight: 700; color: var(--q-text); }
+.season-break small { color: var(--q-muted); font-size: 12px; }

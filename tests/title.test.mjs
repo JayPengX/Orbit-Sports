@@ -312,3 +312,12 @@ test('First won: the race moves to the next place still open, and none once ever
   const apart = { rows: Array.from({ length: 6 }, (_, i) => row(`T${i + 1}`, 100 - 10 * i, 33)) };
   assert.equal(standingsRace(apart, 'soccer', { total: 34 }).title.second, undefined);
 });
+
+test("a team's games to come cross into next season: the break before the league's first game of it (Miami 2026-11-01)", async () => {
+  const { seasonBreak } = await import('../public/lib/espn.mjs');
+  const g = (start, league, seasonYear, seasonName) => ({ start, league, seasonYear, seasonName });
+  const list = [g('2026-11-02', 'mls', 2026, '2026 MLS'), g('2026-11-07', 'mls', 2026, '2026 MLS'), g('2027-01-20', 'friendly', 2027, ''), g('2027-02-20', 'mls', 2027, '2027 MLS')];
+  assert.deepEqual(seasonBreak(list, 'mls'), { at: 3, name: '2027' });
+  assert.equal(seasonBreak(list.slice(0, 2), 'mls'), null);
+  assert.deepEqual(seasonBreak([g('2027-05-01', 'epl', 2026, '2026-27 English Premier League'), g('2027-08-20', 'epl', 2027, '2027-28 English Premier League')], 'epl'), { at: 1, name: '2027-28' });
+});
