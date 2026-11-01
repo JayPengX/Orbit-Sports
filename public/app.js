@@ -30,7 +30,7 @@ import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, trimHabit } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
-import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNoteText } from './lib/nbacup.mjs';
+import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote } from './lib/nbacup.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
@@ -2514,13 +2514,11 @@ function playoffView(model, key) {
       el('small', { class: 'br-gname', text: g.kind === 'card' ? (en ? `${conf} wild card · 2nds` : `${conf}外卡・各組第二`) : en ? `${conf} group` : `${conf}小組` }),
       ...g.rows.map(x => el('div', { class: 'br-grow', ...(g.kind === 'card' ? x.zone === 'card' : x.zone === 'lead' || x.zone === 'card') ? { style: `--zone: ${PICTURE_COLOR[x.zone]}` } : {} }, [sideLogo(x, 'nba', 'xs'), el('span', { class: 'br-name', text: x.short || x.name }), el('span', { class: 'num br-rec', text: `${x.w}-${x.l}` })])),
       // Teams level on record: why the one above is above (the cup's tiebreaks; Jay, 2026-11-01).
-      ...tieLines(g.notes, g.rows)
+      ...tieLines(g.notes, g.rows, g.kind === 'card' ? (en ? 'Wild card' : '外卡') : en ? '1st' : '第一')
     ]);
   };
-  const tieLines = (notes, rows) => {
-    const nameOf = id => (r => r?.short || r?.name || id)(rows.find(r => String(r?.id) === String(id)));
-    return (notes || []).map(n => el('small', { class: 'br-why', text: cupNoteText(n, nameOf, en) }));
-  };
+  // (One short line, no names: the card's first place, or a seed, and the step that gave it: 第一依分差 +20/+5.)
+  const tieLines = (notes, rows, what) => (notes || []).map(n => el('small', { class: 'br-why', text: `${n.seed ? (en ? 'Seed' : '種子') : what}${en ? ' by ' : '依'}${cupNote(n, () => '', en).why}` }));
   const tie = (t, r) => {
     // Its games as the newest read has them (the live tick's scoreboard), not as the bracket was read.
     if (t?.games?.length) {
@@ -2534,7 +2532,7 @@ function playoffView(model, key) {
     const said = note(t, r);
     // A game on at a break (中場休息, 暫停): its countdown ticking in the note as everywhere else.
     const on = t?.live && t.games.find(g => g.status?.state === 'in');
-    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said, ...(on ? breakTick(on, said) : {}) }) : null, ...(t?.notes?.length ? tieLines(t.notes, model.groups?.flatMap(g => g.rows) || []) : [])];
+    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said, ...(on ? breakTick(on, said) : {}) }) : null, ...(t?.notes?.length ? tieLines(t.notes.slice(0, 1)) : [])];
     if (!t || t.projected || t.pending) return el('div', { class: `br-tie ${t?.pending ? 'pending' : t?.sure ? 'sure' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
     // (Its sheet from the card as last drawn: patchPlayoffs moves __open over with the newer games.)
     const card = el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => card.__open() }, body);

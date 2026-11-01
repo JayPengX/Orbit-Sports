@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNoteText } from '../public/lib/nbacup.mjs';
+import { nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote } from '../public/lib/nbacup.mjs';
 
 // Last season's (2025-26) group play as ESPN listed it: 60 games, the note alone saying which.
 const raw = JSON.parse(readFileSync(new URL('./fixtures/nbacup-2025.json', import.meta.url), 'utf8'));
@@ -67,8 +67,8 @@ test('level on record: head-to-head first', () => {
   const [grp] = nbaCupGroups(rest([g('a', '2', '1', 100, 99), g('b', '1', '4', 130, 100), g('c', '5', '2', 101, 100)]));
   const order = grp.rows.map(r => r.id);
   assert.ok(order.indexOf('2') < order.indexOf('1'));
-  const n = grp.notes.find(x => x.ahead === '2' && x.behind === '1');
-  assert.equal(n.by, 'h2h');
+  // (2 v 1 is for second, not first: no reason said. Only first place's.)
+  assert.ok(grp.notes.every(x => x.ahead === grp.rows[0].id));
 });
 
 test('level, never met: point differential, then total points, overtime not counted', () => {
@@ -79,7 +79,7 @@ test('level, never met: point differential, then total points, overtime not coun
   assert.equal(grp.rows.find(r => r.id === '2').pd, 0);
   const n = grp.notes.find(x => x.ahead === '1' && x.behind === '2');
   assert.deepEqual([n.by, n.values], ['pd', [10, 0]]);
-  assert.match(cupNoteText(n, id => `T${id}`), /T1 領先 T2：淨勝分 \+10 比 0/);
+  assert.deepEqual(cupNote(n, id => `T${id}`), { a: 'T1', b: 'T2', why: '分差 +10/0', seed: false });
   // Same margin: more points.
   const [same] = nbaCupGroups(rest([g('a', '1', '4', 110, 100), g('b', '2', '5', 120, 110)]));
   assert.deepEqual([same.rows[0].id, same.notes.find(x => x.ahead === '2').by], ['2', 'pf']);

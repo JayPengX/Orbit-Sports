@@ -10,7 +10,7 @@
 //   nbaCupGroups(games, { prev }) -> [{ conf: 'East' | 'West', rows: [{ id, name, short, abbr, logo, w, l, pd, pf, left, zone }], notes }]
 //     zone: 'lead' (first in its group: the quarterfinals) | 'card' (the conference's best second: its wild card) | ''
 //   cupQuarters(groups) -> the quarterfinals as the groups stand: [predicted tie] (East 1 v 4, 2 v 3, then West's; `notes`: a seed settled by a tiebreak)
-//   cupOrder(rows, steps), cupNoteText(note, nameOf, en): the tiebreak steps, and why one is ahead in words
+//   cupOrder(rows, steps), cupNote(note, nameOf, en): the tiebreak steps, and why one is ahead ({ a, b, why })
 //   cupGroupColumn(groups, quarters) -> the bracket's first column: a card a place in the quarterfinals,
 //     [{ group: { conf, kind: 'group' | 'card', rows } }], two beside each quarterfinal (its sides' order)
 
@@ -96,7 +96,8 @@ export function nbaCupGroups(games, { prev = null } = {}) {
     }
     const rows = members.map(m => teams.get(m));
     const { rows: ranked, notes } = cupOrder(rows, groupSteps(result));
-    groups.push({ conf: isEast(id) ? 'East' : 'West', rows: ranked, notes: played({ rows }) ? notes : [] });
+    // Said only where it decides who goes through: first v second (Jay, 2026-11-01: not every level pair).
+    groups.push({ conf: isEast(id) ? 'East' : 'West', rows: ranked, notes: played({ rows }) ? edge(notes, ranked) : [] });
   }
   // The wild card: each conference's best second. Neither marked before a
   // group's first game (the draw's order says nothing).
@@ -109,6 +110,8 @@ export function nbaCupGroups(games, { prev = null } = {}) {
   return groups.sort((a, b) => (a.conf === b.conf ? 0 : a.conf === 'East' ? -1 : 1));
 }
 const played = g => g.rows.some(r => r.w + r.l > 0);
+// The note deciding first place, if a tiebreak did.
+const edge = (notes, rows) => notes.filter(n => n.ahead === rows[0]?.id && n.behind === rows[1]?.id);
 // A side's points in the four quarters (overtime's not counted), else its score.
 function regulation(side, score) {
   const lines = (side?.lines || []).map(Number);
@@ -184,14 +187,14 @@ function settle(level, steps, notes) {
   for (let k = 1; k < drawn.length; k++) notes.push({ ahead: drawn[k - 1].id, behind: drawn[k].id, by: 'draw', values: ['', ''] });
   return drawn;
 }
-// Why a team is above another, in words: "淨勝分 +12 比 +5".
-export function cupNoteText(n, names, en = false) {
-  const [a, b] = [names(n.ahead), names(n.behind)];
+// Why a team is above another, short (one line in a card at 320):
+// { a, b, why } -> 熱火 > 76人 · 分差 +20/+5.
+export function cupNote(n, names, en = false) {
   const v = n.values;
   const signed = x => (Number(x) > 0 ? `+${x}` : String(x));
-  const zh = { h2h: `對戰 ${v[0]}`, pd: `淨勝分 ${signed(v[0])} 比 ${signed(v[1])}`, pf: `總得分 ${v[0]} 比 ${v[1]}`, prev: `上季戰績 ${v[0]} 比 ${v[1]}`, draw: '同分，待聯盟抽籤' }[n.by];
-  const eng = { h2h: `head-to-head ${v[0]}`, pd: `point diff ${signed(v[0])} v ${signed(v[1])}`, pf: `points ${v[0]} v ${v[1]}`, prev: `last season ${v[0]} v ${v[1]}`, draw: 'level: league draw to come' }[n.by];
-  return n.seed ? (en ? `Seed: ${a} over ${b}, ${eng}` : `種子 ${a} 先於 ${b}：${zh}`) : en ? `${a} over ${b}: ${eng}` : `${a} 領先 ${b}：${zh}`;
+  const zh = { h2h: `對戰 ${v[0]}`, pd: `分差 ${signed(v[0])}/${signed(v[1])}`, pf: `得分 ${v[0]}/${v[1]}`, prev: `上季 ${v[0]}/${v[1]}`, draw: '待抽籤' }[n.by];
+  const eng = { h2h: `H2H ${v[0]}`, pd: `Diff ${signed(v[0])}/${signed(v[1])}`, pf: `Pts ${v[0]}/${v[1]}`, prev: `Last yr ${v[0]}/${v[1]}`, draw: 'Draw due' }[n.by];
+  return { a: names(n.ahead), b: names(n.behind), why: en ? eng : zh, seed: Boolean(n.seed) };
 }
 
 // The quarterfinals as the groups stand (Jay, 2026-10-26: the groups and
@@ -228,7 +231,7 @@ export function cupGroupColumn(groups, quarters) {
     if (!list.length) continue;
     cards[conf].push(...list.map(g => ({ conf, kind: 'group', rows: g.rows, notes: g.notes || [] })));
     const seconds = cupOrder(list.map(g => g.rows[1]).filter(Boolean));
-    cards[conf].push({ conf, kind: 'card', rows: seconds.rows, notes: list.some(played) ? seconds.notes : [] });
+    cards[conf].push({ conf, kind: 'card', rows: seconds.rows, notes: list.some(played) ? edge(seconds.notes, seconds.rows) : [] });
   }
   const used = new Set();
   const take = c => (c && !used.has(c) ? (used.add(c), c) : null);

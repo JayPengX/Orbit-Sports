@@ -6937,7 +6937,12 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
 }
 function tieFold(n) {
   if (!n) return null;
-  return el('details', { class: 'tie-why' }, [el('summary', { text: T('tieWhy', { n: n.lines.length }) }), el('p', { class: 'muted small', text: n.rule }), ...n.lines.map(x => el('p', { class: 'small', text: x }))]);
+  // A tie on a zone's edge only: a line each, 同分 and the step that settled it (the league's order on a tap).
+  return el('div', { class: 'tie-why', title: n.rule }, n.lines.map(x => tieRow({ ...x, a: `${L() === 'en' ? 'Level: ' : '同分 '}${x.a}` })));
+}
+// One level pair on one line: 紐約紅牛 > 紐約城 · 勝場 11–9 (the names cut before the reason is).
+export function tieRow(x, cls = '') {
+  return el('div', { class: `tie-row${cls ? ` ${cls}` : ''}` }, [el('span', { class: 'tie-pair', text: `${x.seed ? (L() === 'en' ? 'Seed ' : '種子 ') : ''}${x.a} > ${x.b}` }), el('span', { class: 'tie-by', text: x.why })]);
 }
 // The sides greyed out in a table: those with no chance left at all. A
 // league with playoffs (MLB, the NBA, MLS) keeps them greyed once its

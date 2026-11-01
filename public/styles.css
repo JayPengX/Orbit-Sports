@@ -1327,9 +1327,9 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .br-side.maybe .br-name { color: var(--q-muted); font-weight: 600; }
 .br-note { padding-top: 6px; border-top: 1px solid var(--q-border); font-size: 11.5px; font-weight: 600; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .br-note.live { color: var(--live); }
-/* Why one of two level teams is above (the NBA Cup's tiebreaks): wraps, never cut. */
-.br-why { display: block; font-size: 10.5px; line-height: 1.35; font-weight: 500; color: var(--q-muted); white-space: normal; }
-.br-grow + .br-why, .br-note + .br-why { margin-top: 3px; }
+/* Why one of two level teams is above (the NBA Cup's tiebreaks): one line each, sheets.js tieRow. */
+.br-why { font-size: 10.5px; font-weight: 500; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.br-grow + .br-why, .br-note + .br-why { margin-top: 5px; }
 /* Two rounds: stacked, each tie full width, every name whole. */
 .bracket.stacked { flex-direction: column; gap: 18px; overflow: visible; margin: 0; padding: 2px 0 6px; scroll-snap-type: none; }
 .bracket.stacked .br-col { flex: none; }
@@ -2463,10 +2463,12 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 /* A tab with one section alone: as wide as reads well (a list of games keeps its columns). */
 :root.q-wide .tab-flow:not(.q-flow-laid) > :only-child:not(:has(.game-grid, .team-cards)) { max-width: 720px; margin-inline: auto; }
 
-/* A table's level sides: the league's tiebreaks, folded under it. */
-.tie-why { margin-top: 8px; font-size: 12.5px; }
-.tie-why summary { cursor: pointer; color: var(--q-muted); font-weight: 600; }
-.tie-why p { margin: 4px 0 0; }
+/* A tie on a table's zone edge: one line each, never wrapped. */
+.tie-why { margin-top: 6px; font-size: 12px; }
+.tie-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 3px 0; white-space: nowrap; }
+.tie-row + .tie-row { border-top: 1px solid var(--q-border); }
+.tie-pair { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.tie-by { color: var(--q-muted); font-variant-numeric: tabular-nums; }
 /* Where a team's games to come cross into the next season: a quiet line with the season's name. */
 .season-break { display: flex; align-items: baseline; gap: 8px; padding: 10px 16px 8px; border-top: 1px solid var(--q-sep); background: color-mix(in srgb, var(--q-text) 4%, transparent); font-size: 13px; }
 .season-break b { font-weight: 700; color: var(--q-text); }
