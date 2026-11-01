@@ -236,3 +236,25 @@ test('picks passed over sink and picks opened rise (the kit feedback lift)', asy
   assert.ok(scoreMatch(e, { lift: () => 1.6 }).score > plain);
   assert.equal(scoreMatch(e, { lift: () => 1 }).score, plain);
 });
+
+// The owner, 2026-11-01: one New England v Miami followed, and every MLS game
+// came up on 首頁 as 常看.
+test('one followed game is no habit of its league: other MLS games get no 常看', async () => {
+  const { habitOf, trimHabit, scoreMatch } = await import('../public/lib/picks.mjs');
+  // A follow (league 0.5, sides 2) and the page opened a few days.
+  const aff = { 'league:mls': 3.5, 'sport:soccer': 3.5, 'team:mls:new england revolution': 2, 'team:mls:inter miami cf': 2 };
+  const atl = { league: 'mls', id: 'x', start: '2026-11-01T21:30:00Z', home: { id: '1', name: 'Atlanta United FC' }, away: { id: '2', name: 'Toronto FC' }, status: { state: 'pre' } };
+  assert.equal(habitOf(aff, ['league:mls', 'sport:soccer']), 0);
+  assert.ok(!scoreMatch(atl, { aff, now: Date.parse('2026-11-01T12:00:00Z') }).reasons.includes('habit'));
+  // Kept up for weeks: a habit.
+  assert.ok(habitOf({ 'league:mls': 14 }, ['league:mls']) > 0.35);
+  // A team is a habit by what's known of it.
+  assert.ok(habitOf({ 'team:mls:inter miami cf': 4 }, ['team:mls:inter miami cf']) > 0.35);
+  // The old build-up cut once, unless the league (or a team in it) is followed.
+  const map = { 'league:mls': { v: 9, t: 1, n: 6 }, 'league:epl': { v: 9, t: 1, n: 6 }, 'team:mls:inter miami cf': { v: 4, t: 1, n: 2 } };
+  const out = trimHabit(map, { leagues: ['epl'], follows: [] });
+  assert.equal(out['league:mls'].v, 1);
+  assert.equal(out['league:epl'].v, 9);
+  assert.equal(out['team:mls:inter miami cf'].v, 4);
+  assert.equal(trimHabit(map, { leagues: ['epl', 'mls'] }), null);
+});

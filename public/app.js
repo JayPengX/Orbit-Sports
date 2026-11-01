@@ -9,7 +9,7 @@
 // What the person follows lives on the pass (this app's payload): leagues in
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
-import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
+import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, readJson, writeStore, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
 import { stripDays } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
@@ -27,7 +27,7 @@ import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
-import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices } from './lib/picks.mjs';
+import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, trimHabit } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
 import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNoteText } from './lib/nbacup.mjs';
@@ -201,6 +201,7 @@ function gotPrefs(payload) {
     prefsEdited = false;
     savePrefs();
   }
+  trimOldHabit();
   state.home.picking = false;
   if (!booted) return;
   state.days.clear();
@@ -284,7 +285,10 @@ function toggleFollowGame(e) {
         ? { league: e.league, id: e.weekend || e.id, kind: 'field', name: e.name, start: last, venue: e.venue, country: e.country, status: { state: 'pre' } }
         : { league: e.league, id: e.id, kind: e.kind, name: e.name, start: e.start, status: { state: 'pre' }, away: slimSide(e.away), home: slimSide(e.home), ...(e.other ? { other: e.other } : {}) }
     ];
-    recordAffinity('match', [`league:${leagueKey(e.league)}`, ...[e.away, e.home].filter(Boolean).map(x => teamKey(e.league, x.en || x.name))], 2);
+    // Its sides count; its league only a little (one game followed isn't
+    // the league: picks.mjs habitOf).
+    recordAffinity('match', [e.away, e.home].filter(Boolean).map(x => teamKey(e.league, x.en || x.name)), 2);
+    recordAffinity('match', [`league:${leagueKey(e.league)}`], 0.5);
   }
   changed();
   // Its notices now (a race weekend's sessions read from the season first).
@@ -436,6 +440,35 @@ function changed() {
   if (state.tab === 'home' || state.tab === 'live') loadDay(state.tab === 'live' ? today() : state.home.date);
   if (state.tab === 'following') renderFollowing();
 }
+const OPENED_KEY = 'fx.openedToday';
+function firstOpenToday(e) {
+  const day = new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10);
+  const id = `${e.league}:${e.id}`;
+  let had = null;
+  try {
+    had = JSON.parse(localStorage.getItem(OPENED_KEY) || 'null');
+  } catch {}
+  const ids = had?.day === day ? had.ids || [] : [];
+  if (ids.includes(id)) return false;
+  try {
+    localStorage.setItem(OPENED_KEY, JSON.stringify({ day, ids: [...ids, id].slice(-200) }));
+  } catch {}
+  return true;
+}
+// Once, when the follows are read: a league's habit from before habitOf's
+// rule (one followed game, opened again and again) cut to a trace.
+const HABIT_TRIM_KEY = 'fx.habitTrim1';
+function trimOldHabit() {
+  try {
+    // (Not with no follows read: a league followed would lose its own.)
+    if (localStorage.getItem(HABIT_TRIM_KEY) || !state.prefs.leagues.length) return;
+    const next = trimHabit(readJson(AFF_KEY, {}), state.prefs);
+    if (next) writeStore(AFF_KEY, JSON.stringify(next));
+    localStorage.setItem(HABIT_TRIM_KEY, '1');
+    if (next) q.write({ wallet: followsPatch() }).catch(() => {});
+  } catch {}
+}
+const AFF_KEY = 'orbit.aff.match';
 function track(keys = [], weight = 1) {
   if (keys.length) recordAffinity('match', keys, weight);
 }
@@ -538,7 +571,8 @@ function openFollowEditor() {
 // say 延期 and aren't buttons.
 function openEvent(e) {
   if (e?.status?.void) return;
-  track(eventKeys(e), 1);
+  // Counted once a day: one game opened again and again is one game.
+  if (firstOpenToday(e)) track(eventKeys(e), 1);
   if (state.todayPicks?.some(p => p.league === e.league && p.id === e.id)) feedback?.picked('match', pickItem(e));
   if (e.kind === 'match') return openMatch(e);
   return openFieldEvent(e);
@@ -1363,7 +1397,11 @@ function renderHome() {
   // A match followed on its own shows whether or not it's on TV here: the person asked for it.
   // (ELTA's list unread: every game of theirs, not none; tvUnread.)
   const shown = e => !practice(e) && (isFollowedGame(e) || onTv(e) || ((e.status.state === 'post' || past || tvUnread()) && !tvKnown(e)));
-  const mine = slot.events.filter(shown);
+  // A league read only for a followed match in it (pickLeagues) gives that
+  // match, not its other games: one New England v Miami followed isn't MLS
+  // followed (the owner, 2026-11-01: every MLS game came up in 推薦).
+  const own = new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)]);
+  const mine = slot.events.filter(e => shown(e) && (own.has(e.league) || isFollowedGame(e)));
   // What the reads left unknown (the day's leagues, the others', ELTA's
   // list): while any is, the day is never said to have nothing on.
   const gap = dayUnknown([slot], tvUnread());

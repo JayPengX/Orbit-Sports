@@ -26,7 +26,7 @@
 // list is a day you can actually watch. The rest are "also today".
 
 import { LEAGUES, TOP_LEAGUES } from './leagues.mjs';
-import { eventKeys, teamKey } from './foryou.mjs';
+import { eventKeys, teamKey, leagueKey } from './foryou.mjs';
 import * as dayoff from '#kit/dayoff.mjs';
 
 // Minutes a match usually takes, by sport.
@@ -139,8 +139,7 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   score += 0.1 * [e.home, e.away].filter(x => bigClub(e.league, x)).length;
   if (e.stage?.key === 'final') score += 0.25;
   // Habit: the strongest thing the person is into that this match touches.
-  const max = Math.max(1, ...Object.values(aff));
-  const habit = Math.max(0, ...keys.map(k => (aff[k] || 0) / max));
+  const habit = habitOf(aff, keys);
   score += 0.4 * habit;
   if (habit > 0.35 && !reasons.includes('team')) reasons.push('habit');
   if (lift) score += 0.3 * Math.log(lift({ id: `${e.league}:${e.id}`, keys }));
@@ -175,6 +174,39 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   }
   if (TOP_LEAGUES.includes(e.league) && !reasons.length) reasons.push('top');
   return { score: Math.round(score * 1000) / 1000, reasons };
+}
+
+// Habit (the shared affinity map, key -> weight that halves in 21 days).
+// A team is a habit by what's known of it. A league or a sport is only by
+// interest kept up: games of it opened and followed over weeks (HABIT_LEAGUE
+// and over), never one game followed and looked at (the owner, 2026-11-01:
+// one New England v Miami followed, and every MLS game came up as 常看).
+// Measured against a floor too (HABIT_SCALE): a near-empty map doesn't make
+// its one entry everything.
+export const HABIT_LEAGUE = 8;
+const HABIT_SCALE = 8;
+export function habitOf(aff = {}, keys = []) {
+  const max = Math.max(HABIT_SCALE, ...Object.values(aff));
+  return Math.max(0, ...keys.map(k => {
+    const v = aff[k] || 0;
+    return !k.startsWith('team:') && v < HABIT_LEAGUE ? 0 : v / max;
+  }));
+}
+// Once: a league's habit built up before that (one followed game, its page
+// opened again and again) cut to a trace, for a league the person neither
+// follows nor has a team or player in. `map`: the kit's stored map
+// ({ key: { v, t, n } }); a new one back, or null when nothing changed.
+export function trimHabit(map, { leagues = [], follows = [] } = {}) {
+  const kept = new Set([...leagues, ...follows.map(f => f.league)].filter(Boolean).map(k => `league:${leagueKey(k)}`));
+  let changed = false;
+  const out = {};
+  for (const [k, a] of Object.entries(map || {})) {
+    if (k.startsWith('league:') && !kept.has(k) && a && a.v > 1) {
+      out[k] = { ...a, v: 1 };
+      changed = true;
+    } else out[k] = a;
+  }
+  return changed ? out : null;
 }
 
 // The clubs people here tune in for, whatever the table says this week (the
