@@ -4944,7 +4944,21 @@ function fillField(s, e) {
       const numbers = official && Promise.all([official.catch(() => []), archive()]);
       // Over and its numbers still coming: its last live reading meanwhile (never an empty list or rows in their shape).
       const lastWord = numbers && keptTiming(ss.abbr, ss.start);
-      const espnList = () => (ss.field.length && e.league === 'f1' ? el('ol', { class: 'field f1-field' }, ss.field.map((c, i) => f1Row({ pos: i + 1, full: c.name, field: ss.field, main: c.score || '' }))) : ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField')));
+      // A race or sprint to come: ESPN's field is the grid, the stewards'
+      // drops already in it (Mexico 2026: Verstappen 4th in qualifying, one
+      // place back for a collision in practice). A car not where it qualified
+      // says where it did, so the two lists never read as a mistake (Jay 2026-11-01).
+      const qualiOf = ss.status.state === 'pre' && (ss.abbr === 'Race' || ss.abbr === 'SR') ? sessions.find(x => (ss.abbr === 'Race' ? x.abbr === 'Qual' : x.abbr === 'SS' || x.abbr === 'SQ') && x.status.state === 'post' && x.field?.length) : null;
+      const qualified = c => {
+        if (!qualiOf) return 0;
+        const n = qualiOf.field.findIndex(q => (c.id && q.id === c.id) || (q.en || q.name) === (c.en || c.name));
+        return n + 1;
+      };
+      const gridNote = (c, i) => {
+        const q = qualified(c);
+        return q && q !== i + 1 ? el('small', { class: 'f1-pill num', title: L() === 'en' ? `Qualified P${q}, starts P${i + 1}` : `排位第 ${q}，起跑第 ${i + 1}`, text: L() === 'en' ? `Qualified P${q}` : `排位第 ${q}` }) : null;
+      };
+      const espnList = () => (ss.field.length && e.league === 'f1' ? el('ol', { class: 'field f1-field' }, ss.field.map((c, i) => f1Row({ pos: i + 1, full: c.name, field: ss.field, main: c.score || '', notes: [gridNote(c, i)] }))) : ss.field.length ? el('ol', { class: 'field' }, ss.field.map((c, i) => el('li', { class: ctx.isFollowed(e.league, c.id) ? 'mine' : '' }, [el('span', { class: 'pos num', text: String(i + 1) }), personPic(c, e.league, 'sm round'), personName(e.league, c), c.score ? el('small', { class: 'num', text: c.score }) : null]))) : empty(T('noField')));
       const known = f1Numbers.get(key);
       const shape = () => el('ol', { class: 'field f1-field waiting' }, Array.from({ length: Math.max(1, Math.min(ss.field.length || 10, 22)) }, () => el('li', { class: 'skel-row' }, [skeleton([70], 'skel-pos'), el('i', { class: 'skel skel-pic' }), skeleton([62, 40]), skeleton([90, 50], 'skel-right')])));
       // A session still to come with no order yet: nothing in its place (its
