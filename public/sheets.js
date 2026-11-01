@@ -170,6 +170,16 @@ export async function openMatch(e) {
   // (數據's switch, 球隊 or 球員, under the tabs.)
   const subBox = el('div', { class: 'match-sub' });
   s.body.append(header, sections, subBox, top, content);
+  // A phone on its side is short (Jay 2026-11-01, "looks bad": the head and
+  // its two rows took half the screen). There the game's star stands in the
+  // sheet's head, in the corner across from ✕, and once the head has scrolled
+  // away the sheet's title is the score (styles.css; elsewhere neither shows).
+  const headStar = el('div', { class: 'mh-head-star' });
+  const mini = el('div', { class: 'mh-mini', 'aria-hidden': 'true' });
+  if (s.head?.firstElementChild?.tagName === 'SPAN') s.head.firstElementChild.replaceWith(headStar);
+  s.head?.lastElementChild?.before(mini);
+  const away = () => s.dialog.classList.toggle('mh-away', header.getBoundingClientRect().bottom < (s.head?.getBoundingClientRect().bottom ?? 0));
+  s.dialog.addEventListener('scroll', away, { capture: true, passive: true });
   let view = 'overview';
   let statsPart = 'team';
   let standPart = '';
@@ -265,6 +275,17 @@ export async function openMatch(e) {
         // A guest club's game: neither side's follow here (the two sides even), the league side's under the score.
         hasTeamPage(e.league) && !guestGame ? followChip(e.league, x, () => paintHeader(sm)) : null
       ]);
+    const stage = !roundOnly ? [stageTag(e, L()), seriesText(e)].filter(Boolean).join(' · ') : '';
+    const [l, r] = homeFirst(e) ? [[home, e.home], [away, e.away]] : [[away, e.away], [home, e.home]];
+    put(mini, [
+      sideLogo({ ...l[1], ...l[0], logo: l[0].logo || l[1].logo }, e.league, 'sm'),
+      el('span', { text: l[1].short || l[0].short || l[0].name }),
+      el('strong', { class: 'num', text: st.state === 'pre' ? timeText(e) : [l, r].map(([x]) => scoreText(x.score)).join(' - ') }),
+      el('span', { text: r[1].short || r[0].short || r[0].name }),
+      sideLogo({ ...r[1], ...r[0], logo: r[0].logo || r[1].logo }, e.league, 'sm')
+    ]);
+    const starOn = ctx.isFollowedGame?.(e);
+    put(headStar, ctx.isFollowedGame && (starOn || st.state !== 'post') ? el('button', { class: `q-close mh-star${starOn ? ' on' : ''}`, type: 'button', 'aria-pressed': String(starOn), 'aria-label': L() === 'en' ? 'Follow this match' : '追蹤這場比賽', text: starOn ? '★' : '☆', onclick: () => (ctx.toggleFollowGame(e), paintHeader(sm)) }) : null);
     put(
       header,
       el('div', { class: 'mh-row' }, [
@@ -275,7 +296,9 @@ export async function openMatch(e) {
           // A league's round alone (第 5 輪): under the status, in the room the
           // sides' records and follows leave there, not a row of its own
           // floating between the header and the line score (the owner, 2026-10-17).
-          roundOnly ? el('small', { class: 'mh-round', text: roundLabel(e.league, weekOf(e), weekOf(e), L()) }) : null
+          roundOnly ? el('small', { class: 'mh-round', text: roundLabel(e.league, weekOf(e), weekOf(e), L()) }) : null,
+          // (A phone on its side: the stage here too, its own row under the head left out.)
+          stage ? el('small', { class: 'mh-round mh-stage-mid', text: stage }) : null
         ]),
         homeFirst(e) ? side(away, e.away) : side(home, e.home)
       ]),
@@ -1142,10 +1165,14 @@ function matchSection(view, d, e, table, lw = {}) {
     );
   }
   if (view === 'players' && d?.seasonPlayers?.length) {
+    // Each side's season, in the header's order (left side first); one table
+    // each (a basketball side's averages): the two side by side on a wide sheet.
+    const sides = inOrder(e, [e.away, e.home]).map(t => String(t.id));
+    const list = [...d.seasonPlayers].sort((a, b) => (sides.indexOf(String(a.team)) + 1 || 9) - (sides.indexOf(String(b.team)) + 1 || 9));
     return el(
       'div',
-      { class: 'stack' },
-      d.seasonPlayers.flatMap(p =>
+      { class: `stack${list.length === 2 && list.every(p => p.tables.length === 1) ? ' q-sheet-pair' : ''}` },
+      list.flatMap(p =>
         p.tables.map((tb, _, all) =>
           card(tag(p.team, tb.name === 'avg' || all.length < 2 ? '' : boxTableName(tb.name)), boxTable(tb, `${e.id}|${p.team}|season-${tb.name}`, LEAGUES[e.league]?.sport, r => boxRow(e, tb, r)), { sub: seasonSub(p.season) })
         )
@@ -1493,7 +1520,13 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // and highlights once it's over, who's on (or starts), the chance, who
   // leads, the matchup, the season, the series, the rest.
   const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'season', 'series', 'satOut', 'injuries', 'tv', 'info'];
-  return el('div', { class: 'stack q-sheet-cols q-sheet-cols-2' }, ORDER.map(k => part[k] || (k === 'onField' ? part.lineups : null)));
+  // (A wide sheet: dealt into two columns, each card to the shorter one, the
+  // tops level, kit flowColumns; Jay 2026-11-01, a phone on its side: CSS
+  // columns left one side a card lower and ending far short of the other.)
+  // (Before the start ESPN's 數據領先 are the season's: 本季數據領先 says the
+  // same and more, so only that one; Jay's 76人 v 騎士 page had both.)
+  if ((d?.status || e.status).state === 'pre' && part.season) part.leaders = null;
+  return el('div', { class: 'stack q-flow q-flow-2' }, ORDER.map(k => part[k] || (k === 'onField' ? part.lineups : null)));
 }
 
 // 本季數據領先, side by side: each stat both teams have, its leader on each

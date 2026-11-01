@@ -40,7 +40,10 @@ couldn't be read is shown, never hidden.
   left and what's next right, 轉播's on now and coming up, 賽事's leagues side
   by side), games and team cards in columns, tables with every column and
   conferences side by side, F1 weekends as a grid; the tabs a rail down the
-  left.
+  left. A game's page on a phone on its side: its head one row (the stage
+  under the time, the follow star in the sheet's head), the score in the
+  title once scrolled; 概況's cards dealt into two even columns (kit
+  `flowColumns`), a game to come's 數據 both sides side by side.
 - **Sheets** (full height):
   - **A match:** header and line score, a live panel, then sections drawn
     once in an order set by the game's moment: 概況, 數據, 球員, 過程, 先發,

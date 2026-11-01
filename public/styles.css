@@ -2330,6 +2330,10 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
   .hc-name { font-size: 18px; line-height: 22px; }
   .hc-score { font-size: 30px; line-height: 34px; }
   .hc-status { padding: 4px 9px; }
+  /* (Jay 2026-11-01: 下一場 stood a whole column's height beside 我的比賽.)
+     Two sides of a game side by side, a row the shorter. */
+  .hero-game:has(> .hc-side + .hc-side) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hero-game > .hc-side { grid-column: auto; }
 }
 @media (max-height: 520px) {
   /* A game's head in a sheet: the sides smaller, so the tabs show on the first screen. */
@@ -2361,6 +2365,9 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
    (three from 1000; .q-sheet-cols), the line score beside what's on now,
    each side's line-up and two tables side by side (.q-sheet-pair), 數據's
    bars in two columns, one table with every column, 過程 a readable width. */
+/* 概況's cards dealt into two columns (sheets.js overview, the kit's flowColumns): each a stack. */
+.stack.q-flow-laid > .q-flow-col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
+.stack.q-flow-laid > .q-flow-col > * { margin: 0; }
 @container q-sheet (min-width: 600px) {
   .match-top:has(> :nth-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   .match-top > .q-card { margin: 0; }
@@ -2411,7 +2418,35 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
   .q-sheet-wide .mh-mid { padding-top: 0; gap: 2px; }
   .q-sheet-wide .match-head > .watch-btn.wide { margin: 0; padding: 8px 16px; }
   .q-sheet-wide .match-head > .watch-btn.wide:last-child { margin-bottom: 0; }
+  /* (Jay 2026-11-01, "looks bad": the head, its follows and the tabs took
+     240 of 390 points.) One row: the stage under the time, the follows
+     small, 追蹤這場比賽 the ☆ in the sheet's head; the tabs closer. */
+  .q-sheet-wide .match-head { padding: 0 0 2px; }
+  .q-sheet-wide .mh-team .logo.lg { width: 32px; height: 32px; }
+  .q-sheet-wide .mh-side :is(.q-chip, .follow-btn) { min-height: 28px; margin: 0; padding: 0 10px; font-size: 13px; }
+  .q-sheet-wide .mh-time { font-size: 22px; line-height: 1.1; }
+  .q-sheet-wide .mh-score { font-size: 26px; }
+  .q-sheet-wide .mh-status { padding: 1px 8px; font-size: 12px; }
+  .q-sheet-wide .mh-stage-mid { display: block; margin: 0; font-size: 12px; }
+  .q-sheet-wide .match-head:has(> .mh-stage.link) .mh-stage-mid { display: none; }
+  .q-sheet-wide .match-head > .mh-stage:not(.link) { display: none; }
+  .q-sheet-wide .mh-head-star { display: block; }
+  .q-sheet-wide .match-head > .mh-follow:not(:has(> :nth-child(2))) { display: none; }
+  .q-sheet-wide .match-tabs:not(:empty) { margin: 10px 0 12px; }
+  .q-sheet-wide .match-tabs:empty + .match-sub:empty + .match-top:not(:empty) { margin-top: 10px; }
+  /* The head scrolled away: the sheet's title is the game, as iOS's. */
+  .q-sheet-wide.mh-away .q-sheet-head > h2 { visibility: hidden; }
+  .q-sheet-wide.mh-away .mh-mini { display: flex; }
 }
+/* (Upright, a tablet, a computer: the stage on its own row and 追蹤這場比賽
+   under the head, as before; these two only on a phone on its side.) */
+.mh-stage-mid, .mh-head-star, .mh-mini { display: none; }
+.mh-star { font-size: 18px; color: var(--q-muted); }
+.mh-star.on { color: #d4a017; }
+.q-sheet-head:has(> .mh-mini) > * { grid-row: 1; }
+.mh-mini { grid-column: 2; grid-row: 1; align-items: center; justify-content: center; gap: 8px; min-width: 0; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.mh-mini > span { overflow: hidden; text-overflow: ellipsis; }
+.mh-mini > strong { font-size: 16px; font-weight: 700; padding-inline: 4px; }
 /* A phone on its side is short: a game's row a little tighter. */
 @media (orientation: landscape) and (max-height: 520px) {
   .event-row { padding-block: 10px; }

@@ -41,7 +41,9 @@ export function put(node, ...kids) {
     for (const k of list) k === at ? (at = at.nextSibling) : node.insertBefore(k, at);
   }
   // (A tab's sections in columns: dealt once they're on the page, cols.)
-  if (list.some(k => k.classList?.contains('q-flow'))) kitUI.flowColumns?.(node);
+  // (Or the columns themselves given new sections: a live game's 概況 refreshed in place.)
+  if (node.classList?.contains('q-flow')) kitUI.flowColumns?.(node);
+  else if (list.some(k => k.classList?.contains('q-flow'))) kitUI.flowColumns?.(node);
 }
 // A picture's place: its <picture> (with the dark-screen <source>) or the <img> alone.
 const pictureOf = img => (img.parentNode?.tagName === 'PICTURE' ? img.parentNode : img);
@@ -796,7 +798,7 @@ export function sheet(title, { accent, league } = {}) {
   const s = kitUI.sheet({ title: head, body: [body], cls: `fx-sheet${league ? ' q-full q-sheet-wide' : ''}`, detent: league ? 'large' : '', label: title, closeLabel: ctx.t('close') });
   if (league) s.head?.querySelector('h2')?.classList.add('sheet-lg');
   if (accent) s.el.style.setProperty('--q-accent', accent);
-  return { dialog: s.el, body, close: s.close };
+  return { dialog: s.el, body, close: s.close, head: s.head };
 }
 // A choice of a few: the kit's segmented control, its thumb sliding to the
 // pick; of more (or `chips`), the kit's chips row that scrolls. (`seg`: one
