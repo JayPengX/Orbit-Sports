@@ -13,7 +13,7 @@
   <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES_modules-F7DF1E?logo=javascript&logoColor=000"> <img alt="PWA" src="https://img.shields.io/badge/PWA-works_offline-5A0FC8?logo=pwa&logoColor=fff"> <img alt="Cloudflare" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=fff"> <img alt="Tests" src="https://img.shields.io/badge/Tests-node_--test-339933?logo=nodedotjs&logoColor=fff">
 </p>
 
-Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan for your day and one tap to watch. Part of **Orbit**, a family of phone apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
+Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan for your day and one tap to watch. Part of **Orbit**, a family of apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
 
 <p align="center">
   <img src="docs/screenshots/sports-1.webp" width="30%" alt="Your games, live">
@@ -32,6 +32,7 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 - **Today:** a sticky date strip, what's on now, a no-clash plan of the day's best games, your own teams' games, and what already finished.
 - **Only what you can watch here:** MLB and CPBL, the NBA, the Premier League, Serie A, Bundesliga, Ligue 1, the UEFA cups, MLS on Apple TV, and every F1 session. A league out of season hides itself.
 - **One shape for every page:** a game, a team, a player and a league open the same way, with the competitions as chips (a team's 英超, 聯賽盃 and 歐冠 apart, or 全部).
+- **Player careers:** the draft, debut, years and college, every team with its years, seasons and games (loans too), honours, and season by season, for NBA, MLB, football and F1 drivers; a team's row opens that team.
 - **Match pages:** live score and line score, a win-chance chart with key moments, line-ups, box score, play by play, injuries, standings and season leaders, ordered by the moment of the game.
 - **F1 live board:** F1's own timing in tabs (order, track, tyres, lap times, points), every car moving on the track map, race control in Chinese.
 - **Live tables:** standings count results the moment a game ends, with a title line ("前 8 名，或 Russell、Hamilton 都沒贏") and magic numbers; clinch cards name the head-to-head games still to come and what each side needs; each table's key says what a faded row (no chance left, MLS: 已無緣季後賽外卡) and a lock (名次已確定) mean.
@@ -40,6 +41,7 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 - **今日推薦** learns what you open and what you pass over (kept on the phone for 30 days).
 - **Follow** teams, players, leagues and drivers; get a notice when a game starts or ends, even with the app closed.
 - **Chinese first**, English second; teams in Chinese, players in their own names.
+- **Every screen, either way up:** on a phone on its side, a tablet or a computer each tab is two columns (首頁's answer beside what's next, 賽事's leagues side by side), and a game's cards, line-ups and both tables stand side by side.
 
 ## Tech stack
 
