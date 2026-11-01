@@ -1333,7 +1333,7 @@ function matchSection(view, d, e, table, lw = {}) {
       const groups = starters.length ? [{ name: W('先發', 'Starters'), list: starters, note: pos }, { name: T('bench'), list: rest, note: pos }] : byPosition([{ name: '', players: rest }], sport).map(g => ({ name: g.name, list: g.players }));
       return sideSquad(tag(id), [...groups, { name: T('injuries'), list: out.map(p => ({ ...p, status: why(p)?.status || (en ? 'Injured' : '傷兵'), what: why(p)?.what || '', back: why(p)?.back || '' })), out: true }], e.league, sport);
     });
-    if (cards.some(Boolean) || rostered) return el('div', { class: 'lineups' }, cards.filter(Boolean));
+    if (cards.some(Boolean) || rostered) return el('div', { class: 'lineups q-sheet-pair' }, cards.filter(Boolean));
   }
   if (view === 'table') {
     const official = table?.length ? table : [{ name: '', rows: (d?.table || []).map(r => ({ id: r.id, name: r.team, short: r.team, logo: null, stats: r.stats })) }];
@@ -1343,7 +1343,7 @@ function matchSection(view, d, e, table, lw = {}) {
     const groups = table?.length && sport !== 'racing' ? tableNow(official, e.league, recent) : official;
     // A league by division (MLB's six): the divisions of this game's two sides.
     const mine = groups.filter(g => g.parent && g.rows.some(r => r.id === String(e.home.id) || r.id === String(e.away.id)));
-    return standingsTables(mine.length ? mine : groups, e.league, { mark: [e.home.id, e.away.id], many: mine.length > 0 });
+    return standingsTables(mine.length ? mine : groups, e.league, { mark: [e.home.id, e.away.id], many: mine.length > 0 || groups.length > 1 });
   }
   return overview(d, e, table, nameOf, lw);
 }
@@ -1493,7 +1493,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // and highlights once it's over, who's on (or starts), the chance, who
   // leads, the matchup, the season, the series, the rest.
   const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'season', 'series', 'satOut', 'injuries', 'tv', 'info'];
-  return el('div', { class: 'stack' }, ORDER.map(k => part[k] || (k === 'onField' ? part.lineups : null)));
+  return el('div', { class: 'stack q-sheet-cols q-sheet-cols-2' }, ORDER.map(k => part[k] || (k === 'onField' ? part.lineups : null)));
 }
 
 // 本季數據領先, side by side: each stat both teams have, its leader on each
@@ -6809,7 +6809,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
   const colName = colLabel;
   return el(
     'div',
-    { class: `stack tables${groups.length > 1 && many ? ' many' : ''}` },
+    { class: `stack tables${groups.length > 1 && many ? ' many q-sheet-pair' : ''}` },
     groups.map(g => {
       const cols = want.filter(c => g.rows.some(r => r.stats[c] != null && r.stats[c] !== ''));
       const rows = top ? g.rows.filter((r, i) => i < top || ctx.isFollowed(league, r.id)) : g.rows;

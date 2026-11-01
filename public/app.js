@@ -1542,7 +1542,8 @@ function renderHome() {
   mineNext.forEach(e => seenKeys.add(keyOf(e)));
   const planShown = planList.filter(x => !seenKeys.has(keyOf(x.event)));
   planShown.forEach(x => seenKeys.add(keyOf(x.event)));
-  const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, 12);
+  // (A wide screen shows them as a grid, not a rail: six, then 全部.)
+  const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, screenFit().wide ? 6 : 12);
   const leaguesShelf = gone || h.picking || !hasFollows ? null : section(t('yourLeagues'), el('div', { class: 'q-rail league-rail' }, inSeasonFirst(state.prefs.leagues).map(k => leagueTile(k, lk => openScores(lk)))));
   // (Each team once: a followed player's team is often followed too.)
   const placeSeen = new Set();
@@ -3817,6 +3818,7 @@ let screenWas = fitKey(screenFit());
 onScreen(fit => {
   if (fitKey(fit) === screenWas) return;
   screenWas = fitKey(fit);
+  kitUI.flowColumns?.(document);
   if (state.tab === 'matches' && state.scores.league === ALL && state.prefsLoaded) renderAll();
 });
 // A swipe on 首頁 or 轉播: the day before or after.

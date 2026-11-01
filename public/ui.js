@@ -34,10 +34,14 @@ export function put(node, ...kids) {
   const list = kids.flat().filter(k => k != null && k !== false).map(k => (typeof k === 'string' ? document.createTextNode(k) : k));
   const keep = new Set(list.filter(k => k.parentNode === node));
   keepPictures(node, list, keep);
-  if (!keep.size) return node.replaceChildren(...list);
-  for (const c of [...node.childNodes]) if (!keep.has(c)) c.remove();
-  let at = node.firstChild;
-  for (const k of list) k === at ? (at = at.nextSibling) : node.insertBefore(k, at);
+  if (!keep.size) node.replaceChildren(...list);
+  else {
+    for (const c of [...node.childNodes]) if (!keep.has(c)) c.remove();
+    let at = node.firstChild;
+    for (const k of list) k === at ? (at = at.nextSibling) : node.insertBefore(k, at);
+  }
+  // (A tab's sections in columns: dealt once they're on the page, cols.)
+  if (list.some(k => k.classList?.contains('q-flow'))) kitUI.flowColumns?.(node);
 }
 // A picture's place: its <picture> (with the dark-screen <source>) or the <img> alone.
 const pictureOf = img => (img.parentNode?.tagName === 'PICTURE' ? img.parentNode : img);
@@ -80,11 +84,16 @@ function keepPictures(node, list, keep) {
 // on the left, what goes with it on the right; on a phone, one column in the
 // same order. One side empty: the other alone, a phone's column, centred.
 export function cols(left, right) {
+  // (Jay 2026-11-01, an iPad: the answer's column long and the other's one
+  // shelf, half the screen empty.) The sections in the phone's order, dealt
+  // into columns once on the page (put → the kit's flowColumns): each to
+  // the shortest column so far; upright, one column as before.
   const l = left.flat().filter(Boolean);
   const r = right.flat().filter(Boolean);
   if (!l.length && !r.length) return null;
-  if (!l.length || !r.length) return el('div', { class: 'solo' }, l.length ? l : r);
-  return el('div', { class: 'q-cols tab-cols' }, [el('div', { class: 'col' }, l), el('div', { class: 'col' }, r)]);
+  // (Both sides: upright, spaced as the old two-column grid was, its first
+  // section's margin kept inside; one side: a plain block as before.)
+  return el('div', { class: `q-flow tab-flow${l.length && r.length ? ' tab-flow-both' : ''}` }, [...l, ...r]);
 }
 // Like cards of a list (a day's leagues, the teams followed) in as many
 // columns as the screen has room for, each card to the shortest so far, so
@@ -784,7 +793,7 @@ export function sheet(title, { accent, league } = {}) {
   const body = el('div', { class: 'sheet-body' });
   // (The league's name a tap to its page in 賽事.)
   const head = league ? (() => { const f = document.createDocumentFragment(); f.append(el('button', { class: 'sheet-league', type: 'button', onclick: () => ctx.openLeague?.(league) }, [leagueMark(league), el('span', { text: title })])); return f; })() : title;
-  const s = kitUI.sheet({ title: head, body: [body], cls: `fx-sheet${league ? ' q-full' : ''}`, detent: league ? 'large' : '', label: title, closeLabel: ctx.t('close') });
+  const s = kitUI.sheet({ title: head, body: [body], cls: `fx-sheet${league ? ' q-full q-sheet-wide' : ''}`, detent: league ? 'large' : '', label: title, closeLabel: ctx.t('close') });
   if (league) s.head?.querySelector('h2')?.classList.add('sheet-lg');
   if (accent) s.el.style.setProperty('--q-accent', accent);
   return { dialog: s.el, body, close: s.close };

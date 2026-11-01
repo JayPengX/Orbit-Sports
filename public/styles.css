@@ -2271,20 +2271,18 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
    columns of a phone's width (ui.js cols, balanced): the answer on the
    left, what goes with it on the right; like cards in a grid. ---- */
 :root.q-wide { --q-page-max: 1180px; }
-:root.q-wide .tab-cols > .col > :first-child,
+/* A tab's sections dealt into columns (ui.js cols, the kit's flowColumns:
+   .q-flow-laid > .q-flow-col): two, three on q-w3, each section whole. */
 :root.q-wide .balanced > .col > :first-child { margin-top: 0; }
-:root.q-wide .tab-cols { margin-top: 8px; }
 :root.q-wide .q-cols.balanced { grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); }
-:root.q-wide .solo { max-width: 720px; margin-inline: auto; }
-/* A rail of game cards in a column: under a finger it still swipes (to the
-   column's edge); with a mouse (no swipe) it's a grid, every card in view. */
-:root.q-wide .col .q-rail { margin-inline: 0; padding-inline: 0; scroll-padding-inline: 0; }
-@media (hover: hover) and (pointer: fine) {
-  :root.q-wide .col .q-rail { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 240px), 1fr)); overflow: visible; scroll-snap-type: none; }
-  :root.q-wide .col .q-rail.score-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  :root.q-wide .col .q-rail.score-rail > :last-child:nth-child(odd) { grid-column: 1 / -1; }
-  :root.q-wide .col .q-rail.league-rail { --grid-min: 120px; }
-}
+.tab-flow-both { display: flow-root; }
+:root.q-wide .tab-flow { margin-top: 8px; }
+:root.q-wide .tab-flow > :first-child { margin-top: 0; }
+:root.q-wide .tab-flow.q-flow-laid .game-grid { columns: auto; }
+/* A rail of cards in a column: a grid of whole cards (one or two across as
+   the column has room), never a card cut at the column's edge. */
+:root.q-wide :is(.col, .q-flow-col) .q-rail { margin-inline: 0; padding-inline: 0; scroll-padding-inline: 0; grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 240px), 1fr)); overflow: visible; scroll-snap-type: none; }
+:root.q-wide :is(.col, .q-flow-col) .q-rail.league-rail { --grid-min: 76px; }
 /* A list of games as tiles side by side (賽事's day, a race series' weekends). */
 :root.q-wide .q-card.list.game-grid { overflow: visible; border-radius: 0; background: none; }
 :root.q-wide .game-grid > :is(.event-row, .watch-row, .fg-row) { border-radius: 22px; background: var(--q-surface); overflow: hidden; }
@@ -2354,3 +2352,69 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
   .team-hero > .follow-btn { grid-column: 2; grid-row: 2; justify-self: start; align-self: start; }
   .team-hero .logo.xl { width: 52px; height: 52px; }
 }
+
+/* ---- A page in a sheet, laid out wide (Jay 2026-11-01: a game on a phone
+   on its side was all too big, "a lot of scrolling"). Game, team, player and
+   league sheets are the kit's .q-sheet-wide: the whole screen's width on a
+   phone on its side, up to 1080 on a tablet or a computer. By the sheet's
+   own width (the kit's q-sheet container): 概況's cards in two columns
+   (three from 1000; .q-sheet-cols), the line score beside what's on now,
+   each side's line-up and two tables side by side (.q-sheet-pair), 數據's
+   bars in two columns, one table with every column, 過程 a readable width. */
+@container q-sheet (min-width: 600px) {
+  .match-top:has(> :nth-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .match-top > .q-card { margin: 0; }
+  .stat-bars { display: block; columns: 2; column-gap: 32px; }
+  .stat-bars > .sb-legend { column-span: all; margin-bottom: 12px; }
+  .stat-bars > .stat-bar { break-inside: avoid; margin-bottom: 12px; }
+  .stat-bars > .sb-group { break-after: avoid; margin: 0 0 8px; }
+  .tables:not(.many) .standings:not(.compact) .extra { display: table-cell; }
+  .tables:not(.many) .standings:not(.compact) .nm-full { display: inline; }
+  .tables:not(.many) .standings:not(.compact) .nm-short { display: none; }
+  .match-content .plays-wrap { max-width: 720px; margin-inline: auto; }
+  /* A team's or a player's tab: its cards in two columns; one alone (a
+     list, a table) as wide as reads well. */
+  .team-tab:has(> :nth-child(2)) { display: block; columns: 2; column-gap: 12px; }
+  .team-tab:has(> :nth-child(2)) > * { break-inside: avoid; margin: 0 0 12px; }
+  .team-tab:has(> :nth-child(2)) > .stack { display: block; break-inside: auto; }
+  .team-tab:has(> :nth-child(2)) > .stack > * { break-inside: avoid; margin: 0 0 12px; }
+  .team-tab > :only-child { max-width: 760px; margin-inline: auto; }
+  /* A team's or a player's head: its numbers beside it, not under it. */
+  div:has(> .team-hero + .team-strip) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; }
+  div:has(> .team-hero + .team-strip) > * { grid-column: 1 / -1; min-width: 0; }
+  div:has(> .team-hero + .team-strip) > .team-hero { grid-column: 1; margin: 4px 0 12px; }
+  div:has(> .team-hero + .team-strip) > .team-strip { grid-column: 2; margin: 4px 0 12px; align-items: stretch; }
+  div:has(> .team-hero + .team-strip) > .team-strip > .ts-cell { align-content: center; }
+  /* A race weekend: its hero across, then the day (timeline, result, chart)
+     on the left and the title fight, TV and circuit beside it. */
+  .sheet-body:has(> .wk-hero) { columns: 2; column-gap: 12px; }
+  .sheet-body:has(> .wk-hero) > .wk-hero { column-span: all; margin-bottom: 12px; }
+  .sheet-body:has(> .wk-hero) > :not(.wk-hero) { margin: 0 0 12px; break-inside: avoid; }
+  .sheet-body:has(> .wk-hero) > .race-box { display: block; break-inside: auto; }
+  .sheet-body:has(> .wk-hero) > .race-box > * { break-inside: avoid; margin: 0 0 12px; }
+}
+/* A phone on its side is short: a game's head on one line (each side's
+   crest, name, record and 追蹤 beside the score), 追蹤這場比賽 and 觀看
+   on the line under it, so the tabs and the first cards are on the first screen. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .q-sheet-wide .match-head { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 10px; padding: 0 0 8px; }
+  .q-sheet-wide .match-head > .mh-row { flex: 1 0 100%; align-items: center; gap: 12px; }
+  .q-sheet-wide .match-head > :not(.mh-row) { margin: 0; }
+  .q-sheet-wide .mh-row > .mh-side { display: flex; align-items: center; justify-content: flex-start; gap: 4px 10px; align-self: center; }
+  .q-sheet-wide .mh-row > .mh-side:first-child { flex-direction: row-reverse; }
+  .q-sheet-wide .mh-side > .mh-team { display: flex; align-items: center; gap: 8px; width: auto; flex: none; max-width: 60%; }
+  .q-sheet-wide .mh-side:first-child > .mh-team { flex-direction: row-reverse; }
+  .q-sheet-wide .mh-team .logo.lg { width: 36px; height: 36px; }
+  .q-sheet-wide .mh-side strong { font-size: 16px; }
+  .q-sheet-wide .mh-side small { flex: none; }
+  .q-sheet-wide .mh-side .q-chip { margin: 0; flex: none; }
+  .q-sheet-wide .mh-mid { padding-top: 0; gap: 2px; }
+  .q-sheet-wide .match-head > .watch-btn.wide { margin: 0; padding: 8px 16px; }
+  .q-sheet-wide .match-head > .watch-btn.wide:last-child { margin-bottom: 0; }
+}
+/* A phone on its side is short: a game's row a little tighter. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .event-row { padding-block: 10px; }
+}
+/* A tab with one section alone: as wide as reads well (a list of games keeps its columns). */
+:root.q-wide .tab-flow:not(.q-flow-laid) > :only-child:not(:has(.game-grid, .team-cards)) { max-width: 720px; margin-inline: auto; }
