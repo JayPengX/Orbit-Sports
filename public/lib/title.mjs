@@ -15,6 +15,8 @@
 //               number, and the earliest it could be: points (soccer, F1)
 //               or wins (baseball, basketball).
 
+import { tableKey } from './tiebreak.mjs';
+
 const num = v => {
   const n = parseFloat(String(v ?? '').replace(/[^\d.-]/g, ''));
   return Number.isFinite(n) ? n : 0;
@@ -47,7 +49,7 @@ const recordGames = rec => (/^\d+(-\d+)+$/.test(String(rec || '').trim()) ? Stri
 // league's recent games (any state). → the groups, the uncounted games in,
 // re-ordered, their rows marked `fresh` ('post': a final not yet in the
 // official table); `.fresh` on the array: how many games were added.
-export function liveTable(groups, events, sport, { teamOf = null } = {}) {
+export function liveTable(groups, events, sport, { teamOf = null, league = '' } = {}) {
   if (sport === 'racing') return liveRacing(groups, events, teamOf);
   if (!groups?.length || !['soccer', 'baseball', 'basketball'].includes(sport)) return groups;
   // Only what the table counts: finals of the regular season (not pre-season,
@@ -116,7 +118,8 @@ export function liveTable(groups, events, sport, { teamOf = null } = {}) {
     fresh++;
   }
   for (const g of touched) {
-    const key = sport === 'soccer' ? r => [num(r.stats.P), num(r.stats.GD), num(r.stats.F)] : r => [num(r.stats.PCT), num(r.stats.W)];
+    // The league's own tiebreaks as far as the table holds them (Serie A's head-to-head first: points alone, ESPN's order kept between those level).
+    const key = tableKey(league, sport);
     // A zone (the Champions League's, the drop) is a place's, not a side's:
     // kept by place through the new order (a side moved up into 5th came
     // without the colour, the one it passed took 5th's down to 6th).

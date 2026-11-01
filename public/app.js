@@ -30,7 +30,7 @@ import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
-import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn } from './lib/nbacup.mjs';
+import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNoteText } from './lib/nbacup.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
@@ -2142,14 +2142,19 @@ async function nbaCupData() {
     const groupGames = all.filter(e => isGroupPlay(e) && !seen.has(e.id) && seen.add(e.id));
     return groupGames.length ? { groupGames, events: ko(knock), season: `${year}-${String(year + 1).slice(2)}` } : null;
   };
-  const now = await season(y);
-  if (now) return { mode: 'live', ...now, partial: missing.size > 0 };
+  // Last regular season's records (the cup's fifth tiebreak): ESPN numbers a season by the year it ends.
+  const prevOf = year =>
+    standings('nba', { season: year })
+      .then(gs => Object.fromEntries(gs.flatMap(g => g.rows).map(r => [r.id, { w: Number(r.stats.W), l: Number(r.stats.L) }]).filter(([, x]) => Number.isFinite(x.w) && Number.isFinite(x.l))))
+      .catch(() => null);
+  const [now, prev] = await Promise.all([season(y), prevOf(y)]);
+  if (now) return { mode: 'live', ...now, prev, partial: missing.size > 0 };
   // Pages missing, none of the cup's in what came: unread, not "no cup this season".
   if (missing.size) throw new Error('nbacup: unread');
   const last = await season(y - 1, 30 * 86_400_000);
   // Every season here had its cup: none found is a read gone wrong.
   if (!last?.events.length) throw new Error('nbacup: last season unread');
-  return { mode: 'last', ...last, partial: missing.size > 0 };
+  return { mode: 'last', ...last, prev: await prevOf(y - 1), partial: missing.size > 0 };
 }
 // The cup as last read whole, kept on the phone: shown while a read fails
 // (or before the first is in), never "暫時無法取得資料" once it has been read.
@@ -2164,7 +2169,7 @@ function keptCup() {
 }
 function keepCup(d) {
   try {
-    localStorage.setItem(CUP_KEY, JSON.stringify({ at: Date.now(), d: { mode: d.mode, groupGames: d.groupGames, events: d.events, season: d.season } }));
+    localStorage.setItem(CUP_KEY, JSON.stringify({ at: Date.now(), d: { mode: d.mode, groupGames: d.groupGames, events: d.events, season: d.season, prev: d.prev || null } }));
   } catch {}
 }
 // A bracket's model from its data: the NBA Cup's with its groups too.
@@ -2172,7 +2177,7 @@ const bracketOf = (league, d) => {
   const model = playoffModel({ league, ...d });
   if (league === 'nationsleague') return withUnlGroups(model, d);
   if (league !== CUP) return model;
-  model.groups = nbaCupGroups(d.groupGames);
+  model.groups = nbaCupGroups(d.groupGames, { prev: d.prev });
   // The quarterfinals not drawn yet: as the groups stand (this season's).
   const qf = model.rounds.find(r => r.key === 'QF');
   if (model.mode !== 'last' && qf?.ties.every(t => !t) && model.groups.length) qf.ties = cupQuarters(model.groups);
@@ -2469,8 +2474,14 @@ function playoffView(model, key) {
     const conf = g.conf === 'East' ? (en ? 'East' : '東區') : en ? 'West' : '西區';
     return el('div', { class: `br-tie br-group${g.kind === 'card' ? ' br-card' : ''}` }, [
       el('small', { class: 'br-gname', text: g.kind === 'card' ? (en ? `${conf} wild card · 2nds` : `${conf}外卡・各組第二`) : en ? `${conf} group` : `${conf}小組` }),
-      ...g.rows.map(x => el('div', { class: 'br-grow', ...(g.kind === 'card' ? x.zone === 'card' : x.zone === 'lead' || x.zone === 'card') ? { style: `--zone: ${PICTURE_COLOR[x.zone]}` } : {} }, [sideLogo(x, 'nba', 'xs'), el('span', { class: 'br-name', text: x.short || x.name }), el('span', { class: 'num br-rec', text: `${x.w}-${x.l}` })]))
+      ...g.rows.map(x => el('div', { class: 'br-grow', ...(g.kind === 'card' ? x.zone === 'card' : x.zone === 'lead' || x.zone === 'card') ? { style: `--zone: ${PICTURE_COLOR[x.zone]}` } : {} }, [sideLogo(x, 'nba', 'xs'), el('span', { class: 'br-name', text: x.short || x.name }), el('span', { class: 'num br-rec', text: `${x.w}-${x.l}` })])),
+      // Teams level on record: why the one above is above (the cup's tiebreaks; Jay, 2026-11-01).
+      ...tieLines(g.notes, g.rows)
     ]);
+  };
+  const tieLines = (notes, rows) => {
+    const nameOf = id => (r => r?.short || r?.name || id)(rows.find(r => String(r?.id) === String(id)));
+    return (notes || []).map(n => el('small', { class: 'br-why', text: cupNoteText(n, nameOf, en) }));
   };
   const tie = (t, r) => {
     // Its games as the newest read has them (the live tick's scoreboard), not as the bracket was read.
@@ -2485,7 +2496,7 @@ function playoffView(model, key) {
     const said = note(t, r);
     // A game on at a break (中場休息, 暫停): its countdown ticking in the note as everywhere else.
     const on = t?.live && t.games.find(g => g.status?.state === 'in');
-    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said, ...(on ? breakTick(on, said) : {}) }) : null];
+    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said, ...(on ? breakTick(on, said) : {}) }) : null, ...(t?.notes?.length ? tieLines(t.notes, model.groups?.flatMap(g => g.rows) || []) : [])];
     if (!t || t.projected || t.pending) return el('div', { class: `br-tie ${t?.pending ? 'pending' : t?.sure ? 'sure' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
     // (Its sheet from the card as last drawn: patchPlayoffs moves __open over with the newer games.)
     const card = el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => card.__open() }, body);

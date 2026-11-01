@@ -29,6 +29,7 @@ import { parseSearch, placeTeams } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
+import { tieNotes } from './lib/tiebreak.mjs';
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, nextNeeds } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
@@ -5862,7 +5863,7 @@ const freshSeason = (grid, champ) => (champ ? grid.map(([k, v]) => (k === 'Seaso
 // The one rule for every table shown (賽事's 排名 too, app.js tableOf).
 export function tableNow(groups, league, recent = []) {
   const sport = LEAGUES[league]?.sport;
-  return liveTable(groups, sport === 'racing' ? settleScoring(recent) : recent, sport, { teamOf: side => f1Driver(side.en || side.name).team });
+  return liveTable(groups, sport === 'racing' ? settleScoring(recent) : recent, sport, { league, teamOf: side => f1Driver(side.en || side.name).team });
 }
 function freshStandings(league) {
   return standings(league).then(g => (g?.length ? tableNow(g, league, ctx.recentOf?.(league) || []) : g));
@@ -6911,10 +6912,16 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
             )
           ])
         ]),
-        zoneLegend(g.rows, out, settled)
+        zoneLegend(g.rows, out, settled),
+        // Sides level: the league's tiebreaks, and what settled each pair (Jay, 2026-11-01).
+        top || compact ? null : tieFold(tieNotes(g, league, L()))
       ]);
     })
   );
+}
+function tieFold(n) {
+  if (!n) return null;
+  return el('details', { class: 'tie-why' }, [el('summary', { text: T('tieWhy', { n: n.lines.length }) }), el('p', { class: 'muted small', text: n.rule }), ...n.lines.map(x => el('p', { class: 'small', text: x }))]);
 }
 // The sides greyed out in a table: those with no chance left at all. A
 // league with playoffs (MLB, the NBA, MLS) keeps them greyed once its

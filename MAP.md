@@ -132,7 +132,14 @@ couldn't be read is shown, never hidden.
   in group play (no feed names them, so no letters), first and best second
   marked, and its knockout; chips in 季後賽, an NBA 盃 tab on a cup game (a
   group game's group, a knockout game's bracket); last season's until this
-  season's group play is on the schedule.
+  season's group play is on the schedule. Teams level on record settled by
+  the cup's own tiebreaks (head-to-head, point differential and total points
+  without overtime, last season's record, the draw; the wild card and seeds
+  the same without head-to-head), each one said under its card.
+- **Tiebreaks** (`lib/tiebreak.mjs`): each league's official order for sides
+  level on its table, folded under the table (同分怎麼排) with the step that
+  settled each pair where the table holds it; fresh finals re-sort by those
+  steps only, ESPN's order kept past them.
 - **Where to watch** (`lib/tv.mjs`): ELTA's own schedule (exact channel,
   commentary, MAX first); NBA.com's ELTA list (`public/nba-elta.json`,
   written every 6 h by the deploy); Apple TV's page per MLS game. Replays
@@ -189,7 +196,7 @@ couldn't be read is shown, never hidden.
 | `ui.js`, `cards.js`, `styles.css` | DOM helpers, rows; the tabs' cards and tiles; the look |
 | `lib/espn.mjs` | Every read and parser (the scoreboard parser is the kit's `sports-espn.mjs`); `sessionStatus` |
 | `lib/f1.mjs`, `racecontrol.mjs` | F1 data and the board's maths; race control in Chinese |
-| `lib/title.mjs`, `playoffs.mjs`, `bracket.mjs` | Live tables and title race; playoffs |
+| `lib/title.mjs`, `playoffs.mjs`, `bracket.mjs`, `tiebreak.mjs` | Live tables and title race; playoffs; tiebreaks |
 | `lib/leaders.mjs` | 數據領先: stats, ranks, team and player |
 | `lib/teamstats.mjs` | Teams' own numbers ranked in their league (數據 球隊) |
 | `lib/picks.mjs`, `foryou.mjs` | Today's picks; affinity (shared with Play) |
