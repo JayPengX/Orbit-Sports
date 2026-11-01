@@ -34,7 +34,7 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 - **One shape for every page:** a game, a team, a player and a league open the same way, with the competitions as chips (a team's 英超, 聯賽盃 and 歐冠 apart, or 全部).
 - **Match pages:** live score and line score, a win-chance chart with key moments, line-ups, box score, play by play, injuries, standings and season leaders, ordered by the moment of the game.
 - **F1 live board:** F1's own timing in tabs (order, track, tyres, lap times, points), every car moving on the track map, race control in Chinese.
-- **Live tables:** standings count results the moment a game ends, with a title line ("前 8 名，或 Russell、Hamilton 都沒贏") and magic numbers; clinch cards name the head-to-head games still to come and what each side needs.
+- **Live tables:** standings count results the moment a game ends, with a title line ("前 8 名，或 Russell、Hamilton 都沒贏") and magic numbers; clinch cards name the head-to-head games still to come and what each side needs; each table's key says what a faded row (no chance left, MLS: 已無緣季後賽外卡) and a lock (名次已確定) mean.
 - **Playoffs:** real brackets, or ones predicted from the table while the season runs; a game's 排名 holds its 季後賽, NBA 盃 (all six groups and the knockout) and the table as chips.
 - **Where to watch:** ELTA's own schedule (exact channel and commentary), NBA.com's ELTA list and Apple TV's MLS pages, plus replays and highlights.
 - **今日推薦** learns what you open and what you pass over (kept on the phone for 30 days).

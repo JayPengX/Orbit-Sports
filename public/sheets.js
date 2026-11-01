@@ -6604,17 +6604,37 @@ export const zoneName = n => {
 // 第 12 輪 does, a league without rounds has its calendar). null till it's in.
 // (Its opponent too: a game against the rival is a win for one, never both.)
 const clinchGames = new Map();
+// Every block waiting on a side's schedule is told when it's in (Jay
+// 2026-11-01: a table drawn again while the first read was out kept "下一場後
+// 需領先 4 分", only the first block was ever told; the head-to-head with Miami
+// never said). A read that fails is tried again on the next draw, not kept
+// as "none" for the session.
+const clinchWaits = new Map();
 function clinchGame(league, id, n, redo) {
   const key = `${league}:${id}:${n}`;
-  if (clinchGames.has(key)) return clinchGames.get(key);
-  clinchGames.set(key, null);
-  teamSchedule(league, id).then(games => {
-    const e = games.filter(e => e.status?.state !== 'post')[n - 1];
-    if (!e?.start || Number.isNaN(Date.parse(e.start))) return;
-    clinchGames.set(key, e);
-    redo();
-  }, () => {});
-  return null;
+  const had = clinchGames.get(key);
+  // (Once that game's begun, read again: after it, the next one is another.)
+  const stale = had && Date.parse(had.start) <= Date.now();
+  if (had && !stale) return had;
+  const waits = clinchWaits.get(key);
+  if (waits) {
+    waits.push(redo);
+    return had || null;
+  }
+  clinchWaits.set(key, [redo]);
+  teamSchedule(league, id).then(
+    games => {
+      const all = clinchWaits.get(key) || [];
+      clinchWaits.delete(key);
+      const e = games.filter(e => e.status?.state !== 'post')[n - 1];
+      if (!e?.start || Number.isNaN(Date.parse(e.start))) return void clinchGames.delete(key);
+      const moved = e.id !== had?.id;
+      clinchGames.set(key, e);
+      if (moved) for (const f of all) f();
+    },
+    () => clinchWaits.delete(key)
+  );
+  return had || null;
 }
 function raceBlock(race, g, league, many) {
   if (!race) return null;
@@ -6891,7 +6911,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
             )
           ])
         ]),
-        zoneLegend(g.rows)
+        zoneLegend(g.rows, out, settled)
       ]);
     })
   );
@@ -6906,32 +6926,39 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
 // wild card) and the relegation line, and once over, by its zones; a
 // championship's (F1's) against the title, then its places.
 export function outOfIt(g, race, league) {
+  const W = (zh, eng) => (L() === 'en' ? eng : zh);
+  // (Each set says why, for the key under the table: Jay 2026-11-01 asked what the grey meant.)
+  const why = (set, zh, eng) => Object.assign(set, { why: set.size ? W(zh, eng) : '' });
   const rows = g?.rows || [];
   const sport = LEAGUES[league]?.sport;
   const total = SEASON_GAMES[league];
   const played = r => (sport === 'soccer' ? Number(r.stats.GP) : Number(r.stats.W) + Number(r.stats.L) + (Number(r.stats.T) || 0));
   const over = race ? race.rows.every(x => x.settled) && race.title.done : total ? rows.every(r => played(r) >= total) : false;
   // ESPN's e: out of the playoffs, during the season and after it.
-  if (rows.some(r => r.clincher)) return new Set(rows.filter(r => r.clincher === 'e').map(r => r.id));
+  if (rows.some(r => r.clincher)) return why(new Set(rows.filter(r => r.clincher === 'e').map(r => r.id)), '已無緣季後賽', 'Out of the playoffs');
   // A division's or a league's seeds (MLB's): its bars are the playoff seeds, out only by ESPN's e.
   if (g.parent || g.picture) return new Set();
   const zones = rows.some(r => r.note && !/relegat|eliminat/i.test(r.note));
   const ended = over || (total && rows.every(r => played(r) >= total));
   // A playoff league's season over: the sides outside its playoff zones.
-  if (ended && zones && FORMATS[league] && !LEAGUES[league]?.cup) return new Set(rows.filter(r => !r.note || /relegat|eliminat/i.test(r.note)).map(r => r.id));
+  if (ended && zones && FORMATS[league] && !LEAGUES[league]?.cup) return why(new Set(rows.filter(r => !r.note || /relegat|eliminat/i.test(r.note)).map(r => r.id)), '未進季後賽', 'Missed the playoffs');
   if (!race || ended) return new Set();
   // A championship (F1's): those who can't win it; once it's won, each
   // one whose place is settled (the race moves down the places still open).
   if (sport === 'racing') {
-    if (!race.title.done) return new Set(race.rows.filter(x => x.best > 1).map(x => x.id));
-    return new Set(race.rows.filter((x, i) => i > 0 && x.settled).map(x => x.id));
+    if (!race.title.done) return why(new Set(race.rows.filter(x => x.best > 1).map(x => x.id)), '已無緣冠軍', "Can't win the title");
+    return why(new Set(race.rows.filter((x, i) => i > 0 && x.settled).map(x => x.id)), '名次已確定', 'Place settled');
   }
   if (!zones) return new Set();
   // Nothing left to play for (Jay, 2026-10-26): no good zone in reach, and
   // not still in or out of the bottom one (a relegation fight keeps its colour).
   const reach = goodZoneReach(rows);
   const bottom = rows.findIndex(r => r.note && /relegat|eliminat/i.test(r.note)) + 1;
-  return new Set(race.rows.filter(x => x.best > reach && !(bottom && x.best < bottom && x.worst >= bottom)).map(x => x.id));
+  const gone = race.rows.filter(x => x.best > reach && !(bottom && x.best < bottom && x.worst >= bottom));
+  // (MLS: 9th's wild card the lowest good zone, so 已無緣季後賽外卡; one sure of the drop too, nothing left to play for.)
+  const zone = zoneName(rows[reach - 1]?.note || '');
+  const down = bottom && gone.some(x => x.best >= bottom);
+  return why(new Set(gone.map(x => x.id)), down || !zone ? '已無可爭' : `已無緣${zone}`, down || !zone ? 'Nothing left to play for' : `Can't reach ${zone}`);
 }
 // The lowest place a table's good zones reach (its last row with a zone
 // that isn't relegation or elimination), 1 when it has none.
@@ -6944,11 +6971,16 @@ export function goodZoneReach(rows) {
 }
 // What a table's coloured bars mean (晉級八強, 降級附加賽…), each once, in
 // the order they come down the table.
-function zoneLegend(rows) {
+// Then the faded rows and the lock, when the table has them (Jay 2026-11-01:
+// "what even is the grey out rule"): 淡色 已無緣季後賽外卡, 🔒 名次已確定.
+function zoneLegend(rows, out = null, settled = null) {
+  const W = (zh, eng) => (L() === 'en' ? eng : zh);
   const seen = new Map();
   for (const r of rows) if (r.note && r.color && !seen.has(r.note)) seen.set(r.note, r.color);
-  if (!seen.size) return null;
-  return el('div', { class: 'zone-legend' }, [...seen].map(([note, color]) => el('span', { class: 'zone-key' }, [el('i', { style: `background:${color}`, 'aria-hidden': 'true' }), document.createTextNode(zoneName(note).replace(/^[a-z]/, c => c.toUpperCase()))])));
+  const keys = [...seen].map(([note, color]) => el('span', { class: 'zone-key' }, [el('i', { style: `background:${color}`, 'aria-hidden': 'true' }), document.createTextNode(zoneName(note).replace(/^[a-z]/, c => c.toUpperCase()))]));
+  if (out?.size && out.why) keys.push(el('span', { class: 'zone-key out-key' }, [el('b', { text: W('淡色', 'Faded') }), document.createTextNode(W(out.why, `: ${out.why.replace(/^[A-Z]/, c => c.toLowerCase())}`))]));
+  if (settled?.size) keys.push(el('span', { class: 'zone-key' }, [glyph('lock', 'rank-lock'), document.createTextNode(W('名次已確定', 'Place settled'))]));
+  return keys.length ? el('div', { class: 'zone-legend' }, keys) : null;
 }
 
 // ---- A playoff series or a knockout tie: every game of it ---------------------------------

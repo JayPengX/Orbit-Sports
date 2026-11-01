@@ -145,6 +145,8 @@ test("greyed out: only no chance left at all, only while the season's on (ESPN's
   const g = { rows: [{ id: 'a', note: 'Champions League', stats: { GP: '30' } }, { id: 'b', note: 'Europa League', stats: { GP: '30' } }, { id: 'c', note: '', stats: { GP: '30' } }, { id: 'd', note: 'Relegation', stats: { GP: '30' } }] };
   const race = { title: { done: false }, rows: [{ id: 'a', best: 1, settled: false }, { id: 'b', best: 1, settled: false }, { id: 'c', best: 2, settled: false }, { id: 'd', best: 3, settled: false }] };
   assert.deepEqual([...outOfIt(g, race, 'epl')], ['d'], 'd can no longer reach 2nd (Europe); c still can');
+  assert.equal(outOfIt(g, race, 'epl').why, '已無緣歐霸', 'the key under the table says why they are faded (Jay 2026-11-01)');
+  assert.equal(outOfIt(mls, null, 'mls').why, '未進季後賽');
   assert.deepEqual([...outOfIt({ rows: g.rows.map(r => ({ ...r, note: '' })) }, race, 'epl')], [], 'no zones: nobody');
 });
 
