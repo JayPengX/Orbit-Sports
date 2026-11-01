@@ -35,6 +35,12 @@ couldn't be read is shown, never hidden.
     ELTA's whole guide; another day: its best game, then all it has on TV.
   - **追蹤:** how yours are doing. Teams, players, matches, drivers; 設定
     at its foot (leagues in order, follows, commentary).
+- **Every screen** (Jay 2026-10-31; Orbit-Core DESIGN.md §10): on a tablet,
+  a computer or a phone on its side each tab is two columns (首頁's answer
+  left and what's next right, 轉播's on now and coming up, 賽事's leagues side
+  by side), games and team cards in columns, tables with every column and
+  conferences side by side, F1 weekends as a grid; the tabs a rail down the
+  left.
 - **Sheets** (full height):
   - **A match:** header and line score, a live panel, then sections drawn
     once in an order set by the game's moment: 概況, 數據, 球員, 過程, 先發,
@@ -62,7 +68,11 @@ couldn't be read is shown, never hidden.
     line. The career (`lib/career.mjs`, read behind the page): NBA and MLB
     from ESPN's athletes/<id>/stats (proxy trim espn-career), football from
     FotMob's player page (found by name and club, checked by birthday;
-    trims fotmob-search, fotmob-player), F1 teams from Jolpica.
+    trims fotmob-search, fotmob-player), F1 teams from Jolpica. Each team
+    row opens its team (a club in a European cup this season opens there; a
+    loan he was then bought from is one spell).
+  - **An F1 practice stand-in** (a team's FP1 driver): his car, sessions and
+    who he is, his face from TheSportsDB (the proxy's about.json).
   - **An F1 constructor.**
 - **Team numbers** (`lib/teamstats.mjs`): NBA and MLB from ESPN's
   statistics/byteam (the proxy's `espn-teams` trim), football from FotMob's
@@ -76,13 +86,17 @@ couldn't be read is shown, never hidden.
   - A team page ranks its own players; a player page shows their league
     ranks; a match shows each side's season leaders.
 - **Win chance:** ESPN's line, else Polymarket's. A game to come: the
-  sportsbook's moneylines first (the market, what Longshot prices from),
-  else Polymarket's, else ESPN's own model. Soccer on or over is
+  sportsbook's moneylines first with the book's margin taken off the long
+  shots (新英格蘭 v 邁阿密 35/23/42, as Polymarket), else Polymarket's, else ESPN's own model. Soccer on or over is
   worked out here (`lib/soccerwp.mjs`): each side's goals a Poisson count
   over the time left, its rate from the odds before the start (ESPN's or
   the sportsbook's, else the market's first price), from the score, the
   minute and red cards; every competition gets it, and a late level game
-  is a draw's. A chart with key moments
+  is a draw's (retuned 10-30 on 2,473 finished 2025–26 games: a side behind
+  pushes and scores more, 3 and 7 minutes added, red cards weigh more; a side
+  given 75% wins 76%). A chart with key moments (關鍵時刻 are the winner's;
+  the loser's only for a 25%+ swing before the last two minutes; the go-ahead
+  says 此後未再落後)
   while on or over; a split bar before. Each side in its colour, its
   chance written in it (`wpline.mjs sideColors`: two alike, or none, and
   one takes a spare colour); a draw grey.
@@ -130,7 +144,8 @@ couldn't be read is shown, never hidden.
   team or player of it followed goes by those.
 - **Today's picks** (`lib/picks.mjs`): followed leagues and teams, quality,
   closeness, stakes, fame, habit, ELTA's featured game, live now. The best
-  game, then the best that doesn't clash.
+  game, then the best that doesn't clash. Picks shown and never opened sink by
+  league and team, those opened rise (the kit's `feedback.mjs`, on the phone).
 - **Notices** (the kit's `match` kinds): a followed team's start and final,
   each pick's start and final, F1 sessions and podiums. Sent by the Worker
   while the app is closed.
