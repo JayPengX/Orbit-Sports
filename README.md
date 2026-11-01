@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES_modules-F7DF1E?logo=javascript&logoColor=000"> <img alt="PWA" src="https://img.shields.io/badge/PWA-works_offline-5A0FC8?logo=pwa&logoColor=fff"> <img alt="Cloudflare" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=fff"> <img alt="GitHub" src="https://img.shields.io/badge/GitHub-Pages-24292F?logo=github&logoColor=fff"> <img alt="Tests" src="https://img.shields.io/badge/Tests-node_--test-339933?logo=nodedotjs&logoColor=fff">
+  <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES_modules-F7DF1E?logo=javascript&logoColor=000"> <img alt="PWA" src="https://img.shields.io/badge/PWA-works_offline-5A0FC8?logo=pwa&logoColor=fff"> <img alt="Cloudflare" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=fff"> <img alt="Tests" src="https://img.shields.io/badge/Tests-node_--test-339933?logo=nodedotjs&logoColor=fff">
 </p>
 
 Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan for your day and one tap to watch. Part of **Orbit**, a family of phone apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
@@ -49,13 +49,13 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 | Platform | Installable web app (Add to Home Screen) with a service worker; phones from 320 to 440 px |
 | Shared | The look, the Orbit Pass sign-in, notices and data reads come from the kit in [Orbit-Core](https://github.com/JayPengX/Orbit-Core) |
 | Data | ESPN, MLB's API, CPBL, F1 timing, Jolpica, FotMob and ELTA, all through the Orbit proxy on Cloudflare Workers; seasons and finished games kept in Cloudflare R2 |
-| Hosting | GitHub Pages, served at orbit.jaypengx.com by a Cloudflare Worker |
+| Hosting | Cloudflare (static files), at orbit.jaypengx.com |
 | Tests | `node --test` (about 50 test files on the logic: tables, picks, playoffs, F1, live state) |
 
 ## How it works
 
 ```
-phone ── public/ (this repo, GitHub Pages) + the kit (Orbit-Core's Pages)
+phone ── public/ (this repo, on Cloudflare) + the kit (Orbit-Core's, on Cloudflare)
   │  kit proxyJson: memory → the phone's cache → R2 packs → the proxy's edge cache → upstream
   ▼
 api.jaypengx.com (Cloudflare Worker) ── ESPN · MLB · CPBL · F1 timing · FotMob · ELTA · …
@@ -116,7 +116,7 @@ node ../Orbit-Core/tools/preview.mjs sports --live --serve --port 8123
 
 ## Deploying
 
-Push to `main`. GitHub Actions runs the tests, writes `nba-elta.json`, stamps every file with its content hash (so a phone downloads only what changed) and publishes `public/` to GitHub Pages; the site Worker serves it at its orbit.jaypengx.com address. It also runs every 6 hours. There are no pull requests or release branches.
+Push to `main`. GitHub Actions runs the tests, writes `nba-elta.json`, stamps every file with its content hash (so a phone downloads only what changed) and publishes `public/` to Cloudflare at its orbit.jaypengx.com address (Orbit-Core `deploy/cf-site.mjs`). It also runs every 6 hours. There are no pull requests or release branches.
 
 ## Part of Orbit
 
