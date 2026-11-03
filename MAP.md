@@ -97,6 +97,14 @@ couldn't be read is shown, never hidden.
     results.
   - A team page ranks its own players; a player page shows their league
     ranks; a match shows each side's season leaders.
+  - A team page (`sheets.js openTeam`) keeps each tab once drawn (`kept`:
+    back from 賽程 to 概況 is the same page), holds 聯盟排名 and 數據領先 in
+    their shape while they're read (`ranksHeld`, `leadersHeld`, kit
+    `waiting`), and 隊內排行's chips redraw only that list (`paintLb`), each
+    stat's whole list read from FotMob and kept to the team's players. A
+    player's 生涯車隊 / 生涯球隊 is held the same way (`careerKey`).
+  - Tile grids (`.stat-grid`) carry the kit's `.q-rows-full`: never a part
+    row. A way on (全部球隊數據) is `ui.js goBar`, the kit's quiet bar.
 - **Win chance:** ESPN's line, else Polymarket's. A game to come: the
   sportsbook's moneylines first with the book's margin taken off the long
   shots (新英格蘭 v 邁阿密 35/23/42, as Polymarket), else Polymarket's, else ESPN's own model. Soccer on or over is

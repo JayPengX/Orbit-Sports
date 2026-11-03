@@ -76,6 +76,10 @@ function keepPictures(node, list, keep) {
     for (const img of c.tagName === 'IMG' ? [c] : [...c.querySelectorAll('img')]) {
       const was = shown.get(pictureKey(img))?.shift();
       if (!was) continue;
+      // (Safari picks a <picture>'s source again when it's put back on the page:
+      // a lazy one then waited, never loaded, and drew nothing, a logo gone
+      // after 賽程 and back to 概況, Jay 2026-11-03. Eager, it's the cached one at once.)
+      was.loading = 'eager';
       const [from, to] = [pictureOf(img), pictureOf(was)];
       if (from === c) list[i] = to;
       else from.replaceWith(to);
@@ -819,6 +823,9 @@ export function sheet(title, { accent, league } = {}) {
 export const segmented = (options, current, onPick, cls = '', o = {}) => kitUI.pickSeg(options, current, onPick, { cls: cls === 'scroll' ? '' : cls, ...o });
 export const section = (title, content, { sub = '', action = null, cls = '' } = {}) => kitUI.section(title, content, { sub, action, cls, shd: true });
 export const moreButton = (label, onclick) => el('button', { class: 'section-more', type: 'button', text: label, onclick });
+// A way on to more at a card's foot (全部球隊數據, 看完整賽程): the kit's quiet
+// bar (.q-more), a › for where it goes; never accent text (Jay 2026-11-03).
+export const goBar = (label, onclick, cls = '') => el('button', { class: `q-more q-more-go${cls ? ` ${cls}` : ''}`, type: 'button', onclick }, [el('span', { text: label }), el('span', { class: 'q-more-chev', 'aria-hidden': 'true', text: '›' })]);
 // A list's 再看 / 收起: the kit's bar (moreToggle); on an older kit still on the phone, the same as a plain button.
 export function moreToggle(o) {
   if (kitUI.moreToggle) return kitUI.moreToggle(o);

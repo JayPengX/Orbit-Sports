@@ -90,7 +90,9 @@ img { max-width: 100%; }
 .q-section { margin-top: 28px; }
 .q-section-head h2 { font-size: 20px; line-height: 25px; }
 .q-shd .q-tag, .q-section-head .q-tag { align-self: center; }
-.section-more { flex: none; padding: 0; border: 0; background: none; color: var(--accent); font: 400 17px/1 var(--q-font); cursor: pointer; }
+/* A section head's way to all of it (全部 12 場 ›): quiet, never accent text (Jay 2026-11-03). */
+.section-more { flex: none; padding: 0; border: 0; background: none; color: var(--q-text-2); font: 500 15px/1 var(--q-font); cursor: pointer; }
+.q-more-go .q-more-chev { font-size: 17px; line-height: 1; margin-top: -1px; }
 .section-sub { color: var(--q-muted); font-size: 13px; margin: -4px 0 10px; }
 .section-h { font-size: 15px; font-weight: 600; margin: 20px 2px 8px; }
 .q-card + .q-card { margin-top: 12px; }
@@ -101,7 +103,7 @@ img { max-width: 100%; }
 .home-note { display: grid; justify-items: start; gap: 4px; padding: 16px; border-radius: 22px; background: var(--q-surface); }
 .home-note strong { font: 600 17px/22px var(--q-font); }
 .home-note p { color: var(--q-label-2); font: var(--q-t-subhead); }
-.home-note .section-more { margin-top: 8px; font-size: 15px; }
+.home-note .q-more { margin-top: 10px; }
 .q-btn.block.show-more { margin-top: 12px; }
 
 /* ==== A game as a row (ui.js eventRow): every list, tab and sheet ====
@@ -577,17 +579,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 /* The follow button stays a small pill at the top right on a phone too (it was a full-width bar under the name). */
 .team-head > .follow-btn, .team-hero > .follow-btn { align-self: start; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
-/* Never a tile alone on a row: by how many there are, two or three a row
-   (1: the whole width; 2, 3: one row; 4: two and two; 5: three and two; 6: three and three; 8: two a row). */
-.stat-grid:not(.dense):has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
-.stat-grid:not(.dense):has(> :nth-child(2):last-child),
-.stat-grid:not(.dense):has(> :nth-child(4):last-child),
-.stat-grid:not(.dense):has(> :nth-child(8):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.stat-grid:not(.dense):has(> :nth-child(3):last-child),
-.stat-grid:not(.dense):has(> :nth-child(5):last-child),
-.stat-grid:not(.dense):has(> :nth-child(6):last-child),
-.stat-grid:not(.dense):has(> :nth-child(9):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.stat-grid:not(.dense):has(> :nth-child(7):last-child) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* Never a part row: the kit's fullRows (.q-rows-full) sets the columns, or leaves the last part row out (Jay 2026-11-03). */
 .stat-tile { display: grid; gap: 2px; align-content: start; padding: 10px; border-radius: 12px; background: var(--q-sunken); min-width: 0; }
 .stat-tile small { font-size: 11.5px; color: var(--q-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-tile strong { font-size: 18px; white-space: nowrap; }
@@ -1004,15 +996,13 @@ table.data .roster-name { gap: 6px; font-weight: 600; }
 table.data .roster-name .logo.round { width: 22px; height: 22px; flex: none; }
 table.data th.left { min-width: max-content; }
 /* A box score's names one width (both teams' tables in the same columns, a
-   long name never pushing the numbers off, Jay 2026-10-21): a name past it
-   smaller, on two lines at its hyphen or space (S. Gilgeous- / Alexander). */
-table.box thead th.left:first-child, table.box tbody th.left, table.box tfoot th.left { width: 124px; min-width: 124px; max-width: 124px; }
-table.box .box-who { white-space: normal; }
+   long name never pushing the numbers off, Jay 2026-10-21), widened to the
+   longest name up to a cap (boxNames sets --box-name-w); every name one
+   line at one size, one past the cap cut clean (Jay 2026-11-03). */
+table.box thead th.left:first-child, table.box tbody th.left, table.box tfoot th.left { width: var(--box-name-w, 124px); min-width: var(--box-name-w, 124px); max-width: var(--box-name-w, 124px); }
+table.box .box-who { white-space: nowrap; }
 table.box .roster-name { min-width: 0; }
-table.box .box-name { min-width: 0; overflow: hidden; white-space: nowrap; }
-table.box .box-name.mid { font-size: 11px; }
-table.box .box-name.long { white-space: nowrap; font-size: 11.5px; line-height: 1.2; }
-table.box .box-name.tiny { font-size: 10px; }
+table.box .box-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 table.box td.num, table.box th.sortable { width: 48px; min-width: 48px; }
 table.box td.num { padding-inline: 5px; }
 table.box .sort-btn { padding-inline: 5px; }
@@ -1233,6 +1223,9 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .lp-bb { grid-template-columns: 1fr 1fr; gap: 10px; }
 .lp-bb .lp-person { align-items: flex-start; }
 .lp-bb small, .lp-bb strong { white-space: normal; overflow-wrap: anywhere; }
+/* (A 320 phone: the two one under the other, so a long name keeps its line.) */
+@media (max-width: 359px) { .lp-bb { grid-template-columns: minmax(0, 1fr); } }
+.lp-bb strong.lp-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
 .live-panel .lp-bb .lp-line { font-size: 12px; font-weight: 600; color: var(--q-text-2); white-space: nowrap; overflow-wrap: normal; }
 .lp-feed-h { font-size: 11px; color: var(--q-muted); font-weight: 600; }
 .lp-feed { list-style: none; margin: -4px 0 0; padding: 0; display: grid; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--q-text-2); }
@@ -1632,7 +1625,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .inj-who small { color: var(--q-muted); font-size: 12px; }
 /* A long name or why on its one line, a little smaller (fitLine), never broken onto two. */
 .inj-who .one-line { display: block; min-width: 0; white-space: nowrap; overflow: hidden; }
-.inj-more { margin-top: 8px; font-size: 15px; }
+.inj-more { margin-top: 8px; }
 .inj-status { justify-self: inherit; padding: 0; font-size: 13px; font-weight: 500; line-height: 1.6; white-space: nowrap; color: var(--q-label-2); }
 .inj-status.bad { color: var(--q-bad, #ef4444); }
 .inj-status.warn { color: var(--q-label-2); }
@@ -2064,7 +2057,6 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .league-rail { --q-rail-w: 88px; }
 .rank-pos { color: var(--q-label); font: 600 17px/1 var(--q-font-rounded); }
 .sc-top small { margin-left: auto; }
-.lb-more { display: block; margin: 8px auto 0; }
 .q-section-head .section-more { margin-left: auto; }
 
 /* Dark: no white slabs. The hero's logo tiles, its strong tag and the
