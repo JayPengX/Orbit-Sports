@@ -150,3 +150,45 @@ html[data-look='native'][data-look='native'] .q-hero-card.hero-game .q-hc-btn sm
   white-space: nowrap;
 }
 
+
+/* ---------- Tables on a graphite card: one surface, no grey blocks ----------
+   The pinned rank and name columns had the old surface's grey on the new
+   card's graphite: a lighter block down the names and a darker corner over
+   them (Jay 2026-11-03, "the grey is just weirdly looking"). A table that
+   fits shows the card through them; one that scrolls sideways pins them on
+   the card's own colour, so the columns still pass under them. (:where keeps
+   these as specific as styles.css's own, so a marked or followed row's wash
+   still wins.) */
+:where(html[data-look='native']) {
+  --sp-pin: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :where(html[data-look='native']:not([data-theme='light'])) {
+    --sp-pin: #171719;
+  }
+}
+:where(html[data-look='native'][data-theme='dark']) {
+  --sp-pin: #171719;
+}
+/* (Each as specific as styles.css's own rule for that cell.) */
+:where(html[data-look='native'] :is(.q-card, .q-rowcard, .q-list)) tbody th.left,
+:where(html[data-look='native'] :is(.q-card, .q-rowcard, .q-list)) thead th.left:first-child,
+:where(html[data-look='native'] :is(.q-card, .q-rowcard, .q-list)) tbody td.left:first-child,
+:where(html[data-look='native'] :is(.q-card, .q-rowcard, .q-list)) table.box tfoot th.left {
+  background: var(--sp-pin);
+}
+:where(html[data-look='native'] :is(.q-card, .q-rowcard, .q-list) .table-wrap:not(.scrolls)) tbody th.left,
+:where(html[data-look='native'] :is(.q-card, .q-rowcard, .q-list) .table-wrap:not(.scrolls)) thead th.left:first-child,
+:where(html[data-look='native'] :is(.q-card, .q-rowcard, .q-list) .table-wrap:not(.scrolls)) tbody td.left:first-child,
+:where(html[data-look='native'] :is(.q-card, .q-rowcard, .q-list) .table-wrap:not(.scrolls)) table.box tfoot th.left {
+  background: transparent;
+}
+/* A marked or followed row's wash runs the whole row, the pinned cells too
+   (the rank's cell kept its grey: the West's first row). Over the pin's
+   colour, so a row scrolled under it never shows through. */
+html[data-look='native'] .standings tr.marked > :is(th.left, td.left:first-child) {
+  background: linear-gradient(var(--q-sunken), var(--q-sunken)), var(--sp-pin);
+}
+html[data-look='native'] .standings tr.mine > :is(th.left, td.left:first-child) {
+  background: linear-gradient(var(--accent-wash), var(--accent-wash)), var(--sp-pin);
+}

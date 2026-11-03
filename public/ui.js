@@ -127,6 +127,8 @@ export const $ = id => document.getElementById(id);
 // and nothing said OFF, YC, RC… were past it. (The name column stays put, so
 // the left edge never fades.)
 function markTable(wrap) {
+  // (One that scrolls sideways at all pins its names on a solid colour; one that fits lets its card show through, look.css.)
+  wrap.classList.toggle('scrolls', wrap.scrollWidth - wrap.clientWidth > 2);
   wrap.classList.toggle('more-right', wrap.scrollWidth - wrap.clientWidth > 2 && wrap.scrollLeft < wrap.scrollWidth - wrap.clientWidth - 2);
 }
 if (typeof document !== 'undefined') {
