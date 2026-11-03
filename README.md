@@ -16,16 +16,33 @@
 Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan for your day and one tap to watch. Part of **Orbit**, a family of apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
 
 <p align="center">
-  <img src="docs/screenshots/sports-1.webp" width="30%" alt="Your games, live">
-  <img src="docs/screenshots/sports-2.webp" width="30%" alt="Line-ups before tip-off">
-  <img src="docs/screenshots/sports-3.webp" width="30%" alt="Who is likely to win">
+  <img src="docs/screenshots/sports-1.webp" width="30%" alt="Your games, the moment you open it">
+  <img src="docs/screenshots/sports-2.webp" width="30%" alt="What's on now, one tap to watch">
+  <img src="docs/screenshots/sports-3.webp" width="30%" alt="How the game swung, and when">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/sports-4.webp" width="30%" alt="Every stat, every game">
-  <img src="docs/screenshots/sports-5.webp" width="30%" alt="F1, race by race">
-  <img src="docs/screenshots/sports-6.webp" width="30%" alt="What's on TV in Taiwan">
+  <img src="docs/screenshots/sports-4.webp" width="30%" alt="Every F1 weekend, counted down">
+  <img src="docs/screenshots/sports-5.webp" width="30%" alt="The table and the title race">
+  <img src="docs/screenshots/sports-6.webp" width="30%" alt="Every player's whole career">
 </p>
+
+<details>
+<summary>中文畫面</summary>
+
+<p align="center">
+  <img src="docs/screenshots/sports-1.zh.webp" width="30%" alt="你的比賽，一打開就看到">
+  <img src="docs/screenshots/sports-2.zh.webp" width="30%" alt="正在轉播的比賽，一鍵觀看">
+  <img src="docs/screenshots/sports-3.zh.webp" width="30%" alt="勝率走勢與關鍵時刻">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/sports-4.zh.webp" width="30%" alt="F1 每一站，倒數到起跑">
+  <img src="docs/screenshots/sports-5.zh.webp" width="30%" alt="積分榜與爭冠形勢">
+  <img src="docs/screenshots/sports-6.zh.webp" width="30%" alt="每位球員的完整生涯">
+</p>
+
+</details>
 
 ## Features
 
