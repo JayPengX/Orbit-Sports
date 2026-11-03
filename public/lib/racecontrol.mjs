@@ -1,12 +1,12 @@
-// Race control's messages (賽事控制) in Chinese: they're FIA's set phrases
+// Race control's messages (賽會訊息) in Chinese: they're FIA's set phrases
 // ("FIA STEWARDS: TURN 1 INCIDENT INVOLVING CAR 55 (SAI) REVIEWED NO FURTHER
 // INVESTIGATION - LEAVING THE TRACK AND GAINING AN ADVANTAGE"), so each is
 // told by rule, never by a translator that guesses at the jargon. A message
 // is read the way FIA writes it: who decided (the stewards), what (the
 // head: an incident and its verdict, a penalty, a lap deleted, a notice),
 // then why (each part after " - "), and said the Chinese way round: who,
-// where, the verdict, the reason in brackets ("幹事：Sainz 第 1 彎事件已檢視，
-// 不再調查（離開賽道並取得優勢）"). Each car named becomes { no } (the app
+// where, the verdict, the reason in brackets ("Sainz 第 1 彎事件已檢視，不再調查
+// （離開賽道並取得優勢）"). Each car named becomes { no } (the app
 // draws the driver, a tap opening them). A head the rules don't know stays
 // in English, its cars still drawn as drivers; a reason they don't know is
 // left out (the verdict is what's read). Every message of 2025 and 2026's
@@ -219,7 +219,7 @@ const NOTICES = [
   [/^WEATHER RADAR SYSTEM NOW OPERATIONAL$/, '氣象雷達恢復服務'],
   [/^TRACK TEST COMPLETED$/, '賽道測試完成'],
   [/^RESUMPTION TEST ABORTED$/, '恢復測試中止'],
-  [/^(RACE CONTROL TEST|THIS IS A TEST MESSAGE FROM RACE CONTROL)$/, '賽事控制測試訊息'],
+  [/^(RACE CONTROL TEST|THIS IS A TEST MESSAGE FROM RACE CONTROL)$/, '賽會測試訊息'],
   [/^WORK MAY COMMENCE AT (\d{1,2}:\d{2})$/, '衝刺賽後封閉車房：當地 $1 起可開始作業'],
   [/^CORRECTION$/, '更正']
 ];
@@ -255,7 +255,9 @@ function head(h, parts) {
   // The cars that may unlap themselves, the order to restart in.
   if ((m = h.match(/^LAPPED CARS? MAY NOW OVERTAKE THE SAFETY CAR:\s*(.+)$/))) return `被套圈車可超越安全車：${numberList(m[1])}`;
   if (/^LAPPED CARS MAY NOW OVERTAKE$/.test(h)) return '被套圈車可超越安全車';
-  if ((m = h.match(/^(?:RESUMPTION ORDER|ORDER FOR RESTART|PUSH CARS TO FRONT IN ORDER):\s*(.+)$/))) return `重新起跑順序：${m[1].replace(/\s*(?:,|AND)\s*/g, '、')}`;
+  // (Each a car, its driver: Mexico 2026's red flag listed nineteen numbers no one knew by heart. Revised, said so after.)
+  if ((m = h.match(/^(REVISED )?(?:RESUMPTION ORDER|ORDER FOR RESTART):\s*(.+)$/))) return `重新起跑順序${m[1] ? '（修正）' : ''}：${numberList(m[2])}`;
+  if ((m = h.match(/^(REVISED )?PUSH CARS TO FRONT IN ORDER:\s*(.+)$/))) return `被套圈車依序移到前方${m[1] ? '（修正）' : ''}：${numberList(m[2])}`;
   // The weather before, the clock: when a session starts, resumes or ends.
   if ((m = h.match(/^RISK OF RAIN FOR (.+?) IS (\d+) ?%$/))) {
     const s = session(m[1]);
@@ -317,7 +319,8 @@ function toChinese(text, unknown) {
   for (;;) {
     const m = t.match(/^(FIA STEWARDS|UPDATE|CORRECTION):+\s*/);
     if (!m) break;
-    if (m[1] === 'FIA STEWARDS') who = '幹事：';
+    // (The stewards' word is said without "幹事：" before each: Jay 2026-11-03, it was on every other line.)
+    if (m[1] === 'FIA STEWARDS') who = '';
     else lead = m[1] === 'UPDATE' ? '更新：' : '更正：';
     t = t.slice(m[0].length);
   }

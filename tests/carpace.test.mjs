@@ -2,7 +2,7 @@
 // never backwards, never piled on the car ahead.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { lapRate, unwrap, readCar, stepCar, spread, behindLeader, apart, placeTags } from '../public/lib/carpace.mjs';
+import { lapRate, unwrap, readCar, stepCar, spread, behindLeader, placeTags } from '../public/lib/carpace.mjs';
 
 test('pace: the last lap while it is a racing lap, else the best; slower behind the safety car and in the pits', () => {
   assert.equal(lapRate({ lastMs: 100_000, bestMs: 99_000 }), 1 / 100_000);
@@ -70,9 +70,9 @@ test('cars on one another drawn as a train, the one ahead where it is', () => {
   assert.equal(out[1], 0.49);
   assert.equal(out[2], 0.2);
   assert.ok(Math.abs(out[3] - 0.48) < 1e-9);
-  // Six widths back at most.
-  const pack = spread(Array.from({ length: 10 }, () => 0.5), () => 0.01);
-  assert.ok(Math.min(...pack) >= 0.5 - 0.06 - 1e-9);
+  // A whole pack: a train back along the line, each a width behind the next, none on another (a cap of six heaped it, then pushed it off the track).
+  const pack = spread(Array.from({ length: 10 }, () => 0.5), () => 0.01).sort((a, b) => b - a);
+  pack.forEach((f, i) => assert.ok(Math.abs(f - (0.5 - i * 0.01)) < 1e-9));
 });
 
 test('a race: each car placed from the leader by its gap, so the order is the race’s', () => {
@@ -85,18 +85,6 @@ test('a race: each car placed from the leader by its gap, so the order is the ra
   assert.ok(Math.abs(s.d - 0.502) < 1e-9);
   // The leader read again at the same place and time: the follower keeps going.
   assert.equal(readCar(s, 0.482, v, 6_000, 0.05, 0).at, 0);
-});
-
-test('a heap where the track folds back is opened on the screen, each dot kept near its place', () => {
-  // Five cars in one spot and one beside them.
-  const out = apart([...Array.from({ length: 5 }, (_, i) => ({ x: 100 + i * 0.5, y: 100, r: 10 })), { x: 104, y: 103, r: 10 }]);
-  for (let i = 0; i < out.length; i++) {
-    for (let j = i + 1; j < out.length; j++) assert.ok(Math.hypot(out[i].x - out[j].x, out[i].y - out[j].y) > 20 * 0.75, `${i} ${j}`);
-    assert.ok(Math.hypot(out[i].x - out[i].hx, out[i].y - out[i].hy) <= 22 + 1e-9);
-  }
-  // Apart already: left where they are.
-  const two = apart([{ x: 0, y: 0, r: 10 }, { x: 30, y: 0, r: 10 }]);
-  assert.deepEqual([two[0].x, two[1].x], [0, 30]);
 });
 
 test('a tag goes where it covers nothing: right, else left, above or below; kept where it was unless clearly better', () => {

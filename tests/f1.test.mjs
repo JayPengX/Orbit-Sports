@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pushLaps, f1Grids, f1Label, f1Value, finishOf, eventOfRace, lapMs, qualiRows, sameSession, qualiCut } from '../public/lib/f1.mjs';
+import { pushLaps, birthPlaceOf, f1Grids, f1Label, f1Value, finishOf, eventOfRace, lapMs, qualiRows, sameSession, qualiCut } from '../public/lib/f1.mjs';
 
 test("formula1.com's grids are found by their first label, in the app's words", () => {
   const g = f1Grids([[['Season Position', '1st'], ['Season Points', '302']], [['Grands Prix Entered', '39'], ['Highest Race Finish', '1 (x8)']], [['Date of Birth', '25/08/2006']]]);
@@ -209,4 +209,11 @@ test('lapTicks: round numbers, to the tenth only when the step is under a second
   assert.deepEqual(lapTicks(93735, 96424), { ticks: [94000, 95000, 96000], tenths: false });
   assert.deepEqual(lapTicks(94991, 102462), { ticks: [96000, 98000, 100000, 102000], tenths: false });
   assert.deepEqual(lapTicks(94000, 95200), { ticks: [94000, 94500, 95000], tenths: true });
+});
+
+test("a driver's birthplace is formula1.com's before ESPN's, which cut Hamilton's to \"England, He\"", () => {
+  const grids = f1Grids([[['Season Position', '3rd']], [['Date of Birth', '07/01/1985'], ['Place of Birth', 'Stevenage, England']]]);
+  assert.equal(birthPlaceOf(grids, 'England, He'), 'Stevenage, England');
+  assert.equal(birthPlaceOf({}, 'Hasselt'), 'Hasselt');
+  assert.equal(birthPlaceOf(null, undefined), '');
 });

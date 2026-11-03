@@ -689,7 +689,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .sb-legend .home { color: var(--home, var(--accent)); }
 .sb-top .lead { color: var(--q-text); }
 .sb-top strong { color: var(--q-text-2); font-weight: 600; }
-.wp { display: grid; gap: 6px; }
+.wp { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .wp-labels { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 600; color: var(--q-text-2); }
 .wp-labels .draw { color: var(--q-muted); font-weight: 600; }
 /* Each side's chance in its band's colour (sheets.js sideVars), so a band reads as whose it is. */
@@ -744,6 +744,12 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 /* Key moments: dotted on the line, told under it (the one at the finger, or just now), listed. */
 .wp-moment { position: absolute; width: 9px; height: 9px; border-radius: 50%; transform: translate(-50%, -50%); border: 2px solid var(--q-surface, #fff); pointer-events: none; background: var(--q-text-2); }
 .wp-moment.home { background: var(--accent); }
+/* An F1 race's moments: a numbered marker on the driver's line, the same number in the list. */
+.wp-moment.rc-pin { display: grid; place-items: center; width: 15px; height: 15px; border-width: 1.5px; background: var(--team, var(--q-text-2)); color: #fff; font-size: 9px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; transition: transform 0.15s; }
+.wp-moment.rc-pin.on { transform: translate(-50%, -50%) scale(1.3); }
+.rc-pin-n { display: inline-grid; place-items: center; width: 14px; height: 14px; margin-right: 5px; border-radius: 50%; background: var(--team, var(--q-text-2)); color: #fff; font-size: 9px; font-weight: 700; line-height: 1; vertical-align: 1px; }
+.rc-band-tags.two { height: 34px; }
+.rc-band-tag.r2 { top: 18px; }
 .wp-why { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--q-border) 45%, transparent); font-size: 13px; }
 .wp-why[hidden] { display: none; }
 .wp-why-icon { flex: none; display: inline-flex; }
@@ -768,8 +774,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .wp-gain.home { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .wp-moments { margin-top: 10px; display: grid; gap: 2px; }
 .wp-moments .mini-h { margin: 0 0 4px; }
-.wp-mo { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--q-border); font-size: 13px; }
-.wp-mo-go { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.wp-mo { display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--q-border); font-size: 13px; }
+.wp-mo-go { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .wp-who { display: inline-flex; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
 .wp-who.team { border-radius: 6px; box-shadow: none; }
 button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
@@ -1176,7 +1182,9 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .lp-person > .logo { width: 44px; height: 44px; flex: none; border-radius: 50%; object-fit: cover; background: var(--q-surface); border: 1px solid transparent; }
 .lp-person p { min-width: 0; }
 /* ---- F1 live board: the part or lap, the time left and the flag on top, then the cars in the result's own rows ---- */
-.live-board { display: grid; gap: 8px; }
+.live-board { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+/* (The views' chips scroll in their row: six of them never widen the board past the screen.) */
+.f1-views { min-width: 0; }
 .lb-head { display: flex; align-items: center; gap: 8px; }
 /* A team's 隊內排行: its heading right over its chips (the stack's gap and the chips' own had left a hole, Jay 10-27). */
 .lb-team > .lb-head { margin: 4px 2px 0; }
@@ -1623,7 +1631,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lb-msg .rc-who { display: inline-flex; align-items: center; gap: 4px; margin: 0 .2em; padding: 1px 8px 1px 1px; border: 0; border-radius: 999px; background: var(--q-sunken); color: inherit; font: inherit; font-weight: 600; vertical-align: -0.3em; cursor: pointer; }
 .lb-msg .rc-who .logo { width: 18px; height: 18px; }
 /* ---- F1's live board as a timing tower (2026-10-10) ---- */
-.lb-top { display: grid; gap: 8px; padding: 12px 14px; border-radius: 16px; background: var(--q-sunken); }
+.lb-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px 14px; border-radius: 16px; background: var(--q-sunken); }
 .lb-head { display: flex; align-items: baseline; gap: 10px; }
 .lb-part { font-size: 20px; letter-spacing: -0.01em; }
 .lb-flag { align-self: center; }
@@ -1687,9 +1695,13 @@ button.lp-person.tap:active { opacity: 0.6; }
 .tm-car circle { fill: var(--team, #888); stroke: var(--q-surface, #1c1c1e); stroke-width: 1.6; }
 .tm-car .tm-tag { display: none; font-size: 11.5px; font-weight: 600; fill: var(--q-text); paint-order: stroke; stroke: var(--q-surface, #1c1c1e); stroke-width: 4px; stroke-linejoin: round; }
 .tm-car.named .tm-tag { display: block; }
-.tm-lead[hidden] { display: none; }
-.tm-lead line { stroke: var(--team, #888); stroke-width: 1.6; stroke-linecap: round; }
-.tm-car .tm-lead circle { stroke: var(--q-surface, #1c1c1e); stroke-width: 1; }
+/* A red flag: the cars off the map (in the pit lane), a line over the track saying so. */
+.tm-svg.held .tm-car { display: none; }
+.tm-box { position: relative; }
+.tm-held { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); margin: 0; padding: 6px 12px; border-radius: 999px; background: color-mix(in srgb, #dc2626 16%, var(--q-surface, #1c1c1e)); color: #b91c1c; font-size: 13px; font-weight: 700; white-space: nowrap; pointer-events: none; }
+.tm-held[hidden] { display: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .tm-held { color: #f87171; } }
+:root[data-theme='dark'] .tm-held { color: #f87171; }
 .tm-car .tm-no { font-size: 8.2px; font-weight: 600; letter-spacing: -0.2px; text-anchor: middle; fill: #fff; pointer-events: none; }
 .tm-car.light .tm-no { fill: #111; }
 .tm-car.pit { opacity: 0.45; }
@@ -1743,8 +1755,8 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lb-msgs li:first-child { font-weight: 600; }
 .lb-msgs li + li { color: var(--q-text-2, var(--q-muted)); }
 .lb-msg-lap { font-size: 11.5px; font-weight: 600; color: var(--q-muted); white-space: nowrap; }
-.fs-weather { display: flex; justify-content: space-between; gap: 8px; padding: 0 4px; }
-.fs-weather span { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.fs-weather { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; padding: 0 4px; }
+.fs-weather span { flex: none; display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
 .fs-weather small { font-size: 12px; font-weight: 600; color: var(--q-muted); }
 .fs-weather strong { font-size: 14px; font-weight: 600; }
 .dc-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 0; border-radius: 999px; background: var(--q-sunken); color: var(--q-text); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -1791,6 +1803,14 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lc-sc-t { fill: #ca8a04; font-size: 8.5px; font-weight: 600; }
 .pw-rows li { grid-template-columns: 22px auto minmax(0, 1fr) auto; gap: 8px; }
 .pw-who { display: grid; gap: 1px; min-width: 0; }
+.pw-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pw-line > :first-child { min-width: 0; }
+.pw-tyre { flex: none; display: inline-flex; align-items: center; gap: 3px; }
+.pw-tyre .tyre { width: 15px; height: 15px; }
+.pw-tyre small { font-size: 11px; color: var(--q-muted); white-space: nowrap; }
+.pw-rows li.pw-group { display: block; padding: 4px 0 0; }
+.pw-rows li.pw-group::before { display: none; }
+.pw-rows li.pw-group small { font-size: 11.5px; font-weight: 600; color: var(--q-muted); }
 .pw-who strong { font-size: 13.5px; font-weight: 600; white-space: nowrap; }
 .pw-who small { font-size: 11.5px; color: var(--q-muted); white-space: nowrap; }
 .pw-to { display: grid; justify-items: end; line-height: 1.15; }
@@ -1822,6 +1842,23 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lb-bar i { border-radius: 3px; }
 .lb-sc { position: absolute; top: 0; bottom: 0; background: #eab308; opacity: 0.9; border-radius: 1px; }
 .lb-sc.vsc { opacity: 0.55; }
+.lb-sc.red { background: #dc2626; }
+/* The flag (anything but green): a band across the head, what it is, the
+   restart counted down or since when, and why it came out. */
+.lb-alert { display: grid; gap: 3px; padding: 9px 12px; border-radius: 12px; background: color-mix(in srgb, #eab308 15%, transparent); }
+.lb-alert.red { background: color-mix(in srgb, #dc2626 13%, transparent); }
+.lb-alert-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.lb-alert-top strong { display: inline-flex; align-items: center; gap: 7px; min-width: 0; font-size: 14.5px; font-weight: 700; color: #a16207; white-space: nowrap; }
+.lb-alert.red .lb-alert-top strong { color: #b91c1c; }
+.lb-alert-top strong i { flex: none; width: 10px; height: 8px; border-radius: 1.5px; background: currentColor; }
+.lb-alert-clock { flex: none; font-size: 13px; font-weight: 600; color: var(--q-text-2, var(--q-muted)); white-space: nowrap; }
+.lb-alert-why { margin: 0; font-size: 13px; line-height: 1.4; color: var(--q-text); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .lb-alert-top strong { color: #facc15; }
+  :root:not([data-theme='light']) .lb-alert.red .lb-alert-top strong { color: #f87171; }
+}
+:root[data-theme='dark'] .lb-alert-top strong { color: #facc15; }
+:root[data-theme='dark'] .lb-alert.red .lb-alert-top strong { color: #f87171; }
 /* One F1 row everywhere (results, qualifying, practice, live): two lines, the surname over the team. */
 .f1-field li { grid-template-columns: 24px 32px minmax(0, 1fr) auto; gap: 10px; padding: 9px 12px 9px 18px; }
 .f1-field li::before { top: 10px; bottom: 10px; }
@@ -2112,6 +2149,9 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .f1-field .tw-b, .f1-field.alt .tw-a { display: none; }
 .f1-field.alt .tw-b { display: inline; }
 .f1-field li.tower { padding-top: 4px; padding-bottom: 4px; min-height: 42px; }
+/* (A phone at 320: the board fits the screen now, so the columns give a little,
+   "Verstappen" whole, not "Verstap…".) */
+@media (max-width: 359px) { .f1-field li.tower { grid-template-columns: 20px 22px minmax(0, 1fr) auto 68px; gap: 6px; padding-left: 14px; padding-right: 10px; } }
 .f1-field li.tw-head { display: grid; grid-template-columns: minmax(0, 1fr) auto 96px; align-items: center; gap: 8px; padding: 8px 12px 6px 16px; color: var(--q-muted); }
 .f1-field li.tw-head::before { display: none; }
 .tw-head small { font-size: 12px; font-weight: 600; }
@@ -2206,6 +2246,8 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .fight-pts small { font-size: 12px; color: var(--q-muted); font-variant-numeric: tabular-nums; }
 .fight-teams { display: flex; align-items: center; gap: 8px; margin: 0; padding-top: var(--q-s-3, 12px); border-top: 1px solid var(--q-divider); font-size: 15px; color: var(--q-muted); white-space: nowrap; overflow: hidden; }
 .fight-teams > span { overflow: hidden; text-overflow: ellipsis; }
+/* A race on: the title fight as it stands, said on top. */
+.fight-live { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 12.5px; color: var(--q-muted); white-space: nowrap; }
 .stack.tight > .title-race { margin: 0; }
 .fight-teams .team-disc, .pd-team .team-disc { width: 18px; height: 18px; }
 /* 賽道: the outline beside its figures, the lap record, the weekend's weather; rows by hairlines, no boxes. */
@@ -2497,3 +2539,21 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 .season-break { display: flex; align-items: baseline; gap: 8px; padding: 10px 16px 8px; border-top: 1px solid var(--q-sep); background: color-mix(in srgb, var(--q-text) 4%, transparent); font-size: 13px; }
 .season-break b { font-weight: 700; color: var(--q-text); }
 .season-break small { color: var(--q-muted); font-size: 12px; }
+
+/* F1's 過程: the race told lap by lap (lib/f1story.mjs), a flag's turn marked by its colour. */
+.f1-story, .f1-story .q-card, .f1-story .story-body { min-width: 0; max-width: 100%; }
+.f1-story .story-pick { margin: 2px 0 10px; max-width: 100%; overflow-x: auto; }
+.f1-story-list { background: none; }
+.f1-story-list li { grid-template-columns: 44px minmax(0, 1fr) 12px; padding: 9px 0; }
+@media (max-width: 359px) { .f1-story-list li { grid-template-columns: 38px minmax(0, 1fr) 10px; padding: 9px 0; } }
+.f1-story-list .play-when { font-size: 12px; }
+.f1-story-list .play-words { display: grid; min-width: 0; }
+.f1-story-list .play-sub { color: var(--q-muted); font-size: 12px; }
+.f1-story-list li.story-lead .play-main, .f1-story-list li.story-finish .play-main { font-weight: 600; }
+.f1-story-list li.story-sc, .f1-story-list li.story-vsc { background: color-mix(in srgb, #ffd12e 12%, transparent); }
+.f1-story-list li.story-red { background: color-mix(in srgb, #e10600 10%, transparent); }
+.story-flag { flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; }
+.story-flag.sc, .story-flag.vsc { background: #ffd12e; color: #1c1c1e; }
+.story-flag.red { background: #e10600; color: #fff; }
+.story-flag.pen { background: var(--q-fill-2); color: var(--q-label-2, var(--q-muted)); }
+.f1-story-list .row-chev { color: var(--q-muted); }

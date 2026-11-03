@@ -457,7 +457,30 @@ test('F1: the start told as itself, not by the short virtual safety car on lap 2
   assert.deepEqual(list.map(m => m.text), ['起跑', '虛擬安全車']);
   assert.ok(Math.abs(list[0].delta - 0.19) < 1e-9);
   assert.equal(list[0].k, 0);
-  assert.ok(Math.abs(list[1].delta) < 0.02);
+  // (Read to two laps after it: the steady 1% a lap, under the 3 points a chip is shown for.)
+  assert.ok(Math.abs(list[1].delta) < 0.03);
+});
+
+test('F1: a safety car turned red flag is one moment with its cause; a climb through the field is a moment; a lead on the first lap is the start\'s (Mexico 2026)', async () => {
+  const { raceMoments } = await import('../public/lib/moments.mjs');
+  // Laps 0–50: Verstappen up from 50% to 75%, Hamilton level at 10%, Leclerc down.
+  const points = Array.from({ length: 51 }, (_, lap) => ({ lap, c: [0.5 + Math.max(0, lap - 28) * 0.012, 0.1, Math.max(0.05, 0.4 - lap * 0.008)] }));
+  const bands = [
+    { i0: 6, i1: 8, kind: 'vsc', from: 7, to: 8 },
+    { i0: 43, i1: 45, kind: 'sc', from: 44, to: 45, why: 'out', who: ['Valtteri Bottas'] },
+    { i0: 44, i1: 46, kind: 'red', from: 45, to: 46 }
+  ];
+  const events = [{ i: 1, kind: 'lead', k: 2 }, { i: 44, kind: 'climb', k: 0, from: 5, to: 1, i0: 29, lap0: 29, lap1: 44 }, { i: 44, kind: 'lead', k: 0 }, { i: 44, kind: 'climb', k: 2, from: 6, to: 2, i0: 29, lap0: 29, lap1: 44 }];
+  const list = raceMoments(points, ['Verstappen', 'Hamilton', 'Leclerc'], bands, events, false, n => n.split(' ').at(-1), 1);
+  const texts = list.map(m => m.text);
+  assert.ok(texts.includes('起跑 · Leclerc 領先'), texts.join(' / '));
+  assert.ok(texts.includes('安全車轉紅旗 · Bottas 退賽'), texts.join(' / '));
+  assert.ok(texts.includes('Verstappen 升到領先 · 從第 5'), texts.join(' / '));
+  // (The lead at the climb's end is the climb's, not said twice.)
+  assert.ok(!texts.includes('Verstappen 取得領先'));
+  assert.deepEqual(list.find(m => m.climb).laps, [29, 44]);
+  // Leclerc's places back as the others stopped, his chance down: no climb.
+  assert.ok(!texts.some(t => t.startsWith('Leclerc 從')));
 });
 
 test('F1: a lead the market doubts (its chance down) is told by who gained over it', async () => {

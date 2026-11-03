@@ -103,19 +103,39 @@ couldn't be read is shown, never hidden.
   while on or over; a split bar before. Each side in its colour, its
   chance written in it (`wpline.mjs sideColors`: two alike, or none, and
   one takes a spare colour); a draw grey.
-- **F1 live board:** F1's own timing (`f1-live`), in tabs 排名 · 賽道 · 輪胎 ·
-  圈速 · 積分. Race control in Chinese by rule (`lib/racecontrol.mjs`). 賽道
+- **F1 live board:** F1's own timing (`f1-live`), in tabs 排名 · 過程 · 賽道 · 輪胎 ·
+  圈速 · 積分. 過程 (a race or sprint, live and over) tells the race lap by
+  lap (`lib/f1story.mjs raceStory`, from each car's place at each lap's end,
+  its stops and race control): the whole race's turns (the lead, each
+  safety car or red flag with its cause and how long it stopped, who went
+  out and where, the stewards' penalties, the biggest climbs, the finish),
+  or one driver's own race picked above it (its stops and tyres, the places
+  others' stops gave it, who it passed and who passed it, the finish
+  against the grid); a tap on a row of the whole race picks its driver. Race control in Chinese by rule (`lib/racecontrol.mjs`; 賽會訊息,
+  no speaker before each). The flag now (`lib/f1.mjs flagNow`: a red flag is
+  the session Aborted, not the track status; an SC in this lap; the yellow
+  sectors) is a banner under the bar (`sheets.js flagBanner`): what it is,
+  its clock (a countdown to the set restart, else how long it has run) and
+  why (the car out or stopped, the turn, the medical car; the kit's
+  `causeOf`). Under a red flag the board holds still: no gaps, no 進站, the
+  map's cars hidden under 紅旗 · 賽車都在維修區等候, 進站窗口 gone. 賽道
   is 車手比較 on the track: one pick of up to four drivers (their faces on
   the map, a tap on a car adds it), every car always moving at its own pace
   between reads and in race order by its gap to the leader, each by its
-  code; a heap where the track folds back pushed apart with a line to each
-  car's place, the tags where they cover least (`lib/carpace.mjs`), then
-  the drivers side by side. A qualifying or a practice compares their
+  code, always on the track's line (a train where they run close), the
+  tags where they cover least (`lib/carpace.mjs`), then
+  the drivers side by side. 進站窗口 lists the top ten, those yet to stop
+  first, each with its tyre and its age. A qualifying or a practice compares their
   timed laps (`lib/f1.mjs pushLaps`: no pit lap, no cool-down), the first
   of each side by side, with a qualifying's Q1–Q3 and the gap where it was
   decided; a race's lap times one line a car over its stops. The win chance goes by
   lap while a race runs too (each lap's end counted from the feed and the
-  leader's lap times), with its leads, stops and the start's own swing.
+  leader's lap times), with its leads, stops and the start's own swing;
+  each driver's climbs through the field (the kit's `placeClimbs`) and an
+  SC turned red flag told as one moment, numbered pins on the lines, the
+  bands' tags in two rows. 冠軍之爭 during a race or sprint is as it stands
+  (假如正賽現在結束: each row's points to come, 將封王 or still open),
+  redrawn every 30 s.
 - **勝負未定** (close finish): a live game in its last stretch and within reach (NBA 4th or OT, MLB 8th–9th, soccer from the 80th).
 - **Tables count results at once** (`lib/title.mjs liveTable`,
   `liveRacing`, `freshStandings`), on every page with a table: finals
@@ -170,7 +190,8 @@ couldn't be read is shown, never hidden.
   kit's `proxyJson`). Seasons and game days come from R2 packs; finished
   games are kept in R2 on first read. MLB's API, CPBL's site, F1 timing,
   Jolpica, formula1.com, FotMob and Polymarket are all read through the
-  proxy.
+  proxy (Jolpica from the phone itself when it turns the proxy away: the
+  kit's `proxyJson`).
 - **Refresh** (owner-set speeds): lists 5 s, an open game 3 s, F1 4–15 s;
   today whole every 2 minutes. Values change in place (`morph`), never a
   redraw.

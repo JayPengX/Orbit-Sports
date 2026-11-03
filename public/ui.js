@@ -4,7 +4,7 @@
 import { LEAGUES, SPORTS, leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
 import { sidesInOrder } from '#kit/catalog.mjs';
 import { logoPicture, countryFlag, flagUrl, flagEmoji, f1Driver } from '#kit/logos.mjs';
-import { keptTiming, cutoutFace } from './lib/f1.mjs';
+import { keptTiming, cutoutFace, flagNow } from './lib/f1.mjs';
 import { espnHeadshot, espnCollegeHeadshot, smallPhoto, isFlag, isCutout, personPhoto } from '#kit/photos.mjs';
 import { liveLabel, liveNote, closeLabel, goalHead, withTimeout, liveParts } from './lib/live.mjs';
 import { stageTag } from './lib/stage.mjs';
@@ -712,7 +712,10 @@ export function fillF1Brief(box, e) {
   const quali = /^(Qual|SS|SQ)$/.test(e.sessionKey || '');
   // As the feed last said it, not counted on between reads.
   const left = Math.max(0, f.clock.left);
-  const head = race && f.lap?.now ? (en ? `Lap ${f.lap.now}/${f.lap.of}` : `第 ${f.lap.now}/${f.lap.of} 圈`) : [quali && f.part ? `${e.sessionKey === 'Qual' ? 'Q' : 'SQ'}${f.part}` : '', `${en ? '' : '剩 '}${mmss(left)}${en ? ' left' : ''}`].filter(Boolean).join(' · ');
+  // The flag beside it, when it isn't green (a red flag: no gaps, the cars stood in the pit lane).
+  const flag = flagNow(f)?.kind;
+  const flagWord = { red: en ? 'Red flag' : '紅旗', sc: en ? 'Safety car' : '安全車', 'sc-in': en ? 'Safety car' : '安全車', vsc: en ? 'VSC' : '虛擬安全車', 'vsc-end': en ? 'VSC' : '虛擬安全車' }[flag] || '';
+  const head = [race && f.lap?.now ? (en ? `Lap ${f.lap.now}/${f.lap.of}` : `第 ${f.lap.now}/${f.lap.of} 圈`) : [quali && f.part ? `${e.sessionKey === 'Qual' ? 'Q' : 'SQ'}${f.part}` : '', `${en ? '' : '剩 '}${mmss(left)}${en ? ' left' : ''}`].filter(Boolean).join(' · '), flagWord].filter(Boolean).join(' · ');
   const field = (e.sessions || []).find(x => x.abbr === e.sessionKey)?.field || [];
   put(
     box,
@@ -726,7 +729,7 @@ export function fillF1Brief(box, e) {
           el('span', { class: 'pos num', text: String(c.pos) }),
           personPic({ ...espn, en: c.name }, 'f1', 'xs round'),
           fitForms(el('span', { class: 'f1-brief-name' }), [f1Shown(c.name), f1Shown(c.name).split(' ').at(-1)]),
-          el('span', { class: 'num f1-brief-v', text: race ? (i === 0 ? '' : c.gap) : c.best || (i === 0 ? '' : c.gap) || '' })
+          el('span', { class: 'num f1-brief-v', text: race ? (i === 0 || flag === 'red' ? '' : c.gap) : c.best || (i === 0 ? '' : c.gap) || '' })
         ]);
       })
     )

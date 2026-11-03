@@ -21,17 +21,18 @@ import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, i
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { isFlag } from '#kit/photos.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
+import { raceStory } from './lib/f1story.mjs';
 import { h2hPieces, PIECE_EACH } from './lib/meetings.mjs';
-import { lapRate, readCar, stepCar, spread, behindLeader, apart, placeTags } from './lib/carpace.mjs';
+import { lapRate, readCar, stepCar, spread, behindLeader, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
-import { driverAbout, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
+import { driverAbout, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents, flagNow, birthPlaceOf, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch, placeTeams } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { tieNotes } from './lib/tiebreak.mjs';
-import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, nextNeeds } from './lib/title.mjs';
+import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, nextNeeds, standingsRace } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { moreToggle, f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, withHome, today, sidesOf } from './ui.js';
@@ -2560,9 +2561,11 @@ function raceChanceCard(line, ss, feed = null) {
   };
   let bands = [];
   let events = [];
+  // An event ([lap, kind, k], a climb's from, to and first lap after) at its point.
+  const evOf = ([lap, kind, k, from, to, lap0]) => ({ i: idxOfLap(lap), kind, k, ...(kind === 'climb' ? { from, to, i0: idxOfLap(lap0), lap0, lap1: lap } : {}) });
   if (byLap && line.bands) {
     bands = line.bands.map(([from, to, kind, why, who]) => ({ i0: idxOfLap(from - 1), i1: idxOfLap(to), kind, from, to, why, who }));
-    events = (line.events || []).map(([lap, kind, k]) => ({ i: idxOfLap(lap), kind, k }));
+    events = (line.events || []).map(evOf);
   } else if (feed?.control?.length) {
     // A race on: the live feed's race control, by its laps (or the clock, before two laps are run).
     const msgs = feed.control.map(m => ({ ...m, t: Date.parse(/Z|[+-]\d\d:?\d\d$/.test(m.at) ? m.at : `${m.at}Z`) / 1000 })).filter(m => Number.isFinite(m.t));
@@ -2570,13 +2573,15 @@ function raceChanceCard(line, ss, feed = null) {
     // A car's number to its driver's name (the feed's cars).
     const family = n => feed.cars?.find(c => String(c.no) === String(n))?.name || '';
     bands = controlBands(msgs, m => m.t, pts.at(-1).t ?? Infinity).map(([a, b, kind, m]) => {
-      const cause = causeOf(msgs, m?.t ?? a, [], family);
       const from = byT.get(a)?.lap || null;
+      // (Why: a car out of the race in the laps before it too, as a race over has it: Bottas, Mexico 2026's red flag.)
+      const out = from ? (feed.cars || []).filter(c => (c.retired || c.stopped) && c.laps >= from - 4 && c.laps <= from).map(c => c.name) : [];
+      const cause = causeOf(msgs, m?.t ?? a, out, family);
       const to = byT.get(b)?.lap || feed.lap?.now || null;
       return { i0: byLap ? idxOfLap((from || 1) - 1) : idxOfT(a), i1: byLap ? idxOfLap(to || from || 1) : idxOfT(b), kind, from, to, why: cause?.kind, who: cause?.who };
     });
     // By lap: who led each lap, the drawn drivers' stops and retirements, as a race over has them.
-    if (byLap) events = liveRaceEvents(feed, line.drivers).filter(([lap]) => lap <= pts.at(-1).lap).map(([lap, kind, k]) => ({ i: idxOfLap(lap), kind, k }));
+    if (byLap) events = liveRaceEvents(feed, line.drivers).filter(([lap]) => lap <= pts.at(-1).lap).map(evOf);
   }
   const names = line.drivers.map(n => driverShort(n, en));
   // (The start: the first lap's end, or three minutes in on the clock.)
@@ -2594,17 +2599,35 @@ function raceChanceCard(line, ss, feed = null) {
   // (None on a decided game's run to the result: no price there to move.)
   const gainChip = m => {
     const { k, delta } = m.gain || m;
-    return pts[m.i]?.settled || Math.round(Math.abs(delta) * 100) < 1 ? null : el('span', { class: 'wp-gain', style: `color:${colorOf(k)};background:color-mix(in srgb, ${colorOf(k)} 16%, transparent)`, text: `${names[k]} ${delta >= 0 ? '+' : '−'}${Math.round(Math.abs(delta) * 100)}%` });
+    // (Its own driver, named in its words: the number alone, in their colour.
+    // "Verstappen 升到領先 · Verstappen +9%" left the words no room at 320.)
+    const own = !m.gain && !m.band && String(m.text).includes(names[k]);
+    // (Under 3 points: no chip. "Hamilton +1%" on a red flag read as if it didn't matter, Jay 2026-11-03.)
+    return pts[m.i]?.settled || Math.round(Math.abs(delta) * 100) < 3 ? null : el('span', { class: 'wp-gain', style: `color:${colorOf(k)};background:color-mix(in srgb, ${colorOf(k)} 16%, transparent)`, text: `${own ? '' : `${names[k]} `}${delta >= 0 ? '+' : '−'}${Math.round(Math.abs(delta) * 100)}%` });
   };
   const shade = bands.map(b => `<rect x="${(xs[b.i0] * w).toFixed(1)}" y="0" width="${Math.max(2, (xs[b.i1] - xs[b.i0]) * w).toFixed(1)}" height="${h}" class="rc-band ${b.kind}"/>`).join('');
-  // Tagged in a strip above the chart (never over the lines), each at its band's start; one close after another (a virtual safety car turned real) just after it.
-  let free = 0;
+  // Tagged in a strip above the chart (never over the lines), each over its
+  // band's start; one that would sit on another (Mexico 2026: the safety
+  // car on lap 44, the red flag on 45) on a second row, not pushed along
+  // away from its band (the red flag's tag sat on the next safety car's).
+  // (A tag's width as a share of the chart, at a phone's: its letters and padding.)
+  const rowsEnd = [-1, -1];
   const tags = bands.map(b => {
-    const x = Math.min(0.9, Math.max(xs[b.i0], free));
-    free = x + 0.1;
-    return el('span', { class: `rc-band-tag ${b.kind}`, style: `left:${x * 100}%`, text: b.kind === 'red' ? (en ? 'RED' : '紅旗') : b.kind.toUpperCase() });
+    const text = b.kind === 'red' ? (en ? 'RED' : '紅旗') : b.kind.toUpperCase();
+    const wide = (text.length * (/[A-Z]/.test(text) ? 7 : 11) + 10) / 300;
+    const x = Math.min(1 - wide, Math.max(0, xs[b.i0] - wide / 2 + Math.max(0, xs[b.i1] - xs[b.i0]) / 2));
+    const row = rowsEnd.findIndex(end => x > end + 0.01);
+    const r = row < 0 ? 1 : row;
+    rowsEnd[r] = x + wide;
+    return el('span', { class: `rc-band-tag ${b.kind}${r ? ' r2' : ''}`, style: `left:${(x * 100).toFixed(1)}%`, text });
   });
-  const pins = moments.filter(m => !m.band).map(m => el('span', { class: 'wp-moment', style: `left:${xs[m.i] * 100}%;top:${(1 - pts[m.i].c[m.k]) * 100}%;background:${colorOf(m.k)}` }));
+  const twoRows = tags.some(t => t.classList.contains('r2'));
+  // Each moment about a driver numbered on their line, the same number in the
+  // list under the chart (a bare dot on the line said nothing: Jay 2026-11-03,
+  // "dots floating in nowhere").
+  const numbered = [...moments].filter(m => !m.band).sort((a, b) => a.i - b.i);
+  const numOf = m => numbered.indexOf(m) + 1;
+  const pins = numbered.map(m => el('span', { class: 'wp-moment rc-pin', style: `left:${xs[m.i] * 100}%;top:${(1 - pts[m.i].c[m.k]) * 100}%;--team:${colorOf(m.k)}`, text: String(numOf(m)) }));
   const at = el('small', { class: 'wp-at' });
   const why = el('div', { class: 'wp-why', hidden: true });
   const rule = el('span', { class: 'wp-rule', hidden: true });
@@ -2618,6 +2641,7 @@ function raceChanceCard(line, ss, feed = null) {
     // A moment picked from the list: that one; a finger close to a stop or a lead (the closest): on it.
     const near = picked || (j != null ? nearestMoment(moments.filter(m => !m.band), xs, j) : null);
     rows.forEach((r, k) => r.classList.toggle('on', listed[k] === picked));
+    pins.forEach((p, n) => p.classList.toggle('on', numbered[n] === near));
     const i = near ? near.i : j;
     const p = pts[i ?? last];
     chips.forEach((c, k) => (c.lastChild.textContent = `${Math.round(p.c[k] * 100)}%`));
@@ -2638,8 +2662,8 @@ function raceChanceCard(line, ss, feed = null) {
     if (i != null) rule.style.left = `${xs[i] * 100}%`;
   };
   const plot = scrubPlot(xs, show, [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart rc-chart" aria-hidden="true">${shade}${grid}${paths}</svg>` }), ...pins, rule]);
-  const strip = tags.length ? el('div', { class: 'rc-band-tags', 'aria-hidden': 'true' }, tags) : null;
-  const rows = listed.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? momentGlyph(m.icon) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i]) }), el('span', { class: 'wp-mo-text' }, oneLineWords(m.text))]), gainChip(m)])]));
+  const strip = tags.length ? el('div', { class: `rc-band-tags${twoRows ? ' two' : ''}`, 'aria-hidden': 'true' }, tags) : null;
+  const rows = listed.map(m => el('div', { class: 'wp-mo' }, [el('span', { class: 'wp-mo-face' }, [m.band && !m.driver ? momentGlyph(m.icon) : face(m)]), el('button', { type: 'button', class: 'wp-mo-go', onclick: () => (show(m.i, m), bringIn(plot)) }, [el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at' }, [m.band ? null : el('b', { class: 'rc-pin-n', style: `--team:${colorOf(m.k)}`, text: String(numOf(m)) }), m.laps && m.laps[1] > m.laps[0] ? (en ? `Laps ${m.laps[0]}–${m.laps[1]}` : `第 ${m.laps[0]}–${m.laps[1]} 圈`) : lapText(pts[m.i])]), el('span', { class: 'wp-mo-text' }, oneLineWords(m.text))]), gainChip(m)])]));
   show();
   const list = listed.length
     ? el('div', { class: 'wp-moments' }, [el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }), ...rows])
@@ -2958,19 +2982,50 @@ function titleFightCard(e) {
   const en = L() === 'en';
   const title = en ? 'Title fight' : '冠軍之爭';
   if (!ctx.titleFight) return null;
-  return lateCard(title, 168, async () => {
+  const build = async () => {
     const all = await ctx.titleFight(e.league);
-    const d = all?.find(x => x.g.rows.some(r => r.athlete));
+    let d = all?.find(x => x.g.rows.some(r => r.athlete));
     if (!d || pts(d.g.rows[0]) <= 0) return null;
+    let t = all.find(x => x !== d) || null;
+    // A race or sprint on now: the fight as it stands (Jay 2026-11-03: "it
+    // should reflect the live status"; Antonelli champion with laps to go,
+    // Mercedes not yet): each table with what the cars would take if the
+    // flag fell now, and the title worked out with that race run.
+    const on = e.league === 'f1' ? (e.sessions || []).find(x => (x.abbr === 'Race' || x.abbr === 'SR') && sessionStatus(x).state === 'in') : null;
+    const feed = on ? keptTiming(on.abbr, on.start) : null;
+    const live = Boolean(feed && !feedOver(feed) && feed.cars?.length && d.left);
+    if (live) {
+      const cars = feed.cars.filter(c => c.name);
+      const gain = c => pointsFor(on.abbr, c.pos, c.retired || c.stopped);
+      const carOf = r => cars.find(c => fold(c.name) === fold(r.en || r.name)) || cars.find(c => surname(c.name) === surname(r.en || r.name));
+      const teamOf = name => f1Constructor(name).name;
+      const tGain = new Map();
+      for (const c of cars) tGain.set(teamOf(c.team), (tGain.get(teamOf(c.team)) || 0) + gain(c));
+      // (This weekend's race, or its sprint, as run: the weekends left without it.)
+      const [w0, ...rest] = d.left.list || [];
+      const left = on.abbr === 'Race' ? { races: Math.max(0, d.left.races - 1), sprints: d.left.sprints, list: rest } : { races: d.left.races, sprints: Math.max(0, d.left.sprints - 1), list: w0 ? [{ ...w0, sprint: false }, ...rest] : [] };
+      const stand = (x, keyOf, gains, team) => {
+        const rows = asItStands(x.g.rows.map(r => ({ ...r, key: keyOf(r), pts: pts(r) })), gains).map(r => ({ ...r, stats: { ...r.stats, PTS: String(r.total) } }));
+        const g = { ...x.g, rows };
+        return { g, race: standingsRace(g, 'racing', { left, team }) };
+      };
+      d = stand(d, r => r.id, new Map(d.g.rows.map(r => [r.id, carOf(r) ? gain(carOf(r)) : 0])), false);
+      if (t) t = stand(t, r => teamOf(r.en || r.name), tGain, true);
+    }
     const top = d.g.rows.slice(0, 3);
     const lead = pts(top[0]);
-    const teams = all.find(x => x !== d)?.g.rows;
+    const teams = t?.g.rows;
     const tn = r => (en ? r.en || r.name : f1Constructor(r.en || r.name)?.zh || r.short || r.name);
-    const teamLine = teams?.length > 1 && pts(teams[0]) > 0 ? el('p', { class: 'fight-teams' }, [constructorBadge(teams[0].en || teams[0].name, 'xs'), el('span', { text: en ? `${tn(teams[0])} lead the teams by ${pts(teams[0]) - pts(teams[1])}` : `車隊：${tn(teams[0])}領先 ${pts(teams[0]) - pts(teams[1])} 分` })]) : null;
-    return card(
+    const tDone = live && t?.race?.title?.done;
+    const teamLine = teams?.length > 1 && pts(teams[0]) > 0 ? el('p', { class: 'fight-teams' }, [constructorBadge(teams[0].en || teams[0].name, 'xs'), el('span', { text: tDone ? (en ? `${tn(teams[0])} would be teams' champions` : `車隊：${tn(teams[0])}將封王`) : en ? `${tn(teams[0])} lead the teams by ${pts(teams[0]) - pts(teams[1])}${live ? ', not yet decided' : ''}` : `車隊：${tn(teams[0])}領先 ${pts(teams[0]) - pts(teams[1])} 分${live ? '，尚未確定' : ''}` })]) : null;
+    // (As it stands: said on top, the points with this race's beside them.)
+    const what = on?.abbr === 'SR' ? (en ? 'sprint' : '衝刺賽') : en ? 'race' : '正賽';
+    const liveHead = live ? el('p', { class: 'fight-live' }, [el('span', { class: 'live-dot-text', text: en ? 'Live' : '即時' }), el('span', { text: en ? `If the ${what} ended now` : `假如${what}現在結束` })]) : null;
+    const node = card(
       title,
       el('div', { class: 'stack tight' }, [
-        raceBlock(d.race, d.g, e.league, false),
+        liveHead,
+        raceBlock(d.race, d.g, e.league, false, live),
         el(
           'div',
           { class: 'fight-rows' },
@@ -2979,14 +3034,28 @@ function titleFightCard(e) {
               el('span', { class: 'fight-pos num', text: String(i + 1) }),
               personPic(r, e.league, 'sm round'),
               el('span', { class: 'fight-main' }, [el('span', { class: 'fight-name', text: r.short || r.name }), el('span', { class: 'fight-bar' }, [el('i', { style: `width:${Math.max(4, Math.round((pts(r) / lead) * 100))}%` })])]),
-              el('span', { class: 'fight-pts' }, [el('strong', { class: 'num', text: String(pts(r)) }), el('small', { class: 'num', text: i ? `−${lead - pts(r)}` : en ? 'pts' : '分' })])
+              el('span', { class: 'fight-pts' }, [el('strong', { class: 'num', text: String(pts(r)) }), el('small', { class: 'num', text: live && r.add ? `+${r.add}` : i ? `−${lead - pts(r)}` : en ? 'pts' : '分' })])
             ])
           )
         ),
         teamLine
       ])
     );
-  });
+    // Live: again each half minute while it's on the page and the race runs.
+    if (live) {
+      const timer = setInterval(() => {
+        if (!node.isConnected) return clearInterval(timer);
+        if (document.visibilityState !== 'visible') return;
+        build().then(next => {
+          if (!node.isConnected) return;
+          clearInterval(timer);
+          if (next) node.replaceWith(next);
+        }).catch(() => {});
+      }, 30_000);
+    }
+    return node;
+  };
+  return lateCard(title, 168, build);
 }
 // A weather code (WMO's) as the kit's icon.
 const skyIcon = code => (code >= 51 ? 'rain' : code >= 2 ? 'cloud' : 'sun');
@@ -3497,7 +3566,55 @@ function f1Field(rows, field) {
 // car: place, team colour, name, tyre, best lap (qualifying) or gap and
 // interval (race), and in the pits or out. In qualifying a line where the
 // part cuts, the cars under it shaded; the ones already out greyed.
-const TRACK = { 1: ['綠旗', 'Green', 'green'], 2: ['黃旗', 'Yellow', 'yellow'], 4: ['安全車', 'Safety car', 'yellow'], 5: ['紅旗', 'Red flag', 'red'], 6: ['虛擬安全車', 'VSC', 'yellow'], 7: ['虛擬安全車結束', 'VSC ending', 'yellow'] };
+// The flag by flagNow's kind: its name, and its colour.
+const FLAG = { green: ['綠旗', 'Green', 'green'], yellow: ['黃旗', 'Yellow', 'yellow'], sc: ['安全車', 'Safety car', 'yellow'], 'sc-in': ['安全車', 'Safety car', 'yellow'], red: ['紅旗', 'Red flag', 'red'], vsc: ['虛擬安全車', 'VSC', 'yellow'], 'vsc-end': ['虛擬安全車結束', 'VSC ending', 'yellow'] };
+// Anything but green, a band across the head (Jay 2026-11-03: a red flag
+// with no reason, the drivers by number, and "yellow" through all of it):
+// what it is, since when or the restart counted down, and why it came out
+// (who, where, the medical car), from flagNow.
+function flagBanner(f, b, race, en) {
+  if (!f || f.kind === 'green') return null;
+  const name = n => driverShort(n);
+  const dbl = f.sectors.some(x => x.double);
+  const title =
+    f.kind === 'red' ? (en ? (race ? 'Red flag · Race suspended' : 'Red flag · Stopped') : race ? '紅旗 · 比賽暫停' : '紅旗 · 暫停')
+    : f.kind === 'sc' ? (en ? 'Safety car' : '安全車出動')
+    : f.kind === 'sc-in' ? (en ? 'Safety car in this lap' : '安全車本圈回維修區')
+    : f.kind === 'vsc' ? (en ? 'Virtual safety car' : '虛擬安全車')
+    : f.kind === 'vsc-end' ? (en ? 'VSC ending' : '虛擬安全車即將結束')
+    : dbl ? (en ? 'Double yellow' : '雙黃旗') : en ? 'Yellow flag' : '黃旗';
+  const w = f.why;
+  const who = w?.who?.length ? w.who.map(name).join(en ? ', ' : '、') : '';
+  const why = [
+    who ? (en ? `${who} ${w.kind === 'crash' ? 'collided' : w.kind === 'stopped' ? 'stopped' : 'out'}` : `${who} ${w.kind === 'crash' ? '碰撞' : w.kind === 'stopped' ? '停車' : '退賽'}`) : '',
+    w?.turn === 'pit' ? (en ? 'Pit entry' : '維修區入口') : w?.turn ? (en ? `Turn ${w.turn}` : `第 ${w.turn} 彎`) : '',
+    w?.medical ? (en ? 'Medical car' : '醫療車出動') : '',
+    w?.recovery && !w?.medical ? (en ? 'Recovery vehicle' : '拖吊車出動') : '',
+    w?.debris ? (en ? 'Debris' : '賽道碎片') : '',
+    f.kind === 'yellow' && f.sectors.length ? (en ? `Sector ${f.sectors.map(x => x.s).join(', ')}` : `第 ${f.sectors.map(x => x.s).join('、')} 區段`) : ''
+  ].filter(Boolean);
+  // On the right: the restart counted down (a red flag, once its time is
+  // said), how long it's been out (before that), or the lap it came out on.
+  const clockEl = el('span', { class: 'num lb-alert-clock' });
+  const tick = () => {
+    const t = Date.now();
+    if (f.kind === 'red' && f.resume) {
+      const n = Math.round((f.resume - t) / 1000);
+      clockEl.textContent = n > 0 ? (en ? `Resumes in ${mmss(n)}` : `${mmss(n)} 後恢復`) : en ? 'Resuming' : '即將恢復';
+    } else if (f.kind === 'red' && f.at) {
+      const m = Math.max(0, Math.floor((t - f.at) / 60_000));
+      clockEl.textContent = en ? `${m} min` : `已暫停 ${m} 分`;
+    } else clockEl.textContent = race && f.lap && f.kind !== 'yellow' ? (en ? `Since lap ${f.lap}` : `第 ${f.lap} 圈起`) : '';
+  };
+  tick();
+  if (f.kind === 'red' && (f.resume || f.at)) {
+    const timer = setInterval(() => (clockEl.isConnected ? tick() : clearInterval(timer)), 1000);
+  }
+  return el('div', { class: `lb-alert ${FLAG[f.kind][2]}`, role: 'status' }, [
+    el('div', { class: 'lb-alert-top' }, [el('strong', {}, [el('i'), el('span', { text: title })]), clockEl]),
+    why.length ? el('p', { class: 'lb-alert-why', text: why.join(' · ') }) : null
+  ]);
+}
 const TYRE = { SOFT: ['S', '#e10600'], MEDIUM: ['M', '#ffd12e'], HARD: ['H', '#f2f2f2'], INTERMEDIATE: ['I', '#43b02a'], WET: ['W', '#0067ad'] };
 const TYRE_NAME = { SOFT: ['軟胎', 'Soft'], MEDIUM: ['中性胎', 'Medium'], HARD: ['硬胎', 'Hard'], INTERMEDIATE: ['半雨胎', 'Inter'], WET: ['全雨胎', 'Wet'] };
 // A tyre as Pirelli draws it: the black tyre, its compound's coloured band
@@ -3539,7 +3656,10 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
   const pause = quali && !over && feedBreak(b);
   const begun = !pause || (b.clock.left < ([0, 1080, 900, 720][b.part] || 0) - 2);
   const cut = quali && begun ? qualiCut(b.part, b.entries) : 0;
-  const flag = over ? null : TRACK[b.track.status];
+  // The flag as the race is run (a red flag the session's word, not the track's: flagNow).
+  const flagged = over ? null : flagNow(b);
+  const flag = flagged ? FLAG[flagged.kind] : null;
+  const red = flagged?.kind === 'red';
   // The time left as F1's feed last said it (never counted on between reads: it stood still on screen when the feed did), and the bar under the head.
   const left = el('span', { class: 'num lb-clock' });
   const fill = el('i');
@@ -3563,7 +3683,8 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
   const head = el('div', { class: 'lb-top' }, [
     el('div', { class: 'lb-state' }, [
       el('span', { class: 'lb-live' }, [el('i'), el('span', { text: sessionName(ss, L()) })]),
-      flag ? el('span', { class: `lb-flag ${flag[2]}` }, [el('i'), el('span', { text: en ? flag[1] : flag[0] })]) : null
+      // (Green a chip; anything else the band under the lap, the chip left out.)
+      flagged?.kind === 'green' ? el('span', { class: `lb-flag ${flag[2]}` }, [el('i'), el('span', { text: en ? flag[1] : flag[0] })]) : null
     ]),
     el('div', { class: 'lb-head' }, [
       lapNow
@@ -3571,7 +3692,8 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
         : el('strong', { class: 'lb-part', text: quali && b.part && !over ? `${prefix}${b.part}` : sessionName(ss, L(), true) }),
       left
     ]),
-    !over && (total || (race && b.lap?.of)) ? el('div', { class: 'lb-bar', 'aria-hidden': 'true' }, [fill, ...marks]) : null
+    !over && (total || (race && b.lap?.of)) ? el('div', { class: 'lb-bar', 'aria-hidden': 'true' }, [fill, ...marks]) : null,
+    flagBanner(flagged, b, race, en)
   ]);
   const fastestNo = race ? [...b.cars].filter(c => lapMs(c.best)).sort((x, y) => lapMs(x.best) - lapMs(y.best))[0]?.no : null;
   const gainOf = c => {
@@ -3580,7 +3702,10 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
   };
   const rows = b.cars.flatMap((c, i) => {
     const tyre = TYRE[c.tyre];
-    const state = c.retired || c.stopped ? (en ? 'Out' : '退賽') : c.out ? (en ? 'Out' : '淘汰') : c.inPit ? (en ? 'Pit' : '進站') : c.pitOut ? (en ? 'Out lap' : '出站') : '';
+    // (A red flag: every car in the pit lane, waiting, none of them pitting: no 進站 on all twenty.)
+    const state = c.retired || c.stopped ? (en ? 'Out' : '退賽') : c.out ? (en ? 'Out' : '淘汰') : red ? '' : c.inPit ? (en ? 'Pit' : '進站') : c.pitOut ? (en ? 'Out lap' : '出站') : '';
+    // A race under a red flag: no gaps (Jay 2026-11-03: they stood there, the cars stopped in the pit lane).
+    const held = race && red && i > 0 && !c.retired && !c.stopped;
     const row = f1Row({
       pos: c.pos,
       full: c.name,
@@ -3591,7 +3716,7 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
       cls: `${cut && c.pos > cut && !c.out ? 'drop' : ''}${c.out || c.retired || c.stopped ? ' gone' : ''}`.trim(),
       // Qualifying and practice: the best lap (of this part), the gap to the top under it; a race: the gap, the car ahead's interval under it.
       // (A car out: the laps it ran, not the laps it's down: "55L" read as still running, long after it stopped.)
-      main: timed ? c.best || '—' : i === 0 ? (over ? (en ? 'Winner' : '冠軍') : en ? 'Leader' : '領先') : race && (c.retired || c.stopped) ? (c.laps ? (en ? `${c.laps} laps` : `${c.laps} 圈`) : en ? 'DNS' : '未起跑') : c.gap,
+      main: timed ? c.best || '—' : i === 0 ? (over ? (en ? 'Winner' : '冠軍') : en ? 'Leader' : '領先') : race && (c.retired || c.stopped) ? (c.laps ? (en ? `${c.laps} laps` : `${c.laps} 圈`) : en ? 'DNS' : '未起跑') : held ? '' : c.gap,
       // Under the name: the tyre and its age, in the pits or out; on the right under the gap: the car ahead (a race), the gap (qualifying, practice); over, the laps run.
       // (A race, on and over: the places from the grid by the name, as the official results have them; over, the points it took under the gap.)
       // (A race over: the official results' own row, whichever came first: the places gained, the fastest lap, the points.)
@@ -3600,10 +3725,10 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
           ? [gainOf(c), c.no === fastestNo ? el('small', { class: 'f1-pill fl', text: en ? 'Fastest' : '最快圈' }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
           : [c.laps ? el('small', { class: 'num f1-laps', text: `${c.laps}${en ? ' laps' : ' 圈'}` }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
         : [tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? ' laps' : ' 圈'}` }) : null]) : null, gainOf(c), state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])],
-      tower: over ? null : { alt: timed ? (i > 0 && c.gap ? c.gap : '') : i === 0 ? (en ? 'Leader' : '領先') : race && (c.retired || c.stopped) ? (c.laps ? (en ? `${c.laps} laps` : `${c.laps} 圈`) : en ? 'DNS' : '未起跑') : c.interval || c.gap, tyre: [gainOf(c), tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: String(c.tyreLaps) }) : null]) : null], pills: [state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])] },
+      tower: over ? null : { alt: timed ? (i > 0 && c.gap ? c.gap : '') : i === 0 ? (en ? 'Leader' : '領先') : race && (c.retired || c.stopped) ? (c.laps ? (en ? `${c.laps} laps` : `${c.laps} 圈`) : en ? 'DNS' : '未起跑') : held ? '' : c.interval || c.gap, tyre: [gainOf(c), tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: String(c.tyreLaps) }) : null]) : null], pills: [state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])] },
       aside: over
         ? race ? (pointsFor(ss.abbr, c.pos, c.retired || c.stopped) ? (en ? `${pointsFor(ss.abbr, c.pos)} pts` : `${pointsFor(ss.abbr, c.pos)} 分`) : null) : timed && i > 0 && c.gap ? c.gap : null
-        : timed ? (i > 0 && c.gap ? c.gap : null) : i > 0 && c.interval && c.interval !== c.gap ? `${en ? 'int ' : '前車 '}${c.interval}` : null
+        : timed ? (i > 0 && c.gap ? c.gap : null) : !held && i > 0 && c.interval && c.interval !== c.gap ? `${en ? 'int ' : '前車 '}${c.interval}` : null
     });
     return cut && c.pos === cut ? [row, el('li', { class: 'lb-cut', 'aria-hidden': 'true' }, [el('span', { text: en ? `Out after ${prefix}${b.part}` : `${prefix}${b.part} 淘汰線` })])] : [row];
   });
@@ -3617,7 +3742,16 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
   // (Over: race control's last word, a flag long gone, isn't said.)
   // Its last three, newest first, each with its lap (one, in English, before); the rest a tap away.
   const said = (b.messages?.length ? b.messages : b.message?.text ? [{ text: b.message.text, lap: 0 }] : []).filter(m => m.text);
-  const msgRow = m => el('li', {}, [el('small', { class: 'num lb-msg-lap', text: m.lap ? (en ? `L${m.lap}` : `${m.lap} 圈`) : '' }), el('span', {}, raceControlParts(m.text, !en).map(x => (typeof x === 'string' ? document.createTextNode(x) : carChip(x.no))))]);
+  // (A long list, a red flag's restart order: each driver's surname, plain; a chip each made nineteen pills.)
+  const carName = no => {
+    const c = b.cars.find(x => x.no === no);
+    return c ? driverShort(c.name) : `#${no}`;
+  };
+  const msgRow = m => {
+    const parts = raceControlParts(m.text, !en);
+    const many = parts.filter(x => typeof x !== 'string').length > 3;
+    return el('li', {}, [el('small', { class: 'num lb-msg-lap', text: m.lap ? (en ? `L${m.lap}` : `${m.lap} 圈`) : '' }), el('span', {}, parts.map(x => (typeof x === 'string' ? document.createTextNode(x) : many ? document.createTextNode(carName(x.no)) : carChip(x.no))))]);
+  };
   // (Opened or folded in place: the list's rows change, the kit's 再看/收起 bar stays under the finger.)
   const makeMsg = () => {
     const list = el('ol', { class: 'lb-msgs' });
@@ -3625,7 +3759,8 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
     fill();
     const more = Math.min(said.length, 8) - 1;
     return el('div', { class: 'lb-msg' }, [
-      el('small', { class: 'lb-msg-h', text: en ? 'Race control' : '賽事控制' }),
+      // (Not 賽事控制: Jay 2026-11-03, a bad translation.)
+      el('small', { class: 'lb-msg-h', text: en ? 'Race control' : '賽會訊息' }),
       list,
       more > 0 ? moreToggle({ more: en ? `${more} more` : `再看 ${more} 則`, less: en ? 'Fewer' : '收起', open: f1AllMsgs.has(ss.start), onToggle: open => ((open ? f1AllMsgs.add(ss.start) : f1AllMsgs.delete(ss.start)), fill()) }) : null
     ]);
@@ -3674,7 +3809,8 @@ function f1Weather(b) {
   if (!w) return null;
   const en = L() === 'en';
   // One quiet line (four big numbers, before, came first and said least).
-  const items = [[en ? 'Air' : '氣溫', `${w.air.toFixed(1)}°`], [en ? 'Track' : '賽道', `${w.track.toFixed(1)}°`], [en ? 'Humidity' : '濕度', `${Math.round(w.humidity)}%`], [en ? 'Rain' : '降雨', w.rain ? (en ? 'Yes' : '有') : en ? 'No' : '無']];
+  // (Rain said only when it rains: four squeezed a phone's line at 320 into "氣 / 溫".)
+  const items = [[en ? 'Air' : '氣溫', `${w.air.toFixed(1)}°`], [en ? 'Track' : '賽道', `${w.track.toFixed(1)}°`], [en ? 'Humidity' : '濕度', `${Math.round(w.humidity)}%`], w.rain ? [en ? 'Rain' : '降雨', en ? 'Yes' : '有'] : null].filter(Boolean);
   return el('div', { class: 'fs-weather' }, items.map(([k, v]) => el('span', {}, [el('small', { text: k }), el('strong', { class: 'num', text: v })])));
 }
 
@@ -3716,15 +3852,14 @@ function tmLoop(m) {
   };
   requestAnimationFrame(step);
 }
-// Every car moved on by `dt` ms and drawn: on the track line (a car on the
-// one ahead set back behind it, a train of dots), the same size zoomed or not.
-// Where the track folds back on itself (a hairpin, the esses) a train along
-// it still sits in a heap: dots on one another are pushed apart on the
-// screen (a short line from each back to where it is on the track), and the
-// named ones' tags put where they cover least (tmTags).
+// Every car moved on by `dt` ms and drawn on the track line, the same size
+// zoomed or not: a car on the one ahead set back behind it, a train of dots
+// along the line (each three quarters of a dot behind the next, as F1's own
+// map overlaps a pack), never pushed off it. The named ones' tags put where
+// they cover least (tmTags).
 function tmDraw(m, t, dt) {
   const z = Math.max(1, m.z || 1);
-  const gapU = (11.5 * 2) / z;
+  const gapU = (11.5 * 2 * 0.75) / z;
   const moving = [];
   const cars = [];
   for (const [no, s] of m.run) {
@@ -3747,30 +3882,13 @@ function tmDraw(m, t, dt) {
   moving.forEach(([s, g, f], i) => {
     // (How far it's set back eased, not jumped: two close cars trade places in the train often.)
     const back = at[i] - f;
-    s.back = s.back == null ? back : s.back + (back - s.back) * Math.min(1, dt / 350);
+    s.back = s.back == null || !dt ? back : s.back + (back - s.back) * Math.min(1, dt / 350);
     cars.push([s, g, m.fit(...m.pointAt(f + s.back))]);
   });
-  // Apart on the screen (a heap where the track folds back), eased there, so a heap opens and closes smoothly.
-  const rOf = g => (g.classList.contains('face') ? 13 : 11.5) / z;
-  const pts = apart(cars.map(([, g, xy]) => ({ x: xy[0], y: xy[1], r: rOf(g) })));
-  cars.forEach(([s, g], i) => {
-    const p = pts[i];
-    const ease = s.shown && dt ? Math.min(1, dt / 220) : 1;
-    s.shown = s.shown ? [s.shown[0] + (p.x - p.hx - s.shown[0]) * ease, s.shown[1] + (p.y - p.hy - s.shown[1]) * ease] : [p.x - p.hx, p.y - p.hy];
-    const [x, y] = [p.hx + s.shown[0], p.hy + s.shown[1]];
+  for (const [s, g, [x, y]] of cars) {
     g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})${z > 1 ? ` scale(${(1 / z).toFixed(3)})` : ''}`);
     s.drawn = [x, y];
-    // The line back to its place, once it's been pushed a dot's half off it.
-    const lead = g.querySelector('.tm-lead');
-    const far = Math.hypot(s.shown[0], s.shown[1]) > p.r * 0.6;
-    lead.toggleAttribute('hidden', !far);
-    if (far) {
-      lead.querySelector('line').setAttribute('x2', (-s.shown[0] * z).toFixed(1));
-      lead.querySelector('line').setAttribute('y2', (-s.shown[1] * z).toFixed(1));
-      lead.querySelector('circle').setAttribute('cx', (-s.shown[0] * z).toFixed(1));
-      lead.querySelector('circle').setAttribute('cy', (-s.shown[1] * z).toFixed(1));
-    }
-  });
+  }
   // The tags again a few times a second (not each frame: they'd flicker side to side).
   if (!dt || t - (m.tagsAt || 0) > 300) {
     m.tagsAt = t;
@@ -4008,12 +4126,20 @@ function f1TrackMap(b, ss) {
   // (A race: the leader by its own timing points, everyone else by their gap to it.)
   const race = ss.abbr === 'Race' || ss.abbr === 'SR';
   const lead = race ? order.find(x => x.pos === 1 && !x.at) : null;
+  // A red flag: no car on the map (each waits in the pit lane; the feed's
+  // timing points say nothing of where), every one stood still, and a line
+  // over the track saying so (they went on round it before, Jay 2026-11-03).
+  const held = flagNow(b)?.kind === 'red';
+  m.svg.classList.toggle('held', held);
+  const heldEl = m.heldEl || (m.heldEl = el('p', { class: 'tm-held' }));
+  heldEl.hidden = !held;
+  heldEl.textContent = en ? 'Red flag · every car in the pit lane' : '紅旗 · 賽車都在維修區等候';
   for (const car of lead ? [lead, ...order.filter(x => x !== lead)] : order) {
     if (car.at) {
       m.run.set(car.no, { xy: car.at });
       continue;
     }
-    const v = lapRate({ lastMs: lapMs(car.last), bestMs: lapMs(car.pb?.v) || lapMs(car.best), inPit: car.inPit || car.pitOut }, Number.isFinite(fieldMs) ? fieldMs : undefined, b.track?.status);
+    const v = lapRate({ lastMs: lapMs(car.last), bestMs: lapMs(car.pb?.v) || lapMs(car.best), inPit: car.inPit || car.pitOut }, Number.isFinite(fieldMs) ? fieldMs : undefined, held ? '5' : b.track?.status);
     const ls = lead && car !== lead ? m.run.get(lead.no) : null;
     const gap = ls ? gapNum(car) : null;
     m.run.set(car.no, gap != null ? readCar(m.run.get(car.no), behindLeader(ls.frac, gap, ls.v), v, now, 1 / car.seg[1], ls.at) : readCar(m.run.get(car.no), fracOf(car.seg[0], car.seg[1]), v, now, 1 / car.seg[1]));
@@ -4027,7 +4153,7 @@ function f1TrackMap(b, ss) {
     if (!g) {
       g = document.createElementNS(ns, 'g');
       g.setAttribute('class', 'tm-car');
-      g.innerHTML = `<g class="tm-lead" hidden><line x1="0" y1="0"/><circle r="2.6"/></g><circle r="15" class="tm-hit"/><circle r="11" class="tm-dot"/><text class="tm-no" y="2.9"></text><g class="tm-face"><circle r="12.5" class="tm-ring"/><image x="-13" y="-11" width="26" height="26" clip-path="url(#tm-face-clip)" preserveAspectRatio="xMidYMin slice"/></g><text class="tm-tag" x="15.5" y="4"></text>`;
+      g.innerHTML = `<circle r="15" class="tm-hit"/><circle r="11" class="tm-dot"/><text class="tm-no" y="2.9"></text><g class="tm-face"><circle r="12.5" class="tm-ring"/><image x="-13" y="-11" width="26" height="26" clip-path="url(#tm-face-clip)" preserveAspectRatio="xMidYMin slice"/></g><text class="tm-tag" x="15.5" y="4"></text>`;
       g.addEventListener('click', () => {
         const now2 = f1Picks.get(ss.start) || [];
         const next = now2.includes(car.no) ? now2.filter(x => x !== car.no) : [...now2, car.no].slice(-4);
@@ -4088,7 +4214,7 @@ function f1TrackMap(b, ss) {
   tmLoop(m);
   const noteEl = m.noteEl || (m.noteEl = el('p', { class: 'muted small tm-note' }));
   noteEl.textContent = en ? 'Tap a car to add or drop it. ◯ within a second of the car ahead.' : '點車加入或移出比較 · ◯ 與前車 1 秒內';
-  return m.box || (m.box = el('div', { class: 'tm-box' }, [m.svg, m.faces, noteEl]));
+  return m.box || (m.box = el('div', { class: 'tm-box' }, [m.svg, m.faces, heldEl, noteEl]));
 }
 
 // Each car's laps (f1-live.js /laps.json, again each 15 seconds while it
@@ -4142,6 +4268,50 @@ function lapsFor(b, ss, over, redraw) {
   // The places and stops: the board's own while it runs (the feed's latest), else the laps'.
   const pick = (mine, theirs) => (Object.keys(mine || {}).length ? mine : theirs || {});
   return { laps: out, places: over ? pick(got?.places, b.places) : pick(b.places, got?.places), stops: over ? pick(got?.stops, b.stops) : pick(b.stops, got?.stops), live: over ? Boolean(got?.live) : got?.live ?? true };
+}
+
+// 過程 (Jay 2026-11-03: "so we can read and know how a driver ended up
+// where they are"): the race told lap by lap (lib/f1story.mjs), the whole
+// race's turns, or one driver's own race picked above it (a tap on a row of
+// the whole race picks its driver). The pick kept as the board refreshes.
+const f1StoryPick = new Map();
+function f1RaceStory(b, ss) {
+  const en = L() === 'en';
+  const over = feedOver(b);
+  const box = el('div', { class: 'f1-story', 'data-laps': ss.start });
+  const cars = b.cars.filter(c => c.name);
+  const car = no => cars.find(c => String(c.no) === String(no));
+  const nameOf = no => (car(no) ? f1Sur(car(no)) : `#${no}`);
+  const draw = () => {
+    const { laps, places, stops } = lapsFor(b, ss, over, () => box.isConnected && draw());
+    const pick = car(f1StoryPick.get(ss.start)) ? f1StoryPick.get(ss.start) : null;
+    const list = raceStory({ cars, places, stops, laps, control: b.control || [], last: b.lap?.now || 0, over }, { pick, en, nameOf });
+    const setPick = no => (no == null ? f1StoryPick.delete(ss.start) : f1StoryPick.set(ss.start, String(no)), draw());
+    const order = [...cars].sort((x, y) => (x.pos || 99) - (y.pos || 99));
+    const chips = segmented([['all', en ? 'Race' : '全場'], ...order.map(c => [String(c.no), c.tla || nameOf(c.no)])], pick ?? 'all', v => setPick(v === 'all' ? null : v), 'story-pick', { chips: true });
+    const lapWord = e => (e.lap === 0 ? (en ? 'Grid' : '發車') : en ? `L${e.lap}` : `${e.lap} 圈`);
+    const pic = e => {
+      if (e.kind === 'sc' || e.kind === 'vsc' || e.kind === 'red') return el('span', { class: `story-flag ${e.kind}`, 'aria-hidden': 'true', text: e.kind === 'red' ? (en ? 'RED' : '紅旗') : e.kind.toUpperCase() });
+      if (e.kind === 'penalty' && e.no == null) return el('span', { class: 'story-flag pen', 'aria-hidden': 'true', text: en ? 'PEN' : '判罰' });
+      return car(e.no) ? personPic({ name: car(e.no).name }, 'f1', 'xs round') : el('span', { class: 'play-none', 'aria-hidden': 'true' });
+    };
+    const row = e => {
+      const tap = pick == null && e.no != null && car(e.no);
+      const kids = [el('span', { class: 'play-when num', text: lapWord(e) }), el('span', { class: 'play-text has-face' }, [pic(e), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: e.text }), ...(e.sub ? e.sub.split('\n').map(line => el('small', { class: 'play-sub', text: line })) : [])])]), tap ? el('span', { class: 'row-chev', 'aria-hidden': 'true', text: '›' }) : el('span')];
+      return el('li', { class: `story-${e.kind}${tap ? ' q-press' : ''}`, style: car(e.no)?.colour ? `--team:${car(e.no).colour}` : null, ...(tap ? { role: 'button', tabIndex: 0, onclick: () => setPick(e.no) } : {}) }, kids);
+    };
+    const who = pick != null ? car(pick) : null;
+    put(
+      box,
+      card(
+        en ? 'How the race went' : '過程',
+        el('div', { class: 'story-body' }, [chips, list.length ? el('ol', { class: 'plays f1-story-list' }, list.map(row)) : el('p', { class: 'muted small', text: en ? 'The laps come in as the race runs.' : '圈數資料讀取中，比賽進行時陸續更新。' })]),
+        { sub: who ? f1Whole(who.name) : en ? 'Every turn of the race' : '比賽的每個轉折' }
+      )
+    );
+  };
+  draw();
+  return box;
 }
 
 // A driver's face that opens them (every face in F1's 數據 and board).
@@ -4233,13 +4403,16 @@ function f1LapCompare(b, ss) {
     const rows = [];
     const out = c => c.retired || c.stopped;
     rows.push(row(over ? (en ? 'Finished' : '名次') : en ? 'Place' : '名次', picks.map(no => cell(out(car(no)) ? (en ? 'Out' : '退賽') : `P${car(no).pos}`, 'dc-big'))));
+    // (A red flag: every car waiting in the pit lane in order, no gap between them,
+    // none closed a lap; the restart, standing, wipes them. Jay 2026-11-03.)
+    const held = race && !over && flagNow(b)?.kind === 'red';
     if (race) {
       rows.push(row(en ? 'Gap' : '差距', picks.map((no, i) => {
-        if (!i) return cell('—', 'muted');
+        if (!i || held) return cell('—', 'muted');
         const g = gapNow(car(no));
         return cell(g == null ? (/L/.test(car(no).gap || '') ? car(no).gap : '—') : `+${g.toFixed(1)}`, 'dc-big');
       })));
-      if (!over && rest.length) {
+      if (!over && !held && rest.length) {
         // Closing (green, ▲) or losing (red, ▼) a lap, over the last five; when it would meet.
         const neutral = new Set(neutralLaps(b.control || [], b.lap?.now || 0).flatMap(p => Array.from({ length: p.to - p.from + 2 }, (_, k) => p.from + k)));
         const rates = Object.fromEntries(rest.map(c => [c.no, closingRate(gaps[c.no], new Set([...pitsOf(a.no), ...pitsOf(c.no)]), 5, neutral)]));
@@ -4652,6 +4825,8 @@ function f1PracticePace(b, ss) {
 function f1PitWindow(b, ss) {
   const c = circuitOf(b, ss);
   if (!c?.pitLoss?.normal) return null;
+  // (A red flag: tyres are changed in the pit lane for nothing; no stop costs a place.)
+  if (flagNow(b)?.kind === 'red') return null;
   const en = L() === 'en';
   const status = b.track?.status;
   const [loss, under] = status === '4' ? [c.pitLoss.sc, en ? 'safety car' : '安全車'] : status === '6' || status === '7' ? [c.pitLoss.vsc, en ? 'VSC' : '虛擬安全車'] : [c.pitLoss.normal, ''];
@@ -4659,7 +4834,7 @@ function f1PitWindow(b, ss) {
   const running = b.cars.filter(x => !x.retired && !x.stopped && gapOf(x) != null);
   if (running.length < 4) return null;
   const sur = car => f1Shown(car.name).split(' ').filter(w => !/^(jr|sr)\.?$/i.test(w)).at(-1) || car.tla;
-  const rows = running.slice(0, 10).map(car => {
+  const row = car => {
     const after = gapOf(car) + loss;
     const others = running.filter(o => o !== car).map(o => [o, gapOf(o)]).sort((x, y) => x[1] - y[1]);
     const ahead = others.filter(([, g]) => g <= after).at(-1);
@@ -4669,14 +4844,25 @@ function f1PitWindow(b, ss) {
     const near = behind ? [behind[0], behind[1] - after, true] : ahead ? [ahead[0], after - ahead[1], false] : null;
     const note = near ? (en ? `out ${near[1].toFixed(1)}s ${near[2] ? 'ahead of' : 'behind'} ${sur(near[0])}` : `出站在 ${sur(near[0])} ${near[2] ? '前方' : '後方'} ${near[1].toFixed(1)} 秒`) : '';
     const lost = place - car.pos;
+    // (The tyre it's on and how old, where the feed says: what a stop would be for.)
+    const tyre = TYRE[car.tyre] ? el('span', { class: 'f1-tyre pw-tyre' }, [tyreIcon(car.tyre), car.tyreLaps ? el('small', { class: 'num', text: en ? `${car.tyreLaps} laps` : `${car.tyreLaps} 圈` }) : null]) : null;
     return el('li', { style: car.colour ? `--team:${car.colour}` : null }, [
       el('span', { class: 'pos num', text: String(car.pos) }),
       f1Face(ss, car.name),
-      el('span', { class: 'pw-who' }, [fitName(f1NameTap(ss, car, '', 'pw-name'), f1Whole(car.name), sur(car)), note ? el('small', { text: note }) : null]),
+      el('span', { class: 'pw-who' }, [el('span', { class: 'pw-line' }, [fitName(f1NameTap(ss, car, '', 'pw-name'), f1Whole(car.name), sur(car)), tyre]), note ? el('small', { text: note }) : null]),
       // Where it lands, and how many places that costs (a red ▼ and the count).
       el('span', { class: 'pw-to' }, [el('strong', { class: 'num', text: `P${place}` }), el('small', { class: `num${lost > 0 ? ' lose' : ''}`, text: lost > 0 ? `▼${lost}` : en ? 'same' : '不變' })])
     ]);
-  });
+  };
+  // The top ten, the ones yet to stop first (Jay 2026-11-03: a stop now is
+  // about them), each part in the race's order under its own line.
+  const top = running.slice(0, 10);
+  const yet = top.filter(x => !x.pits);
+  const done = top.filter(x => x.pits);
+  const head = text => el('li', { class: 'pw-group' }, [el('small', { text })]);
+  const rows = yet.length && done.length
+    ? [head(en ? 'Yet to stop' : '還沒進站'), ...yet.map(row), head(en ? 'Stopped' : '已進站'), ...done.map(row)]
+    : top.map(row);
   return card(en ? 'If they stop now' : '現在進站會掉到', el('ol', { class: 'fs-rows pw-rows' }, rows), { sub: en ? `a stop costs ~${loss.toFixed(0)}s${under ? ` (${under})` : ''}` : `進站約損失 ${loss.toFixed(0)} 秒${under ? `（${under}）` : ''}` });
 }
 
@@ -4723,6 +4909,7 @@ function f1Stats(b, ss) {
   add(live ? 'track' : 'compare', f1LapCompare(b, ss));
   // (Over too, until ESPN's own table has the race in.)
   if (race) add('table', f1LiveTable(b, ss));
+  if (race) add('story', f1RaceStory(b, ss));
   if (live && race) add('stop', f1PitWindow(b, ss));
   if (tiles.length) add('tiles', el('div', { class: 'fs-tiles' }, tiles));
 
@@ -4859,8 +5046,8 @@ function f1Stats(b, ss) {
   // first, then the same without the live-only cards. A practice's long runs
   // after the compare.
   const order = live
-    ? ['track', 'pace', 'stop', 'parts', 'tyres', 'tiles', 'laps', 'table', 'sectors', 'speed']
-    : ['tiles', 'table', 'compare', 'pace', 'parts', 'tyres', 'laps', 'sectors', 'speed'];
+    ? ['story', 'track', 'pace', 'stop', 'parts', 'tyres', 'tiles', 'laps', 'table', 'sectors', 'speed']
+    : ['story', 'tiles', 'table', 'compare', 'pace', 'parts', 'tyres', 'laps', 'sectors', 'speed'];
   // (In that order within each tab, f1Views.)
   const out = Object.fromEntries(order.map(k => [k, named[k]]).filter(([, x]) => x));
   return Object.keys(out).length ? out : null;
@@ -4880,6 +5067,7 @@ let f1GapAlt = false;
 // the championship as it would stand. A view with nothing in it isn't offered.
 const F1_TABS = [
   ['order', '排名', 'Order', null],
+  ['story', '過程', 'Story', ['story']],
   ['track', '賽道', 'Track', ['track']],
   ['tyres', '輪胎', 'Tyres', ['stop', 'tyres']],
   ['laps', '圈速', 'Laps', ['tiles', 'compare', 'pace', 'parts', 'laps', 'sectors', 'speed']],
@@ -6015,7 +6203,7 @@ export async function openPlayer(league, id, fallback = {}) {
       [T('height'), metric(a.height, L())],
       [T('weight'), metric(a.weight, L())],
       [T('born'), dateText(a.dob, a.born, L())],
-      [T('birthPlace'), zhLater(a.birthPlace || official?.grids.bio?.find(([k]) => k === 'Place of Birth')?.[1])],
+      [T('birthPlace'), zhLater(birthPlaceOf(official?.grids, a.birthPlace))],
       // How he came into the league (Jay 2026-10-31: his history with his
       // facts): the draft (its team once the league's table is in), his
       // first season, his seasons in it, his college.
@@ -6684,7 +6872,8 @@ function clinchGame(league, id, n, redo) {
   );
   return had || null;
 }
-function raceBlock(race, g, league, many) {
+// `asIs`: a race on now, the table as it stands (a title won is "would be": not till the flag).
+function raceBlock(race, g, league, many, asIs = false) {
   if (!race) return null;
   const W = (zh, eng) => (L() === 'en' ? eng : zh);
   const sport = LEAGUES[league]?.sport;
@@ -6740,8 +6929,9 @@ function raceBlock(race, g, league, many) {
   const leadLine = t => {
     const span = sport === 'racing' ? (t.at || (t.soonest === 1 ? W('下一站', 'the next race') : W(`${t.soonest} 站`, `${t.soonest} races`))) : t.soonest === 1 ? (perRound ? W('這一輪', 'this round') : W('下一場', 'the next game')) : W(`${t.soonest} ${perRound ? '輪' : '場'}`, `${t.soonest} ${perRound ? 'rounds' : 'games'}`);
     const now = t.gap > 0 ? W(`領先 ${t.gap} 分`, `${t.gap} pts ahead`) : W(`與第${'二三四五六七八九十'[t.place || 0] || ` ${(t.place || 0) + 2} `}名同分`, 'level on points');
-    // (Short, on one line: the title above says what for; a lead is over everyone.)
-    return W(`${now}，${span}後需領先 ${t.leadAt} 分`, `${now}; needs ${t.leadAt} after ${span}`);
+    // (Short, on one line: the title above says what for; a lead is over everyone.
+    // Shorter where a long race's name runs past a phone's line at 320: 拉斯維加斯站.)
+    return [W(`${now}，${span}後需領先 ${t.leadAt} 分`, `${now}; needs ${t.leadAt} after ${span}`), W(`${span}後需領先 ${t.leadAt} 分`, `Needs ${t.leadAt} after ${span}`), W(`需領先 ${t.leadAt} 分`, `Needs a ${t.leadAt}-pt lead`)];
   };
   // F1's next weekend as results (title.mjs weekend): "Antonelli 前 8 名完賽，
   // 或 Russell 沒贏即可"; a place on a race-only weekend, else points.
@@ -6814,7 +7004,7 @@ function raceBlock(race, g, league, many) {
       const says = (who, short) => W(`${b(who)} ${at}${what}`, `${b(who)} could ${what} ${short ? near : at}`);
       // (Chinese short of room: without the spaces, 最快11/2確定第2名, then made smaller: one row.)
       const tight = x => (L() === 'en' ? x : x.replace(/ (?=[\d<])|(?<=[\d>]) /g, '').replace(/(?<=最快) |(?<=第) | (?=名)/g, ''));
-      return line('clock', [...new Set([says(nm(t.leader)), says(last(t.leader)), says(last(t.leader), true), ...(L() === 'en' ? [] : [tight(says(last(t.leader)))])])], [...resultLine(t), ...weekendLine(t), ...(sport === 'soccer' ? [] : marginLine(t)), leadLine(t)]);
+      return line('clock', [...new Set([says(nm(t.leader)), says(last(t.leader)), says(last(t.leader), true), ...(L() === 'en' ? [] : [tight(says(last(t.leader)))])])], [...resultLine(t), ...weekendLine(t), ...(sport === 'soccer' ? [] : marginLine(t)), ...leadLine(t)]);
     }
     if (t.soonest == null) return null;
     const next = g.rows[k + 1];
@@ -6841,7 +7031,7 @@ function raceBlock(race, g, league, many) {
   };
   if (t.done) {
     const early = t.left > 0;
-    lines.push(line('trophy', many ? W(`${b(nm(t.leader))} 拿下${top}`, `${b(nm(t.leader))} have clinched ${top}`) : W(`${b(nm(t.leader))} ${early ? '提前封王' : '奪冠'}`, `${b(nm(t.leader))} ${early ? 'have clinched the title' : 'are champions'}`), early ? leftWord(t.left) : '', 'won'));
+    lines.push(asIs ? line('trophy', W(`照目前名次 ${b(nm(t.leader))} 封王`, `${b(nm(t.leader))} would clinch the title`), W('衝線後確定', 'once the flag falls'), 'won') : line('trophy', many ? W(`${b(nm(t.leader))} 拿下${top}`, `${b(nm(t.leader))} have clinched ${top}`) : W(`${b(nm(t.leader))} ${early ? '提前封王' : '奪冠'}`, `${b(nm(t.leader))} ${early ? 'have clinched the title' : 'are champions'}`), early ? leftWord(t.left) : '', 'won'));
     // Then the next place still open (第 2 名, then 第 3 名… as each is settled).
     const second = t.second && chase(t.second, t.second.place);
     if (second) lines.push(second);

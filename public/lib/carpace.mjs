@@ -7,12 +7,13 @@
 
 // How far one car goes in a millisecond, in laps. Its last lap while it is a
 // racing lap (an in-lap or a lap behind the safety car isn't), else its best,
-// else the field's best; the safety car (status 4), the virtual one (6, 7), a
-// red flag (5) and the pit lane slow it.
+// else the field's best; the safety car (status 4), the virtual one (6, 7)
+// and the pit lane slow it; a red flag (5) stops it (the cars wait in the
+// pit lane: they went on round the map before, Jay 2026-11-03).
 export function lapRate({ lastMs = 0, bestMs = 0, inPit = false } = {}, fieldMs = 95_000, status = '') {
   const best = bestMs || fieldMs;
   const lap = lastMs && lastMs <= best * 1.08 ? lastMs : best * 1.02;
-  const slow = status === '4' ? 0.62 : status === '6' || status === '7' ? 0.7 : status === '5' ? 0.3 : 1;
+  const slow = status === '4' ? 0.62 : status === '6' || status === '7' ? 0.7 : status === '5' ? 0 : 1;
   return (slow * (inPit ? 0.45 : 1)) / lap;
 }
 
@@ -54,52 +55,23 @@ export function stepCar(s, now, dt) {
 }
 
 // Cars drawn as a train where one would sit on another: by place round the
-// lap, the car behind kept a dot's width (`sep(f)`, a share of a lap) back
-// from the one ahead, set back six widths at most (a whole pack touches).
+// lap, the car behind kept `sep(f)` (a share of the lap) back from the one
+// ahead, however long the train (a whole pack behind the safety car runs
+// back along the track). Every car stays on the track line: a cap of six
+// before heaped a pack, pushed off the line on the screen with a dot left
+// where each belonged (Jay 2026-11-03: "the cars are not on the track and
+// under the circles there's even small dots").
 // [share of the lap, …] → where each is drawn.
 export function spread(fracs, sep) {
   const order = fracs.map((f, i) => [f, i]).sort((a, b) => b[0] - a[0]);
   const out = [...fracs];
   let ahead = null;
   for (const [f, i] of order) {
-    const w = sep(f);
-    const at = ahead != null && ahead - f < w ? Math.max(f - w * 6, ahead - w) : f;
+    const at = ahead != null && ahead - f < sep(f) ? ahead - sep(f) : f;
     out[i] = at;
     ahead = at;
   }
   return out;
-}
-
-// Dots apart on the screen where the track folds back on itself (a hairpin,
-// the esses: a train along the line still sits in a heap there): each pair
-// nearer than their two radii pushed off one another, each pulled a little
-// back to its place and never more than 2.2 of its radii from it.
-// [{ x, y, r }] → [{ x, y, r, hx, hy }] (hx, hy: its place).
-export function apart(dots, rounds = 10) {
-  const pts = dots.map(d => ({ ...d, hx: d.x, hy: d.y }));
-  for (let it = 0; it < rounds; it++) {
-    for (let i = 0; i < pts.length; i++)
-      for (let j = i + 1; j < pts.length; j++) {
-        const [p, q] = [pts[i], pts[j]];
-        const d0 = Math.hypot(q.x - p.x, q.y - p.y);
-        const need = p.r + q.r;
-        if (d0 >= need) continue;
-        // (Right on one another: apart across the line between their places, else sideways.)
-        let [dx, dy] = d0 > 0.01 ? [q.x - p.x, q.y - p.y] : [-(q.hy - p.hy) || 0.01, q.hx - p.hx || 0.01];
-        const d = Math.hypot(dx, dy);
-        [dx, dy] = [dx / d, dy / d];
-        const push = (need - d0) / 2;
-        [p.x, p.y, q.x, q.y] = [p.x - dx * push, p.y - dy * push, q.x + dx * push, q.y + dy * push];
-      }
-    for (const p of pts) {
-      p.x += (p.hx - p.x) * 0.08;
-      p.y += (p.hy - p.y) * 0.08;
-      const off = Math.hypot(p.x - p.hx, p.y - p.hy);
-      const most = p.r * 2.2;
-      if (off > most) [p.x, p.y] = [p.hx + ((p.x - p.hx) * most) / off, p.hy + ((p.y - p.hy) * most) / off];
-    }
-  }
-  return pts;
 }
 
 // Where each tag goes (in order: the first picks first): right of its dot,

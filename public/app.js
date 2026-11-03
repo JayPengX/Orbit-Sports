@@ -3778,7 +3778,9 @@ ctx.titleFight = async league => {
   if (!Array.isArray(groups) || !groups.some(tableStarted)) return null;
   if (league === 'f1' && !f1Rounds?.length) f1Rounds = ((await seasonEvents(league).catch(() => [])) || []).filter(e => e.sessions?.length);
   const sport = LEAGUES[league].sport;
-  return tableNow(groups, league, recentOf(league)).map(g => ({ g, race: standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league), team: sport === 'racing' && !g.rows.some(r => r.athlete) }) }));
+  // (`left`: the races and sprints still to run, for the title fight as it stands while one runs.)
+  const left = racesLeft(league);
+  return tableNow(groups, league, recentOf(league)).map(g => ({ g, left, race: standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left, team: sport === 'racing' && !g.rows.some(r => r.athlete) }) }));
 };
 // Last seasons' final tables ('<league>:<year>'), read once.
 const lastTables = new Map();

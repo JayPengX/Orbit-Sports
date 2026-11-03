@@ -8,6 +8,9 @@ import { f1Driver } from '#kit/logos.mjs';
 import { fold, surname } from './text.mjs';
 import { POINTS } from './title.mjs';
 import { F1_LIVE as LIVE, sameSession, feedParts, feedOver } from '#kit/f1live.mjs';
+import { controlBands, causeOf } from '#kit/sports-winprob.mjs';
+// (A newer kit export, by name off the module: a phone on the last kit has none of it, never a broken import.)
+import * as kitWp from '#kit/sports-winprob.mjs';
 
 const F1 = 'https://www.formula1.com/en';
 const JOLPICA = 'https://api.jolpi.ca/ergast/f1';
@@ -81,6 +84,10 @@ export function f1Grids(grids) {
   }
   return out;
 }
+// Where a driver was born: formula1.com's ("Stevenage, England") before
+// ESPN's, which is often missing or cut (Hamilton's "England, He", read
+// as 英格蘭，他; Jay 2026-11-03).
+export const birthPlaceOf = (grids, espn) => grids?.bio?.find(([k]) => k === 'Place of Birth')?.[1] || espn || '';
 export async function f1Page(kind, slug) {
   if (!slug) return {};
   const d = await getJson(`${F1}/${kind}/${slug}`, { ttl: 6 * HOUR });
@@ -560,23 +567,93 @@ export function recentPace(laps = [], pits = new Set(), n = 5) {
   const clean = timed.filter(x => x[1] <= best * 1.07).slice(-n);
   return clean.length >= 2 ? clean.reduce((s, x) => s + x[1], 0) / clean.length : null;
 }
-// The safety car and the virtual one, by lap ([{ from, to, kind: 'sc'|'vsc' }…]),
-// from race control's words (the board's `control`). One still out runs to `lapNow`.
+// The safety car, the virtual one and the red flag, by lap ([{ from, to,
+// kind: 'sc'|'vsc'|'red' }…]), from race control's words (the board's
+// `control`), as the race chart reads them (the kit's controlBands): one
+// turned into another ends there, a red flag ends at the restart. One still
+// out runs to `lapNow`. (Its own reading before kept Mexico 2026's safety
+// car out from lap 44 to the flag: the red flag after it, and the standing
+// restart, never said "SAFETY CAR IN THIS LAP".)
 export function neutralLaps(control = [], lapNow = 0) {
-  const out = [];
-  let open = null;
-  for (const m of control) {
-    const t = String(m.message || '').toUpperCase();
-    const lap = Number(m.lap) || 0;
-    if (/VIRTUAL SAFETY CAR DEPLOYED|VSC DEPLOYED/.test(t)) open = { from: lap, kind: 'vsc' };
-    else if (/SAFETY CAR DEPLOYED/.test(t)) open = { from: lap, kind: 'sc' };
-    else if (open && (/(VIRTUAL SAFETY CAR|VSC) ENDING/.test(t) || /SAFETY CAR IN THIS LAP/.test(t) || (/RED FLAG/.test(t) && open.kind === 'vsc'))) {
-      out.push({ ...open, to: Math.max(open.from, lap) });
-      open = null;
-    }
-  }
-  if (open) out.push({ ...open, to: Math.max(open.from, lapNow) });
-  return out.filter(p => p.from > 0);
+  return controlBands(control, m => Number(m.lap) || 0, lapNow)
+    .map(([from, to, kind]) => ({ from, to: Math.max(from, to), kind }))
+    .filter(p => p.from > 0);
+}
+
+// ---- The flag now (the live board's head) ----
+
+// The flag as the race is run, not only as the track's status says: F1's
+// TrackStatus read 2 (yellow) through most of Mexico 2026's red flag (the
+// track said clear two minutes in, then a sector's yellow while the
+// marshals worked), the session Aborted the whole time; so the session
+// first, then the track. With it: when and on which lap it came out (`at`,
+// `lap`), the sectors under a yellow, the safety car in this lap, the red
+// flag's restart by the clock ("RACE WILL RESUME AT 15:45", the track's time:
+// `resume`, ms) and why it came out (`why`: { kind: 'out' | 'stopped' |
+// 'crash', who: [names], turn, medical, recovery, debris }, from what race
+// control said around it and the cars out just before). Null with no
+// status read.
+const KIND = { 1: 'green', 2: 'yellow', 4: 'sc', 5: 'red', 6: 'vsc', 7: 'vsc-end' };
+const feedMs = at => Date.parse(/Z|[+-]\d\d:?\d\d$/.test(at || '') ? at : `${at}Z`);
+const SENT = {
+  red: m => String(m.flag || '').toUpperCase() === 'RED' || /^RED FLAG\b|^SESSION ABORTED$/.test(m.message),
+  sc: m => /^SAFETY CAR DEPLOYED/.test(m.message),
+  vsc: m => /(VIRTUAL SAFETY CAR|VSC) DEPLOYED/.test(m.message)
+};
+// "-06:00:00" → minutes.
+const gmtMin = gmt => {
+  const m = String(gmt || '').match(/^([+-])?(\d{1,2}):(\d{2})/);
+  return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : null;
+};
+// "RACE WILL RESUME AT 15:45" (said at `at`, ms) → the moment, by the track's clock (`gmt`).
+export function resumeAt(text, at, gmt) {
+  const m = String(text || '').match(/WILL RESUME AT ?(\d{1,2}):(\d{2})\b|ESTIMATED TIME OF .*RESUMPTION.*?\b(\d{1,2}):(\d{2})\b/);
+  const off = gmtMin(gmt);
+  if (!m || off == null || !Number.isFinite(at)) return null;
+  const [h, min] = [Number(m[1] ?? m[3]), Number(m[2] ?? m[4])];
+  const local = at + off * 60_000;
+  let t = Math.floor(local / 86_400_000) * 86_400_000 + (h * 60 + min) * 60_000;
+  // (Said before midnight for a time after it.)
+  if (t < local - 6 * 3_600_000) t += 86_400_000;
+  return t - off * 60_000;
+}
+export function flagNow(feed) {
+  const status = String(feed?.track?.status || '');
+  const control = (feed?.control || []).map(m => ({ ...m, message: String(m.message || '').toUpperCase(), ms: feedMs(m.at) }));
+  const aborted = /^Aborted$/i.test(feed?.session?.status || '');
+  let kind = aborted || status === '5' ? 'red' : KIND[status] || '';
+  if (!kind) return null;
+  const sentBy = SENT[kind === 'vsc-end' ? 'vsc' : kind];
+  const k = sentBy ? control.findLastIndex(sentBy) : -1;
+  const sent = control[k] || null;
+  const since = k >= 0 ? control.slice(k + 1) : [];
+  if (kind === 'sc' && since.some(m => /SAFETY CAR IN THIS LAP/.test(m.message))) kind = 'sc-in';
+  const out = { kind, at: sent?.ms || null, lap: sent?.lap || 0, sectors: kind === 'yellow' ? feed?.yellow || [] : [], resume: null, why: null };
+  if (kind === 'green' || kind === 'yellow') return out;
+  // The restart: the last time given since it came out.
+  if (kind === 'red') for (const m of since) out.resume = resumeAt(m.message, m.ms, feed?.session?.gmt) ?? out.resume;
+  if (!sent) return out;
+  // Why: from the first of it (a red flag a few minutes after a safety car
+  // came out for the same crash: the safety car's), what was said from just
+  // before it till now, and the cars out of the race in the laps before.
+  const before = kind === 'red' ? control.slice(0, k).findLast(m => (SENT.sc(m) || SENT.vsc(m)) && sent.ms - m.ms < 10 * 60_000) : null;
+  const first = before || sent;
+  const near = control.filter(m => m.ms >= first.ms - 90_000);
+  const nameOf = no => feed?.cars?.find(c => String(c.no) === String(no))?.name || '';
+  const lap = first.lap || feed?.lap?.now || 0;
+  const gone = (feed?.cars || []).filter(c => (c.retired || c.stopped) && lap && c.laps >= lap - 4 && c.laps <= lap).map(c => c.name);
+  const cause = causeOf(control.map(m => ({ t: m.ms / 1000, message: m.message })), first.ms / 1000, gone, nameOf);
+  const turn = near.map(m => m.message.match(/(?:MARSHALS|RECOVERY VEHICLE) ON TRACK (?:AT|BEFORE) TURN (\d+)|STOPPED (?:ON TRACK )?AT TURN (\d+)/)).find(Boolean);
+  const pitEntry = near.some(m => /(?:MARSHALS|RECOVERY VEHICLE) (?:ON TRACK )?(?:AT|IN) PIT ENTRY/.test(m.message));
+  out.why = {
+    kind: cause?.kind || null,
+    who: cause?.who || [],
+    turn: turn ? Number(turn[1] || turn[2]) : pitEntry ? 'pit' : null,
+    medical: near.some(m => /^MEDICAL CAR (DEPLOYED|ON TRACK)/.test(m.message)),
+    recovery: near.some(m => /^RECOVERY VEHICLE/.test(m.message)),
+    debris: near.some(m => /^DEBRIS ON TRACK/.test(m.message))
+  };
+  return out;
 }
 
 // ---- The championship as things stand (Orbit Sports' 數據, a race or a sprint on) ----
@@ -633,8 +710,9 @@ export function liveLapEnds(feed, laps) {
 
 // What turned a race so far, from F1's live feed, as raceEvents has it once
 // it's over (OpenF1 is closed while it runs): the drawn drivers' stops and
-// retirements ([lap, 'pit' | 'out', k]) and who led at each lap's end ([lap,
-// 'lead', k, or the name of one not drawn], lap 0 the grid). `names`: the
+// retirements ([lap, 'pit' | 'out', k]), their climbs through the field
+// ([lap, 'climb', k, from, to, first lap]) and who led at each lap's end
+// ([lap, 'lead', k, or the name of one not drawn], lap 0 the grid). `names`: the
 // drawn drivers (the market's names), k a place among them.
 export function liveRaceEvents(feed, names) {
   const flat = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -655,6 +733,11 @@ export function liveRaceEvents(feed, names) {
     if (typeof k === 'number' && (c.retired || c.stopped)) ev.push([Math.max(1, c.laps || 0), 'out', k]);
   }
   const places = Object.entries(feed?.places || {});
+  // Each drawn driver's climbs through the field ([lap reached, 'climb', k, from, to, first lap]).
+  for (const [no, p] of places) {
+    const k = kOf(no);
+    if (typeof k === 'number') for (const c of kitWp.placeClimbs?.(p) || []) ev.push([c.lap1, 'climb', k, c.from, c.to, c.lap0]);
+  }
   const laps = Math.max(0, ...places.map(([, p]) => p.length - 1));
   let leader = null;
   for (let lap = 0; lap <= laps; lap++) {
