@@ -96,7 +96,6 @@ img { max-width: 100%; }
 .q-shd .q-tag, .q-section-head .q-tag { align-self: center; }
 /* A section head's way to all of it (全部 12 場 ›): quiet, never accent text (Jay 2026-11-03). */
 .section-more { flex: none; padding: 0; border: 0; background: none; color: var(--q-text-2); font: 500 15px/1 var(--q-font); cursor: pointer; }
-.q-more-go .q-more-chev { font-size: 17px; line-height: 1; margin-top: -1px; }
 .section-sub { color: var(--q-muted); font-size: 13px; margin: -4px 0 10px; }
 .section-h { font-size: 15px; font-weight: 600; margin: 20px 2px 8px; }
 .q-card + .q-card { margin-top: 12px; }
