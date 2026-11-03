@@ -33,6 +33,12 @@ export const FORMATS = {
   },
   mls: {
     rounds: [R('wildcard', '外卡賽', 'Wild Card', 2), R('round-one', '首輪', 'Round One', 8), R('conf-semis', '分區準決賽', 'Conf. Semifinals', 4), R('conf-finals', '分區冠軍賽', 'Conf. Finals', 2), R('final', 'MLS 盃決賽', 'MLS Cup', 1)],
+    // MLS's own round dates, set before the sides are (Jay 2026-11-01: "is
+    // MLS playoff time truly not determined yet?"): mlssoccer.com's key dates,
+    // US days (an evening game there is the next morning here).
+    official: {
+      2026: { wildcard: ['2026-11-18'], 'round-one': ['2026-11-20', '2026-12-02'], 'conf-semis': ['2026-12-05', '2026-12-06'], 'conf-finals': ['2026-12-11', '2026-12-12'], final: ['2026-12-18'] }
+    },
     // Each conference: 8 v 9 for the last place; 1 v that winner, 4 v 5, 3 v 6, 2 v 7.
     project: g => leagues2(g).reduce((o, rows) => ({ wildcard: [...(o.wildcard || []), pair(rows, 8, 9)], 'round-one': [...(o['round-one'] || []), waits(rows, 1, '8/9'), pair(rows, 4, 5), pair(rows, 3, 6), pair(rows, 2, 7)] }), {})
   },
@@ -174,6 +180,19 @@ export const stageKey = label =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
+// A round's dates from the league's own calendar (FORMATS[league].official),
+// the season's within four months of now: { from, to } in ms (US evening
+// kick-offs, 23:30 UTC, the day they are here), else null.
+export function officialDates(fmt, key, now = Date.now()) {
+  for (const days of Object.values(fmt?.official || {})) {
+    const d = days[key];
+    if (!d) continue;
+    const [from, to] = [d[0], d[1] || d[0]].map(x => Date.parse(`${x}T23:30:00Z`));
+    if (to > now - 30 * 86_400_000 && from < now + 120 * 86_400_000) return { from, to };
+  }
+  return null;
+}
+
 // `startsAfter`: the regular season's last day (ms), for a first round no calendar dates yet (about 3 days after it).
 export function playoffModel({ league, mode = 'live', events = [], groups = null, seeds = null, stages = [], season = '', startsAfter = 0, now = Date.now() }) {
   const fmt = FORMATS[league] || null;
@@ -202,6 +221,7 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
     // (A stage over a month and a half long is ESPN's window, not the games' days: the Nations League's quarterfinals "11/19–4/1", played 3/25–3/30. Said as by its end.)
     const window = stage?.start ? { from: Date.parse(stage.start), to: Date.parse(stage.end) - 1 } : null;
     r.dates = times.length ? { from: Math.min(...times), to: Math.max(...times) } : window ? (window.to - window.from > 45 * 86_400_000 ? { ...window, by: true } : window) : null;
+    if (!r.dates) r.dates = officialDates(fmt, r.key, now);
     if (!r.dates && r === rounds[0] && startsAfter) r.dates = { from: startsAfter + 3 * 86_400_000, to: startsAfter + 3 * 86_400_000, about: true };
     const real = r.ties.filter(t => t && !t.projected && !t.gap);
     const live = real.some(t => t.live) || games.some(e => e.status?.state === 'in' && !undecided(e.home) && !undecided(e.away));

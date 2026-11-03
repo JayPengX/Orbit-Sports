@@ -321,3 +321,10 @@ test("a team's games to come cross into next season: the break before the league
   assert.equal(seasonBreak(list.slice(0, 2), 'mls'), null);
   assert.deepEqual(seasonBreak([g('2027-05-01', 'epl', 2026, '2026-27 English Premier League'), g('2027-08-20', 'epl', 2027, '2027-28 English Premier League')], 'epl'), { at: 1, name: '2027-28' });
 });
+
+test('MLS 2026 playoffs: each round on its official dates before the sides are known (Jay 2026-11-01)', async () => {
+  const { playoffModel } = await import('../public/lib/playoffs.mjs');
+  const m = playoffModel({ league: 'mls', mode: 'projected', now: Date.parse('2026-11-01T12:00:00Z') });
+  const day = ms => new Date(ms).toISOString().slice(0, 10);
+  assert.deepEqual(m.rounds.map(r => [r.key, day(r.dates.from), day(r.dates.to)]), [['wildcard', '2026-11-18', '2026-11-18'], ['round-one', '2026-11-20', '2026-12-02'], ['conf-semis', '2026-12-05', '2026-12-06'], ['conf-finals', '2026-12-11', '2026-12-12'], ['final', '2026-12-18', '2026-12-18']]);
+});

@@ -1511,8 +1511,11 @@ span.hero-team { cursor: default; }
 .zone-key { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .zone-key i { width: 3px; height: 12px; border-radius: 2px; flex: none; }
 /* The faded rows' key: the word itself faded as they are; the lock as in the # column. */
+.zone-key.out-key { gap: 0; }
 .zone-key.out-key b { font-weight: 600; color: var(--q-text); opacity: 0.45; }
 .zone-lead { color: var(--q-muted); margin-right: -6px; }
+.zone-legend { flex-direction: column; align-items: flex-start; }
+.zone-row { display: flex; flex-wrap: nowrap; gap: 6px 14px; align-items: center; }
 .zone-key { gap: 4px 6px; }
 .zone-key .race-g.rank-lock { display: inline-grid; width: auto; height: auto; margin: 0; padding: 0; background: none; border-radius: 0; color: var(--q-muted); }
 .zone-key .rank-lock svg { width: 11px; height: 11px; }
@@ -2331,7 +2334,11 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 :root.q-w3 .wk-cards > :nth-child(3n + 1):last-child { grid-column: 1 / -1; }
 /* 賽事's tables on a wide page: every column and the full names; a league's
    groups (the NBA's conferences, MLB's divisions) two side by side. */
-:root.q-wide .page .standings:not(.compact) .extra { display: table-cell; }
+/* (Only where the table has the room: two side by side on a tablet upright
+   are 300 px each, and 勝 和 敗 pushed 落後 off the edge, Jay 2026-11-01's
+   no sideways tables. The table's own width decides, not the screen's.) */
+:root.q-wide .page .table-wrap { container-type: inline-size; }
+@container (min-width: 460px) { :root.q-wide .page .standings:not(.compact) .extra { display: table-cell; } }
 :root.q-wide .page .standings:not(.compact) .nm-full { display: inline; }
 :root.q-wide .page .standings:not(.compact) .nm-short { display: none; }
 :root.q-wide .page .tables.many { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }

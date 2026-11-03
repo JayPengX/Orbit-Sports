@@ -7000,7 +7000,7 @@ export function outOfIt(g, race, league) {
   const bottom = rows.findIndex(r => r.note && /relegat|eliminat/i.test(r.note)) + 1;
   const gone = race.rows.filter(x => x.best > reach && !(bottom && x.best < bottom && x.worst >= bottom));
   // (MLS: 9th's wild card the lowest good zone, so 已無緣季後賽外卡; one sure of the drop too, nothing left to play for.)
-  const zone = zoneName(rows[reach - 1]?.note || '');
+  const zone = zoneName(rows[reach - 1]?.note || '').replace(/^(季後賽).+$/, '$1').replace(/^(playoffs?)\b.+$/i, '$1');
   const down = bottom && gone.some(x => x.best >= bottom);
   return why(new Set(gone.map(x => x.id)), down || !zone ? '已無可爭' : `已無緣${zone}`, down || !zone ? 'Nothing left to play for' : `Can't reach ${zone}`);
 }
@@ -7021,15 +7021,18 @@ function zoneLegend(rows, out = null, settled = null) {
   const W = (zh, eng) => (L() === 'en' ? eng : zh);
   const seen = new Map();
   for (const r of rows) if (r.note && r.color && !seen.has(r.note)) seen.set(r.note, r.color);
-  // One row at 320 (Jay 2026-11-01: "wrap and too many text"): the bars'
-  // shared word said once (季後賽 ▍首輪 ▍外卡), a faded row's key the word
-  // 出局 drawn faded, the lock's 已確定.
+  // Two rows, each whole (Jay 2026-11-01: "wrap and too many text", then
+  // "wtf is 出局, it's text floating there alone"): the bars on the first
+  // (季後賽 ▍首輪 ▍外卡: their shared word once), then what grey and the
+  // lock mean in words (灰色：已無緣季後賽　🔒 名次已確定).
   const names = [...seen.keys()].map(n => zoneName(n).replace(/^[a-z]/, c => c.toUpperCase()));
-  const lead = L() === 'en' || names.length < 2 ? '' : (names.every(n => n.startsWith('季後賽') && n.length > 3) ? '季後賽' : '');
-  const keys = [...seen].map(([, color], i) => el('span', { class: 'zone-key' }, [el('i', { style: `background:${color}`, 'aria-hidden': 'true' }), document.createTextNode(lead ? names[i].slice(lead.length) : names[i])]));
-  if (out?.size && out.why) keys.push(el('span', { class: 'zone-key out-key', title: out.why }, [el('b', { text: /季後賽|playoff|wild card/i.test(out.why) ? W('出局', 'Out') : out.why })]));
-  if (settled?.size) keys.push(el('span', { class: 'zone-key', title: W('名次已確定', 'Place settled') }, [glyph('lock', 'rank-lock'), document.createTextNode(W('已確定', 'Settled'))]));
-  return keys.length ? el('div', { class: 'zone-legend' }, [lead ? el('span', { class: 'zone-lead', text: lead }) : null, ...keys].filter(Boolean)) : null;
+  const lead = L() === 'en' || names.length < 2 ? '' : names.every(n => n.startsWith('季後賽') && n.length > 3) ? '季後賽' : '';
+  const bars = [...seen].map(([, color], i) => el('span', { class: 'zone-key' }, [el('i', { style: `background:${color}`, 'aria-hidden': 'true' }), document.createTextNode(lead ? names[i].slice(lead.length) : names[i])]));
+  const marks = [];
+  if (out?.size && out.why) marks.push(el('span', { class: 'zone-key out-key' }, [el('b', { text: W('灰色', 'Grey') }), document.createTextNode(W(`：${out.why}`, `: ${out.why.replace(/^[A-Z]/, c => c.toLowerCase())}`))]));
+  if (settled?.size) marks.push(el('span', { class: 'zone-key' }, [glyph('lock', 'rank-lock'), document.createTextNode(W('名次已確定', 'Place settled'))]));
+  const rowsOut = [bars.length ? el('div', { class: 'zone-row' }, [lead ? el('span', { class: 'zone-lead', text: lead }) : null, ...bars].filter(Boolean)) : null, marks.length ? el('div', { class: 'zone-row' }, marks) : null].filter(Boolean);
+  return rowsOut.length ? el('div', { class: 'zone-legend' }, rowsOut) : null;
 }
 
 // ---- A playoff series or a knockout tie: every game of it ---------------------------------
