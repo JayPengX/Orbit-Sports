@@ -2219,12 +2219,23 @@ export async function roster(league, id, home = '') {
   const path = home && LEAGUES[league].espn.startsWith('soccer/') ? `soccer/${home}` : LEAGUES[league].espn;
   return parseRoster(await getJson(`${SITE}/${path}/teams/${encodeURIComponent(id)}/roster`, { ttl: 60 * 60_000 }));
 }
+// Whether pregameLineups has anything to read for a game (a game to come:
+// MLB's within three days, football's within two, the NBA's within ten), so
+// the game's page holds 先發陣容's place only where one is coming.
+export function asksLineups(e, now = Date.now()) {
+  if (e?.kind !== 'match' || e.status?.state !== 'pre') return false;
+  const ahead = Date.parse(e.start) - now;
+  const sides = Boolean(e.home?.id && e.away?.id);
+  if (e.league === 'mlb') return ahead <= 3 * 86_400_000;
+  if (LEAGUES[e.league]?.sport === 'soccer') return sides && ahead <= 2 * 86_400_000;
+  return Boolean(CORE_LINEUPS[e.league] && LEAGUES[e.league]?.espn && sides && ahead <= 10 * 86_400_000);
+}
 // Who starts a game to come (lib/lineups.mjs): MLB's probable pitchers and
 // batting orders ({ kind: 'mlb', pitchers, order }); an NBA
 // side's starters once announced ({ kind: 'core', away, home, pending: none
 // yet }), asked only near the start; else null.
 export async function pregameLineups(e, now = Date.now()) {
-  if (e?.kind !== 'match' || e.status?.state !== 'pre') return null;
+  if (!asksLineups(e, now)) return null;
   const ahead = Date.parse(e.start) - now;
   if (e.league === 'mlb') {
     if (ahead > 3 * 86_400_000) return null;

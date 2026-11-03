@@ -9,6 +9,7 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - Win chance and its chart with 關鍵時刻 — `public/sheets.js`, `public/lib/i18n.mjs`: `勝率走勢`, `勝率預測`, `關鍵時刻`
 - Line-ups: basketball starters and bench, MLB batting order and bullpen — `public/sheets.js`, `public/lib/lineups.mjs`: `打序`, `牛棚`, `mlbLineups`, `rotowireGame`
 - Injuries with return dates — `public/sheets.js`: `回歸待定`
+- A game's page holds every part still being read in its shape (先發陣容, 本季數據領先, 傷兵, the table's rows) — `public/sheets.js`, `public/lib/espn.mjs`: `later(`, `holdShape`, `asksLineups`
 - Player careers — `public/sheets.js`, `public/lib/career.mjs`: `openPlayer`, `playerCareer`
 - Team pages — `public/sheets.js`: `openTeam`
 - Follow a game from its page — `public/sheets.js`: `追蹤這場比賽`

@@ -223,6 +223,15 @@ couldn't be read is shown, never hidden.
   day with nothing on is the kit's empty state in one line (`noTvTitle`); a
   list still being read holds rows its size (`lbHeld`); a list's more is the
   kit's `moreToggle`.
+- A game's page draws once and holds every part read after it (2026-11-03,
+  Jay: 預計先發 came in last and pushed the page down): each read past the
+  game's own page (who starts, the season's leaders, who's out, the table,
+  the season's games, the squads) goes through `openMatch`'s `later(key,
+  read)`, and overview draws its part while `still(key)` as the card itself
+  built on stand-ins (`lineupsHeld`, `leadHeld`, `blanks`) through the kit's
+  `waiting` (`holdShape`); the win chance card too. A new section with a
+  read of its own goes through `later()` (`tests/game-page.test.mjs`);
+  `live-scroll.mjs sports` watches three game pages load.
 - Football's 近期交手: the last five meetings at most (ESPN's list), each
   counted by its score (`espn.mjs meetingResult`: level is a draw, even one
   settled on penalties, marked PK on its row); each side's wins and the

@@ -317,6 +317,8 @@ export function frameFace(img) {
 }
 if (typeof document !== 'undefined') document.addEventListener('load', ev => ev.target?.tagName === 'IMG' && ev.target.classList.contains('f1-face') && frameFace(ev.target), true);
 export function personPic(p, league, cls = '') {
+  // (A stand-in, a part still being read held in its shape: an empty face, nothing looked up.)
+  if (p?.stand) return el('span', { class: `logo ${cls} empty-face`, 'aria-hidden': 'true' });
   const name = p?.en || p?.name || '';
   const flag = p?.flag || (isFlag(p?.logo) ? p.logo : '');
   // The feed's own pictures, then the kit's way (photos.mjs personPhoto):

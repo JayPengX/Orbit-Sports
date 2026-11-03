@@ -7,7 +7,7 @@ import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, w
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad, europeanClubs } from './lib/espn.mjs';
+import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad, europeanClubs } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -168,6 +168,8 @@ function swipeTabs(node, at) {
 }
 // The game page open now (openMatch), for a player opened from it.
 let openGame = null;
+// The tabs' row in its shape while what fills it is read.
+const tabsWaiting = () => el('div', { class: 'match-tabs-skel', 'aria-hidden': 'true' }, [0, 1, 2, 3].map(() => el('i', { class: 'skel' })));
 export async function openMatch(e) {
   // (Reassigned as the live copy comes in.)
   const s = sheet(leagueName(e.league, L()), { league: e.league });
@@ -181,7 +183,7 @@ export async function openMatch(e) {
   // shape, where they'll be, not a lone spinner under the line score (Jay
   // 2026-10-27, "when it's loading don't cramp together").
   const content = el('div', { class: 'match-content' }, [el('div', { class: 'stack' }, [0, 1].map(i => el('div', { class: 'q-card match-skel' }, [skeleton(i ? [30, 88, 72, 80] : [26, 92, 64])])))]);
-  if (LEAGUES[e.league].espn) put(sections, el('div', { class: 'match-tabs-skel', 'aria-hidden': 'true' }, [0, 1, 2, 3].map(() => el('i', { class: 'skel' }))));
+  if (LEAGUES[e.league].espn) put(sections, tabsWaiting());
   // (數據's switch, 球隊 or 球員, under the tabs.)
   const subBox = el('div', { class: 'match-sub' });
   s.body.append(header, sections, subBox, top, content);
@@ -219,6 +221,7 @@ export async function openMatch(e) {
     const missing = [...new Set([...(data?.players || []).flatMap(p => p.tables.flatMap(tb => tb.rows)), ...(data?.injuries || []).flatMap(t => t.list), ...Object.values(hurt).flat()].filter(x => x?.id && !x.jersey && !askedNumber.has(x.id)).map(x => x.id))].slice(0, 12);
     if (!missing.length) return;
     missing.forEach(id => askedNumber.add(id));
+    // (in place: a number beside a name already there.)
     Promise.all(missing.map(id => athlete(e.league, id).then(a => a.jersey && (numbers[id] = a.jersey)).catch(() => null))).then(got => got.some(Boolean) && paint());
   };
   // Who starts, before the game (pregameLineups).
@@ -236,6 +239,28 @@ export async function openMatch(e) {
   let seasonGames = LEAGUES[e.league].espn && LEAGUES[e.league].sport === 'soccer' && e.kind === 'match' ? undefined : null;
   // What's still coming (the win chance cards wait in their shape, never a source standing in for another).
   const wait = { summary: !LEAGUES[e.league].espn, line: false };
+  // Every other read the page waits on past the game's own page (who starts,
+  // each side's season leaders and who's out, the table, the season's games,
+  // the squads): its part holds its place in the shape that's coming from the
+  // first drawing until it lands (kit waiting), never a card popping in and
+  // pushing what's being read (Jay 2026-11-03: 預計先發 came in after all
+  // the rest and moved everything down). A new read goes through later() too
+  // (tests/game-page.test.mjs).
+  // (Its `asked`: every read the page made, held too while the game's own page is still coming.)
+  const coming = Object.assign(new Set(), { asked: new Set() });
+  // (A game long over shows no season leaders or table of today's: nothing of theirs held.)
+  const pastComing = Object.assign(new Set(), { asked: new Set(['form']) });
+  const heldPast = now => (pastComing.clear(), now.has('form') && pastComing.add('form'), pastComing);
+  const later = (key, read) => {
+    coming.add(key);
+    coming.asked.add(key);
+    Promise.resolve(read)
+      .catch(() => null)
+      .finally(() => {
+        coming.delete(key);
+        paint();
+      });
+  };
   const loadLine = () => {
     const now = { ...e, status: data?.status || e.status };
     const pre = now.status.state === 'pre';
@@ -247,6 +272,7 @@ export async function openMatch(e) {
       .then(l => l && (line = l))
       .catch(() => {})
       .finally(() => {
+        // in place: the win chance card waits in its shape for it (winCard).
         wait.line = true;
         paint();
       });
@@ -368,7 +394,8 @@ export async function openMatch(e) {
   // The sections and what's in them drawn once, with the game's own page in
   // (or after 3 s without it): not a tab or two first (排名, its table read
   // sooner), the others popping in and everything moving down.
-  let ready = !LEAGUES[e.league].espn;
+  // (CPBL's box score, its own page, the same for a game on or over.)
+  let ready = !LEAGUES[e.league].espn && !(e.league === 'cpbl' && e.status.state !== 'pre');
   let shown = false;
   // 過程 drawn once for the game's data as it is (an NBA game's 500-odd rows):
   // a tab tapped back to it puts the same list back, drawn again only when the data changes.
@@ -389,6 +416,7 @@ export async function openMatch(e) {
       load()
         .then(n => (po.view = n || false))
         .catch(() => (po.view = false))
+        // in place: its own tab, a spinner there till then.
         .finally(() => paint());
     } else if (po.view && !po.busy) {
       po.busy = true;
@@ -455,13 +483,14 @@ export async function openMatch(e) {
     if (view === 'table' && !stands.length) view = 'overview';
     put(subBox, view === 'stats' && teamNums && playerNums ? segmented([['team', en ? 'Teams' : '球隊'], ['players', en ? 'Players' : '球員']], statsPart, v => ((statsPart = v), paint()), 'match-part') : view === 'table' && stands.length > 1 ? segmented(stands, standPart, v => ((standPart = v), paint()), 'match-part') : null);
     // The same row of tabs before, during and after (two of them or six).
-    put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { seg: true }) : null);
+    // (One tab so far, with 數據 or 排名's read still coming: the row's place held, not the page pushed down when it comes.)
+    put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { seg: true }) : coming.has('squads') || coming.has('table') ? tabsWaiting() : null);
     top.hidden = view !== 'overview';
     const over = (data?.status || e.status).state === 'post';
     // (A game over a day and more ago: ESPN's injuries are today's, not that
     // night's, so none. Just over: who was out hurt stays, with who sat out, 未上場: Jay, 2026-10-28.)
     const shownView = view === 'stats' && part === 'players' ? 'players' : view === 'table' ? standPart : view;
-    const fresh = () => matchSection(shownView, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait, plays: Object.assign(playsKeep, { shown: view === 'plays' ? content.firstElementChild : null }) });
+    const fresh = () => matchSection(shownView, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait, coming: past() ? heldPast(coming) : coming, plays: Object.assign(playsKeep, { shown: view === 'plays' ? content.firstElementChild : null }) });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
     const next = shownView === 'playoffs' ? playoffsNode(e.league, shownView) : shownView === 'cup' ? playoffsNode('nbacup', shownView) : keep || fresh();
     // The same view again (a live refresh): its cards changed inside the
@@ -483,16 +512,17 @@ export async function openMatch(e) {
   // side's form in it for 兩隊比較. Null elsewhere (ESPN's last five are the
   // league's own there); undefined while it's coming, the row held till then.
   if (seasonGames === undefined)
-    seasonEvents(e.league)
-      .catch(() => null)
-      .then(list => {
-        seasonGames = list;
-        paint();
-      });
+    later(
+      'form',
+      seasonEvents(e.league)
+        .catch(() => null)
+        .then(list => (seasonGames = list))
+    );
   // The league's table: both sides' places, and the Table section.
   if (hasStandings(e.league))
-    standings(e.league)
-      .then(groups => {
+    later(
+      'table',
+      standings(e.league).then(groups => {
         table = groups;
         // A cup with groups: the game's group in the header (C 級第 2 組).
         const g = LEAGUES[e.league].cup && (groups || []).length > 1 ? groups.find(x => x.rows.some(r => r.id === String(e.home.id)) && x.rows.some(r => r.id === String(e.away.id))) : null;
@@ -500,16 +530,16 @@ export async function openMatch(e) {
           e = { ...e, group: g.name };
           paintHeader(data);
         }
-        paint();
       })
-      .catch(() => {});
+    );
   // A league ESPN doesn't cover (CPBL): the table counted from its own season.
   else if (LEAGUES[e.league].asia && e.kind === 'match')
-    ownTeam(e.league, e.home.id, e.home)
-      .then(([, , groups]) => {
-        if (groups) (table = groups), paint();
+    later(
+      'table',
+      ownTeam(e.league, e.home.id, e.home).then(([, , groups]) => {
+        if (groups) table = groups;
       })
-      .catch(() => {});
+    );
   if (!LEAGUES[e.league].espn) {
     paint();
     loadLine();
@@ -519,13 +549,17 @@ export async function openMatch(e) {
         .catch(() => null)
         .then(sm => {
           boxUnread = !sm && !data;
-          if (sm) (data = sm), paintHeader(data);
+          if (sm) data = sm;
+          // in place: the first drawing waits for it (settle, up to 3 s), as for ESPN's own page.
+          if (!ready) return settle();
+          if (sm) paintHeader(data);
           paint();
         });
     return;
   }
   // A game to come: who starts (lib/lineups.mjs), again each minute while
   // the sheet is open, until it starts (an NBA five comes 30 minutes before).
+  // (The first read holds the card's place; each minute's after changes it in place.)
   let lineupTimer = 0;
   const stopLineups = () => clearInterval(lineupTimer);
   const loadLineups = () => {
@@ -534,40 +568,46 @@ export async function openMatch(e) {
       .then(l => {
         if (JSON.stringify(l) === JSON.stringify(lineups)) return;
         lineups = l;
+        // in place: the card already on the page, held from the first drawing.
         paint();
       })
       .catch(() => {});
   };
-  loadLineups();
+  if (asksLineups(e)) later('lineups', pregameLineups(e).then(l => (lineups = l)));
   lineupTimer = setInterval(loadLineups, 60_000);
   s.dialog.addEventListener('close', stopLineups);
   {
     const l = LEAGUES[e.league];
     if (e.kind === 'match' && l?.espn && l.sport !== 'racing' && hasLeaders(l.sport, l.espn) && e.away?.id && e.home?.id)
-      Promise.all([e.away, e.home].map(x => teamLeaders(e.league, x.id, { name: x.en || x.name, en: x.en, short: x.short }).catch(() => null))).then(([a, h]) => {
-        if (!a || !h) return;
-        seasonLead = { a, h };
-        paint();
-      });
+      later(
+        'season',
+        Promise.all([e.away, e.home].map(x => teamLeaders(e.league, x.id, { name: x.en || x.name, en: x.en, short: x.short }).catch(() => null))).then(([a, h]) => {
+          if (a && h) seasonLead = { a, h };
+        })
+      );
   }
   // A game to come: each side's roster (陣容 before the line-ups are out),
   // a basketball side's with its averages too (球員). Baseball's whole
   // active roster comes with MLB's box score.
   const sportOf = LEAGUES[e.league].sport;
   if (e.kind === 'match' && e.status.state === 'pre' && sportOf !== 'baseball' && LEAGUES[e.league].espn && e.away?.id && e.home?.id)
-    Promise.all([e.away, e.home].map(x => Promise.all([sportOf === 'basketball' ? seasonAverages(e.league, x.id).catch(() => null) : null, roster(e.league, x.id).catch(() => []), sportOf === 'basketball' ? leagueAverages(e.league).catch(() => new Map()) : null]).then(([avg, list, all]) => [String(x.id), { avg: sportOf === 'basketball' ? rosterAverages(avg, list.flatMap(g => g.players), all) : null, roster: list.flatMap(g => g.players) }]))).then(got => {
-      squads = Object.fromEntries(got);
-      paint();
-    });
+    later(
+      'squads',
+      Promise.all([e.away, e.home].map(x => Promise.all([sportOf === 'basketball' ? seasonAverages(e.league, x.id).catch(() => null) : null, roster(e.league, x.id).catch(() => []), sportOf === 'basketball' ? leagueAverages(e.league).catch(() => new Map()) : null]).then(([avg, list, all]) => [String(x.id), { avg: sportOf === 'basketball' ? rosterAverages(avg, list.flatMap(g => g.players), all) : null, roster: list.flatMap(g => g.players) }]))).then(got => {
+        squads = Object.fromEntries(got);
+      })
+    );
   // A game to come, on or just over: who's out, from each team's roster too (soccer's rosters say nothing of it).
   if (e.kind === 'match' && !(e.status.state === 'post' && Date.now() - Date.parse(e.start) > 36 * 3_600_000) && LEAGUES[e.league].sport !== 'soccer')
     // (With the league's report, the same the team's page reads: each one's why and when back.)
-    Promise.all([leagueInjuries(e.league).catch(() => ({})), ...[e.away, e.home].map(x => (x?.id ? teamInjuries(e.league, x.id).then(list => [x.id, list]).catch(() => null) : null))]).then(([report, ...got]) => {
-      hurt = Object.fromEntries(got.filter(Boolean).map(([id, list]) => [id, list.map(x => ({ ...x, ...whyOf(report?.[String(id)], x) }))]));
-      for (const id of [e.away?.id, e.home?.id].map(String)) for (const x of report?.[id] || []) if (!hurt[id]?.some(y => (x.id && y.id === x.id) || y.name === x.name)) (hurt[id] ||= []).push(x);
-      if (Object.values(hurt).some(l => l.length)) paint();
-      fillNumbers();
-    });
+    later(
+      'injuries',
+      Promise.all([leagueInjuries(e.league).catch(() => ({})), ...[e.away, e.home].map(x => (x?.id ? teamInjuries(e.league, x.id).then(list => [x.id, list]).catch(() => null) : null))]).then(([report, ...got]) => {
+        hurt = Object.fromEntries(got.filter(Boolean).map(([id, list]) => [id, list.map(x => ({ ...x, ...whyOf(report?.[String(id)], x) }))]));
+        for (const id of [e.away?.id, e.home?.id].map(String)) for (const x of report?.[id] || []) if (!hurt[id]?.some(y => (x.id && y.id === x.id) || y.name === x.name)) (hurt[id] ||= []).push(x);
+        fillNumbers();
+      })
+    );
   try {
     data = behind(await summary(e.league, e.id));
   } catch {}
@@ -1427,7 +1467,12 @@ function highlights(e, waited = false) {
 
 // The overview: the teams side by side, what the match is (where, when, TV),
 // the win probability, each side's leaders, the season series and injuries.
-function overview(d, e, table, nameOf, { line = null, wait = { summary: true, line: true } } = {}) {
+function overview(d, e, table, nameOf, { line = null, wait = { summary: true, line: true }, coming = null } = {}) {
+  // (A read still coming: its part held in the shape that's coming, holdShape.
+  // The game's own page still coming too, past the 3 s the first drawing
+  // waits for it: what's drawn with it held, a read that's in or not.)
+  const early = !d && !wait.summary;
+  const still = k => Boolean(coming?.has(k) || (early && (k === 'form' || coming?.asked?.has(k))));
   const sides = inOrder(e, [e.away, e.home]);
   const places = sides.map(s => placeOf(table, s.id));
   const sm = side => d?.byId?.[side.id] || side;
@@ -1450,12 +1495,18 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     places.some(Boolean) ? [T('standing'), ...places.map(p => (p ? placeCell(p, (table?.length || 0) > 1) : '—'))] : null,
     ...(places.every(Boolean) ? keyStats(e.league, places) : [])
   ].filter(Boolean);
+  // (The table still being read: its rows held in their shape, 名次 and the sport's figures, BLANK.)
+  const tableHeld = still('table') && !places.some(Boolean) ? [T('standing'), ...keyNames(e.league)] : [];
   const compare = el('div', { class: 'compare' }, [
     el('div', { class: 'cmp-head' }, sides.map((x, i) => cmpTeam(x, i ? 'home' : 'away', e.league)).flatMap((x, i) => (i ? [el('span', { class: 'cmp-vs', text: 'vs' }), x] : [x]))),
     ...compareRows.map(([label, a, h]) => el('div', { class: 'cmp-row' }, [cmpValue(a), el('span', { text: label }), cmpValue(h)])),
+    // (名次 with its group under it, as a table of conferences or groups has it: all but football's leagues.)
+    ...tableHeld.map((label, i) => holdShape(el('div', { class: 'cmp-row' }, [cmpValue(i || LEAGUES[e.league]?.sport === 'soccer' ? BLANK2 : [BLANK2, BLANK2]), el('span', { class: 'cmp-k', text: label }), cmpValue(i || LEAGUES[e.league]?.sport === 'soccer' ? BLANK2 : [BLANK2, BLANK2])]))),
     forms.some(f => f.length)
       ? el('div', { class: 'cmp-row form' }, [formPills(forms[0]), el('span', { text: T('form') }), formPills(forms[1])])
-      : null
+      : still('form')
+        ? holdShape(el('div', { class: 'cmp-row form' }, [formPills(FORM_HELD), el('span', { class: 'cmp-k', text: T('form') }), formPills(FORM_HELD)]))
+        : null
   ]);
   const when = new Date(e.start);
   // Where to watch has its own card when there's a link to it (a schedule's channel, Apple TV); the list here otherwise.
@@ -1488,10 +1539,10 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     highlights: highlights(e),
     // (A guest club from outside the league has no record or place to set beside the other's.)
     // (The records alone, the hero's already: no card of one row.)
-    matchup: e.home.guest || e.away.guest || (compareRows.length < 2 && !forms.some(f => f.length)) ? null : card(T('matchup'), compare),
+    matchup: e.home.guest || e.away.guest || (compareRows.length + tableHeld.length < 2 && !forms.some(f => f.length) && !still('form')) ? null : card(T('matchup'), compare),
     win: winCard(d, e, line, wait),
     onField: onFieldCard(d, e, nameOf),
-    lineups: lineupCard(d?.lineups, d, e, nameOf),
+    lineups: lineupCard(d?.lineups, d, e, nameOf, still('lineups')),
     leaders: leadersBy.some(x => x.length)
       ? card(
           T('leaders'),
@@ -1507,7 +1558,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
           )
         )
       : null,
-    season: seasonLeadCard(d?.seasonLead, e),
+    season: seasonLeadCard(d?.seasonLead, e) || (still('season') ? holdShape(seasonLeadCard(leadHeld(e), e)) : null),
     series: d?.series[0]?.h2h?.n ? h2hCard(d.series[0], e) : d?.lastSeries ? lastSeriesCard(d.lastSeries, e) : d?.series[0]?.games?.length && ownSeriesCard(d.series[0], e) ? ownSeriesCard(d.series[0], e) : d?.series.length && d.series[0].summary && d.series[0].events.some(x => x.done) ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
     // A game over: who sat it out (its box score's), then who was out hurt (no one twice).
     satOut: (d?.status || e.status).state === 'post' ? satOutCard(d, e) : null,
@@ -1526,7 +1577,9 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
               .map(i => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(i.team)]), injuryBox(i.list.map(x => (/^rest$/i.test(x.detail) ? { ...x, status: L() === 'en' ? 'Rest' : '休息' } : x)), e.league)]))
           )
         )
-      : null,
+      : still('injuries')
+        ? holdShape(card(T('injuries'), el('div', { class: 'injuries' }, sides.map(t => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(String(t.id))]), injuryBox(blanks(INJ_SHOWN).map(x => ({ ...x, whatText: BLANK, label: BLANK2 })), e.league)])))))
+        : null,
     tv: exactTv ? twCard(e.league, e) : null,
     info: card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([, k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
   };
@@ -1540,9 +1593,45 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // columns left one side a card lower and ending far short of the other.)
   // (Before the start ESPN's 數據領先 are the season's: 本季數據領先 says the
   // same and more, so only that one; Jay's 76人 v 騎士 page had both.)
-  if ((d?.status || e.status).state === 'pre' && part.season) part.leaders = null;
+  // (While they're read, too: their card's place held, not ESPN's there first and swapped.)
+  if ((d?.status || e.status).state === 'pre' && (part.season || still('season'))) part.leaders = null;
+  // (A part that was held: the real one fades in, once, in its place.)
+  const was = coming ? heldParts.get(coming) || heldParts.set(coming, new Set()).get(coming) : null;
+  for (const [k, n] of Object.entries(part)) {
+    if (!n || !was) continue;
+    if (n.classList?.contains('q-wait')) was.add(k);
+    else if (was.delete(k)) {
+      n.classList.add('fade-in');
+      n.addEventListener('animationend', () => n.classList.remove('fade-in'), { once: true });
+    }
+  }
   return el('div', { class: 'stack q-flow q-flow-2' }, ORDER.map(k => part[k] || (k === 'onField' ? part.lineups : null)));
 }
+// The parts drawn held on a game's page (by its reads, overview's coming): the real one fades in once.
+const heldParts = new WeakMap();
+// A part still being read, in the shape that's coming (kit waiting: its
+// words and faces a quiet shimmer; its title, the sides' names and the rows'
+// names as they are). An older kit: nothing there (as before).
+const holdShape = shape => (shape && kitUI.waiting ? kitUI.waiting(shape, { keep: '.card-h > span:first-child, .mini-h, .cmp-k' }) : null);
+// Stand-ins for a held part's rows: a name of four characters (never seen:
+// the kit draws them as a bar; not blank spaces, which hang past a line's end), an empty face.
+const BLANK = '口口口口';
+const BLANK2 = '口口';
+const blanks = n => Array.from({ length: n }, () => ({ id: '', name: BLANK, full: BLANK, short: BLANK, pos: '', jersey: '口', stand: true }));
+const FORM_HELD = Array.from({ length: 5 }, () => ({ result: '', opp: '', score: '' }));
+// Who starts, in the shape that comes for the sport: an NBA side's five, a football side's eleven, MLB's starting pitchers.
+const lineupsHeld = e =>
+  e.league === 'mlb'
+    ? { kind: 'mlb', pitchers: { away: blanks(1)[0], home: blanks(1)[0] }, order: { away: [], home: [] } }
+    : LEAGUES[e.league]?.sport === 'soccer'
+      ? { kind: 'soccer', away: { formation: '', players: blanks(11) }, home: { formation: '', players: blanks(11) } }
+      : { kind: 'core', away: blanks(5), home: blanks(5), last: true };
+// 本季數據領先's rows: eight stats a side (the card's most), a football side's two (ESPN's goals and assists, FotMob's may add more).
+const leadHeld = e => {
+  const n = LEAGUES[e.league]?.sport === 'soccer' ? 2 : 8;
+  const side = () => ({ stats: Array.from({ length: n }, (_, i) => ({ key: `_${i}`, zh: BLANK, en: BLANK, list: [{ ...blanks(1)[0], value: BLANK2 }] })) });
+  return { a: side(), h: side() };
+};
 
 // 本季數據領先, side by side: each stat both teams have, its leader on each
 // side (in the cards' order), the first eight of them.
@@ -1573,7 +1662,7 @@ function seasonLeadCard(lead, e) {
 // 上場先發. MLB's probable pitcher heads his side's batting order; soccer's
 // eleven come with ESPN's line-ups (about an hour before); until a sport's
 // are said, when they will be.
-function lineupCard(l, d, e, nameOf) {
+function lineupCard(l, d, e, nameOf, coming = false) {
   if ((d?.status || e.status).state !== 'pre') return null;
   const en = L() === 'en';
   const W = (zh, eng) => (en ? eng : zh);
@@ -1588,6 +1677,8 @@ function lineupCard(l, d, e, nameOf) {
   const xi = sides.map(t => d?.rosters?.find(r => r.team === String(t.id) && r.players.some(p => p.starter)));
   if (sport === 'soccer' && xi.some(Boolean))
     return card(title, el('div', { class: 'injuries' }, sides.flatMap((t, i) => (xi[i] ? side(t, xi[i].players.filter(p => p.starter), pos, xi[i].formation) : []))), { sub: W('已公布', 'Announced') });
+  // Still being read: its place held in the shape that comes.
+  if (!l && coming) return holdShape(lineupCard(lineupsHeld(e), d, e, nameOf));
   // Not named yet: each side's eleven from its last game, said so (上場先發); the real one about an hour before.
   if (sport === 'soccer' && l?.kind === 'soccer')
     return card(title, el('div', { class: 'injuries' }, sides.flatMap(t => [l.away, l.home][k(t)] ? side(t, [l.away, l.home][k(t)].players, pos, [l.away, l.home][k(t)].formation) : [])), { sub: W('上場先發', 'Last game') });
@@ -1851,9 +1942,12 @@ const inkOn = c => {
 const PITCH_LINES = '<svg viewBox="0 0 68 128" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width=".5"><rect x="1" y="1" width="66" height="126"/><path d="M1 64h66"/><circle cx="34" cy="64" r="9.15"/><circle cx="34" cy="64" r=".6" fill="currentColor"/><path d="M13.84 1v16.5h40.32V1M24.84 1v5.5h18.32V1M13.84 127V110.5h40.32V127M24.84 127V121.5h18.32V127"/><path d="M26.7 17.5a9.15 9.15 0 0 0 14.6 0M26.7 110.5a9.15 9.15 0 0 1 14.6 0"/></svg>';
 
 // A few table columns worth comparing, by sport.
+const KEY_STATS = { soccer: ['P', 'GD', 'F', 'A'], baseball: ['PCT', 'GB', 'STRK'], basketball: ['PCT', 'GB', 'STRK'] };
+const keyLabel = k => (T(`col_${k}`) === `col_${k}` ? k : T(`col_${k}`));
+// Their names alone (the rows held while the table's read).
+const keyNames = league => (KEY_STATS[LEAGUES[league]?.sport] || []).map(keyLabel);
 function keyStats(league, places) {
-  const sport = LEAGUES[league]?.sport;
-  const want = { soccer: ['P', 'GD', 'F', 'A'], baseball: ['PCT', 'GB', 'STRK'], basketball: ['PCT', 'GB', 'STRK'] }[sport] || [];
+  const want = KEY_STATS[LEAGUES[league]?.sport] || [];
   // Games behind the leader of the table shown next to it (ESPN's own figure
   // can be against another list, such as the division, and read as nonsense).
   const gb = p => {
@@ -1865,7 +1959,7 @@ function keyStats(league, places) {
   return want
     .map(k => (k === 'GB' ? [k, ...places.map(gb)] : [k, ...places.map(p => p.row.stats[k])]))
     .filter(([, a, h]) => a != null && a !== '' && h != null && h !== '')
-    .map(([k, a, h]) => [T(`col_${k}`) === `col_${k}` ? k : T(`col_${k}`), a, h]);
+    .map(([k, a, h]) => [keyLabel(k), a, h]);
 }
 // A long group name to its initials ("Eastern Conference Group" → ECG).
 export const groupShort = name => {
@@ -1912,8 +2006,9 @@ function winCard(d, e, line, wait) {
   }
   if (coming) {
     waited.set(wait, true);
+    // (Before the start: the card itself held in its shape, kit waiting; an older kit, the skeleton.)
     return state === 'pre'
-      ? card(T('winChance'), el('div', { class: 'wp waiting' }, [skeleton([22, 16, 22], 'wc-skel'), el('i', { class: 'skel wc-skel-bar' })]))
+      ? holdShape(winChanceCard({ home: 0.5, draw: sport === 'soccer' ? 0.25 : null }, e)) || card(T('winChance'), el('div', { class: 'wp waiting' }, [skeleton([22, 16, 22], 'wc-skel'), el('i', { class: 'skel wc-skel-bar' })]))
       : card(T('winProb'), el('div', { class: 'wp waiting' }, [skeleton([22, 22], 'wc-skel'), el('i', { class: 'skel wp-skel-chart' })]));
   }
   if (real && waited.get(wait)) {
