@@ -70,11 +70,14 @@ function h2hView({ n, wins, draws, noDraw = false }, e) {
   const [a, h] = [wins[e.away.id] || 0, wins[e.home.id] || 0];
   return el('div', { class: 'h2h' }, [
     // (A sport without draws: none between them.)
-    el('div', { class: 'h2h-row' }, [side(homeFirst(e) ? e.home : e.away, 'away'), noDraw ? el('div', { class: 'h2h-draw' }, [el('small', { class: 'muted', text: 'vs' })]) : el('div', { class: 'h2h-draw' }, [el('strong', { class: 'num h2h-n', text: String(draws || 0) }), el('small', { text: en ? 'drawn' : '和局' })]), side(homeFirst(e) ? e.away : e.home, 'home')]),
+    el('div', { class: 'h2h-row' }, [side(homeFirst(e) ? e.home : e.away, 'away'), noDraw ? el('div', { class: 'h2h-draw' }) : el('div', { class: 'h2h-draw' }, [el('strong', { class: 'num h2h-n', text: String(draws || 0) }), el('small', { text: en ? 'drawn' : '和局' })]), side(homeFirst(e) ? e.away : e.home, 'home')]),
     // Each side's bar in the shirt it wears in this game (the win chart's colours: tintOf), the draws grey.
     // A sport without draws, a handful of meetings: a pip a game under each side, its wins filled in its colour
     // (Jay 2026-10-31: 0–2 drew one bar all blue, as if the other side weren't there).
-    n && noDraw && n <= 7 ? el('div', { class: 'h2h-pips', 'aria-hidden': 'true', style: (c => `--home:${c.home};--away:${c.away}`)(tintOf(e)) }, inOrder(e, [['away', a], ['home', h]]).map(([k, won], i) => el('span', { class: `h2h-pip-row ${i ? 'right' : ''}` }, Array.from({ length: n }, (_, j) => el('i', { class: (i ? n - j <= won : j < won) ? k : '' }))))) :
+    // A handful of meetings: a pip a meeting under each side, its wins filled in its colour from its own end (Jay
+    // 2026-10-31: 0–2 drew one bar all blue, as if the other side weren't there); a draw fills neither. Every sport's
+    // the same (Jay 2026-11-01: why do the two look so different).
+    n && n <= 7 ? el('div', { class: 'h2h-pips', 'aria-hidden': 'true', style: (c => `--home:${c.home};--away:${c.away}`)(tintOf(e)) }, inOrder(e, [['away', a], ['home', h]]).map(([k, won], i) => el('span', { class: `h2h-pip-row ${i ? 'right' : ''}` }, Array.from({ length: n }, (_, j) => el('i', { class: (i ? n - j <= won : j < won) ? k : '' }))))) :
     n ? el('div', { class: 'h2h-bar', 'aria-hidden': 'true', style: (c => `--home:${c.home};--away:${c.away}`)(tintOf(e)) }, inOrder(e, [a ? el('i', { class: 'away', style: share(a) }) : null, h ? el('i', { class: 'home', style: share(h) }) : null]).flatMap((x, i) => (i === 0 ? [x, draws ? el('i', { class: 'draw', style: share(draws) }) : null] : [x]))) : null
   ]);
 }
@@ -84,7 +87,7 @@ function h2hView({ n, wins, draws, noDraw = false }, e) {
 // Meetings, each a row (its date, both sides by logo and score, the winner
 // bold), under who won how many: last season's, this season's, a playoff
 // series; the game open now marked.
-function meetingsCard(title, sub, games, e, { wins = null } = {}) {
+function meetingsCard(title, sub, games, e, { wins = null, draws = 0, h2h = false } = {}) {
   const team = t => [e.home, e.away].find(x => String(x?.id) === t.id) || t;
   const tally = wins || games.reduce((w, g) => (([g.home, g.away].forEach(t => t.winner && (w[t.id] = (w[t.id] || 0) + 1))), w), {});
   const row = g => {
@@ -93,9 +96,22 @@ function meetingsCard(title, sub, games, e, { wins = null } = {}) {
     // (Each side by its logo and score: the names are the card's header.)
     const side = (t, right) => el('span', { class: `ls-side${right ? ' right' : ''}${t.winner ? ' win' : ''}`, title: team(t).short || t.short || t.abbr }, right ? [el('b', { class: 'num', text: t.score }), logo(team(t).logo || t.logo, t.name, 'xs')] : [logo(team(t).logo || t.logo, t.name, 'xs'), el('b', { class: 'num', text: t.score })]);
     const here = g.id === String(e.id);
-    return el('button', { class: `ls-game${here ? ' now' : ''}`, type: 'button', disabled: here ? true : null, onclick: () => ctx.openEvent({ id: g.id, league: e.league, kind: 'match', start: g.date, status: { state: 'post', detail: '', short: '', completed: true }, home: { ...team(g.home), score: g.home.score }, away: { ...team(g.away), score: g.away.score } }) }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(5).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), el('span', { class: 'ls-chev', 'aria-hidden': here ? null : 'true', text: here ? (L() === 'en' ? 'This' : '本場') : '›' })]);
+    // Football's meetings span seasons and competitions (a Serie B game among Serie A's): each by its year and month, not opened
+    // (its league isn't this one); the score in the card's middle, under the draws (an empty column matching the date's).
+    if (h2h) return el('div', { class: 'ls-game h2h-game' }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(0, 7).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), el('span')]);
+    return el('button', { class: `ls-game h2h-game${here ? ' now' : ''}`, type: 'button', disabled: here ? true : null, onclick: () => ctx.openEvent({ id: g.id, league: e.league, kind: 'match', start: g.date, status: { state: 'post', detail: '', short: '', completed: true }, home: { ...team(g.home), score: g.home.score }, away: { ...team(g.away), score: g.away.score } }) }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(5).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), el('span', { class: 'ls-chev', 'aria-hidden': here ? null : 'true', text: here ? (L() === 'en' ? 'This' : '本場') : '›' })]);
   };
-  return card(title, el('div', {}, [h2hView({ n: games.length, wins: tally, draws: 0, noDraw: true }, e), el('div', { class: 'ls-games' }, games.map(row))]), { sub });
+  return card(title, el('div', {}, [h2hView({ n: games.length, wins: tally, draws, noDraw: !h2h }, e), el('div', { class: 'ls-games h2h-games' }, games.map(row))]), { sub });
+}
+// Football's 近期交手, laid out as every sport's meetings (上季對戰, 本季對戰):
+// who won how many and the draws, a pip a meeting, then each meeting (the
+// newest first) with its score.
+function h2hCard(s, e) {
+  const { n, wins, draws } = s.h2h;
+  const en = L() === 'en';
+  // (Begun or over: the meetings before this one, never counting it: said so.)
+  const sub = e.status?.state === 'pre' ? (en ? `Last ${n}` : `近 ${n} 次`) : en ? `Before this · last ${n}` : `賽前近 ${n} 次`;
+  return meetingsCard(en ? 'Head to head' : '近期交手', sub, s.games, e, { wins, draws, h2h: true });
 }
 function lastSeriesCard(ls, e) {
   const en = L() === 'en';
@@ -1494,7 +1510,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
         )
       : null,
     season: seasonLeadCard(d?.seasonLead, e),
-    series: d?.series[0]?.h2h?.n ? card(L() === 'en' ? 'Head to head' : '近期交手', h2hView(d.series[0].h2h, e), { sub: L() === 'en' ? `Last ${d.series[0].h2h.n}` : `近 ${d.series[0].h2h.n} 次` }) : d?.lastSeries ? lastSeriesCard(d.lastSeries, e) : d?.series[0]?.games?.length && ownSeriesCard(d.series[0], e) ? ownSeriesCard(d.series[0], e) : d?.series.length && d.series[0].summary && d.series[0].events.some(x => x.done) ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
+    series: d?.series[0]?.h2h?.n ? h2hCard(d.series[0], e) : d?.lastSeries ? lastSeriesCard(d.lastSeries, e) : d?.series[0]?.games?.length && ownSeriesCard(d.series[0], e) ? ownSeriesCard(d.series[0], e) : d?.series.length && d.series[0].summary && d.series[0].events.some(x => x.done) ? card(T('series'), el('p', { class: 'series-text', text: seriesZh(d.series[0].summary, e) }), { sub: { season: L() === 'en' ? 'Regular season' : '例行賽', playoff: L() === 'en' ? 'Playoffs' : '季後賽' }[d.series[0].kind] || '' }) : null,
     // A game over: who sat it out (its box score's), then who was out hurt (no one twice).
     satOut: (d?.status || e.status).state === 'post' ? satOutCard(d, e) : null,
     injuries: hurtNow.some(i => i.list.length)
@@ -5404,7 +5420,7 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
 // (one flow: the same faces, the same taps). A league's (`teamOf`: a team
 // by id, from its table): one stat at a time (its chips), the top ten, each
 // with his team.
-const leaderLabel = (st, sport, en) => (st.perGame ? (en ? `${st.en} per game` : `場均${st.zh}`) : st.per90 ? (en ? `${st.en} /90` : `${st.zh}（每90分）`) : en ? st.en : st.zh);
+const leaderLabel = (st, sport, en) => (st.perGame ? (en ? `${st.en} per game` : `場均${st.zh}`) : st.per90 ? (en ? `${st.en} /90` : `${st.zh}/90分`) : en ? st.en : st.zh);
 const leadersSeason = (data, sport, en) => (data?.season?.name ? `${data.season.name}${sport === 'soccer' || sport === 'racing' ? '' : en ? ' regular season' : ' 例行賽'}` : '');
 // A footballer from FotMob has no ESPN id: found by his name in ESPN's
 // search (the one in this league, else the first footballer), then opened.

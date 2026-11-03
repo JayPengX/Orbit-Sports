@@ -546,3 +546,13 @@ test("an injury's report word kept through the game page's merge (its 回歸待�
   const x = mergeInjuries(game, report)[0].list[0];
   assert.equal(returnWord(x.comment), 'tbd');
 });
+
+// 近期交手 on a finished game's page: the meetings before it, never its own result (Jay 2026-11-01).
+test('football head-to-head counts only the meetings before this game', () => {
+  const side = (homeAway, id, score, winner) => ({ homeAway, winner, score, team: { id, abbreviation: id, displayName: id } });
+  const ev = (id, date, h, a) => ({ id, date, status: 'post', statusType: { completed: true }, competitors: [side('home', 'COMO', String(h), h > a), side('away', 'VEN', String(a), a > h)] });
+  const sm = parseSummary({ header: { id: '9', competitions: [{ id: '9', date: '2026-11-01T11:30Z', competitors: [] }] }, seasonseries: [{ type: 'head-to-head', events: [ev('9', '2026-11-01T11:30Z', 1, 0), ev('7', '2025-03-08T14:00Z', 1, 1), ev('6', '2024-03-03T15:15Z', 2, 1)] }] }, 'seriea');
+  const s = sm.series[0];
+  assert.deepEqual(s.h2h, { n: 2, wins: { COMO: 1 }, draws: 1 });
+  assert.deepEqual(s.games.map(g => g.id), ['7', '6']);
+});

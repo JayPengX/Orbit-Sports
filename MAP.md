@@ -184,6 +184,12 @@ couldn't be read is shown, never hidden.
 - No news and no AI in Sports. The injury report is on team pages only.
 - Players and F1 drivers are named in English, in both languages (never 勒布朗·詹姆斯); teams in Chinese.
 - A called-off game opens nothing (延期 in its place).
+- Live refreshes patch the page in place (`put` keeps nodes and drawn pictures,
+  a laid-out `.q-flow`'s cards too); the kit's `hold-place.mjs` keeps the
+  reader's place whatever redraws (`node ../Orbit-Core/tools/live-scroll.mjs sports`).
+- Football's 近期交手: each side's wins and the draws over a block a meeting
+  (team colours from each end, draws grey), then each meeting by year and
+  month with its score, not tappable (they span competitions).
 - The kit's `sports-*.mjs` (highlights, broadcast, win probability) are run
   by the proxy's builders too, so they import nothing but each other.
 

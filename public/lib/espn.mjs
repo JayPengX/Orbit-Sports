@@ -1173,13 +1173,19 @@ export function parseSummary(data, league) {
     }
     const wins = {};
     let draws = 0;
-    const done = (s.events || []).filter(ev => ev.statusType?.completed || ev.status === 'post');
+    // (The meetings before this game only: a finished game's page never counts its own result among them.)
+    const self = String(data?.header?.id ?? '');
+    const start = Date.parse(data?.header?.competitions?.[0]?.date || '') || Infinity;
+    const before = ev => String(ev.id) !== self && !(Date.parse(ev.date) >= start);
+    const done = (s.events || []).filter(ev => (ev.statusType?.completed || ev.status === 'post') && before(ev));
     for (const ev of done) {
       const winner = (ev.competitors || []).find(c => c.winner);
       if (winner) wins[String(winner.team?.id)] = (wins[String(winner.team?.id)] || 0) + 1;
       else draws++;
     }
-    return { summary: '', events, h2h: { n: done.length, wins, draws } };
+    // (Each meeting too, both sides with their scores: the card's rows, the newest first.)
+    const games = events.filter(ev => ev.done && ev.home && ev.away && before(ev)).map(({ id, date, home, away }) => ({ id, date, home, away })).sort((x, y) => Date.parse(y.date) - Date.parse(x.date));
+    return { summary: '', events, games, h2h: { n: done.length, wins, draws } };
   });
   const form = (data?.lastFiveGames || []).map(t => ({ team: String(t.team?.id ?? ''), games: (t.events || []).map(ev => ({ result: ev.gameResult || '', score: ev.score || '', opp: ev.opponent?.abbreviation || ev.opponent?.displayName || '', date: ev.gameDate })) }));
   const table = (data?.standings?.groups || []).flatMap(g =>

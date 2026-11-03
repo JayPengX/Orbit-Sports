@@ -1557,6 +1557,23 @@ button.lp-person.tap:active { opacity: 0.6; }
 .h2h-pip-row i { display: block; width: 18px; height: 6px; border-radius: 3px; background: var(--q-fill, color-mix(in srgb, var(--q-muted) 25%, transparent)); }
 .h2h-pip-row i.away { background: var(--away); }
 .h2h-pip-row i.home { background: var(--home); }
+/* Every sport's meetings card the same: badges and numbers big enough to read across (Jay 2026-11-01). */
+.h2h { gap: 14px; }
+.h2h .h2h-who .logo-wrap, .h2h .h2h-who .logo { width: 30px; height: 30px; flex: none; }
+.h2h .h2h-who { gap: 8px; }
+.h2h .h2h-side .h2h-name { font-size: 15px; }
+.h2h .h2h-n { font-size: 28px; }
+.h2h .h2h-draw .h2h-n { font-size: 20px; color: var(--q-label-2); }
+.h2h-pips { gap: 16px; }
+.h2h-pip-row { flex: 1 1 0; max-width: 50%; }
+.h2h-pip-row.right { justify-content: flex-end; }
+.h2h-pip-row i { flex: 0 1 28px; width: auto; min-width: 10px; height: 10px; border-radius: 5px; }
+/* Each meeting: its date, both sides by badge and score round the dash in the card's middle, the winner's bright; a › to open it (football's span competitions: none). */
+.h2h-games .h2h-game { grid-template-columns: 4.2em minmax(0, 1fr) 1em minmax(0, 1fr) 4.2em; }
+.h2h-games div.h2h-game { cursor: default; }
+.h2h-games .ls-side { font-variant-numeric: tabular-nums; justify-self: end; }
+.h2h-games .ls-side.right { justify-self: start; }
+.h2h-games .ls-chev { justify-self: end; }
 /* (The race keeps room for five characters; the cars give way first.) */
 .race-weeks { display: grid; grid-template-columns: 18px minmax(96px, 1fr) repeat(var(--cols), minmax(38px, 56px)) 32px; column-gap: 6px; margin: 0 -2px; }
 .rw-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; min-height: 48px; padding: 6px 2px; border: 0; border-top: 1px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }

@@ -32,7 +32,8 @@ export const el = kitUI.h;
 // (the game sheet's every few seconds, the lists' scores) flashed every logo.
 export function put(node, ...kids) {
   const list = kids.flat().filter(k => k != null && k !== false).map(k => (typeof k === 'string' ? document.createTextNode(k) : k));
-  const keep = new Set(list.filter(k => k.parentNode === node));
+  // (Kept too: one already here inside a column of a laid-out .q-flow, as a live game's 概況 on a wide screen.)
+  const keep = new Set(list.filter(k => k.parentNode === node || (k.parentNode?.parentNode === node && k.parentNode.classList?.contains('q-flow-col'))));
   keepPictures(node, list, keep);
   if (!keep.size) node.replaceChildren(...list);
   else {
@@ -61,6 +62,8 @@ function keepPictures(node, list, keep) {
   for (const c of node.children) {
     if (keep.has(c)) continue;
     for (const img of c.tagName === 'IMG' ? [c] : c.querySelectorAll('img')) {
+      // (Never taken from a card that stays: it would leave it without its picture.)
+      if ([...keep].some(k => k.contains?.(img))) continue;
       if (!img.complete || !img.naturalWidth || !img.getAttribute('src')) continue;
       const k = pictureKey(img);
       shown.has(k) ? shown.get(k).push(img) : shown.set(k, [img]);
