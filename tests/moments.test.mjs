@@ -118,14 +118,19 @@ test('the score at a moment: the play\'s, the last scoring play\'s, or the goals
   assert.equal(scoreAt(pts, 1, [], ''), null);
 });
 
-test('F1: a red flag only said ends the safety car; it ends when the track is clear (Italian GP, 2026-09-06)', async () => {
+test('F1: a red flag only said ends the safety car; it ends when the session starts again, not when the track is clear or the restart is set (Italian GP, 2026-09-06)', async () => {
   const { controlBands } = await import('../public/lib/winprob.mjs');
   const bands = controlBands(
     [
       { category: 'SafetyCar', message: 'SAFETY CAR DEPLOYED', lap: 3 },
       { category: 'Other', message: 'RED FLAG - RACE SUSPENDED', lap: 3 },
       { category: 'Flag', flag: 'CLEAR', message: 'TRACK CLEAR', lap: 4 },
+      { category: 'Other', message: 'RESUMPTION ORDER: 63, 10, 3', lap: 4 },
       { category: 'Other', message: 'RACE WILL RESUME AT 15:39', lap: 4 },
+      // A steward's word on a red flag broken isn't one.
+      { category: 'Other', message: 'INCIDENT INVOLVING CAR 6 (HAD) NOTED - RED FLAG INFRINGEMENT', lap: 4 },
+      { category: 'SessionStatus', message: 'SESSION STARTED', lap: 4 },
+      { category: 'Other', message: 'STANDING START', lap: 4 },
       { category: 'SafetyCar', message: 'VIRTUAL SAFETY CAR DEPLOYED', lap: 28 },
       { category: 'SafetyCar', message: 'VIRTUAL SAFETY CAR ENDING', lap: 29 },
       // The chequered flag isn't a red one.
