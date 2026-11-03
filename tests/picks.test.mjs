@@ -301,7 +301,7 @@ test('我的比賽 is one plan: a followed game takes its hour, a better game th
   assert.deepEqual(plan.map(p => p.event.id), ['mine', 'later']);
 });
 
-test('填滿空檔: off, only their games; on, a free hour takes the game worth most across sports, never a weak one', () => {
+test('填滿空檔: off, only their games; on, every free hour takes the game worth most in it, across sports', () => {
   const ctx = { leagues: ['epl'], now: NOW };
   const mine = match('epl', 'mine', 11, side('1', 'Brighton'), side('2', 'Brentford'));
   const ucl = match('ucl', 'ucl', 14, side('3', 'Real Madrid'), side('4', 'Liverpool'));
@@ -310,8 +310,7 @@ test('填滿空檔: off, only their games; on, a free hour takes the game worth 
   const only = e => e.id === 'mine';
   assert.deepEqual(dayPlan([mine, ucl, sco, weak], ctx, { keep: only, only }).plan.map(p => p.event.id), ['mine']);
   const on = dayPlan([mine, ucl, sco, weak], ctx, { keep: only, only, fill: e => worth(e, ctx) }).plan.map(p => p.event.id);
-  assert.deepEqual(on, ['mine', 'ucl']);
-  assert.ok(worth(weak, ctx).score < FILL_MIN);
+  assert.deepEqual(on, ['mine', 'ucl', 'weak'], 'every free hour filled, the best game in it');
   const final = match('mlb', 'ws', 14, side('9', 'A'), side('10', 'B'), { stage: { key: 'final' } });
   assert.ok(worth(final, ctx).score > worth(match('mlb', 'reg', 14, side('9', 'A'), side('10', 'B')), ctx).score + 0.5, 'a final means far more');
 });

@@ -128,6 +128,12 @@ img { max-width: 100%; }
 /* (首頁's 我的比賽 is all picks: no mark, no light.) */
 .pick-list .row-mark { display: none; }
 .pick-list .event-row.picked { background: none; }
+/* A game 填滿空檔 put in (Jay 2026-11-03): grey, smaller and quieter, its ★ 推薦 shown, so their own games stand out. */
+.pick-list .event-row.filled { padding-block: 9px; background: var(--q-fill-4); }
+.pick-list .event-row.filled .row-mark { display: inline-flex; }
+.pick-list .event-row.filled .event-status.pre { font-size: 15px; }
+.pick-list .event-row.filled .event-sides { gap: 2px; }
+.pick-list .event-row.filled .side-name { color: var(--q-label-2); font-size: 14px; }
 .event-meta { display: grid; justify-items: start; align-content: center; min-width: 0; }
 .event-status { max-width: 100%; color: var(--q-label-2); font: 600 13px/1.25 var(--q-font); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .event-status.pre { color: var(--q-label); font: 600 18px/1.15 var(--q-font-rounded); letter-spacing: -0.01em; }

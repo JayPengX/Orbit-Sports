@@ -823,8 +823,11 @@ async function loadOthers(date, live = false) {
   if (live && !pages.size) return;
   slot.othersLoading = true;
   try {
-    const got = live ? overHeld(slot.others, await readDay(otherLeagues().slice(0, 24), date, { pages }), pages) : await readDay(otherLeagues().slice(0, 24), date);
+    // (填滿空檔: every hour's games, the small hours' too.)
+    const night = state.prefs.fill === true;
+    const got = live ? overHeld(slot.others, await readDay(otherLeagues().slice(0, 24), date, { pages, night: slot.othersNight }), pages) : await readDay(otherLeagues().slice(0, 24), date, { night });
     slot.others = got;
+    if (!live) slot.othersNight = night;
     if (!live) slot.othersFailed = got.failed || 0;
   } catch {
     slot.others = slot.others || [];
@@ -1162,11 +1165,13 @@ const PLAIN_WHY = new Set(['team', 'game', 'leagueGame', 'priority', 'league', '
 // A pick on 稍後: its game's row, and why it was picked as tags under it.
 function planRow(item, opts = {}) {
   const row = eventRow(item.event, opts);
+  // A game 填滿空檔 put in: a quieter, smaller row with ★ 推薦, so their own stand out.
+  if (item.filled) row.classList.add('filled', 'picked');
   // Only what makes the game worth it (a top clash, a close one), grey like
   // the row's other facts: in 我的比賽, 我的球隊 / 我的聯賽 / 愛爾達主頻道 say
   // nothing and pushed its channel off the line (Jay 2026-11-03); a game of
   // their own team's needs no reason at all.
-  const why = (ownGame(item.event) ? [] : item.reasons).filter(r => !PLAIN_WHY.has(r)).slice(0, 1).map(r => el('span', { class: 'q-tag', text: REASON(r) }));
+  const why = (ownGame(item.event) || item.filled ? [] : item.reasons).filter(r => !PLAIN_WHY.has(r)).slice(0, 1).map(r => el('span', { class: 'q-tag', text: REASON(r) }));
   if (why.length) (row.querySelector('.ev-tags') || row.querySelector('.event-sides, .event-title')?.appendChild(el('div', { class: 'ev-tags' })))?.prepend(...why);
   return row;
 }
@@ -1467,7 +1472,7 @@ function isPickEvent(e) {
     const past = d < today();
     const pool = state.prefs.fill ? [...mine, ...(slot.others || []).filter(x => !practice(x) && onTv(x))] : mine;
     const pctx = pickContext(slot);
-    pickMemo.set(memo, new Set(dayPlan(pool.filter(e => !nightOnly(e)), pctx, { n: 6, also: 0, asStood: past, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, pctx) : null }).plan.map(x => `${x.event.league}:${x.event.id}`)));
+    pickMemo.set(memo, new Set(dayPlan(pool.filter(e => state.prefs.fill || !nightOnly(e)), pctx, { n: 6, also: 0, asStood: past, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, pctx) : null }).plan.map(x => `${x.event.league}:${x.event.id}`)));
   }
   return pickMemo.get(memo).has(key);
 }
@@ -1507,9 +1512,11 @@ function renderHome() {
   const rank = (list, also = 999, ctx = pctx, before = past) => {
     // (Only their own games are 我的比賽; with 填滿空檔 on, the free hours
     // take the game of any sport worth most then.)
-    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, ctx) : null });
+    // (Filling, the small hours too: every hour of the day, as asked.)
+    const fill = state.prefs.fill;
+    const { plan, also: awake } = dayPlan(list.filter(e => fill || !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before, keep: ownGame, only: isFollowedEvent, fill: fill ? e => worth(e, ctx) : null });
     // The small hours' big games: with the rest, by their score.
-    const { also: night } = dayPlan(list.filter(nightOnly), ctx, { n: 0, also: 999, asStood: before });
+    const { also: night } = dayPlan(list.filter(e => !fill && nightOnly(e)), ctx, { n: 0, also: 999, asStood: before });
     const rest = [...awake, ...night].sort((x, y) => y.score - x.score);
     return [plan, rest.slice(0, also)];
   };
@@ -1538,7 +1545,8 @@ function renderHome() {
   if (todayOver) past = true;
   // 填滿空檔: every sport's games can fill a free hour (the others read alongside).
   const fillPool = () => (state.prefs.fill && h.filter !== 'teams' ? filtered((slot.others || []).filter(shown)) : []);
-  if (state.prefs.fill && !slot.othersAt && !slot.othersLoading) loadOthers(h.date);
+  // (Their small hours too: a day filled is filled whole.)
+  if (state.prefs.fill && (!slot.othersAt || !slot.othersNight) && !slot.othersLoading) loadOthers(h.date);
   let [planList, more] = rank([...filtered(mine), ...fillPool()]);
   // Nothing of theirs on: the best of the rest.
   // Opened on a day with nothing of theirs, or with all of it over: the
@@ -1632,12 +1640,12 @@ function renderHome() {
   planList = planList.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
   more = more.filter(x => !liveKeys.has(`${x.event.league}:${x.event.id}`));
   // The game to lead with: the best on now, else a followed team's next, else the first pick.
-  const heroItem = past || h.picking ? null : liveShown[0] || planList.find(x => isFollowedEvent(x.event) && !x.event.status.void) || planList.find(x => !x.event.status.void) || null;
+  const heroItem = past || h.picking ? null : liveShown[0] || planList.find(x => isFollowedEvent(x.event) && !x.event.status.void) || planList.find(x => !x.filled && !x.event.status.void) || null;
   const heroKey = heroItem ? keyOf(heroItem.event) : '';
   const liveRest = liveShown.filter(x => x !== heroItem);
   planList = planList.filter(x => x !== heroItem);
   more = more.filter(x => keyOf(x.event) !== heroKey);
-  const hero = heroItem ? look.paintHero(heroGame(heroItem.event, { picked: isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }), heroItem.event) : null;
+  let hero = heroItem ? look.paintHero(heroGame(heroItem.event, { picked: isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }), heroItem.event) : null;
   // The hero led with from the plan is today's first pick (its start notice, what the picks learn from).
   const heroPick = heroItem && !liveShown.includes(heroItem) ? [heroItem] : [];
   // The rest on now: a row each with 觀看; every game on is 轉播's.
@@ -1722,6 +1730,19 @@ function renderHome() {
   const planShown = planList.filter(x => !seenKeys.has(keyOf(x.event)));
   planShown.forEach(x => seenKeys.add(keyOf(x.event)));
   mineNext.forEach(e => seenKeys.add(keyOf(e)));
+  // 下一場 is always theirs (Jay 2026-11-03): a day with only filled games
+  // leads with their own next game, whatever day it is, never a filled one.
+  if (!hero && hasFollows && !past && !h.picking && !liveBlock) {
+    const next = followedTeams()
+      .flatMap(f => (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame))
+      .filter(e => e.status?.state === 'pre' && !e.status.void && Date.parse(e.start) > now && localDate(e.start) >= h.date)
+      .sort((x, y) => Date.parse(x.start) - Date.parse(y.start))[0];
+    if (next) {
+      const i = mineNext.findIndex(e => keyOf(e) === keyOf(next));
+      if (i >= 0) mineNext.splice(i, 1);
+      hero = look.paintHero(heroGame(next, { mine: true, eyebrow: L({ zh: `下一場 · ${dayLabel(localDate(next.start), { long: true })}`, en: `Next · ${dayLabel(localDate(next.start), { long: true })}` }), onOpen: openEvent }), next);
+    }
+  }
   // (A wide screen shows them as a grid, not a rail: six, then 全部.)
   const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, screenFit().wide ? 6 : 12);
   const leaguesShelf = gone || h.picking || !hasFollows ? null : section(t('yourLeagues'), el('div', { class: 'q-rail league-rail' }, inSeasonFirst(state.prefs.leagues).map(k => leagueTile(k, lk => openScores(lk)))));

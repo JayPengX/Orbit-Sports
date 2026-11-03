@@ -291,9 +291,9 @@ export function clash(x, y) {
 // it's going if it's on. What the person opens still counts (their own
 // taste across sports), a little.
 export const PRESTIGE = { ucl: 0.5, epl: 0.45, nba: 0.45, mlb: 0.4, f1: 0.4, cpbl: 0.35, bundesliga: 0.3, seriea: 0.3, ligue1: 0.22, uel: 0.25, facup: 0.25, nationsleague: 0.2, mls: 0.12, uecl: 0.12, scotland: 0.08 };
-// The least a game must be worth to take a free hour (a mid-table Premier
-// League game in the evening is about 0.8; Scotland's is about 0.4).
-export const FILL_MIN = 0.65;
+// Filling takes every free hour: the best game there is in it, however
+// small (Jay 2026-11-03: "when I mean fill it should literally fill it").
+export const FILL_MIN = -Infinity;
 export function worth(e, ctx = {}) {
   const { score, reasons } = scoreMatch(e, { ...ctx, leagues: [], follows: [], games: [], chosen: null, featured: null, why: null });
   let s = score + (PRESTIGE[e.league] ?? 0.1);
@@ -310,8 +310,8 @@ export function worth(e, ctx = {}) {
 // only: the games that may be in the plan at all (theirs: 我的比賽 is their
 // own games, Jay 2026-11-03, "it's filling in my schedule"); the rest are
 // "also". fill: with 填滿空檔 on, a scorer of what any game is worth on its
-// own (worth()): the free hours left are filled from the rest, the game that
-// means most first, none under FILL_MIN.
+// own (worth()): every free hour left is filled from the rest, the game that
+// means most first, past the cap of n.
 export function dayPlan(events, ctx = {}, { n = 6, also = 6, asStood = false, keep = null, only = null, fill = null } = {}) {
   const now = ctx.now ?? Date.now();
   const seen = new Set();
@@ -338,7 +338,6 @@ export function dayPlan(events, ctx = {}, { n = 6, also = 6, asStood = false, ke
       .filter(x => x.score >= FILL_MIN)
       .sort((x, y) => y.score - x.score);
     for (const item of extra) {
-      if (plan.length >= n) break;
       if (plan.some(p => clash(p.event, item.event))) continue;
       plan.push(item);
       rest.splice(rest.findIndex(x => x.event === item.event), 1);
