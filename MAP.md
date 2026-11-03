@@ -109,6 +109,9 @@ couldn't be read is shown, never hidden.
     clock), 關鍵時刻's time and score above who; the leaders' columns
     (`leaderCols`, `leadWatch`) drop their faces, else go one column. Never an
     ellipsis. A home club: `homeName` (ui.js), a small house after the name.
+  - 推薦 in every list: `isPickEvent` (app.js; 首頁's picks for that day, else
+    the same plan from the day's games) lights the row and puts ★ 推薦 first
+    on its tags (`rowMark`); never a 追蹤 mark (a followed league is all theirs).
   - Tile grids (`.stat-grid`) carry the kit's `.q-rows-full`: never a part
     row. A way on (全部球隊數據) is `ui.js goBar`, the kit's quiet bar.
 - **Win chance:** ESPN's line, else Polymarket's. A game to come: the

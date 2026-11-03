@@ -542,25 +542,26 @@ export const seriesText = e => {
 // A game as a row: its time (or state) down the left, the two sides with
 // their scores, then a line of tags: the league, the stage, ★ 推薦 for one of
 // today's picks, the channels it's on (or where it can be watched again).
-// A game of a club you follow, or one picked for you: a graphite pill first on
+// A game picked for you (推薦): a graphite pill first on
 // its tags line, the row softly lit (Jay 2026-11-03: "not obvious" as a small star).
 const STAR = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .8l1.6 3.4 3.7.4-2.8 2.5.8 3.7L6 8.9l-3.3 1.9.8-3.7L.7 4.6l3.7-.4z"/></svg>';
-const rowMark = (mine, picked) => (mine || picked ? el('span', { class: 'row-mark', html: `${STAR}<span>${mine ? (ctx.locale === 'en' ? 'Following' : '追蹤') : ctx.locale === 'en' ? 'Pick' : '推薦'}</span>` }) : null);
-const rowTags = (e, { league, picked, tag, mine }) => {
-  const kids = [rowMark(mine, picked), league ? compChip(e) : null, tag ? el('span', { class: 'q-tag orange', text: tag }) : null, tvLine(e)].filter(Boolean);
+const rowMark = picked => (picked ? el('span', { class: 'row-mark', html: `${STAR}<span>${ctx.locale === 'en' ? 'Pick' : '推薦'}</span>` }) : null);
+const rowTags = (e, { league, picked, tag }) => {
+  const kids = [rowMark(picked), league ? compChip(e) : null, tag ? el('span', { class: 'q-tag orange', text: tag }) : null, tvLine(e)].filter(Boolean);
   return kids.length ? el('div', { class: 'ev-tags' }, kids) : null;
 };
 export function eventRow(e, { league = true, day = true, picked = false } = {}) {
-  const mine = ctx.isFollowedEvent?.(e);
+  // (The row's light and pill say 推薦 only: a followed league's games are all theirs, Jay 2026-11-03.)
+  picked = picked || Boolean(ctx.isPickEvent?.(e));
   const live = e.status.state === 'in';
   if (e.kind === 'match') {
     const w = winners(e);
     const series = seriesText(e);
     // (A club's own league's game from FotMob, which ESPN doesn't have: no game page to open.)
-    const attrs = e.abroad ? { class: `event-row abroad${live ? ' live' : ''}` } : { class: `event-row${live ? ' live' : ''}${mine ? ' mine' : ''}${picked ? ' picked' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) };
+    const attrs = e.abroad ? { class: `event-row abroad${live ? ' live' : ''}` } : { class: `event-row${live ? ' live' : ''}${picked ? ' picked' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) };
     return el(e.abroad ? 'div' : 'button', attrs, [
       el('div', { class: 'event-meta' }, [statusEl(e, day)]),
-      el('div', { class: 'event-sides' }, [...sidesOf(e).map(s => sideLine(s, e, s === e.home ? w.home : w.away)), series ? el('small', { class: 'series-line', text: series }) : null, liveLine(e), rowTags(e, { league, picked, mine, tag: stageTag(e, ctx.locale) })])
+      el('div', { class: 'event-sides' }, [...sidesOf(e).map(s => sideLine(s, e, s === e.home ? w.home : w.away)), series ? el('small', { class: 'series-line', text: series }) : null, liveLine(e), rowTags(e, { league, picked, tag: stageTag(e, ctx.locale) })])
     ]);
   }
   // A race weekend (or one of its sessions): one row.
@@ -569,9 +570,9 @@ export function eventRow(e, { league = true, day = true, picked = false } = {}) 
   const sess = sessionTag(e);
   const said = sess ? '' : e.session;
   const sub = live && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.venue;
-  return el('button', { class: `event-row wide${live ? ' live' : ''}${mine ? ' mine' : ''}${picked ? ' picked' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) }, [
+  return el('button', { class: `event-row wide${live ? ' live' : ''}${picked ? ' picked' : ''}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day)]),
-    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, fitForms(el('strong'), [e.name])]), e.league === 'f1' && live ? f1Brief(e) : podium(e) || (sub ? el('small', { text: sub }) : null), rowTags(e, { league, picked, mine })])
+    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, fitForms(el('strong'), [e.name])]), e.league === 'f1' && live ? f1Brief(e) : podium(e) || (sub ? el('small', { text: sub }) : null), rowTags(e, { league, picked })])
   ]);
 }
 

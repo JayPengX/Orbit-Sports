@@ -1426,6 +1426,35 @@ function readAround(date) {
     }
   }, 800);
 }
+// 推薦 in every list: a game is a pick when 首頁 picked it for its day (a
+// day 首頁 hasn't drawn: the same plan worked out from the day's games of
+// theirs on TV). Not "followed": every game of a followed league is theirs.
+const homePicks = new Map();
+const pickMemo = new Map();
+const pickAsked = new Set();
+function isPickEvent(e) {
+  const d = localDate(e.start);
+  const key = `${e.league}:${e.id}`;
+  if (homePicks.has(d)) return homePicks.get(d).has(key);
+  const slot = state.days.get(d);
+  // (A day not read yet, 賽事 opened first: read as 首頁 would, then the list drawn again with its picks.)
+  if (!slot?.at && !pickAsked.has(d) && d >= today() && d <= addDays(today(), 14)) {
+    pickAsked.add(d);
+    Promise.resolve(loadDay(d))
+      .then(() => state.tab === 'matches' && state.days.get(d)?.events?.length && renderScores())
+      .catch(() => {});
+  }
+  if (!slot?.events?.length) return false;
+  const memo = `${d}|${slot.at}|${slot.events.length}`;
+  if (!pickMemo.has(memo)) {
+    const own = new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)]);
+    const mine = filtered(slot.events.filter(x => !practice(x) && (own.has(x.league) || isFollowedGame(x)) && (isFollowedGame(x) || onTv(x))));
+    const past = d < today();
+    pickMemo.set(memo, new Set(dayPlan(mine, pickContext(slot), { n: 6, also: 0, asStood: past }).plan.map(x => `${x.event.league}:${x.event.id}`)));
+  }
+  return pickMemo.get(memo).has(key);
+}
+ctx.isPickEvent = isPickEvent;
 function renderHome() {
   const box = $('panel-home');
   const h = state.home;
@@ -1558,6 +1587,7 @@ function renderHome() {
   const keyOf = x => `${x.league}:${x.id}`;
   const planKeys = new Set(isToday ? (fallback ? wasPlan : ownWas[0]).map(x => keyOf(x.event)) : []);
   const isPick = x => planKeys.has(keyOf(x.event));
+  homePicks.set(h.date, new Set([...planKeys, ...planList.map(x => keyOf(x.event))]));
   let liveItems = isToday ? rankOnNow(onNow(filtered(mine)), pctx, planKeys) : [];
   const liveMine = liveItems.length > 0;
   // (Never a game of a league read only for a followed match in it: one New
@@ -1734,7 +1764,7 @@ function renderHome() {
       past
         ? null
         : planShown.length
-          ? section(t('picks'), el('div', { class: 'q-card list' }, planShown.map(x => planRow(x, rowDay))), { action: !restShown.length && moreAll.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null })
+          ? section(t('picks'), el('div', { class: 'q-card list pick-list' }, planShown.map(x => planRow(x, rowDay))), { action: !restShown.length && moreAll.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null })
           : finding || fallback || liveBlock || hero || h.picking || mineNext.length || restShown.length
             ? null
             : dayEmpty(gap ? null : h.filter === 'all' ? noTvTitle(h.date) : { title: t('noPicksMine') })

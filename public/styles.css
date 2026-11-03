@@ -124,10 +124,10 @@ img { max-width: 100%; }
 /* A game of the person's own, in a list of all: a small star by its time, quiet (no orange strip down its edge, Jay 2026-11-03). */
 .row-mark { display: inline-flex; align-items: center; gap: 4px; height: 20px; margin-right: 8px; padding: 0 8px 0 6px; border-radius: 999px; background: var(--q-fill-2); color: var(--q-label, var(--q-text)); font: 600 12px/20px var(--q-font); white-space: nowrap; }
 .row-mark svg { width: 11px; height: 11px; fill: currentColor; }
-.event-row.mine, .event-row.picked { background: var(--q-fill-4); }
-/* (我的比賽 is all yours: no mark, no light.) */
-.mine-list .row-mark { display: none; }
-.mine-list .event-row.mine { background: none; }
+.event-row.picked { background: var(--q-fill-4); }
+/* (首頁's 推薦 list is all picks: no mark, no light.) */
+.pick-list .row-mark { display: none; }
+.pick-list .event-row.picked { background: none; }
 .event-meta { display: grid; justify-items: start; align-content: center; min-width: 0; }
 .event-status { max-width: 100%; color: var(--q-label-2); font: 600 13px/1.25 var(--q-font); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .event-status.pre { color: var(--q-label); font: 600 18px/1.15 var(--q-font-rounded); letter-spacing: -0.01em; }
