@@ -281,7 +281,10 @@ export function clash(x, y) {
 // each { event, score, reasons }. asStood: the day ranked as it stood before
 // any of it was played, each game as it is now: an ended one and a postponed
 // one too (a pick called off stays among the picks that ended, never gone).
-export function dayPlan(events, ctx = {}, { n = 6, also = 6, asStood = false } = {}) {
+// keep: the games the person follows (a team, a player, a game): always in
+// the plan, first; the others fill only the hours they leave free (one game
+// a slot: you can't watch two at once, Jay 2026-11-03).
+export function dayPlan(events, ctx = {}, { n = 6, also = 6, asStood = false, keep = null } = {}) {
   const now = ctx.now ?? Date.now();
   const seen = new Set();
   const before = e => ({ ...e, status: { ...e.status, state: 'pre', void: false } });
@@ -293,7 +296,10 @@ export function dayPlan(events, ctx = {}, { n = 6, also = 6, asStood = false } =
     .sort((x, y) => y.score - x.score);
   const plan = [];
   const rest = [];
+  const kept = keep ? scored.filter(x => keep(x.event)) : [];
+  plan.push(...kept);
   for (const item of scored) {
+    if (kept.includes(item)) continue;
     if (plan.length < n && !plan.some(p => clash(p.event, item.event))) plan.push(item);
     else rest.push(item);
   }

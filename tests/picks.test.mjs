@@ -290,3 +290,13 @@ test('one followed game is no habit of its league: other MLS games get no 常看
   assert.ok(scoreMatch(mls('mia', 'Inter Miami CF', 'Orlando City SC'), c2).reasons.includes('habit'));
   assert.ok(!scoreMatch(mls('atl2', 'Atlanta United FC', 'Toronto FC'), c2).reasons.includes('habit'));
 });
+
+test('我的比賽 is one plan: a followed game takes its hour, a better game then is left out (Jay 2026-11-03)', () => {
+  const tables = { epl: tableIndex([{ rows: Array.from({ length: 20 }, (_, i) => ({ id: String(i + 1) })) }]) };
+  const ctx = { leagues: ['epl'], tables, now: NOW };
+  const big = match('epl', 'big', 14, side('1', 'Liverpool'), side('2', 'Palace'));
+  const mine = match('epl', 'mine', 14, side('15', 'Brighton'), side('16', 'Brentford'));
+  const later = match('epl', 'later', 17, side('3', 'C'), side('4', 'D'));
+  const { plan } = dayPlan([big, mine, later], ctx, { keep: e => e.id === 'mine' });
+  assert.deepEqual(plan.map(p => p.event.id), ['mine', 'later']);
+});

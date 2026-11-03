@@ -1148,10 +1148,15 @@ function chipInView(row, chip) {
 // ---- 推薦: every match of the chosen day, ranked for this person ---------------------------
 
 const REASON = r => t(`why_${r}`);
+const PLAIN_WHY = new Set(['team', 'game', 'leagueGame', 'priority', 'league', 'featured']);
 // A pick on 稍後: its game's row, and why it was picked as tags under it.
 function planRow(item, opts = {}) {
   const row = eventRow(item.event, opts);
-  const why = item.reasons.slice(0, 2).map(r => el('span', { class: 'q-tag tint', text: REASON(r) }));
+  // Only what makes the game worth it (a top clash, a close one), grey like
+  // the row's other facts: in 我的比賽, 我的球隊 / 我的聯賽 / 愛爾達主頻道 say
+  // nothing and pushed its channel off the line (Jay 2026-11-03); a game of
+  // their own team's needs no reason at all.
+  const why = (ownGame(item.event) ? [] : item.reasons).filter(r => !PLAIN_WHY.has(r)).slice(0, 1).map(r => el('span', { class: 'q-tag', text: REASON(r) }));
   if (why.length) (row.querySelector('.ev-tags') || row.querySelector('.event-sides, .event-title')?.appendChild(el('div', { class: 'ev-tags' })))?.prepend(...why);
   return row;
 }
@@ -1450,11 +1455,15 @@ function isPickEvent(e) {
     const own = new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)]);
     const mine = filtered(slot.events.filter(x => !practice(x) && (own.has(x.league) || isFollowedGame(x)) && (isFollowedGame(x) || onTv(x))));
     const past = d < today();
-    pickMemo.set(memo, new Set(dayPlan(mine, pickContext(slot), { n: 6, also: 0, asStood: past }).plan.map(x => `${x.event.league}:${x.event.id}`)));
+    pickMemo.set(memo, new Set(dayPlan(mine.filter(e => !nightOnly(e)), pickContext(slot), { n: 6, also: 0, asStood: past, keep: ownGame }).plan.map(x => `${x.event.league}:${x.event.id}`)));
   }
   return pickMemo.get(memo).has(key);
 }
 ctx.isPickEvent = isPickEvent;
+// A game the person follows by name (a team, a player, the game itself):
+// always among 我的比賽, its hour taken (not a league's chosen game, which
+// competes for its hour like any other).
+const ownGame = e => isFollowedEvent(e, { chosen: false });
 function renderHome() {
   const box = $('panel-home');
   const h = state.home;
@@ -1484,7 +1493,7 @@ function renderHome() {
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
   const rank = (list, also = 999, ctx = pctx, before = past) => {
-    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before });
+    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before, keep: ownGame });
     // The small hours' big games: with the rest, by their score.
     const { also: night } = dayPlan(list.filter(nightOnly), ctx, { n: 0, also: 999, asStood: before });
     const rest = [...awake, ...night].sort((x, y) => y.score - x.score);
@@ -1685,13 +1694,17 @@ function renderHome() {
   const nextKeys = new Set();
   const mineNext = past || h.picking || !hasFollows
     ? []
-    : [...filtered(mine).filter(e => isFollowedEvent(e) && !e.status.void && e.status.state === 'pre'), ...followedTeams().map(nextOf).filter(Boolean)]
-        .filter(e => !seenKeys.has(keyOf(e)) && !nextKeys.has(keyOf(e)) && nextKeys.add(keyOf(e)))
+    : followedTeams().map(nextOf).filter(Boolean)
+        .filter(e => localDate(e.start) > h.date && !seenKeys.has(keyOf(e)) && !nextKeys.has(keyOf(e)) && nextKeys.add(keyOf(e)))
         .sort((x, y) => Date.parse(x.start) - Date.parse(y.start))
-        .slice(0, 12);
-  mineNext.forEach(e => seenKeys.add(keyOf(e)));
+        .slice(0, 6);
+  // 我的比賽 is the day's plan, one list: the games they follow first, then
+  // the best of the rest in the hours left free (Jay 2026-11-03: "推薦 and
+  // 我的比賽 are the same thing"; "you can't catch two"). Their teams' next
+  // games on later days follow under it.
   const planShown = planList.filter(x => !seenKeys.has(keyOf(x.event)));
   planShown.forEach(x => seenKeys.add(keyOf(x.event)));
+  mineNext.forEach(e => seenKeys.add(keyOf(e)));
   // (A wide screen shows them as a grid, not a rail: six, then 全部.)
   const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, screenFit().wide ? 6 : 12);
   const leaguesShelf = gone || h.picking || !hasFollows ? null : section(t('yourLeagues'), el('div', { class: 'q-rail league-rail' }, inSeasonFirst(state.prefs.leagues).map(k => leagueTile(k, lk => openScores(lk)))));
@@ -1763,13 +1776,12 @@ function renderHome() {
       !past && finding ? spinner() : null,
       past
         ? null
-        : planShown.length
-          ? section(t('picks'), el('div', { class: 'q-card list pick-list' }, planShown.map(x => planRow(x, rowDay))), { action: !restShown.length && moreAll.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null })
+        : planShown.length || mineNext.length
+          ? section(fallback ? t('picks') : t('myGames'), el('div', { class: 'q-card list pick-list' }, [...planShown.map(x => planRow(x, rowDay)), ...mineNext.map(e => eventRow(e))]), { action: !restShown.length && moreAll.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null })
           : finding || fallback || liveBlock || hero || h.picking || mineNext.length || restShown.length
             ? null
             : dayEmpty(gap ? null : h.filter === 'all' ? noTvTitle(h.date) : { title: t('noPicksMine') })
     ], [
-      mineNext.length ? section(t('myGames'), kitRail(mineNext)) : null,
       !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
       leaguesShelf,
       teamsShelf || placesShelf,

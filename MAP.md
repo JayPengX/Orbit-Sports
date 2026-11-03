@@ -28,7 +28,10 @@ couldn't be read is shown, never hidden.
   - **首頁:** what to watch. A date strip that sticks at the top (swipe
     the page for the next or last day), the filters as text tabs, the lead
     game (each club's row on its own colour, its logo on the solid logo
-    tile), 正在進行, 推薦 (a no-clash plan), 我的比賽, 更多賽事, 我的球隊 (each
+    tile), 正在進行, 我的比賽 (one list, the day's plan: `dayPlan`'s `keep`
+    puts the games they follow in first, then the best others fill only the
+    hours left free, one game a slot; their teams' later games under it;
+    no separate 推薦, Jay 2026-11-03), 更多賽事, 我的球隊 (each
     followed team's place in its table and its next game; without follows,
     the places to watch), 已結束.
 - **Orbit's own look** (Jay 2026-11-03; Orbit-Core DESIGN.md §11; `<html
