@@ -39,6 +39,11 @@ couldn't be read is shown, never hidden.
   and 我的球隊 (`teams`).
   - **賽事:** a league. Sport and league chips, game days, then 賽程, 排名,
     季後賽, 數據 (球員's leaders, 球隊: every team by each of its own stats).
+    A followed or picked game in a list is a ★ 追蹤 / ★ 推薦 pill on a softly
+    lit row. F1's 賽程 is a card a weekend (`weekendCard`): a panel with the
+    next session's running countdown (or the one on, or the podium) beside the
+    circuit's outline, then the sessions as even stops on one line, each
+    finished one showing who topped it on their team's colour.
   - **轉播:** when and where. The same date strip (yesterday to two weeks
     on). Today: on now with 觀看, yours in the next 7 days, the next 24 h,
     ELTA's whole guide; another day: its best game, then all it has on TV.
