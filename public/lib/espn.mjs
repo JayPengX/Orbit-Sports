@@ -1177,14 +1177,19 @@ export function parseSummary(data, league) {
     const self = String(data?.header?.id ?? '');
     const start = Date.parse(data?.header?.competitions?.[0]?.date || '') || Infinity;
     const before = ev => String(ev.id) !== self && !(Date.parse(ev.date) >= start);
-    const done = (s.events || []).filter(ev => (ev.statusType?.completed || ev.status === 'post') && before(ev));
+    // (The last five at most, the newest first: what ESPN lists, and all the card speaks of.)
+    const done = (s.events || []).filter(ev => (ev.statusType?.completed || ev.status === 'post') && before(ev)).sort((x, y) => Date.parse(y.date) - Date.parse(x.date)).slice(0, H2H_MAX);
     for (const ev of done) {
-      const winner = (ev.competitors || []).find(c => c.winner);
-      if (winner) wins[String(winner.team?.id)] = (wins[String(winner.team?.id)] || 0) + 1;
+      const { winner } = meetingResult(ev);
+      if (winner) wins[winner] = (wins[winner] || 0) + 1;
       else draws++;
     }
-    // (Each meeting too, both sides with their scores: the card's rows, the newest first.)
-    const games = events.filter(ev => ev.done && ev.home && ev.away && before(ev)).map(({ id, date, home, away }) => ({ id, date, home, away })).sort((x, y) => Date.parse(y.date) - Date.parse(x.date));
+    // (Each meeting too, both sides with their scores: the card's rows, the newest first; a shootout's `pens`.)
+    const pens = new Map(done.map(ev => [String(ev.id), meetingResult(ev).pens]));
+    const games = events
+      .filter(ev => ev.done && ev.home && ev.away && pens.has(ev.id))
+      .map(({ id, date, home, away }) => ({ id, date, home, away, ...(pens.get(id) ? { pens: true } : {}) }))
+      .sort((x, y) => Date.parse(y.date) - Date.parse(x.date));
     return { summary: '', events, games, h2h: { n: done.length, wins, draws } };
   });
   const form = (data?.lastFiveGames || []).map(t => ({ team: String(t.team?.id ?? ''), games: (t.events || []).map(ev => ({ result: ev.gameResult || '', score: ev.score || '', opp: ev.opponent?.abbreviation || ev.opponent?.displayName || '', date: ev.gameDate })) }));
@@ -1273,6 +1278,21 @@ export const espnSummary = (league, id) => getJson(`${SITE}/${LEAGUES[league].es
 // away }] }, or null. Not football's (its head-to-head is every meeting).
 const playedSeries = s => (s?.events || []).some(ev => /\d/.test(ev.score || '') && ev.done);
 // A meeting's two sides, home and away: { id, abbr, name, short, logo, score, winner }.
+// Football's head-to-head: the last five meetings at most (ESPN lists five).
+export const H2H_MAX = 5;
+// A meeting's result by its score (Jay 2026-11-03: a 3-3 counted as 曼聯's win):
+// the side with more goals won; level is a draw, even one a shootout settled
+// (ESPN marks the shootout's winner: `pens`, its side's id in `shootout`).
+export function meetingResult(ev) {
+  const list = ev?.competitors || [];
+  const goals = list.map(c => Number.parseFloat(c.score?.displayValue ?? c.score?.value ?? c.score));
+  const flagged = list.find(c => c.winner);
+  const id = c => String(c?.team?.id ?? c?.id ?? '');
+  if (list.length !== 2 || !goals.every(Number.isFinite)) return { winner: flagged ? id(flagged) : null, pens: false };
+  if (goals[0] !== goals[1]) return { winner: id(list[goals[0] > goals[1] ? 0 : 1]), pens: false };
+  const pens = Boolean(flagged) || /PEN/.test(ev?.statusType?.name || '');
+  return { winner: null, pens, ...(flagged ? { shootout: id(flagged) } : {}) };
+}
 const meetingSide = c => ({ id: String(c.team?.id ?? c.id ?? ''), abbr: c.team?.abbreviation || '', name: c.team?.displayName || '', short: c.team?.shortDisplayName || '', logo: logoOf(c.team), score: String(c.score?.displayValue ?? c.score ?? ''), winner: Boolean(c.winner) });
 function meetingSides(list = []) {
   const h = list.find(c => c.homeAway === 'home');

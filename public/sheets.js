@@ -21,6 +21,7 @@ import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, i
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { isFlag } from '#kit/photos.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
+import { h2hPieces, PIECE_EACH } from './lib/meetings.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, apart, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
 import { driverAbout, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
@@ -71,14 +72,10 @@ function h2hView({ n, wins, draws, noDraw = false }, e) {
   return el('div', { class: 'h2h' }, [
     // (A sport without draws: none between them.)
     el('div', { class: 'h2h-row' }, [side(homeFirst(e) ? e.home : e.away, 'away'), noDraw ? el('div', { class: 'h2h-draw' }) : el('div', { class: 'h2h-draw' }, [el('strong', { class: 'num h2h-n', text: String(draws || 0) }), el('small', { text: en ? 'drawn' : '和局' })]), side(homeFirst(e) ? e.away : e.home, 'home')]),
-    // Each side's bar in the shirt it wears in this game (the win chart's colours: tintOf), the draws grey.
-    // A sport without draws, a handful of meetings: a pip a game under each side, its wins filled in its colour
-    // (Jay 2026-10-31: 0–2 drew one bar all blue, as if the other side weren't there).
-    // A handful of meetings: a pip a meeting under each side, its wins filled in its colour from its own end (Jay
-    // 2026-10-31: 0–2 drew one bar all blue, as if the other side weren't there); a draw fills neither. Every sport's
-    // the same (Jay 2026-11-01: why do the two look so different).
-    n && n <= 7 ? el('div', { class: 'h2h-pips', 'aria-hidden': 'true', style: (c => `--home:${c.home};--away:${c.away}`)(tintOf(e)) }, inOrder(e, [['away', a], ['home', h]]).map(([k, won], i) => el('span', { class: `h2h-pip-row ${i ? 'right' : ''}` }, Array.from({ length: n }, (_, j) => el('i', { class: (i ? n - j <= won : j < won) ? k : '' }))))) :
-    n ? el('div', { class: 'h2h-bar', 'aria-hidden': 'true', style: (c => `--home:${c.home};--away:${c.away}`)(tintOf(e)) }, inOrder(e, [a ? el('i', { class: 'away', style: share(a) }) : null, h ? el('i', { class: 'home', style: share(h) }) : null]).flatMap((x, i) => (i === 0 ? [x, draws ? el('i', { class: 'draw', style: share(draws) }) : null] : [x]))) : null
+    // One bar across the card, a piece a meeting (lib/meetings.mjs): each side's wins in the shirt it wears in this
+    // game (the win chart's colours: tintOf) from its own end, the draws grey between, under the numbers it splits
+    // (Jay 2026-11-03: a pip a meeting under each side left the middle empty; 2026-10-31: 0–2 drew one bar all blue).
+    n ? el('div', { class: `h2h-bar${n <= PIECE_EACH ? ' each' : ''}`, 'aria-hidden': 'true', style: (c => `--home:${c.home};--away:${c.away}`)(tintOf(e)) }, h2hPieces(inOrder(e, [['away', a], ['home', h]]), noDraw ? 0 : draws || 0, n).map(([k, grow]) => el('i', { class: k, style: share(grow) }))) : null
   ]);
 }
 // No meeting this season yet: last season's, as football's head-to-head is
@@ -98,7 +95,7 @@ function meetingsCard(title, sub, games, e, { wins = null, draws = 0, h2h = fals
     const here = g.id === String(e.id);
     // Football's meetings span seasons and competitions (a Serie B game among Serie A's): each by its year and month, not opened
     // (its league isn't this one); the score in the card's middle, under the draws (an empty column matching the date's).
-    if (h2h) return el('div', { class: 'ls-game h2h-game' }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(0, 7).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), el('span')]);
+    if (h2h) return el('div', { class: 'ls-game h2h-game' }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(0, 7).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), g.pens ? el('span', { class: 'h2h-pk', title: L() === 'en' ? 'Draw, settled on penalties (the bright side won them)' : '和局，PK 大戰分勝負（亮的一方勝）', text: 'PK' }) : el('span')]);
     return el('button', { class: `ls-game h2h-game${here ? ' now' : ''}`, type: 'button', disabled: here ? true : null, onclick: () => ctx.openEvent({ id: g.id, league: e.league, kind: 'match', start: g.date, status: { state: 'post', detail: '', short: '', completed: true }, home: { ...team(g.home), score: g.home.score }, away: { ...team(g.away), score: g.away.score } }) }, [el('span', { class: 'ls-date num', text: localDate(Date.parse(g.date)).slice(5).replace('-', '/') }), side(first), el('span', { class: 'ls-dash', text: '–' }), side(second, true), el('span', { class: 'ls-chev', 'aria-hidden': here ? null : 'true', text: here ? (L() === 'en' ? 'This' : '本場') : '›' })]);
   };
   return card(title, el('div', {}, [h2hView({ n: games.length, wins: tally, draws, noDraw: !h2h }, e), el('div', { class: 'ls-games h2h-games' }, games.map(row))]), { sub });

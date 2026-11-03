@@ -189,9 +189,13 @@ couldn't be read is shown, never hidden.
 - Live refreshes patch the page in place (`put` keeps nodes and drawn pictures,
   a laid-out `.q-flow`'s cards too); the kit's `hold-place.mjs` keeps the
   reader's place whatever redraws (`node ../Orbit-Core/tools/live-scroll.mjs sports`).
-- Football's 近期交手: each side's wins and the draws over a block a meeting
-  (team colours from each end, draws grey), then each meeting by year and
-  month with its score, not tappable (they span competitions).
+- Football's 近期交手: the last five meetings at most (ESPN's list), each
+  counted by its score (`espn.mjs meetingResult`: level is a draw, even one
+  settled on penalties, marked PK on its row); each side's wins and the
+  draws over one bar across the card, a piece a meeting (`lib/meetings.mjs`:
+  team colours from each end, draws grey between; 上季對戰 and 本季對戰 the
+  same), then each meeting by year and month with its score, not tappable
+  (they span competitions).
 - The kit's `sports-*.mjs` (highlights, broadcast, win probability) are run
   by the proxy's builders too, so they import nothing but each other.
 
@@ -214,6 +218,7 @@ couldn't be read is shown, never hidden.
 | `lib/leagues.mjs`, `search.mjs`, `statnames.mjs`, `stage.mjs`, `compname.mjs`, `i18n.mjs`, `text.mjs` | Leagues; search; Chinese names for stats, stages and competitions; text |
 | `lib/days.mjs`, `bounds.mjs`, `strip.mjs`, `retry.mjs` | Days on the viewer's clock; the days a league has; the date strip; failed reads tried again |
 | `lib/close.mjs`, `notice.mjs` | 拉鋸; what a change of state is for a notice |
+| `lib/meetings.mjs` | The meetings card's bar (近期交手, 上季對戰, 本季對戰): a piece a meeting |
 | `lib/follows.mjs` | A match followed on its own: only that game of its league (`matchOnly`), let go once over and told (`endedFollows`) |
 
 ## Run and test

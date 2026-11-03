@@ -577,3 +577,37 @@ test("a player listed with an all-star side: his club is the side of his newest 
   assert.equal(seasonNotAhead('2026-27 Regular Season Stats', nov), '2026-27 Regular Season Stats');
   assert.equal(seasonNotAhead('2027-28 Regular Season Stats', nov), '2027-28 Regular Season Stats');
 });
+
+// Jay 2026-11-03: 曼聯 v 科芬特里城 read 1勝 0和局 1勝, the 2024 FA Cup semi's 3-3 (United through on penalties) counted a win.
+test('football head-to-head counts a meeting by its score: level is a draw, even one a shootout settled', async () => {
+  const { meetingResult } = await import('../public/lib/espn.mjs');
+  const side = (homeAway, id, score, winner) => ({ homeAway, winner, score, team: { id, abbreviation: id, displayName: id } });
+  const pens = { id: '700836', date: '2024-04-21T14:30:00Z', status: 'post', statusType: { completed: true, name: 'STATUS_FINAL_PEN' }, competitors: [side('home', '388', '3', false), side('away', '360', '3', true)] };
+  const won = { id: '229171', date: '2007-09-26T19:00:00Z', status: 'post', statusType: { completed: true, name: 'STATUS_FULL_TIME' }, competitors: [side('home', '360', '0', false), side('away', '388', '2', true)] };
+  assert.deepEqual(meetingResult(pens), { winner: null, pens: true, shootout: '360' });
+  assert.deepEqual(meetingResult(won), { winner: '388', pens: false });
+  const sm = parseSummary({ header: { id: '401879210', competitions: [{ id: '401879210', date: '2026-12-05T15:00Z', competitors: [] }] }, seasonseries: [{ type: 'head-to-head', events: [pens, won] }] }, 'eng.1');
+  const s = sm.series[0];
+  assert.deepEqual(s.h2h, { n: 2, wins: { 388: 1 }, draws: 1 });
+  assert.deepEqual(s.games.map(g => [g.id, Boolean(g.pens)]), [['700836', true], ['229171', false]]);
+});
+
+test('football head-to-head is the last five meetings at most, the newest first', () => {
+  const side = (homeAway, id, score) => ({ homeAway, score: String(score), team: { id, abbreviation: id, displayName: id } });
+  const ev = (i, h, a) => ({ id: String(i), date: `20${10 + i}-03-01T15:00Z`, status: 'post', statusType: { completed: true }, competitors: [side('home', 'A', h), side('away', 'B', a)] });
+  const events = [ev(1, 1, 0), ev(2, 1, 0), ev(3, 0, 0), ev(4, 0, 2), ev(5, 1, 1), ev(6, 3, 1), ev(7, 0, 1)];
+  const sm = parseSummary({ header: { id: '99', competitions: [{ id: '99', date: '2026-12-05T15:00Z', competitors: [] }] }, seasonseries: [{ type: 'head-to-head', events }] }, 'eng.1');
+  const s = sm.series[0];
+  assert.deepEqual(s.games.map(g => g.id), ['7', '6', '5', '4', '3']);
+  assert.deepEqual(s.h2h, { n: 5, wins: { B: 2, A: 1 }, draws: 2 });
+});
+
+test("the meetings card's bar: a piece a meeting, each side's from its end, the draws between", async () => {
+  const { h2hPieces } = await import('../public/lib/meetings.mjs');
+  assert.deepEqual(h2hPieces([['home', 0], ['away', 1]], 1, 2), [['draw', 1], ['away', 1]]);
+  assert.deepEqual(h2hPieces([['home', 2], ['away', 2]], 1, 5), [['home', 1], ['home', 1], ['draw', 1], ['away', 1], ['away', 1]]);
+  // No draws in the sport: the two sides' pieces meet in the middle.
+  assert.deepEqual(h2hPieces([['away', 1], ['home', 3]], 0, 4).map(([c]) => c), ['away', 'home', 'home', 'home']);
+  // A season's thirteen: one piece a kind, grown by its count.
+  assert.deepEqual(h2hPieces([['away', 6], ['home', 7]], 0, 13), [['away', 6], ['home', 7]]);
+});
