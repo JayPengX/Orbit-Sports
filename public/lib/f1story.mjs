@@ -241,8 +241,12 @@ export function raceStory({ cars = [], places = {}, stops = {}, laps = {}, contr
   const moved = nos.filter(no => gridOf(no) && at(no, 1)).map(no => [no, gridOf(no) - at(no, 1)]);
   const up = moved.filter(([, d]) => d >= 3).sort((a, b) => b[1] - a[1]).slice(0, 3);
   const down = moved.filter(([, d]) => d <= -3).sort((a, b) => a[1] - b[1]).slice(0, 3);
-  if (up.length) add(1, 'pass', up[0][0], W(`起跑進步：${up.map(([no, d]) => `${nameOf(no)} +${d}`).join('、')}`, `Start: ${up.map(([no, d]) => `${nameOf(no)} +${d}`).join(', ')}`), up.map(([no]) => `${P(gridOf(no), en)} → ${P(at(no, 1), en)}`).join(' · '));
-  if (down.length) add(1, 'lost', down[0][0], W(`起跑掉位：${down.map(([no, d]) => `${nameOf(no)} −${-d}`).join('、')}`, `Start: ${down.map(([no, d]) => `${nameOf(no)} −${-d}`).join(', ')}`), down.map(([no]) => `${P(gridOf(no), en)} → ${P(at(no, 1), en)}`).join(' · '));
+  // (Each car's move beside its own name, a small line a car: the names in one long line and
+  // their moves in another left a reader matching them up, and wrapped at 390.)
+  const moves = list => list.map(([no]) => `${nameOf(no)} ${P(gridOf(no), en)} → ${P(at(no, 1), en)}`).join(' · ');
+  const one = ([[no, d]], zh, en2) => [W(`${nameOf(no)} ${zh} ${Math.abs(d)} 名`, `${nameOf(no)} ${en2} ${Math.abs(d)} at the start`), `${P(gridOf(no), en)} → ${P(at(no, 1), en)}`];
+  if (up.length) add(1, 'pass', up[0][0], ...(up.length === 1 ? one(up, '起跑升', 'up') : [W(`起跑進步 ${up.length} 車`, `Start: ${up.length} gained`), moves(up)]));
+  if (down.length) add(1, 'lost', down[0][0], ...(down.length === 1 ? one(down, '起跑掉', 'down') : [W(`起跑掉位 ${down.length} 車`, `Start: ${down.length} lost`), moves(down)]));
   for (let l = 2; l <= last; l++) {
     const [a, b] = [leader(l - 1), leader(l)];
     if (!a || !b || a === b) continue;

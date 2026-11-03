@@ -16,7 +16,7 @@ import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { transition } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
@@ -37,7 +37,7 @@ import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { cols, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, sessionTag, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
+import { cols, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
 import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
@@ -3164,39 +3164,68 @@ function weekends(list) {
   }
   return [...out.values()];
 }
-// A race weekend as a card: its flag, name, circuit and days, then each session (time, badge, state); over, the
-// race's winner.
+// A race weekend as a card, shaped like a weekend (Jay 2026-11-03, the new
+// look): its flag, name and circuit, how soon it is at the right, then its
+// days side by side, each day's sessions under it (a name, its time): the
+// session to come next lit in the app's colour, one on now said in the live
+// colour, the ones over dimmed. Over, the race's winner. One card, one tap:
+// the session on, else the next to come, else (over) the race; its sheet has
+// the others a tap away. (Each line used to be its own tap, so where the
+// finger fell picked 一練, the sprint or qualifying; then five tall rows a
+// weekend, each a box with a coloured badge.)
 function weekendCard(sessions) {
   const e = sessions[0];
   const list = [...sessions].sort((a, b) => a.start.localeCompare(b.start));
-  const first = localDate(Date.parse(list[0].start));
-  const last = localDate(Date.parse(list.at(-1).start));
-  const days = first === last ? dayLabel(first) : `${dayLabel(first)} – ${dayLabel(last)}`;
   const race = list.find(x => x.sessionKey === 'Race') || list.at(-1);
   const done = list.every(x => x.status.state === 'post');
   const winner = done ? (race.sessions?.find(x => x.abbr === race.sessionKey) || race.sessions?.at(-1))?.field?.[0] : null;
   const live = list.some(x => x.status.state === 'in');
-  // One card, one tap: the session on, else the next to come, else (over) the
-  // race; its sheet has the others a tap away. (Each line used to be its own
-  // tap, so where the finger fell picked 一練, the sprint or qualifying.)
   const open = list.find(x => x.status.state === 'in') || list.find(x => x.status.state === 'pre') || race;
-  return el('button', { class: `q-card wk-card${live ? ' live' : ''}${done ? ' done' : ''}`, type: 'button', disabled: open?.status?.void ? true : null, onclick: () => openEvent(open) }, [
-    el('div', { class: 'wk-card-head' }, [raceFlag(e, 'big'), el('div', { class: 'wk-card-text' }, [el('strong', { class: 'wk-card-name', text: e.name }), e.venue ? el('small', { class: 'muted wk-card-line', text: e.venue }) : null, el('small', { class: 'muted wk-card-line num', text: days })])]),
-    winner
-      ? el('div', { class: 'wk-winner' }, [personPic(winner, e.league, 'sm round'), el('span', {}, [el('small', { class: 'muted', text: L({ zh: '冠軍', en: 'Winner' }) }), el('strong', { text: winner.short || winner.name })])])
-      : el(
-          'div',
-          { class: 'wk-sessions' },
-          list.map(x => {
-            const kind = { Race: 'race', Qual: 'qual', SR: 'sprint', SS: 'sq', SQ: 'sq' }[x.sessionKey] || 'other';
-            return el('div', { class: `wk-row ${kind}${x.status.state === 'in' ? ' live' : ''}${x.status.state === 'post' ? ' done' : ''}` }, [
-              el('span', { class: 'wk-time num' }, [el('small', { text: dayLabel(localDate(Date.parse(x.start))) }), document.createTextNode(timeText(x))]),
-              el('span', { class: 'wk-name' }, [sessionTag(x)]),
-              el('span', { class: `wk-state ${x.status.state}`, text: x.status.state === 'post' ? t('final') : x.status.state === 'in' ? t('live') : '' })
-            ]);
-          })
-        )
+  const coming = live ? null : list.find(x => x.status.state === 'pre');
+  const en = locale === 'en';
+  // How soon: on now, today, tomorrow, in N days (from the next session); over, the dates.
+  const dayOf = x => localDate(Date.parse(x.start));
+  const until = coming ? Math.round((Date.parse(`${dayOf(coming)}T12:00:00`) - Date.parse(`${today()}T12:00:00`)) / 86_400_000) : null;
+  // What's next lit only on a weekend this week (every card a month ahead lit read as noise).
+  const next = until != null && until <= 6 ? coming : null;
+  const first = dayOf(list[0]);
+  const last = dayOf(list.at(-1));
+  const span = d => { const x = new Date(`${d}T12:00:00`); return `${x.getMonth() + 1}/${x.getDate()}`; };
+  const when = live
+    ? el('span', { class: 'wk-when live', text: L({ zh: '進行中', en: 'Live' }) })
+    : until != null
+      ? el('span', { class: `wk-when${until <= 1 ? ' soon' : ''}`, text: until <= 0 ? t('today') : until === 1 ? t('tomorrow') : L({ zh: `${until} 天後`, en: `In ${until} days` }) })
+      : el('span', { class: 'wk-when num', text: first === last ? span(first) : `${span(first)} – ${span(last)}` });
+  // (The flag on the name's line, so the circuit has the card's whole width: Suzuka's ran out at 320.)
+  const head = el('div', { class: 'wk-card-head' }, [
+    el('div', { class: 'wk-card-top' }, [raceFlag(e), el('strong', { class: 'wk-card-name', text: e.name }), when]),
+    e.venue ? el('small', { class: 'wk-card-line', text: e.venue }) : null
   ]);
+  if (winner)
+    return el('button', { class: 'q-card wk-card done', type: 'button', disabled: open?.status?.void ? true : null, onclick: () => openEvent(open) }, [
+      head,
+      el('div', { class: 'wk-winner' }, [personPic(winner, e.league, 'sm round'), el('span', { class: 'wk-winner-k', text: L({ zh: '冠軍', en: 'Winner' }) }), el('strong', { text: winner.short || winner.name })])
+    ]);
+  // The weekend's days, in order, each with its sessions.
+  const byDay = new Map();
+  for (const x of list) (byDay.get(dayOf(x)) || byDay.set(dayOf(x), []).get(dayOf(x))).push(x);
+  const wd = d => new Date(`${d}T12:00:00`).toLocaleDateString(en ? 'en-US' : 'zh-TW', { weekday: 'short' });
+  const near = d => (d === today() ? t('today') : d === addDays(today(), 1) ? t('tomorrow') : '');
+  const days = [...byDay].map(([d, xs]) =>
+    el('div', { class: `wk-day${xs.includes(next) || xs.some(x => x.status.state === 'in') ? ' now' : ''}${xs.every(x => x.status.state === 'post') ? ' done' : ''}` }, [
+      el('span', { class: `wk-day-k${d === today() ? ' today' : ''}` }, [el('b', { text: near(d) || wd(d) }), el('span', { class: 'num', text: span(d) })]),
+      ...xs.map(x => {
+        const n = SESSION_NAMES[x.sessionKey];
+        const name = n ? n.short[en ? 'en' : 'zh'] : x.session || '';
+        const st = x.status.state;
+        return el('span', { class: `wk-sess${x === race ? ' race' : ''}${st === 'in' ? ' live' : ''}${st === 'post' ? ' done' : ''}${x === next ? ' next' : ''}` }, [
+          el('small', { text: name }),
+          el('span', { class: 'wk-sess-t num', text: st === 'in' ? L({ zh: '進行中', en: 'Live' }) : timeText(x) })
+        ]);
+      })
+    ])
+  );
+  return el('button', { class: `q-card wk-card${live ? ' live' : ''}`, type: 'button', disabled: open?.status?.void ? true : null, onclick: () => openEvent(open) }, [head, el('div', { class: 'wk-days', style: `--n:${days.length}` }, days)]);
 }
 
 // A league's rounds read: the page drawn again once (every game on it asked
