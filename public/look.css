@@ -1,0 +1,152 @@
+/* Orbit's own look for Sports (look.js; RULEBOOK §3, Jay 2026-11-03), linked
+   after styles.css on a page with <html data-look="native">. The lead game as the first Native sample drew it: graphite,
+   each club's row on its own colour, never two blended. 我的球隊: a row a
+   team, its colour as a thin mark, its next game at the end. */
+
+/* ---------- The lead game: graphite, a row a club on its own colour ---------- */
+html[data-look='native'] .q-hero-card.hero-game {
+  gap: 6px;
+  padding: 14px;
+  background: var(--nv-card);
+  color: var(--q-label);
+  box-shadow: inset 0 0 0 0.5px var(--nv-edge), inset 0 1px 0 rgba(255, 255, 255, 0.05), var(--nv-lift);
+}
+html[data-look='native'][data-look='native'] .q-hero-card.hero-game :is(.q-hc-eyebrow, .q-hc-sub, .hc-foot) {
+  color: var(--q-label-2);
+}
+html[data-look='native'] .hero-game .hc-top {
+  margin-bottom: 4px;
+}
+html[data-look='native'] .hero-game .hc-dot {
+  background: var(--q-live, #ff3b30);
+}
+html[data-look='native'][data-look='native'] .hero-game .hc-side {
+  padding: 8px 12px 8px 8px;
+  border-radius: 14px;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--tc, #3a3a3c) 92%, #000) 0%, color-mix(in srgb, var(--tc, #3a3a3c) 62%, #000) 100%);
+  color: #fff;
+}
+/* (Each club's logo on the tile every logo in the app sits on, never a see-through
+   one over the club's colour: the Rockets' red mark vanished on their red row. In
+   dark the kit then draws ESPN's dark version and lifts a dark mark, as on any tile.) */
+html[data-look='native'][data-look='native'] .hero-game .hc-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--q-logo-bg, #ffffff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+}
+html[data-look='native'] .hero-game .hc-name {
+  font: 600 21px/26px var(--q-font);
+  letter-spacing: -0.015em;
+}
+html[data-look='native'][data-look='native'] .hero-game .hc-score {
+  color: #fff;
+}
+html[data-look='native'] .hero-game .hc-foot {
+  margin-top: 6px;
+}
+html[data-look='native'][data-look='native'] .hero-game .hc-status {
+  background: color-mix(in srgb, var(--q-label) 9%, transparent);
+  color: var(--q-label);
+  font-weight: 600;
+}
+html[data-look='native'][data-look='native'] .hero-game .hc-mark {
+  background: color-mix(in srgb, var(--q-label) 9%, transparent);
+  color: var(--q-label);
+}
+/* (The old card's white words, on the graphite card in light: the league's name,
+   a race's session tag, F1's brief.) */
+html[data-look='native'][data-look='native'] .hero-game .hc-comp b {
+  color: var(--q-label);
+}
+html[data-look='native'][data-look='native'] .hero-game .hc-event .sess-tag {
+  background: color-mix(in srgb, var(--q-label) 9%, transparent);
+  color: var(--q-label);
+}
+html[data-look='native'][data-look='native'] .hero-game .hc-brief {
+  background: var(--q-fill-4);
+}
+html[data-look='native'][data-look='native'] .hero-game .hc-brief :is(.f1-brief-head, .f1-brief-top li) {
+  color: var(--q-label);
+}
+html[data-look='native'][data-look='native'] .hero-game .hc-brief :is(.f1-brief-top .pos, .f1-brief-v) {
+  color: var(--q-label-2);
+}
+html[data-look='native'][data-look='native'] .q-hero-card.hero-game .q-hc-btn {
+  background: var(--q-label);
+  color: var(--q-bg);
+}
+html[data-look='native'][data-look='native'] .q-hero-card.hero-game .q-hc-btn small {
+  color: color-mix(in srgb, var(--q-bg) 60%, transparent);
+}
+/* (A phone on its side puts the two clubs side by side: the row tighter, the
+   page's own 18 px names and 38 px tile, so 加拉塔薩雷 stays on one line.) */
+@media (max-height: 520px) {
+  html[data-look='native'][data-look='native'] .hero-game .hc-side {
+    gap: 10px;
+    padding: 6px 10px 6px 6px;
+  }
+  html[data-look='native'][data-look='native'] .hero-game .hc-logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+  }
+  html[data-look='native'][data-look='native'] .hero-game .hc-name {
+    font-size: 18px;
+    line-height: 22px;
+  }
+}
+
+/* ---------- 我的球隊: a row a team, its next game at the end ---------- */
+.tm-row {
+  --tc: var(--q-label-3);
+  position: relative;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* (::after: the kit's ::before is the hairline between rows; none without a colour.) */
+.tm-row[style*='--tc']::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--tc);
+}
+.tm-logo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+}
+.tm-next {
+  display: grid;
+  flex: none;
+  justify-items: end;
+  max-width: 44%;
+  text-align: right;
+}
+.tm-next small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--q-label-2);
+  font: 500 11.5px/15px var(--q-font);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tm-next b {
+  font: 600 14px/18px var(--q-font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+

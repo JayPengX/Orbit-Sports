@@ -42,6 +42,8 @@ import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, 
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
 import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
+// Orbit's own look (Jay 2026-11-03, RULEBOOK §3; index.html's data-look and look.css): the lead game's clubs on their own colours, 我的球隊.
+import * as look from './look.js';
 
 // Shared-Data's pack of recent games (set as the app starts, below), and the
 // background look-ups of what it hasn't got, after it's in.
@@ -1587,7 +1589,7 @@ function renderHome() {
   const liveRest = liveShown.filter(x => x !== heroItem);
   planList = planList.filter(x => x !== heroItem);
   more = more.filter(x => keyOf(x.event) !== heroKey);
-  const hero = heroItem ? heroGame(heroItem.event, { picked: isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }) : null;
+  const hero = heroItem ? look.paintHero(heroGame(heroItem.event, { picked: isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }), heroItem.event) : null;
   // The hero led with from the plan is today's first pick (its start notice, what the picks learn from).
   const heroPick = heroItem && !liveShown.includes(heroItem) ? [heroItem] : [];
   // The rest on now: a row each with 觀看; every game on is 轉播's.
@@ -1699,6 +1701,25 @@ function renderHome() {
       : kitUI.empty({ icon: 'tv', title: L({ zh: '這天的賽程還讀不到', en: "Couldn't read this day yet" }), action: { label: L({ zh: '再試一次', en: 'Try again' }), onTap: () => ((h.gate = null), loadDay(h.date), loadOthers(h.date), renderHome()) }, cls: 'home-empty' });
   // (Theirs unread: never said to have nothing on.)
   const noMine = slot.partial > 0 ? L({ zh: '我的聯賽還讀不到', en: "My leagues couldn't be read yet" }) : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet');
+  // 我的球隊: each team's place in its table and its next game, its own
+  // colour as a thin mark (else the places to watch, as before).
+  const teamsShelf =
+    !gone && !h.picking && hasFollows
+      ? (() => {
+          const seen = new Set();
+          const rows = followedTeams()
+            .filter(f => !f.athlete && !seen.has(`${f.league}:${f.id}`) && seen.add(`${f.league}:${f.id}`))
+            .slice(0, 6)
+            .map(f => {
+              const r = state.home.tables[f.league]?.[f.id];
+              const sub = [leagueName(f.league, locale).replace(/\s.*$/, ''), r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : ''].filter(Boolean).join(' · ');
+              // (Its colour from a day's scoreboard: a team's own schedule carries none.)
+              const side = [...state.days.values()].flatMap(dayAll).filter(e => LEAGUES[e.league]?.sport === LEAGUES[f.league]?.sport).flatMap(e => [e.home, e.away]).find(x => String(x?.id) === String(f.id) && x.color) || null;
+              return { f: { ...f, logo: f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), shown: shownName(f) }, pos: r?.pos || null, sub, next: nextOf(f) || null, side };
+            });
+          return rows.length ? section(L({ zh: '我的球隊', en: 'My teams' }), look.teams(rows, f => openTeam(f.league, f.id, f))) : null;
+        })()
+      : null;
   put(
     box,
     homeBar(),
@@ -1729,7 +1750,7 @@ function renderHome() {
       mineNext.length ? section(t('myGames'), kitRail(mineNext)) : null,
       !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
       leaguesShelf,
-      placesShelf,
+      teamsShelf || placesShelf,
       endedGames.length ? section(t('pastEvents'), light ? recapList(endedGames, rowDay) : kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
     ])
   );
@@ -1814,7 +1835,7 @@ function homeFilters() {
   if (h.picking || !state.prefs.leagues.length) return null;
   const filters = [['all', t('f_all')], ...(watched().length ? [['teams', t('f_mine')]] : state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...homeSports().filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
   if (filters.length < 3) return null;
-  return el('div', { class: 'q-chips day-filters' }, filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => h.filter !== k && ((stripRange.recenter = true), pickFilter(k)) })));
+  return el('div', { class: 'q-chips day-filters q-texttabs' }, filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => h.filter !== k && ((stripRange.recenter = true), pickFilter(k)) })));
 }
 // A day changed from below the top: the page starts at its top (the strip stays in view).
 function toPageTop() {

@@ -26,8 +26,17 @@ couldn't be read is shown, never hidden.
 
 - **Tabs, one question each:**
   - **首頁:** what to watch. A date strip that sticks at the top (swipe
-    the page for the next or last day), 正在進行, 推薦 (a no-clash plan), 我的比賽, 更多賽事,
-    已結束, followed teams today.
+    the page for the next or last day), the filters as text tabs, the lead
+    game (each club's row on its own colour, its logo on the solid logo
+    tile), 正在進行, 推薦 (a no-clash plan), 我的比賽, 更多賽事, 我的球隊 (each
+    followed team's place in its table and its next game; without follows,
+    the places to watch), 已結束.
+- **Orbit's own look** (Jay 2026-11-03; Orbit-Core DESIGN.md §11; `<html
+  data-look="native">`, `look.css` after `styles.css`): today's dark page,
+  graphite cards, colour only on what it names (a club's row, a team's mark);
+  the app's orange for what's live and the one main action. `look.js` draws
+  the lead game's colours (`paintHero`, the clubs' colours by `sideColors`)
+  and 我的球隊 (`teams`).
   - **賽事:** a league. Sport and league chips, game days, then 賽程, 排名,
     季後賽, 數據 (球員's leaders, 球隊: every team by each of its own stats).
   - **轉播:** when and where. The same date strip (yesterday to two weeks
@@ -252,7 +261,8 @@ couldn't be read is shown, never hidden.
 | --- | --- |
 | `app.js` | The tabs, follows, days, picks, notices, live ticks |
 | `sheets.js` | Every sheet: match, race weekend, team, player, constructor, tables, series |
-| `ui.js`, `cards.js`, `styles.css` | DOM helpers, rows; the tabs' cards and tiles; the look |
+| `ui.js`, `cards.js`, `styles.css` | DOM helpers, rows; the tabs' cards and tiles; the app's styles |
+| `look.js`, `look.css` | Orbit's own look: the lead game's club colours, 我的球隊, and the look's overrides of the old card |
 | `lib/espn.mjs` | Every read and parser (the scoreboard parser is the kit's `sports-espn.mjs`); `sessionStatus` |
 | `lib/f1.mjs`, `racecontrol.mjs` | F1 data and the board's maths; race control in Chinese |
 | `lib/title.mjs`, `playoffs.mjs`, `bracket.mjs`, `tiebreak.mjs` | Live tables and title race; playoffs; tiebreaks |
