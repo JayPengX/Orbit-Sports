@@ -556,3 +556,24 @@ test('football head-to-head counts only the meetings before this game', () => {
   assert.deepEqual(s.h2h, { n: 2, wins: { COMO: 1 }, draws: 1 });
   assert.deepEqual(s.games.map(g => g.id), ['7', '6']);
 });
+
+// Carles Gil, 2026-11-03: ESPN's card names the MLS All-Stars as his team (a New England player).
+test("a player listed with an all-star side: his club is the side of his newest games", async () => {
+  const { parseAthlete, clubOfOverview, seasonNotAhead } = await import('../public/lib/espn.mjs');
+  const a = parseAthlete({ athlete: { id: '152168', displayName: 'Carles Gil', team: { id: '9817', displayName: 'MLS All-Stars', isAllStar: true }, statsSummary: { displayName: '2027 MLS Stats', statistics: [] } } });
+  assert.equal(a.allStar, true);
+  assert.equal(parseAthlete({ athlete: { team: { id: '189', displayName: 'New England Revolution' } } }).allStar, false);
+  const ov = { gameLog: { events: {
+    a: { gameDate: '2026-07-24T00:00Z', team: { id: '9817', isAllStar: true } },
+    b: { gameDate: '2026-10-29T00:00Z', team: { id: '189', isAllStar: false } },
+    c: { gameDate: '2026-10-25T00:00Z', team: { id: '189', isAllStar: false } }
+  } } };
+  assert.equal(clubOfOverview(ov), '189');
+  assert.equal(clubOfOverview({ gameLog: { events: { a: { gameDate: '2026-07-24T00:00Z', team: { id: '9817', isAllStar: true } } } } }), '');
+  // A one-year season ahead of this one ("2027 MLS Stats" in November 2026): this year's.
+  const nov = Date.parse('2026-11-03T02:00:00Z');
+  assert.equal(seasonNotAhead('2027 MLS Stats', nov), '2026 MLS Stats');
+  assert.equal(seasonNotAhead('2026 MLS Stats', nov), '2026 MLS Stats');
+  assert.equal(seasonNotAhead('2026-27 Regular Season Stats', nov), '2026-27 Regular Season Stats');
+  assert.equal(seasonNotAhead('2027-28 Regular Season Stats', nov), '2027-28 Regular Season Stats');
+});

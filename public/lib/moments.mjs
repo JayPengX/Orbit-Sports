@@ -161,6 +161,8 @@ const RUN_PLAYS = 48;
 // Basketball: a drift of this much is a stretch (a run), RUNS at most.
 const STRETCH = 0.2;
 const RUNS = 4;
+// A run's row at its go-ahead play only when less than this share of its points came after it.
+const LEAD_LAG = 1 / 3;
 // The first point after `from`, up to `to`, whose play has `mine` ahead
 // (`ahead`) or level with the other side; null if none says so.
 function leadAt(points, from, to, mine, ahead) {
@@ -198,15 +200,23 @@ function swingMoments(points, sport, side) {
       const side1 = k => Number((delta >= 0 ? pb : pb && { home: pb.away, away: pb.home })?.[k]) || 0;
       const [m0, m1] = [side0('home') - side0('away'), side1('home') - side1('away')];
       const did = m0 < 0 && m1 === 0 ? ['追平', ' · ties it'] : m0 < 0 && m1 > 0 ? ['超前', ' · takes the lead'] : m1 < 0 ? ['追近', ''] : [to - from > RUN_PLAYS ? '拉開' : '攻勢', ''];
-      const text = side.en ? `${who.name} ${mine}-${theirs}${did[1]}` : `${who.name} ${mine}-${theirs} ${did[0]}`;
       // A run that took the lead (or tied it): the play where the score did,
       // by the play-by-play (`lead`), for 過程's row. The price lags the plays,
       // so its peak (`i`, the chart's dot) can be a few plays on (the owner, 2026-10-23).
       // Only in the quarter it ended: a stretch over two quarters that went
       // ahead early (Warriors 47-29 over the 1st and 2nd, ahead at 19-17) is
       // told at its end, never at a score from long before (Jay, 2026-10-29).
+      // And only when the run was mostly done by then, counted to there: a
+      // row says the score at its play, so its run is the points up to it
+      // (Lakers 28-8 told at 6-9, ahead early in a run that went on to
+      // 14-31: Jay 2026-11-03, "you can't have a 28-8 run in a 6-9 score").
+      // A run that went on is told whole, where it ended.
       const took = did[0] === '超前' || did[0] === '追平' ? leadAt(points, from, to, delta >= 0 ? 'home' : 'away', did[0] === '超前') : null;
-      const flip = took != null && points[took].n === points[to].n ? took : null;
+      const pt = took != null ? lastScore(points, took) : null;
+      const pts = k => (Number(pb[k]) || 0) - (Number(pt[k]) || 0);
+      const flip = took != null && points[took].n === points[to].n && pts('home') + pts('away') < LEAD_LAG * (mine + theirs) ? took : null;
+      const [us, them] = flip == null ? [mine, theirs] : delta >= 0 ? [mine - pts('home'), theirs - pts('away')] : [mine - pts('away'), theirs - pts('home')];
+      const text = side.en ? `${who.name} ${us}-${them}${did[1]}` : `${who.name} ${us}-${them} ${did[0]}`;
       return { i: to, from, delta, side: home(delta), icon: ICON.basketball, text, team: who.id, periods: [points[from].n, points[to].n], ...(flip != null ? { lead: flip } : {}) };
     });
   // The biggest few (RUNS), in the game's order.

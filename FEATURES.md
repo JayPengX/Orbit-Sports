@@ -12,6 +12,9 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - Player careers — `public/sheets.js`, `public/lib/career.mjs`: `openPlayer`, `playerCareer`
 - Team pages — `public/sheets.js`: `openTeam`
 - Follow a game from its page — `public/sheets.js`: `追蹤這場比賽`
+- A followed match brings only itself, never its league's other games — `public/lib/follows.mjs`, `public/app.js`: `matchOnly`
+- A followed match over leaves the follows once its final is told — `public/lib/follows.mjs`, `public/app.js`: `endedFollows`, `dropEnded`
+- A player ESPN lists with an all-star side shows his club — `public/lib/espn.mjs`: `clubOfOverview`
 - Replay and highlights on a finished game — `public/sheets.js`: `replayLink`, `精華`
 - Title race and clinch lines under tables — `public/lib/title.mjs`, `public/sheets.js`: `standingsRace`, `nextNeeds`
 - Official tiebreaks and why level sides are ordered — `public/lib/tiebreak.mjs`: `TIEBREAKS`, `tieNotes`

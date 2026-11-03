@@ -184,6 +184,8 @@ couldn't be read is shown, never hidden.
 - No news and no AI in Sports. The injury report is on team pages only.
 - Players and F1 drivers are named in English, in both languages (never 勒布朗·詹姆斯); teams in Chinese.
 - A called-off game opens nothing (延期 in its place).
+- A match followed on its own is that game, never its league: its league's other games are no one's, not even the fallback 正在進行's; once over (and its final told) it leaves 追蹤 by itself.
+- A player ESPN lists with an all-star side (MLS All-Stars) is shown with his club, the side of his newest games.
 - Live refreshes patch the page in place (`put` keeps nodes and drawn pictures,
   a laid-out `.q-flow`'s cards too); the kit's `hold-place.mjs` keeps the
   reader's place whatever redraws (`node ../Orbit-Core/tools/live-scroll.mjs sports`).
@@ -212,6 +214,7 @@ couldn't be read is shown, never hidden.
 | `lib/leagues.mjs`, `search.mjs`, `statnames.mjs`, `stage.mjs`, `compname.mjs`, `i18n.mjs`, `text.mjs` | Leagues; search; Chinese names for stats, stages and competitions; text |
 | `lib/days.mjs`, `bounds.mjs`, `strip.mjs`, `retry.mjs` | Days on the viewer's clock; the days a league has; the date strip; failed reads tried again |
 | `lib/close.mjs`, `notice.mjs` | 拉鋸; what a change of state is for a notice |
+| `lib/follows.mjs` | A match followed on its own: only that game of its league (`matchOnly`), let go once over and told (`endedFollows`) |
 
 ## Run and test
 

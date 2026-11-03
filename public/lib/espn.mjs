@@ -2309,6 +2309,9 @@ export function parseAthlete(data) {
     position: a.position?.displayName || '',
     team: a.team?.displayName || '',
     teamId: String(a.team?.id ?? ''),
+    // ESPN can name an all-star side as his team (Carles Gil: MLS All-Stars,
+    // a New England player; Jay 2026-11-03): athlete() puts his club in.
+    allStar: Boolean(a.team?.isAllStar),
     teamColor: a.team?.color ? `#${a.team.color}` : '',
     teamLogo: a.team?.logos?.[0]?.href || a.team?.logo || '',
     age: a.age || null,
@@ -2333,7 +2336,29 @@ export function parseAthlete(data) {
   };
 }
 export async function athlete(league, id) {
-  return parseAthlete(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}`, { ttl: 60 * 60_000 }));
+  const a = parseAthlete(await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}`, { ttl: 60 * 60_000 }));
+  a.stats.title = seasonNotAhead(a.stats.title);
+  if (!a.allStar) return a;
+  // His club: the side he played his last games for (his overview, the read
+  // his page makes anyway), named by its own team record. None found: no team, never the all-stars.
+  const ov = await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }).catch(() => null);
+  const clubId = clubOfOverview(ov);
+  const t = clubId ? (await getJson(`${SITE}/${clubPath(league)}/teams/${encodeURIComponent(clubId)}`, { ttl: 24 * 3_600_000 }).catch(() => null))?.team : null;
+  return Object.assign(a, { allStar: false, team: t?.displayName || '', teamId: t ? String(clubId) : '', teamColor: t?.color ? `#${t.color}` : '', teamLogo: t?.logos?.[0]?.href || t?.logo || '' });
+}
+// The club a player's overview has him playing for: the side of his newest
+// game that isn't an all-star game's.
+export function clubOfOverview(ov) {
+  const games = Object.values(ov?.gameLog?.events || {}).filter(g => g?.team?.id != null && !g.team.isAllStar);
+  games.sort((x, y) => Date.parse(y.gameDate || 0) - Date.parse(x.gameDate || 0));
+  return games[0] ? String(games[0].team.id) : '';
+}
+// A season named by one year can't be ahead of this one: ESPN's MLS moved to
+// "2027" while 2026's numbers were still the ones on the card (32 starts, 13
+// goals: "2027年MLS數據"). A split season ("2026-27") is left as it is.
+export function seasonNotAhead(title, now = Date.now()) {
+  const year = new Date(now + 8 * 3_600_000).getUTCFullYear();
+  return String(title || '').replace(/\b(\d{4})\b(?![-–\/]\d)/, (y, n) => (Number(n) > year ? String(year) : y));
 }
 // A driver's championship this season, from the drivers' table: place,
 // points, the gap, and each race's points in order ([code, points]; a race

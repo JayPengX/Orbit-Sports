@@ -484,3 +484,30 @@ test('basketball: a stretch over two quarters that went ahead early is told at i
   assert.match(run.text, /超前$/);
   assert.equal(run.lead, undefined, 'no lead from the 1st for a stretch that ended in the 2nd');
 });
+
+// Raptors at Lakers, 2026-11-02: the Lakers' 28-8 run went ahead at 9-6 and
+// went on to 31-14; told at 6-9 it read "28-8" in a 6-9 score (Jay 2026-11-03).
+test('basketball: a run never counts more points than the score its row shows', () => {
+  const pts = [];
+  let [h, a] = [0, 0];
+  const add = (v, dh, da) => pts.push({ home: v, n: 1, play: { home: (h += dh), away: (a += da), clock: '' } });
+  add(0.5, 3, 6); // 3-6 (Raptors away)
+  for (let i = 0; i < 4; i++) add(0.5, 0, 0);
+  add(0.52, 3, 0); // 6-6
+  add(0.56, 3, 0); // 9-6: ahead
+  for (let i = 0; i < 11; i++) add(0.58 + i * 0.027, 2, i % 3 === 0 ? 2 : 0); // on to 31-14
+  for (let i = 0; i < 6; i++) add(0.86, 1, 1);
+  const side = { home: { id: 'h', name: '湖人' }, away: { id: 'a', name: '暴龍' }, en: false };
+  const runs = playMoments(pts, 'basketball', side).filter(m => m.periods);
+  assert.ok(runs.length, 'the run');
+  for (const m of runs) {
+    const [us, them] = m.text.match(/(\d+)-(\d+)/).slice(1).map(Number);
+    const at = pts[m.lead ?? m.i].play;
+    const [mine, theirs] = m.side === 'home' ? [at.home, at.away] : [at.away, at.home];
+    assert.ok(us <= mine && them <= theirs, `${m.text} told at ${at.away}-${at.home}`);
+  }
+  // Told where it ended, whole.
+  const run = runs.find(m => m.side === 'home');
+  assert.equal(run.lead, undefined);
+  assert.match(run.text, /^湖人 2\d-\d+ 超前/);
+});

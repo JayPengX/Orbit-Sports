@@ -15,6 +15,7 @@ import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { transition } from './lib/notice.mjs';
+import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
 import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
@@ -264,10 +265,8 @@ function isFollowed(league, id) {
 const followedTeams = () => state.prefs.follows.flatMap(f => (f.f1team === true ? [] : !f.athlete ? [f] : f.team ? [{ league: f.league, id: f.team.id, name: f.team.name }] : []));
 // Single matches followed on their own (a game between two teams the person
 // doesn't follow): kept as they were when followed, the live copy laid over
-// them (freshGame), and let go two days after the start.
+// them (freshGame), and let go once over (dropEnded), at most two days after the start.
 const GAME_KEEP = 2 * 86_400_000;
-// A race weekend's sessions all share its key (the weekend's id).
-const gameKey = e => `${e.league}:${e.weekend || e.id}`;
 const keptGames = list => (list || []).filter(g => g && LEAGUES[g.league] && g.id && Date.parse(g.start) > Date.now() - GAME_KEEP);
 const slimSide = x => (x ? { id: String(x.id ?? ''), name: x.name, short: x.short, en: x.en, abbr: x.abbr, logo: x.logo, color: x.color, alt: x.alt } : x);
 function isFollowedGame(e) {
@@ -348,7 +347,33 @@ function loadFollowedGames() {
 // A game that's on again (live, or about to be): its day read again next time.
 setInterval(() => {
   for (const g of followedGames()) if (g.status.state === 'in' || (g.status.state === 'pre' && Date.parse(g.start) < Date.now())) gameDaysRead.clear();
+  dropEnded();
 }, 60_000);
+// A followed match over is let go once its final's been told (follows.mjs
+// endedFollows), saved without reading the day again: its league's other
+// games, read for it, stay in the day but are no one's (matchOnly).
+const endSeen = new Map();
+function dropEnded() {
+  const p = state.prefs;
+  if (!state.prefsLoaded || !p.games.length) return;
+  const day = new Map(dayAll(state.days.get(today())).filter(e => e.kind === 'match').map(e => [gameKey(e), e]));
+  const fresh = g => {
+    if (g.kind !== 'field') return freshGame(day.get(gameKey(g)) || gameSeen.get(gameKey(g)) || g);
+    // A race weekend: over with its race.
+    const w = f1Races().find(x => x.league === g.league && x.id === g.id);
+    return w ? splitWeekend(w, Date.now(), locale).find(x => x.sessionKey === 'Race') || null : null;
+  };
+  const gone = endedFollows(keptGames(p.games), { fresh, told: bannered, seen: endSeen });
+  if (!gone.size) return;
+  p.games = p.games.filter(g => !gone.has(gameKey(g)));
+  savePrefs();
+  // (The days stay as read: a superset of what's needed now, not a reason to read them again.)
+  for (const slot of state.days.values()) if (slot.at) slot.leagues = leaguesKey();
+  if (state.tab === 'following') renderFollowing();
+  else if (state.tab === 'home') renderHome();
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(syncPush, 1500);
+}
 // Leagues followed as a league (no team or player of them followed): each
 // slot's chosen game is the person's as a followed team's is (picks.mjs
 // leagueChoices; Jay 2026-10-23), and a race weekend's qualifying, sprint
@@ -1482,7 +1507,9 @@ function renderHome() {
   const isPick = x => planKeys.has(keyOf(x.event));
   let liveItems = isToday ? rankOnNow(onNow(filtered(mine)), pctx, planKeys) : [];
   const liveMine = liveItems.length > 0;
-  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankOnNow(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e))), { ...pctx, sports: [], leagues: [] }, planKeys).filter(x => x.score >= 0.3);
+  // (Never a game of a league read only for a followed match in it: one New
+  // England v Miami followed put Atlanta v Toronto at the top, Jay 2026-11-03.)
+  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankOnNow(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e) && !matchOnly(e, own, keptGames(state.prefs.games)))), { ...pctx, sports: [], leagues: [] }, planKeys).filter(x => x.score >= 0.3);
   const allLive = isToday ? onNow(dayAll(slot)).filter(onTv).length : 0;
   if (slot?.at) prefetchVideos(dayAll(slot));
   // Today's picks on now first, each marked ★ 推薦, then the rest of theirs,
