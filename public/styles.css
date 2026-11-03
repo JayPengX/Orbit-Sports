@@ -436,8 +436,9 @@ img { max-width: 100%; }
 .match-sub:not(:empty) { display: flex; justify-content: center; margin: -4px 0 14px; }
 .match-sub .q-seg { width: min(240px, 100%); }
 /* Loading: the tabs and cards in their shape. */
-.match-tabs-skel { display: flex; gap: 0; overflow: hidden; height: 40px; border-radius: 20px; background: var(--q-surface); }
-.match-tabs-skel > .skel { flex: 1; margin: 4px; border-radius: 16px; opacity: .5; }
+/* (The tabs' own height, 36: a taller skeleton moved the cards 4px when the tabs came.) */
+.match-tabs-skel { display: flex; gap: 0; overflow: hidden; height: 36px; border-radius: 18px; background: var(--q-surface); }
+.match-tabs-skel > .skel { flex: 1; margin: 3px; border-radius: 15px; opacity: .5; }
 .match-tabs-skel > .skel:not(:first-child) { opacity: 0; }
 .match-skel { padding: 16px; }
 .match-skel .skel-block { gap: 12px; }
