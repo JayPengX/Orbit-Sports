@@ -28,7 +28,7 @@ import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
-import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, trimHabit } from './lib/picks.mjs';
+import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, HABIT } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
 import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote } from './lib/nbacup.mjs';
@@ -202,7 +202,6 @@ function gotPrefs(payload) {
     prefsEdited = false;
     savePrefs();
   }
-  trimOldHabit();
   state.home.picking = false;
   if (!booted) return;
   state.days.clear();
@@ -285,7 +284,7 @@ function toggleFollowGame(e) {
         : { league: e.league, id: e.id, kind: e.kind, name: e.name, start: e.start, status: { state: 'pre' }, away: slimSide(e.away), home: slimSide(e.home), ...(e.other ? { other: e.other } : {}) }
     ];
     // Its sides count; its league only a little (one game followed isn't
-    // the league: picks.mjs habitOf).
+    // the league).
     recordAffinity('match', [e.away, e.home].filter(Boolean).map(x => teamKey(e.league, x.en || x.name)), 2);
     recordAffinity('match', [`league:${leagueKey(e.league)}`], 0.5);
   }
@@ -392,7 +391,7 @@ function chosenGames() {
   // The days read, and the playoff games of any map read: a series' games
   // are marked on days not visited yet (all of a playoff day's games are in it).
   const all = [...slots.flatMap(x => x.events || []), ...[...brackets.values()].flatMap(b => b.model?.rounds?.flatMap(r => r.ties.flatMap(t => t?.games || [])) || [])];
-  const ctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, tables: state.home.tables, aff: affinity(null, Date.now(), ['match']), featured: featuredIn(all) };
+  const ctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, tables: state.home.tables, featured: featuredIn(all), ...theirs(Date.now()) };
   chosenMemo.key = key;
   chosenMemo.set = leagueChoices(all, { watched: w, onTv, tvKnown, awake: e => new Date(officialMs(e)).getHours() >= AWAKE_FROM, ctx });
   return chosenMemo.set;
@@ -480,20 +479,6 @@ function firstOpenToday(e) {
   } catch {}
   return true;
 }
-// Once, when the follows are read: a league's habit from before habitOf's
-// rule (one followed game, opened again and again) cut to a trace.
-const HABIT_TRIM_KEY = 'fx.habitTrim1';
-function trimOldHabit() {
-  try {
-    // (Not with no follows read: a league followed would lose its own.)
-    if (localStorage.getItem(HABIT_TRIM_KEY) || !state.prefs.leagues.length) return;
-    const next = trimHabit(readJson(AFF_KEY, {}), state.prefs);
-    if (next) writeStore(AFF_KEY, JSON.stringify(next));
-    localStorage.setItem(HABIT_TRIM_KEY, '1');
-    if (next) q.write({ wallet: followsPatch() }).catch(() => {});
-  } catch {}
-}
-const AFF_KEY = 'orbit.aff.match';
 function track(keys = [], weight = 1) {
   if (keys.length) recordAffinity('match', keys, weight);
 }
@@ -598,7 +583,9 @@ function openEvent(e) {
   if (e?.status?.void) return;
   // Counted once a day: one game opened again and again is one game.
   if (firstOpenToday(e)) track(eventKeys(e), 1);
-  if (state.todayPicks?.some(p => p.league === e.league && p.id === e.id)) feedback?.picked('match', pickItem(e));
+  // What the picks learn from (kit feedback.mjs): opened from 今日推薦, or anywhere else.
+  const fromPicks = state.todayPicks?.some(p => p.league === e.league && p.id === e.id);
+  feedback?.picked('match', pickItem(e), Date.now(), { from: fromPicks ? 'list' : 'elsewhere' });
   if (e.kind === 'match') return openMatch(e);
   return openFieldEvent(e);
 }
@@ -1055,13 +1042,21 @@ function rankOnNow(list, ctx, also = new Set()) {
   return list.map(e => ({ event: e, ...scoreMatch(e, ctx) })).sort((x, y) => isFollowedEvent(y.event) - isFollowedEvent(x.event) || picked.has(k(y)) - picked.has(k(x)) || y.score - x.score);
 }
 // The picks' context for a day held (what rankOnNow and the plan weigh).
-// What the picks showed and what was opened from them (kit feedback.mjs, on
-// the device): a pick passed over day after day sinks, one opened rises.
-// (Loaded on the side: an older kit without it ranks as before.)
+// What the picks showed, what was opened from them and anywhere in the app,
+// and what was followed (the kit's feedback.mjs, the family's one engine,
+// kept on the Pass): a team or league passed over day after day sinks, one
+// opened rises, and a team opened far more than the rest is a 常看.
+// (Loaded on the side: an older kit without it ranks without them.)
 let feedback = null;
-import('#kit/feedback.mjs').then(m => (feedback = m)).catch(() => {});
+import('#kit/feedback.mjs')
+  .then(m => {
+    feedback = m;
+    feedback.keep?.(q, 'match');
+  })
+  .catch(() => {});
 const pickItem = e => ({ id: `${e.league}:${e.id}`, keys: eventKeys(e) });
-const pickContext = (slot, now = Date.now()) => ({ leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(dayAll(slot)), chosen: chosenGames(), lift: feedback?.lifter('match', now) });
+const theirs = now => ({ personal: feedback?.scorer?.('match', now) || null, why: feedback?.whyOf?.('match', now, HABIT) || null });
+const pickContext = (slot, now = Date.now()) => ({ leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, now, featured: featuredIn(dayAll(slot)), chosen: chosenGames(), ...theirs(now) });
 function notePicked(events) {
   const keys = pickedToday();
   const had = keys.size;
@@ -1593,6 +1588,8 @@ function renderHome() {
   planList = planList.filter(x => x !== heroItem);
   more = more.filter(x => keyOf(x.event) !== heroKey);
   const hero = heroItem ? heroGame(heroItem.event, { picked: isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }) : null;
+  // The hero led with from the plan is today's first pick (its start notice, what the picks learn from).
+  const heroPick = heroItem && !liveShown.includes(heroItem) ? [heroItem] : [];
   // The rest on now: a row each with 觀看; every game on is 轉播's.
   const liveBlock = liveRest.length
     ? section(t('liveNow'), el('div', { class: 'q-card list' }, liveRest.map(x => withWatch(eventRow(x.event), x.event))), {
@@ -1617,7 +1614,7 @@ function renderHome() {
   // day's picks as they stood too: one on now (正在進行, or about to start)
   // has left the list, or never was on it when the app opened.
   if (isToday && h.filter === 'all' && h.settled) {
-    const picks = fallback ? [] : planList.map(x => x.event);
+    const picks = fallback ? [] : [...heroPick, ...planList].map(x => x.event);
     const sig = [...picks, ...ownWas[0].map(x => x.event)].map(e => `${e.league}:${e.id}:${e.start}`).join('|');
     if (sig !== state.todayPicksSig) {
       state.todayPicks = picks;
@@ -2087,7 +2084,7 @@ function renderLiveDay(d) {
     .filter(e => inDay(Date.parse(e.start), d) && !practice(e) && !seen.has(dayKey(e)) && seen.add(dayKey(e)))
     .filter(e => onTv(e) || isFollowedGame(e) || ((e.status.state === 'post' || past) && !tvKnown(e)))
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
-  const c = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, aff: affinity(null, now, ['match']), now, featured: featuredIn(list), chosen: chosenGames() };
+  const c = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, now, featured: featuredIn(list), chosen: chosenGames(), ...theirs(now) };
   const ranked = list.filter(e => !e.status.void).map(e => ({ e, mine: isFollowedEvent(e), score: scoreMatch(e, c).score })).sort((x, y) => y.mine - x.mine || y.score - x.score);
   const top = ranked[0]?.e || null;
   const hero = top ? heroGame(top, { mine: isFollowedEvent(top), eyebrow: top.status.state === 'pre' ? dayLabel(d, { long: true }) : '', onOpen: openEvent }) : null;

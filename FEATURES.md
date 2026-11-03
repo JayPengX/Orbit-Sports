@@ -19,7 +19,7 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - Replay and highlights on a finished game — `public/sheets.js`: `replayLink`, `精華`
 - Title race and clinch lines under tables — `public/lib/title.mjs`, `public/sheets.js`: `standingsRace`, `nextNeeds`
 - Official tiebreaks and why level sides are ordered — `public/lib/tiebreak.mjs`: `TIEBREAKS`, `tieNotes`
-- Picks for you on 首頁, learning from habits — `public/lib/picks.mjs`, `public/app.js`: `scoreMatch`, `habitOf`
+- Picks for you on 首頁, learning from what's opened and passed over (the kit's one engine, kept on the Pass) — `public/lib/picks.mjs`, `public/app.js`: `scoreMatch`, `feedback.keep`, `whyOf`
 - 首頁 reads the days either side ahead, so a swipe lands on a day already in — `public/app.js`: `function readAround`
 - A day with nothing on TV: one clean line and 看完整賽程 (the kit's empty state) — `public/app.js`: `function noTvTitle`, `這天沒有轉播`
 - Result notices on the phone — `public/app.js`: `syncPush`

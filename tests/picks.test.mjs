@@ -206,7 +206,7 @@ test('the 22:00 game: Liverpool (5th) v Brighton (3rd) on MAX over Man United (1
   const liv = match('epl', 'liv', 14, side('331', 'Brighton & Hove Albion'), side('364', 'Liverpool'), { fav: 0.465 });
   const mun = match('epl', 'mun', 14, side('360', 'AFC Bournemouth'), side('349', 'Manchester United'), { fav: 0.476 });
   const pal = match('epl', 'pal', 14, side('384', 'Newcastle United'), side('361', 'Crystal Palace'), { fav: 0.43 });
-  const ctx = { leagues: ['epl'], tables, now: NOW, featured: e => e.id === 'mun', aff: { 'team:epl:manchester united': 5 } };
+  const ctx = { leagues: ['epl'], tables, now: NOW, featured: e => e.id === 'mun', personal: item => (item.keys.includes('team:epl:manchester united') ? 3 : 0) };
   assert.deepEqual([...leagueChoices([liv, mun, pal], { watched: ['epl'], ctx })], ['epl:liv']);
 });
 
@@ -228,33 +228,65 @@ test("a holiday or a typhoon day off where the person works isn't working hours:
   assert.ok(scoreMatch(at11('2026-10-22'), ctx).score > before, 'a typhoon day off where they work');
 });
 
-test('picks passed over sink and picks opened rise (the kit feedback lift)', async () => {
-  const { scoreMatch } = await import('../public/lib/picks.mjs');
-  const e = { id: '1', league: 'epl', kind: 'match', start: '2026-11-01T15:00:00Z', status: { state: 'pre' }, home: { id: 'h', name: 'Arsenal' }, away: { id: 'a', name: 'Fulham' } };
-  const plain = scoreMatch(e, {}).score;
-  assert.ok(scoreMatch(e, { lift: () => 0.5 }).score < plain);
-  assert.ok(scoreMatch(e, { lift: () => 1.6 }).score > plain);
-  assert.equal(scoreMatch(e, { lift: () => 1 }).score, plain);
+// The family's one engine (kit feedback.mjs), on a page's storage in memory.
+async function engine() {
+  const F = await import('#kit/feedback.mjs');
+  const mem = new Map();
+  F.useStore({ getItem: k => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) });
+  return F;
+}
+const DAYMS = 86_400_000;
+
+test('picks passed over sink and picks opened rise (the kit feedback engine, by the game\'s teams and league)', async () => {
+  const F = await engine();
+  const { eventKeys } = await import('../public/lib/foryou.mjs');
+  const game = (id, home, away) => ({ id, league: 'epl', kind: 'match', start: '2026-11-01T15:00:00Z', status: { state: 'pre' }, home: { id: home, name: home }, away: { id: away, name: away } });
+  const item = e => ({ id: `${e.league}:${e.id}`, keys: eventKeys(e) });
+  const t0 = Date.parse('2026-10-01T10:00:00Z');
+  // Three weeks of picks: Arsenal's games opened, Fulham's passed over.
+  for (let d = 0; d < 21; d++) {
+    const ars = game(`a${d}`, 'Arsenal', `X${d}`);
+    const ful = game(`f${d}`, 'Fulham', `Y${d}`);
+    F.shown('match', [item(ful), item(ars)], t0 + d * DAYMS);
+    F.picked('match', item(ars), t0 + d * DAYMS + 60_000, { from: 'list' });
+  }
+  const now = t0 + 21 * DAYMS;
+  const personal = F.scorer('match', now);
+  const plain = e => scoreMatch(e, { now }).score;
+  const theirs = e => scoreMatch(e, { now, personal });
+  // A new game of each: the club opened rises, the one passed over sinks.
+  const ars = game('a-new', 'Arsenal', 'Z1');
+  const ful = game('f-new', 'Fulham', 'Z2');
+  assert.ok(theirs(ars).score > plain(ars) + 0.5);
+  assert.ok(theirs(ful).score < plain(ful) - 0.3);
+  // Nothing known: as before.
+  assert.equal(scoreMatch(game('n', 'P', 'Q'), { now, personal: F.scorer('none', now) }).score, plain(game('n', 'P', 'Q')));
 });
 
 // The owner, 2026-11-01: one New England v Miami followed, and every MLS game
 // came up on 首頁 as 常看.
-test('one followed game is no habit of its league: other MLS games get no 常看', async () => {
-  const { habitOf, trimHabit, scoreMatch } = await import('../public/lib/picks.mjs');
-  // A follow (league 0.5, sides 2) and the page opened a few days.
-  const aff = { 'league:mls': 3.5, 'sport:soccer': 3.5, 'team:mls:new england revolution': 2, 'team:mls:inter miami cf': 2 };
-  const atl = { league: 'mls', id: 'x', start: '2026-11-01T21:30:00Z', home: { id: '1', name: 'Atlanta United FC' }, away: { id: '2', name: 'Toronto FC' }, status: { state: 'pre' } };
-  assert.equal(habitOf(aff, ['league:mls', 'sport:soccer']), 0);
-  assert.ok(!scoreMatch(atl, { aff, now: Date.parse('2026-11-01T12:00:00Z') }).reasons.includes('habit'));
-  // Kept up for weeks: a habit.
-  assert.ok(habitOf({ 'league:mls': 14 }, ['league:mls']) > 0.35);
-  // A team is a habit by what's known of it.
-  assert.ok(habitOf({ 'team:mls:inter miami cf': 4 }, ['team:mls:inter miami cf']) > 0.35);
-  // The old build-up cut once, unless the league (or a team in it) is followed.
-  const map = { 'league:mls': { v: 9, t: 1, n: 6 }, 'league:epl': { v: 9, t: 1, n: 6 }, 'team:mls:inter miami cf': { v: 4, t: 1, n: 2 } };
-  const out = trimHabit(map, { leagues: ['epl'], follows: [] });
-  assert.equal(out['league:mls'].v, 1);
-  assert.equal(out['league:epl'].v, 9);
-  assert.equal(out['team:mls:inter miami cf'].v, 4);
-  assert.equal(trimHabit(map, { leagues: ['epl', 'mls'] }), null);
+test('one followed game is no habit of its league: other MLS games get no 常看, a team opened week after week does', async () => {
+  const F = await engine();
+  const { eventKeys } = await import('../public/lib/foryou.mjs');
+  const { HABIT } = await import('../public/lib/picks.mjs');
+  const mls = (id, home, away) => ({ league: 'mls', id, start: '2026-11-01T21:30:00Z', home: { id: home, name: home }, away: { id: away, name: away }, status: { state: 'pre' } });
+  const item = e => ({ id: `${e.league}:${e.id}`, keys: eventKeys(e) });
+  const t0 = Date.parse('2026-10-20T10:00:00Z');
+  // The one followed game's page opened day after day.
+  const ne = mls('ne', 'New England Revolution', 'Inter Miami CF');
+  for (let d = 0; d < 8; d++) F.picked('match', item(ne), t0 + d * DAYMS, { from: 'elsewhere' });
+  const now = t0 + 9 * DAYMS;
+  const ctx = () => ({ now, personal: F.scorer('match', now), why: F.whyOf('match', now, HABIT) });
+  assert.ok(!scoreMatch(mls('atl', 'Atlanta United FC', 'Toronto FC'), ctx()).reasons.includes('habit'));
+  // A team's games opened from the picks week after week: a 常看.
+  for (let d = 0; d < 20; d++) {
+    const g = mls(`m${d}`, 'Inter Miami CF', `Side ${d}`);
+    const other = mls(`o${d}`, `Home ${d}`, `Away ${d}`);
+    F.shown('match', [item(g), item(other)], now + d * DAYMS);
+    F.picked('match', item(g), now + d * DAYMS + 60_000, { from: 'list' });
+  }
+  const later = now + 21 * DAYMS;
+  const c2 = { now: later, personal: F.scorer('match', later), why: F.whyOf('match', later, HABIT) };
+  assert.ok(scoreMatch(mls('mia', 'Inter Miami CF', 'Orlando City SC'), c2).reasons.includes('habit'));
+  assert.ok(!scoreMatch(mls('atl2', 'Atlanta United FC', 'Toronto FC'), c2).reasons.includes('habit'));
 });

@@ -11,22 +11,22 @@
 //   closeness  how evenly matched they are (places close together)
 //   stakes     a top-of-the-table meeting, a final, a play-off, a series
 //   fame       a headline league, a final
-//   habit      what they open, follow and bet on in every Orbit app (the
-//              shared affinity map)
+//   theirs     what they open and pass over among the picks, and open
+//              anywhere in the app, learnt as they go (the kit's feedback.mjs:
+//              a weight per team, league and sport, kept on the Pass): a
+//              league they never open sinks under the ones they do, however
+//              it's followed; a club they keep opening rises
 //   featured   the broadcaster's own pick: of a league's games at one time,
 //              the one ELTA puts on a main channel with its commentators
 //              (the rest on MAX's English feed)
 //   now        live now, or starting soon
-//   feedback   what the person opened, and passed over, among the picks
-//              shown before (the kit's feedback.mjs `lift`, by the game's
-//              league and teams): about ±0.15
 //
 // Then a plan: the best match first, then the best one that doesn't clash
 // with those already in (a match takes its sport's usual length), so the
 // list is a day you can actually watch. The rest are "also today".
 
 import { LEAGUES, TOP_LEAGUES } from './leagues.mjs';
-import { eventKeys, teamKey, leagueKey } from './foryou.mjs';
+import { eventKeys, teamKey } from './foryou.mjs';
 import * as dayoff from '#kit/dayoff.mjs';
 
 // Minutes a match usually takes, by sport.
@@ -76,7 +76,7 @@ const tableWeight = (...rows) => {
   return gp.length ? Math.min(1, Math.min(...gp) / TABLE_GAMES) : 1;
 };
 
-export function scoreMatch(e, { leagues = [], follows = [], games = [], tables = {}, aff = {}, now = Date.now(), featured = null, chosen = null, lift = null } = {}) {
+export function scoreMatch(e, { leagues = [], follows = [], games = [], tables = {}, now = Date.now(), featured = null, chosen = null, personal = null, why = null } = {}) {
   const reasons = [];
   let score = 0.2;
   // A match followed on its own: the person asked for this one.
@@ -138,11 +138,11 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   if (TOP_LEAGUES.includes(e.league)) score += 0.12;
   score += 0.1 * [e.home, e.away].filter(x => bigClub(e.league, x)).length;
   if (e.stage?.key === 'final') score += 0.25;
-  // Habit: the strongest thing the person is into that this match touches.
-  const habit = habitOf(aff, keys);
-  score += 0.4 * habit;
-  if (habit > 0.35 && !reasons.includes('team')) reasons.push('habit');
-  if (lift) score += 0.3 * Math.log(lift({ id: `${e.league}:${e.id}`, keys }));
+  // Theirs: what the person opens and passes over (log-odds, about -2 to
+  // +2 once known), and a 常看 only where their own opens say so strongly.
+  const item = { id: `${e.league}:${e.id}`, keys };
+  if (personal) score += PERSONAL * personal(item);
+  if (why?.(item) && !reasons.includes('team')) reasons.push('habit');
   // Now.
   if (e.status?.state === 'in') {
     score += 0.2;
@@ -176,38 +176,15 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   return { score: Math.round(score * 1000) / 1000, reasons };
 }
 
-// Habit (the shared affinity map, key -> weight that halves in 21 days).
-// A team is a habit by what's known of it. A league or a sport is only by
-// interest kept up: games of it opened and followed over weeks (HABIT_LEAGUE
-// and over), never one game followed and looked at (the owner, 2026-11-01:
-// one New England v Miami followed, and every MLS game came up as 常看).
-// Measured against a floor too (HABIT_SCALE): a near-empty map doesn't make
-// its one entry everything.
-export const HABIT_LEAGUE = 8;
-const HABIT_SCALE = 8;
-export function habitOf(aff = {}, keys = []) {
-  const max = Math.max(HABIT_SCALE, ...Object.values(aff));
-  return Math.max(0, ...keys.map(k => {
-    const v = aff[k] || 0;
-    return !k.startsWith('team:') && v < HABIT_LEAGUE ? 0 : v / max;
-  }));
-}
-// Once: a league's habit built up before that (one followed game, its page
-// opened again and again) cut to a trace, for a league the person neither
-// follows nor has a team or player in. `map`: the kit's stored map
-// ({ key: { v, t, n } }); a new one back, or null when nothing changed.
-export function trimHabit(map, { leagues = [], follows = [] } = {}) {
-  const kept = new Set([...leagues, ...follows.map(f => f.league)].filter(Boolean).map(k => `league:${leagueKey(k)}`));
-  let changed = false;
-  const out = {};
-  for (const [k, a] of Object.entries(map || {})) {
-    if (k.startsWith('league:') && !kept.has(k) && a && a.v > 1) {
-      out[k] = { ...a, v: 1 };
-      changed = true;
-    } else out[k] = a;
-  }
-  return changed ? out : null;
-}
+// How much the person's own doing counts against the rest (a weight of +2,
+// a club opened far more than the usual pick, is about a followed team's +1).
+export const PERSONAL = 1;
+// A 常看: a team opened far more than the usual pick, over enough looks to
+// be sure (a few lucky opens aren't a habit). Never a league or a sport:
+// those the person follows by name (我的聯賽), and one followed game, its page
+// opened again and again, isn't its league (the owner, 2026-11-01: every MLS
+// game came up as 常看).
+export const HABIT = { min: 1, evidence: k => (k.startsWith('team:') ? 1.5 : Infinity) };
 
 // The clubs people here tune in for, whatever the table says this week (the
 // table is luck seven games in; Jay 2026-10-23 had Liverpool v Brighton as
@@ -251,7 +228,7 @@ export function leagueChoices(events, { watched = [], onTv = () => true, tvKnown
     if (!byLeague.has(e.league)) byLeague.set(e.league, []);
     byLeague.get(e.league).push(e);
   }
-  const sctx = { ...ctx, games: [], chosen: null, featured: null, aff: {}, lift: null };
+  const sctx = { ...ctx, games: [], chosen: null, featured: null, why: null, personal: null };
   const featured = ctx.featured || (() => false);
   const before = e => ({ ...e, status: { ...e.status, state: 'pre' } });
   const choose = slot => {

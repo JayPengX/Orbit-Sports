@@ -180,9 +180,13 @@ couldn't be read is shown, never hidden.
   F1 followed that way: its qualifying, sprint and race. A league with a
   team or player of it followed goes by those.
 - **Today's picks** (`lib/picks.mjs`): followed leagues and teams, quality,
-  closeness, stakes, fame, habit, ELTA's featured game, live now. The best
-  game, then the best that doesn't clash. Picks shown and never opened sink by
-  league and team, those opened rise (the kit's `feedback.mjs`, on the phone).
+  closeness, stakes, fame, theirs, ELTA's featured game, live now. The best
+  game, then the best that doesn't clash. Theirs is the kit's one engine
+  (`feedback.mjs`): the picks shown (the hero first), opened from them or
+  anywhere in the app, learnt as a weight per team, league and sport, kept
+  on the Pass (`fb:match`, `feedback.keep`), so a league never opened sinks
+  and a club opened rises; 常看 only for a team opened far more than the
+  usual pick over enough looks (`picks.mjs HABIT`, `whyOf`).
 - **Notices** (the kit's `match` kinds): a followed team's start and final,
   each pick's start and final, F1 sessions and podiums. Sent by the Worker
   while the app is closed.
