@@ -9,7 +9,7 @@
 // What the person follows lives on the pass (this app's payload): leagues in
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
-import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, readJson, writeStore, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
+import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, readJson, writeJson, writeStore, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
 import { stripDays } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
@@ -29,7 +29,7 @@ import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, HABIT } from './lib/picks.mjs';
-import { liveTiming, settleScoring, askFinishes } from './lib/f1.mjs';
+import { liveTiming, settleScoring, askFinishes, weekendCircuit } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
 import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote } from './lib/nbacup.mjs';
 import { stageOf } from './lib/stage.mjs';
@@ -3186,68 +3186,201 @@ function weekends(list) {
   }
   return [...out.values()];
 }
-// A race weekend as a card, shaped like a weekend (Jay 2026-11-03, the new
-// look): its flag, name and circuit, how soon it is at the right, then its
-// days side by side, each day's sessions under it (a name, its time): the
-// session to come next lit in the app's colour, one on now said in the live
-// colour, the ones over dimmed. Over, the race's winner. One card, one tap:
-// the session on, else the next to come, else (over) the race; its sheet has
-// the others a tap away. (Each line used to be its own tap, so where the
-// finger fell picked 一練, the sprint or qualifying; then five tall rows a
-// weekend, each a box with a coloured badge.)
-function weekendCard(sessions) {
+// A race weekend as a card (Jay 2026-11-03: the first take, its days side by
+// side, was "flat and all text"; columns of uneven height left gaps under
+// short days). Now three parts, every card the same shape:
+// - the head: the flag, the name, the circuit, the dates at the right;
+// - a panel: what to look at now, the circuit's outline beside it: the next
+//   session and a countdown that runs (to the minute), or the session on in
+//   the live colour, or (over) the podium, the winner's face first;
+// - the weekend as a line of stops, one even column a session: a dot on the
+//   line (practice small, qualifying and sprints bigger, the race chequered),
+//   the line filled as far as the weekend has run; under each its name, then
+//   its day and time, or once it's over who topped it (最快 / 桿位 / 冠軍) on
+//   their team's colour.
+// One card, one tap: the session on, else the next to come, else (over) the
+// race; its sheet has the others a tap away.
+const WK_TRACKS = 'sports.wkTrack.v1';
+const wkTracks = readJson(WK_TRACKS, {}) || {};
+// A circuit's outline as a polyline's points in a W×H box, turned a quarter
+// where that draws it bigger (from the same MultiViewer drawing the
+// weekend's sheet uses).
+function trackPoints(c, W = 120, H = 72, pad = 5) {
+  const best = [c.rotation, c.rotation + 90]
+    .map(r => {
+      const a = ((Number(r) + 90) * Math.PI) / 180;
+      const pts = c.x.map((x, i) => [x * Math.cos(a) - c.y[i] * Math.sin(a), c.y[i] * Math.cos(a) + x * Math.sin(a)]);
+      const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+      const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+      const k = Math.min((W - pad * 2) / (x1 - x0 || 1), (H - pad * 2) / (y1 - y0 || 1));
+      return { k, pts, x0, x1, y0, y1 };
+    })
+    .sort((a, b) => b.k - a.k)[0];
+  const { k, pts, x0, x1, y0, y1 } = best;
+  const ox = (W - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * k) / 2;
+  const step = Math.max(1, Math.floor(pts.length / 160));
+  return pts.filter((_, i) => i % step === 0).map(([x, y]) => `${(ox + (x - x0) * k).toFixed(1)},${(oy + (y - y0) * k).toFixed(1)}`).join(' ');
+}
+const trackSvg = pts => `<svg viewBox="0 0 120 72" aria-hidden="true"><polyline class="wk-track-edge" points="${pts}"/><polyline class="wk-track-line" points="${pts}"/><circle class="wk-track-start" cx="${pts.split(' ')[0].split(',')[0]}" cy="${pts.split(' ')[0].split(',')[1]}" r="3"/></svg>`;
+// The outline's box: drawn at once from the phone's copy, else read once the
+// card is near the screen and faded in (the box holds its size: nothing moves).
+let wkSeen = null;
+const wkWanted = new WeakMap();
+function trackBox(day, start) {
+  const box = el('span', { class: 'wk-track' });
+  if (wkTracks[day]) {
+    box.innerHTML = trackSvg(wkTracks[day]);
+    return box;
+  }
+  const load = () =>
+    weekendCircuit(start)
+      .then(c => {
+        if (!c?.x?.length) return;
+        wkTracks[day] = trackPoints(c);
+        writeJson(WK_TRACKS, wkTracks);
+        for (const b of document.querySelectorAll(`.wk-track[data-day="${day}"]:empty`)) {
+          b.innerHTML = trackSvg(wkTracks[day]);
+          b.classList.add('in');
+        }
+      })
+      .catch(() => {});
+  box.dataset.day = day;
+  if (typeof IntersectionObserver !== 'function') {
+    load();
+    return box;
+  }
+  wkSeen ||= new IntersectionObserver(
+    seen => {
+      for (const x of seen) {
+        if (!x.isIntersecting) continue;
+        wkSeen.unobserve(x.target);
+        const go = wkWanted.get(x.target);
+        wkWanted.delete(x.target);
+        go?.();
+      }
+    },
+    { rootMargin: '300px 0px' }
+  );
+  wkWanted.set(box, load);
+  wkSeen.observe(box);
+  return box;
+}
+// How long until a session starts: days and hours, hours and minutes, or minutes (numbers big, units small).
+function untilParts(ms) {
+  const en = locale === 'en';
+  const m = Math.max(0, Math.ceil(ms / 60_000));
+  const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+  const u = (zh, e) => (en ? e : zh);
+  if (d >= 7) return [[d, u('天', d === 1 ? 'day' : 'days')]];
+  if (d >= 1) return [[d, u('天', 'd')], [h, u('時', 'h')]];
+  if (h >= 1) return [[h, u('時', 'h')], [mm, u('分', 'm')]];
+  return [[mm || 1, u('分', 'm')]];
+}
+const countdown = at => {
+  const node = el('span', { class: 'wk-count num', 'data-at': String(at) });
+  paintCount(node);
+  wkTick();
+  return node;
+};
+function paintCount(node) {
+  const parts = untilParts(Number(node.dataset.at) - Date.now());
+  const text = parts.map(([n, u]) => `${n}${u}`).join(' ');
+  if (node.dataset.text === text) return;
+  node.dataset.text = text;
+  node.replaceChildren(...parts.flatMap(([n, u]) => [el('b', { text: String(n) }), el('small', { text: u })]));
+}
+// One beat for every countdown on the page, in place (stopped when none is left).
+let wkTimer = 0;
+function wkTick() {
+  if (wkTimer) return;
+  wkTimer = setInterval(() => {
+    const all = document.querySelectorAll('.wk-count[data-at]');
+    if (!all.length) {
+      clearInterval(wkTimer);
+      wkTimer = 0;
+      return;
+    }
+    for (const n of all) paintCount(n);
+  }, 20_000);
+}
+// Who topped a session, and what that's called.
+const topOf = x => (x.sessions?.find(s => s.abbr === x.sessionKey) || (x.sessions?.length === 1 ? x.sessions[0] : null))?.field?.[0] || null;
+const codeOf = p => (/^[A-Z]{3}$/.test(p?.abbr || '') ? p.abbr : String(p?.en || p?.name || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').split(/\s+/).pop().slice(0, 3).toUpperCase());
+const teamColor = p => f1Driver(p?.en || p?.name || '').color;
+const SESSION_KIND = k => (k === 'Race' ? 'race' : ['Qual', 'SS', 'SQ', 'SR'].includes(k) ? 'big' : 'practice');
+export function weekendCard(sessions) {
   const e = sessions[0];
   const list = [...sessions].sort((a, b) => a.start.localeCompare(b.start));
   const race = list.find(x => x.sessionKey === 'Race') || list.at(-1);
   const done = list.every(x => x.status.state === 'post');
-  const winner = done ? (race.sessions?.find(x => x.abbr === race.sessionKey) || race.sessions?.at(-1))?.field?.[0] : null;
-  const live = list.some(x => x.status.state === 'in');
-  const open = list.find(x => x.status.state === 'in') || list.find(x => x.status.state === 'pre') || race;
-  const coming = live ? null : list.find(x => x.status.state === 'pre');
+  const on = list.find(x => x.status.state === 'in');
+  const coming = on ? null : list.find(x => x.status.state === 'pre');
+  const open = on || coming || race;
   const en = locale === 'en';
-  // How soon: on now, today, tomorrow, in N days (from the next session); over, the dates.
   const dayOf = x => localDate(Date.parse(x.start));
-  const until = coming ? Math.round((Date.parse(`${dayOf(coming)}T12:00:00`) - Date.parse(`${today()}T12:00:00`)) / 86_400_000) : null;
-  // What's next lit only on a weekend this week (every card a month ahead lit read as noise).
-  const next = until != null && until <= 6 ? coming : null;
-  const first = dayOf(list[0]);
-  const last = dayOf(list.at(-1));
-  const span = d => { const x = new Date(`${d}T12:00:00`); return `${x.getMonth() + 1}/${x.getDate()}`; };
-  const when = live
-    ? el('span', { class: 'wk-when live', text: L({ zh: '進行中', en: 'Live' }) })
-    : until != null
-      ? el('span', { class: `wk-when${until <= 1 ? ' soon' : ''}`, text: until <= 0 ? t('today') : until === 1 ? t('tomorrow') : L({ zh: `${until} 天後`, en: `In ${until} days` }) })
-      : el('span', { class: 'wk-when num', text: first === last ? span(first) : `${span(first)} – ${span(last)}` });
-  // (The flag on the name's line, so the circuit has the card's whole width: Suzuka's ran out at 320.)
-  const head = el('div', { class: 'wk-card-head' }, [
-    el('div', { class: 'wk-card-top' }, [raceFlag(e), el('strong', { class: 'wk-card-name', text: e.name }), when]),
-    e.venue ? el('small', { class: 'wk-card-line', text: e.venue }) : null
-  ]);
-  if (winner)
-    return el('button', { class: 'q-card wk-card done', type: 'button', disabled: open?.status?.void ? true : null, onclick: () => openEvent(open) }, [
-      head,
-      el('div', { class: 'wk-winner' }, [personPic(winner, e.league, 'sm round'), el('span', { class: 'wk-winner-k', text: L({ zh: '冠軍', en: 'Winner' }) }), el('strong', { text: winner.short || winner.name })])
-    ]);
-  // The weekend's days, in order, each with its sessions.
-  const byDay = new Map();
-  for (const x of list) (byDay.get(dayOf(x)) || byDay.set(dayOf(x), []).get(dayOf(x))).push(x);
+  const md = d => { const x = new Date(`${d}T12:00:00`); return `${x.getMonth() + 1}/${x.getDate()}`; };
   const wd = d => new Date(`${d}T12:00:00`).toLocaleDateString(en ? 'en-US' : 'zh-TW', { weekday: 'short' });
   const near = d => (d === today() ? t('today') : d === addDays(today(), 1) ? t('tomorrow') : '');
-  const days = [...byDay].map(([d, xs]) =>
-    el('div', { class: `wk-day${xs.includes(next) || xs.some(x => x.status.state === 'in') ? ' now' : ''}${xs.every(x => x.status.state === 'post') ? ' done' : ''}` }, [
-      el('span', { class: `wk-day-k${d === today() ? ' today' : ''}` }, [el('b', { text: near(d) || wd(d) }), el('span', { class: 'num', text: span(d) })]),
-      ...xs.map(x => {
-        const n = SESSION_NAMES[x.sessionKey];
-        const name = n ? n.short[en ? 'en' : 'zh'] : x.session || '';
-        const st = x.status.state;
-        return el('span', { class: `wk-sess${x === race ? ' race' : ''}${st === 'in' ? ' live' : ''}${st === 'post' ? ' done' : ''}${x === next ? ' next' : ''}` }, [
-          el('small', { text: name }),
-          el('span', { class: 'wk-sess-t num', text: st === 'in' ? L({ zh: '進行中', en: 'Live' }) : timeText(x) })
-        ]);
-      })
-    ])
-  );
-  return el('button', { class: `q-card wk-card${live ? ' live' : ''}`, type: 'button', disabled: open?.status?.void ? true : null, onclick: () => openEvent(open) }, [head, el('div', { class: 'wk-days', style: `--n:${days.length}` }, days)]);
+  const sname = x => { const n = SESSION_NAMES[x.sessionKey]; return n ? n.short[en ? 'en' : 'zh'] : x.session || ''; };
+  const first = dayOf(list[0]), last = dayOf(list.at(-1));
+  const head = el('div', { class: 'wk-card-head' }, [
+    el('div', { class: 'wk-card-top' }, [raceFlag(e), el('strong', { class: 'wk-card-name', text: e.name }), el('span', { class: 'wk-when num', text: first === last ? md(first) : `${md(first)} – ${md(last)}` })]),
+    e.venue ? el('small', { class: 'wk-card-line', text: e.venue }) : null
+  ]);
+  // The panel: on now, next (with its countdown), or the podium.
+  let panel;
+  if (on) {
+    const mins = Math.max(0, Math.round((Date.now() - Date.parse(on.start)) / 60_000));
+    panel = [
+      el('span', { class: 'wk-kick live' }, [el('i', { class: 'wk-live-dot' }), L({ zh: '進行中', en: 'Live now' })]),
+      el('strong', { class: 'wk-big', text: sname(on) }),
+      el('small', { class: 'wk-sub num', text: L({ zh: `${timeText(on)} 開始 · 已 ${mins} 分`, en: `Started ${timeText(on)} · ${mins} min in` }) })
+    ];
+  } else if (coming) {
+    const d = dayOf(coming);
+    const firstOne = coming === list[0];
+    panel = [
+      el('span', { class: 'wk-kick' }, [firstOne ? L({ zh: '首場', en: 'First up' }) : L({ zh: '下一場', en: 'Next' }), ' · ', el('b', { text: sname(coming) })]),
+      countdown(Date.parse(coming.start)),
+      el('small', { class: 'wk-sub num', text: `${near(d) || wd(d)} ${md(d)} ${timeText(coming)}` })
+    ];
+  } else {
+    const field = race.sessions?.find(s => s.abbr === race.sessionKey)?.field || [];
+    const [p1, p2, p3] = field;
+    panel = p1
+      ? [
+          el('span', { class: 'wk-kick', text: L({ zh: '冠軍', en: 'Winner' }) }),
+          el('span', { class: 'wk-winner' }, [personPic(p1, e.league, 'sm round'), el('strong', { class: 'wk-big', text: String(p1.short || p1.name || '').replace(/^\p{Lu}\.\s*/u, '') })]),
+          el('span', { class: 'wk-sub wk-podium' }, [p2, p3].filter(Boolean).map((p, i) => el('span', { class: 'wk-pod' }, [el('em', { class: 'num', text: String(i + 2) }), el('i', { class: 'wk-team', style: `--team:${teamColor(p)}` }), codeOf(p)])))
+        ]
+      : [el('span', { class: 'wk-kick', text: L({ zh: '已結束', en: 'Over' }) }), el('strong', { class: 'wk-big', text: sname(race) }), el('small', { class: 'wk-sub', text: L({ zh: '成績整理中', en: 'Results to come' }) })];
+  }
+  // The stops.
+  // (The next stop marked only on a weekend this week: every card a month ahead marked read as noise.)
+  const soon = coming && Date.parse(coming.start) - Date.now() < 7 * 86_400_000;
+  const state = x => (x.status.state === 'in' ? 'live' : x.status.state === 'post' ? 'done' : x === coming && soon ? 'next' : 'later');
+  const ran = x => ['live', 'done'].includes(state(x));
+  const stops = list.map((x, i) => {
+    const st = state(x);
+    const d = dayOf(x);
+    const top = st === 'done' ? topOf(x) : null;
+    const role = x.sessionKey === 'Race' || x.sessionKey === 'SR' ? L({ zh: '冠軍', en: 'Won' }) : ['Qual', 'SS', 'SQ'].includes(x.sessionKey) ? L({ zh: '桿位', en: 'Pole' }) : L({ zh: '最快', en: 'Top' });
+    return el('span', { class: `wk-stop ${SESSION_KIND(x.sessionKey)} ${st}${i && ran(x) ? ' fill-l' : ''}${list[i + 1] && ran(list[i + 1]) ? ' fill-r' : ''}${i === 0 ? ' first' : ''}${i === list.length - 1 ? ' last' : ''}` }, [
+      el('i', { class: 'wk-dot' }),
+      el('small', { class: 'wk-stop-k', text: sname(x) }),
+      top
+        ? el('small', { class: 'wk-stop-d', text: role })
+        : el('small', { class: `wk-stop-d${d === today() ? ' today' : ''}`, text: near(d) || wd(d) }),
+      top
+        ? el('span', { class: 'wk-stop-t wk-code', style: `--team:${teamColor(top)}`, text: codeOf(top) })
+        : el('span', { class: 'wk-stop-t num', text: st === 'live' ? L({ zh: '進行中', en: 'Live' }) : st === 'done' ? '✓' : timeText(x) })
+    ]);
+  });
+  return el('button', { class: `q-card wk-card${on ? ' live' : ''}${done ? ' done' : ''}`, type: 'button', disabled: open?.status?.void ? true : null, onclick: () => openEvent(open) }, [
+    head,
+    el('div', { class: `wk-panel${on ? ' live' : ''}` }, [el('span', { class: 'wk-panel-text' }, panel), trackBox(dayOf(race), race.start)]),
+    el('div', { class: 'wk-rail', style: `--n:${stops.length}` }, stops)
+  ]);
 }
 
 // A league's rounds read: the page drawn again once (every game on it asked
