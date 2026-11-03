@@ -440,25 +440,6 @@ function toggleLeague(league) {
   if (p.leagues.includes(league)) recordAffinity('match', [`league:${leagueKey(league)}`], 2);
   changed();
 }
-// A league up or down the person's order.
-function moveLeague(league, by) {
-  const list = [...state.prefs.leagues];
-  const i = list.indexOf(league);
-  const j = i + by;
-  if (i < 0 || j < 0 || j >= list.length) return;
-  [list[i], list[j]] = [list[j], list[i]];
-  state.prefs.leagues = list;
-  changed();
-}
-// A follow up the list (追蹤 shows them in this order).
-function moveFollow(i, by) {
-  const list = [...state.prefs.follows];
-  const j = i + by;
-  if (j < 0 || j >= list.length) return;
-  [list[i], list[j]] = [list[j], list[i]];
-  state.prefs.follows = list;
-  changed();
-}
 function changed() {
   savePrefs();
   state.home.sportDays.clear();
@@ -487,58 +468,69 @@ function track(keys = [], weight = 1) {
 // The leagues the person follows, in their order.
 const followedLeagues = () => [...state.prefs.leagues];
 
-// 我的設定 (追蹤's 設定): everything the person picks, in one sheet, in the
-// app's look (the owner, 2026-10-23: no rows of small buttons): a hero
-// saying what's followed; their leagues as logo tiles in their order (a tap:
-// move it or let it go); the rest of the leagues by sport, a tap to add;
-// the teams and players followed as rows (a tap: open, move up, let go);
-// the commentary they like.
+// 我的設定 (追蹤's 設定): everything the person picks, in one sheet: a hero
+// saying what's followed; their leagues as rows in their order, put in order
+// by each row's grip (the kit's reorder, Jay 2026-11-03: no more tap then
+// 往後) and let go with its ✕ (復原 in the toast); the rest of the leagues by
+// sport, a tap to add; the teams and players followed as rows the same way
+// (a tap opens the page); the commentary they like.
 function openFollowEditor() {
   const s = sheet(L({ zh: '我的設定', en: 'My settings' }));
-  // The league or follow tapped: its actions in a row under it (a menu
-  // would open behind the sheet).
-  let picked = null;
-  let pickedF = -1;
-  const acts = list => el('div', { class: 'set-acts' }, list.filter(Boolean).map(([label, onClick, cls = 'tinted']) => el('button', { class: `q-btn small ${cls}`, type: 'button', text: label, onclick: () => (onClick(), paint()) })));
+  // A one-tap let-go, with 復原 (kit toast) putting it back where it was.
+  const letGo = (name, undo) => kitUI.toast(L({ zh: `已取消追蹤${name}`, en: `Unfollowed ${name}` }), { action: { label: L({ zh: '復原', en: 'Undo' }), onTap: () => (undo(), changed(), paint()) } });
+  const remove = (label, onTap) => el('button', { class: 'set-x', type: 'button', 'aria-label': label, html: kitUI.icons.x, onclick: onTap });
+  const ordered = (rows, onKeys) => {
+    const box = el('div', { class: 'q-list set-order' }, rows);
+    kitUI.reorder(box, { onChange: keys => (onKeys(keys), changed(), paint()) });
+    return box;
+  };
   const paint = () => {
     const p = state.prefs;
     const n = p.leagues.length;
-    if (!p.leagues.includes(picked)) picked = null;
-    if (pickedF >= p.follows.length) pickedF = -1;
-    const tile = (k, i, add) => {
+    const tile = k => {
       const box = leagueTile(k, () => {});
       box.classList.add('set-league');
-      if (!add && k === picked) box.classList.add('on');
-      box.prepend(el('span', { class: `set-badge${add ? ' add' : ''}`, 'aria-hidden': 'true', text: add ? '+' : String(i + 1) }));
-      box.setAttribute('aria-label', add ? L({ zh: `加入${leagueName(k, locale)}`, en: `Add ${leagueName(k, locale)}` }) : leagueName(k, locale));
-      box.onclick = add ? () => (toggleLeague(k), paint()) : () => ((picked = picked === k ? null : k), paint());
+      box.prepend(el('span', { class: 'set-badge add', 'aria-hidden': 'true', text: '+' }));
+      box.setAttribute('aria-label', L({ zh: `加入${leagueName(k, locale)}`, en: `Add ${leagueName(k, locale)}` }));
+      box.onclick = () => (toggleLeague(k), paint());
       return box;
     };
-    const at = p.leagues.indexOf(picked);
-    const leagueActs = picked
-      ? acts([
-          at > 0 ? [L({ zh: '往前', en: 'Earlier' }), () => moveLeague(picked, -1)] : null,
-          at < n - 1 ? [L({ zh: '往後', en: 'Later' }), () => moveLeague(picked, 1)] : null,
-          [t('unfollow'), () => toggleLeague(picked), 'danger tinted']
-        ])
-      : null;
+    const leagueRow = k => {
+      const name = leagueName(k, locale);
+      return el('div', { class: 'q-cell set-row', 'data-q-key': k }, [
+        leagueMark(k, 'big'),
+        el('span', { class: 'q-cell-text' }, [el('span', { text: name })]),
+        remove(L({ zh: `取消追蹤${name}`, en: `Unfollow ${name}` }), () => {
+          const at = state.prefs.leagues.indexOf(k);
+          toggleLeague(k);
+          paint();
+          letGo(name, () => !state.prefs.leagues.includes(k) && state.prefs.leagues.splice(at, 0, k));
+        }),
+        kitUI.grip(L({ zh: `拖曳排序：${name}`, en: `Reorder ${name}` }))
+      ]);
+    };
     const toAdd = shownSports()
       .map(sp => [sp, shownLeaguesOf(sp).filter(k => !p.leagues.includes(k))])
       .filter(([, ks]) => ks.length);
     const openOne = f => (f.athlete ? openPlayer(f.league, f.id, f) : f.f1team === true ? openConstructor({ id: '', name: f.name, en: f.name }) : openTeam(f.league, f.id, f));
-    const follow = (f, i) => [
-      el('button', { class: `q-ritem set-follow${i === pickedF ? ' on' : ''}`, type: 'button', onclick: () => ((pickedF = pickedF === i ? -1 : i), paint()) }, [
-        el('span', { class: 'suggest-tile' }, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm')]),
-        el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: shownName(f) }), el('small', { text: leagueName(f.league, locale) })])
-      ]),
-      i === pickedF
-        ? acts([
-            [f.athlete ? L({ zh: '球員頁面', en: 'Player page' }) : L({ zh: '球隊頁面', en: 'Team page' }), () => openOne(f)],
-            i > 0 ? [L({ zh: '往前', en: 'Up' }), () => ((pickedF = i - 1), moveFollow(i, -1))] : null,
-            [t('unfollow'), () => ((pickedF = -1), toggleFollow(f.league, f)), 'danger tinted']
-          ])
-        : null
-    ];
+    const followKey = f => `${f.league}:${f.id}`;
+    const followRow = f => {
+      const name = shownName(f);
+      return el('div', { class: 'q-cell set-row', 'data-q-key': followKey(f) }, [
+        el('button', { class: 'q-row-open', type: 'button', onclick: () => openOne(f) }, [
+          el('span', { class: 'suggest-tile' }, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm')]),
+          el('span', { class: 'q-cell-text' }, [el('span', { text: name }), el('small', { text: leagueName(f.league, locale) })])
+        ]),
+        remove(L({ zh: `取消追蹤${name}`, en: `Unfollow ${name}` }), () => {
+          const at = state.prefs.follows.findIndex(x => followKey(x) === followKey(f));
+          toggleFollow(f.league, f);
+          paint();
+          letGo(name, () => !isFollowed(f.league, f.id) && state.prefs.follows.splice(at, 0, f));
+        }),
+        kitUI.grip(L({ zh: `拖曳排序：${name}`, en: `Reorder ${name}` }))
+      ]);
+    };
+    const hint = L({ zh: '按住 ≡ 拖曳排序', en: 'Hold ≡ and drag to reorder' });
     const teams = p.follows.length;
     put(
       s.body,
@@ -547,13 +539,13 @@ function openFollowEditor() {
         el('div', { class: 'q-focus-value', text: L({ zh: `${n} 個聯賽`, en: `${n} league${n === 1 ? '' : 's'}` }) }),
         teams ? el('div', { class: 'q-focus-sub', text: L({ zh: `${teams} 支球隊與選手`, en: `${teams} teams and players` }) }) : null
       ]),
+      section(t('yourLeagues'), n ? ordered(p.leagues.map(leagueRow), keys => (state.prefs.leagues = keys)) : el('p', { class: 'muted small set-empty', text: t('noLeaguesYet') }), { sub: n > 1 ? hint : '' }),
+      toAdd.length ? section(L({ zh: '加入聯賽', en: 'Add a league' }), el('div', { class: 'q-card pad set-add' }, toAdd.flatMap(([sp, ks]) => [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'set-grid' }, ks.map(tile))]))) : null,
       section(
-        t('yourLeagues'),
-        n ? el('div', { class: 'q-card pad' }, [el('div', { class: 'set-grid' }, p.leagues.map((k, i) => tile(k, i, false))), leagueActs]) : el('p', { class: 'muted small set-empty', text: t('noLeaguesYet') }),
-        { sub: n > 1 ? L({ zh: '按一下調整順序', en: 'Tap one to reorder' }) : '' }
+        L({ zh: '球隊與選手', en: 'Teams and players' }),
+        teams ? ordered(p.follows.map(followRow), keys => (state.prefs.follows = keys.map(k => state.prefs.follows.find(f => followKey(f) === k)).filter(Boolean))) : el('p', { class: 'muted small set-empty', text: t('teamsHint') }),
+        { sub: teams > 1 ? hint : '' }
       ),
-      toAdd.length ? section(L({ zh: '加入聯賽', en: 'Add a league' }), el('div', { class: 'q-card pad set-add' }, toAdd.flatMap(([sp, ks]) => [el('p', { class: 'mini-h', text: L(SPORTS[sp]) }), el('div', { class: 'set-grid' }, ks.map(k => tile(k, 0, true)))]))) : null,
-      section(L({ zh: '球隊與選手', en: 'Teams and players' }), teams ? el('div', { class: 'q-rowcard' }, p.follows.flatMap(follow)) : el('p', { class: 'muted small set-empty', text: t('teamsHint') })),
       section(
         t('tvAudio'),
         segmented(

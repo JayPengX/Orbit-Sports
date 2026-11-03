@@ -590,21 +590,21 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .stat-tile strong { overflow: hidden; text-overflow: ellipsis; }
 .sheet-body > .q-btn.block { margin-top: 12px; }
 .q-btn.small { min-height: 34px; padding: 0 14px; font-size: 13.5px; flex: none; }
-/* ---- 我的設定 (追蹤's 設定): leagues as logo tiles (their place in a
-   corner badge, + for one to add), follows as rows ---- */
+/* ---- 我的設定 (追蹤's 設定): their leagues and follows as rows, each with
+   its ✕ and the kit's grip (ui.mjs reorder); the leagues to add as logo
+   tiles (+ in a corner badge) ---- */
 .set-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 4px; justify-items: center; }
 .set-grid .q-league { position: relative; width: 100%; }
-.set-badge { position: absolute; top: -4px; right: calc(50% - 34px); z-index: 1; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--q-fill-3, #e5e5ea); color: var(--q-label-2); font: 600 11.5px/1 var(--q-font); font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--q-surface); }
-.set-badge.add { font-size: 15px; }
+.set-badge { position: absolute; top: -4px; right: calc(50% - 34px); z-index: 1; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--q-fill-3, #e5e5ea); color: var(--q-label-2); font: 600 15px/1 var(--q-font); box-shadow: 0 0 0 2px var(--q-surface); }
 .set-add .mini-h { margin: 14px 0 10px; }
 .set-add .mini-h:first-child { margin-top: 0; }
 .set-empty { margin: 0 4px; }
-.set-league .q-logo { transition: box-shadow 0.2s; }
-.set-league.on .q-logo { box-shadow: 0 0 0 2.5px var(--q-label, #fff); }
-.set-acts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin-top: 14px; padding-top: 14px; border-top: var(--q-hairline, 1px) solid var(--q-sep, rgba(0,0,0,.1)); }
-.q-rowcard .set-acts { margin: 0; padding: 4px 12px 12px; border-top: 0; padding-left: 64px; }
-.set-acts .q-btn { min-width: 0; padding: 0 8px; white-space: nowrap; }
-.set-follow.on { background: var(--q-fill-4, rgba(120,120,128,.08)); }
+.set-row { gap: 12px; min-height: 60px; padding-block: 8px; }
+.set-order .set-row + .set-row::before { left: 68px; }
+.set-row .q-cell-text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-x { display: grid; place-items: center; flex: none; width: 32px; height: 32px; margin-right: -4px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--q-label-3); cursor: pointer; transition: background-color 0.2s, color 0.2s; }
+.set-x svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.set-x:is(:active, [data-q-press]) { background: color-mix(in srgb, var(--q-red) 16%, transparent); color: var(--q-red); }
 /* ---- Sheet parts ---- */
 .stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .stack > .q-card + .q-card { margin-top: 0; }
@@ -2124,7 +2124,6 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 /* (The day's line names what follows: the first league sits right under it, Jay 2026-10-27 "so much gap".) */
 .all-day > .day-head + .q-section { margin-top: 8px; }
 .tv-guide + .section-sub { margin-top: 12px; }
-.set-follow.on + .set-acts { background: var(--q-fill-4, rgba(120,120,128,.08)); }
 /* A light day's games over on 首頁: the row, then who led each side, a line each under the scores (as a race's top three). */
 .recap-list { display: grid; gap: 12px; }
 .q-card.recap { position: relative; overflow: hidden; border-radius: var(--q-r-card, 22px); transition: background-color 0.25s; }

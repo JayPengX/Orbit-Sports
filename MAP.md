@@ -43,7 +43,8 @@ couldn't be read is shown, never hidden.
     on). Today: on now with 觀看, yours in the next 7 days, the next 24 h,
     ELTA's whole guide; another day: its best game, then all it has on TV.
   - **追蹤:** how yours are doing. Teams, players, matches, drivers; 設定
-    at its foot (leagues in order, follows, commentary).
+    at its foot (leagues and follows as rows, put in order by their grips,
+    kit `reorder`, each let go by its ✕ with 復原; commentary).
 - **Every screen** (Jay 2026-10-31; Orbit-Core DESIGN.md §10): on a tablet,
   a computer or a phone on its side each tab is two columns (首頁's answer
   left and what's next right, 轉播's on now and coming up, 賽事's leagues side
