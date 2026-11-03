@@ -123,8 +123,12 @@ img { max-width: 100%; }
 :is(.event-row, .tf-game, .res-row, .wk-card, .tvg-body, .score-card):disabled { color: inherit; opacity: 1; cursor: default; }
 /* A followed team's game: the app's colour down its edge. */
 /* A game of the person's own, in a list of all: a small star by its time, quiet (no orange strip down its edge, Jay 2026-11-03). */
-.event-row.mine .event-meta::before { content: '★'; display: block; margin-bottom: 2px; font-size: 10px; line-height: 1; color: var(--q-text-2); }
-.mine-list .event-row.mine .event-meta::before { content: none; }
+.row-mark { display: inline-flex; align-items: center; gap: 4px; height: 20px; margin-right: 8px; padding: 0 8px 0 6px; border-radius: 999px; background: var(--q-fill-2); color: var(--q-label, var(--q-text)); font: 600 12px/20px var(--q-font); white-space: nowrap; }
+.row-mark svg { width: 11px; height: 11px; fill: currentColor; }
+.event-row.mine, .event-row.picked { background: var(--q-fill-4); }
+/* (我的比賽 is all yours: no mark, no light.) */
+.mine-list .row-mark { display: none; }
+.mine-list .event-row.mine { background: none; }
 .event-meta { display: grid; justify-items: start; align-content: center; min-width: 0; }
 .event-status { max-width: 100%; color: var(--q-label-2); font: 600 13px/1.25 var(--q-font); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .event-status.pre { color: var(--q-label); font: 600 18px/1.15 var(--q-font-rounded); letter-spacing: -0.01em; }
@@ -162,11 +166,10 @@ img { max-width: 100%; }
 /* The tags under the sides: league, stage, pick, channels (a channel's commentary inside its tag). */
 /* One row: a tag that does not fit is dropped whole, never wrapped. */
 .ev-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin-top: 2px; min-width: 0; height: 20px; overflow: hidden; }
-/* Facts (league, stage, channel) are plain grey text joined by a dot; only ★ 推薦 stays a tag. */
+/* Facts (league, stage, channel) are plain grey text joined by a dot; only ★ 追蹤 / 推薦 is a pill (row-mark). */
 .ev-tags > :not(:first-child):not(.tv-line)::before, .ev-tags > .tv-line:not(:first-child) > .tv-ch::before { content: '·'; margin: 0 6px; color: var(--q-label-3, var(--q-label-2)); }
-.ev-tags > .q-tag:not(.pick-mark) { min-height: 0; padding: 0; background: none; color: var(--q-label-2); font: 500 12px/20px var(--q-font); }
-.ev-tags > .q-tag.pick-mark { margin-left: 6px; }
-.ev-tags > .q-tag.pick-mark::before { content: none; }
+.ev-tags > .row-mark + *::before, .ev-tags > .row-mark + .tv-line > .tv-ch:first-child::before { content: none; }
+.ev-tags > .q-tag { min-height: 0; padding: 0; background: none; color: var(--q-label-2); font: 500 12px/20px var(--q-font); }
 .ev-tags > *, .tv-ch { flex: none; }
 .tv-line { display: contents; }
 .league-tag, .tv-ch { display: inline-flex; align-items: center; gap: 4px; min-height: 20px; padding: 0; color: var(--q-label-2); font: 500 12px/1 var(--q-font); white-space: nowrap; }
