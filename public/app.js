@@ -2055,7 +2055,7 @@ function renderLive() {
     byDay.get(d).push(e);
   }
   const mineBlock = byDay.size
-    ? section(t('myGames'), el('div', { class: 'by-day' }, [...byDay].map(([d, list]) => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { day: false })))]).flat()), {
+    ? section(t('myGames'), el('div', { class: 'by-day mine-list' }, [...byDay].map(([d, list]) => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { day: false })))]).flat()), {
         action: el('span', { class: 'q-tag tint', text: L({ zh: `${TV_DAYS} 天`, en: `${TV_DAYS} days` }) })
       })
     : null;

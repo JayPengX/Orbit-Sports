@@ -81,6 +81,10 @@ img { max-width: 100%; }
 .page { --q-margin: 16px; padding: 4px var(--q-margin) calc(40px + var(--q-nav)); }
 /* One head per tab: the small line over the large title, an action at the right. */
 .sp-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+/* The title close over what it names (Jay 2026-11-03, 追蹤: "what's that weird gap for": the head's 16 px, the title's 8 and the section's 24 stacked into 48). */
+.q-page-head.sp-head { padding-bottom: 0; }
+.sp-head .q-nav-title { padding-bottom: 4px; }
+.sp-head + .q-section { margin-top: 12px; }
 .sp-head-text { min-width: 0; }
 .sp-head h1 { overflow-wrap: anywhere; }
 /* (The head already sits in the page's margin: the large title's own 16 px each side only pushed it in and cut it.) */
@@ -118,7 +122,9 @@ img { max-width: 100%; }
 /* A game called off: not a button (openEvent), still read as the others. */
 :is(.event-row, .tf-game, .res-row, .wk-card, .tvg-body, .score-card):disabled { color: inherit; opacity: 1; cursor: default; }
 /* A followed team's game: the app's colour down its edge. */
-.event-row.mine::after { content: ''; position: absolute; left: 0; top: 16px; bottom: 16px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+/* A game of the person's own, in a list of all: a small star by its time, quiet (no orange strip down its edge, Jay 2026-11-03). */
+.event-row.mine .event-meta::before { content: '★'; display: block; margin-bottom: 2px; font-size: 10px; line-height: 1; color: var(--q-text-2); }
+.mine-list .event-row.mine .event-meta::before { content: none; }
 .event-meta { display: grid; justify-items: start; align-content: center; min-width: 0; }
 .event-status { max-width: 100%; color: var(--q-label-2); font: 600 13px/1.25 var(--q-font); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .event-status.pre { color: var(--q-label); font: 600 18px/1.15 var(--q-font-rounded); letter-spacing: -0.01em; }
@@ -143,11 +149,8 @@ img { max-width: 100%; }
 .side.win .side-name { font-weight: 600; }
 .side .logo:not(.round):not(.logo-fallback):not(.logo-flag) { width: 30px; height: 30px; padding: 3px; border-radius: 9px; background: var(--q-fill-4); object-fit: contain; }
 .side :is(.logo.round, .logo-fallback, .logo-flag, .driver-badge) { width: 30px; height: 30px; font-size: 13px; }
-.home-pic { position: relative; display: inline-flex; flex: none; }
-.home-mark { position: absolute; right: -5px; bottom: -5px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--q-label); color: var(--q-surface); box-shadow: 0 0 0 2px var(--q-surface); }
-.home-mark svg { width: 10px; height: 10px; fill: currentColor; }
-.mh-team .home-mark { right: -3px; bottom: -3px; width: 22px; height: 22px; }
-.mh-team .home-mark svg { width: 13px; height: 13px; }
+.home-mark { display: inline-block; width: 0.72em; height: 0.72em; margin-inline-start: 0.3em; vertical-align: 0.02em; opacity: 0.6; }
+.home-mark svg { display: block; width: 100%; height: 100%; fill: currentColor; }
 .side-name { flex: 1 1 auto; min-width: 0; display: -webkit-box; overflow: hidden; font: 500 16px/1.25 var(--q-font); overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .side-score { flex: none; min-width: 24px; text-align: right; font: 500 20px/1 var(--q-font-rounded); font-variant-numeric: tabular-nums; }
 .event-row.live .side-score { color: var(--live); }
@@ -176,7 +179,7 @@ img { max-width: 100%; }
 .watch-row.in-meta > .watch-btn { position: absolute; z-index: 1; left: 16px; bottom: 14px; }
 .watch-row:not(.in-meta) { display: flex; flex-direction: column; }
 .watch-row:not(.in-meta) > .watch-btn { align-self: flex-end; margin: 0 16px 14px; }
-.watch-btn { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 7px 12px 7px 10px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); line-height: 1.1; text-decoration: none; }
+.watch-btn { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 7px 12px 7px 10px; border-radius: 999px; background: var(--q-fill-3); color: var(--q-label, var(--q-text)); line-height: 1.1; text-decoration: none; }
 .watch-play { flex: none; width: 0; height: 0; border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent currentColor; }
 .watch-text { display: grid; }
 .watch-text strong { font-size: 13px; font-weight: 600; }
@@ -252,13 +255,13 @@ img { max-width: 100%; }
 /* First run: the sports as colour tiles, tapped in order. */
 .sport-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .sport-card { --t: var(--accent); position: relative; display: grid; align-content: space-between; gap: 18px; min-height: 132px; padding: 14px; border: 0; border-radius: 22px; background: radial-gradient(120% 120% at 100% 0%, color-mix(in srgb, var(--t) 55%, #fff), transparent 60%), linear-gradient(150deg, color-mix(in srgb, var(--t) 70%, #000), var(--t)); box-shadow: 0 14px 28px -20px var(--t); color: #fff; text-align: left; }
-.sport-card.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.sport-card.on { box-shadow: inset 0 0 0 2px var(--q-label, #fff); }
 .sc-marks { display: flex; }
 .sport-card .league-badge { --s: 34px; box-shadow: 0 0 0 2px var(--q-surface), inset 0 0 0 1px var(--q-sep); }
 .sport-card .league-badge + .league-badge { margin-left: -10px; }
 .sc-label { font: 600 20px/24px var(--q-font); }
 .sc-badge { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--q-fill-3); color: var(--q-label-2); font: 600 16px/1 var(--q-font-rounded); }
-.sport-card.on .sc-badge { background: var(--accent); color: var(--accent-ink); }
+.sport-card.on .sc-badge { background: var(--q-label, #fff); color: var(--q-bg, #000); }
 .sp-count { color: var(--q-muted); font: 600 15px/1 var(--q-font); }
 .sp-done { margin-top: 16px; }
 /* Chips that wrap. */
@@ -313,7 +316,7 @@ img { max-width: 100%; }
 .tvg-ch i { font-style: normal; opacity: 0.75; }
 .tvg-ch.mine { color: var(--q-label); }
 .tvg-ch.tbd { font-weight: 500; }
-.tvg-watch { flex: none; padding: 8px 14px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font: 600 13px/1 var(--q-font); text-decoration: none; }
+.tvg-watch { flex: none; padding: 8px 14px; border-radius: 999px; background: var(--q-fill-3); color: var(--q-label, var(--q-text)); font: 600 13px/1 var(--q-font); text-decoration: none; }
 .skel-hero { height: 232px; border-radius: 22px; background: var(--q-fill-3); }
 .live-shape .q-card { margin-top: 28px; }
 
@@ -360,12 +363,12 @@ img { max-width: 100%; }
 /* Matches followed on their own: the row, ★ at its right to let go. */
 .fg-row { display: flex; align-items: stretch; }
 .fg-row > :first-child { flex: 1; min-width: 0; }
-.fg-off { flex: none; width: 44px; padding: 0; border: 0; background: none; color: var(--accent); font-size: 20px; }
+.fg-off { flex: none; width: 44px; padding: 0; border: 0; background: none; color: var(--q-text-2); font-size: 20px; }
 /* Nothing followed: popular teams, colour-washed tiles, a tap each. */
 .suggest-tile { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px var(--q-sep, rgba(0,0,0,.08)); }
 .suggest-tile .logo, .suggest-tile .logo.sm { width: 32px; height: 32px; border-radius: 0; background: none; object-fit: contain; }
-.suggest-add { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--wash-accent, rgba(0,0,0,.06)); color: var(--q-accent); font: var(--q-t-headline); font-weight: 600; }
-.suggest.on .suggest-add { background: var(--q-accent); color: var(--q-accent-ink, #fff); }
+.suggest-add { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--q-fill-3); color: var(--q-text); font: var(--q-t-headline); font-weight: 600; }
+.suggest.on .suggest-add { background: var(--q-label, #fff); color: var(--q-bg, #000); }
 
 /* Narrow phones: the time column and a followed card's rows give way first. */
 @media (max-width: 359px) {
@@ -484,7 +487,7 @@ table.box tfoot th.left { position: sticky; left: 0; background: var(--q-surface
 .gn-line b { font-size: 12px; font-weight: 600; color: var(--q-muted); }
 .gn-line span { color: var(--q-text); overflow-wrap: anywhere; }
 table.box .sort-btn { all: unset; display: block; box-sizing: border-box; width: 100%; padding: 6px 7px; text-align: right; cursor: pointer; color: inherit; font: inherit; }
-table.box th.sortable.on { color: var(--accent); }
+table.box th.sortable.on { color: var(--q-text); }
 /* (The arrow drawn in the cell's own padding, under its name: the column never widens, nothing moves.) */
 table.box th.sortable.on .sort-btn::after { content: '▼'; position: absolute; right: 7px; bottom: 0; font-size: 7px; line-height: 1; }
 table.box th.sortable[aria-sort='ascending'] .sort-btn::after { content: '▲'; }
@@ -504,7 +507,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .linescore.innings tr > :last-child { width: 42px; }
 .linescore .total { font-weight: 600; }
 .linescore .ls-who { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; vertical-align: middle; line-height: 1.2; }
-.standings tr.mine > * { background: var(--accent-wash); }
+.standings tr.mine > * { background: var(--q-fill-4); }
 .rank-cell { color: var(--q-muted); width: 28px; }
 .team-link { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-bars { display: grid; gap: 12px; }
@@ -522,7 +525,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 @media (max-width: 359px) { .plays li { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; padding: 9px 12px; } .plays .play-text { gap: 9px; } }
 /* A long game (an NBA game's 500-odd rows): rows off screen aren't laid out until they're near, so the tab opens at once. */
 .plays > li { content-visibility: auto; contain-intrinsic-size: auto 52px; }
-.plays li.scoring { background: var(--accent-wash); }
+.plays li.scoring { background: var(--q-fill-4); }
 .plays li.scoring[style*='--side'] { background: color-mix(in srgb, var(--side) 9%, transparent); }
 .plays li.scoring .play-text { font-weight: 600; }
 .play-when { color: var(--q-muted); font-size: 12px; white-space: nowrap; }
@@ -568,7 +571,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .field li { display: grid; grid-template-columns: 28px auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--q-divider, var(--q-border)); font-size: 14px; }
 .field li:first-child { border-top: 0; }
 .pos { color: var(--q-muted); font-weight: 600; text-align: right; }
-.field li:nth-child(-n + 3) .pos { color: var(--accent); }
+.field li:nth-child(-n + 3) .pos { color: var(--q-text); font-weight: 600; }
 .field-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .field small { color: var(--q-muted); white-space: nowrap; }
 .sets { letter-spacing: 0.08em; }
@@ -597,7 +600,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .set-add .mini-h:first-child { margin-top: 0; }
 .set-empty { margin: 0 4px; }
 .set-league .q-logo { transition: box-shadow 0.2s; }
-.set-league.on .q-logo { box-shadow: 0 0 0 2.5px var(--q-accent); }
+.set-league.on .q-logo { box-shadow: 0 0 0 2.5px var(--q-label, #fff); }
 .set-acts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin-top: 14px; padding-top: 14px; border-top: var(--q-hairline, 1px) solid var(--q-sep, rgba(0,0,0,.1)); }
 .q-rowcard .set-acts { margin: 0; padding: 4px 12px 12px; border-top: 0; padding-left: 64px; }
 .set-acts .q-btn { min-width: 0; padding: 0 8px; white-space: nowrap; }
@@ -651,7 +654,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .tw-watch-name strong { font-size: 16px; font-weight: 500; line-height: 1.25; }
 .tw-watch-name small { font-size: 13px; line-height: 1.3; color: var(--q-muted); }
 .tw-watch-name small.one-line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.tw-watch-go { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px 7px 11px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.tw-watch-go { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px 7px 11px; border-radius: 999px; background: var(--q-fill-3); color: var(--q-label, var(--q-text)); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .tw-watch-go .watch-play { border-width: 4.5px 0 4.5px 7px; }
 .stack.tight { gap: 10px; }
 /* A season's results: the race or match (two lines if need be), its result on the right. */
@@ -672,7 +675,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .leader { display: grid; gap: 1px; padding: 6px 0; border-top: 1px solid var(--q-divider, var(--q-border)); min-width: 0; }
 .leader small { color: var(--q-muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .leader span { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.leader b { color: var(--accent); }
+.leader b { color: var(--q-text); }
 .series-text { font-size: 14px; }
 .injuries { display: grid; gap: 10px; }
 .sb-group { margin: 10px 0 -2px; }
@@ -803,6 +806,9 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 /* Short by design (the play, then its details small under it); a rare long name breaks between words, never cut. */
 .play-main { overflow-wrap: anywhere; }
 .play-sub { overflow-wrap: anywhere; font-size: 11.5px; font-weight: 600; color: var(--q-muted); }
+.play-who { display: block; font-weight: 600; overflow-wrap: normal; white-space: nowrap; overflow: hidden; }
+.play-line { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; min-width: 0; font-size: 13.5px; color: var(--q-text-2); }
+.play-line > .play-sub { font-size: 11.5px; }
 .play-face { position: relative; display: inline-grid; flex: none; }
 .play-text .play-face .logo.play-badge { position: absolute; right: -4px; bottom: -3px; width: 14px; height: 14px; padding: 1px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px var(--q-surface, #1c1c1e); object-fit: contain; }
 .cmp-row > strong { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
@@ -834,7 +840,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .standings.compact .nm-short { display: inline; }
 @media (max-width: 360px) { .standings .gp { display: none; } .standings th, .standings td { padding-inline: 4px; } }
 /* People in races, tournaments and fights */
-.field li.mine { background: var(--accent-wash); }
+.field li.mine { background: var(--q-fill-4); }
 /* A leader's line: the name, then the numbers under it (never cut). */
 .leader > span { display: block; min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; }
 .leader > span strong { display: block; overflow-wrap: anywhere; }
@@ -886,6 +892,9 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .lg-how { font-size: 12px; color: var(--q-text-2, var(--q-muted)); font-weight: 600; }
 /* An assist: the player's small face and name, a tap to their page. */
 .lg-help { display: flex; min-width: 0; }
+.lp-goals .lg-name.lg-who-name { display: block; overflow-wrap: normal; }
+.lg-line { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; min-width: 0; font-size: 13.5px; color: var(--q-text-2); }
+.lp-goals .lg-line > .one-line { white-space: normal; overflow: visible; }
 .lg-assist { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 0; border: 0; background: none; color: var(--q-muted); font: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .lg-assist .logo { width: 18px; height: 18px; flex: none; }
 .lg-assist.tap:active { opacity: .6; }
@@ -926,7 +935,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .next-race-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
 .next-race-text strong { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .next-race-text small { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.next-race-soon { flex: none; padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--q-accent, #ea580c) 16%, transparent); color: var(--q-accent, #ea580c); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.next-race-soon { flex: none; padding: 4px 10px; border-radius: 999px; background: var(--q-fill-3); color: var(--q-text); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .next-race-head::after { content: '›'; flex: none; color: var(--q-muted); font-size: 20px; line-height: 1; }
 .next-race-sessions { display: grid; gap: 4px; }
 .nr-sess { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px 6px 8px; border-radius: 10px; background: var(--q-sunken); min-width: 0; }
@@ -950,7 +959,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .mate-who strong { max-width: 100%; font-size: 12.5px; font-weight: 600; line-height: 1.25; text-align: center; white-space: normal; text-wrap: balance; overflow-wrap: anywhere; }
 .mate-who .logo.round { object-position: center 18%; }
 .mate-them { cursor: pointer; }
-.mate-them strong { color: var(--q-accent, #ea580c); }
+.mate-them strong { color: var(--q-text); }
 .mate-grid > strong.num { text-align: center; font-size: 17px; color: var(--q-text-2); }
 .mate-grid > strong.mate-win { color: var(--q-text); }
 .mate-grid .mate-k { color: var(--q-text-2); }
@@ -1020,7 +1029,7 @@ table.game-log .split-name { white-space: nowrap; position: sticky; left: 0; z-i
 .sess-head strong, .sess-head h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sess-head h3 { margin: 0; }
 .sess-tag { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; line-height: 1; padding: 4px 8px 4px 6px; border-radius: 999px; white-space: nowrap; }
-.sess-tag.race { background: var(--accent); color: #fff; }
+.sess-tag.race { background: var(--q-label, var(--q-text)); color: var(--q-bg, #000); }
 .sess-tag.qual { background: color-mix(in srgb, #3b82f6 16%, transparent); color: #1d4ed8; }
 .sess-tag.sprint { background: color-mix(in srgb, #a855f7 16%, transparent); color: #7e22ce; }
 .sess-tag.sq { background: color-mix(in srgb, #14b8a6 16%, transparent); color: #0f766e; }
@@ -1072,11 +1081,11 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .replay-icon { flex: none; width: 40px; height: 40px; border-radius: 10px; display: block; background: url(data:image/webp;base64,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) center / cover no-repeat; }
 /* One kept off screen from the start: the image decoded before any row needs it. */
 .replay-icon-keep { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.replay-go { flex: none; padding: 7px 12px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.replay-go { flex: none; padding: 7px 12px; border-radius: 999px; background: var(--q-fill-3); color: var(--q-label, var(--q-text)); font-size: 13px; font-weight: 600; white-space: nowrap; }
 /* The channel's 回看 beside a video in Chinese only: the same row, quieter. */
 .replay-link.alt { padding: 9px 14px; background: var(--q-surface); }
 .replay-link.alt .replay-icon { width: 32px; height: 32px; border-radius: 8px; margin: 0 4px; }
-.replay-link.alt .replay-go { background: none; color: var(--accent); padding: 7px 0; }
+.replay-link.alt .replay-go { background: none; color: var(--q-text-2); padding: 7px 0; }
 /* A replay not up on ELTA.tv yet: said, nothing to tap. */
 .replay-link.none { background: var(--q-surface); border-color: var(--q-border); }
 .replay-link.none strong { color: var(--q-muted); }
@@ -1118,7 +1127,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .wk-card-name { flex: 1 1 auto; min-width: 0; font: 600 17px/22px var(--q-font, system-ui); letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wk-card-head .wk-card-line { font-size: 13px; line-height: 17px; color: var(--q-label-2, var(--q-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wk-when { flex: none; font-size: 13px; line-height: 17px; color: var(--q-label-2, var(--q-muted)); white-space: nowrap; }
-.wk-when.soon { color: var(--q-accent); font-weight: 600; }
+.wk-when.soon { color: var(--q-text); font-weight: 600; }
 .wk-when.live { color: var(--q-live, #ff3b30); font-weight: 600; }
 /* The days: a column a day, a hairline above; the day of what's next on a soft plate. */
 .wk-days { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 4px; padding-top: var(--q-s-3, 12px); border-top: 0.5px solid var(--q-separator, var(--q-divider)); }
@@ -1126,13 +1135,13 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .wk-day.now { background: color-mix(in srgb, var(--q-label) 6%, transparent); }
 .wk-day-k { display: grid; gap: 1px; font-size: 12px; line-height: 15px; color: var(--q-label-2, var(--q-muted)); white-space: nowrap; }
 .wk-day-k b { font-weight: 600; color: var(--q-label); }
-.wk-day-k.today b { color: var(--q-accent); }
+.wk-day-k.today b { color: var(--q-text); }
 .wk-sess { display: grid; gap: 1px; min-width: 0; }
 .wk-sess small { font-size: 12px; line-height: 15px; color: var(--q-label-2, var(--q-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wk-sess-t { font: 400 19px/23px var(--nv-display, var(--q-font, system-ui)); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
 .wk-sess.race small { color: var(--q-label); font-weight: 600; }
 .wk-sess.race .wk-sess-t { font-weight: 500; }
-.wk-sess.next small, .wk-sess.next .wk-sess-t { color: var(--q-accent); }
+.wk-sess.next small, .wk-sess.next .wk-sess-t { color: var(--q-text); font-weight: 600; }
 .wk-sess.live .wk-sess-t { font: 600 15px/23px var(--q-font, system-ui); color: var(--q-live, #ff3b30); }
 .wk-sess.done { opacity: 0.45; }
 @media (max-width: 359px) { .wk-card { padding: 12px; } .wk-day { padding: 8px 4px 10px; } .wk-sess-t { font-size: 17px; } }
@@ -1220,11 +1229,9 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .hc-brief .f1-brief-head, .hc-brief .f1-brief-top li { color: #fff; font-size: 14px; }
 .hc-brief .f1-brief-top .pos, .hc-brief .f1-brief-v { color: rgba(255, 255, 255, 0.75); }
 /* ---- Basketball live: each side's top scorer as baseball's batter and pitcher, then the last plays ---- */
-.lp-bb { grid-template-columns: 1fr 1fr; gap: 10px; }
+.lp-bb { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .lp-bb .lp-person { align-items: flex-start; }
 .lp-bb small, .lp-bb strong { white-space: normal; overflow-wrap: anywhere; }
-/* (A 320 phone: the two one under the other, so a long name keeps its line.) */
-@media (max-width: 359px) { .lp-bb { grid-template-columns: minmax(0, 1fr); } }
 .lp-bb strong.lp-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
 .live-panel .lp-bb .lp-line { font-size: 12px; font-weight: 600; color: var(--q-text-2); white-space: nowrap; overflow-wrap: normal; }
 .lp-feed-h { font-size: 11px; color: var(--q-muted); font-weight: 600; }
@@ -1232,13 +1239,13 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .lp-feed li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .lp-feed li .play-when { color: var(--q-muted); font-weight: 600; }
 .lp-feed li b { color: var(--q-text); font-weight: 600; }
-.lp-feed li strong { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--accent-wash); color: var(--accent); }
+.lp-feed li strong { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--q-fill-3); color: var(--q-text); }
 /* Soccer's latest goal on a card: the scorer's face, a ball at its bottom right. */
 .live-scorer { position: relative; flex: none; display: inline-grid; padding: 0 4px 3px 0; }
 .live-scorer .scorer-ball { position: absolute; right: 0; bottom: 0; width: 17px; height: 17px; border-radius: 50%; background: var(--q-surface, #1c1c1e); font-size: 12px; line-height: 17px; text-align: center; overflow: hidden; }
 .live-who .scorer-club { flex: none; width: 16px; height: 16px; object-fit: contain; }
 .live-line.base.goal .live-text > .live-count { display: flex; gap: 6px; align-items: baseline; }
-.live-line.goal .live-min { color: var(--accent); font-weight: 600; }
+.live-line.goal .live-min { color: var(--q-text); font-weight: 600; }
 /* ---- While live numbers are read: their shape in grey, then a soft fade in (nothing jumps) ---- */
 .skel-block { display: grid; gap: 7px; min-width: 0; }
 .skel { display: block; height: 11px; border-radius: 6px; background: linear-gradient(90deg, var(--q-sunken) 25%, color-mix(in srgb, var(--q-sunken) 45%, var(--q-surface)) 50%, var(--q-sunken) 75%); background-size: 200% 100%; animation: skel 1.3s ease-in-out infinite; }
@@ -1266,8 +1273,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .lp-person > .skel-block { flex: 1; }
 /* ---- The playoffs: a map swiped across, a column a round, the later rounds between the ties that feed them ---- */
 .playoffs { display: grid; gap: 10px; margin-top: 4px; }
-.po-banner { margin: 0; padding: 9px 12px; border-radius: 12px; background: var(--accent-wash); font-size: 13px; line-height: 1.4; color: var(--q-text-2); }
-.po-banner strong { color: var(--accent); }
+.po-banner { margin: 0; padding: 9px 12px; border-radius: 12px; background: var(--q-fill-4); font-size: 13px; line-height: 1.4; color: var(--q-text-2); }
+.po-banner strong { color: var(--q-text); }
 .bracket { position: relative; display: flex; gap: 18px; overflow-x: auto; margin: 0 calc(-1 * var(--q-margin, 16px)); padding: 2px var(--q-margin, 16px) 14px; scroll-padding-inline: var(--q-margin, 16px); scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
 .br-col { flex: 0 0 184px; display: flex; flex-direction: column; scroll-snap-align: start; }
 .br-head { position: sticky; top: 0; display: grid; gap: 1px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--q-border); }
@@ -1384,8 +1391,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
   height: 26px;
   margin-top: -2px;
   border-radius: 8px;
-  background: var(--q-accent-wash);
-  color: var(--q-accent);
+  background: var(--q-fill-3);
+  color: var(--q-text);
 }
 .race-line.won .race-g {
   background: color-mix(in srgb, #d4a106 18%, transparent);
@@ -1442,7 +1449,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .tie-said.live { color: var(--q-live, #ff5a5f); }
 .tie-game + .tie-game { border-top: 1px solid var(--q-divider, var(--q-border)); }
 .tie-gn { display: block; padding: 9px 14px 0; font-size: 12px; font-weight: 600; color: var(--q-muted); }
-.wp-mo.on { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 8px; }
+.wp-mo.on { background: var(--q-fill-4); border-radius: 8px; }
 /* An F1 session's card: the circuit, then the day and start with the titles' time, one line each. */
 .sess-line { display: flex; gap: 6px; margin: 0 0 4px; min-width: 0; white-space: nowrap; }
 .sess-when { flex: none; }
@@ -1458,8 +1465,9 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .q-seg.views.stat-part { width: min(240px, 100%); margin: 4px auto 12px; }
 /* The one follow button (sheets.js followButton): a small pill, the app's
    colour until followed, then quiet with a tick; the same on every page. */
-.follow-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent, #fff); font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
-.follow-btn.on { background: var(--accent-wash); color: var(--accent); }
+.follow-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--q-fill-3); color: var(--q-label, var(--q-text)); font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+/* 追蹤 in graphite, never an orange pill (Jay 2026-11-03: "look cheap"); once followed, quiet words. */
+.follow-btn.on { background: transparent; box-shadow: inset 0 0 0 1px var(--q-fill-2); color: var(--q-text-2); }
 .mh-side .follow-btn { margin-top: 8px; }
 /* 勝率走勢: each side's logo in a column beside the chart (home at the top,
    away at the bottom, as the halves are coloured), the marks under it lined up. */
@@ -1762,7 +1770,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .fs-weather strong { font-size: 14px; font-weight: 600; }
 .dc-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 0; border-radius: 999px; background: var(--q-sunken); color: var(--q-text); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .dc-toggle small { color: var(--q-muted); font-weight: 600; }
-.dc-toggle[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
+.dc-toggle[aria-expanded="true"] { background: var(--q-fill-3); color: var(--q-text); }
 .dc-picker { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px 4px; padding-bottom: 6px; border-bottom: 1px solid var(--q-divider, rgba(127,127,127,.2)); }
 .dc-pick { display: grid; justify-items: center; gap: 3px; padding: 5px 0 4px; border: 0; border-radius: 12px; background: none; color: var(--q-muted); font: inherit; cursor: pointer; }
 .dc-pick small { font-size: 10.5px; font-weight: 600; white-space: nowrap; }
@@ -1872,7 +1880,7 @@ button.lp-person.tap:active { opacity: 0.6; }
 .f1-sub .gain.down { color: var(--q-bad, #f87171); }
 .f1-res { gap: 2px; }
 .f1-main { font-size: 15px; font-weight: 600; }
-.f1-field li:first-child .f1-main { color: var(--accent); }
+.f1-field li:first-child .f1-main { color: var(--q-text); }
 .f1-aside { font-size: 12px; font-weight: 600; color: var(--q-muted); white-space: nowrap; }
 .f1-laps { font-size: 12px; color: var(--q-muted); white-space: nowrap; }
 /* A name whole where it fits, the surname where it doesn't (fitName): the box it's measured in. */
@@ -2033,7 +2041,7 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .lb-name strong { font-size: 14.5px; }
 .lb-name small { color: var(--q-muted); font-size: 12px; }
 .lb-name .team-tag { display: inline-flex; align-items: center; gap: 4px; }
-.lb-value { color: var(--accent); font-size: 16px; font-weight: 600; }
+.lb-value { color: var(--q-text); font-size: 16px; font-weight: 600; }
 /* A row held while the whole list comes (sheets.js lbHeld): the size of the row coming, so the list fills in place. */
 .lb-skel .lb-rank { width: 12px; justify-self: center; }
 .lb-skel .skel-pic { width: 22px; height: 22px; }
@@ -2075,7 +2083,7 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 /* The game open now, among its series' meetings. */
 /* This game among them: a small 本場 tag where the others' arrow is, the row itself as the rest (Jay 2026-10-31: the raised box looked off). */
 .ls-game.now { cursor: default; opacity: 1; }
-.ls-game.now .ls-chev { font-size: 11px; font-weight: 600; color: var(--accent); white-space: nowrap; }
+.ls-game.now .ls-chev { font-size: 11px; font-weight: 600; color: var(--q-text-2); white-space: nowrap; }
 .ls-date { color: var(--q-label-2); font-size: 13px; }
 .ls-side { display: inline-flex; align-items: center; gap: 10px; color: var(--q-label-2); font-size: 17px; }
 .ls-side.right { justify-self: end; }
@@ -2157,7 +2165,7 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .tw-head small { font-size: 12px; font-weight: 600; }
 .tw-h-gap { justify-self: end; border: 0; background: var(--q-sunken, rgba(127,127,127,.12)); color: var(--q-text); border-radius: 999px; padding: 3px 10px; font: 600 12px/1.4 inherit; cursor: pointer; white-space: nowrap; }
 .tw-h-gap i { font-style: normal; color: var(--q-muted); }
-.f1-field .tw-head + li .f1-main { color: var(--accent); }
+.f1-field .tw-head + li .f1-main { color: var(--q-text); }
 
 /* A race weekend's hero (the kit's hero card, DESIGN.md: one coloured
    surface, its focus the countdown open on it, no boxes inside): the flag,
@@ -2205,7 +2213,7 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .wkt { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); column-gap: 0; row-gap: var(--q-s-1, 4px); padding: var(--q-s-3, 12px) var(--q-s-2, 8px) var(--q-s-2, 8px); }
 .wkt-day { position: relative; margin: 0 4px; padding-bottom: 4px; text-align: center; font-size: 12px; font-weight: 400; color: var(--q-muted); white-space: nowrap; border-bottom: 1px solid var(--q-divider); }
 .wkt-stop { position: relative; display: grid; justify-items: center; gap: 4px; min-width: 0; padding: 8px 0; border: 0; border-radius: var(--q-r-cell, 12px); background: none; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.wkt-stop[aria-pressed='true'] { background: var(--accent-wash); }
+.wkt-stop[aria-pressed='true'] { background: var(--q-fill-3); }
 /* The line through the stops: each half its own, darker once the session it leads from is over. */
 .wkt-stop::before, .wkt-stop::after { content: ''; position: absolute; top: 18px; height: 2px; background: var(--q-divider); }
 .wkt-stop::before { left: 0; right: 50%; }
@@ -2214,19 +2222,19 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .wkt-stop.from::before, .wkt-stop.to::after { background: var(--q-muted); }
 .wkt-dot { position: relative; z-index: 1; box-sizing: border-box; width: 20px; height: 20px; border-radius: 50%; background: var(--q-surface); border: 2px solid color-mix(in srgb, var(--q-muted) 55%, transparent); }
 .wkt-stop.done .wkt-dot { border: 0; background: var(--q-muted) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 10.3l3 3 6-6.4' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat; }
-.wkt-stop.next .wkt-dot { border: 2.5px solid var(--accent); }
+.wkt-stop.next .wkt-dot { border: 2.5px solid var(--q-text); }
 .wkt-stop.live .wkt-dot { border: 0; background: var(--live, #e11d48); animation: wkt-pulse 1.6s ease-out infinite; }
 @keyframes wkt-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live, #e11d48) 55%, transparent); } 100% { box-shadow: 0 0 0 9px transparent; } }
 /* 正賽: a chequered stop, ringed in its state's colour. */
 .wkt-stop.race .wkt-dot { border: 2px solid var(--q-text, #111); background: repeating-conic-gradient(#111 0 25%, #fff 0 50%) 50% / 7px 7px; }
-.wkt-stop.race.next .wkt-dot { border-color: var(--accent); }
+.wkt-stop.race.next .wkt-dot { border-color: var(--q-text); }
 .wkt-stop.race.live .wkt-dot { border-color: var(--live, #e11d48); }
 .wkt-stop.race.done .wkt-dot { border-color: var(--q-muted); }
 .wkt-name { max-width: 100%; font-size: 13px; font-weight: 400; color: var(--q-muted); white-space: nowrap; }
 .wkt-time { font-size: 16px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .wkt-stop.done .wkt-time { color: var(--q-muted); font-weight: 500; }
 .wkt-stop.race .wkt-name { color: var(--q-text); font-weight: 600; }
-.wkt-stop.next .wkt-name { color: var(--accent); font-weight: 600; }
+.wkt-stop.next .wkt-name { color: var(--q-text); font-weight: 600; }
 .wkt-stop.live .wkt-name { color: var(--live, #e11d48); font-weight: 600; }
 @media (max-width: 360px) { .wkt { padding-inline: 4px; } .wkt-day { margin: 0 2px; font-size: 11px; } .wkt-name { font-size: 12px; } .wkt-time { font-size: 15px; } }
 
@@ -2579,3 +2587,25 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 .story-flag.red { background: #e10600; color: #fff; }
 .story-flag.pen { background: var(--q-fill-2); color: var(--q-label-2, var(--q-muted)); }
 .f1-story-list .row-chev { color: var(--q-muted); }
+/* 數據領先 too narrow for faces and a whole name: the names, no faces (sheets.js leadWatch). */
+.leader-cols.no-face .leader { grid-template-columns: minmax(0, 1fr); }
+.leader-cols.no-face .leader > :first-child:not(.leader-text) { display: none; }
+/* 關鍵時刻 on a phone: the time and the score on a line above, who and what
+   below on the row's whole width, so a long name never shrinks or cuts (Jay 2026-11-03). */
+.lp-goals { container-type: inline-size; }
+@container (max-width: 440px) {
+  .lp-goals li { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+  .lp-goals li .lg-min { display: flex; gap: 6px; grid-column: 1; grid-row: 1; }
+  .lp-goals li .lg-score { grid-column: 2; grid-row: 1; font-size: 13.5px; }
+  .lp-goals li > .lg-who { grid-column: 1 / -1; grid-row: 2; }
+}
+.lp-goals .lg-line > .lg-sub.one-line { white-space: nowrap; overflow: visible; font-size: 12px !important; }
+.leader-cols.one-col { grid-template-columns: minmax(0, 1fr); }
+/* A 320 phone's plays: the score under the clock, so the name has the row's room
+   (one line, its surname alone only where even that won't fit). */
+@media (max-width: 359px) {
+  .plays li:not(.period-head):not(.run-mark) { grid-template-columns: 50px minmax(0, 1fr); row-gap: 2px; }
+  .plays li:not(.period-head):not(.run-mark) > .play-when { grid-column: 1; grid-row: 1; align-self: end; }
+  .plays li:not(.period-head):not(.run-mark) > strong.num { grid-column: 1; grid-row: 2; align-self: start; font-size: 12.5px; }
+  .plays li:not(.period-head):not(.run-mark) > .play-when + * { grid-column: 2; grid-row: 1 / span 2; }
+}

@@ -35,7 +35,7 @@ import { tieNotes } from './lib/tiebreak.mjs';
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, nextNeeds, standingsRace } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { moreToggle, goBar, f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, withHome, today, sidesOf } from './ui.js';
+import { moreToggle, goBar, f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, homeName, today, sidesOf } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -311,7 +311,7 @@ export async function openMatch(e) {
     const roundOnly = !stageTag(e, L()) && !seriesText(e) && Boolean(weekOf(e, () => headSm === sm && header.isConnected && paintHeader(sm)));
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
-        el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [withHome(sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), e, raw), el('strong', { text: raw.short || x.short || x.name })]),
+        el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), homeName(el('strong', { text: raw.short || x.short || x.name }), e, raw)]),
         rec(x, raw) ? el('small', { text: rec(x, raw) }) : x.guest || raw.guest ? el('small', { text: GUEST_FROM[raw.en || raw.name]?.[L() === 'en' ? 1 : 0] || (L() === 'en' ? 'Guest club' : '表演賽客隊') }) : null,
         // A guest club's game: neither side's follow here (the two sides even), the league side's under the score.
         hasTeamPage(e.league) && !guestGame ? followChip(e.league, x, () => paintHeader(sm)) : null
@@ -628,7 +628,8 @@ function whyOf(list, x) {
 }
 
 // Basketball: each side's top scorer (the face, then who and their line, the team fouls), live or over.
-// The name on one line: G. Antetokounmpo, the surname alone where that won't fit (Jay 2026-11-03).
+// One side a row, the card's whole width (Jay 2026-11-03: two side by side cut
+// "Gilgeous-Alexa…"): the team, the name whole, then the line and the team fouls.
 function topScorers(e, sm) {
   if (!sm?.players?.length) return null;
   const en = L() === 'en';
@@ -647,7 +648,7 @@ function topScorers(e, sm) {
       const t = top(id);
       const name = sm.byId[id]?.short || sm.byId[id]?.name || '';
       const f = fouls ? (id === e.away.id ? fouls.away : fouls.home) : '';
-      return lpPerson(e.league, t && { id: t.id, name: t.name }, [t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, el('p', {}, [el('small', {}, [teamTag(sm.byId[id] || [e.away, e.home].find(t => t.id === id), `${name} · ${en ? 'top scorer' : '得分王'}`, e.league, { tap: false })]), t?.name ? fitName(el('strong', { class: 'lp-name' }), t.name, t.name) : el('strong', { text: '–' }), t?.line ? el('small', { class: 'num lp-line', text: t.line }) : null, f !== '' ? el('small', { class: 'num', text: `${en ? 'Team fouls' : '全隊犯規'} ${f}` }) : null])]);
+      return lpPerson(e.league, t && { id: t.id, name: t.name }, [t ? personPic({ id: t.id, name: t.name }, e.league, 'md round') : null, el('p', {}, [el('small', {}, [teamTag(sm.byId[id] || [e.away, e.home].find(t => t.id === id), `${name} · ${en ? 'top scorer' : '得分王'}`, e.league, { tap: false })]), t?.name ? fitName(el('strong', { class: 'lp-name' }), t.name, t.name) : el('strong', { text: '–' }), t?.line || f !== '' ? el('small', { class: 'num lp-line', text: [t?.line, f !== '' ? `${en ? 'Team fouls' : '全隊犯規'} ${f}` : ''].filter(Boolean).join(' · ') }) : null])]);
     };
   return el('div', { class: 'lp-who lp-bb' }, inOrder(e, [e.away, e.home]).map(t => person(t.id)));
 }
@@ -777,6 +778,8 @@ function assistTag(league, pic, name) {
   return can ? el('button', { class: 'lg-assist tap', type: 'button', 'aria-label': pic.name || name, onclick: ev => (ev.stopPropagation(), ctx.openPlayer(league, String(pic.id), { name: pic.name, logo: pic.headshot })) }, body) : el('span', { class: 'lg-assist' }, body);
 }
 // Who helped on a play (a goal's assist, a basket's), each a face and a name.
+// A play said "S. Gilgeous-Alexander 跳投不進": who (Latin letters) and what (Chinese), to draw on two lines.
+const PLAY_WHO = /^([A-Z][\p{Script=Latin}\p{M}'.\-\u00a0 ]*[\p{Script=Latin}.])\s+(\p{Script=Han}.*)$/u;
 const helpersLine = (league, helpers) => (helpers?.length ? fitLine(el('span', { class: 'lg-sub lg-help' }, helpers.slice(0, 2).map(h => assistTag(league, h.pic, h.name)))) : null);
 // How a game went, under its scoreboard, the same live and over (the
 // owner, 2026-10-18: a game on had its goals there, one over had nothing):
@@ -831,7 +834,11 @@ export function storyRows(e, sm) {
       const back = p.reb ? [p.reb.who || '', en ? (off ? 'off. rebound' : 'rebound') : off ? '進攻籃板' : '籃板'].filter(Boolean).join(' ') : '';
       const rebTeam = p.reb && [e.home, e.away].find(t => String(t.id) === p.reb.team);
       const under = p.empty ? (back ? fitLine(el('small', { class: 'lg-sub' }, [rebTeam ? teamTag(rebTeam, back, e.league, { tap: false }) : document.createTextNode(back)])) : fitLine(el('small', { class: 'lg-sub' }, [teamTag(team, tname, e.league, { tap: false })]))) : null;
-      const who = [pic, el('span', { class: 'lg-text' }, [fitLine(el('span', { class: 'lg-name', text: p.empty ? (en ? sentence(p.text) : playParts(feedText(sport, p, false, tname), '').main) : main })), under || helper || fitLine(el('small', { class: 'lg-sub' }, [teamTag(team, sport === 'baseball' && sub ? sub : [tname, sub].filter(Boolean).join(' · '), e.league, { tap: false })]))])];
+      const said = p.empty ? (en ? sentence(p.text) : playParts(feedText(sport, p, false, tname), '').main) : main;
+      const second = under || helper || fitLine(el('small', { class: 'lg-sub' }, [teamTag(team, sport === 'baseball' && sub ? sub : [tname, sub].filter(Boolean).join(' · '), e.league, { tap: false })]));
+      // Who on a line of their own, what they did and the rest under it (as 過程's rows: never a long name squeezed smaller, Jay 2026-11-03).
+      const split = !en && sport === 'basketball' ? PLAY_WHO.exec(said) : null;
+      const who = [pic, el('span', { class: 'lg-text' }, split ? [el('span', { class: 'lg-name lg-who-name', text: split[1] }), el('span', { class: 'lg-line' }, [el('span', { class: 'lg-what', text: split[2] }), second])] : [fitLine(el('span', { class: 'lg-name', text: said })), second])];
       const can = p.pic?.id && LEAGUES[e.league]?.espn && /^\d+$/.test(String(p.pic.id));
       return el('li', { class: `lg-${s2}${p.empty ? ' lg-empty' : ''}` }, [
         el('span', { class: 'lg-min num' }, [when(p)].flat().map(x => el('span', { text: x }))),
@@ -1547,9 +1554,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     leaders: leadersBy.some(x => x.length)
       ? card(
           T('leaders'),
-          el(
-            'div',
-            { class: 'leader-cols' },
+          leaderCols(
             leadersBy.map((list, i) =>
               el('div', {}, [
                 el('p', { class: 'mini-h' }, [teamTag(sides[i], sides[i].short || sides[i].name, e.league)]),
@@ -1649,10 +1654,13 @@ function seasonLeadCard(lead, e) {
     ]);
   return card(
     en ? 'Season leaders' : '本季數據領先',
-    el('div', { class: 'leader-cols' }, [
-      ...inOrder(e, [e.away, e.home]).map(t => el('p', { class: 'mini-h' }, [teamTag(t, t.short || t.name, e.league)])),
-      ...both.flatMap(st => inOrder(e, [side(st, st.list[0]), side(st, lead.h.stats.find(x => x.key === st.key).list[0])]))
-    ]),
+    // (A column a team, each under its name: on a phone too narrow for two, one above the other.)
+    leaderCols(
+      inOrder(e, [
+        { t: e.away, of: st => st.list[0] },
+        { t: e.home, of: st => lead.h.stats.find(x => x.key === st.key).list[0] }
+      ]).map(({ t, of }) => el('div', {}, [el('p', { class: 'mini-h' }, [teamTag(t, t.short || t.name, e.league)]), ...both.map(st => side(st, of(st)))]))
+    ),
     { sub: leadersSeason(lead.a, sport, en) }
   );
 }
@@ -2812,7 +2820,14 @@ function playLine(league, p, side) {
   const sub = whole(helpers.length ? String(parts.sub || '').split(' · ').filter(x => !helpers.some(h => h.name && x.includes(h.name.split(' ').at(-1)))).join(' · ') : parts.sub);
   const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge', { onWhite: true }) : null])) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
   // A play with neither (本節結束, 比賽結束): the league's mark, so every row has its picture.
-  return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(league)]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null, helpers.length ? helpersLine(league, helpers) : null])]);
+  // Who on a line of their own, what they did under it with the rest
+  // (Jay 2026-11-03: "S. Gilgeous-Alexander 跳投不進" crammed on one line):
+  // every play the same two lines, a long name given the row's whole width.
+  const split = PLAY_WHO.exec(main);
+  const words = split
+    ? [fitName(el('span', { class: 'play-main play-who' }), split[1], split[1]), el('span', { class: 'play-line' }, [el('span', { class: 'play-what', text: split[2] }), sub ? el('small', { class: 'play-sub', text: sub }) : null, helpers.length ? helpersLine(league, helpers) : null])]
+    : [el('span', { class: 'play-main', text: main }), sub ? el('small', { class: 'play-sub', text: sub }) : null, helpers.length ? helpersLine(league, helpers) : null];
+  return el('span', { class: `play-text${face ? ' has-face' : ''}` }, [face || el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(league)]), el('span', { class: 'play-words' }, words)]);
 }
 
 // Where to watch in Taiwan: a game's own channels (a schedule's: the
@@ -3390,6 +3405,36 @@ const fitWatch = typeof ResizeObserver === 'function'
       }
     })
   : null;
+// The leaders' columns (數據領先): every name whole on one line. Where even a
+// surname won't fit beside the faces (a 320 phone's two columns), the card
+// drops its faces, all of them; where even that won't do, one column.
+const fitOne = n => {
+  n.textContent = n.dataset.full;
+  if (overflows(n)) n.textContent = n.dataset.short;
+  if (overflows(n)) n.textContent = n.dataset.short.split(' ').at(-1);
+  return !overflows(n);
+};
+const leadWatch = typeof ResizeObserver === 'function'
+  ? new ResizeObserver(list => {
+      for (const { target: cols } of list) {
+        if (!cols.isConnected) continue;
+        const names = [...cols.querySelectorAll('.leader-text strong.fit-name')];
+        if (!names.length) continue;
+        cols.classList.remove('no-face', 'one-col');
+        if (names.map(fitOne).every(Boolean)) continue;
+        cols.classList.add('no-face');
+        if (names.map(fitOne).every(Boolean)) continue;
+        // (Not even then, "Gilgeous-Alexander" on a 320 phone: one column, faces back.)
+        cols.classList.replace('no-face', 'one-col');
+        names.forEach(fitOne);
+      }
+    })
+  : null;
+const leaderCols = kids => {
+  const cols = el('div', { class: 'leader-cols' }, kids);
+  leadWatch?.observe(cols);
+  return cols;
+};
 // A name wider than its place among the five (a narrow phone): that name a
 // half point smaller at a time, down to 7.5px.
 const fiveWatch = typeof ResizeObserver === 'function'
@@ -5777,9 +5822,7 @@ export function teamLeadersCard(data, league) {
   const en = L() === 'en';
   return card(
     T('leaders'),
-    el(
-      'div',
-      { class: 'leader-cols' },
+    leaderCols(
       data.stats.map(st => {
         const x = st.list[0];
         return el('button', { class: 'leader', type: 'button', onclick: () => openLeader(league, x) }, [personPic({ ...x, name: x.full || x.name }, league, 'sm round'), el('span', { class: 'leader-text' }, [fitLine(el('small', { class: 'one-line', text: leaderLabel(st, sport, en) })), el('span', {}, [fitName(el('strong'), playerName(x.full || x.name, 'full', x.name), shortWords(x.full || x.name)), el('b', { class: 'num', text: x.value })])])]);

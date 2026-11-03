@@ -501,11 +501,16 @@ export const scoreText = v => (v == null || String(v).trim() === '' ? '–' : St
 // alone). None on neutral ground (a cup final, a World Cup's games).
 const HOME_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.4.6 6.1h1.7v4.5h2.8V7.7h1.8v2.9h2.8V6.1h1.7z"/></svg>';
 export const atHome = (e, side) => e?.kind === 'match' && !e.neutral && Boolean(side) && (side === e.home || side.homeAway === 'home' || (side.id != null && String(side.id) === String(e.home?.id)));
-export const withHome = (pic, e, side) => (atHome(e, side) ? el('span', { class: 'home-pic' }, [pic, el('span', { class: 'home-mark', role: 'img', 'aria-label': ctx.locale === 'en' ? 'Home' : '主場', html: HOME_ICON })]) : pic);
+// A home club is told by a small house after its name, in the name's own colour
+// (no disc stuck on the logo's corner, Jay 2026-11-03).
+export const homeName = (node, e, side) => {
+  if (atHome(e, side)) node.append(el('span', { class: 'home-mark', role: 'img', 'aria-label': ctx.locale === 'en' ? 'Home' : '主場', html: HOME_ICON }));
+  return node;
+};
 export function sideLine(side, e, win) {
   return el('div', { class: `side${win ? ' win' : ''}` }, [
-    withHome(sideLogo(side, e.league, 'sm'), e, side),
-    el('span', { class: 'side-name', text: side.short || side.name }),
+    sideLogo(side, e.league, 'sm'),
+    homeName(el('span', { class: 'side-name', text: side.short || side.name }), e, side),
     e.status.state !== 'pre' && !e.status.void ? el('strong', { class: 'side-score num', 'data-q-live': e.status.state === 'in' ? `sc:${e.league}:${e.id}:${side.id}` : null, text: e.status.state === 'post' && (side.score === '' || side.score == null) ? '' : scoreText(side.score) }) : null
   ]);
 }

@@ -190,5 +190,5 @@ html[data-look='native'] .standings tr.marked > :is(th.left, td.left:first-child
   background: linear-gradient(var(--q-sunken), var(--q-sunken)), var(--sp-pin);
 }
 html[data-look='native'] .standings tr.mine > :is(th.left, td.left:first-child) {
-  background: linear-gradient(var(--accent-wash), var(--accent-wash)), var(--sp-pin);
+  background: linear-gradient(var(--q-fill-4), var(--q-fill-4)), var(--sp-pin);
 }

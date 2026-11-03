@@ -103,6 +103,11 @@ couldn't be read is shown, never hidden.
     `waiting`), and 隊內排行's chips redraw only that list (`paintLb`), each
     stat's whole list read from FotMob and kept to the team's players. A
     player's 生涯車隊 / 生涯球隊 is held the same way (`careerKey`).
+  - Long names: `fitName` (full, short, surname) and the layout gives the row: a
+    play's who on its own line (`PLAY_WHO`; on a 320 phone the score under the
+    clock), 關鍵時刻's time and score above who; the leaders' columns
+    (`leaderCols`, `leadWatch`) drop their faces, else go one column. Never an
+    ellipsis. A home club: `homeName` (ui.js), a small house after the name.
   - Tile grids (`.stat-grid`) carry the kit's `.q-rows-full`: never a part
     row. A way on (全部球隊數據) is `ui.js goBar`, the kit's quiet bar.
 - **Win chance:** ESPN's line, else Polymarket's. A game to come: the
