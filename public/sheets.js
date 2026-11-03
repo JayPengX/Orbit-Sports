@@ -2792,6 +2792,8 @@ function twLines(b, e) {
   };
   const guess = e?.timeFrom === 'elta';
   const air = at => (guess ? (en ? `Expected ${when(at)}` : `預計 ${when(at)}`) : `${when(at)} ${en ? 'on air' : '開播'}`);
+  // Past ELTA's list: its guess, said so (its usual channel then, or only 愛爾達).
+  if (b.guess) return [[en ? 'Estimate' : '預估', b.ch ? audioName(b) : ''].filter(Boolean).join(en ? ', ' : '・'), en ? 'Updated once ELTA lists it' : '節目表公布後更新'];
   if (b.ch) return [b.audio === 'cam' ? camLine(e, b) : [audioName(b), b.adFree ? (en ? 'no ads' : '無廣告') : ''].filter(Boolean).join(en ? ', ' : '・'), b.at ? air(b.at) : ''].filter(Boolean);
   if (b.svc === 'appletv') return [en ? 'Every game' : '每場都有'];
   if (b.every) return [en ? 'Every session' : '每節都轉播'];

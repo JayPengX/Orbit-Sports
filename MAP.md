@@ -142,7 +142,14 @@ couldn't be read is shown, never hidden.
   steps only, ESPN's order kept past them.
 - **Where to watch** (`lib/tv.mjs`): ELTA's own schedule (exact channel,
   commentary, MAX first); NBA.com's ELTA list (`public/nba-elta.json`,
-  written every 6 h by the deploy); Apple TV's page per MLS game. Replays
+  written every 6 h by the deploy); Apple TV's page per MLS game. Past
+  ELTA's list (Jay 2026-11-03), the kit's `eltaGuess`: every game of a league
+  ELTA has whole (英超, 義甲, 德甲, 歐冠) is on, the NBA's by NBA.com, the
+  channel guessed from the list's own pattern on the league's clock and
+  named only where it's plain (a game alone then), else 愛爾達; every guess
+  says 預估 (cards, hero, 台灣轉播) and gives way to ELTA's listing. A league
+  ELTA has in part stays 轉播待公布. `scripts/tv-guess.mjs` measures it on
+  ELTA's real lists (`tests/fixtures/elta-*.json`). Replays
   and highlights from `watch.json` (R2).
 - **A league followed as a league** (none of its teams or players
   followed; `picks.mjs leagueChoices`): of its games starting within the

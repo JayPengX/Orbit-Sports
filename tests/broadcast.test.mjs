@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhLike, eltaVodOf, eltaVodsOf, parseEltaIndex, eltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart, camPlayer, roundOff } from '../public/lib/broadcast.mjs';
+import { parseElta, broadcastsFor, eltaListed, eltaLeague, eltaPrograms, zhLike, eltaVodOf, eltaVodsOf, parseEltaIndex, eltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, inReplay, episodeLabel, episodeEnglish, eltaDays, eltaAudio, eltaChannel, eltaAppUrl, eltaWatchUrl, nbaEltaGames, broadcastsOf, hasAudio, twSource, eltaStart, camPlayer, roundOff, eltaGuess } from '../public/lib/broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 
 const elta = day => parseElta(JSON.parse(readFileSync(new URL(`./fixtures/elta-${day}.json`, import.meta.url), 'utf8')));
@@ -83,7 +83,7 @@ test("NBA.com's Taiwan schedule: ELTA's games only, the same from the deploy's l
   assert.deepEqual(nbaEltaGames(null), []);
 });
 
-test("beyond ELTA's list: an NBA game on ELTA by NBA.com's schedule (two that day), never guessed", () => {
+test("beyond ELTA's list: an NBA game on ELTA by NBA.com's schedule (two that day), its channel ELTA's usual one (a guess, said so)", () => {
   const games = nbaEltaGames(SYNTHETIC_NBA);
   const ids = (away, home) => ({ games, ids: { away, home } });
   const bos = nba('8', '2026-11-20T00:10Z', 'Boston Celtics', 'Miami Heat');
@@ -92,9 +92,15 @@ test("beyond ELTA's list: an NBA game on ELTA by NBA.com's schedule (two that da
   const [first] = on(bos, programs, { nba: ids(1610612738, 1610612748) });
   assert.equal(first.svc, 'elta');
   assert.equal(first.exact, true);
-  // No channel yet: ELTA's sports schedule, in its app.
-  assert.equal(first.ch, undefined);
-  assert.equal(first.app, 'eltatv://schedule/live');
+  // Its channel guessed from ELTA's list (every NBA game on 愛爾達1台), said to be a guess.
+  assert.equal(first.ch, 101);
+  assert.equal(first.guess, true);
+  assert.ok(!first.note);
+  assert.equal(twSource([first]), '依愛爾達往例預估');
+  // No NBA game in ELTA's list to go by: no channel, ELTA's sports schedule in its app.
+  const [bare] = on(bos, programs.filter(p => p.league !== 'nba'), { nba: ids(1610612738, 1610612748) });
+  assert.equal(bare.ch, undefined);
+  assert.equal(bare.app, 'eltatv://schedule/live');
   assert.equal(on(lal, programs, { nba: ids(1610612747, 1610612744) })[0]?.svc, 'elta');
   // Another broadcaster's game, the same teams the other way round, or no schedule yet: no ELTA.
   assert.deepEqual(on(nyk, programs, { nba: ids(1610612752, 1610612741) }), []);
@@ -201,8 +207,8 @@ test("every F1 session is on ELTA: practice by its name when ELTA's time differs
   assert.ok(sprint.exact && sprint.every);
   // Past the list (Austin): the same.
   assert.ok(broadcastsFor(f1('Race', '2026-10-25T20:00Z'), oct)[0].exact);
-  // Other leagues past the list: ELTA, not this very game.
-  assert.ok(!broadcastsFor({ id: 'x', league: 'epl', kind: 'match', start: '2026-11-20T15:00Z', status: { state: 'pre' } }, oct)[0].exact);
+  // A league ELTA has in part past the list: ELTA, not this very game.
+  assert.ok(!broadcastsFor({ id: 'x', league: 'ligue1', kind: 'match', start: '2026-11-20T15:00Z', status: { state: 'pre' } }, oct)[0].exact);
 });
 
 test("ELTA's channels: MOD's 980s aren't on ELTA.tv; the app opens a channel the way ELTA's site does", () => {
@@ -325,9 +331,12 @@ test("a UEFA night ELTA hasn't put in yet: its games aren't \"not on ELTA\", the
   const epl = { league: 'epl', start: at - 3 * 86_400_000, end: at, ch: 544, title: '曼聯 VS 曼城', teams: ['曼聯', '曼城'], day: '2026-10-18' };
   const tail = { league: 'mlb', start: at + 86_400_000, end: at + 90_000_000, ch: 101, title: 'x', teams: [], day: '2026-10-23' };
   const ucl = { id: '1', league: 'ucl', kind: 'match', start: new Date(at).toISOString(), home: { name: '拜仁慕尼黑' }, away: { name: '兵工廠' } };
+  const uel = { ...ucl, league: 'uel' };
   const list = [epl, tail];
   assert.equal(eltaListed(list, ucl), false);
-  assert.deepEqual(broadcastsFor(ucl, list, { sides: [['拜仁慕尼黑'], ['兵工廠']] }).map(b => [b.svc, Boolean(b.exact)]), [['elta', false]]);
+  // A cup ELTA has in part: not known. The Champions League, every game of which ELTA has: on, a guess.
+  assert.deepEqual(broadcastsFor(uel, list, { sides: [['拜仁慕尼黑'], ['兵工廠']] }).map(b => [b.svc, Boolean(b.exact)]), [['elta', false]]);
+  assert.deepEqual(broadcastsFor(ucl, list, { sides: [['拜仁慕尼黑'], ['兵工廠']] }).map(b => [b.svc, Boolean(b.exact), b.guess]), [['elta', true, true]]);
   // Once ELTA has the night (another game of it listed), a game it hasn't is not on.
   const other = { league: 'ucl', start: at, end: at + 7_200_000, ch: 545, title: 'UEFA 皇家馬德里 VS RB萊比錫', teams: ['皇家馬德里', 'RB萊比錫'], day: '2026-10-22' };
   assert.equal(eltaListed([...list, other], ucl), true);
@@ -491,4 +500,65 @@ test('the FA Cup is on ELTA from the third round, not its first two', () => {
   assert.equal(broadcastsFor(game('third-round'), [])[0]?.svc, 'elta');
   assert.equal(roundOff(game(null)), false);
   assert.equal(roundOff({ league: 'ucl', round: { key: 'first-round' } }), false);
+});
+
+// ---- Past ELTA's list: the guess (Jay, 2026-11-03) ----------------------------------------
+// ELTA's real lists: 10/8's (to 10/23) guessing the games 11/3's has (10/31–11/18).
+const oldList = elta('2026-10-08');
+const newList = elta('2026-11-03');
+// A game of the newer list as the app knows it (its sides as ELTA writes them).
+const gameOf = (p, i) => ({ id: `g${i}`, league: p.league, kind: 'match', start: new Date(p.start).toISOString(), status: { state: 'pre' }, home: { name: p.teams[0] }, away: { name: p.teams[1] } });
+const newGames = (() => {
+  const seen = new Map();
+  for (const p of newList) if (p.teams.length === 2 && p.ch < 980 && !['data', 'cam'].includes(p.audio)) seen.set(`${p.league}|${p.teams.join('|')}|${p.start}`, p);
+  return [...seen.values()].map(gameOf);
+})();
+const truthOf = e => newList.filter(p => p.league === e.league && p.start === Date.parse(e.start) && p.teams.join() === [e.home.name, e.away.name].join() && p.ch < 980 && !['data', 'cam'].includes(p.audio)).map(p => p.ch);
+const guessOf = e => broadcastsFor(e, oldList, { sides: [[e.home.name], [e.away.name]], others: newGames, sidesOf: o => [[o.home.name], [o.away.name]] })[0];
+
+test("past ELTA's list: every game of a league ELTA has whole is on, a guess said so; a league it has in part isn't known", () => {
+  for (const league of ['epl', 'seriea', 'bundesliga', 'ucl']) {
+    const games = newGames.filter(e => e.league === league);
+    assert.ok(games.length >= 9, league);
+    for (const e of games) {
+      const b = guessOf(e);
+      assert.ok(b?.exact && b.guess && b.svc === 'elta', `${league} ${e.home.name}`);
+    }
+  }
+  for (const league of ['ligue1', 'uel', 'uecl', 'scotland', 'nationsleague']) for (const e of newGames.filter(x => x.league === league)) assert.ok(!guessOf(e)?.exact, `${league} ${e.home.name}`);
+  // Never a game over, a FA Cup round ELTA doesn't carry, or a race weekend (F1: every session already).
+  const e = newGames.find(x => x.league === 'epl');
+  assert.equal(eltaGuess({ ...e, status: { state: 'post' } }, oldList), null);
+  assert.equal(eltaGuess({ ...e, league: 'facup', round: { key: 'first-round' } }, oldList), null);
+  assert.equal(eltaGuess({ ...e, kind: 'field' }, oldList), null);
+});
+
+test("past ELTA's list: a channel named only where ELTA's way is plain, and right four times in five", () => {
+  let named = 0;
+  let right = 0;
+  for (const e of newGames.filter(x => ['epl', 'seriea', 'bundesliga', 'ucl', 'nba'].includes(x.league))) {
+    const b = e.league === 'nba' ? { ...eltaGuess(e, oldList, { on: true }) } : guessOf(e);
+    if (!b?.ch) continue;
+    named++;
+    if (truthOf(e).includes(b.ch)) right++;
+  }
+  assert.ok(named >= 25, `named ${named}`);
+  assert.ok(right / named >= 0.8, `${right}/${named}`);
+  // Monday night's lone Premier League game: ELTA's 愛爾達1台, 20:00 in England both sides of the change of clocks (02:50 in Taiwan in October, 03:50 in November).
+  const mon = newGames.find(x => x.league === 'epl' && x.home.name === '紐卡索聯');
+  assert.equal(guessOf(mon).ch, 101);
+  assert.equal(guessOf(mon).short.zh, '愛爾達1台');
+  // Saturday's 15:00 kick-offs (ELTA on air at 14:50), five at once: on ELTA, which on which channel not said.
+  const sat = newGames.filter(x => x.league === 'epl' && new Date(x.start).getUTCHours() === 14 && new Date(x.start).getUTCDay() === 6);
+  assert.ok(sat.length >= 4);
+  for (const e of sat) assert.equal(guessOf(e).ch, undefined);
+  // An NBA game: 愛爾達1台, its usual 雙語.
+  const g = eltaGuess(newGames.find(x => x.league === 'nba'), oldList, { on: true });
+  assert.deepEqual([g.ch, g.audio], [101, 'dual']);
+});
+
+test("past ELTA's list: the guess gives way to ELTA's own word once its list has the day", () => {
+  const mon = newGames.find(x => x.league === 'epl' && x.home.name === '紐卡索聯');
+  const real = broadcastsFor(mon, newList, { sides: [[mon.home.name], [mon.away.name]], others: newGames, sidesOf: o => [[o.home.name], [o.away.name]] });
+  assert.ok(real.length && real.every(b => !b.guess && b.ch));
 });

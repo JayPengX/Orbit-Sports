@@ -21,13 +21,13 @@ export function pageHead(title, action = null) {
 // A sport's colour: tiles and the hero's ground.
 const SPORT_COLOR = { soccer: '#16a34a', baseball: '#dc2626', basketball: '#ea580c', racing: '#4f46e5' };
 
-// A game's TV channels on the hero (the first two real broadcasts: no 球員視角 or 數據視角).
+// A game's TV channels on the hero (the first two real broadcasts: no 球員視角 or 數據視角; a guess past ELTA's list says so).
 function channelNames(e, n = 2) {
   if (!e || e.status?.void || e.status?.state === 'post') return [];
   return channelsOf(e)
     .filter(b => !ALT_VIEW.has(b.audio))
     .slice(0, n)
-    .map(b => b.short?.[en() ? 'en' : 'zh'] || b.zh || '')
+    .map(b => `${b.short?.[en() ? 'en' : 'zh'] || b.zh || ''}${b.guess ? (en() ? ' (est.)' : '（預估）') : ''}`)
     .filter(Boolean);
 }
 

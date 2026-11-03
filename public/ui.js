@@ -761,6 +761,8 @@ export const tvName = b => `${ctx.locale === 'en' ? b.en : b.zh}${b.note ? `（$
 // the best for them first (their commentary, then a MAX channel without ads).
 export const audioName = b => (b.audio ? AUDIO_NAMES[b.audio]?.[ctx.locale === 'en' ? 'en' : 'zh'] || '' : '');
 const audioTag = b => (b.audio ? el('span', { class: `au-tag${hasAudio(b, ctx.state?.prefs?.audio || 'en') ? ' mine' : ''}`, text: audioName(b) }) : null);
+// A channel guessed past ELTA's list: said so, short (one row on every card).
+export const guessTag = () => el('span', { class: 'au-tag', text: ctx.locale === 'en' ? 'Est.' : '預估' });
 export function tvLine(e) {
   if (e.status?.void) return null;
   const name = b => b.short[ctx.locale === 'en' ? 'en' : 'zh'];
@@ -780,8 +782,9 @@ export function tvLine(e) {
   // One row on every card, its main broadcast (the best for the person):
   // never a 球員視角 or 數據視角, which only the game's page lists (a second
   // row made that card taller than the rest, Jay 2026-10-23).
+  // Past ELTA's list, its guess (kit eltaGuess): 預估 where the commentary goes.
   const b = channelsOf(e).find(x => !ALT_VIEW.has(x.audio));
-  return b ? el('small', { class: 'tv-line' }, [el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), audioTag(b)])]) : null;
+  return b ? el('small', { class: 'tv-line' }, [el('span', { class: 'tv-ch' }, [document.createTextNode(name(b)), b.guess ? guessTag() : audioTag(b)])]) : null;
 }
 // A race weekend's session as a badge (排位賽, 衝刺賽, 正賽…), coloured by kind, so the row says it at a glance.
 export function sessionTag(e) {

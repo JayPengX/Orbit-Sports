@@ -37,7 +37,7 @@ import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { cols, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, sessionTag, raceFlag, audioName, personPic, refreshBadges } from './ui.js';
+import { cols, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, sessionTag, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
 import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
@@ -1383,7 +1383,8 @@ function renderAll() {
 // too, not its pick (Brighton v Palace on 愛爾達2台 in 原音 while Leeds v
 // Man United had ELTA's commentary on 愛爾達1台, 2026-10-18).
 const MAIN_CHANNELS = new Set([101, 105, 110, 115]);
-const onMain = e => channelsOf(e).some(c => MAIN_CHANNELS.has(c.ch) && !['en', 'data', 'cam'].includes(c.audio));
+// (A channel guessed past ELTA's list is no pick of ELTA's.)
+const onMain = e => channelsOf(e).some(c => !c.guess && MAIN_CHANNELS.has(c.ch) && !['en', 'data', 'cam'].includes(c.audio));
 // The broadcaster's pick: a game on a main channel while another of its
 // league, starting within the hour, is on TV only on MAX. (One game on
 // alone isn't a pick: there was nothing to choose from.)
@@ -1685,13 +1686,13 @@ function openMore(items, opts) {
   const s = sheet(t('moreGames'));
   put(s.body, el('div', { class: 'q-card list' }, items.map(x => eventRow(x.event, opts))));
 }
-// Nothing on TV here that day: why (past ELTA's list, only the NBA's and
-// MLS's games are known), and the way to every game (賽事).
+// Nothing on TV here that day: why (past ELTA's list, only guesses from its
+// usual line-up, NBA.com's and MLS's games), and the way to every game (賽事).
 function noTvText(date) {
   const until = tvUntil();
   if (until && date > until) {
     const d = new Date(`${until}T12:00:00`);
-    return L({ zh: `愛爾達的節目表排到 ${d.getMonth() + 1}/${d.getDate()}，之後只知道 NBA 和 MLS 的轉播。`, en: `ELTA's schedule runs to ${d.getMonth() + 1}/${d.getDate()}; after that only NBA and MLS broadcasts are known.` });
+    return L({ zh: `愛爾達的節目表排到 ${d.getMonth() + 1}/${d.getDate()}，之後的轉播是依往例預估。`, en: `ELTA's schedule runs to ${d.getMonth() + 1}/${d.getDate()}; later broadcasts are estimates.` });
   }
   return t('noOthers');
 }
@@ -3354,7 +3355,7 @@ const soonOf = e => {
 // Where a game is on: its channel and commentary, else whether it's known to be on nowhere.
 function whereTv(e) {
   const b = channelsOf(e)[0];
-  if (b) return el('span', { class: 'tf-tv' }, [document.createTextNode(b.short[locale === 'en' ? 'en' : 'zh']), b.audio ? el('span', { class: 'au-tag', text: audioName(b) }) : null]);
+  if (b) return el('span', { class: 'tf-tv' }, [document.createTextNode(b.short[locale === 'en' ? 'en' : 'zh']), b.guess ? guessTag() : b.audio ? el('span', { class: 'au-tag', text: audioName(b) }) : null]);
   return el('span', { class: 'tf-tv none', text: tvKnown(e) ? L({ zh: '沒有轉播', en: 'Not on TV' }) : L({ zh: '轉播待公布', en: 'TV to come' }) });
 }
 
