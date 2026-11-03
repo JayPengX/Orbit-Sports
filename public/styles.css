@@ -2549,6 +2549,15 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 .f1-story-list .play-when { font-size: 12px; }
 .f1-story-list .play-words { display: grid; min-width: 0; }
 .f1-story-list .play-sub { color: var(--q-muted); font-size: 12px; }
+/* (Its small lines are packed for a phone at 320, lib/f1story.mjs STORY_FIT; where the card is
+   wide enough for two of them side by side, one line, a dot between.) */
+.f1-story .story-body { container-type: inline-size; }
+@container (min-width: 460px) {
+  .f1-story-list .play-words { display: block; }
+  .f1-story-list .play-main { display: block; }
+  .f1-story-list .play-sub { display: inline; }
+  .f1-story-list .play-sub + .play-sub::before { content: ' · '; }
+}
 .f1-story-list li.story-lead .play-main, .f1-story-list li.story-finish .play-main { font-weight: 600; }
 .f1-story-list li.story-sc, .f1-story-list li.story-vsc { background: color-mix(in srgb, #ffd12e 12%, transparent); }
 .f1-story-list li.story-red { background: color-mix(in srgb, #e10600 10%, transparent); }
