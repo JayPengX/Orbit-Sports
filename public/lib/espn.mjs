@@ -2062,11 +2062,13 @@ async function f1Leaders(league) {
     if (d?.MRData) return d;
     throw new Error('empty');
   };
-  const first = await page(f1ResultsUrl());
+  // The first page and the poles together, then the other pages together,
+  // a quarter of a second apart (Jolpica's four a second): two waits, not
+  // seven one after another (F1's 數據 was the slowest by far, Jay 2026-11-03).
+  const [first, poles] = await Promise.all([page(f1ResultsUrl()), page(f1PolesUrl()).catch(() => null)]);
   const total = Number(first?.MRData?.total) || 0;
-  const rest = [];
-  for (let i = 1; i < Math.min(10, Math.ceil(total / 100)); i++) rest.push(await page(f1ResultsUrl(i * 100)));
-  const poles = await page(f1PolesUrl()).catch(() => null);
+  const n = Math.min(10, Math.ceil(total / 100));
+  const rest = await Promise.all(Array.from({ length: Math.max(0, n - 1) }, (_, k) => new Promise(r => setTimeout(r, 260 * k)).then(() => page(f1ResultsUrl((k + 1) * 100)))));
   const drivers = ((await table) || []).flatMap(g => g.rows || []).filter(r => r.athlete);
   return parseF1Leaders([first, ...rest], poles, drivers);
 }

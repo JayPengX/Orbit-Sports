@@ -552,7 +552,6 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .pill.W { background: var(--win); }
 .pill.D, .pill.T { background: var(--draw); }
 .pill.L { background: var(--loss); }
-}
 .wp-chart { display: block; width: 100%; height: 90px; }
 /* Which side the line leans to: the home side at the top, the away side at the bottom. */
 .wp-plot { position: relative; margin-top: 6px; }
@@ -1706,7 +1705,6 @@ button.lp-person.tap:active { opacity: 0.6; }
 .face-btn { flex: none; display: inline-grid; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
 .lc-key-line svg { display: block; width: 22px; height: 6px; overflow: visible; }
 .lc-key-note { margin: 4px 0 0; }
-.lc-more { justify-self: center; }
 .lc-grid.zero { stroke: var(--q-muted); stroke-dasharray: 3 3; }
 /* The live head: one card, the lap large, the flag a dot and a word, race control's word under a hairline. */
 .lb-top { gap: 10px; padding: 14px 16px; background: var(--q-surface); }
@@ -1745,7 +1743,6 @@ button.lp-person.tap:active { opacity: 0.6; }
 .lb-msgs li:first-child { font-weight: 600; }
 .lb-msgs li + li { color: var(--q-text-2, var(--q-muted)); }
 .lb-msg-lap { font-size: 11.5px; font-weight: 600; color: var(--q-muted); white-space: nowrap; }
-.lb-msg-more { justify-self: start; margin-left: 46px; font-size: 12.5px; color: var(--accent); cursor: pointer; }
 .fs-weather { display: flex; justify-content: space-between; gap: 8px; padding: 0 4px; }
 .fs-weather span { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
 .fs-weather small { font-size: 12px; font-weight: 600; color: var(--q-muted); }
@@ -1999,7 +1996,13 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .lb-name small { color: var(--q-muted); font-size: 12px; }
 .lb-name .team-tag { display: inline-flex; align-items: center; gap: 4px; }
 .lb-value { color: var(--accent); font-size: 16px; font-weight: 600; }
-.lb-more { display: block; margin: 8px auto 0; }
+/* A row held while the whole list comes (sheets.js lbHeld): the size of the row coming, so the list fills in place. */
+.lb-skel .lb-rank { width: 12px; justify-self: center; }
+.lb-skel .skel-pic { width: 22px; height: 22px; }
+.lb-skel .lb-name { gap: 6px; padding: 4px 0; }
+.lb-skel .lb-name .skel:first-child { height: 12px; }
+.lb-skel .lb-name .skel + .skel { height: 10px; }
+.lb-skel-v { width: 28px; }
 /* A CPBL game's box score unread (sheets.js): said under the overview. */
 .box-unread {
   margin: 12px 4px 0;
@@ -2016,6 +2019,7 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .league-rail { --q-rail-w: 88px; }
 .rank-pos { color: var(--q-label); font: 600 17px/1 var(--q-font-rounded); }
 .sc-top small { margin-left: auto; }
+.lb-more { display: block; margin: 8px auto 0; }
 .q-section-head .section-more { margin-left: auto; }
 
 /* Dark: no white slabs. The hero's logo tiles, its strong tag and the

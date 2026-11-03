@@ -769,16 +769,18 @@ async function loadDay(date, { live = false } = {}) {
   const slot = state.days.get(date) || { events: [], at: 0, loading: false };
   if (slot.loading) return;
   if (live && !slot.fullAt) live = false;
+  // Marked as being read at once, before anything's awaited: a second ask in
+  // the same moment doesn't read it twice, and 全部 and 轉播 ask the other
+  // leagues alongside it (they waited for it before: a day there was two reads long).
+  slot.loading = true;
+  state.days.set(date, slot);
   // A day outside every league's (nothing kept, or next season's before its
   // schedule's in): nothing asked of the proxy.
   await boundsRead;
   if (!within(date, homeBounds())) {
-    Object.assign(slot, { events: [], at: Date.now(), stale: false, leagues: leaguesKey(), partial: 0 });
-    state.days.set(date, slot);
+    Object.assign(slot, { events: [], at: Date.now(), stale: false, leagues: leaguesKey(), partial: 0, loading: false });
     return repaintDay(date);
   }
-  slot.loading = true;
-  state.days.set(date, slot);
   const isToday = date === today();
   loadTables();
   const key = leaguesKey();
@@ -1112,11 +1114,14 @@ function noticeChanges(events) {
   }
 }
 
-// A sideways row of chips scrolled so the chosen one sits in the middle
-// (the row only, never the page).
-// Only when the choice is new: a redraw with the same chip chosen (the
-// games coming in, a live refresh) leaves the row where the person scrolled
-// it (the kit's keepStrips puts it back), never pulls it back to the chip.
+// A sideways row of chips the first time it's shown: scrolled so the chosen
+// one sits in the middle (the row only, never the page). After that a new
+// pick never moves the row (Jay 2026-11-03: 數據's pills "jumped when you
+// click further"): it stays where the person had it (the kit's keepStrips
+// puts a redrawn row back), only nudged, gently, when the chosen chip is
+// partly out of view (one chosen by a swipe).
+// A redraw with the same chip chosen (the games coming in, a live refresh)
+// leaves the row where the person scrolled it, never pulls it back to the chip.
 const centered = new Map();
 function centerChosen(box) {
   const rows = [...box.querySelectorAll('.q-chips')];
@@ -1134,10 +1139,21 @@ function centerChosen(box) {
     // counted as done (it was, and every redraw after left the date strip on
     // its first day, a month back).
     if (!row.clientWidth) continue;
+    const seen = centered.has(key);
     centered.set(key, chosen);
-    if (row.scrollWidth > row.clientWidth) moves.push([row, chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2]);
+    if (row.scrollWidth <= row.clientWidth) continue;
+    // (Seen: after keepStrips has put the row back, before it's painted.)
+    if (seen) requestAnimationFrame(() => chipInView(row, chip));
+    else moves.push([row, chip.offsetLeft - row.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2]);
   }
   for (const [row, left] of moves) row.scrollLeft = left;
+}
+function chipInView(row, chip) {
+  if (!row.isConnected || !chip.isConnected) return;
+  const r = row.getBoundingClientRect();
+  const c = chip.getBoundingClientRect();
+  const by = c.left < r.left + 12 ? c.left - r.left - 12 : c.right > r.right - 12 ? c.right - r.right + 12 : 0;
+  if (by) row.scrollBy({ left: by, behavior: 'smooth' });
 }
 
 // ---- 推薦: every match of the chosen day, ranked for this person ---------------------------
@@ -1348,7 +1364,8 @@ function renderAll() {
   put(allBarEl, dateStrip(date, pickAllDay, { range: allRange, bounds: homeBounds() }));
   const strip = allBarEl;
   let list;
-  if (!ready) list = spinner();
+  // (The day's shape while its three reads come in, never the page dropped to a spinner.)
+  if (!ready) list = box.querySelector('.live-shape') || liveShape();
   else {
     const games = allGames(date);
     const unread = (slot.partial || 0) + (slot.othersFailed || 0) + ((isToday ? slot.restFailed : restDays.get(date)?.failed) || 0);
@@ -1389,6 +1406,37 @@ const onMain = e => channelsOf(e).some(c => !c.guess && MAIN_CHANNELS.has(c.ch) 
 // league, starting within the hour, is on TV only on MAX. (One game on
 // alone isn't a pick: there was nothing to choose from.)
 const featuredIn = list => e => onMain(e) && list.some(o => o !== e && o.id !== e.id && o.league === e.league && Math.abs(Date.parse(o.start) - Date.parse(e.start)) < 3_600_000 && onTv(o) && !onMain(o));
+// The day's shape kept up while the open day is still being made out, for
+// up to `ms` from when it was first drawn (then what there is): false while
+// it holds (the shape drawn, a redraw set for the end of the wait).
+function holdDay(box, ms) {
+  const h = state.home;
+  const now = Date.now();
+  if (h.gate?.day !== h.date) h.gate = { day: h.date, since: now };
+  const left = h.gate.since + ms - now;
+  if (left <= 0) return true;
+  clearTimeout(h.gate.timer);
+  h.gate.timer = setTimeout(() => state.tab === 'home' && state.home.date === h.gate.day && renderHome(), left);
+  put(box, homeBar(), homeFilters(), box.querySelector(':scope > .live-shape') || liveShape());
+  centerChosen(box);
+  return false;
+}
+// The days either side of the open one read while it's looked at (theirs
+// and the other leagues'), so a swipe lands on a day already in (Jay
+// 2026-11-03: a day with nothing on kept loading; NBA's later days slow).
+let aroundTimer = 0;
+function readAround(date) {
+  clearTimeout(aroundTimer);
+  aroundTimer = setTimeout(() => {
+    if (state.tab !== 'home' || state.home.date !== date || netState() !== 'online' || document.hidden) return;
+    for (const d of [addDays(date, 1), addDays(date, -1)]) {
+      const slot = state.days.get(d);
+      if (!slot?.at && !slot?.loading) loadDay(d);
+      const read = state.days.get(d);
+      if (read && !read.othersAt && !read.othersLoading) loadOthers(d);
+    }
+  }, 800);
+}
 function renderHome() {
   const box = $('panel-home');
   const h = state.home;
@@ -1399,9 +1447,16 @@ function renderHome() {
   // needs it: never for the TV lists alone, or loadDay's repaint calls
   // straight back here and the page locks up.
   const unread = !slot?.at || (slot.leagues !== leaguesKey() && !slot.stale);
-  if (unread || !tvReady()) {
-    if (unread && !slot?.loading) loadDay(h.date);
-    put(box, homeBar(), homeFilters(), spinner());
+  // (A day none of whose leagues answered, opened again: read again now, not at the next retry.)
+  const lost = slot?.at && !slot.loading && slot.partial > 0 && !slot.events.length;
+  if (unread || lost || !tvReady()) {
+    if ((unread || lost) && !slot?.loading) loadDay(h.date);
+    // (The other leagues alongside theirs: a day with nothing of theirs
+    // needs them, and reading them only after theirs made it two reads long.)
+    const read = state.days.get(h.date);
+    if (read && !read.othersAt && !read.othersLoading && h.filter === 'all') loadOthers(h.date);
+    // The day's shape while it's read (never the page dropped to a spinner and grown back).
+    put(box, homeBar(), homeFilters(), box.querySelector(':scope > .live-shape') || liveShape());
     centerChosen(box);
     return;
   }
@@ -1431,6 +1486,10 @@ function renderHome() {
   // What the reads left unknown (the day's leagues, the others', ELTA's
   // list): while any is, the day is never said to have nothing on.
   const gap = dayUnknown([slot], tvUnread());
+  // Nothing of theirs and part of the day unread (a league, ELTA's list): the
+  // day's shape while it's read again, up to 6 s, never a note about it
+  // (Jay 2026-11-03: a day with nothing on kept loading, then an ugly message).
+  if (gap && !past && h.filter === 'all' && !h.picking && !mine.length && !holdDay(box, 6_000)) return;
   // Today with every one of its games over: shown as any day gone by (its
   // picks as they stood, the results in them, 今天 · 已結束的推薦 and how
   // many, 更多推薦), not as a day still going with an ended corner.
@@ -1476,6 +1535,10 @@ function renderHome() {
     if (!slot.othersAt) {
       finding = true;
       loadOthers(h.date);
+      // Nothing of theirs that day, the others still coming: the day's shape
+      // for up to 3 s, then what there is (never 沒有轉播 said and the others'
+      // games popping in under it a moment later, Jay 2026-11-03).
+      if (!past && !h.picking && !holdDay(box, 3_000)) return;
     } else {
       // Worth watching on its own: the stakes and the sides, not the person's sport order
       // (their own small hours' big games kept first among the rest).
@@ -1627,6 +1690,18 @@ function renderHome() {
         }))
       )
     : null;
+  // A day with nothing on TV at all (theirs and the others', any hour): never
+  // said while a game of the small hours is listed under 更多賽事.
+  const nothing = !past && !h.picking && fallback && !planList.length && !restShown.length && !endedGames.length && !hero && !liveBlock;
+  // The kit's empty state for a day: what's so in one line (its reason under
+  // it only past ELTA's list), and every game; a day still unread after its
+  // wait (`says` null): that, and a tap to read it again.
+  const dayEmpty = says =>
+    says
+      ? kitUI.empty({ icon: 'tv', title: says.title, body: says.body || '', action: { label: L({ zh: '看完整賽程', en: 'Every game' }), onTap: () => openAll(h.date) }, cls: 'home-empty' })
+      : kitUI.empty({ icon: 'tv', title: L({ zh: '這天的賽程還讀不到', en: "Couldn't read this day yet" }), action: { label: L({ zh: '再試一次', en: 'Try again' }), onTap: () => ((h.gate = null), loadDay(h.date), loadOthers(h.date), renderHome()) }, cls: 'home-empty' });
+  // (Theirs unread: never said to have nothing on.)
+  const noMine = slot.partial > 0 ? L({ zh: '我的聯賽還讀不到', en: "My leagues couldn't be read yet" }) : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet');
   put(
     box,
     homeBar(),
@@ -1641,7 +1716,10 @@ function renderHome() {
       // 2026-10-18). Theirs and the others on TV, under the sport chosen.
       past ? pastDay() : null,
       // (Nothing followed yet: the sport picker above already says so; no note under it.)
-      !past && (fallback || finding) && !endedGames.length && !(h.picking && !hasFollows && state.prefsLoaded && !finding) ? note(gap === 'leagues' ? t('someUnread') : gap === 'tv' ? t('tvUnread') : hasFollows || !state.prefsLoaded ? t(isToday ? 'noMineToday' : 'noMineDay') : t('noFollowsYet'), finding ? t('findingOthers') : planList.length ? t('othersSub') : gap ? t('notKnownYet') : noTvText(h.date), !finding && !planList.length) : null,
+      // Nothing of theirs: the others' picks under a line that says so;
+      // nothing on at all, the kit's empty state (one line and the way to
+      // every game; Jay 2026-11-03: the two-line card read ugly).
+      past || h.picking ? null : finding ? note(noMine, t('findingOthers'), false) : fallback && planList.length && !endedGames.length ? note(noMine, t('othersSub'), false) : nothing ? dayEmpty(gap ? null : noTvTitle(h.date)) : null,
       !past && finding ? spinner() : null,
       past
         ? null
@@ -1649,7 +1727,7 @@ function renderHome() {
           ? section(t('picks'), el('div', { class: 'q-card list' }, planShown.map(x => planRow(x, rowDay))), { action: !restShown.length && moreAll.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null })
           : finding || fallback || liveBlock || hero || h.picking || mineNext.length || restShown.length
             ? null
-            : section(t('picks'), note('', gap === 'leagues' ? t('someUnread') : h.filter === 'all' ? (gap ? t('tvUnread') : noTvText(h.date)) : t('noPicksMine')))
+            : dayEmpty(gap ? null : h.filter === 'all' ? noTvTitle(h.date) : { title: t('noPicksMine') })
     ], [
       mineNext.length ? section(t('myGames'), kitRail(mineNext)) : null,
       !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
@@ -1660,6 +1738,8 @@ function renderHome() {
   );
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
+  // The open day in: the days either side read meanwhile.
+  if (h.settled) readAround(h.date);
 }
 // A light day's games over: a card each, with who led each side
 // (sheets.js gameRecap); each game's leaders read once.
@@ -1685,6 +1765,17 @@ const kitRail = games => (games.length === 1 ? el('div', { class: 'q-card list' 
 function openMore(items, opts) {
   const s = sheet(t('moreGames'));
   put(s.body, el('div', { class: 'q-card list' }, items.map(x => eventRow(x.event, opts))));
+}
+// A day with nothing on TV here, said in one line: past the end of ELTA's
+// list, that end (what's after it is only guessed from its usual line-up).
+function noTvTitle(date) {
+  const until = tvUntil();
+  if (!state.prefs.leagues.length && state.prefsLoaded) return { title: t('noFollowsYet') };
+  if (until && date > until) {
+    const d = new Date(`${until}T12:00:00`);
+    return { title: L({ zh: `節目表只排到 ${d.getMonth() + 1}/${d.getDate()}`, en: `ELTA's guide ends ${d.getMonth() + 1}/${d.getDate()}` }), body: L({ zh: '之後的轉播是依往例預估', en: 'Later broadcasts are estimates' }) };
+  }
+  return { title: L({ zh: '這天沒有轉播', en: 'Nothing on TV this day' }) };
 }
 // Nothing on TV here that day: why (past ELTA's list, only guesses from its
 // usual line-up, NBA.com's and MLS's games), and the way to every game (賽事).
@@ -1881,7 +1972,10 @@ function renderLive() {
   const slot = state.days.get(today());
   if (!slot?.at || !tvReady()) {
     if (!slot?.loading && !slot?.at) loadDay(today());
-    put(box, liveBar(), liveShape());
+    // (The other leagues read alongside, not after.)
+    const now = state.days.get(today());
+    if (now && !now.othersAt && !now.othersLoading) loadOthers(today());
+    put(box, liveBar(), box.querySelector('.live-shape') || liveShape());
     return;
   }
   loadFollowedTeams();
@@ -1978,7 +2072,9 @@ function renderLiveDay(d) {
   // Drawn once the day's leagues, the others' and ELTA's list are in (never filled in under the finger).
   if (!slot?.at || !slot.othersAt || !tvReady()) {
     if (!slot?.at && !slot?.loading) loadDay(d);
-    else if (slot?.at && !slot.othersAt && !slot.othersLoading) loadOthers(d);
+    // (The other leagues read alongside the day's, not after.)
+    const now = state.days.get(d);
+    if (now && !now.othersAt && !now.othersLoading) loadOthers(d);
     if (!box.querySelector('.live-shape')) put(box, liveBar(), liveShape());
     else put(box, liveBar(), box.querySelector('.live-shape'));
     return;
@@ -3747,7 +3843,8 @@ function teamsOf(league, d) {
     teamLists.set(st.url, null);
     fotmobTeamList(st.url, st.key)
       .then(list => teamLists.set(st.url, list))
-      .catch(() => {})
+      // (Failed: its top three stay, said read (not a place held for rows that won't come).)
+      .catch(() => teamLists.set(st.url, []))
       .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
   }
   // (A team's name and logo as the table has them: 勇士, not Golden State Warriors.)
@@ -3790,8 +3887,8 @@ function playersOf(league) {
     leaderLists.set(st.url, null);
     leaderList(st.url, st.key)
       .then(list => leaderLists.set(st.url, list))
-      // (Failed: its top three stay, not read again at once by the redraw.)
-      .catch(() => {})
+      // (Failed: its top three stay, not read again at once by the redraw, and no rows held for it.)
+      .catch(() => leaderLists.set(st.url, []))
       .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
   }
   return leagueLeadersView(d, league, { teamOf: (id, x) => rows.get(String(id)) || clubs.get(String(x?.fotmobTeam ?? '')) || (x?.teamName ? byName(x.teamName) : null), pick: st.key, full: st.url ? leaderLists.get(st.url) : null, onPick: k => (leaderPick.set(league, k), renderScores()) });

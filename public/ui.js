@@ -812,3 +812,14 @@ export function sheet(title, { accent, league } = {}) {
 export const segmented = (options, current, onPick, cls = '', o = {}) => kitUI.pickSeg(options, current, onPick, { cls: cls === 'scroll' ? '' : cls, ...o });
 export const section = (title, content, { sub = '', action = null, cls = '' } = {}) => kitUI.section(title, content, { sub, action, cls, shd: true });
 export const moreButton = (label, onclick) => el('button', { class: 'section-more', type: 'button', text: label, onclick });
+// A list's 再看 / 收起: the kit's bar (moreToggle); on an older kit still on the phone, the same as a plain button.
+export function moreToggle(o) {
+  if (kitUI.moreToggle) return kitUI.moreToggle(o);
+  let open = Boolean(o.open);
+  let { more, less } = o;
+  const b = el('button', { type: 'button', class: 'q-more' });
+  const paint = () => ((b.textContent = open && less != null ? less : more), b.setAttribute('aria-expanded', String(Boolean(open && less != null))));
+  b.onclick = () => (less != null && (open = !open), paint(), o.onToggle?.(less != null ? open : true));
+  paint();
+  return Object.assign(b, { set: (x, m = more, l = less) => ((open = x), (more = m), (less = l), paint()) });
+}

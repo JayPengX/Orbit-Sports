@@ -34,7 +34,7 @@ import { tieNotes } from './lib/tiebreak.mjs';
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, nextNeeds } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, withHome, today, sidesOf } from './ui.js';
+import { moreToggle, f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, withHome, today, sidesOf } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -3618,14 +3618,17 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
   // Its last three, newest first, each with its lap (one, in English, before); the rest a tap away.
   const said = (b.messages?.length ? b.messages : b.message?.text ? [{ text: b.message.text, lap: 0 }] : []).filter(m => m.text);
   const msgRow = m => el('li', {}, [el('small', { class: 'num lb-msg-lap', text: m.lap ? (en ? `L${m.lap}` : `${m.lap} 圈`) : '' }), el('span', {}, raceControlParts(m.text, !en).map(x => (typeof x === 'string' ? document.createTextNode(x) : carChip(x.no))))]);
+  // (Opened or folded in place: the list's rows change, the kit's 再看/收起 bar stays under the finger.)
   const makeMsg = () => {
-    const showAll = f1AllMsgs.has(ss.start);
-    const box = el('div', { class: 'lb-msg' }, [
+    const list = el('ol', { class: 'lb-msgs' });
+    const fill = () => put(list, said.slice(0, f1AllMsgs.has(ss.start) ? 8 : 1).map(msgRow));
+    fill();
+    const more = Math.min(said.length, 8) - 1;
+    return el('div', { class: 'lb-msg' }, [
       el('small', { class: 'lb-msg-h', text: en ? 'Race control' : '賽事控制' }),
-      el('ol', { class: 'lb-msgs' }, said.slice(0, showAll ? 8 : 1).map(msgRow)),
-      said.length > 1 ? el('button', { type: 'button', class: 'link lb-msg-more', text: showAll ? (en ? 'Fewer' : '收起') : en ? `${said.length - 1} more` : `再看 ${said.length - 1} 則`, onclick: () => (showAll ? f1AllMsgs.delete(ss.start) : f1AllMsgs.add(ss.start), box.replaceWith(makeMsg())) }) : null
+      list,
+      more > 0 ? moreToggle({ more: en ? `${more} more` : `再看 ${more} 則`, less: en ? 'Fewer' : '收起', open: f1AllMsgs.has(ss.start), onToggle: open => ((open ? f1AllMsgs.add(ss.start) : f1AllMsgs.delete(ss.start)), fill()) }) : null
     ]);
-    return box;
   };
   const msg = said.length && !over ? makeMsg() : null;
   // Live: the tower's head, its last column one number (the gap to the
@@ -4502,7 +4505,7 @@ function f1LapCompare(b, ss) {
           }))
         ])
       : null;
-    const more = over && allNos.length > lapNos.length ? el('button', { class: 'q-btn small lc-more', type: 'button', text: race ? (en ? `All ${allNos.length} laps` : `顯示全部 ${allNos.length} 圈`) : en ? `All ${allNos.length}` : `顯示全部 ${allNos.length} 個`, onclick: () => (f1AllLaps.add(ss.start), draw()) }) : null;
+    const more = over && allNos.length > lapNos.length ? moreToggle({ more: race ? (en ? `All ${allNos.length} laps` : `顯示全部 ${allNos.length} 圈`) : en ? `All ${allNos.length}` : `顯示全部 ${allNos.length} 個`, less: null, onToggle: () => (f1AllLaps.add(ss.start), draw()) }) : null;
     put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [picker, map, table, pick, chart, lapTable ? el('p', { class: 'dc-sub', text: !race ? (en ? 'Timed laps' : '計時圈') : over ? (en ? 'Lap by lap' : '每圈圈速') : en ? 'Last 5 laps' : '最近 5 圈' }) : null, lapTable, more]), { sub: toggle }));
   };
   // (Drawn again when 數據 is shown: built behind 成績, its laps came while it wasn't on the page.)
@@ -4572,7 +4575,7 @@ function f1LiveTable(b, ss) {
     });
     const pick = tRows.length ? segmented([['drivers', en ? 'Drivers' : '車手'], ['teams', en ? 'Teams' : '車隊']], view, v => ((f1TableView = v), draw(groups)), 'st-modes') : null;
     // (Ten teams and an eleventh: all of them, no button for one more row.)
-    const more = list.length > 12 ? el('button', { class: 'q-btn small lc-more', type: 'button', text: all ? (en ? 'Top 10' : '只看前 10') : en ? `All ${list.length}` : `全部 ${list.length} ${view === 'teams' ? '隊' : '位'}`, onclick: () => (all ? f1TableAll.delete(ss.start) : f1TableAll.add(ss.start), draw(groups)) }) : null;
+    const more = list.length > 12 ? moreToggle({ more: en ? `All ${list.length}` : `全部 ${list.length} ${view === 'teams' ? '隊' : '位'}`, less: en ? 'Top 10' : '只看前 10', open: all, onToggle: () => (all ? f1TableAll.delete(ss.start) : f1TableAll.add(ss.start), draw(groups)) }) : null;
     const what = ss.abbr === 'SR' ? (en ? 'sprint' : '衝刺賽') : en ? 'race' : '正賽';
     const key = settled ? (en ? 'Just after this weekend. ▲▼ places moved; + its points.' : '本站結束時 · ▲▼ 名次變化 · + 本站得分') : over ? (en ? `▲▼ places moved; + points from this ${what}.` : `▲▼ 名次變化 · + 本場得分`) : en ? `If the ${what} ended now. ▲▼ places moved; + points from this ${what}.` : `假如${what}現在結束 · ▲▼ 名次變化 · + 本場得分`;
     put(box, card(over ? (en ? 'Championship' : '積分榜') : en ? 'Championship, as it stands' : '即時積分榜', el('div', { class: 'lc' }, [pick, lead ? el('p', { class: 'st-lead', text: lead }) : null, el('ol', { class: 'fs-rows st-rows' }, rows), more, el('p', { class: 'muted small lc-key-note', text: key })]), { sub: over ? null : el('span', { class: 'live-dot-text', text: en ? 'Live' : '即時' }) }));
@@ -5326,7 +5329,7 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
       }
       if (view === 'games') {
         const results = [...played].reverse();
-        const more = results.length > shownResults ? el('button', { class: 'section-more lb-more', type: 'button', onclick: () => ((shownResults += 10), paint()), text: W(`再看 ${Math.min(10, results.length - shownResults)} 場`, `Show ${Math.min(10, results.length - shownResults)} more`) }) : null;
+        const more = results.length > shownResults ? moreToggle({ more: W(`再看 ${Math.min(10, results.length - shownResults)} 場`, `Show ${Math.min(10, results.length - shownResults)} more`), less: null, onToggle: () => ((shownResults += 10), paint()) }) : null;
         put(
           body,
           ...(upcoming.length || results.length
@@ -5470,17 +5473,22 @@ export function leagueLeadersView(data, league, { teamOf = () => null, pick = nu
       el('b', { class: 'lb-value num', text: x.value })
     ]);
   };
-  const box = el('div', { class: 'lb-list' }, list.slice(0, LB_STEP).map(row));
+  // (A football stat's whole list still coming: its top three, and the rest
+  // of the first ten held as shimmering rows the size of the ones coming, so
+  // they fill in place, never three rows and then a flash of the rest.)
+  const box = el('div', { class: 'lb-list' }, [...list.slice(0, LB_STEP).map(row), ...lbHeld(chosen, full, list.length)]);
   let shown = Math.min(LB_STEP, list.length);
-  const more = el('button', { class: 'section-more lb-more', type: 'button' });
+  const more = moreToggle({
+    less: null,
+    onToggle: () => {
+      box.append(...list.slice(shown, shown + LB_STEP).map((x, j) => row(x, shown + j)));
+      shown = Math.min(list.length, shown + LB_STEP);
+      label();
+    }
+  });
   const label = () => {
-    more.textContent = en ? `Show ${Math.min(LB_STEP, list.length - shown)} more` : `再看 ${Math.min(LB_STEP, list.length - shown)} 位`;
+    more.set(false, en ? `Show ${Math.min(LB_STEP, list.length - shown)} more` : `再看 ${Math.min(LB_STEP, list.length - shown)} 位`, null);
     more.hidden = shown >= list.length;
-  };
-  more.onclick = () => {
-    box.append(...list.slice(shown, shown + LB_STEP).map((x, j) => row(x, shown + j)));
-    shown = Math.min(list.length, shown + LB_STEP);
-    label();
   };
   label();
   const sub = [leadersSeason(data, sport, en), list.length > 10 ? (en ? `top ${list.length}` : `前 ${list.length} 名`) : ''].filter(Boolean).join(' · ');
@@ -5503,8 +5511,16 @@ export function teamStatsView(data, league, { teamOf = () => null, pick = null, 
     return t?.id && hasTeamPage(league) ? el('button', { class: 'lb-row', type: 'button', onclick: () => ctx.openTeam(league, String(t.id), t) }, kids) : el('div', { class: 'lb-row' }, kids);
   };
   const sub = [data.season?.name ? `${data.season.name}${LEAGUES[league]?.sport === 'soccer' ? '' : en ? ' regular season' : ' 例行賽'}` : '', chosen.low ? (en ? 'lower is better' : '越低越好') : ''].filter(Boolean).join(' · ');
-  return el('div', {}, [chips, card(en ? chosen.en : chosen.zh, el('div', { class: 'lb-list' }, list.map(row)), { sub })]);
+  return el('div', {}, [chips, card(en ? chosen.en : chosen.zh, el('div', { class: 'lb-list' }, [...list.map(row), ...lbHeld(chosen, full, list.length, 1)]), { sub })]);
 }
+// Rows held for a whole list being read (`full` null: asked, not in yet), to
+// ten, each the height of the row coming (a player's two lines, a team's one).
+const lbHeld = (chosen, full, have, lines = 2) =>
+  chosen.url && full === null
+    ? Array.from({ length: Math.max(0, 10 - have) }, () =>
+        el('div', { class: `lb-row lb-skel${lines === 1 ? ' one' : ''}`, 'aria-hidden': 'true' }, [el('i', { class: 'skel lb-rank' }), el('i', { class: 'skel skel-pic' }), el('span', { class: 'lb-name skel-block' }, [el('i', { class: 'skel', style: 'width:58%' }), lines === 1 ? null : el('i', { class: 'skel', style: 'width:34%' })]), el('i', { class: 'skel lb-skel-v' })])
+      )
+    : [];
 
 // "8-4-2" from a list of results (wins, draws, losses; no draws: "8-4").
 function ownRecord(played, resultOf) {

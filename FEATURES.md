@@ -19,6 +19,8 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - Title race and clinch lines under tables — `public/lib/title.mjs`, `public/sheets.js`: `standingsRace`, `nextNeeds`
 - Official tiebreaks and why level sides are ordered — `public/lib/tiebreak.mjs`: `TIEBREAKS`, `tieNotes`
 - Picks for you on 首頁, learning from habits — `public/lib/picks.mjs`, `public/app.js`: `scoreMatch`, `habitOf`
+- 首頁 reads the days either side ahead, so a swipe lands on a day already in — `public/app.js`: `function readAround`
+- A day with nothing on TV: one clean line and 看完整賽程 (the kit's empty state) — `public/app.js`: `function noTvTitle`, `這天沒有轉播`
 - Result notices on the phone — `public/app.js`: `syncPush`
 - Channels on cards and every channel on a game page — `public/app.js`, `public/sheets.js`: `頻道`
 - Past ELTA's list: every Premier League, Serie A, Bundesliga and Champions League game taken as on ELTA, the NBA's by NBA.com, the channel guessed from ELTA's usual line-up, said 預估 — `public/ui.js`, `public/sheets.js`, `.kit/sports-broadcast.mjs`: `guessTag`, `節目表公布後更新`, `eltaGuess`

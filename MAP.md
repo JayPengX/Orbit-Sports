@@ -196,6 +196,12 @@ couldn't be read is shown, never hidden.
 - Live refreshes patch the page in place (`put` keeps nodes and drawn pictures,
   a laid-out `.q-flow`'s cards too); the kit's `hold-place.mjs` keeps the
   reader's place whatever redraws (`node ../Orbit-Core/tools/live-scroll.mjs sports`).
+- Nothing jumps (2026-11-03): a day is read as one (theirs and the other
+  leagues together; 首頁 reads the days either side ahead, `readAround`), its
+  shape drawn until it's in (`liveShape`, `holdDay`), never "none" first; a
+  day with nothing on is the kit's empty state in one line (`noTvTitle`); a
+  list still being read holds rows its size (`lbHeld`); a list's more is the
+  kit's `moreToggle`.
 - Football's 近期交手: the last five meetings at most (ESPN's list), each
   counted by its score (`espn.mjs meetingResult`: level is a draw, even one
   settled on penalties, marked PK on its row); each side's wins and the
