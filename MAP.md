@@ -31,7 +31,11 @@ couldn't be read is shown, never hidden.
     tile), 正在進行, 我的比賽 (one list, the day's plan: `dayPlan`'s `keep`
     puts the games they follow in first, then the best others fill only the
     hours left free, one game a slot; their teams' later games under it;
-    no separate 推薦, Jay 2026-11-03), 更多賽事, 我的球隊 (each
+    no separate 推薦, Jay 2026-11-03). Only their own games unless 我的設定's
+    填滿空檔 is on (`prefs.fill`, off by default): then the free hours take
+    the game of any sport worth most (`picks.mjs worth`: PRESTIGE by league,
+    stakes, the table, the odds, big clubs, the hour; none under FILL_MIN).
+    更多賽事, 我的球隊 (each
     followed team's place in its table and its next game; without follows,
     the places to watch), 已結束.
 - **Orbit's own look** (Jay 2026-11-03; Orbit-Core DESIGN.md §11; `<html

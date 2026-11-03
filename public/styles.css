@@ -125,10 +125,9 @@ img { max-width: 100%; }
 .row-mark { display: inline-flex; align-items: center; gap: 4px; height: 20px; margin-right: 8px; padding: 0 8px 0 6px; border-radius: 999px; background: var(--q-fill-2); color: var(--q-label, var(--q-text)); font: 600 12px/20px var(--q-font); white-space: nowrap; }
 .row-mark svg { width: 11px; height: 11px; fill: currentColor; }
 .event-row.picked { background: var(--q-fill-4); }
-/* (首頁's 我的比賽 is all picks: no mark, no light, no dot where the mark was.) */
+/* (首頁's 我的比賽 is all picks: no mark, no light.) */
 .pick-list .row-mark { display: none; }
 .pick-list .event-row.picked { background: none; }
-.pick-list .ev-tags > .row-mark:first-child + :not(.tv-line)::before, .pick-list .ev-tags > .row-mark:first-child + .tv-line > .tv-ch:first-child::before { content: none; }
 .event-meta { display: grid; justify-items: start; align-content: center; min-width: 0; }
 .event-status { max-width: 100%; color: var(--q-label-2); font: 600 13px/1.25 var(--q-font); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .event-status.pre { color: var(--q-label); font: 600 18px/1.15 var(--q-font-rounded); letter-spacing: -0.01em; }
@@ -168,7 +167,8 @@ img { max-width: 100%; }
 .ev-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin-top: 2px; min-width: 0; height: 20px; overflow: hidden; }
 /* Facts (league, stage, channel) are plain grey text joined by a dot; only ★ 追蹤 / 推薦 is a pill (row-mark). */
 .ev-tags > :not(:first-child):not(.tv-line)::before, .ev-tags > .tv-line:not(:first-child) > .tv-ch::before { content: '·'; margin: 0 6px; color: var(--q-label-3, var(--q-label-2)); }
-.ev-tags > .row-mark + *::before, .ev-tags > .row-mark + .tv-line > .tv-ch:first-child::before { content: none; }
+/* (No dot after the pill: as specific as the dot's own rule, and after it.) */
+.ev-tags > .row-mark + :not(.tv-line)::before, .ev-tags > .row-mark + .tv-line > .tv-ch:first-child::before { content: none; }
 .ev-tags > .q-tag { min-height: 0; padding: 0; background: none; color: var(--q-label-2); font: 500 12px/20px var(--q-font); }
 .ev-tags > *, .tv-ch { flex: none; }
 .tv-line { display: contents; }
@@ -2179,6 +2179,9 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .q-card.recap > .event-row { position: static; }
 .q-card.recap > .event-row:active { background: none; }
 .q-card.recap:has(> .event-row:active:not(:disabled)) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
+/* A game over shown with its leaders (recapList): the whole card lit, never the top half. */
+.q-card.recap > .event-row.picked { background: none; }
+.q-card.recap:has(> .event-row.picked) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
 .recap-best { display: grid; gap: 4px; margin-top: -6px; padding: 0 16px 14px 92px; }
 .recap-lead { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
 .recap-lead:disabled { opacity: 1; }

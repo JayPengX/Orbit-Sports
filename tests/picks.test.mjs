@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreMatch, dayPlan, clash, tableIndex, tableStarted, bigGame, watchedLeagues, leagueChoices } from '../public/lib/picks.mjs';
+import { worth, FILL_MIN, scoreMatch, dayPlan, clash, tableIndex, tableStarted, bigGame, watchedLeagues, leagueChoices } from '../public/lib/picks.mjs';
 
 const at = h => new Date(Date.UTC(2026, 9, 3, h)).toISOString();
 const side = (id, name) => ({ id, name, short: name });
@@ -299,4 +299,19 @@ test('我的比賽 is one plan: a followed game takes its hour, a better game th
   const later = match('epl', 'later', 17, side('3', 'C'), side('4', 'D'));
   const { plan } = dayPlan([big, mine, later], ctx, { keep: e => e.id === 'mine' });
   assert.deepEqual(plan.map(p => p.event.id), ['mine', 'later']);
+});
+
+test('填滿空檔: off, only their games; on, a free hour takes the game worth most across sports, never a weak one', () => {
+  const ctx = { leagues: ['epl'], now: NOW };
+  const mine = match('epl', 'mine', 11, side('1', 'Brighton'), side('2', 'Brentford'));
+  const ucl = match('ucl', 'ucl', 14, side('3', 'Real Madrid'), side('4', 'Liverpool'));
+  const sco = match('scotland', 'sco', 14, side('5', 'Hibernian'), side('6', 'Kilmarnock'));
+  const weak = match('scotland', 'weak', 18, side('7', 'Ross County'), side('8', 'St Mirren'));
+  const only = e => e.id === 'mine';
+  assert.deepEqual(dayPlan([mine, ucl, sco, weak], ctx, { keep: only, only }).plan.map(p => p.event.id), ['mine']);
+  const on = dayPlan([mine, ucl, sco, weak], ctx, { keep: only, only, fill: e => worth(e, ctx) }).plan.map(p => p.event.id);
+  assert.deepEqual(on, ['mine', 'ucl']);
+  assert.ok(worth(weak, ctx).score < FILL_MIN);
+  const final = match('mlb', 'ws', 14, side('9', 'A'), side('10', 'B'), { stage: { key: 'final' } });
+  assert.ok(worth(final, ctx).score > worth(match('mlb', 'reg', 14, side('9', 'A'), side('10', 'B')), ctx).score + 0.5, 'a final means far more');
 });

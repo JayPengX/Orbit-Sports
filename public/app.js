@@ -28,7 +28,7 @@ import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
-import { dayPlan, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, HABIT } from './lib/picks.mjs';
+import { dayPlan, worth, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, HABIT } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes, weekendCircuit } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
 import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote } from './lib/nbacup.mjs';
@@ -108,7 +108,7 @@ const TABS = ['home', 'matches', 'live', 'following'];
 
 const state = {
   tab: 'home',
-  prefs: { leagues: [], follows: [], games: [], audio: 'en' },
+  prefs: { leagues: [], follows: [], games: [], audio: 'en', fill: false },
   prefsLoaded: false,
   wallet: null,
   // The days read so far: date -> { events, at, loading }.
@@ -167,7 +167,7 @@ function applyPrefs(payload) {
     p = { ...(p || {}), leagues: passed };
     restored = true;
   } else if (payload) keepLocalPrefs(payload);
-  if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], games: p.games || [], audio: p.audio === 'zh' ? 'zh' : 'en' };
+  if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], games: p.games || [], audio: p.audio === 'zh' ? 'zh' : 'en', fill: p.fill === true };
   // Only the leagues Orbit Sports has; an NBA team with NBA.com's logo, as everywhere.
   state.prefs.games = keptGames(state.prefs.games);
   state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
@@ -222,9 +222,9 @@ function savePrefs() {
     return;
   }
   clearTimeout(saveTimer);
-  const { leagues, follows, games, audio } = state.prefs;
+  const { leagues, follows, games, audio, fill } = state.prefs;
   saveTimer = setTimeout(() => {
-    const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, t: Date.now() });
+    const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, ...(fill ? { fill: true } : {}), t: Date.now() });
     keepLocalPrefs(payload);
     // Not saved (another app live on the pass, offline): again when this one is live.
     savePending = true;
@@ -562,7 +562,17 @@ function openFollowEditor() {
           }
         ),
         { sub: t('tvAudioHint') }
-      )
+      ),
+      // 填滿空檔 (Jay 2026-11-03): off, 我的比賽 is only their own games; on,
+      // the hours they leave free are filled with the game of any sport that
+      // means most then (picks.mjs worth).
+      kitUI.list([
+        kitUI.cell({
+          title: L({ zh: '填滿空檔', en: 'Fill free time' }),
+          sub: L({ zh: '空檔排入各運動好比賽', en: 'Best game of any sport' }),
+          trailing: kitUI.toggle({ checked: state.prefs.fill === true, label: L({ zh: '填滿空檔', en: 'Fill free time' }), onChange: on => ((state.prefs.fill = on), savePrefs(), pickMemo.clear(), state.tab === 'home' && renderHome()) })
+        })
+      ])
     );
   };
   paint();
@@ -1450,12 +1460,14 @@ function isPickEvent(e) {
       .catch(() => {});
   }
   if (!slot?.events?.length) return false;
-  const memo = `${d}|${slot.at}|${slot.events.length}`;
+  const memo = `${d}|${slot.at}|${slot.events.length}|${state.prefs.fill ? `f${slot.others?.length || 0}` : ''}`;
   if (!pickMemo.has(memo)) {
     const own = new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)]);
     const mine = filtered(slot.events.filter(x => !practice(x) && (own.has(x.league) || isFollowedGame(x)) && (isFollowedGame(x) || onTv(x))));
     const past = d < today();
-    pickMemo.set(memo, new Set(dayPlan(mine.filter(e => !nightOnly(e)), pickContext(slot), { n: 6, also: 0, asStood: past, keep: ownGame }).plan.map(x => `${x.event.league}:${x.event.id}`)));
+    const pool = state.prefs.fill ? [...mine, ...(slot.others || []).filter(x => !practice(x) && onTv(x))] : mine;
+    const pctx = pickContext(slot);
+    pickMemo.set(memo, new Set(dayPlan(pool.filter(e => !nightOnly(e)), pctx, { n: 6, also: 0, asStood: past, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, pctx) : null }).plan.map(x => `${x.event.league}:${x.event.id}`)));
   }
   return pickMemo.get(memo).has(key);
 }
@@ -1493,7 +1505,9 @@ function renderHome() {
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
   const rank = (list, also = 999, ctx = pctx, before = past) => {
-    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before, keep: ownGame });
+    // (Only their own games are 我的比賽; with 填滿空檔 on, the free hours
+    // take the game of any sport worth most then.)
+    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, ctx) : null });
     // The small hours' big games: with the rest, by their score.
     const { also: night } = dayPlan(list.filter(nightOnly), ctx, { n: 0, also: 999, asStood: before });
     const rest = [...awake, ...night].sort((x, y) => y.score - x.score);
@@ -1522,7 +1536,10 @@ function renderHome() {
   // many, 更多推薦), not as a day still going with an ended corner.
   const todayOver = h.date === today() && mine.length > 0 && mine.every(e => e.status.state === 'post' || e.status.void) && !slot.stale && !slot.loading;
   if (todayOver) past = true;
-  let [planList, more] = rank(filtered(mine));
+  // 填滿空檔: every sport's games can fill a free hour (the others read alongside).
+  const fillPool = () => (state.prefs.fill && h.filter !== 'teams' ? filtered((slot.others || []).filter(shown)) : []);
+  if (state.prefs.fill && !slot.othersAt && !slot.othersLoading) loadOthers(h.date);
+  let [planList, more] = rank([...filtered(mine), ...fillPool()]);
   // Nothing of theirs on: the best of the rest.
   // Opened on a day with nothing of theirs, or with all of it over: the
   // next day they have games (only on a fresh read: a saved or half-read

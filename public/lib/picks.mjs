@@ -281,10 +281,38 @@ export function clash(x, y) {
 // each { event, score, reasons }. asStood: the day ranked as it stood before
 // any of it was played, each game as it is now: an ended one and a postponed
 // one too (a pick called off stays among the picks that ended, never gone).
+// What a game is worth on its own, across sports, for filling the free hours
+// (填滿空檔): not the person's leagues or teams, but what the game means. How
+// much its league is watched here (PRESTIGE: the Champions League, the
+// Premier League, the NBA, MLB, and CPBL at home over a mid-table French
+// game), what's at stake (a final, a play-off, a series, a derby), how good
+// and how even the sides are (the table where it's known, the bookmakers'
+// prices), the clubs people tune in for, when it's on in Taiwan, and how
+// it's going if it's on. What the person opens still counts (their own
+// taste across sports), a little.
+export const PRESTIGE = { ucl: 0.5, epl: 0.45, nba: 0.45, mlb: 0.4, f1: 0.4, cpbl: 0.35, bundesliga: 0.3, seriea: 0.3, ligue1: 0.22, uel: 0.25, facup: 0.25, nationsleague: 0.2, mls: 0.12, uecl: 0.12, scotland: 0.08 };
+// The least a game must be worth to take a free hour (a mid-table Premier
+// League game in the evening is about 0.8; Scotland's is about 0.4).
+export const FILL_MIN = 0.65;
+export function worth(e, ctx = {}) {
+  const { score, reasons } = scoreMatch(e, { ...ctx, leagues: [], follows: [], games: [], chosen: null, featured: null, why: null });
+  let s = score + (PRESTIGE[e.league] ?? 0.1);
+  // A final or a decider means more than a mere play-off game.
+  if (bigGame(e)) s += 0.3;
+  // An F1 race over its practice.
+  if (e.sessionKey && e.sessionKey !== 'Race') s -= e.sessionKey === 'Qual' || e.sessionKey === 'SR' ? 0.15 : 0.5;
+  return { score: Math.round(s * 1000) / 1000, reasons: reasons.filter(r => r !== 'top') };
+}
+
 // keep: the games the person follows (a team, a player, a game): always in
 // the plan, first; the others fill only the hours they leave free (one game
 // a slot: you can't watch two at once, Jay 2026-11-03).
-export function dayPlan(events, ctx = {}, { n = 6, also = 6, asStood = false, keep = null } = {}) {
+// only: the games that may be in the plan at all (theirs: 我的比賽 is their
+// own games, Jay 2026-11-03, "it's filling in my schedule"); the rest are
+// "also". fill: with 填滿空檔 on, a scorer of what any game is worth on its
+// own (worth()): the free hours left are filled from the rest, the game that
+// means most first, none under FILL_MIN.
+export function dayPlan(events, ctx = {}, { n = 6, also = 6, asStood = false, keep = null, only = null, fill = null } = {}) {
   const now = ctx.now ?? Date.now();
   const seen = new Set();
   const before = e => ({ ...e, status: { ...e.status, state: 'pre', void: false } });
@@ -300,8 +328,21 @@ export function dayPlan(events, ctx = {}, { n = 6, also = 6, asStood = false, ke
   plan.push(...kept);
   for (const item of scored) {
     if (kept.includes(item)) continue;
-    if (plan.length < n && !plan.some(p => clash(p.event, item.event))) plan.push(item);
+    if ((!only || only(item.event)) && plan.length < n && !plan.some(p => clash(p.event, item.event))) plan.push(item);
     else rest.push(item);
+  }
+  if (fill) {
+    const extra = rest
+      .filter(x => !only?.(x.event))
+      .map(x => ({ ...x, ...fill(asStood ? before(x.event) : x.event), filled: true }))
+      .filter(x => x.score >= FILL_MIN)
+      .sort((x, y) => y.score - x.score);
+    for (const item of extra) {
+      if (plan.length >= n) break;
+      if (plan.some(p => clash(p.event, item.event))) continue;
+      plan.push(item);
+      rest.splice(rest.findIndex(x => x.event === item.event), 1);
+    }
   }
   plan.sort((x, y) => Date.parse(x.event.start) - Date.parse(y.event.start));
   return { plan, also: rest.slice(0, also) };
