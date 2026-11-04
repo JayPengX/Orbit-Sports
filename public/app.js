@@ -1728,6 +1728,10 @@ function renderHome() {
   }
   // Another day's rows: their time alone (the head says the day).
   const rowDay = { day: h.date === today() };
+  // 已結束 is all their own games (as 我的比賽 is): no row lit grey or marked
+  // ★ 推薦 in it, a busy day's list or a light day's cards alike (Jay 2026-11-05:
+  // 10/31's four games, "only this page is marked all grey weird").
+  const endedRow = { ...rowDay, mark: false };
   // Nothing of theirs: a quiet card saying why, and the way to every game.
   const note = (title, sub, go = true) => el('div', { class: 'home-note' }, [title ? el('strong', { text: title }) : null, sub ? el('p', { text: sub }) : null, go ? fullSchedule() : null]);
   // A day gone by: only theirs, the games of their own leagues (what the
@@ -1744,10 +1748,10 @@ function renderHome() {
   const endedBody = (own, fill, rowsOf) => (fill.length ? el('div', { class: 'ended-both' }, [own.length ? rowsOf(own) : null, filledOver(fill)]) : rowsOf(own));
   function pastDay() {
     const games = pastGames;
-    if (light && (games.length || pastFilled.length)) return section(t('pastEvents'), endedBody(games, pastFilled, g => recapList(g, rowDay)), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length + pastFilled.length }) }) });
+    if (light && (games.length || pastFilled.length)) return section(t('pastEvents'), endedBody(games, pastFilled, g => recapList(g, endedRow)), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length + pastFilled.length }) }) });
     const title = t('pastEvents');
     if (!games.length && !pastFilled.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
-    return section(title, el('div', { class: 'ended-both' }, [games.length ? el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))) : null, games.length > h.shown ? moreToggle({ more: `${t('showMore')} (${games.length - h.shown})`, less: null, cls: 'show-more', onToggle: () => ((h.shown += 30), renderHome()) }) : null, filledOver(pastFilled)]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length + pastFilled.length }) }) });
+    return section(title, el('div', { class: 'ended-both' }, [games.length ? el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, endedRow))) : null, games.length > h.shown ? moreToggle({ more: `${t('showMore')} (${games.length - h.shown})`, less: null, cls: 'show-more', onToggle: () => ((h.shown += 30), renderHome()) }) : null, filledOver(pastFilled)]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length + pastFilled.length }) }) });
   }
   // Shelves under the picks (each game once: the hero and 正在進行 first, then
   // 我的球隊, the picks, 今晚, the ended): my teams' games still to come, the
@@ -1868,7 +1872,7 @@ function renderHome() {
       !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
       leaguesShelf,
       teamsShelf || placesShelf,
-      endedGames.length || endedFilled.length ? section(t('pastEvents'), endedBody(endedGames, endedFilled, g => (light ? recapList(g, rowDay) : kitRail(g))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length + endedFilled.length }) }) }) : null
+      endedGames.length || endedFilled.length ? section(t('pastEvents'), endedBody(endedGames, endedFilled, g => (light ? recapList(g, endedRow) : kitRail(g))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length + endedFilled.length }) }) }) : null
     ])
   );
   // An F1 session on: its live timing read now, not at the next tick.

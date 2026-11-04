@@ -550,9 +550,10 @@ const rowTags = (e, { league, picked, tag }) => {
   const kids = [rowMark(picked), league ? compChip(e) : null, tag ? el('span', { class: 'q-tag', text: tag }) : null, tvLine(e)].filter(Boolean);
   return kids.length ? el('div', { class: 'ev-tags' }, kids) : null;
 };
-export function eventRow(e, { league = true, day = true, picked = false } = {}) {
-  // (The row's light and pill say 推薦 only: a followed league's games are all theirs, Jay 2026-11-03.)
-  picked = picked || Boolean(ctx.isPickEvent?.(e));
+export function eventRow(e, { league = true, day = true, picked = false, mark = true } = {}) {
+  // (The row's light and pill say 推薦 only: a followed league's games are all theirs, Jay 2026-11-03.
+  // `mark: false`: a list that is all theirs, 首頁's 已結束, never lit or marked; Jay 2026-11-05.)
+  picked = mark && (picked || Boolean(ctx.isPickEvent?.(e)));
   const live = e.status.state === 'in';
   if (e.kind === 'match') {
     const w = winners(e);
