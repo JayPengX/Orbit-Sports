@@ -823,11 +823,8 @@ async function loadOthers(date, live = false) {
   if (live && !pages.size) return;
   slot.othersLoading = true;
   try {
-    // (填滿空檔: every hour's games, the small hours' too.)
-    const night = state.prefs.fill === true;
-    const got = live ? overHeld(slot.others, await readDay(otherLeagues().slice(0, 24), date, { pages, night: slot.othersNight }), pages) : await readDay(otherLeagues().slice(0, 24), date, { night });
+    const got = live ? overHeld(slot.others, await readDay(otherLeagues().slice(0, 24), date, { pages }), pages) : await readDay(otherLeagues().slice(0, 24), date);
     slot.others = got;
-    if (!live) slot.othersNight = night;
     if (!live) slot.othersFailed = got.failed || 0;
   } catch {
     slot.others = slot.others || [];
@@ -1472,7 +1469,7 @@ function isPickEvent(e) {
     const past = d < today();
     const pool = state.prefs.fill ? [...mine, ...(slot.others || []).filter(x => !practice(x) && onTv(x))] : mine;
     const pctx = pickContext(slot);
-    pickMemo.set(memo, new Set(dayPlan(pool.filter(e => state.prefs.fill || !nightOnly(e)), pctx, { n: 6, also: 0, asStood: past, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, pctx) : null }).plan.map(x => `${x.event.league}:${x.event.id}`)));
+    pickMemo.set(memo, new Set(dayPlan(pool.filter(e => !nightOnly(e)), pctx, { n: 6, also: 0, asStood: past, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, pctx) : null }).plan.map(x => `${x.event.league}:${x.event.id}`)));
   }
   return pickMemo.get(memo).has(key);
 }
@@ -1512,11 +1509,11 @@ function renderHome() {
   const rank = (list, also = 999, ctx = pctx, before = past) => {
     // (Only their own games are 我的比賽; with 填滿空檔 on, the free hours
     // take the game of any sport worth most then.)
-    // (Filling, the small hours too: every hour of the day, as asked.)
+    // (Filling keeps the quiet hours as their leagues do: never the small hours, Jay 2026-11-04.)
     const fill = state.prefs.fill;
-    const { plan, also: awake } = dayPlan(list.filter(e => fill || !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before, keep: ownGame, only: isFollowedEvent, fill: fill ? e => worth(e, ctx) : null });
+    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before, keep: ownGame, only: isFollowedEvent, fill: fill ? e => worth(e, ctx) : null });
     // The small hours' big games: with the rest, by their score.
-    const { also: night } = dayPlan(list.filter(e => !fill && nightOnly(e)), ctx, { n: 0, also: 999, asStood: before });
+    const { also: night } = dayPlan(list.filter(nightOnly), ctx, { n: 0, also: 999, asStood: before });
     const rest = [...awake, ...night].sort((x, y) => y.score - x.score);
     return [plan, rest.slice(0, also)];
   };
@@ -1545,8 +1542,7 @@ function renderHome() {
   if (todayOver) past = true;
   // 填滿空檔: every sport's games can fill a free hour (the others read alongside).
   const fillPool = () => (state.prefs.fill && h.filter !== 'teams' ? filtered((slot.others || []).filter(shown)) : []);
-  // (Their small hours too: a day filled is filled whole.)
-  if (state.prefs.fill && (!slot.othersAt || !slot.othersNight) && !slot.othersLoading) loadOthers(h.date);
+  if (state.prefs.fill && !slot.othersAt && !slot.othersLoading) loadOthers(h.date);
   let [planList, more] = rank([...filtered(mine), ...fillPool()]);
   // Nothing of theirs on: the best of the rest.
   // Opened on a day with nothing of theirs, or with all of it over: the

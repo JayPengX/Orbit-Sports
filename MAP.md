@@ -32,8 +32,8 @@ couldn't be read is shown, never hidden.
     puts the games they follow in first, then the best others fill only the
     hours left free, one game a slot; their teams' later games under it;
     no separate 推薦, Jay 2026-11-03). Only their own games unless 我的設定's
-    填滿空檔 is on (`prefs.fill`, off by default): then EVERY free hour,
-    the small hours too (others read with `night`), takes the game of any
+    填滿空檔 is on (`prefs.fill`, off by default): then every free waking
+    hour (the small hours stay quiet, as for their leagues) takes the game of any
     sport worth most then (`picks.mjs worth`: PRESTIGE by league, stakes, the
     table, the odds, big clubs, the hour; no quality cut), drawn as a grey
     `.filled` row with ★ 推薦. 下一場 is always their own next game (a later
