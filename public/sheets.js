@@ -7056,6 +7056,16 @@ const clinchGames = new Map();
 // never said). A read that fails is tried again on the next draw, not kept
 // as "none" for the session.
 const clinchWaits = new Map();
+// (A read that failed or found no such game: the card says it without the
+// day, never held waiting again while it's tried once more.)
+const clinchNone = new Set();
+// Is a card's day still on its way (the first read out, none failed yet)?
+// Its line is then drawn waiting, never "第 8 場" switched to "1/28" (Jay
+// 2026-11-04: the clinch card's words jumped from one to the other).
+const clinchPending = (league, id, n) => {
+  const key = `${league}:${id}:${n}`;
+  return clinchWaits.has(key) && !clinchGames.has(key) && !clinchNone.has(key);
+};
 function clinchGame(league, id, n, redo) {
   const key = `${league}:${id}:${n}`;
   const had = clinchGames.get(key);
@@ -7073,13 +7083,22 @@ function clinchGame(league, id, n, redo) {
       const all = clinchWaits.get(key) || [];
       clinchWaits.delete(key);
       const e = games.filter(e => e.status?.state !== 'post')[n - 1];
-      if (!e?.start || Number.isNaN(Date.parse(e.start))) return void clinchGames.delete(key);
+      if (!e?.start || Number.isNaN(Date.parse(e.start))) return void none(all);
       const moved = e.id !== had?.id;
       clinchGames.set(key, e);
+      clinchNone.delete(key);
       if (moved) for (const f of all) f();
     },
-    () => clinchWaits.delete(key)
+    () => none(clinchWaits.get(key) || [])
   );
+  // (Every card held waiting told: it's drawn without the day.)
+  function none(all) {
+    const told = clinchNone.has(key);
+    clinchWaits.delete(key);
+    clinchGames.delete(key);
+    clinchNone.add(key);
+    if (!told) for (const f of all) f();
+  }
   return had || null;
 }
 // `asIs`: a race on now, the table as it stands (a title won is "would be": not till the flag).
@@ -7227,11 +7246,17 @@ function raceBlock(race, g, league, many, asIs = false) {
     return line('clock', W(`${name}${esc(when(t))}${dayOf(t) ? ' ' : ''}才會確定`, `${name}: ${esc(when(t))}`), !next ? '' : gap > 0 ? [true, false].map(full => W(`${nm(t.leader)}${full ? rec : ''} 領先 ${gap}${unit}`.replace('， ', '，'), `${nm(t.leader)}${full ? rec : ''} lead by ${gap}`)) : [true, false].map(full => W(`${nm(t.leader)}${full ? rec : ''} 與 ${nm(next)}${level > 1 ? ` 等 ${level} 隊` : ''} 同${race.unit === 'pts' ? '分' : '勝'}`.replace('， ', '，'), `${nm(t.leader)}${full ? rec : ''} level with ${nm(next)}${level > 1 ? ` +${level - 1}` : ''}`)));
   };
   // A line said again once its day is in (the schedule comes after the table).
+  // (A line whose day or next game is still being read is drawn in its shape, waiting: kit waiting.)
+  const pendingOf = t => Boolean(t?.leader?.id && t.soonest > 0 && clinchPending(league, t.leader.id, t.soonest));
+  const drawn = (t, k) => {
+    const l = chaseLine(t, k);
+    return l && pendingOf(t) && kitUI.waiting ? kitUI.waiting(l, { keep: '.race-g' }) : l;
+  };
   const chase = (t, k = 0) => {
-    let shown = chaseLine(t, k);
+    let shown = drawn(t, k);
     let tries = 0;
     redo = () => {
-      const fresh = chaseLine(t, k);
+      const fresh = drawn(t, k);
       if (!fresh || !shown) return;
       if (!shown.isConnected) return tries++ < 20 && setTimeout(redo, 250);
       shown.replaceWith(fresh);
