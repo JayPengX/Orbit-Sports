@@ -2199,7 +2199,7 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .q-card.recap > .event-row.picked { background: none; }
 .q-card.recap:has(> .event-row.picked) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
 .recap-best { display: grid; gap: 4px; margin-top: -6px; padding: 0 16px 14px 92px; }
-.recap-lead { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.recap-lead { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 20px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
 .recap-lead:disabled { opacity: 1; }
 .recap-lead .logo { flex: none; }
 .recap-text { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }

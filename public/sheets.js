@@ -3487,21 +3487,34 @@ const choiceWatch = typeof ResizeObserver === 'function'
           continue;
         }
         n.dataset.fitted = '1';
-        const ways = n.__ways || [];
-        n.style.fontSize = '';
-        for (const w of ways) {
-          if (w?.html != null) n.innerHTML = w.html;
-          else n.textContent = w;
-          if (!overflows(n)) break;
-        }
-        for (let i = 0; i < 30 && overflows(n); i++) {
-          const size = parseFloat(getComputedStyle(n).fontSize) - 0.5;
-          if (size < 10) break;
-          n.style.fontSize = `${size}px`;
+        fitWays(n);
+        // (Lines said the same way: if one needs the short words, its siblings take them too.)
+        if (n.dataset.same) {
+          const group = [...(n.parentElement?.parentElement?.querySelectorAll(`[data-same="${n.dataset.same}"]`) || [])];
+          if (group.some(x => x.__pick?.tight)) group.filter(x => !x.__pick?.tight && x.__ways?.some(w => w?.tight)).forEach(x => fitWays(x, w => w?.tight));
+          // (And at one size: the smallest one of them needed.)
+          const sizes = group.map(x => parseFloat(x.style.fontSize) || 0).filter(Boolean);
+          if (sizes.length) group.forEach(x => (x.style.fontSize = `${Math.min(...sizes)}px`));
         }
       }
     })
   : null;
+// The first of a box's ways (those `only` allows) that fits on one line, else the last made smaller.
+function fitWays(n, only = () => true) {
+  const ways = (n.__ways || []).filter(only);
+  n.style.fontSize = '';
+  for (const w of ways) {
+    if (w?.html != null) n.innerHTML = w.html;
+    else n.textContent = w;
+    n.__pick = w;
+    if (!overflows(n)) break;
+  }
+  for (let i = 0; i < 30 && overflows(n); i++) {
+    const size = parseFloat(getComputedStyle(n).fontSize) - 0.5;
+    if (size < 10) break;
+    n.style.fontSize = `${size}px`;
+  }
+}
 function fitChoice(n, ways) {
   n.__ways = ways;
   // (A way may be { html }: words with their <b>, escaped where they're made.)
@@ -3574,6 +3587,14 @@ function sideStar(d, e, team) {
 }
 export function gameRecap(e, d) {
   const sides = inOrder(e, [e.away, e.home]);
+  // Still being read (d null): its lines held in their shape from the first
+  // drawing, a face and a line a side (football's: a side that scored), so
+  // nothing under the card moves when they come (Jay 2026-11-04, "don't
+  // jump in this section").
+  if (d === null && kitUI.waiting) {
+    const n = LEAGUES[e.league]?.sport === 'soccer' ? sides.filter(x => boxNum(x?.score) > 0).length : sides.length;
+    return n ? [kitUI.waiting(el('div', { class: 'recap-best' }, sides.slice(0, n).map(() => el('div', { class: 'recap-lead' }, [personPic({ stand: true }, e.league, 'xs round'), el('span', { class: 'recap-text one-line' }, [el('strong', { text: '口口口口' }), el('small', { text: '口口 · 口口' })])]))))] : [];
+  }
   const best = sides.map(s => ({ s, star: d ? sideStar(d, e, String(s.id)) : null })).filter(x => x.star);
   // One line a side, under the scores as a race's top three is under its
   // name (Jay 2026-10-27: not two big cards that make one game twice as tall).
@@ -3586,14 +3607,16 @@ export function gameRecap(e, d) {
     const way = (who, what) => ({ html: `<strong>${esc(who)}</strong><small>${esc(what)}</small>` });
     // (Still too long, a 320 phone's G. Antetokounmpo: the last name alone, never cut.)
     const last = short.replace(/^(\S+\.\s+)+/, '');
-    return [way(full, line), way(short, line), ...(tight && tight !== line ? [way(short, tight)] : []), ...(last !== short ? [way(last, tight || line)] : [])];
+    // (`tight`: the stats' short words; a card's lines all take them if one must: recapSame.)
+    const t = tight && tight !== line;
+    return [way(full, line), way(short, line), ...(t ? [{ ...way(short, tight), tight: true }] : []), ...(last !== short ? [{ ...way(last, tight || line), tight: t }] : [])];
   };
   return best.length
     ? [
         el('div', { class: 'recap-best' }, best.map(({ star: { p, line, tight } }) =>
           el('button', { class: 'recap-lead', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
             personPic({ ...p, name: p.full || p.name }, e.league, 'xs round'),
-            fitChoice(el('span', { class: 'recap-text' }), ways(p, line, tight))
+            fitChoice(el('span', { class: 'recap-text', 'data-same': 'recap' }), ways(p, line, tight))
           ])
         ))
       ]

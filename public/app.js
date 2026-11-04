@@ -1499,6 +1499,12 @@ function isPickEvent(e) {
       .then(() => state.tab === 'matches' && state.days.get(d)?.events?.length && renderScores())
       .catch(() => {});
   }
+  // A game of theirs (a team, a player, the game itself) on TV here is
+  // always in the day's plan (dayPlan's keep): lit at once, before that day
+  // is read or 首頁 has drawn it (Jay 2026-11-04: 勇士 v 火箭 in 賽事 went
+  // grey only after its day was opened on 首頁, or came in grey later).
+  // (Today and on, as the plan has them: one still to come or on, not over or called off.)
+  if (ownGame(e) && !practice(e) && (isFollowedGame(e) || onTv(e)) && (d < today() || (e.status?.state !== 'post' && !e.status?.void))) return true;
   if (!slot?.events?.length) return false;
   const memo = `${d}|${slot.at}|${slot.events.length}|${state.prefs.fill ? `f${slot.others?.length || 0}` : ''}|${Object.values(state.home.tables).filter(x => Object.keys(x).length).length}`;
   if (!pickMemo.has(memo)) {
@@ -1512,6 +1518,12 @@ function isPickEvent(e) {
   return pickMemo.get(memo).has(key);
 }
 ctx.isPickEvent = isPickEvent;
+// What a day not drawn yet still waits for: a league of theirs unread, or
+// 填滿空檔's games (every other league's) still being read. (One of the
+// others unread doesn't hold it: it held the whole page 6 s for a league
+// whose games are seldom a filled one.) Once drawn, a day never drops back
+// to its shape (a live read that misses a league).
+const dayWaits = slot => !slot?.drawn && (slot?.partial > 0 || (state.prefs.fill && state.home.filter !== 'teams' && !slot?.othersAt));
 // A game the person follows by name (a team, a player, the game itself):
 // always among 我的比賽, its hour taken (not a league's chosen game, which
 // competes for its hour like any other).
@@ -1581,13 +1593,21 @@ function renderHome() {
   // 填滿空檔: every sport's games can fill a free hour (the others read alongside).
   const fillPool = () => (state.prefs.fill && h.filter !== 'teams' ? filtered((slot.others || []).filter(shown)) : []);
   if (state.prefs.fill && !slot.othersAt && !slot.othersLoading) loadOthers(h.date);
+  // A day's first drawing waits in its shape (up to 6 s) for what its list
+  // is made of, so no game pops in among the ones drawn and pushes them down
+  // (Jay 2026-11-04: "the games often jump in"): every league of theirs (one
+  // unread is asked again in 4 s; the filled games stood alone till then),
+  // and with 填滿空檔 on, the others' too (read alongside: they came after).
+  if (dayWaits(slot) && !h.picking && !holdDay(box, 6_000)) return;
   let [planList, more] = rank([...filtered(mine), ...fillPool()]);
   // Nothing of theirs on: the best of the rest.
   // Opened on a day with nothing of theirs, or with all of it over: the
   // next day they have games (only on a fresh read: a saved or half-read
   // day can't say there's none). 今天 on the strip still shows today's.
   const nothingToday = !planList.length && !mine.some(e => e.status.state === 'in' || e.status.state === 'post');
-  if ((nothingToday || todayOver) && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length && !slot.stale && !slot.loading && !gap) {
+  // (Only their own leagues and ELTA's list need to be in for it: one of the
+  // other leagues unread kept it waiting for a retry, 4 s and more.)
+  if ((nothingToday || todayOver) && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length && !slot.stale && !slot.loading && !(slot.partial > 0) && !tvUnread()) {
     h.autoDay = false;
     h.jumping = true;
     let went = false;
@@ -1700,7 +1720,11 @@ function renderHome() {
   if (!hasFollows && state.prefsLoaded) h.picking = true;
   // Everything the picks lean on is in: the day read fresh, the tables,
   // the followed teams, and no search for other games or days going on.
-  h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !h.tablesPending && ![...h.teams.values()].includes(null);
+  // (Today with nothing of theirs left, the move to their next day still to
+  // come: not settled, so the loading screen never lifts on today's ended
+  // games and then jumps to that day under the person's eyes.)
+  const mayJump = (nothingToday || todayOver) && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length > 0;
+  h.settled = !slot.stale && !slot.loading && !finding && !h.jumping && !mayJump && !h.tablesPending && ![...h.teams.values()].includes(null);
   // (A league of theirs that didn't answer: the loading screen reads it again before it lifts.)
   h.partial = slot.partial > 0;
   // The best of the rest, by the clock (by score, a 02:45 sat above a 00:00): 稍後's 全部.
@@ -1875,6 +1899,10 @@ function renderHome() {
       endedGames.length || endedFilled.length ? section(t('pastEvents'), endedBody(endedGames, endedFilled, g => (light ? recapList(g, endedRow) : kitRail(g))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length + endedFilled.length }) }) }) : null
     ])
   );
+  // (Drawn: what comes later for this day goes in as it is.)
+  if (!slot.stale) slot.drawn = true;
+  // (A finished game's top players still being read, held in their shape: the loading screen waits for them.)
+  if (box.querySelector('.recap-best.q-wait')) h.settled = false;
   // An F1 session on: its live timing read now, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
   // The open day in: the days either side read meanwhile.

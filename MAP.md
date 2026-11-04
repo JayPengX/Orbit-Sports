@@ -45,6 +45,15 @@ couldn't be read is shown, never hidden.
     `homeGames`): never the others' results; a filled game over is the same
     quiet line with its score at the end. 完賽 is as big as a start time. 下一場 is always their own next game (a later
     day's when the open day has none), never a filled one.
+    A day is drawn once: its first drawing waits in its shape (up to 6 s,
+    `dayWaits`) until every league of theirs is read (one unread is asked
+    again in 4 s) and, with 填滿空檔 on, the other leagues too; the loading
+    screen stays up until a day of theirs that's over has moved on to their
+    next day (`mayJump`), and a finished game's top players (`gameRecap`) are
+    held in their shape while read, both lines in the same words and size. A
+    game of theirs on TV is lit (`isPickEvent`) in every list at once, not once
+    首頁 has drawn its day (Jay 2026-11-04: "the games often jump in";
+    `tests/home-steady.test.mjs`, Orbit-Core `tools/live-scroll.mjs`).
     更多賽事 (only their own leagues' other games, never the other sports'
     filled or fallback ones), 我的球隊 (each
     followed team's place in its table and its next game; without follows,
