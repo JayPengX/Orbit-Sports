@@ -44,7 +44,8 @@ couldn't be read is shown, never hidden.
     `homeGames`): never the others' results; a filled game over is the same
     quiet line with its score at the end. 完賽 is as big as a start time. 下一場 is always their own next game (a later
     day's when the open day has none), never a filled one.
-    更多賽事, 我的球隊 (each
+    更多賽事 (only their own leagues' other games, never the other sports'
+    filled or fallback ones), 我的球隊 (each
     followed team's place in its table and its next game; without follows,
     the places to watch), 已結束.
 - **Orbit's own look** (Jay 2026-11-03; Orbit-Core DESIGN.md §11; `<html

@@ -1670,7 +1670,10 @@ function renderHome() {
   h.partial = slot.partial > 0;
   // The best of the rest, by the clock (by score, a 02:45 sat above a 00:00): 稍後's 全部.
   const byStart = (x, y) => Date.parse(x.event.start) - Date.parse(y.event.start);
-  const moreAll = [...more].sort(byStart);
+  // 更多賽事 is their own leagues' other games only: never the other sports'
+  // games 填滿空檔 or a day with nothing of theirs read in (Jay 2026-11-04:
+  // "flooded with filled in schedule games, most of them aren't my following").
+  const moreAll = more.filter(x => own.has(x.event.league) || isFollowedGame(x.event)).sort(byStart);
   // Today's picks (the 今日推薦 list, not 更多推薦 or the others when none are
   // yours), for their start notices: kept when the list settles, and the
   // Worker's list sent again when they change. Their finals are said for the
