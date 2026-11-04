@@ -109,7 +109,7 @@ const TABS = ['home', 'matches', 'live', 'following'];
 
 const state = {
   tab: 'home',
-  prefs: { leagues: [], follows: [], games: [], audio: 'en', fill: false },
+  prefs: { leagues: [], follows: [], games: [], audio: 'en', fill: false, quiet: null },
   prefsLoaded: false,
   wallet: null,
   // The days read so far: date -> { events, at, loading }.
@@ -168,7 +168,7 @@ function applyPrefs(payload) {
     p = { ...(p || {}), leagues: passed };
     restored = true;
   } else if (payload) keepLocalPrefs(payload);
-  if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], games: p.games || [], audio: p.audio === 'zh' ? 'zh' : 'en', fill: p.fill === true };
+  if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], games: p.games || [], audio: p.audio === 'zh' ? 'zh' : 'en', fill: p.fill === true, quiet: quietOf(p.quiet) };
   // Only the leagues Orbit Sports has; an NBA team with NBA.com's logo, as everywhere.
   state.prefs.games = keptGames(state.prefs.games);
   state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
@@ -223,9 +223,9 @@ function savePrefs() {
     return;
   }
   clearTimeout(saveTimer);
-  const { leagues, follows, games, audio, fill } = state.prefs;
+  const { leagues, follows, games, audio, fill, quiet } = state.prefs;
   saveTimer = setTimeout(() => {
-    const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, ...(fill ? { fill: true } : {}), t: Date.now() });
+    const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, ...(fill ? { fill: true } : {}), ...(quiet ? { quiet } : {}), t: Date.now() });
     keepLocalPrefs(payload);
     // Not saved (another app live on the pass, offline): again when this one is live.
     savePending = true;
@@ -396,7 +396,7 @@ function chosenGames() {
   const all = [...slots.flatMap(x => x.events || []), ...[...brackets.values()].flatMap(b => b.model?.rounds?.flatMap(r => r.ties.flatMap(t => t?.games || [])) || [])];
   const ctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, tables: state.home.tables, featured: featuredIn(all), ...theirs(Date.now()) };
   chosenMemo.key = key;
-  chosenMemo.set = leagueChoices(all, { watched: w, onTv, tvKnown, awake: e => new Date(officialMs(e)).getHours() >= AWAKE_FROM, ctx });
+  chosenMemo.set = leagueChoices(all, { watched: w, onTv, tvKnown, awake: e => !asleep(officialMs(e)), ctx });
   return chosenMemo.set;
 }
 const isChosenGame = e => e.kind === 'match' && chosenGames().has(`${e.league}:${e.id}`);
@@ -405,7 +405,7 @@ function isFollowedEvent(e, { chosen = true } = {}) {
   if (isFollowedGame(e)) return true;
   if (e.kind === 'match') return followedTeams().some(f => f.league === e.league && (f.id === e.home?.id || f.id === e.away?.id)) || (chosen && isChosenGame(e));
   // (Not one in the small hours: a 04:00 race is among 更多賽事, as a match is.)
-  if (chosen && e.sessionKey && ['Qual', 'SR', 'Race'].includes(e.sessionKey) && watched().includes(e.league) && new Date(officialMs(e)).getHours() >= AWAKE_FROM) return true;
+  if (chosen && e.sessionKey && ['Qual', 'SR', 'Race'].includes(e.sessionKey) && watched().includes(e.league) && !asleep(officialMs(e))) return true;
   // A race with a followed driver in it.
   const people = (e.sessions || []).flatMap(x => x.field || []);
   if (people.some(p => p && isFollowed(e.league, p.id))) return true;
@@ -440,6 +440,21 @@ function toggleLeague(league) {
   p.leagues = p.leagues.includes(league) ? p.leagues.filter(k => k !== league) : [...p.leagues, league];
   if (p.leagues.includes(league)) recordAffinity('match', [`league:${leagueKey(league)}`], 2);
   changed();
+}
+// One end of the quiet hours: its hour, and the phone's own picker over it.
+function quietHour(end) {
+  const v = quietHours()[end];
+  const hh = n => `${String(n).padStart(2, '0')}:00`;
+  const label = L(end === 'from' ? { zh: '安靜時段開始', en: 'Quiet from' } : { zh: '安靜時段結束', en: 'Quiet until' });
+  const pick = el('select', { 'aria-label': label, onchange: () => {
+    state.prefs.quiet = quietOf({ ...quietHours(), [end]: Number(pick.value) });
+    shown.textContent = hh(Number(pick.value));
+    pickMemo.clear();
+    chosenMemo.key = '';
+    changed();
+  } }, Array.from({ length: 24 }, (_, n) => el('option', { value: n, selected: n === v, text: hh(n) })));
+  const shown = el('span', { text: hh(v) });
+  return el('label', { class: 'quiet-hour' }, [shown, pick]);
 }
 function changed() {
   savePrefs();
@@ -572,6 +587,12 @@ function openFollowEditor() {
           title: L({ zh: '填滿空檔', en: 'Fill free time' }),
           sub: L({ zh: '空檔排入各運動好比賽', en: 'Best game of any sport' }),
           trailing: kitUI.toggle({ checked: state.prefs.fill === true, label: L({ zh: '填滿空檔', en: 'Fill free time' }), onChange: on => ((state.prefs.fill = on), savePrefs(), pickMemo.clear(), state.tab === 'home' && renderHome()) })
+        }),
+        // 安靜時段 (Jay 2026-11-04): their own hours; in them only the teams they follow.
+        kitUI.cell({
+          title: L({ zh: '安靜時段', en: 'Quiet hours' }),
+          sub: L({ zh: '只排追蹤', en: 'Follows only' }),
+          trailing: el('span', { class: 'quiet-pick num' }, [quietHour('from'), el('span', { class: 'quiet-dash', text: '–' }), quietHour('to')])
         })
       ])
     );
@@ -632,8 +653,8 @@ function restoreDay() {
   } catch {}
 }
 
-// A day of picks is the hours Taiwan is awake, 05:00 to midnight: a game
-// starting between midnight and 5 (Europe's evenings, America's afternoons)
+// A day of picks is the hours the person is awake (00:00–05:00 asleep unless they set their own): a game
+// starting in their quiet hours (Europe's evenings, America's afternoons)
 // is while everyone sleeps, and is never 今日推薦 (nightOnly), only among
 // 其他推薦, on its own day at its hour. Every one of the person's own
 // leagues is there; of the others, only one worth staying up for
@@ -641,16 +662,28 @@ function restoreDay() {
 // decider at 02:00). A followed team's or match's can be 今日推薦 (a league
 // followed as a league: its small hours' games stay there, or every night's
 // 03:00 game would lead the day).
-const AWAKE_FROM = 5;
+// The quiet hours are the person's own (我的設定 安靜時段, Jay 2026-11-04):
+// [from, to) by the hour, over midnight if from > to, none if equal; 00–05 unset.
+const QUIET = { from: 0, to: 5 };
+function quietOf(q) {
+  const ok = n => Number.isInteger(n) && n >= 0 && n < 24;
+  return q && ok(q.from) && ok(q.to) && !(q.from === QUIET.from && q.to === QUIET.to) ? { from: q.from, to: q.to } : null;
+}
+const quietHours = () => state.prefs.quiet || QUIET;
+function asleep(ms) {
+  const { from, to } = quietHours();
+  const h = new Date(ms).getHours();
+  return from < to ? h >= from && h < to : from > to ? h >= from || h < to : false;
+}
 const nightWorthy = e => bigGame(e) || isFollowedEvent(e, { chosen: false });
 // A race weekend's practice: in 賽事 and the race's sheet, never among 首頁's picks or days.
 const practice = e => /^FP\d$/.test(e.sessionKey || '');
 // (A race session by its official start, not its broadcast's titles a few
 // minutes before: a 05:00 qualifying titled at 04:56 is a morning pick, not the small hours.)
 const officialMs = e => Date.parse(e.official || e.start);
-const nightOnly = e => new Date(officialMs(e)).getHours() < AWAKE_FROM && !isFollowedEvent(e, { chosen: false });
+const nightOnly = e => asleep(officialMs(e)) && !isFollowedEvent(e, { chosen: false });
 const inDay = (ms, date) => ms >= Date.parse(`${date}T00:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
-const inPickDay = (ms, date) => ms >= Date.parse(`${date}T${String(AWAKE_FROM).padStart(2, '0')}:00:00`) && ms < Date.parse(`${addDays(date, 1)}T00:00:00`);
+const inPickDay = (ms, date) => inDay(ms, date) && !asleep(ms);
 
 // A day's events of these leagues (races split into their sessions).
 // `current`: each league's current scoreboard (what's on now) instead of the day's dates.

@@ -2694,3 +2694,9 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 .pick-list .event-row.filled:has(.filled-score) { grid-template-columns: 64px minmax(0, 1fr) auto; }
 .pick-list .event-row.filled:has(.filled-score)::after { content: none; }
 .filled-score { color: var(--q-label); font: 600 15px/1 var(--q-font-rounded); white-space: nowrap; }
+
+/* 我的設定 安靜時段: two hours, each the phone's own picker under it. */
+.quiet-pick { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.quiet-hour { position: relative; padding: 4px 7px; border-radius: 8px; background: var(--q-fill-3); color: var(--q-label); font: inherit; font-size: var(--q-t-subhead); font-variant-numeric: tabular-nums; }
+.quiet-hour select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
+.quiet-dash { color: var(--q-label-2); }

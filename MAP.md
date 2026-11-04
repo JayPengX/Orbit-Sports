@@ -33,7 +33,8 @@ couldn't be read is shown, never hidden.
     hours left free, one game a slot; their teams' later games under it;
     no separate 推薦, Jay 2026-11-03). Only their own games unless 我的設定's
     填滿空檔 is on (`prefs.fill`, off by default): then every free waking
-    hour (the small hours stay quiet, as for their leagues) takes the game of any
+    hour (their quiet hours stay quiet, as for their leagues: 我的設定 安靜時段,
+    `prefs.quiet` {from,to} by the hour, 00–05 unset; app.js `asleep`) takes the game of any
     sport worth most then (`picks.mjs worth`: PRESTIGE by league, stakes, the
     table, the odds, big clubs, stars, the hour; no quality cut), drawn as one quiet
     line (`.filled`: time, the two sides, a small star at the end; Jay
