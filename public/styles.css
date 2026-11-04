@@ -133,15 +133,20 @@ img { max-width: 100%; }
 .pick-list .event-row.filled { grid-template-columns: 64px minmax(0, 1fr) 16px; background: none; padding-block: 11px; }
 .pick-list .event-row.filled::after { content: ''; width: 13px; height: 13px; justify-self: end; background: var(--q-label-3, var(--q-label-2)); -webkit-mask: var(--star-mask) center / contain no-repeat; mask: var(--star-mask) center / contain no-repeat; }
 .pick-list { --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 .8l1.6 3.4 3.7.4-2.8 2.5.8 3.7L6 8.9l-3.3 1.9.8-3.7L.7 4.6l3.7-.4z'/%3E%3C/svg%3E"); }
-.pick-list .event-row.filled .event-sides { grid-auto-flow: column; grid-auto-columns: max-content; justify-content: start; align-items: center; gap: 0 10px; min-width: 0; overflow: hidden; }
+.pick-list .event-row.filled .event-sides { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); justify-content: stretch; align-items: center; gap: 0 10px; min-width: 0; overflow: hidden; }
 .pick-list .event-row.filled .side { gap: 8px; min-width: 0; }
 .pick-list .event-row.filled .side .logo:is(*, .round, .logo-fallback, .logo-flag):not(.x-no) { width: 22px; height: 22px; padding: 2px; border-radius: 7px; }
-.pick-list .event-row.filled .side-name { -webkit-line-clamp: 1; white-space: nowrap; color: var(--q-label-2); font: 500 15px/1.3 var(--q-font); }
+/* (Each side half the line; a long name shrinks to fit whole, the kit's watchFit, never cut.) */
+.pick-list .event-row.filled .side-name { display: block; flex: 1 1 auto; min-width: 0; white-space: nowrap; color: var(--q-label-2); font: 500 15px/1.3 var(--q-font); }
 .pick-list .event-row.filled .home-mark, .pick-list .event-row.filled .ev-tags, .pick-list .event-row.filled .series-line { display: none; }
 .pick-list .event-row.filled .event-status, .pick-list .event-row.filled .event-status.pre { color: var(--q-label-2); font: 600 15px/1.2 var(--q-font-rounded); }
 .event-meta { display: grid; justify-items: start; align-content: center; min-width: 0; }
 .event-status { max-width: 100%; color: var(--q-label-2); font: 600 13px/1.25 var(--q-font); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .event-status.pre { color: var(--q-label); font: 600 18px/1.15 var(--q-font-rounded); letter-spacing: -0.01em; }
+/* A game over: 完賽 as big as the time it replaces (Jay 2026-11-04: "so small, doesn't match"), in the quieter grey. */
+.event-status.post { color: var(--q-label-2); font: 600 18px/1.15 var(--q-font-rounded); }
+.event-status.post.ended { display: grid; gap: 2px; }
+.event-status.post.ended small { font: 600 12px/1.2 var(--q-font); white-space: nowrap; }
 .event-status.pre.two { display: grid; gap: 2px; }
 .event-status.pre.two span { color: var(--q-label-2); font: 600 12px/1.2 var(--q-font); white-space: nowrap; }
 .event-status.pre.two b { font: inherit; }
@@ -2682,3 +2687,10 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 .ml-chev svg { width: 14px; height: 14px; }
 /* (A narrow phone: a filled line drops its logos so both names fit whole.) */
 @media (max-width: 360px) { .pick-list .event-row.filled .side > :first-child:not(.side-name) { display: none; } }
+
+/* 已結束 with 填滿空檔 on: their own games as before, then the filled ones as quiet lines with their scores. */
+.ended-both { display: grid; gap: 12px; }
+.pick-list .event-row.filled .side-score { display: none; }
+.pick-list .event-row.filled:has(.filled-score) { grid-template-columns: 64px minmax(0, 1fr) auto; }
+.pick-list .event-row.filled:has(.filled-score)::after { content: none; }
+.filled-score { color: var(--q-label); font: 600 15px/1 var(--q-font-rounded); white-space: nowrap; }

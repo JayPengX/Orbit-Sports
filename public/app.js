@@ -28,6 +28,7 @@ import { familyOfSport } from '#kit/catalog.mjs';
 import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
+import { homeGames } from './lib/home-shown.mjs';
 import { dayPlan, worth, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, HABIT } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes, weekendCircuit } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
@@ -1164,6 +1165,8 @@ function planRow(item, opts = {}) {
   const row = eventRow(item.event, opts);
   // A game 填滿空檔 put in: a quieter, smaller row with ★ 推薦, so their own stand out.
   if (item.filled) row.classList.add('filled', 'picked');
+  // (Over: its score at the line's end, where the star was.)
+  if (item.filled && item.event.kind === 'match' && item.event.status.state === 'post' && !item.event.status.void) row.append(el('b', { class: 'filled-score num', text: sidesOf(item.event).map(x => scoreText(x.score)).join('–') }));
   // Only what makes the game worth it (a top clash, a close one), grey like
   // the row's other facts: in 我的比賽, 我的球隊 / 我的聯賽 / 愛爾達主頻道 say
   // nothing and pushed its channel off the line (Jay 2026-11-03); a game of
@@ -1607,9 +1610,14 @@ function renderHome() {
   const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] }, true) : ownWas) : [[], []];
   // Today's that ended: the games of theirs over (or called off), by the
   // clock, never ranked again (the tables move with each result, and a
-  // ranking redone put another game in a pick's place). With none of theirs, the others'.
+  // ranking redone put another game in a pick's place). Only their own, and
+  // with 填滿空檔 on the games filled in as the day stood (lib/home-shown.mjs):
+  // never the others' results (six small-hours 歐冠 games, Jay 2026-11-04).
   const endedOf = list => list.filter(e => e.status.state === 'post' || e.status.void).sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
-  const endedGames = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? endedOf([...wasPlan, ...wasMore].map(x => x.event)).slice(0, 6) : endedOf(filtered(mine))) : [];
+  const filledStood = state.prefs.fill && h.filter !== 'teams' ? new Set(rank([...filtered(mine), ...fillPool()], 999, pctx, true)[0].filter(x => x.filled).map(x => `${x.event.league}:${x.event.id}`)) : new Set();
+  const dayGames = homeGames([...filtered(mine), ...fillPool()], { followed: e => isFollowedEvent(e), filled: filledStood });
+  const endedGames = isToday ? endedOf(dayGames.own) : [];
+  const endedFilled = isToday ? endedOf(dayGames.filled) : [];
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
   // theirs on, the best of everything on now), ranked like the picks, and
   // taken out of the lists below so no game shows twice.
@@ -1622,7 +1630,8 @@ function renderHome() {
   const liveMine = liveItems.length > 0;
   // (Never a game of a league read only for a followed match in it: one New
   // England v Miami followed put Atlanta v Toronto at the top, Jay 2026-11-03.)
-  if (isToday && !liveItems.length && h.filter === 'all') liveItems = rankOnNow(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e) && !matchOnly(e, own, keptGames(state.prefs.games)))), { ...pctx, sports: [], leagues: [] }, planKeys).filter(x => x.score >= 0.3);
+  // (With 填滿空檔 off, nothing of the others: 首頁 is theirs alone, Jay 2026-11-04.)
+  if (isToday && !liveItems.length && h.filter === 'all' && state.prefs.fill) liveItems = rankOnNow(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e) && !matchOnly(e, own, keptGames(state.prefs.games)))), { ...pctx, sports: [], leagues: [] }, planKeys).filter(x => x.score >= 0.3);
   const allLive = isToday ? onNow(dayAll(slot)).filter(onTv).length : 0;
   if (slot?.at) prefetchVideos(dayAll(slot));
   // Today's picks on now first, each marked ★ 推薦, then the rest of theirs,
@@ -1686,22 +1695,21 @@ function renderHome() {
   // A day gone by: only theirs, the games of their own leagues (what the
   // day showed them), not every league's (the others' ten German and
   // Italian games were there too). Under the sport chosen; by the clock.
-  const pastSeen = new Set();
-  const pastGames = past
-    ? filtered(mine)
-        .filter(e => !pastSeen.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && pastSeen.add(`${e.league}:${e.id}:${e.sessionKey || ''}`))
-        .sort((x, y) => Date.parse(x.start) - Date.parse(y.start))
-    : [];
+  const pastGames = past ? dayGames.own : [];
+  const pastFilled = past ? dayGames.filled : [];
   // A light day (three games of theirs or fewer, a weekday's one or two,
   // Jay 2026-10-23): each game over as a card with who led each side; a
   // busy day stays a plain list. Only the day's own games.
-  const light = filtered(mine).length <= 3;
+  const light = dayGames.own.length <= 3;
+  // Games 填滿空檔 filled in, over: the same quiet line as before they started, with the score.
+  const filledOver = list => (list.length ? el('div', { class: 'q-card list pick-list filled-over' }, list.map(e => planRow({ event: e, reasons: [], filled: true }, rowDay))) : null);
+  const endedBody = (own, fill, rowsOf) => (fill.length ? el('div', { class: 'ended-both' }, [own.length ? rowsOf(own) : null, filledOver(fill)]) : rowsOf(own));
   function pastDay() {
     const games = pastGames;
-    if (light && games.length) return section(t('pastEvents'), recapList(games, rowDay), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
+    if (light && (games.length || pastFilled.length)) return section(t('pastEvents'), endedBody(games, pastFilled, g => recapList(g, rowDay)), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length + pastFilled.length }) }) });
     const title = t('pastEvents');
-    if (!games.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
-    return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))), games.length > h.shown ? moreToggle({ more: `${t('showMore')} (${games.length - h.shown})`, less: null, cls: 'show-more', onToggle: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
+    if (!games.length && !pastFilled.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
+    return section(title, el('div', { class: 'ended-both' }, [games.length ? el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))) : null, games.length > h.shown ? moreToggle({ more: `${t('showMore')} (${games.length - h.shown})`, less: null, cls: 'show-more', onToggle: () => ((h.shown += 30), renderHome()) }) : null, filledOver(pastFilled)]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length + pastFilled.length }) }) });
   }
   // Shelves under the picks (each game once: the hero and 正在進行 first, then
   // 我的球隊, the picks, 今晚, the ended): my teams' games still to come, the
@@ -1822,7 +1830,7 @@ function renderHome() {
       !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
       leaguesShelf,
       teamsShelf || placesShelf,
-      endedGames.length ? section(t('pastEvents'), light ? recapList(endedGames, rowDay) : kitRail(endedGames), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length }) }) }) : null
+      endedGames.length || endedFilled.length ? section(t('pastEvents'), endedBody(endedGames, endedFilled, g => (light ? recapList(g, rowDay) : kitRail(g))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length + endedFilled.length }) }) }) : null
     ])
   );
   // An F1 session on: its live timing read now, not at the next tick.
@@ -4372,7 +4380,7 @@ onTvChange(() => (tvGen++, repaintOpen()));
 // (Only those new or changed since they were last fitted, the kit's watchFit:
 // every one measured at every change anywhere on the page laid the whole page
 // out each time, most of a tap on 過程 and of each slice of its rows.)
-watchFit('.mh-score, .team-head h3, .mh-team strong');
+watchFit('.mh-score, .team-head h3, .mh-team strong, .event-row.filled .side-name');
 
 // An F1 session on now: F1's own live timing every 10 seconds, its cards'
 // briefs (the top three) filled again in place, never the whole page.
