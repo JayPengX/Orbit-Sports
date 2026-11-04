@@ -1741,7 +1741,10 @@ function renderHome() {
   }
   // (A wide screen shows them as a grid, not a rail: six, then 全部.)
   const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, screenFit().wide ? 6 : 12);
-  const leaguesShelf = gone || h.picking || !hasFollows ? null : section(t('yourLeagues'), el('div', { class: 'q-rail league-rail' }, inSeasonFirst(state.prefs.leagues).map(k => leagueTile(k, lk => openScores(lk)))));
+  // 我的聯賽: a short list, each league with how many games the open day has (Jay 2026-11-04: the big tiles never pleased).
+  const dayCount = k => dayAll(slot).filter(e => e.league === k && !practice(e)).length;
+  const leagueBody = el('div', { class: 'q-card list my-leagues-list' }, inSeasonFirst(state.prefs.leagues).map(k => el('button', { class: 'ml-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k), el('span', { class: 'ml-name', text: leagueName(k, locale).replace(/\s.*$/, '') }), el('span', { class: 'ml-sub', text: dayCount(k) ? L({ zh: `${dayCount(k)} 場`, en: `${dayCount(k)} games` }) : L({ zh: '休息', en: 'Off' }) }), el('span', { class: 'ml-chev', html: icon('chevron') })])));
+  const leaguesShelf = gone || h.picking || !hasFollows ? null : section(t('yourLeagues'), leagueBody);
   // (Each team once: a followed player's team is often followed too.)
   const placeSeen = new Set();
   const placeRows = gone || h.picking ? [] : followedTeams().filter(f => state.home.tables[f.league]?.[f.id]?.pos && !f.athlete && !placeSeen.has(`${f.league}:${f.id}`) && placeSeen.add(`${f.league}:${f.id}`)).slice(0, 6);

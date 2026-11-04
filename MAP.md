@@ -35,8 +35,10 @@ couldn't be read is shown, never hidden.
     填滿空檔 is on (`prefs.fill`, off by default): then every free waking
     hour (the small hours stay quiet, as for their leagues) takes the game of any
     sport worth most then (`picks.mjs worth`: PRESTIGE by league, stakes, the
-    table, the odds, big clubs, the hour; no quality cut), drawn as a grey
-    `.filled` row with ★ 推薦. 下一場 is always their own next game (a later
+    table, the odds, big clubs, the hour; no quality cut), drawn as one quiet
+    line (`.filled`: time, the two sides, a small star at the end; Jay
+    2026-11-04 picked it over a grey row). 我的聯賽 is a short list, each
+    league with the open day's count of games (`.my-leagues-list`). 下一場 is always their own next game (a later
     day's when the open day has none), never a filled one.
     更多賽事, 我的球隊 (each
     followed team's place in its table and its next game; without follows,
