@@ -307,7 +307,7 @@ couldn't be read is shown, never hidden.
 | `lib/winprob.mjs`, `soccerwp.mjs`, `wpline.mjs`, `moments.mjs` | Win chance line and key moments |
 | `lib/live.mjs`, `lineups.mjs`, `onfield.mjs`, `mlb.mjs`, `cpblbox.mjs` | Live state; starters (MLB's own, the NBA's from RotoWire through the proxy: ESPN's core API refuses it); who's on; MLB and CPBL fill-ins |
 | `lib/leagues.mjs`, `search.mjs`, `statnames.mjs`, `stage.mjs`, `compname.mjs`, `i18n.mjs`, `text.mjs` | Leagues; search; Chinese names for stats, stages and competitions; text |
-| `lib/days.mjs`, `bounds.mjs`, `strip.mjs`, `retry.mjs` | Days on the viewer's clock; the days a league has; the date strip; failed reads tried again |
+| `lib/days.mjs`, `bounds.mjs`, `strip.mjs`, `retry.mjs` | Days on the viewer's clock; the days a league has; the date strip and 賽事's chosen day (kept across 全部 and the leagues); failed reads tried again |
 | `lib/close.mjs`, `notice.mjs` | 拉鋸; what a change of state is for a notice |
 | `lib/meetings.mjs` | The meetings card's bar (近期交手, 上季對戰, 本季對戰): a piece a meeting |
 | `lib/follows.mjs` | A match followed on its own: only that game of its league (`matchOnly`), let go once over and told (`endedFollows`) |

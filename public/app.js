@@ -10,7 +10,7 @@
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, readJson, writeJson, writeStore, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
-import { stripDays } from './lib/strip.mjs';
+import { stripDays, chosenOf } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
@@ -37,7 +37,7 @@ import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { cols, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
+import { cols, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
 import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
@@ -1308,7 +1308,7 @@ const allRange = { from: STRIP.from, to: STRIP.to };
 const allDay = () => state.scores.date || today();
 const allShown = date => state.tab === 'matches' && state.scores.league === ALL && allDay() === date;
 function openAll(date) {
-  state.scores = { ...state.scores, sport: null, league: ALL, date: date && date !== today() ? date : null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, q: '' };
+  state.scores = { ...state.scores, sport: null, league: ALL, date: chosenOf(date, today()), chosen: chosenOf(date, today()), picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, q: '' };
   allRange.recenter = true;
   clearSearch();
   if (state.tab === 'matches') renderScores();
@@ -1316,7 +1316,7 @@ function openAll(date) {
 }
 function pickAllDay(d) {
   if (d === allDay()) return;
-  state.scores.date = d === today() ? null : d;
+  state.scores.date = state.scores.chosen = chosenOf(d, today());
   toPageTop();
   renderScores();
 }
@@ -1386,7 +1386,7 @@ function renderAll() {
       // The league's head: its mark and name, and how many, a tap to its page that day.
       const sh = kitUI.sectionHead(leagueName(k, locale), { more: t('gamesN', { n: rows.length }), onMore: () => openScores(k, date) });
       sh.prepend(leagueMark(k));
-      return el('section', { class: 'q-section all-league', 'data-league': k }, [sh, el('div', { class: 'q-card list' }, rows.slice(0, ALL_ROWS).map(e => eventRow(e, { league: false, day: false }))), rows.length > ALL_ROWS ? el('button', { class: 'q-btn block show-more', type: 'button', text: L({ zh: `還有 ${rows.length - ALL_ROWS} 場`, en: `${rows.length - ALL_ROWS} more` }), onclick: () => openScores(k, date) }) : null]);
+      return el('section', { class: 'q-section all-league', 'data-league': k }, [sh, el('div', { class: 'q-card list' }, rows.slice(0, ALL_ROWS).map(e => eventRow(e, { league: false, day: false }))), rows.length > ALL_ROWS ? goBar(L({ zh: `還有 ${rows.length - ALL_ROWS} 場`, en: `${rows.length - ALL_ROWS} more` }), () => openScores(k, date), 'show-more') : null]);
     };
     list = el('div', { class: 'all-day' }, [
       el('p', { class: 'day-head', text: [dayLabel(date, { long: true }), t('gamesN', { n: games.length })].join(' · ') }),
@@ -1701,7 +1701,7 @@ function renderHome() {
     if (light && games.length) return section(t('pastEvents'), recapList(games, rowDay), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
     const title = t('pastEvents');
     if (!games.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
-    return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))), games.length > h.shown ? el('button', { class: 'q-btn block show-more', type: 'button', text: `${t('showMore')} (${games.length - h.shown})`, onclick: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
+    return section(title, el('div', {}, [el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, rowDay))), games.length > h.shown ? moreToggle({ more: `${t('showMore')} (${games.length - h.shown})`, less: null, cls: 'show-more', onToggle: () => ((h.shown += 30), renderHome()) }) : null]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length }) }) });
   }
   // Shelves under the picks (each game once: the hero and 正在進行 first, then
   // 我的球隊, the picks, 今晚, the ended): my teams' games still to come, the
@@ -2266,7 +2266,7 @@ function openGuide(events, from = null) {
 // ---- 賽事: every sport, league and game day ------------------------------------------------------
 
 function openScores(league, date, view = 'games') {
-  state.scores = { ...state.scores, sport: LEAGUES[league].sport, league, date: date || null, picked: Boolean(date), byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(league) ? view : 'games', q: '' };
+  state.scores = { ...state.scores, sport: LEAGUES[league].sport, league, date: date || null, picked: Boolean(date), chosen: date ? chosenOf(date, today()) : state.scores.chosen ?? null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(league) ? view : 'games', q: '' };
   // Opened from a search: the search is done (its box emptied), the league shows.
   clearSearch();
   if (state.tab === 'matches') loadScores();
@@ -3041,6 +3041,7 @@ async function pickScoresDay(d) {
   const sc = state.scores;
   sc.date = d;
   sc.picked = true;
+  sc.chosen = chosenOf(d, today());
   const l = LEAGUES[sc.league];
   // A day further back than the league's months read: its month's watch
   // links with it (the cards drawn once, with their 愛爾達・重播).
@@ -3452,7 +3453,7 @@ function leagueRail(rail) {
       key,
       node: el('div', { class: 'q-chips league-rail' }, [
         el('button', { class: 'q-chip search-chip', type: 'button', 'aria-label': L({ zh: '搜尋', en: 'Search' }), html: icon('search'), onclick: openSearch }),
-        el('button', { class: 'q-chip all-chip', type: 'button', 'data-league': ALL, 'aria-pressed': 'false', text: t('f_all'), onclick: () => state.scores.league !== ALL && openAll(today()) }),
+        el('button', { class: 'q-chip all-chip', type: 'button', 'data-league': ALL, 'aria-pressed': 'false', text: t('f_all'), onclick: () => state.scores.league !== ALL && openAll(state.scores.chosen || today()) }),
         ...rail.map(k => el('button', { class: 'q-chip', type: 'button', 'data-league': k, 'aria-pressed': 'false', onclick: () => pick(k) }, [leagueMark(k), locale === 'en' ? leagueName(k, locale) : leagueName(k, locale).replace(/\s.*$/, '')]))
       ])
     };
@@ -3476,7 +3477,7 @@ function openLeague(k, view = null) {
 function pickLeague(k, view = null) {
   const sc = state.scores;
   if (sc.league === k) return;
-  state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, season: null, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: view || (hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games') };
+  state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, season: null, date: sc.chosen || null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: view || (hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games') };
   loadScores();
 }
 // A swipe past a league's first or last tab: the league beside it on the
@@ -3485,7 +3486,7 @@ function stepLeague(dir) {
   const rail = [ALL, ...scoresRail()];
   const k = rail[rail.indexOf(state.scores.league) + dir];
   if (!k) return false;
-  if (k === ALL) return openAll(today()), true;
+  if (k === ALL) return openAll(state.scores.chosen || today()), true;
   const sport = LEAGUES[k].sport;
   pickLeague(k, dir > 0 ? 'games' : hasLeaders(sport, LEAGUES[k].espn) ? 'leaders' : hasBracket(k) ? 'bracket' : hasStandings(k) ? 'table' : 'games');
   return true;
@@ -3506,7 +3507,7 @@ function renderScores() {
     const sport = isActiveSport(sc.sport) ? sc.sport : shownSports()[0];
     const league = shownLeaguesOf(sport).find(k => LEAGUES[k].top) || shownLeaguesOf(sport)[0];
     if (league) {
-      state.scores = { ...sc, sport, league, date: null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', view: hasStandings(league) ? sc.view : 'games' };
+      state.scores = { ...sc, sport, league, date: sc.chosen || null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', view: hasStandings(league) ? sc.view : 'games' };
       return loadScores();
     }
   }

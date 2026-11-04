@@ -107,7 +107,6 @@ img { max-width: 100%; }
 .home-note strong { font: 600 17px/22px var(--q-font); }
 .home-note p { color: var(--q-label-2); font: var(--q-t-subhead); }
 .home-note .q-more { margin-top: 10px; }
-.q-btn.block.show-more { margin-top: 12px; }
 
 /* ==== A game as a row (ui.js eventRow): every list, tab and sheet ====
    Its time (or state) down the left, the two sides with their scores, a
@@ -959,7 +958,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 /* A fact with its badge or flag; a race's name with its flag. */
 .fact-mark { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 .fact-flag { font-size: 16px; line-height: 1; }
-.q-btn.with-mark { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.q-btn.with-mark { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--q-label); }
 .injury-tag { margin-top: 6px; font-size: 12.5px; font-weight: 600; color: var(--loss); }
 .injury-note { margin-top: 8px; font-size: 13px; line-height: 1.45; }
 /* A player's injury under his hero: the status and what's wrong, when he's back under it, the report's word below a hairline. */
