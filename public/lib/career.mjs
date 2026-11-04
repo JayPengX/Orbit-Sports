@@ -10,6 +10,8 @@ import { getJson, COMMON, standings } from './espn.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { jolpicaDriverId } from './f1.mjs';
 import { fold } from './text.mjs';
+import { teamNameZh } from '#kit/names.mjs';
+import * as kitLogos from '#kit/logos.mjs';
 
 const DAY = 86_400_000;
 const JOLPICA = 'https://api.jolpi.ca/ergast/f1';
@@ -30,7 +32,8 @@ export function stintsOf(rows, sameTeam = (a, b) => a.team.id === b.team.id) {
   const out = [];
   for (const r of rows) {
     const last = out.at(-1);
-    if (last && sameTeam(last, r) && r.year - last.to <= 1) Object.assign(last, { to: r.year, seasons: last.seasons + 1, games: last.games + (r.games || 0) });
+    // (A run under two names that are one in Chinese is shown by its newest: Brooklyn's.)
+    if (last && sameTeam(last, r) && r.year - last.to <= 1) Object.assign(last, { team: r.team, to: r.year, seasons: last.seasons + 1, games: last.games + (r.games || 0) });
     else out.push({ team: r.team, from: r.year, to: r.year, seasons: 1, games: r.games || 0 });
   }
   return out.reverse();
@@ -39,7 +42,12 @@ export function stintsOf(rows, sameTeam = (a, b) => a.team.id === b.team.id) {
 // ESPN's seasons (the regular season's category): { labels, longs, seasons
 // (newest first: { season, year, team, cells }), teams (stints) }, or null.
 // A season split by a trade is a row a team (ESPN's total of it left out).
-export function parseEspnCareer(data, sport) {
+// A franchise that moved or was renamed keeps its id, but each name is a
+// team of its own (Durant's Seattle SuperSonics 2007–08, then the Thunder),
+// unless it's the same team in Chinese (New Jersey and Brooklyn's 籃網: one).
+// `key`: the league (nba, mlb, wnba), for those names and old badges.
+const oneLine = n => String(n || '').replace(/\s+/g, ' ').trim();
+export function parseEspnCareer(data, sport, key = '') {
   const c = data?.categories?.[0];
   if (!c?.labels?.length || !c.statistics?.length) return null;
   const byKey = new Map();
@@ -47,30 +55,43 @@ export function parseEspnCareer(data, sport) {
     byKey.set(slug, t);
     if (t?.id != null) byKey.set(String(t.id), t);
   }
+  // (ESPN's logo for a name left behind is today's, padded into a big square
+  // (/guid/…/default.png): the old badge, else today's trimmed one.)
+  const padded = url => /\/guid\/[^/]+\/logos\//.test(url || '');
+  const logoOf = (t, id, name) => {
+    const url = t.logo || t.logos?.[0]?.href || '';
+    if (!padded(url)) return url;
+    return kitLogos.formerLogo?.(key, name) || Object.values(data.teams || {}).find(o => String(o?.id) === id && o.logo && !padded(o.logo))?.logo || url;
+  };
   const gp = c.labels.indexOf('GP');
   const rows = c.statistics
     .filter(x => x?.teamId && x.season?.year)
     .map(x => {
       const t = byKey.get(x.teamSlug) || byKey.get(String(x.teamId)) || {};
+      const id = String(x.teamId);
+      const name = oneLine(t.displayName);
       // (The NBA's season by its second year: 2017-18 is 2018.)
       return {
         season: x.season.displayName || String(x.season.year),
         year: Number(x.season.year),
-        team: { id: String(x.teamId), name: t.displayName || '', short: t.shortDisplayName || '', abbr: t.abbreviation || '', logo: t.logo || t.logos?.[0]?.href || '' },
+        team: { id, name, short: oneLine(t.shortDisplayName), abbr: t.abbreviation || '', logo: logoOf(t, id, name) },
         games: Number(x.stats?.[gp]) || 0,
         cells: c.labels.map((label, i) => ({ label, long: c.displayNames?.[i] || '', value: x.stats?.[i] ?? '' }))
       };
     })
     .sort((a, b) => a.year - b.year);
   if (!rows.length) return null;
-  const split = sport === 'basketball';
+  // (The WNBA's seasons are one year each, as MLB's: Plum's 2017 isn't 2016–2017.)
+  const split = sport === 'basketball' && rows.some(r => /^\d{4}-\d{2}$/.test(r.season));
+  const zhOf = t => teamNameZh(key, t.name, sport)?.short || t.name;
+  const sameTeam = (a, b) => a.team.id === b.team.id && (a.team.name === b.team.name || zhOf(a.team) === zhOf(b.team));
   return {
     labels: c.labels,
     longs: c.displayNames || [],
     pitching: c.labels.includes('ERA'),
     seasons: [...rows].reverse(),
     // A stint's years as the seasons began and ended (the NBA's 2017-18 to 2021-22: 2017–2022).
-    teams: stintsOf(rows).map(s => ({ ...s, from: split ? s.from - 1 : s.from }))
+    teams: stintsOf(rows, sameTeam).map(s => ({ ...s, from: split ? s.from - 1 : s.from }))
   };
 }
 
@@ -86,7 +107,7 @@ async function espnCareer(league, id, a) {
     getJson(`${COMMON}/${l.espn}/athletes/${encodeURIComponent(id)}/stats`, { ttl: 12 * 3_600_000, trim: 'espn-career' }).catch(() => null),
     draftOf(a.draft) ? teamByAbbr(league, draftOf(a.draft).abbr) : null
   ]);
-  const career = parseEspnCareer(data, l.sport);
+  const career = parseEspnCareer(data, l.sport, l.play || league);
   return { ...(career || {}), draftTeam: draft };
 }
 

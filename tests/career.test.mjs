@@ -74,3 +74,46 @@ test('a loan the club then bought him from is one spell (Cunha at Wolves)', asyn
   const c = parseFotmobCareer({ clubs: [s('Wolverhampton Wanderers', '2023-07-01T00:00:00', '2025-06-30T00:00:00', 72, false), s('Wolverhampton Wanderers', '2023-01-01T00:00:00', '2023-06-30T00:00:00', 20, true)], national: [], seasons: [], trophies: [] });
   assert.deepEqual(c.teams.map(t => [t.from, t.to, t.games, t.goals, Boolean(t.bought), t.loan]), [[2023, 2025, 92, 2, true, false]]);
 });
+
+// Jay 2026-11-04 (Durant's 生涯球隊: "SuperSonics", a tiny OKC mark, 2007–2016 as one).
+test('a franchise that moved is two teams, each by its own name, its own badge or a trimmed logo; one renamed but the same in Chinese stays one', async () => {
+  const { parseEspnCareer } = await import('../public/lib/career.mjs');
+  const pad = g => `https://a.espncdn.com/guid/${g}/logos/default.png`;
+  const row = (year, teamId, teamSlug) => ({ season: { year, displayName: `${year - 1}-${String(year).slice(2)}` }, teamId, teamSlug, stats: ['80', '25.0'] });
+  const kd = parseEspnCareer(
+    {
+      teams: {
+        'oklahoma-city-thunder': { id: '25', abbreviation: 'OKC', displayName: 'Oklahoma City Thunder', shortDisplayName: 'Thunder', logo: 'https://a.espncdn.com/i/teamlogos/nba/500/okc.png' },
+        'seattle-supersonics': { id: '25', abbreviation: 'SEA', displayName: 'Seattle SuperSonics', shortDisplayName: 'SuperSonics', logo: pad('bd458c44') },
+        'golden-state-warriors': { id: '9', abbreviation: 'GS', displayName: 'Golden State Warriors', logo: 'https://a.espncdn.com/i/teamlogos/nba/500/gs.png' }
+      },
+      categories: [{ labels: ['GP', 'PTS'], statistics: [row(2008, '25', 'seattle-supersonics'), ...[2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016].map(y => row(y, '25', 'oklahoma-city-thunder')), row(2017, '9', 'golden-state-warriors')] }]
+    },
+    'basketball',
+    'nba'
+  );
+  assert.deepEqual(kd.teams.map(t => [t.team.name, t.from, t.to]), [['Golden State Warriors', 2016, 2017], ['Oklahoma City Thunder', 2008, 2016], ['Seattle SuperSonics', 2007, 2008]]);
+  const sonics = kd.teams.at(-1).team.logo;
+  assert.ok(!/guid/.test(sonics) && /thesportsdb/.test(sonics), sonics);
+  const { teamNameZh } = await import('#kit/names.mjs');
+  assert.equal(teamNameZh('nba', 'Seattle SuperSonics', 'basketball')?.short, '超音速');
+  assert.equal(teamNameZh('mlb', 'Cleveland Indians', 'baseball')?.short, '印地安人');
+  // New Jersey, then Brooklyn: 籃網 once, by its newest name and logo; ESPN's line breaks in a name gone.
+  const lopez = parseEspnCareer(
+    {
+      teams: { 'new-jersey-nets': { id: '17', displayName: 'New Jersey\r\n Nets', logo: pad('x1') }, 'brooklyn-nets': { id: '17', displayName: 'Brooklyn Nets', logo: 'https://a.espncdn.com/i/teamlogos/nba/500/bkn.png' } },
+      categories: [{ labels: ['GP'], statistics: [row(2011, '17', 'new-jersey-nets'), row(2012, '17', 'new-jersey-nets'), row(2013, '17', 'brooklyn-nets')] }]
+    },
+    'basketball',
+    'nba'
+  );
+  assert.deepEqual(lopez.teams.map(t => [t.team.name, t.from, t.to, t.seasons]), [['Brooklyn Nets', 2010, 2013, 3]]);
+  assert.equal(lopez.seasons.at(-1).team.name, 'New Jersey Nets');
+  assert.equal(lopez.seasons.at(-1).team.logo, 'https://a.espncdn.com/i/teamlogos/nba/500/bkn.png');
+});
+
+test("the WNBA's seasons are their own years (no NBA-style 2016–17)", async () => {
+  const { parseEspnCareer } = await import('../public/lib/career.mjs');
+  const c = parseEspnCareer({ teams: { 'las-vegas-aces': { id: '17', displayName: 'Las Vegas Aces' } }, categories: [{ labels: ['GP'], statistics: [2018, 2019].map(year => ({ season: { year, displayName: String(year) }, teamId: '17', teamSlug: 'las-vegas-aces', stats: ['30'] })) }] }, 'basketball', 'wnba');
+  assert.deepEqual(c.teams.map(t => [t.from, t.to]), [[2018, 2019]]);
+});

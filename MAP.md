@@ -101,7 +101,9 @@ couldn't be read is shown, never hidden.
     初登場, 年資, 大學; 生涯球隊: every team with its years, seasons and
     games, loans and the national side; 榮譽); opened from a game, its 本場
     line. The career (`lib/career.mjs`, read behind the page): NBA and MLB
-    from ESPN's athletes/<id>/stats (proxy trim espn-career), football from
+    from ESPN's athletes/<id>/stats (proxy trim espn-career; a franchise's
+    old name is a team of its own, 超音速 then 雷霆, unless one in Chinese,
+    with its old badge or today's logo, kit `formerLogo`), football from
     FotMob's player page (found by name and club, checked by birthday;
     trims fotmob-search, fotmob-player), F1 teams from Jolpica. Each team
     row opens its team (a club in a European cup this season opens there; a
