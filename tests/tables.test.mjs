@@ -2,7 +2,7 @@
 // cpblTable, tierZones, driverSeason) and a season's rounds (seasonRounds).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { liveTable, standingsRace, roundOf, roundCounted, COUNTS, pctText, gbText } from '../public/lib/title.mjs';
+import { liveTable, standingsRace, roundOf, roundCounted, COUNTS, pctText, gbText, gbShown } from '../public/lib/title.mjs';
 import { withGaps, cpblTable, driverSeason, seasonRounds, seasonTo, parseCalendar, monthsBetween, roundKind, roundLabel, zoneColor } from '../public/lib/espn.mjs';
 
 const row = (id, stats, extra = {}) => ({ id, name: id, stats, ...extra });
@@ -126,4 +126,8 @@ test('a win percentage and games behind, written one way in every table', () => 
   assert.equal(gbText({ w: 10, l: 2 }, { w: 10, l: 2 }), '-');
   assert.equal(gbText({ w: 10, l: 2 }, { w: 9, l: 4 }), '1.5');
   assert.equal(gbText({ w: 10, l: 2 }, { w: 30, l: 10 }), '-');
+});
+
+test('勝差 shows one decimal so whole and half games line up', () => {
+  assert.deepEqual(['-', '1.5', '3', '4', '+3', '+9.5', '', '4.0'].map(gbShown), ['-', '1.5', '3.0', '4.0', '+3.0', '+9.5', '', '4.0']);
 });

@@ -32,7 +32,7 @@ import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { tieNotes } from './lib/tiebreak.mjs';
-import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, nextNeeds, standingsRace } from './lib/title.mjs';
+import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, gbShown, nextNeeds, standingsRace } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { moreToggle, goBar, f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, homeName, today, sidesOf } from './ui.js';
@@ -7378,7 +7378,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
                   el('th', { class: 'left name-cell' }, [
                     el(open ? 'button' : 'span', open ? { class: 'link team-link', type: 'button', onclick: () => (r.athlete ? r.id && ctx.openPlayer(league, r.id, r) : league === 'f1' ? openConstructor(r) : r.id && openTeam(league, r.id, r)) } : { class: 'team-link' }, [r.athlete ? personPic(r, league, 'xs round') : league === 'f1' ? constructorBadge(r.en || r.name, 'xs') : logo(r.logo, r.name, 'xs'), el('span', { class: 'nm' }, name)])
                   ]),
-                  ...cols.map(c => el('td', { class: cls(c), text: r.stats[c] ?? '' }))
+                  ...cols.map(c => el('td', { class: cls(c), text: (c === 'GB' ? gbShown(r.stats[c]) : r.stats[c]) ?? '' }))
                 ]);
               })
             )

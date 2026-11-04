@@ -31,6 +31,9 @@ export function gbText(top, r) {
   const gb = (top.w - r.w + (r.l - top.l)) / 2;
   return gb > 0 ? String(gb) : '-';
 }
+// GB as a table column shows it: one decimal so whole and half games line up
+// ("4" → "4.0", "+3" → "+3.0", "4.5" and "-" as given).
+export const gbShown = v => (/^[+]?\d+$/.test(String(v ?? '').trim()) ? `${String(v).trim()}.0` : v);
 // A season's games for each side, where it isn't each other side twice
 // (CPBL's table is a half-season's: 60; a European cup's league phase is 8
 // games each, not a round robin of its 36).
