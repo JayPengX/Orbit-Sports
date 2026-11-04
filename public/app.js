@@ -2295,7 +2295,9 @@ const guideLink = (events, day = null) =>
 // The whole guide, a day at a time: the kit's day strip (every app's), the
 // day's showings in one card.
 function openGuide(events, from = null) {
-  const s = sheet(L({ zh: '愛爾達節目表', en: 'ELTA TV guide' }));
+  // Full height from the start: a day of two showings and a day of twenty
+  // the same sheet, never growing or shrinking as the days go by (Jay 2026-11-05).
+  const s = sheet(L({ zh: '愛爾達節目表', en: 'ELTA TV guide' }), { full: true });
   const items = guideItems();
   const days = [...new Set(items.map(p => localDate(p.start)))].filter(d => d >= today());
   let day = days.includes(from) ? from : days[0];
@@ -2311,6 +2313,13 @@ function openGuide(events, from = null) {
     );
   };
   paint();
+  // A swipe across the guide: the day before or after, as on 轉播 under it
+  // (Jay 2026-11-05, "愛爾達節目表 can't swipe": the page's swipe stops
+  // under a sheet, and this one had none of its own).
+  kitUI.daySwipe?.(s.body, dir => {
+    const d = days[days.indexOf(day) + dir];
+    return Boolean(d && ((day = d), paint(), true));
+  });
 }
 
 // ---- 賽事: every sport, league and game day ------------------------------------------------------

@@ -27,6 +27,7 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - Result notices on the phone — `public/app.js`: `syncPush`
 - Channels on cards and every channel on a game page — `public/app.js`, `public/sheets.js`: `頻道`
 - Past ELTA's list: every Premier League, Serie A, Bundesliga and Champions League game taken as on ELTA, the NBA's by NBA.com, the channel guessed from ELTA's usual line-up, said 預估 — `public/ui.js`, `public/sheets.js`, `.kit/sports-broadcast.mjs`: `guessTag`, `節目表公布後更新`, `eltaGuess`
+- 愛爾達節目表: every channel's showings a day at a time, full height, a swipe across it the next or the day before — `public/app.js`: `openGuide`, `daySwipe`
 - Playoff brackets and series — `public/sheets.js`: `openTie`
 - F1 weekends — `public/sheets.js`: `openFieldEvent`
 - F1 賽程 cards: a weekend as a panel (the next session's running countdown, the one on, or the podium) beside the circuit's outline (kept on the phone, `sports.wkTrack.v1`), then its sessions as stops on one line, each finished one showing who topped it on their team's colour — `public/app.js`: `weekendCard`
