@@ -127,6 +127,8 @@ img { max-width: 100%; }
 /* (首頁's 我的比賽 is all picks: no mark, no light.) */
 .pick-list .row-mark { display: none; }
 .pick-list .event-row.picked { background: none; }
+/* (轉播's 我的比賽 is only their own games: no grey light either, Jay 2026-11-05.) */
+.mine-list .event-row.picked { background: none; }
 /* A game 填滿空檔 put in: one quiet line in the list's own grid (the time in
    its column, the two sides, a small star at the end), so their own games
    stand out and it still reads as the list's (Jay 2026-11-04). */
