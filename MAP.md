@@ -35,7 +35,7 @@ couldn't be read is shown, never hidden.
     填滿空檔 is on (`prefs.fill`, off by default): then every free waking
     hour (the small hours stay quiet, as for their leagues) takes the game of any
     sport worth most then (`picks.mjs worth`: PRESTIGE by league, stakes, the
-    table, the odds, big clubs, the hour; no quality cut), drawn as one quiet
+    table, the odds, big clubs, stars, the hour; no quality cut), drawn as one quiet
     line (`.filled`: time, the two sides, a small star at the end; Jay
     2026-11-04 picked it over a grey row). 我的聯賽 is a short list, each
     league with the open day's count of games (`.my-leagues-list`). Every list on
@@ -228,7 +228,13 @@ couldn't be read is shown, never hidden.
   F1 followed that way: its qualifying, sprint and race. A league with a
   team or player of it followed goes by those.
 - **Today's picks** (`lib/picks.mjs`): followed leagues and teams, quality,
-  closeness, stakes, fame, theirs, ELTA's featured game, live now. The best
+  closeness, stakes, fame, stars, theirs, ELTA's featured game, live now.
+  In a season's last eighth each side's stake comes from the table
+  (`tableIndex(groups, league)` → `raceOf`, on title.mjs `standingsRace`:
+  a line it can still cross 1, a play-off seed 0.5; `idle` when nothing's
+  left, which also halves what even odds count); `STARS` (Messi's Miami,
+  Lewandowski's Chicago, Son's LAFC) adds per side. With 填滿空檔 on, the
+  filled games' leagues' tables are read too (`loadTables(also)`). The best
   game, then the best that doesn't clash. Theirs is the kit's one engine
   (`feedback.mjs`): the picks shown (the hero first), opened from them or
   anywhere in the app, learnt as a weight per team, league and sport, kept

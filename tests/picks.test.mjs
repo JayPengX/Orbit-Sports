@@ -314,3 +314,37 @@ test('填滿空檔: off, only their games; on, every free hour takes the game wo
   const final = match('mlb', 'ws', 14, side('9', 'A'), side('10', 'B'), { stage: { key: 'final' } });
   assert.ok(worth(final, ctx).score > worth(match('mlb', 'reg', 14, side('9', 'A'), side('10', 'B')), ctx).score + 0.5, 'a final means far more');
 });
+
+// MLS's East before Decision Day 2026 (ESPN's table, 2026-11-04: [name, id, GP, P, note]), and its odds.
+const EAST = [['Nashville SC', '18986', 33, 74, 'Round One'], ['Inter Miami CF', '20232', 33, 59, 'Round One'], ['New England Revolution', '189', 33, 58, 'Round One'], ['Chicago Fire FC', '182', 33, 55, 'Round One'], ['Charlotte FC', '21300', 33, 53, 'Round One'], ['Philadelphia Union', '10739', 33, 47, 'Round One'], ['FC Cincinnati', '18267', 33, 46, 'Round One'], ['Columbus Crew', '183', 33, 44, 'Wild Card'], ['Orlando City SC', '12011', 33, 43, 'Wild Card'], ['Red Bull New York', '190', 33, 39, ''], ['Toronto FC', '7318', 33, 39, ''], ['New York City FC', '17606', 33, 39, ''], ['D.C. United', '193', 33, 33, ''], ['Atlanta United FC', '18418', 33, 33, ''], ['CF Montréal', '9720', 33, 26, '']];
+const eastTable = (gp = 33) => tableIndex([{ name: 'East', rows: EAST.map(([name, id, , p, note]) => ({ id, name, note, stats: { GP: String(gp), P: String(p) } })) }], 'mls');
+const eastSide = name => {
+  const [en, id] = EAST.find(r => r[0] === name);
+  return { id, name: en, en, short: en };
+};
+const eastGame = (id, away, home, fav) => match('mls', id, 21, eastSide(away), eastSide(home), { fav, stage: { key: 'regular' } });
+
+test("a season's last game: what each side still plays for (Jay 2026-11-04, Decision Day)", () => {
+  const t = eastTable();
+  assert.equal(t['18986'].idle, true, 'Nashville is first whatever happens');
+  assert.equal(t['20232'].stake, 0.5, "Miami: 2nd or 3rd, round one's home games");
+  assert.equal(t['18267'].stake, 1, 'Cincinnati can still drop to a wild card');
+  assert.equal(t['9720'].idle, true, 'Montréal: last whatever happens');
+  // Earlier in the season, none of it.
+  assert.equal(eastTable(20)['18986'].stake, undefined);
+});
+
+test("Messi's Miami, both sides playing for a seed, over even odds against a side with nothing to play for", () => {
+  const ctx = { tables: { mls: eastTable() }, now: NOW };
+  const mia = eastGame('mia', 'Charlotte FC', 'Inter Miami CF', 0.68);
+  const cin = eastGame('cin', 'Nashville SC', 'FC Cincinnati', 0.39);
+  assert.ok(worth(mia, ctx).score > worth(cin, ctx).score);
+  assert.ok(worth(mia, ctx).reasons.includes('star'));
+  // Nashville's even odds aren't a contest: no 實力接近.
+  assert.ok(!worth(cin, ctx).reasons.includes('close'));
+  // Without the tables (not read yet), still Miami.
+  assert.ok(worth(mia, { now: NOW }).score > worth(cin, { now: NOW }).score);
+  // And as the game of the hour for someone who follows MLS as a league.
+  const chosen = leagueChoices([mia, cin, eastGame('orl', 'New England Revolution', 'Orlando City SC', 0.47)], { watched: ['mls'], ctx });
+  assert.deepEqual([...chosen], ['mls:mia']);
+});

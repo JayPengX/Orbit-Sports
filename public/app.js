@@ -827,6 +827,7 @@ async function loadOthers(date, live = false) {
     const got = live ? overHeld(slot.others, await readDay(otherLeagues().slice(0, 24), date, { pages }), pages) : await readDay(otherLeagues().slice(0, 24), date);
     slot.others = got;
     if (!live) slot.othersFailed = got.failed || 0;
+    if (!live && state.prefs.fill) loadTables(got.map(e => e.league));
   } catch {
     slot.others = slot.others || [];
     // None of them read: unread, never "nothing else on" (dayUnknown).
@@ -878,8 +879,9 @@ function retryLater(key, failed, again, wanted) {
 const dayWanted = date => date === today() || date === addDays(today(), 1) || (state.tab === 'home' && state.home.date === date) || (state.tab === 'live' && liveDay() === date) || allShown(date);
 let pushTimer = 0;
 // The followed leagues' tables, for the picks and 追蹤's places (they come in on their own).
-function loadTables() {
-  followedLeagues()
+// `also`: more leagues' (填滿空檔's games: what each side still plays for, picks.mjs raceOf).
+function loadTables(also = []) {
+  [...new Set([...followedLeagues(), ...also])]
     .filter(hasStandings)
     .filter(k => !state.home.tables[k])
     .slice(0, 8)
@@ -889,7 +891,7 @@ function loadTables() {
       // (Counted in before the repaint: the last table's repaint is the one that settles the picks.)
       standings(k)
         .then(g => {
-          state.home.tables[k] = tableIndex(g);
+          state.home.tables[k] = tableIndex(g, k);
           state.home.tablesPending--;
           if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
           if (state.tab === 'following') renderFollowing();
@@ -1465,7 +1467,7 @@ function isPickEvent(e) {
       .catch(() => {});
   }
   if (!slot?.events?.length) return false;
-  const memo = `${d}|${slot.at}|${slot.events.length}|${state.prefs.fill ? `f${slot.others?.length || 0}` : ''}`;
+  const memo = `${d}|${slot.at}|${slot.events.length}|${state.prefs.fill ? `f${slot.others?.length || 0}` : ''}|${Object.values(state.home.tables).filter(x => Object.keys(x).length).length}`;
   if (!pickMemo.has(memo)) {
     const own = new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)]);
     const mine = filtered(slot.events.filter(x => !practice(x) && (own.has(x.league) || isFollowedGame(x)) && (isFollowedGame(x) || onTv(x))));

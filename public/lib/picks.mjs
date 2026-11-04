@@ -9,7 +9,11 @@
 //              (leagueChoices): counts as much as a followed team's
 //   quality    how good the two sides are (their places in the table)
 //   closeness  how evenly matched they are (places close together)
-//   stakes     a top-of-the-table meeting, a final, a play-off, a series
+//   stakes     a top-of-the-table meeting, a final, a play-off, a series;
+//              in a season's last games, what each side still plays for (a
+//              title, a play-off place, a seed), and a side with nothing
+//              left to play for (its place settled) counts against it
+//   stars      the players people here turn a game on for (Messi's Miami)
 //   fame       a headline league, a final
 //   theirs     what they open and pass over among the picks, and open
 //              anywhere in the app, learnt as they go (the kit's feedback.mjs:
@@ -27,6 +31,7 @@
 
 import { LEAGUES, TOP_LEAGUES } from './leagues.mjs';
 import { eventKeys, teamKey } from './foryou.mjs';
+import { standingsRace, SEASON_GAMES, COUNTS } from './title.mjs';
 import * as dayoff from '#kit/dayoff.mjs';
 
 // Minutes a match usually takes, by sport.
@@ -62,9 +67,44 @@ export function tableStarted(g) {
 
 // The tables a set of standings groups gives (each group ranked on its own; none before a game's played).
 // `gp`: the games a side has played (how much its place says).
-export function tableIndex(groups) {
+// `league`: with it, each side's stake in a season's last games (raceOf).
+export function tableIndex(groups, league = null) {
   const out = {};
-  for (const g of (groups || []).filter(tableStarted)) g.rows.forEach((r, i) => r.id && (out[r.id] = { pos: i + 1, n: g.rows.length, group: g.name, gp: Number(r.stats?.GP) || null }));
+  for (const g of (groups || []).filter(tableStarted)) {
+    const race = league ? raceOf(g, league) : null;
+    g.rows.forEach((r, i) => r.id && (out[r.id] = { pos: i + 1, n: g.rows.length, group: g.name, gp: Number(r.stats?.GP) || null, ...race?.[r.id] }));
+  }
+  return out;
+}
+// What a side still plays for in its season's last games (LATE: the last
+// eighth, three games at least): `stake` 1 when the places it can still end
+// in cross a line of the table (the title, a play-off place, a wild card,
+// Europe, the drop), 0.5 when they're seeds of one play-off zone (MLS's 2nd
+// to 4th: who's at home in round one), 0 for none; `idle` when nothing's
+// left to play for (its place settled, or only places with no line between
+// them), a side that may rest its best (Jay 2026-11-04: Nashville, first
+// whatever happens, v Cincinnati was picked over Messi's Miami, both sides
+// still playing for their seeds, on Decision Day). Earlier in a season: none.
+const LATE = total => Math.max(3, Math.floor(total / 8));
+const SEEDED = /play-?off|play-?in|wild ?card|round one|季後/i;
+function raceOf(g, league) {
+  const sport = LEAGUES[league]?.sport;
+  const rows = g.rows || [];
+  const total = SEASON_GAMES[league] || (sport === 'soccer' && rows.length > 3 ? 2 * (rows.length - 1) : null);
+  if (!total || !['soccer', 'baseball', 'basketball'].includes(sport)) return null;
+  const race = standingsRace(g, sport, { total });
+  if (!race) return null;
+  const n = (r, k) => Number(r.stats?.[k]) || 0;
+  const played = r => (sport === 'soccer' ? n(r, 'GP') : n(r, 'W') + n(r, 'L') + n(r, 'T'));
+  const notes = rows.map(r => String(r.note || ''));
+  const out = {};
+  race.rows.forEach((x, i) => {
+    if (!x.id || total - played(rows[i]) > LATE(total)) return;
+    const can = notes.slice(x.best - 1, x.worst);
+    const line = x.best === 1 || new Set(can).size > 1;
+    const stake = x.settled ? 0 : line ? 1 : SEEDED.test(can[0]) ? 0.5 : 0;
+    out[x.id] = { stake, idle: stake === 0 };
+  });
   return out;
 }
 // How much a table says yet: a few games in, places are mostly luck (Brighton
@@ -111,6 +151,14 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
       if (w >= 0.5) reasons.push('topClash');
     } else if (Math.abs(a - h) < 0.12 && w >= 0.5) reasons.push('close');
   }
+  // A season's last games: what each side still plays for (raceOf).
+  let idle = 0;
+  if (!bigGame(e) && COUNTS(e)) {
+    const rows = [tables?.[e.league]?.[e.away?.id], tables?.[e.league]?.[e.home?.id]].filter(r => r?.stake != null);
+    idle = rows.filter(r => r.idle).length;
+    score += 0.2 * rows.reduce((s, r) => s + r.stake, 0) - 0.15 * idle;
+    if (rows.some(r => r.stake === 1)) reasons.push('stakes');
+  }
   // How open it is, by the bookmakers' prices (e.fav: the favourite's
   // chance): a game either side can win before one side's walkover, however
   // high it stands (Brentford +140 v Liverpool over Man City -425 v Ipswich).
@@ -118,7 +166,9 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   // with no draw from about 50%.
   if (Number.isFinite(e.fav) && e.fav > 0) {
     const [even, sure] = LEAGUES[e.league]?.sport === 'soccer' ? [0.4, 0.8] : [0.5, 0.85];
-    const open = Math.min(1, Math.max(0, (sure - e.fav) / (sure - even)));
+    // (Even odds against a side with nothing to play for say it may rest
+    // its best, not that it's a contest: half.)
+    const open = Math.min(1, Math.max(0, (sure - e.fav) / (sure - even))) * (idle ? 0.5 : 1);
     score += 0.3 * open;
     if (open >= 0.75 && !reasons.includes('close') && !reasons.includes('topClash')) reasons.push('close');
   }
@@ -132,11 +182,16 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
   }
   if (bigGame(e)) {
     score += 0.3;
-    reasons.push('stakes');
+    if (!reasons.includes('stakes')) reasons.push('stakes');
   }
   // Fame.
   if (TOP_LEAGUES.includes(e.league)) score += 0.12;
   score += 0.1 * [e.home, e.away].filter(x => bigClub(e.league, x)).length;
+  const star = [e.home, e.away].reduce((s, x) => s + starOf(e.league, x), 0);
+  if (star) {
+    score += star;
+    if (star >= 0.3) reasons.push('star');
+  }
   if (e.stage?.key === 'final') score += 0.25;
   // Theirs: what the person opens and passes over (log-odds, about -2 to
   // +2 once known), and a 常看 only where their own opens say so strongly.
@@ -194,6 +249,17 @@ const BIG = {
   basketball: /^(los angeles lakers|lakers|golden state warriors|warriors|boston celtics|celtics)$/i,
   baseball: /^(los angeles dodgers|dodgers|new york yankees|yankees)$/i
 };
+// The players people here turn a game on for, by the club they play for
+// (as of 2026-11: a star who moves, or stops, is moved here; checked on the
+// club's ESPN roster). Messi above all: the one MLS game a Taiwan fan
+// looks for is Miami's (Jay 2026-11-04: Miami v Charlotte over Cincinnati v
+// Nashville). Beyond a big club's 0.1, a side.
+const STARS = [
+  { league: 'mls', club: /^inter miami( cf)?$/i, who: 'Messi', w: 0.45 },
+  { league: 'mls', club: /^chicago fire( fc)?$/i, who: 'Lewandowski', w: 0.2 },
+  { league: 'mls', club: /^(lafc|los angeles fc)$/i, who: 'Son Heung-min', w: 0.2 }
+];
+export const starOf = (league, side) => (side ? STARS.find(s => s.league === league && s.club.test(String(side.en || side.name || '').trim()))?.w || 0 : 0);
 export const bigClub = (league, side) => Boolean(side && BIG[LEAGUES[league]?.sport]?.test(String(side.en || side.name || '').trim()));
 
 // Leagues followed as a league: no team or player of them followed. Jay
