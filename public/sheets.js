@@ -3568,14 +3568,7 @@ function sideStar(d, e, team) {
     }
     return arm ? { p: arm.r, line: armLine(arm), tight: armTight(arm) } : null;
   }
-  if (sport === 'hockey') {
-    const pts = x => val(x, 'G') * 2 + val(x, 'A');
-    const x = rowsWith('G').filter(x => val(x, 'G') + val(x, 'A') > 0).sort((p, q) => pts(q) - pts(p))[0];
-    if (x) return { p: x.r, line: en ? join([val(x, 'G') ? `${val(x, 'G')} G` : '', val(x, 'A') ? `${val(x, 'A')} A` : '']) : join([val(x, 'G') ? `${val(x, 'G')} 進球` : '', val(x, 'A') ? `${val(x, 'A')} 助攻` : '']) };
-    const g = rowsWith('SV').sort((p, q) => val(q, 'SV') - val(p, 'SV'))[0];
-    return g && val(g, 'SV') ? { p: g.r, line: en ? `${val(g, 'SV')} saves` : `${val(g, 'SV')} 次撲救` } : null;
-  }
-  // The rest (American football): the game's own first leader, its stat named.
+  // Anything else: the game's own first leader, its stat named.
   const l = (d?.leaders || []).find(x => x.team === team && x.name);
   return l ? { p: l, line: `${statName(l.stat, L(), { sport })} ${leaderValue(l.value, L())}` } : null;
 }

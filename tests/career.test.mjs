@@ -112,8 +112,3 @@ test('a franchise that moved is two teams, each by its own name, its own badge o
   assert.equal(lopez.seasons.at(-1).team.logo, 'https://a.espncdn.com/i/teamlogos/nba/500/bkn.png');
 });
 
-test("the WNBA's seasons are their own years (no NBA-style 2016–17)", async () => {
-  const { parseEspnCareer } = await import('../public/lib/career.mjs');
-  const c = parseEspnCareer({ teams: { 'las-vegas-aces': { id: '17', displayName: 'Las Vegas Aces' } }, categories: [{ labels: ['GP'], statistics: [2018, 2019].map(year => ({ season: { year, displayName: String(year) }, teamId: '17', teamSlug: 'las-vegas-aces', stats: ['30'] })) }] }, 'basketball', 'wnba');
-  assert.deepEqual(c.teams.map(t => [t.from, t.to]), [[2018, 2019]]);
-});

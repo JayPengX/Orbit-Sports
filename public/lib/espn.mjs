@@ -917,7 +917,7 @@ export function applyKambiLive(events, live) {
   });
 }
 // Kambi's list for one league answers 404 (CPBL's, since October 2026);
-// the list of all baseball on now works, and is one ask for NPB, KBO and
+// the list of all baseball on now works, and is one ask for MLB and the
 // CPBL alike.
 async function withKambiLive(events, league) {
   const path = CATALOG[league]?.kambi;
@@ -1462,7 +1462,7 @@ export async function raceWinLine(ss, liveLaps = null) {
 // Groups (a league table, conferences, divisions): [{ name, rows: [{ id, name,
 // logo, rank, stats: { key: value } }], columns: [key…] }].
 // Sports ranked by their winning share (a draw-less record), not points.
-const BY_RECORD = new Set(['basketball', 'baseball', 'football']);
+const BY_RECORD = new Set(['basketball', 'baseball']);
 const shareOf = r => (([w, l]) => (w + l ? w / (w + l) : 0.5))([Number(r.stats.W), Number(r.stats.L)]);
 // By the winning share, one yet to play at .500, the order given kept between equals.
 const byShare = rows => rows.map((r, i) => [r, i]).sort((x, y) => shareOf(y[0]) - shareOf(x[0]) || x[1] - y[1]).map(([r]) => r);

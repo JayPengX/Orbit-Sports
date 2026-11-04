@@ -45,7 +45,7 @@ export function stintsOf(rows, sameTeam = (a, b) => a.team.id === b.team.id) {
 // A franchise that moved or was renamed keeps its id, but each name is a
 // team of its own (Durant's Seattle SuperSonics 2007–08, then the Thunder),
 // unless it's the same team in Chinese (New Jersey and Brooklyn's 籃網: one).
-// `key`: the league (nba, mlb, wnba), for those names and old badges.
+// `key`: the league (nba, mlb), for those names and old badges.
 const oneLine = n => String(n || '').replace(/\s+/g, ' ').trim();
 export function parseEspnCareer(data, sport, key = '') {
   const c = data?.categories?.[0];
@@ -81,7 +81,7 @@ export function parseEspnCareer(data, sport, key = '') {
     })
     .sort((a, b) => a.year - b.year);
   if (!rows.length) return null;
-  // (The WNBA's seasons are one year each, as MLB's: Plum's 2017 isn't 2016–2017.)
+  // (Seasons ESPN names by one year, as MLB's, are that year alone.)
   const split = sport === 'basketball' && rows.some(r => /^\d{4}-\d{2}$/.test(r.season));
   const zhOf = t => teamNameZh(key, t.name, sport)?.short || t.name;
   const sameTeam = (a, b) => a.team.id === b.team.id && (a.team.name === b.team.name || zhOf(a.team) === zhOf(b.team));
