@@ -1475,12 +1475,11 @@ function readAround(date) {
     if (state.tab !== 'home' || state.home.date !== date || netState() !== 'online' || document.hidden) return;
     for (const d of [addDays(date, 1), addDays(date, -1)]) {
       const slot = state.days.get(d);
-      if (!slot?.at && !slot?.loading) loadDay(d);
+      // (A light day's games over: their box scores too, for its cards, once the day is read.)
+      if (!slot?.at && !slot?.loading) Promise.resolve(loadDay(d)).then(() => readDayBoxes(d)).catch(() => {});
+      else readDayBoxes(d);
       const read = state.days.get(d);
       if (read && !read.othersAt && !read.othersLoading) loadOthers(d);
-      // (A light day's games over: their box scores too, for its cards.)
-      const own = d < today() && read?.at ? (read.events || []).filter(e => ownGame(e)) : [];
-      if (own.length <= 3) own.filter(e => e.status?.state === 'post').forEach(readBox);
     }
   }, 800);
 }
@@ -1678,10 +1677,14 @@ function renderHome() {
   const endedFilled = isToday ? endedOf(dayGames.filled) : [];
   // A light day's games over are drawn as cards with who led each side: their
   // box scores read before the day's first drawing (its shape held meanwhile,
-  // 3 s at most), so the cards come whole (Jay 2026-11-05).
+  // 3 s at most), so the cards come whole (Jay 2026-11-05). Only while the
+  // day's shape is up anyway (the day itself was being read, or the loading
+  // screen): a day that's in is drawn at once, never its shape swapped in
+  // mid-slide for a swipe (Jay 2026-11-05: "look like it's flickering").
   const boxGames = dayGames.own.length <= 3 ? (past ? dayGames.own : endedGames).filter(boxCard) : [];
   boxGames.forEach(readBox);
-  if (!slot.drawn && !h.picking && boxGames.some(e => homeBest.get(boxKey(e)) === null) && !holdDay(box, 3_000)) return;
+  const shapeUp = Boolean(box.querySelector(':scope > .live-shape')) || !$('loading').hidden;
+  if (!slot.drawn && !h.picking && shapeUp && boxGames.some(e => homeBest.get(boxKey(e)) === null) && !holdDay(box, 3_000)) return;
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
   // theirs on, the best of everything on now), ranked like the picks, and
   // taken out of the lists below so no game shows twice.
@@ -1934,6 +1937,11 @@ function readBox(e) {
     .then(d => homeBest.set(k, d || {}))
     .catch(() => homeBest.set(k, {}))
     .finally(() => state.tab === 'home' && renderHome());
+}
+function readDayBoxes(d) {
+  const read = state.days.get(d);
+  const own = d < today() && read?.at ? (read.events || []).filter(e => ownGame(e)) : [];
+  if (own.length <= 3) own.filter(e => e.status?.state === 'post').forEach(readBox);
 }
 // (Each card drawn while its leaders were read: when they came, to fade them in once.)
 const boxLate = new Map();

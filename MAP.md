@@ -51,8 +51,9 @@ couldn't be read is shown, never hidden.
     screen stays up until a day of theirs that's over has moved on to their
     next day (`mayJump`). A light day's finished games' top players (`gameRecap`)
     are read with the day (`readBox` → `finalBox`, the box score alone; the
-    days either side in `readAround`) and the day waits for them (3 s at
-    most); one later than that has its room kept, empty, and fades in
+    days either side in `readAround`, once each is read) and, while the day's
+    shape is up anyway, the day waits for them (3 s at most; a day already in
+    is drawn at once, never its shape swapped in mid-swipe); one later than that has its room kept, empty, and fades in
     (`.recap-in`, opacity only); both lines in the same words and size. A
     game of theirs on TV is lit (`isPickEvent`) in every list at once, not once
     首頁 has drawn its day (Jay 2026-11-04: "the games often jump in";
