@@ -59,3 +59,12 @@ test('a game of theirs on TV is lit in every list at once, not once 首頁 has d
   const lit = pick.indexOf('if (ownGame(e) && !practice(e) && (isFollowedGame(e) || onTv(e))');
   assert.ok(lit > 0 && lit < pick.indexOf('if (!slot?.events?.length) return false;'), 'lit before the day is read');
 });
+
+test('a light day’s cards come with their top players: read with the day, the day held for them (Jay 2026-11-05: "an empty space then it jump in")', () => {
+  const hold = home.indexOf("boxGames.some(e => homeBest.get(boxKey(e)) === null) && !holdDay(box, 3_000)) return;");
+  assert.ok(hold > 0 && hold < home.indexOf('h.settled = !slot.stale'), 'the day is held for its box scores before it is drawn');
+  assert.match(app, /function readBox\(e\) \{[\s\S]*?finalBox\(e\.league, e\.id\)/, 'the box score alone, never the game page’s other reads');
+  assert.match(app, /own\.filter\(e => e\.status\?\.state === 'post'\)\.forEach\(readBox\)/, 'the days either side read theirs too');
+  const css = readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /@keyframes recap-in \{ from \{ opacity: 0; \} \}/, 'one read late fades in: opacity only, nothing moves');
+});

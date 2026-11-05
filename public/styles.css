@@ -2206,6 +2206,9 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
    swipe shaking animation which make my app looks like it got problem"). */
 .recap-best.q-wait { visibility: hidden; }
 .recap-best.q-wait .q-wait-bit { animation: none; }
+/* One that came after its card was drawn fades in where its room was kept: opacity only. */
+.recap-best.recap-in { animation: recap-in 300ms ease-out both; }
+@keyframes recap-in { from { opacity: 0; } }
 .recap-lead { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 20px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
 .recap-lead:disabled { opacity: 1; }
 .recap-lead .logo { flex: none; }

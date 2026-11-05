@@ -16,7 +16,7 @@ import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { transition } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
+import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
@@ -1478,6 +1478,9 @@ function readAround(date) {
       if (!slot?.at && !slot?.loading) loadDay(d);
       const read = state.days.get(d);
       if (read && !read.othersAt && !read.othersLoading) loadOthers(d);
+      // (A light day's games over: their box scores too, for its cards.)
+      const own = d < today() && read?.at ? (read.events || []).filter(e => ownGame(e)) : [];
+      if (own.length <= 3) own.filter(e => e.status?.state === 'post').forEach(readBox);
     }
   }, 800);
 }
@@ -1673,6 +1676,12 @@ function renderHome() {
   const dayGames = homeGames([...filtered(mine), ...fillPool()], { followed: e => isFollowedEvent(e), filled: filledStood });
   const endedGames = isToday ? endedOf(dayGames.own) : [];
   const endedFilled = isToday ? endedOf(dayGames.filled) : [];
+  // A light day's games over are drawn as cards with who led each side: their
+  // box scores read before the day's first drawing (its shape held meanwhile,
+  // 3 s at most), so the cards come whole (Jay 2026-11-05).
+  const boxGames = dayGames.own.length <= 3 ? (past ? dayGames.own : endedGames).filter(boxCard) : [];
+  boxGames.forEach(readBox);
+  if (!slot.drawn && !h.picking && boxGames.some(e => homeBest.get(boxKey(e)) === null) && !holdDay(box, 3_000)) return;
   // 正在進行: today's games on now, first on 首頁 (theirs; with none of
   // theirs on, the best of everything on now), ranked like the picks, and
   // taken out of the lists below so no game shows twice.
@@ -1910,18 +1919,40 @@ function renderHome() {
 }
 // A light day's games over: a card each, with who led each side
 // (sheets.js gameRecap); each game's leaders read once.
+// Read with the day (readBox: renderHome before its first drawing, readAround
+// for the days either side), so a card is drawn with its leaders already in
+// (Jay 2026-11-05: "more like an empty space then it jump in"). One read
+// late anyway fades in where its room was kept: only its opacity, never a move.
 const homeBest = new Map();
+const boxKey = e => `${e.league}:${e.id}`;
+const boxCard = e => e.kind === 'match' && !e.status?.void;
+function readBox(e) {
+  const k = boxKey(e);
+  if (!boxCard(e) || homeBest.has(k)) return;
+  homeBest.set(k, null);
+  finalBox(e.league, e.id)
+    .then(d => homeBest.set(k, d || {}))
+    .catch(() => homeBest.set(k, {}))
+    .finally(() => state.tab === 'home' && renderHome());
+}
+// (Each card drawn while its leaders were read: when they came, to fade them in once.)
+const boxLate = new Map();
+const BOX_FADE = 300;
 function recapList(games, opts) {
   return el('div', { class: 'recap-list' }, games.map(e => {
-    const k = `${e.league}:${e.id}`;
-    if (e.kind === 'match' && !homeBest.has(k)) {
-      homeBest.set(k, null);
-      summary(e.league, e.id)
-        .then(d => homeBest.set(k, d || {}))
-        .catch(() => homeBest.set(k, {}))
-        .finally(() => state.tab === 'home' && renderHome());
+    const k = boxKey(e);
+    readBox(e);
+    const d = homeBest.get(k);
+    const lines = boxCard(e) ? gameRecap(e, d) : [];
+    if (d === null) boxLate.set(k, 0);
+    else if (boxLate.has(k)) {
+      // (A redraw while it fades carries on from where it was: never back to clear, never cut short.)
+      const since = boxLate.get(k) || (boxLate.set(k, Date.now()), Date.now());
+      const gone = Date.now() - since;
+      if (gone < BOX_FADE) lines[0]?.classList.add('recap-in'), lines[0]?.style.setProperty('animation-delay', `-${gone}ms`);
+      else boxLate.delete(k);
     }
-    return el('div', { class: 'q-card recap' }, [eventRow(e, opts), ...(e.kind === 'match' && !e.status.void ? gameRecap(e, homeBest.get(k)) : [])]);
+    return el('div', { class: 'q-card recap' }, [eventRow(e, opts), ...lines]);
   }));
 }
 // Cards that scroll sideways (the kit's rail).

@@ -1319,6 +1319,17 @@ async function lastSeasonMeetings(league, data) {
   const name = sched?.requestedSeason?.displayName || String(year - 1);
   return { season: name, n: games.length, wins, games };
 }
+// A finished game's box score alone, for 首頁's cards of who led each side
+// (Jay 2026-11-05: "an empty space then it jump in"): the phone's copy at
+// once if it's of the game over, else read; none of the game page's other
+// reads (last season's meetings, MLB's rosters) held before it answers.
+export async function finalBox(league, id) {
+  if (!LEAGUES[league]?.espn) return summary(league, id);
+  const url = `${SITE}/${LEAGUES[league].espn}/summary?event=${encodeURIComponent(id)}`;
+  const kept = await peekJson(url).catch(() => null);
+  const over = kept?.header?.competitions?.[0]?.status?.type?.completed === true;
+  return parseSummary(over ? kept : await espnSummary(league, id), league);
+}
 export async function summary(league, id) {
   const data = await espnSummary(league, id);
   let sm = parseSummary(data, league);
