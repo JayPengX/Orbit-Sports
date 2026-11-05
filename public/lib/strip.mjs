@@ -15,3 +15,15 @@ export function stripDays(current, { only = null, range = { from: -30, to: 45 },
 // today whatever day he had opened the league on). null: today, whichever
 // day that is now.
 export const chosenOf = (d, today) => (d && d !== today ? d : null);
+
+// 首頁's way back from a sport (Jay 2026-11-05): a sport's chip may move the
+// day to one it plays, so the day and the scroll it left from are kept, and
+// 全部 or 我的比賽 goes back to them. A sport to another keeps the first
+// place; a day picked meanwhile (the strip, a swipe) drops it, so the
+// person stays on the day they chose. `from`, `to`: whether each is a sport.
+// Gives the place kept now, and where to go back to (or null).
+export function sportBack(kept, { from, to, date, y }) {
+  if (!from && to) return { kept: { date, y }, back: null };
+  if (from && !to) return { kept: null, back: kept };
+  return { kept, back: null };
+}

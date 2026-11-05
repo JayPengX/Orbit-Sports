@@ -10,7 +10,7 @@
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, readJson, writeJson, writeStore, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
-import { stripDays, chosenOf } from './lib/strip.mjs';
+import { stripDays, chosenOf, sportBack } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
@@ -1914,6 +1914,12 @@ function renderHome() {
   );
   // (Drawn: what comes later for this day goes in as it is.)
   if (!slot.stale) slot.drawn = true;
+  // Back from a sport: the page where they left it, once that day is drawn.
+  if (h.backY != null && slot.drawn) {
+    const y = h.backY;
+    h.backY = null;
+    requestAnimationFrame(() => window.scrollTo({ top: y }));
+  }
   // (A finished game's top players still being read, held in their shape: the loading screen waits for them.)
   if (box.querySelector('.recap-best.q-wait')) h.settled = false;
   // An F1 session on: its live timing read now, not at the next tick.
@@ -2007,6 +2013,8 @@ function pickHomeDay(d) {
   h.date = d;
   h.shown = 20;
   h.autoDay = false;
+  // (Their own day now: 全部 or 我的比賽 stays on it, not the one before a sport's chip.)
+  h.kept = null;
   toPageTop();
   renderHome();
 }
@@ -2072,6 +2080,13 @@ async function nextPickDay() {
 }
 async function pickFilter(k) {
   const h = state.home;
+  // Back from a sport to 全部 or 我的比賽: the day and the place they were on (lib/strip.mjs sportBack).
+  const way = sportBack(h.kept, { from: Boolean(SPORTS[h.filter]), to: Boolean(SPORTS[k]), date: h.date, y: window.scrollY });
+  h.kept = way.kept;
+  if (way.back) {
+    h.date = way.back.date;
+    h.backY = way.back.y;
+  }
   h.filter = k;
   h.shown = 20;
   renderHome();
