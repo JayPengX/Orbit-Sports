@@ -12,7 +12,7 @@
 import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, readJson, writeJson, writeStore, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
 import { stripDays, chosenOf, sportBack } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
-import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
+import { boundsOf, unionBounds, within, clampDay, playsWithin } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { transition, pickFinals } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
@@ -71,6 +71,16 @@ const shownLeaguesOf = sport => leaguesOf(sport).filter(isActive);
 const shownSports = () => Object.keys(SPORTS).filter(sp => shownLeaguesOf(sp).length);
 async function leagueHasGames(k, from, to) {
   const l = LEAGUES[k];
+  // Shared-Data's game days first (sports/<league>/days.json, a few hundred
+  // bytes, the same read 首頁 and 賽事 make): ESPN's pages only for a league
+  // without them. (Each league's scoreboard and a cup's four month pages
+  // were read for this: 280 KB of a first open on a phone's link, the UEFA
+  // cups' months in with the first screen's reads, 2026-11-05.)
+  if (l.espn) {
+    const days = await packJson(`sports/${k}/days.json`, { ttl: 12 * 3_600_000 }).then(d => d?.days, () => null);
+    const known = playsWithin(days, localDate(from), localDate(to));
+    if (known != null) return known;
+  }
   const near = list => list.some(e => {
     const t = Date.parse(e.start);
     return t >= from && t <= to;

@@ -21,3 +21,8 @@ export function unionBounds(all, leagues) {
 export const within = (d, b) => !b || (d >= b.from && d <= b.to);
 // A day brought inside them.
 export const clampDay = (d, b) => (!b ? d : d < b.from ? b.from : d > b.to ? b.to : d);
+// Whether a league plays between two days (both 'YYYY-MM-DD', Taiwan's), by
+// its game days (Shared-Data's sports/<league>/days.json); null when there's
+// no list to say it (not built, unread, or empty): asked another way then,
+// never hidden for it.
+export const playsWithin = (days, from, to) => (Array.isArray(days) && days.length ? days.some(d => d >= from && d <= to) : null);

@@ -19,8 +19,9 @@ Only what's on TV here (`lib/broadcast.mjs`; leagues from
 - **Soccer on Apple TV:** MLS (every game).
 - **Racing:** F1 (every session).
 
-A league out of season is hidden (checked, kept 12 h). A league that
-couldn't be read is shown, never hidden.
+A league out of season is hidden (checked by its game days, the nightly
+`sports/<league>/days.json`, ESPN's pages only for a league without one;
+kept 12 h). A league that couldn't be read is shown, never hidden.
 
 ## How it works
 

@@ -174,8 +174,15 @@ export const onTv = e => channelsOf(e).length > 0;
 // The way to watch a game now: its best channel with a link, or null.
 export const watchOf = e => tvOf(e).find(b => b.url && b.exact) || null;
 // Whether the lists that say what's on are in (ELTA's, NBA.com's): before
-// that no game can be said to be on, so nothing is recommended yet.
-export const tvReady = () => eltaSchedule() !== null && nbaSchedule() !== null;
+// that no game can be said to be on, so nothing is recommended yet. Both
+// asked for at the first ask (NBA.com's was asked only once ELTA's was in,
+// at the next drawing after it: on a phone's link 5 s later, the picks and
+// the move to their next day waiting on it, 2026-11-05).
+export const tvReady = () => {
+  const elta = eltaSchedule();
+  const nba = nbaSchedule();
+  return elta !== null && nba !== null;
+};
 // ELTA's list couldn't be read (and none kept): which games are on isn't
 // known, so none is left out for not being on.
 export const tvUnread = () => eltaSchedule.failed;
