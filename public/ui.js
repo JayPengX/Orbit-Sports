@@ -698,7 +698,9 @@ const formsWatch = typeof ResizeObserver === 'function'
           formsWatch.unobserve(n);
           continue;
         }
-        if (!n.clientWidth) continue;
+        // (A tab shown again, its box as wide as when fitted: as it is, not
+        // fitted again in the frame the tab bar's pill starts to slide.)
+        if (!n.clientWidth || n.__fitW === n.clientWidth) continue;
         n.style.fontSize = '';
         for (const f of n.__forms) if (((n.textContent = f), fitsBox(n))) break;
         for (let i = 0; i < 12 && !fitsBox(n); i++) {
@@ -706,6 +708,7 @@ const formsWatch = typeof ResizeObserver === 'function'
           if (size < 11) break;
           n.style.fontSize = `${size}px`;
         }
+        n.__fitW = n.clientWidth;
       }
     })
   : null;
