@@ -14,7 +14,7 @@ import { stripDays, chosenOf, sportBack } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
-import { transition } from './lib/notice.mjs';
+import { transition, pickFinals } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
 import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
@@ -844,7 +844,8 @@ async function loadDay(date, { live = false } = {}) {
   else if (!slot.restAt && isToday && !slot.restLoading) setTimeout(() => !slot.restAt && loadRest(date), 2500);
   loadFollowedTeams();
   repaintDay(date);
-  if (isToday) {
+  // (Tomorrow's too: its picks' finals go on the Worker's list ahead, pickFinals.)
+  if (isToday || date === addDays(today(), 1)) {
     clearTimeout(pushTimer);
     pushTimer = setTimeout(syncPush, 1500);
   }
@@ -1018,8 +1019,13 @@ function syncPush() {
   // Today's picks, each ending (今日推薦賽果): every pick of the day, the ones
   // on now too (they've left 今日推薦 for 正在進行); one a followed team's or
   // race weekend's final already covers isn't said twice.
+  // (Today's and tomorrow's picks put on ahead, and a game already over never
+  // put on late: lib/notice.mjs pickFinals.)
   const picked = pickedToday();
-  for (const e of (state.days.get(today())?.events || []).filter(e => picked.has(`${e.league}:${e.id}`)).map(freshGame)) {
+  const pickDays = [today(), addDays(today(), 1)].map(d => (state.days.get(d)?.events || []).map(freshGame).map(e => ({ e, picked: picked.has(`${e.league}:${e.id}`) || (e.status?.state !== 'post' && !e.status?.void && !e.other && isPickEvent(e)) })));
+  const finals = pickFinals(pickDays.flat(), readJson(PICK_SENT_KEY, {}), now);
+  writeJson(PICK_SENT_KEY, finals.sent);
+  for (const e of finals.games) {
     if (e.other || e.status?.void || (e.status?.state === 'post' && bannered.has(`${e.league}:${e.id}`)) || items.some(x => x.tag === `end:${e.league}:${e.id}`)) continue;
     const end = resultItem(e, now, true);
     if (end) items.push(end);
@@ -1064,6 +1070,8 @@ function resultItem(e, now, pick = false) {
 // pick leaves the list once it's on, and its final is still said, even by an
 // app opened mid-game.
 const PICKED_KEY = 'fx.picked.v1';
+// The picks' finals put on the Worker's list, and when (lib/notice.mjs pickFinals).
+const PICK_SENT_KEY = 'fx.pickends.v1';
 function pickedToday() {
   try {
     const kept = JSON.parse(localStorage.getItem(PICKED_KEY) || 'null');
