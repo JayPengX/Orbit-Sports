@@ -611,3 +611,13 @@ test("the meetings card's bar: a piece a meeting, each side's from its end, the 
   // A season's thirteen: one piece a kind, grown by its count.
   assert.deepEqual(h2hPieces([['away', 6], ['home', 7]], 0, 13), [['away', 6], ['home', 7]]);
 });
+
+test('a basketball game on now: each side\'s timeouts left from the summary (Jay 2026-11-05)', () => {
+  const side = (id, homeAway, left) => ({ id, homeAway, team: { id, displayName: id }, score: '100', timeoutsRemaining: left });
+  const s = parseSummary({ header: { competitions: [{ status: { type: { state: 'in' } }, competitors: [side('10', 'home', 1), side('16', 'away', 2)] }] } }, 'nba');
+  assert.equal(s.home.timeouts, 1);
+  assert.equal(s.away.timeouts, 2);
+  // A feed without them: none, never a made-up number.
+  const none = parseSummary({ header: { competitions: [{ competitors: [{ id: '1', homeAway: 'home', team: { id: '1' } }] }] } }, 'nba');
+  assert.equal(none.home.timeouts, null);
+});

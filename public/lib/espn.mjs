@@ -76,6 +76,8 @@ function parseSide(c) {
     winner: Boolean(c.winner),
     record: record || '',
     lines: (c.linescores || []).map(l => l.displayValue ?? String(l.value ?? '')),
+    // A basketball side's timeouts left (the summary's header has them while it's on).
+    timeouts: Number.isFinite(c.timeoutsRemaining) ? c.timeoutsRemaining : null,
     homeAway: c.homeAway || null,
     order: c.order ?? null
   };

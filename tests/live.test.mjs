@@ -98,10 +98,16 @@ test("a play's period fits the plays list's time column, in the viewer's words",
   for (const n of [1, 2, 3, 4, 5]) assert.ok(playPeriod(q(n), 'basketball').length <= 3);
 });
 
-test('a timeout or a pitching change takes the clock\'s place', () => {
+test('a timeout keeps the game clock beside it; a pitching change takes the clock\'s place', () => {
   const nba = { status: { state: 'in', period: 2, clock: '5:32', name: 'STATUS_IN_PROGRESS' }, live: { lastType: 'Full Timeout' } };
-  assert.equal(liveLabel(nba, 'basketball'), '第2節 暫停');
-  assert.equal(liveLabel(nba, 'basketball', 'en'), 'Q2 Timeout');
+  // The time left in the period stays shown through the timeout (Jay 2026-11-05).
+  assert.equal(liveLabel(nba, 'basketball'), '第2節 5:32 · 暫停');
+  assert.equal(liveLabel(nba, 'basketball', 'en'), 'Q2 5:32 · Timeout');
+  assert.equal(liveLabel({ ...nba, status: { ...nba.status, period: 4, clock: '45.2' } }, 'basketball'), '第4節 45.2 · 暫停');
+  assert.equal(liveLabel({ ...nba, status: { ...nba.status, clock: '' } }, 'basketball'), '第2節 暫停');
+  // A row's two lines: the period and its clock, then 暫停 (its countdown after it).
+  assert.deepEqual(liveParts('第4節 2:10 · 暫停'), ['第4節 2:10', '暫停', '']);
+  assert.deepEqual(liveParts('Q4 2:10 · Timeout'), ['Q4 2:10', 'Timeout', '']);
   assert.equal(liveLabel({ ...nba, live: { lastType: 'Substitution' } }, 'basketball'), '第2節 5:32');
   assert.equal(liveLabel({ status: { state: 'in', period: 7 }, live: { half: 'bot', lastType: 'Pitching Change' } }, 'baseball'), '7局下 換投');
 });
@@ -114,7 +120,7 @@ test('a timeout stays one through the substitutions made in it, until the clock 
   const sub = withTimeout(at('Substitution', '8:27', '12'));
   assert.equal(sub.live.lastType, 'Full Timeout');
   assert.equal(sub.live.lastId, '11');
-  assert.equal(liveLabel(sub, 'basketball'), '第4節 暫停');
+  assert.equal(liveLabel(sub, 'basketball'), '第4節 8:27 · 暫停');
   // Play again: the clock ran, the timeout's over (and not brought back by a later substitution).
   assert.equal(withTimeout(at('Jump Shot', '8:10', '13')).live.lastType, 'Jump Shot');
   assert.equal(withTimeout(at('Substitution', '8:27', '14')).live.lastType, 'Substitution');

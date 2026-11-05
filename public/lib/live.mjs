@@ -42,7 +42,10 @@ export function liveLabel(e, sport, lang = 'zh') {
   if (/two.minute warning/i.test(last)) return en ? 'Two-minute warning' : '兩分鐘警告';
   if (sport !== 'soccer' && sport !== 'baseball' && n && /timeout/i.test(last) && !/end (of )?timeout/i.test(last)) {
     const p = sport === 'basketball' && n > QUARTERS ? otName(n, en) : en ? (sport === 'basketball' ? `Q${n}` : `P${n}`) : `第${n}節`;
-    return en ? `${p} Timeout` : `${p} 暫停`;
+    // The game clock kept beside it (stopped on it for the whole timeout: 2:10 left of the 4th
+    // matters, Jay 2026-11-05); the timeout's own countdown comes after (ui.js statusText).
+    const at = clock ? `${p} ${clock} · ` : `${p} `;
+    return en ? `${at}Timeout` : `${at}暫停`;
   }
   if (sport === 'baseball' && n && /pitching change/i.test(last)) {
     const where = en ? `${lv.half === 'bot' ? 'Bot' : 'Top'} ${ord(n)}` : `${n}局${lv.half === 'bot' ? '下' : '上'}`;

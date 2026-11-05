@@ -309,10 +309,16 @@ export async function openMatch(e) {
     };
     // (The league's rounds still coming: the header drawn again once they're in, not left without its round.)
     const roundOnly = !stageTag(e, L()) && !seriesText(e) && Boolean(weekOf(e, () => headSm === sm && header.isConnected && paintHeader(sm)));
+    // A basketball game on now: each side's timeouts left under its record (the last minutes
+    // turn on them, Jay 2026-11-05); ESPN's summary has them, the day's list doesn't.
+    const left = x => (Number.isFinite(x.timeouts) ? (L() === 'en' ? `Timeouts ${x.timeouts}` : `暫停剩 ${x.timeouts}`) : '');
+    const tosLine = st.state === 'in' && LEAGUES[e.league]?.sport === 'basketball' && (!sm || Number.isFinite(home.timeouts) || Number.isFinite(away.timeouts));
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
         el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), homeName(el('strong', { text: raw.short || x.short || x.name }), e, raw)]),
         rec(x, raw) ? el('small', { text: rec(x, raw) }) : x.guest || raw.guest ? el('small', { text: GUEST_FROM[raw.en || raw.name]?.[L() === 'en' ? 1 : 0] || (L() === 'en' ? 'Guest club' : '表演賽客隊') }) : null,
+        // (Its line held from the first paint, the summary not read yet: the header never grows under the reader.)
+        tosLine ? el('small', { class: 'mh-tos num', text: left(x) || '\u00a0' }) : null,
         // A guest club's game: neither side's follow here (the two sides even), the league side's under the score.
         hasTeamPage(e.league) && !guestGame ? followChip(e.league, x, () => paintHeader(sm)) : null
       ]);

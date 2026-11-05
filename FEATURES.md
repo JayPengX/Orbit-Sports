@@ -6,6 +6,7 @@ drop a feature silently (2026-11-03, after the lost-features audit).
 To remove a feature on purpose, delete its line here in the same commit, and say why.
 
 - Break countdowns (half-time, timeouts, quarter breaks) — `public/ui.js`, `public/cards.js`: `breakTick`, `中場休息`
+- A basketball timeout keeps the game clock beside its countdown (第4節 2:10 · 暫停 0:20; a row's three lines), and a game on now shows each side's timeouts left under its record (暫停剩 2, ESPN's summary) — `public/lib/live.mjs` `liveLabel`, `public/ui.js` `statusEl`, `public/sheets.js` header
 - Win chance and its chart with 關鍵時刻 — `public/sheets.js`, `public/lib/i18n.mjs`: `勝率走勢`, `勝率預測`, `關鍵時刻`
 - Line-ups: basketball starters and bench, MLB batting order and bullpen — `public/sheets.js`, `public/lib/lineups.mjs`: `打序`, `牛棚`, `mlbLineups`, `rotowireGame`
 - Injuries with return dates — `public/sheets.js`: `回歸待定`

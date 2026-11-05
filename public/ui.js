@@ -481,9 +481,13 @@ function statusEl(e, day = true) {
   // first line, what's after it (its clock, 暫停, 結束, a break's countdown,
   // ticking) on the second, both kept to the column, the dot by the first.
   if (e.status.state === 'in') {
-    const [head, word, clock] = liveParts(ht ? text.replace(/\s+\d+:\d{2}$/, '') : text);
+    const [whole, word, clock] = liveParts(ht ? text.replace(/\s+\d+:\d{2}$/, '') : text);
+    // A timeout with the game clock kept (第4節 2:10 · 暫停): the period, its clock under it as in
+    // play, then 暫停 and its countdown on a third line (on one line it ran into the logos at 320).
+    const held = word ? /^(.*?)\s+(\d{1,2}:\d{2}(?:\.\d)?|\d{1,2}\.\d)$/.exec(whole) : null;
+    const head = held ? held[1] : whole;
     const tail = ht ? el('small', { class: 'num', ...kitQ.halftimeAttrs(ht, word), text: [word, kitQ.halftimeClock(kitQ.halftimeEnd(ht))].filter(Boolean).join(' ') }) : word || clock ? el('small', { class: 'num', text: [word, clock].filter(Boolean).join(' ') }) : null;
-    return el('span', { class: 'event-status in clocked' }, [el('span', { text: head }), tail]);
+    return el('span', { class: 'event-status in clocked' }, [el('span', { text: head }), held ? el('small', { class: 'num', text: held[2] }) : null, tail]);
   }
   // A final with more to say (完賽（10 局）, 完賽（PK 大戰）): 完賽, and the rest under it (two lines drawn for it, never cut).
   const ended = e.status.state === 'post' ? /^(.+?)（(.+)）$/.exec(text) : null;
