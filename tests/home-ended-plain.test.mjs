@@ -9,7 +9,7 @@ const ui = readFileSync(new URL('../public/ui.js', import.meta.url), 'utf8');
 
 test('eventRow takes mark: false and then never lights or marks a row', () => {
   assert.match(ui, /export function eventRow\(e, \{[^}]*mark = true[^}]*\}/);
-  assert.match(ui, /picked = mark && \(/);
+  assert.match(ui, /pickKind\(mark && \(/);
 });
 
 test('every 已結束 list on 首頁 draws its rows unmarked', () => {

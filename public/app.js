@@ -1520,6 +1520,7 @@ function isPickEvent(e) {
   return pickMemo.get(memo).has(key);
 }
 ctx.isPickEvent = isPickEvent;
+ctx.isFollowedEvent = e => isFollowedEvent(e);
 // What a day not drawn yet still waits for: a league of theirs unread, or
 // 填滿空檔's games (every other league's) still being read. (One of the
 // others unread doesn't hold it: it held the whole page 6 s for a league

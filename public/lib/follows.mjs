@@ -41,3 +41,10 @@ export function endedFollows(games, { fresh, told = new Set(), seen = new Map(),
   }
   return out;
 }
+
+// Why a game is marked in a list: 'pick' when it's in their day for their
+// own sake (a followed team's, player's or match's, or their followed
+// league's chosen game), 'fill' when only 填滿空檔 put it there (Jay
+// 2026-11-05: the EPL is there because he follows it, MLS because fill is
+// on), null when it isn't marked at all.
+export const pickKind = (picked, followed) => (!picked ? null : followed ? 'pick' : 'fill');

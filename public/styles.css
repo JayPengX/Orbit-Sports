@@ -124,6 +124,11 @@ img { max-width: 100%; }
 .row-mark { display: inline-flex; align-items: center; gap: 4px; height: 20px; margin-right: 8px; padding: 0 8px 0 6px; border-radius: 999px; background: var(--q-fill-2); color: var(--q-label, var(--q-text)); font: 600 12px/20px var(--q-font); white-space: nowrap; }
 .row-mark svg { width: 11px; height: 11px; fill: currentColor; }
 .event-row.picked { background: var(--q-fill-4); }
+/* A game only 填滿空檔 put in: unlit, its pill outlined with a hollow star, so a
+   followed league's pick reads as theirs and this one as filling a gap (Jay 2026-11-05). */
+.event-row.picked.fill-pick { background: none; }
+.row-mark.fill { background: none; box-shadow: inset 0 0 0 1px var(--q-sep); color: var(--q-label-2); font-weight: 500; }
+.row-mark.fill svg path { fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linejoin: round; }
 /* (首頁's 我的比賽 is all picks: no mark, no light.) */
 .pick-list .row-mark { display: none; }
 .pick-list .event-row.picked { background: none; }
@@ -134,7 +139,7 @@ img { max-width: 100%; }
    stand out and it still reads as the list's (Jay 2026-11-04). */
 .pick-list .event-row.filled { grid-template-columns: 64px minmax(0, 1fr) 16px; background: none; padding-block: 11px; }
 .pick-list .event-row.filled::after { content: ''; width: 13px; height: 13px; justify-self: end; background: var(--q-label-3, var(--q-label-2)); -webkit-mask: var(--star-mask) center / contain no-repeat; mask: var(--star-mask) center / contain no-repeat; }
-.pick-list { --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 .8l1.6 3.4 3.7.4-2.8 2.5.8 3.7L6 8.9l-3.3 1.9.8-3.7L.7 4.6l3.7-.4z'/%3E%3C/svg%3E"); }
+.pick-list { --star-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 .8l1.6 3.4 3.7.4-2.8 2.5.8 3.7L6 8.9l-3.3 1.9.8-3.7L.7 4.6l3.7-.4z' fill='none' stroke='%23000' stroke-width='1.1' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 .pick-list .event-row.filled .event-sides { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); justify-content: stretch; align-items: center; gap: 0 10px; min-width: 0; overflow: hidden; }
 .pick-list .event-row.filled .side { gap: 8px; min-width: 0; }
 .pick-list .event-row.filled .side .logo:is(*, .round, .logo-fallback, .logo-flag):not(.x-no) { width: 22px; height: 22px; padding: 2px; border-radius: 7px; }
@@ -2199,7 +2204,7 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .q-card.recap:has(> .event-row:active:not(:disabled)) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
 /* A game over shown with its leaders (recapList): the whole card lit, never the top half. */
 .q-card.recap > .event-row.picked { background: none; }
-.q-card.recap:has(> .event-row.picked) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
+.q-card.recap:has(> .event-row.picked:not(.fill-pick)) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
 .recap-best { display: grid; gap: 4px; margin-top: -6px; padding: 0 16px 14px 92px; }
 /* While a game's top players are read their room is kept and nothing is drawn in it:
    no sweeping bars, no stand-in swapped for the real lines (Jay 2026-11-05: "a small

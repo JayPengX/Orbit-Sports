@@ -37,8 +37,11 @@ couldn't be read is shown, never hidden.
     `prefs.quiet` {from,to} by the hour, 00–05 unset; app.js `asleep`) takes the game of any
     sport worth most then (`picks.mjs worth`: PRESTIGE by league, stakes, the
     table, the odds, big clubs, stars, the hour; no quality cut), drawn as one quiet
-    line (`.filled`: time, the two sides, a small star at the end; Jay
-    2026-11-04 picked it over a grey row). 我的聯賽 is a short list, each
+    line (`.filled`: time, the two sides, a small hollow star at the end; Jay
+    2026-11-04 picked it over a grey row). In every other list (賽事, 轉播)
+    a pick is ★ 推薦 on a grey-lit row when it's theirs (a followed league's
+    chosen game), and an outlined ☆ 推薦 on an unlit row when only 填滿空檔
+    put it there (`lib/follows.mjs pickKind`, ui.js `eventRow`; Jay 2026-11-05). 我的聯賽 is a short list, each
     league with the open day's count of games (`.my-leagues-list`). Every list on
     首頁, 已結束 and a past day too, is only their own games and, with
     填滿空檔 on, the filled ones as the day stood (`lib/home-shown.mjs`
