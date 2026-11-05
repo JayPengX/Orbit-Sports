@@ -1649,11 +1649,15 @@ function renderHome() {
     if (kept) Promise.resolve().then(() => go(kept));
     else {
       // The next day any of their leagues plays (each one's small list of
-      // game days), read while the one on TV here is worked out from the
-      // seasons: with a game of theirs on TV in the day's hours, it's that day.
+      // game days): with a game of theirs on TV in the day's hours, it's that
+      // day. Only a day without one has the seasons read to find the next on
+      // TV here: read alongside, every followed league's season (about 540 KB
+      // on a first open) held the day's own reads back for 10 s on a slow
+      // link, and the picks jumped to it after the loading screen had lifted.
       const guess = nextLeagueDay();
-      if (guess) (state.days.get(guess)?.at ? Promise.resolve() : loadDay(guess)).then(() => pickDayHas(guess) && go(guess));
-      nextPickDay().then(go);
+      const seasons = () => nextPickDay().then(go);
+      if (guess) (state.days.get(guess)?.at ? Promise.resolve() : loadDay(guess)).then(() => (pickDayHas(guess) ? go(guess) : seasons()), seasons);
+      else seasons();
     }
   }
   let fallback = false;
