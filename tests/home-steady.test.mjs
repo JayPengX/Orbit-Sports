@@ -41,6 +41,13 @@ test('a finished game’s top players are held in their shape while read, and th
   assert.match(home, /querySelector\('\.recap-best\.q-wait'\)\) h\.settled = false/);
 });
 
+test('nothing moves in a finished game’s card while its top players are read (Jay 2026-11-05: "a small swipe shaking animation")', () => {
+  const css = readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.recap-best\.q-wait \{ visibility: hidden; \}/, 'their room kept, nothing drawn in it');
+  assert.match(css, /\.recap-best\.q-wait \.q-wait-bit \{ animation: none; \}/, 'no shimmer sweeping across it');
+  assert.match(sheets, /group\.some\(x => x\.__pick\?\.packed\)/, 'a 320 phone’s long name: every line’s stats packed (26分·4板·3助), never cut');
+});
+
 test('a card’s top-player lines use the same stat words (9 籃板 · 3 助攻 beside 7 板 · 4 助 never)', () => {
   const recap = body(sheets, 'export function gameRecap(e, d) {');
   assert.match(recap, /'data-same': 'recap'/);

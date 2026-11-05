@@ -3494,6 +3494,7 @@ const choiceWatch = typeof ResizeObserver === 'function'
         if (n.dataset.same) {
           const group = [...(n.parentElement?.parentElement?.querySelectorAll(`[data-same="${n.dataset.same}"]`) || [])];
           if (group.some(x => x.__pick?.tight)) group.filter(x => !x.__pick?.tight && x.__ways?.some(w => w?.tight)).forEach(x => fitWays(x, w => w?.tight));
+          if (group.some(x => x.__pick?.packed)) group.filter(x => !x.__pick?.packed && x.__ways?.some(w => w?.packed)).forEach(x => fitWays(x, w => w?.packed));
           // (And at one size: the smallest one of them needed.)
           const sizes = group.map(x => parseFloat(x.style.fontSize) || 0).filter(Boolean);
           if (sizes.length) group.forEach(x => (x.style.fontSize = `${Math.min(...sizes)}px`));
@@ -3502,8 +3503,14 @@ const choiceWatch = typeof ResizeObserver === 'function'
     })
   : null;
 // The first of a box's ways (those `only` allows) that fits on one line, else the last made smaller.
+// (A packed way, 26分·4板·3助, only when the others don't fit even made smaller.)
 function fitWays(n, only = () => true) {
-  const ways = (n.__ways || []).filter(only);
+  const all = (n.__ways || []).filter(only);
+  const plain = all.filter(w => !w?.packed);
+  fitAmong(n, plain.length ? plain : all);
+  if (plain.length && plain.length < all.length && overflows(n)) fitAmong(n, all.filter(w => w?.packed));
+}
+function fitAmong(n, ways) {
   n.style.fontSize = '';
   for (const w of ways) {
     if (w?.html != null) n.innerHTML = w.html;
@@ -3611,7 +3618,9 @@ export function gameRecap(e, d) {
     const last = short.replace(/^(\S+\.\s+)+/, '');
     // (`tight`: the stats' short words; a card's lines all take them if one must: recapSame.)
     const t = tight && tight !== line;
-    return [way(full, line), way(short, line), ...(t ? [{ ...way(short, tight), tight: true }] : []), ...(last !== short ? [{ ...way(last, tight || line), tight: t }] : [])];
+    // (And at the last, a 320 phone's Gilgeous-Alexander: the stats packed, 26分·4板·3助, never cut.)
+    const packed = t && tight.replace(/(?<=\d) (?=[^\d\s·])/g, '').replace(/ · /g, '·');
+    return [way(full, line), way(short, line), ...(t ? [{ ...way(short, tight), tight: true }] : []), ...(last !== short ? [{ ...way(last, tight || line), tight: t }] : []), ...(packed && packed !== tight ? [{ ...way(last, packed), tight: true, packed: true }] : [])];
   };
   return best.length
     ? [

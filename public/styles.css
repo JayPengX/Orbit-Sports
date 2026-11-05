@@ -2201,6 +2201,11 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .q-card.recap > .event-row.picked { background: none; }
 .q-card.recap:has(> .event-row.picked) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
 .recap-best { display: grid; gap: 4px; margin-top: -6px; padding: 0 16px 14px 92px; }
+/* While a game's top players are read their room is kept and nothing is drawn in it:
+   no sweeping bars, no stand-in swapped for the real lines (Jay 2026-11-05: "a small
+   swipe shaking animation which make my app looks like it got problem"). */
+.recap-best.q-wait { visibility: hidden; }
+.recap-best.q-wait .q-wait-bit { animation: none; }
 .recap-lead { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 20px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
 .recap-lead:disabled { opacity: 1; }
 .recap-lead .logo { flex: none; }
