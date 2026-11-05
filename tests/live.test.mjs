@@ -102,12 +102,13 @@ test('a timeout keeps the game clock beside it; a pitching change takes the cloc
   const nba = { status: { state: 'in', period: 2, clock: '5:32', name: 'STATUS_IN_PROGRESS' }, live: { lastType: 'Full Timeout' } };
   // The time left in the period stays shown through the timeout (Jay 2026-11-05).
   assert.equal(liveLabel(nba, 'basketball'), '第2節 5:32 · 暫停');
-  assert.equal(liveLabel(nba, 'basketball', 'en'), 'Q2 5:32 · Timeout');
+  assert.equal(liveLabel(nba, 'basketball', 'en'), 'Q2 5:32 · TO');
+  assert.equal(liveLabel({ ...nba, status: { ...nba.status, clock: '' } }, 'basketball', 'en'), 'Q2 Timeout');
   assert.equal(liveLabel({ ...nba, status: { ...nba.status, period: 4, clock: '45.2' } }, 'basketball'), '第4節 45.2 · 暫停');
   assert.equal(liveLabel({ ...nba, status: { ...nba.status, clock: '' } }, 'basketball'), '第2節 暫停');
   // A row's two lines: the period and its clock, then 暫停 (its countdown after it).
   assert.deepEqual(liveParts('第4節 2:10 · 暫停'), ['第4節 2:10', '暫停', '']);
-  assert.deepEqual(liveParts('Q4 2:10 · Timeout'), ['Q4 2:10', 'Timeout', '']);
+  assert.deepEqual(liveParts('Q4 2:10 · TO'), ['Q4 2:10', 'TO', '']);
   assert.equal(liveLabel({ ...nba, live: { lastType: 'Substitution' } }, 'basketball'), '第2節 5:32');
   assert.equal(liveLabel({ status: { state: 'in', period: 7 }, live: { half: 'bot', lastType: 'Pitching Change' } }, 'baseball'), '7局下 換投');
 });

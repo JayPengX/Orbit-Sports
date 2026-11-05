@@ -44,8 +44,9 @@ export function liveLabel(e, sport, lang = 'zh') {
     const p = sport === 'basketball' && n > QUARTERS ? otName(n, en) : en ? (sport === 'basketball' ? `Q${n}` : `P${n}`) : `第${n}節`;
     // The game clock kept beside it (stopped on it for the whole timeout: 2:10 left of the 4th
     // matters, Jay 2026-11-05); the timeout's own countdown comes after (ui.js statusText).
-    const at = clock ? `${p} ${clock} · ` : `${p} `;
-    return en ? `${at}Timeout` : `${at}暫停`;
+    // (English's TO beside a clock: Q4 2:03 · Timeout 1:43 ran into the sides' names at 320.)
+    if (clock) return en ? `${p} ${clock} · TO` : `${p} ${clock} · 暫停`;
+    return en ? `${p} Timeout` : `${p} 暫停`;
   }
   if (sport === 'baseball' && n && /pitching change/i.test(last)) {
     const where = en ? `${lv.half === 'bot' ? 'Bot' : 'Top'} ${ord(n)}` : `${n}局${lv.half === 'bot' ? '下' : '上'}`;
@@ -154,7 +155,7 @@ export function liveParts(text) {
   if (clockAt) head = head.slice(0, clockAt.index);
   head = head.replace(/\s*·\s*/g, ' ').trim();
   // (Only after a period's number: 中場休息 stays whole.)
-  const wordAt = /^(.*\d.*?)\s*(暫停|結束|休息|Timeout|End|Delayed|Paused)$/i.exec(head);
+  const wordAt = /^(.*\d.*?)\s*(暫停|結束|休息|Timeout|TO|End|Delayed|Paused)$/i.exec(head);
   const word = wordAt ? wordAt[2] : '';
   if (wordAt) head = wordAt[1].trim();
   return [head, word, clock];
