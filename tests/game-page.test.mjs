@@ -56,14 +56,13 @@ test('先發陣容 is held only where a read for it is coming', async () => {
   const at = Date.parse('2026-11-04T12:00:00Z');
   const game = (league, hours, extra = {}) => ({ kind: 'match', league, start: new Date(at + hours * 3_600_000).toISOString(), status: { state: 'pre' }, home: { id: '1' }, away: { id: '2' }, ...extra });
   assert.equal(asksLineups(game('nba', 20), at), true);
-  assert.equal(asksLineups(game('nba', 11 * 24), at), false);
+  assert.equal(asksLineups(game('nba', 12 * 24), at), true);
   assert.equal(asksLineups(game('mlb', 2 * 24), at), true);
   assert.equal(asksLineups(game('mlb', 4 * 24), at), false);
   assert.equal(asksLineups(game('epl', 24), at), true);
-  assert.equal(asksLineups(game('epl', 3 * 24), at), false);
+  assert.equal(asksLineups(game('epl', 12 * 24), at), true);
   assert.equal(asksLineups(game('nhl', 5), at), false);
   assert.equal(asksLineups(game('nba', 5, { status: { state: 'in' } }), at), false);
   // (Not asked: the read itself answers nothing, without a request.)
   assert.equal(await pregameLineups(game('nhl', 5), at), null);
-  assert.equal(await pregameLineups(game('nba', 11 * 24), at), null);
 });

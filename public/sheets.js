@@ -1417,10 +1417,12 @@ function matchSection(view, d, e, table, lw = {}) {
       const hurt = new Map(hurtOf(t).map(x => [x.id || x.name, x]));
       const why = p => hurt.get(p.id) || hurt.get(p.name);
       const out = people.filter(p => why(p) || p.injured);
-      const named = d.lineups?.kind === 'core' && !d.lineups.pending && !d.lineups.last ? [d.lineups.away, d.lineups.home][k(t)] || [] : [];
+      // (Nothing said yet: the five from its last game, named so: 上場先發, as on 概況.)
+      const named = d.lineups?.kind === 'core' && !d.lineups.pending ? [d.lineups.away, d.lineups.home][k(t)] || [] : [];
       const starters = people.filter(p => !out.includes(p) && named.some(x => x.id === p.id));
       const rest = people.filter(p => !out.includes(p) && !starters.includes(p));
-      const groups = starters.length ? [{ name: W('先發', 'Starters'), list: starters, note: pos }, { name: T('bench'), list: rest, note: pos }] : byPosition([{ name: '', players: rest }], sport).map(g => ({ name: g.name, list: g.players }));
+      const startName = d.lineups?.last ? W('上場先發', 'Last game starters') : d.lineups?.projected ? W('預計先發', 'Expected starters') : W('先發', 'Starters');
+      const groups = starters.length ? [{ name: startName, list: starters, note: pos }, { name: T('bench'), list: rest, note: pos }] : byPosition([{ name: '', players: rest }], sport).map(g => ({ name: g.name, list: g.players }));
       return sideSquad(tag(id), [...groups, { name: T('injuries'), list: out.map(p => ({ ...p, status: why(p)?.status || (en ? 'Injured' : '傷兵'), what: why(p)?.what || '', back: why(p)?.back || '' })), out: true }], e.league, sport);
     });
     if (cards.some(Boolean) || rostered) return el('div', { class: 'lineups q-sheet-pair' }, cards.filter(Boolean));

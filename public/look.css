@@ -170,6 +170,24 @@ html[data-look='native'][data-look='native'] .q-hero-card.hero-game .q-hc-btn sm
 :where(html[data-look='native'][data-theme='dark']) {
   --sp-pin: #171719;
 }
+/* On a sheet the card is the lifted shade (kit --nv-card-up, #252528 to
+   #202023): the pin is its middle, or the names stood in a darker block
+   than the numbers beside them (Jay 2026-11-04, a game's season averages). */
+@media (prefers-color-scheme: dark) {
+  :where(html[data-look='native']:not([data-theme='light']) :is(.q-sheet, .q-raised)) {
+    --sp-pin: #232326;
+  }
+}
+:where(html[data-look='native'][data-theme='dark'] :is(.q-sheet, .q-raised)) {
+  --sp-pin: #232326;
+}
+/* Every row's line drawn the same across the pinned cells and the rest: a
+   collapsed border under a sticky cell is painted by the table, so it went
+   by under the pin a pixel off (Safari). Each cell owns its own line. */
+html[data-look='native'] .table-wrap > table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
 /* (Each as specific as styles.css's own rule for that cell.) */
 :where(html[data-look='native'] :is(.q-card, .q-rowcard, .q-list)) tbody th.left,
 :where(html[data-look='native'] :is(.q-card, .q-rowcard, .q-list)) thead th.left:first-child,

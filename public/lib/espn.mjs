@@ -2220,15 +2220,17 @@ export async function roster(league, id, home = '') {
   return parseRoster(await getJson(`${SITE}/${path}/teams/${encodeURIComponent(id)}/roster`, { ttl: 60 * 60_000 }));
 }
 // Whether pregameLineups has anything to read for a game (a game to come:
-// MLB's within three days, football's within two, the NBA's within ten), so
-// the game's page holds 先發陣容's place only where one is coming.
+// MLB's within three days; the NBA's and football's however far off, as
+// their last game's starters stand in till the real ones: Jay 2026-11-04,
+// "starters usually don't change"), so the game's page holds 先發陣容's
+// place only where one is coming.
 export function asksLineups(e, now = Date.now()) {
   if (e?.kind !== 'match' || e.status?.state !== 'pre') return false;
   const ahead = Date.parse(e.start) - now;
   const sides = Boolean(e.home?.id && e.away?.id);
   if (e.league === 'mlb') return ahead <= 3 * 86_400_000;
-  if (LEAGUES[e.league]?.sport === 'soccer') return sides && ahead <= 2 * 86_400_000;
-  return Boolean(CORE_LINEUPS[e.league] && LEAGUES[e.league]?.espn && sides && ahead <= 10 * 86_400_000);
+  if (LEAGUES[e.league]?.sport === 'soccer') return sides;
+  return Boolean(CORE_LINEUPS[e.league] && LEAGUES[e.league]?.espn && sides);
 }
 // Who starts a game to come (lib/lineups.mjs): MLB's probable pitchers and
 // batting orders ({ kind: 'mlb', pitchers, order }); an NBA
@@ -2254,9 +2256,9 @@ export async function pregameLineups(e, now = Date.now()) {
   // Football: each side's eleven as it started its last game in this
   // competition (上場先發, as the NBA's five before RotoWire's), shaped as
   // its formation; the real one replaces it about an hour before kick-off
-  // (the summary's own rosters). Within two days of the game, as before.
+  // (the summary's own rosters). However far off the game is.
   if (LEAGUES[e.league]?.sport === 'soccer') {
-    if (ahead > 2 * 86_400_000 || !e.home?.id || !e.away?.id) return null;
+    if (!e.home?.id || !e.away?.id) return null;
     const [away, home] = await Promise.all([e.away, e.home].map(t => lastEleven(e.league, t.id, e.start).catch(() => null)));
     return away || home ? { kind: 'soccer', away, home, last: true } : null;
   }
@@ -2283,9 +2285,8 @@ export async function pregameLineups(e, now = Date.now()) {
         );
   if (sides.some(x => x.length)) return { kind: 'core', away: sides[0], home: sides[1], pending: false };
   // Nothing said for this game yet: each side's five from its last game
-  // (上場先發, Jay 2026-10-22), till the expected one comes; a game more
-  // than ten days off, nothing.
-  if (ahead > 10 * 86_400_000) return null;
+  // (上場先發, Jay 2026-10-22), till the expected one comes, however far
+  // off the game is (Jay 2026-11-04: a game 12 days off showed none).
   // (A side yet to play this season: its depth chart's first at each position, ESPN's 預計.)
   const last = await Promise.all([e.away, e.home].map(async (t, i) => {
     const five = await lastStarters(e.league, t.id, e.start, await rosters[i]).catch(() => []);
