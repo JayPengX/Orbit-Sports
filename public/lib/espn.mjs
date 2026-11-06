@@ -79,6 +79,9 @@ function parseSide(c) {
     lines: (c.linescores || []).map(l => l.displayValue ?? String(l.value ?? '')),
     // A basketball side's timeouts left (the summary's header has them while it's on).
     timeouts: Number.isFinite(c.timeoutsRemaining) ? c.timeoutsRemaining : null,
+    timeoutsUsed: Number.isFinite(c.timeoutsUsed) ? c.timeoutsUsed : null,
+    // Its team fouls this period and whether the other side shoots for them now (加罰).
+    fouls: Number.isFinite(c.fouls?.teamFoulsCurrent) ? { now: c.fouls.teamFoulsCurrent, bonus: Boolean(c.fouls.bonusState) && !/^none$/i.test(c.fouls.bonusState) } : null,
     homeAway: c.homeAway || null,
     order: c.order ?? null
   };

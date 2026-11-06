@@ -489,6 +489,14 @@ img { max-width: 100%; }
 .mh-row > .mh-side { align-self: stretch; grid-template-rows: 1fr; align-content: stretch; }
 .mh-side > .mh-team { align-self: start; }
 .mh-mid { display: grid; justify-items: center; gap: 4px; padding-top: 10px; min-width: 88px; }
+/* A basketball game on: each side's timeouts left as pips (a used one hollow), then its fouls this period, 加罰 in the live colour. */
+.mh-bug { display: grid; justify-items: center; gap: 3px; }
+.mh-tos { display: flex; gap: 4px; height: 7px; }
+.mh-pip { width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1.25px var(--q-muted); }
+.mh-pip.on { background: var(--q-text); box-shadow: none; }
+.mh-pip.stand { visibility: hidden; }
+.mh-fouls { display: inline-flex; align-items: center; gap: 5px; color: var(--q-muted); font-size: 12px; line-height: 18px; white-space: nowrap; }
+.mh-bonus { padding: 0 6px; border-radius: 999px; background: var(--live-wash); color: var(--live); font-size: 11px; font-weight: 700; line-height: 16px; }
 .mh-score { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; line-height: 1.1; }
 .mh-time { font-size: 26px; font-weight: 700; white-space: nowrap; }
 /* (Its own stacking: the pinned column stays over the table's columns, never over a sheet's sticky title.) */
@@ -2740,3 +2748,23 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 .quiet-hour { position: relative; padding: 4px 7px; border-radius: 8px; background: var(--q-fill-3); color: var(--q-label); font: inherit; font-size: var(--q-t-subhead); font-variant-numeric: tabular-nums; }
 .quiet-hour select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
 .quiet-dash { color: var(--q-label-2); }
+/* A game's head on an iPad or a computer (Jay 2026-11-06: "the score and
+   team is small for no reason"): the crests, names and score sized to the
+   sheet's room. A phone, upright or on its side, as before. */
+@media (min-height: 521px) {
+  @container q-sheet (min-width: 600px) {
+    .mh-team .logo.lg { width: 76px; height: 76px; }
+    .mh-team { gap: 8px; }
+    .mh-team strong { font-size: 22px; }
+    .mh-side small { font-size: 14px; }
+    .mh-score { font-size: 56px; }
+    .mh-time { font-size: 40px; }
+    .mh-mid { gap: 8px; }
+    .mh-status { padding: 3px 14px; font-size: 15px; }
+    .mh-bug { gap: 5px; }
+    .mh-tos { gap: 6px; height: 10px; }
+    .mh-pip { width: 10px; height: 10px; }
+    .mh-fouls { font-size: 14px; line-height: 22px; }
+    .mh-bonus { font-size: 13px; line-height: 20px; padding: 0 8px; }
+  }
+}

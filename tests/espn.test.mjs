@@ -621,3 +621,13 @@ test('a basketball game on now: each side\'s timeouts left from the summary (Jay
   const none = parseSummary({ header: { competitions: [{ competitors: [{ id: '1', homeAway: 'home', team: { id: '1' } }] }] } }, 'nba');
   assert.equal(none.home.timeouts, null);
 });
+
+test("a basketball game's scorebug: timeouts used and the fouls this period, 加罰 from ESPN's bonusState (Jay 2026-11-06)", () => {
+  const side = (id, homeAway, fouls) => ({ id, homeAway, team: { id, displayName: id }, score: '90', timeoutsRemaining: 3, timeoutsUsed: 1, fouls });
+  const s = parseSummary({ header: { competitions: [{ status: { type: { state: 'in' } }, competitors: [side('9', 'home', { teamFoulsCurrent: 5, bonusState: 'BONUS' }), side('14', 'away', { teamFoulsCurrent: 1, bonusState: 'NONE' })] }] } }, 'nba');
+  assert.equal(s.home.timeoutsUsed, 1);
+  assert.deepEqual(s.home.fouls, { now: 5, bonus: true });
+  assert.deepEqual(s.away.fouls, { now: 1, bonus: false });
+  const none = parseSummary({ header: { competitions: [{ competitors: [{ id: '1', homeAway: 'home', team: { id: '1' } }] }] } }, 'nba');
+  assert.equal(none.home.fouls, null);
+});

@@ -312,13 +312,26 @@ export async function openMatch(e) {
     // A basketball game on now: each side's timeouts left under its record (the last minutes
     // turn on them, Jay 2026-11-05); ESPN's summary has them, the day's list doesn't.
     const left = x => (Number.isFinite(x.timeouts) ? (L() === 'en' ? `Timeouts ${x.timeouts}` : `暫停剩 ${x.timeouts}`) : '');
+    // As a game's own graphics show them (Jay 2026-11-06): each timeout left
+    // a pip (one used, hollow), then the fouls this period, 加罰 once the
+    // other side shoots for every one. Both lines held from the first paint.
+    const bugLine = x => {
+      const en = L() === 'en';
+      const n = Number.isFinite(x.timeouts) ? x.timeouts : null;
+      const all = n === null ? 0 : Math.min(8, n + (Number.isFinite(x.timeoutsUsed) ? x.timeoutsUsed : 0));
+      const f = x.fouls;
+      return el('div', { class: 'mh-bug' }, [
+        el('span', { class: 'mh-tos', role: n === null ? null : 'img', 'aria-label': left(x) || null, title: left(x) || null }, n === null ? [el('i', { class: 'mh-pip stand' })] : Array.from({ length: all }, (_, i) => el('i', { class: `mh-pip${i < n ? ' on' : ''}` }))),
+        el('small', { class: 'mh-fouls num' }, f ? [en ? `Fouls ${f.now}` : `犯規 ${f.now}`, f.bonus ? el('b', { class: 'mh-bonus', text: en ? 'Bonus' : '加罰' }) : null] : ['\u00a0'])
+      ]);
+    };
     const tosLine = st.state === 'in' && LEAGUES[e.league]?.sport === 'basketball' && (!sm || Number.isFinite(home.timeouts) || Number.isFinite(away.timeouts));
     const side = (x, raw) =>
       el('div', { class: 'mh-side' }, [
         el('button', { class: 'mh-team', type: 'button', disabled: !hasTeamPage(e.league) || x.guest || raw.guest ? true : null, onclick: () => ctx.openTeam(e.league, x.id, x) }, [sideLogo({ ...raw, ...x, logo: x.logo || raw.logo }, e.league, 'lg'), homeName(el('strong', { text: raw.short || x.short || x.name }), e, raw)]),
         rec(x, raw) ? el('small', { text: rec(x, raw) }) : x.guest || raw.guest ? el('small', { text: GUEST_FROM[raw.en || raw.name]?.[L() === 'en' ? 1 : 0] || (L() === 'en' ? 'Guest club' : '表演賽客隊') }) : null,
         // (Its line held from the first paint, the summary not read yet: the header never grows under the reader.)
-        tosLine ? el('small', { class: 'mh-tos num', text: left(x) || '\u00a0' }) : null,
+        tosLine ? bugLine(x) : null,
         // A guest club's game: neither side's follow here (the two sides even), the league side's under the score.
         hasTeamPage(e.league) && !guestGame ? followChip(e.league, x, () => paintHeader(sm)) : null
       ]);
