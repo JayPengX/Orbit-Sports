@@ -332,7 +332,8 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   usual pick over enough looks (`picks.mjs HABIT`, `whyOf`).
 - **Notices** (the kit's `match` kinds): a followed team's start and final,
   each pick's start and final, F1 sessions and podiums. Sent by the Worker
-  while the app is closed.
+  while the app is closed. A tap opens that game's page (`#game=<league>/<id>/<day>`,
+  `notice.mjs gameHash`; `app.js openGameFromHash` reads the day if needed).
 - **Data:** ESPN through the sports proxy (`lib/espn.mjs getJson` → the
   kit's `proxyJson`). Seasons and game days come from R2 packs; finished
   games are kept in R2 on first read. MLB's API, CPBL's site, F1 timing,
