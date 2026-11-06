@@ -2471,7 +2471,7 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
    side, a tablet, a computer. On a wide page (q-wide) the tabs lay out in
    columns of a phone's width (ui.js cols, balanced): the answer on the
    left, what goes with it on the right; like cards in a grid. ---- */
-:root.q-wide { --q-page-max: 1180px; }
+:root.q-wide { --q-page-max: var(--q-wide-max, 1180px); }
 /* A tab's sections dealt into columns (ui.js cols, the kit's flowColumns:
    .q-flow-laid > .q-flow-col): two, three on q-w3, each section whole. */
 :root.q-wide .balanced > .col > :first-child { margin-top: 0; }
