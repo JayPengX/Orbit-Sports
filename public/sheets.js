@@ -2308,8 +2308,8 @@ function winProbCard(line, e, timeline, events = []) {
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
     dot.style.top = `${(dotted.includes(m) ? pinY(m) : asLine ? 1 - midAt(i) : midAt(i)) * 100}%`;
   };
-  // (An own goal: a hollow ring in the colour of the side it counted for, not a goal's solid dot; no words on the line, Jay 2026-11-06.)
-  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}${m.own ? ' og' : ''}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;${m.own ? '--side' : 'background'}:${sideC(m.side)}` }));
+  // (An own goal the same dot as any goal: it counted all the same, Jay 2026-11-06; its row says 烏龍球.)
+  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
   // Each band in its side's colour (a draw's grey), the even line dashed across.
   // A white or black side's band near solid, so it never reads as the draw's grey.
   const solid = c => (hasHue(c) ? '62%' : '92%');

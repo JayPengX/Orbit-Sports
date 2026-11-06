@@ -202,8 +202,8 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   given 75% wins 76%). A chart with key moments (關鍵時刻 are the winner's;
   the loser's only for a 25%+ swing before the last two minutes; the go-ahead
   says 此後未再落後; an own goal, ESPN's `own-goal` filed under the side it
-  counts for with the defender named, is 烏龍球 everywhere: a hollow dot on
-  the line, the side's badge with the defender's small head
+  counts for with the defender named, is 烏龍球 everywhere (on the line the
+  same dot as any goal), the side's badge with the defender's small head
   under it (a tap to him) and "T. Parker 烏龍球" in 關鍵時刻, the goal
   list and 過程; `moments.mjs ownGoal`)
   while on or over; a split bar before. Each side in its colour, its
