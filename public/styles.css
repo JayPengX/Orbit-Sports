@@ -489,14 +489,14 @@ img { max-width: 100%; }
 .mh-row > .mh-side { align-self: stretch; grid-template-rows: 1fr; align-content: stretch; }
 .mh-side > .mh-team { align-self: start; }
 .mh-mid { display: grid; justify-items: center; gap: 4px; padding-top: 10px; min-width: 88px; }
-/* A basketball game on: each side's timeouts left as pips (a used one hollow), then its fouls this period, 加罰 in the live colour. */
-.mh-bug { display: grid; justify-items: center; gap: 3px; }
-.mh-tos { display: flex; gap: 4px; height: 7px; }
-.mh-pip { width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1.25px var(--q-muted); }
-.mh-pip.on { background: var(--q-text); box-shadow: none; }
+/* A basketball game on: one line under each side, its timeouts as bars (used ones dim), then its fouls this period or 加罰. */
+.mh-bug { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 20px; white-space: nowrap; }
+.mh-tos { display: inline-flex; align-items: center; gap: 3px; }
+.mh-pip { width: 4px; height: 12px; border-radius: 2px; background: var(--q-fill-1, rgba(127, 127, 127, 0.35)); }
+.mh-pip.on { background: var(--q-text); }
 .mh-pip.stand { visibility: hidden; }
-.mh-fouls { display: inline-flex; align-items: center; gap: 5px; color: var(--q-muted); font-size: 12px; line-height: 18px; white-space: nowrap; }
-.mh-bonus { padding: 0 6px; border-radius: 999px; background: var(--live-wash); color: var(--live); font-size: 11px; font-weight: 700; line-height: 16px; }
+.mh-fouls { color: var(--q-muted); font-size: 12px; line-height: 20px; }
+.mh-bonus { padding: 0 7px; border-radius: 999px; background: var(--live-wash); color: var(--live); font-size: 11.5px; font-weight: 700; line-height: 20px; }
 .mh-score { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; line-height: 1.1; }
 .mh-time { font-size: 26px; font-weight: 700; white-space: nowrap; }
 /* (Its own stacking: the pinned column stays over the table's columns, never over a sheet's sticky title.) */
@@ -2789,10 +2789,10 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
     .mh-time { font-size: 40px; }
     .mh-mid { gap: 8px; }
     .mh-status { padding: 3px 14px; font-size: 15px; }
-    .mh-bug { gap: 5px; }
-    .mh-tos { gap: 6px; height: 10px; }
-    .mh-pip { width: 10px; height: 10px; }
-    .mh-fouls { font-size: 14px; line-height: 22px; }
-    .mh-bonus { font-size: 13px; line-height: 20px; padding: 0 8px; }
+    .mh-bug { gap: 10px; height: 24px; }
+    .mh-tos { gap: 4px; }
+    .mh-pip { width: 5px; height: 15px; border-radius: 2.5px; }
+    .mh-fouls { font-size: 14px; line-height: 24px; }
+    .mh-bonus { font-size: 13px; line-height: 22px; padding: 0 9px; }
   }
 }

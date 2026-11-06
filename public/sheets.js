@@ -312,17 +312,22 @@ export async function openMatch(e) {
     // A basketball game on now: each side's timeouts left under its record (the last minutes
     // turn on them, Jay 2026-11-05); ESPN's summary has them, the day's list doesn't.
     const left = x => (Number.isFinite(x.timeouts) ? (L() === 'en' ? `Timeouts ${x.timeouts}` : `暫停剩 ${x.timeouts}`) : '');
-    // As a game's own graphics show them (Jay 2026-11-06): each timeout left
-    // a pip (one used, hollow), then the fouls this period, 加罰 once the
-    // other side shoots for every one. Both lines held from the first paint.
+    // As a game's own graphics show them (Jay 2026-11-06: dots, fouls and
+    // 加罰 on lines of their own were ugly, the two sides' dots not even the
+    // same count): one line under each side's record, its timeouts as bars
+    // (left bright, used dim; both sides the same slots), then its fouls this
+    // period, or 加罰 in their place while it shoots for every foul (as a
+    // broadcast's BONUS). Held from the first paint, so the head never grows.
+    const slots = Math.min(8, Math.max(0, ...[home, away].map(x => (Number.isFinite(x.timeouts) ? x.timeouts + (Number.isFinite(x.timeoutsUsed) ? x.timeoutsUsed : 0) : 0))));
     const bugLine = x => {
       const en = L() === 'en';
       const n = Number.isFinite(x.timeouts) ? x.timeouts : null;
-      const all = n === null ? 0 : Math.min(8, n + (Number.isFinite(x.timeoutsUsed) ? x.timeoutsUsed : 0));
       const f = x.fouls;
       return el('div', { class: 'mh-bug' }, [
-        el('span', { class: 'mh-tos', role: n === null ? null : 'img', 'aria-label': left(x) || null, title: left(x) || null }, n === null ? [el('i', { class: 'mh-pip stand' })] : Array.from({ length: all }, (_, i) => el('i', { class: `mh-pip${i < n ? ' on' : ''}` }))),
-        el('small', { class: 'mh-fouls num' }, f ? [en ? `Fouls ${f.now}` : `犯規 ${f.now}`, f.bonus ? el('b', { class: 'mh-bonus', text: en ? 'Bonus' : '加罰' }) : null] : ['\u00a0'])
+        el('span', { class: 'mh-tos', role: n === null ? null : 'img', 'aria-label': n === null ? null : left(x), title: n === null ? null : left(x) }, Array.from({ length: n === null ? 1 : Math.max(slots, n) }, (_, i) => el('i', { class: `mh-pip${n === null ? ' stand' : i < n ? ' on' : ''}` }))),
+        f?.bonus
+          ? el('b', { class: 'mh-bonus', title: en ? 'In the bonus: free throws on every foul' : '加罰：對手每次犯規都罰球', text: en ? 'Bonus' : '加罰' })
+          : el('small', { class: 'mh-fouls num', text: f ? (en ? `Fouls ${f.now}` : `犯規 ${f.now}`) : '\u00a0' })
       ]);
     };
     const tosLine = st.state === 'in' && LEAGUES[e.league]?.sport === 'basketball' && (!sm || Number.isFinite(home.timeouts) || Number.isFinite(away.timeouts));
