@@ -346,7 +346,7 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
 | `lib/picks.mjs`, `foryou.mjs` | Today's picks; affinity (shared with Play) |
 | `lib/broadcast.mjs`, `tv.mjs`, `highlights.mjs` | Where to watch (the kit's, shared with the proxy); channels; videos |
 | `lib/winprob.mjs`, `soccerwp.mjs`, `wpline.mjs`, `moments.mjs` | Win chance line and key moments |
-| `lib/live.mjs`, `lineups.mjs`, `onfield.mjs`, `mlb.mjs`, `cpblbox.mjs` | Live state; starters (MLB's own, the NBA's from RotoWire through the proxy: ESPN's core API refuses it); who's on; MLB and CPBL fill-ins |
+| `lib/live.mjs`, `lineups.mjs`, `onfield.mjs`, `mlb.mjs`, `cpblbox.mjs` | Live state; starters (MLB's own, the NBA's from RotoWire through the proxy: ESPN's core API refuses it); who's on (and at a break, who came on in it: `courtStop`); MLB and CPBL fill-ins |
 | `lib/leagues.mjs`, `search.mjs`, `statnames.mjs`, `stage.mjs`, `compname.mjs`, `i18n.mjs`, `text.mjs` | Leagues; search; Chinese names for stats, stages and competitions; text |
 | `lib/days.mjs`, `bounds.mjs`, `strip.mjs`, `retry.mjs` | Days on the viewer's clock; the days a league has; the date strip and 賽事's chosen day (kept across 全部 and the leagues); 首頁's way back from a sport chip (`sportBack`); failed reads tried again |
 | `lib/close.mjs`, `notice.mjs` | 拉鋸; what a change of state is for a notice; `pickFinals`: which picks' finals (今日推薦賽果) go on the Worker's list (today's and tomorrow's ahead, never one already over put on late) |
