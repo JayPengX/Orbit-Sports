@@ -375,7 +375,7 @@ export async function openMatch(e) {
   let moved = '';
   const moveOf = x => JSON.stringify([x.status?.state, x.status?.period, x.home?.score, x.away?.score, x.home?.lines, x.away?.lines, x.live ? [x.live.lastId || x.live.lastPlay, x.live.balls, x.live.strikes, x.live.outs, x.live.bases, x.live.events?.length] : null]);
   // (The page as far as the game: its score and its last play the game's.)
-  const caughtUp = sm => String(sm?.home?.score ?? '') === String(e.home?.score ?? '') && String(sm?.away?.score ?? '') === String(e.away?.score ?? '') && (!e.live?.lastId || !sm?.lastPlay?.id || sm.lastPlay.id === e.live.lastId);
+  const pageCaughtUp = sm => String(sm?.home?.score ?? '') === String(e.home?.score ?? '') && String(sm?.away?.score ?? '') === String(e.away?.score ?? '') && (!e.live?.lastId || !sm?.lastPlay?.id || sm.lastPlay.id === e.live.lastId);
   const refresh = async () => {
     if (!s.dialog.isConnected) return stop();
     if (busy || document.visibilityState !== 'visible' || !soon()) return;
@@ -390,7 +390,7 @@ export async function openMatch(e) {
           const sm = await summary(e.league, e.id).catch(() => null);
           if (sm) {
             summaryAt = Date.now();
-            if (caughtUp(sm)) moved = move;
+            if (pageCaughtUp(sm)) moved = move;
           }
           data = behind(sm || data);
           fillNumbers();

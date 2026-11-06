@@ -66,3 +66,14 @@ test('先發陣容 is held only where a read for it is coming', async () => {
   // (Not asked: the read itself answers nothing, without a request.)
   assert.equal(await pregameLineups(game('nhl', 5), at), null);
 });
+
+// Every game's page stuck on its loading shape (Jay 2026-11-06, any sport, past,
+// to come or live): openMatch declared a `const caughtUp` of its own below a
+// call to the imported caughtUp, and the header threw before it drew anything.
+// No name sheets.js imports is declared again inside openMatch.
+test("openMatch never declares a name of its own that sheets.js imports", () => {
+  const imported = new Set();
+  for (const m of src.matchAll(/^import\s*\{([^}]*)\}\s*from/gm)) for (const n of m[1].split(',')) n.trim() && imported.add(n.trim().split(/\s+as\s+/).pop());
+  const mine = [...open.matchAll(/\b(?:const|let|var|function)\s+([A-Za-z_$][\w$]*)/g)].map(m => m[1]);
+  assert.deepEqual(mine.filter(n => imported.has(n)), []);
+});
