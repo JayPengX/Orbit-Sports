@@ -2451,29 +2451,43 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 :root.q-wide .tab-flow.q-flow-laid .game-grid { columns: auto; }
 /* A rail of cards in a column: a grid of whole cards (one or two across as
    the column has room), never a card cut at the column's edge. */
-:root.q-wide :is(.col, .q-flow-col, .q-flow-measure, .hb-main) .q-rail { margin-inline: 0; padding-inline: 0; scroll-padding-inline: 0; grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 240px), 1fr)); overflow: visible; scroll-snap-type: none; }
-:root.q-wide :is(.col, .q-flow-col, .q-flow-measure, .hb-main) .q-rail.league-rail { --grid-min: 76px; }
+:root.q-wide :is(.col, .q-flow-col, .q-flow-measure, .hb-main, .hb-low) .q-rail { margin-inline: 0; padding-inline: 0; scroll-padding-inline: 0; grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 240px), 1fr)); overflow: visible; scroll-snap-type: none; }
+:root.q-wide :is(.col, .q-flow-col, .q-flow-measure, .hb-main, .hb-low) .q-rail.league-rail { --grid-min: 76px; }
 /* 首頁's board on a tablet on its side or a computer (ui.js homeBoard, q-w3
-   only): the day in the main column, my leagues and teams beside it. The
-   main column pairs the lead pieces when it has room for two cards of a
-   phone's width; the rest take its whole width. Every piece starts at the
-   top of its cell: no hole is ever left by a dealt column. */
-.home-board { container: hb / inline-size; display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 32%, 380px); gap: 0 24px; align-items: start; margin-top: 8px; }
+   only; Jay 2026-11-06 "not aligned still ugly"): three even tracks and one
+   gap, so every card's edge lines up with the ones above and below it. The
+   lead pieces a track each, a pair as tall as each other, their card tops
+   level (--hb-head); my leagues and teams the third track; 更多賽事 and
+   已結束 on the same tracks under the lead pieces, or across all three
+   (.wide, settleBoard). */
+.home-board { --hb-gap: 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px var(--hb-gap); align-items: start; margin-top: 8px; }
 .home-board.solo { grid-template-columns: minmax(0, 1fr); }
-.hb-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px 20px; align-items: start; }
-.hb-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-content: start; }
+.hb-left { grid-column: 1 / span 2; display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-content: start; min-width: 0; }
+.home-board.solo :is(.hb-left, .hb-side) { grid-column: 1 / -1; }
+.hb-main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px var(--hb-gap); align-items: stretch; }
+.hb-main > .hb-full { grid-column: 1 / -1; }
+.hb-side { grid-column: 3; display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-content: start; min-width: 0; }
+.hb-low { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-content: start; min-width: 0; }
+.hb-low:empty { display: none; }
+.home-board.wide .hb-left { display: contents; }
+.home-board.wide .hb-main { grid-column: 1 / span 2; grid-row: 1; }
+.home-board.wide .hb-side { grid-row: 1; }
+.home-board.wide .hb-low { grid-column: 1 / -1; grid-row: 2; }
 /* (The kit's section margin loads after this sheet: beaten by specificity; the grid's gap spaces them.) */
-.home-board :is(.hb-main, .hb-side) > * { margin: 0; min-width: 0; }
-/* (Room for two cards of a phone's width in the main column, about 620:
-   the board 940 with the side beside it, 640 alone.) */
-@container hb (min-width: 940px) {
-  .hb-main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hb-main > .hb-full { grid-column: 1 / -1; }
-}
-@container hb (min-width: 640px) {
-  .home-board.solo .hb-main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .home-board.solo .hb-main > .hb-full { grid-column: 1 / -1; }
-}
+.home-board :is(.hb-main, .hb-side, .hb-low) > * { margin: 0; min-width: 0; }
+/* (A pair as tall as each other: a section's card takes the rest of its height.) */
+.home-board .hb-main > .q-section { display: flex; flex-direction: column; }
+.home-board .hb-main > .q-section > .q-card:last-child { flex: 1 1 auto; }
+.home-board .hb-main > .q-hero-card { margin-top: var(--hb-head, 0px); }
+/* (更多賽事's and 已結束's cards on the board's own tracks.) */
+:root.q-wide .home-board .hb-low .q-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px var(--hb-gap); }
+:root.q-wide .home-board.wide .hb-low .q-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+:root.q-wide .home-board.solo .hb-low .q-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* (我的球隊 under the lead pieces: a tile a team on the same tracks, never one long row across.) */
+html[data-look] .home-board .hb-low .tm-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px var(--hb-gap); overflow: visible; border-radius: 0; background: none; box-shadow: none; }
+html[data-look] .home-board.wide .hb-low .tm-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: var(--q-r-card); background: var(--nv-card, var(--q-surface)); box-shadow: inset 0 0 0 0.5px var(--nv-edge, transparent), var(--nv-lift, none); }
+.home-board .hb-low .tm-row::before { display: none; }
 /* (Alone on the board, no side: the day's lead pieces read as wide as a pair, never a stretched single card.) */
 .home-board.solo .hb-main > .hb-full:not(.q-section, .home-note, .q-empty) { max-width: 720px; margin-inline: auto; }
 /* A list of games as tiles side by side (賽事's day, a race series' weekends). */

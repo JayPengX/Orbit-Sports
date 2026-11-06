@@ -94,12 +94,16 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   under the time, the follow star in the sheet's head), the score in the
   title once scrolled; 概況's cards dealt into two even columns (kit
   `flowColumns`), a game to come's 數據 both sides side by side.
-  首頁 on a tablet on its side or a computer (q-w3; Jay 2026-11-06, an iPad:
-  holes under columns dealt by height, a third of a quiet day empty) is a
-  board (ui.js `homeBoard`, app.js `homeLayout`): the day in a main column
-  (the lead game, 正在進行 and 我的比賽 paired, a lone one the column's
-  width, 更多賽事 and 已結束 its whole width), 我的聯賽 and 我的球隊 in a side
-  column (`tests/home-board.test.mjs`).
+  首頁 on a tablet on its side or a computer (q-w3; Jay 2026-11-06, an iPad,
+  twice: "not aligned still ugly") is a board of three even tracks and one
+  gap (ui.js `homeBoard`, `settleBoard`; app.js `homeLayout`): the lead
+  game, 正在進行 and 我的比賽 a track each in pairs as tall as each other, the
+  lead game's card level with the cards under titles (`--hb-head`); 我的聯賽
+  and 我的球隊 the third track; 更多賽事 and 已結束 on the same tracks under
+  the lead pieces or across all three (`.wide`), and 我的球隊 dropped under
+  them as a tile a team when the side runs long, whichever leaves least
+  empty, measured as drawn (`tests/home-board.test.mjs`). A swipe anywhere
+  on the page, its empty space too, goes a day either way (kit `daySwipe`).
 - **Sheets** (full height):
   - **A match:** header and line score, a live panel, then sections drawn
     once in an order set by the game's moment: 概況, 數據, 球員, 過程, 先發,

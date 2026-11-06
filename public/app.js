@@ -1555,7 +1555,7 @@ const ownGame = e => isFollowedEvent(e, { chosen: false });
 function homeLayout([hero, live, past, note, spin, mine], [more, leagues, teams, ended]) {
   const isList = x => x?.classList?.contains('q-section');
   const pairs = new Set([hero, live, isList(mine) ? mine : null].filter(Boolean));
-  return homeBoard([note, hero, live, isList(mine) ? mine : null, past, spin, isList(mine) ? null : mine, more, ended], [leagues, teams], pairs);
+  return homeBoard([note, hero, live, isList(mine) ? mine : null, past, spin, isList(mine) ? null : mine], [leagues, teams], pairs, [more, ended]);
 }
 function renderHome() {
   const box = $('panel-home');
