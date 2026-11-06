@@ -11,7 +11,7 @@ import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caugh
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
-import { playPeriod } from './lib/live.mjs';
+import { playPeriod, withNewest } from './lib/live.mjs';
 import { personKey, pitcherRole } from './lib/mlb.mjs';
 import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors, readableOn, hasHue } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText, goalHowParts, basketEn, sentence } from './lib/moments.mjs';
@@ -391,8 +391,9 @@ export async function openMatch(e) {
   const pageCaughtUp = sm => String(sm?.home?.score ?? '') === String(e.home?.score ?? '') && String(sm?.away?.score ?? '') === String(e.away?.score ?? '') && (!e.live?.lastId || !sm?.lastPlay?.id || sm.lastPlay.id === e.live.lastId);
   const refresh = async () => {
     if (!s.dialog.isConnected) return stop();
-    if (busy || document.visibilityState !== 'visible' || !soon()) return;
-    busy = true;
+    // (A read that never came back holds the beat 20 s at most, never the page for good.)
+    if ((busy && Date.now() - busy < 20_000) || document.visibilityState !== 'visible' || !soon()) return;
+    busy = Date.now();
     try {
       const espn = Boolean(LEAGUES[e.league].espn);
       const fresh = espn ? (await gameNow(e.league, e.id).catch(() => null)) || (await scoreboard(e.league, gameDays()).catch(() => [])).find(x => x.id === e.id) : (await scoreboard(e.league).catch(() => [])).find(x => x.id === e.id);
@@ -405,9 +406,9 @@ export async function openMatch(e) {
             summaryAt = Date.now();
             if (pageCaughtUp(sm)) moved = move;
           }
-          data = behind(sm || data);
+          data = behind(withNewest(sm || data, e));
           fillNumbers();
-        } else data = behind(data);
+        } else data = behind(withNewest(data, e));
       } else if (e.league === 'cpbl') {
         const sm = await cpblGame(e).catch(() => null);
         boxUnread = !sm && !data;

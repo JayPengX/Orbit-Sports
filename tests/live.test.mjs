@@ -133,3 +133,23 @@ test('a live status in two rows, the last minute\'s clock too', () => {
   assert.deepEqual(liveParts('第3節 暫停 0:33'), ['第3節', '暫停', '0:33']);
   assert.deepEqual(liveParts('5局上'), ['5局上', '', '']);
 });
+
+test("the game page's copy never behind the game itself: 首頁's score and clock win when further on (Jay 2026-11-06)", async () => {
+  const { withNewest, aheadOf } = await import('../public/lib/live.mjs');
+  const sm = { status: { state: 'in', period: 4, clock: '8:34' }, home: { id: '9', score: '98', lines: ['26', '27', '38', '7'], timeouts: 3 }, away: { id: '14', score: '83', lines: ['29', '24', '23', '7'] }, plays: [1] };
+  const game = { status: { state: 'in', period: 4, clock: '7:37' }, home: { id: '9', score: '103', lines: ['26', '27', '38', '12'] }, away: { id: '14', score: '85', lines: ['29', '24', '23', '9'] } };
+  const got = withNewest(sm, game);
+  assert.equal(got.home.score, '103');
+  assert.equal(got.away.score, '85');
+  assert.equal(got.status.clock, '7:37');
+  assert.deepEqual(got.home.lines, ['26', '27', '38', '12']);
+  assert.equal(got.home.timeouts, 3);
+  assert.deepEqual(got.plays, [1]);
+  // The page's own copy ahead (or level): kept as it is.
+  assert.equal(withNewest(game, sm), game);
+  assert.equal(withNewest(sm, sm), sm);
+  // Seconds in the last minute, a new period, the final.
+  assert.ok(aheadOf({ status: { state: 'in', period: 4, clock: '28.0' } }, { status: { state: 'in', period: 4, clock: '1:02' } }) > 0);
+  assert.ok(aheadOf({ status: { state: 'in', period: 3, clock: '12:00' } }, { status: { state: 'in', period: 2, clock: '0.0' } }) > 0);
+  assert.ok(aheadOf({ status: { state: 'post', period: 4 } }, { status: { state: 'in', period: 4, clock: '0.0' } }) > 0);
+});

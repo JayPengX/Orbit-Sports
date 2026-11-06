@@ -160,3 +160,32 @@ export function liveParts(text) {
   if (wordAt) head = wordAt[1].trim();
   return [head, word, clock];
 }
+
+// The game page's own copy (ESPN's summary) against the game alone (its
+// scoreboard, the one 首頁 shows), whichever is further on: the summary ran
+// a minute and more behind (Jay 2026-11-06, an iPad: the page 83-98 at
+// 8:34 while 首頁 had 85-103 at 7:37). The page keeps its own (plays, box
+// score, fouls), with the game's score, line score and status when the game's
+// is ahead.
+const STATE = { pre: 0, in: 1, post: 2 };
+const clockLeft = c => {
+  const m = String(c ?? '').match(/^(?:(\d+):)?(\d+(?:\.\d+)?)$/);
+  return m ? Number(m[1] || 0) * 60 + Number(m[2]) : NaN;
+};
+const total = x => (Number(x?.home?.score) || 0) + (Number(x?.away?.score) || 0);
+// > 0: a is further on than b.
+export function aheadOf(a, b) {
+  const s = (STATE[a?.status?.state] ?? 0) - (STATE[b?.status?.state] ?? 0);
+  if (s) return s;
+  const p = (Number(a?.status?.period) || 0) - (Number(b?.status?.period) || 0);
+  if (p) return p;
+  const ca = clockLeft(a?.status?.clock);
+  const cb = clockLeft(b?.status?.clock);
+  if (Number.isFinite(ca) && Number.isFinite(cb) && ca !== cb) return cb - ca;
+  return total(a) - total(b);
+}
+export function withNewest(sm, game) {
+  if (!sm || !game?.status || !sm.home || !sm.away || aheadOf(game, sm) <= 0) return sm;
+  const side = (s, g) => (g && String(g.id) === String(s.id) ? { ...s, score: g.score ?? s.score, lines: g.lines?.length ? g.lines : s.lines } : s);
+  return { ...sm, status: { ...sm.status, ...game.status }, home: side(sm.home, game.home), away: side(sm.away, game.away) };
+}
