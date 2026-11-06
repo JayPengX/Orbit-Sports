@@ -108,6 +108,25 @@ test("F1's leaders from the season's results: wins, podiums, poles, top tens, fa
   assert.ok(F1_STATS.length >= 8 && hasLeaders('racing', 'racing/f1') && !hasLeaders('racing', 'racing/irl'));
 });
 
+test("F1's teams by the same numbers (數據's 球隊, Jay 2026-11-06): every car of a team counted, every team in each list, level on the number", async () => {
+  const { parseF1Leaders } = await import('../public/lib/leaders.mjs');
+  const r = (driverId, team, positionText, grid, fl) => ({ positionText, grid, FastestLap: { rank: fl ? '1' : '5' }, Driver: { driverId, givenName: driverId, familyName: driverId }, Constructor: { constructorId: team.toLowerCase(), name: team } });
+  const pages = [{ MRData: { RaceTable: { season: '2026', Races: [
+    { round: '1', Results: [r('russell', 'Mercedes', '1', '3', true), r('antonelli', 'Mercedes', '2', '1'), r('norris', 'McLaren', '3', '2'), r('piastri', 'McLaren', 'R', '4')] },
+    { round: '2', Results: [r('norris', 'McLaren', '1', '2', true), r('antonelli', 'Mercedes', '2', '1'), r('russell', 'Mercedes', '3', '3'), r('piastri', 'McLaren', '4', '4')] }
+  ] } } }];
+  const poles = { MRData: { RaceTable: { Races: [{ QualifyingResults: [{ Driver: { driverId: 'antonelli' }, Constructor: { constructorId: 'mercedes', name: 'Mercedes' } }] }, { QualifyingResults: [{ Driver: { driverId: 'antonelli' } }] }] } } };
+  const d = parseF1Leaders(pages, poles, []);
+  const by = Object.fromEntries(d.crews.stats.map(s => [s.key, s.list.map(x => `${x.rank} ${x.en} ${x.value}`)]));
+  assert.deepEqual(by.wins, ['1 Mercedes 1', '1 McLaren 1']);
+  assert.deepEqual(by.pod, ['1 Mercedes 4', '2 McLaren 2']);
+  assert.deepEqual(by.pole, ['1 Mercedes 2', '2 McLaren 0'], "a pole without its team: the driver's");
+  assert.deepEqual(by.dnf, ['1 McLaren 1', '2 Mercedes 0']);
+  assert.equal(d.crews.stats.find(s => s.key === 'avg').low, true);
+  assert.equal(d.stats.find(s => s.key === 'avg').low, true, "drivers' averages lower is better too (their bars)");
+  assert.ok(d.crews.racing && d.crews.season.name === '2026');
+});
+
 test("FotMob's clubs matched to the table's rows, Brighton and Hove Albion is Brighton & Hove Albion", async () => {
   const { fotmobClubRows } = await import('../public/lib/leaders.mjs');
   const rows = [{ id: '331', name: '布萊頓', en: 'Brighton & Hove Albion', short: 'Brighton' }, { id: '382', name: '曼城', en: 'Manchester City', short: 'Man City' }, { id: '380', name: '狼隊', en: 'Wolverhampton Wanderers', short: 'Wolves' }];

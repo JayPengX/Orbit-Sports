@@ -73,7 +73,9 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   the lead game's colours (`paintHero`, the clubs' colours by `sideColors`)
   and 我的球隊 (`teams`).
   - **賽事:** a league. Sport and league chips, game days, then 賽程, 排名,
-    季後賽, 數據 (球員's leaders, 球隊: every team by each of its own stats).
+    季後賽, 數據 (球員's leaders, 球隊: every team by each of its own stats;
+    F1's 車手 and 車隊, its teams added up from the same results,
+    `leaders.mjs parseF1Leaders` `crews`).
     A followed or picked game in a list is a ★ 追蹤 / ★ 推薦 pill on a softly
     lit row. F1's 賽程 is a card a weekend (`weekendCard`): a panel with the
     next session's running countdown (or the one on, or the podium) beside the
@@ -169,9 +171,10 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     ranks; a match shows each side's season leaders.
   - 賽事's 數據 on a wide page (q-wide; Jay 2026-11-06, F1's on an iPad:
     "Ugly"): the stats down the side, each with its leader (a tap shows its
-    ranking; sticky, its own scroll, its place kept), the chosen one's
-    ranking one column beside them, a size up, a bar to each value where the
-    values spread (`sheets.js statsSplit`, `lbBars`; styles `.lb-wide`).
+    ranking; sticky, its own scroll handing on to the page's at its end, its
+    place kept), the chosen one's ranking one column beside them, a size up,
+    a bar to each value on every stat of numbers, never some and not others
+    (`sheets.js statsSplit`, `lbBars`; styles `.lb-wide`).
     A phone and a team's sheet keep the chips over the ranking
     (`tests/stats-wide.test.mjs`).
   - A team page (`sheets.js openTeam`) keeps each tab once drawn (`kept`:

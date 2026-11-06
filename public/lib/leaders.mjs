@@ -318,6 +318,14 @@ export function parseF1Leaders(pages, poles, drivers = []) {
     }
     return by.get(id);
   };
+  // Each team (constructor) the same way, every car of it counted.
+  const crews = new Map();
+  const crew = c => {
+    const name = c?.name;
+    if (!name) return null;
+    if (!crews.has(name)) crews.set(name, { name, n: { wins: 0, pod: 0, pole: 0, top10: 0, fl: 0, gain: 0, dnf: 0 }, finishes: [], grids: [] });
+    return crews.get(name);
+  };
   for (const page of pages) {
     const t = page?.MRData?.RaceTable;
     season ||= t?.season || '';
@@ -328,40 +336,58 @@ export function parseF1Leaders(pages, poles, drivers = []) {
         if (!p) continue;
         if (x.Constructor?.name) p.teamName = x.Constructor.name;
         const pos = /^\d+$/.test(x.positionText || '') ? Number(x.positionText) : null;
-        if (Number(x.grid) > 0) p.grids.push(Number(x.grid));
-        if (pos === 1) p.n.wins++;
-        if (pos && pos <= 3) p.n.pod++;
-        if (pos && pos <= 10) p.n.top10++;
-        if (x.FastestLap?.rank === '1') p.n.fl++;
-        if (pos) {
-          p.finishes.push(pos);
-          const grid = Number(x.grid) || 0;
-          if (grid > 0) p.n.gain += grid - pos;
-        } else if (x.positionText === 'R') p.n.dnf++;
+        for (const q of [p, crew(x.Constructor)]) {
+          if (!q) continue;
+          if (Number(x.grid) > 0) q.grids.push(Number(x.grid));
+          if (pos === 1) q.n.wins++;
+          if (pos && pos <= 3) q.n.pod++;
+          if (pos && pos <= 10) q.n.top10++;
+          if (x.FastestLap?.rank === '1') q.n.fl++;
+          if (pos) {
+            q.finishes.push(pos);
+            const grid = Number(x.grid) || 0;
+            if (grid > 0) q.n.gain += grid - pos;
+          } else if (x.positionText === 'R') q.n.dnf++;
+        }
       }
     }
   }
   for (const race of poles?.MRData?.RaceTable?.Races || []) {
-    const p = one((race.Results || race.QualifyingResults || [])[0]?.Driver);
+    const first = (race.Results || race.QualifyingResults || [])[0];
+    const p = one(first?.Driver);
     if (p) p.n.pole++;
+    const c = first?.Constructor ? crew(first.Constructor) : p?.teamName ? crew({ name: p.teamName }) : null;
+    if (c) c.n.pole++;
   }
   const all = [...by.values()];
   if (!all.length) return null;
   // An average finish counts those classified in half the races at least.
   const enough = Math.max(1, races.size / 2);
   const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
-  for (const p of all) {
+  for (const p of [...all, ...crews.values()]) {
     p.n.avg = p.finishes.length >= enough ? mean(p.finishes) : null;
     p.n.grid = p.grids.length >= enough ? mean(p.grids) : null;
   }
+  const order = (xs, key, low) => xs.filter(p => p.n[key] != null).sort((a, b) => (low ? a.n[key] - b.n[key] : b.n[key] - a.n[key]));
   const stats = F1_STATS.map(([key, zh, en, how, low]) => {
-    const list = all
-      .filter(p => p.n[key] != null && (low || p.n[key] > 0))
-      .sort((a, b) => (low ? a.n[key] - b.n[key] : b.n[key] - a.n[key]))
+    const list = order(all, key, low)
+      .filter(p => low || p.n[key] > 0)
       .map(p => ({ id: p.id, name: p.name, full: p.full, headshot: p.headshot, team: '', teamName: p.teamName, teamZh: p.teamName ? f1Constructor(p.teamName).zh : '', value: statText(how, p.n[key]) }));
-    return list.length ? { key, zh, en, list } : null;
+    return list.length ? { key, zh, en, low: Boolean(low), list } : null;
   }).filter(Boolean);
-  return stats.length ? { season: season ? { name: season } : null, stats } : null;
+  // The teams by the same numbers (數據's 球隊, as every other sport has):
+  // every team in each list (a team on none is 0, as a league's table has
+  // it), ranked level on the number; a stat no team has yet left out.
+  const teams = F1_STATS.map(([key, zh, en, how, low]) => {
+    const xs = order([...crews.values()], key, low);
+    if (!xs.length || (!low && !xs.some(c => c.n[key] > 0))) return null;
+    const list = xs.map((c, i) => ({ id: '', name: c.name, en: c.name, value: statText(how, c.n[key]), n: c.n[key], rank: xs.findIndex(y => y.n[key] === c.n[key]) + 1 || i + 1 }));
+    return { key, zh, en, low: Boolean(low), list };
+  }).filter(Boolean);
+  if (!stats.length) return null;
+  const out = { season: season ? { name: season } : null, stats };
+  if (teams.length) out.crews = { season: out.season, racing: true, stats: teams };
+  return out;
 }
 
 // ---- Football: FotMob's forty stats, as the leagues' own sites show them ----------------

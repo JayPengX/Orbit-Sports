@@ -5993,7 +5993,7 @@ export function leagueLeadersView(data, league, { teamOf = () => null, pick = nu
   // (Level on the number, level in the list: four on 3 assists are all 2nd.)
   const list = st.list;
   const rankOf = i => list.findIndex(y => y.value === list[i].value) + 1;
-  const bars = side && lbBars(list, chosen.low);
+  const bars = side && lbBars(list);
   const row = (x, i) => {
     const t = teamOf(x.team, x);
     return el('button', { class: 'lb-row', type: 'button', onclick: () => openLeader(league, x) }, [
@@ -6064,14 +6064,13 @@ const lbNum = v => {
   const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, ''));
   return Number.isFinite(n) ? n : null;
 };
-// (Bars only where they tell something: a list whose values all sit near the
-// best's (batting averages .316 to .250, ratings 7.2 to 6.8) is all full bars.)
-const lbBars = (list, low) => {
-  const ns = list.map(x => lbNum(x.value)).filter(n => n != null && n > 0);
-  if (ns.length < 2) return false;
-  const lo = Math.min(...ns);
-  const hi = Math.max(...ns);
-  return lo / hi < 0.6;
+// (Every list of numbers has its bars, or none does: drawn only where the
+// values spread, some stats had them and the next one not, Jay 2026-11-06:
+// "either show it all or don't show it all". Batting averages' bars are all
+// long, and that's what they are; a list of no numbers, or of one row, none.)
+const lbBars = list => {
+  const ns = list.map(x => lbNum(x.value)).filter(n => n != null);
+  return ns.length >= 2 && ns.some(n => n > 0);
 };
 function lbBar(x, list, low, on = true) {
   if (!on) return null;
@@ -6091,21 +6090,27 @@ export function teamStatsView(data, league, { teamOf = () => null, pick = null, 
   const chosen = data.stats.find(x => x.key === pick) || data.stats[0];
   const list = full?.length ? full : chosen.list;
   const side = wide && splitWide(data.stats);
-  const bars = side && lbBars(list, chosen.low);
+  const bars = side && lbBars(list);
   const chips = data.stats.length > 1 && !side ? segmented(data.stats.map(x => [x.key, en ? x.en : x.zh]), chosen.key, onPick, 'scroll stage-filter') : null;
+  // (F1's teams: each its own badge and name (麥拉倫), a tap its page.)
+  const crew = x => (data.racing ? { name: en ? x.en : f1Constructor(x.en).zh || x.en } : null);
   const row = x => {
-    const t = teamOf(x) || (x.id ? { id: x.id, name: x.name, short: x.short, logo: x.logo } : null);
-    const name = t?.short || t?.name || x.short || x.name;
-    const kids = [el('span', { class: 'lb-rank num', text: String(x.rank) }), logo(t?.logo || x.logo, name, 'sm'), el('span', { class: 'lb-name' }, [fitLine(el('strong', { class: 'one-line', text: name }))]), lbBar(x, list, chosen.low, bars), el('b', { class: 'lb-value num', text: x.value })];
+    const c = crew(x);
+    const t = c ? null : teamOf(x) || (x.id ? { id: x.id, name: x.name, short: x.short, logo: x.logo } : null);
+    const name = c?.name || t?.short || t?.name || x.short || x.name;
+    const kids = [el('span', { class: 'lb-rank num', text: String(x.rank) }), c ? constructorBadge(x.en, 'sm') : logo(t?.logo || x.logo, name, 'sm'), el('span', { class: 'lb-name' }, [fitLine(el('strong', { class: 'one-line', text: name }))]), lbBar(x, list, chosen.low, bars), el('b', { class: 'lb-value num', text: x.value })];
+    if (c) return el('button', { class: 'lb-row', type: 'button', onclick: () => openConstructor({ id: '', name: x.en, en: x.en }) }, kids);
     return t?.id && hasTeamPage(league) ? el('button', { class: 'lb-row', type: 'button', onclick: () => ctx.openTeam(league, String(t.id), t) }, kids) : el('div', { class: 'lb-row' }, kids);
   };
-  const sub = [data.season?.name ? `${data.season.name}${LEAGUES[league]?.sport === 'soccer' ? '' : en ? ' regular season' : ' 例行賽'}` : '', chosen.low ? (en ? 'lower is better' : '越低越好') : ''].filter(Boolean).join(' · ');
+  const sport = LEAGUES[league]?.sport;
+  const sub = [data.season?.name ? `${data.season.name}${sport === 'soccer' ? '' : sport === 'racing' ? (en ? ' season' : ' 賽季') : en ? ' regular season' : ' 例行賽'}` : '', chosen.low ? (en ? 'lower is better' : '越低越好') : ''].filter(Boolean).join(' · ');
   const ranking = card(en ? chosen.en : chosen.zh, el('div', { class: `lb-list${bars ? ' bars' : ''}` }, [...list.map(row), ...lbHeld(chosen, full, list.length, 1)]), { sub });
   if (!side) return el('div', {}, [chips, ranking]);
   const lead = x => {
-    const t = teamOf(x) || (x.id ? { id: x.id, name: x.name, short: x.short, logo: x.logo } : null);
-    const name = t?.short || t?.name || x.short || x.name;
-    return [logo(t?.logo || x.logo, name, 'sm'), fitLine(el('strong', { class: 'one-line', text: name })), el('b', { class: 'num', text: x.value })];
+    const c = crew(x);
+    const t = c ? null : teamOf(x) || (x.id ? { id: x.id, name: x.name, short: x.short, logo: x.logo } : null);
+    const name = c?.name || t?.short || t?.name || x.short || x.name;
+    return [c ? constructorBadge(x.en, 'sm') : logo(t?.logo || x.logo, name, 'sm'), fitLine(el('strong', { class: 'one-line', text: name })), el('b', { class: 'num', text: x.value })];
   };
   return statsSplit(`t:${league}`, data.stats, chosen.key, onPick, lead, en, ranking);
 }

@@ -2587,7 +2587,10 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 .lb-wide { display: grid; grid-template-columns: minmax(250px, 300px) minmax(0, 1fr); gap: var(--q-s-4, 16px); align-items: start; margin-top: 8px; }
 :root.q-w3 .lb-wide { grid-template-columns: 340px minmax(0, 1fr); gap: var(--q-s-5, 24px); }
 .lb-wide > .q-card { margin: 0; }
-.lb-stats { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 128px); overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 2px; padding: 6px; scrollbar-width: thin; }
+.lb-stats { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 128px); overflow-y: auto; display: grid; gap: 2px; padding: 6px; scrollbar-width: thin; }
+/* (Its own scroll hands on to the page's at its end: held there (contain), the page
+   never moved while it was below the screen's edge, its last stats out of reach
+   (Jay 2026-11-06, NBA's cut at 上場時間 on an iPad).) */
 :root.q-tabrail .lb-stats { max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px); }
 .lb-stat { display: grid; gap: 5px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--q-r-cell, 12px); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color var(--q-dur-fast, .15s); }
 .lb-stat[aria-pressed='true'] { background: var(--q-fill-3); cursor: default; }

@@ -4270,12 +4270,15 @@ function leadersOf(league) {
       .catch(() => teamNums.set(league, null))
       .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
   }
-  const teams = teamNums.get(league);
+  // (F1's teams come with its drivers, added up from the same results.)
+  const lead = sport === 'racing' ? leaders.get(league) : null;
+  const teams = sport === 'racing' ? (lead && typeof lead === 'object' ? lead.crews : null) : teamNums.get(league);
   const part = teams && state.scores.statPart === 'teams' ? 'teams' : 'players';
-  const pick = teams ? segmented([['players', L({ zh: '球員', en: 'Players' })], ['teams', L({ zh: '球隊', en: 'Teams' })]], part, v => ((state.scores.statPart = v), renderScores()), 'views stat-part') : null;
+  const pick = teams ? segmented([['players', sport === 'racing' ? L({ zh: '車手', en: 'Drivers' }) : L({ zh: '球員', en: 'Players' })], ['teams', sport === 'racing' ? L({ zh: '車隊', en: 'Teams' }) : L({ zh: '球隊', en: 'Teams' })]], part, v => ((state.scores.statPart = v), renderScores()), 'views stat-part') : null;
   return el('div', {}, [pick, part === 'teams' ? teamsOf(league, teams) : playersOf(league)]);
 }
 function teamsOf(league, d) {
+  if (d.racing) return teamStatsView(d, league, { pick: teamPick.get(league), onPick: k => (teamPick.set(league, k), renderScores()), wide: true });
   warmTable(league);
   const all = (tables.get(league) || []).flatMap(g => g.rows || []);
   const rows = new Map(all.map(r => [String(r.id), r]));

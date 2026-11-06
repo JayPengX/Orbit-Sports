@@ -29,22 +29,28 @@ test('the ranking is never split into CSS columns again', () => {
 });
 
 test("the side's split only on a league's 賽事 (players and teams); a team's sheet keeps its chips", () => {
-  assert.equal((app.match(/renderScores\(\)\), wide: true \}\)/g) || []).length, 2);
+  assert.equal((app.match(/renderScores\(\)\), wide: true \}\)/g) || []).length, 3, 'players, teams, F1\'s teams');
   assert.match(app, /state\.scores\.view === 'leaders'\) renderScores\(\);/, 'drawn again when the screen crosses q-wide');
   const team = sheets.slice(sheets.indexOf('const paintLb = '), sheets.indexOf('// A game in a list as every list draws it'));
   assert.doesNotMatch(team, /wide: true/);
   assert.match(team, /leaderList\(st\.url, st\.key, \{ all: true \}\)/, "a team's 隊內排行 reads the league's whole list, not its top hundred");
 });
 
-test('bars only where the values spread (not batting averages, not ratings)', () => {
+test('bars on every list of numbers, or none (Jay 2026-11-06: "either show it all or don\'t")', () => {
   const v = a => a.map(value => ({ value }));
   assert.equal(bars.lbBars(v(['9', '3', '3', '2', '1', '1'])), true);
-  assert.equal(bars.lbBars(v(['.316', '.311', '.300', '.262'])), false);
-  assert.equal(bars.lbBars(v(['7.21', '7.12', '6.87'])), false);
-  assert.equal(bars.lbBars(v(['64%', '30%'])), true);
+  assert.equal(bars.lbBars(v(['.316', '.311', '.300', '.262'])), true, 'close values too');
+  assert.equal(bars.lbBars(v(['71.8%', '70.1%', '68.0%'])), true);
   assert.equal(bars.lbBars(v(['9'])), false, 'one row: no bar');
+  assert.equal(bars.lbBars(v(['—', '—'])), false, 'no numbers: no bar');
   assert.equal(bars.lbNum('1.033'), 1.033);
   assert.equal(bars.lbNum('—'), null);
+});
+
+test("the side's own scroll hands on to the page's (held, its last stats were out of reach below the screen)", () => {
+  const rule = css.match(/\.lb-stats \{[^}]*\}/)?.[0] || '';
+  assert.match(rule, /overflow-y: auto/);
+  assert.doesNotMatch(rule, /overscroll-behavior/);
 });
 
 const row = (rank, name, value) => `<button class="lb-row" type="button"><span class="lb-rank num">${rank}</span><span class="logo sm round"></span><span class="lb-name"><strong class="one-line">${name}</strong><small class="one-line">Team</small></span><span class="lbr-bar"><i style="width:${value * 10}%"></i></span><b class="lb-value num">${value}</b></button>`;
@@ -68,6 +74,20 @@ test('wide: one column read down, beside the stats; a phone: no side, no bars', 
     assert.ok(r.side.right <= r.list.left, 'the stats beside the ranking, on its left');
     assert.ok(r.bar.width > 100, 'a bar between the name and its value');
     assert.equal(r.sticky, 'sticky');
+    // NBA's eleven stats on an iPad (Jay 2026-11-06): the page a little way
+    // down, the side's bottom below the screen; scrolling over the side
+    // reaches its last stat (its own scroll, then the page's).
+    const many = ['得分', '籃板', '助攻', '抄截', '阻攻', '三分球', '投籃命中率', '三分命中率', '罰球命中率', '上場時間', '雙十'];
+    await p.setContent(page(true, 1080).replace('q-wide q-w3', 'q-wide q-w3 q-tabrail').replace(/<div class="q-card lb-stats">[\s\S]*?<\/div>\s*<div class="q-card">/, () => `<div class="q-card lb-stats">${many.map((st, i) => `<button class="lb-stat" aria-pressed="${i === 0}"><span class="lb-stat-name">${st}</span><span class="lb-stat-lead"><span class="logo sm round"></span><strong>Luka Doncic</strong><b>9</b></span></button>`).join('')}</div><div class="q-card">`).replace('<div class="lb-list bars">', `<div style="height:220px"></div><div class="lb-list bars">${'<div class="lb-row" style="height:100px"></div>'.repeat(30)}`));
+    await p.evaluate(() => (document.querySelector('.lb-wide').style.marginTop = '220px', scrollTo(0, 96)));
+    const box = await p.evaluate(() => { const r = document.querySelector('.lb-stats').getBoundingClientRect(); return { x: r.left + 40, y: r.top + 60 }; });
+    await p.mouse.move(box.x, box.y);
+    for (let k = 0; k < 12; k++) {
+      await p.mouse.wheel(0, 200);
+      await p.waitForTimeout(120);
+    }
+    const last = await p.evaluate(() => ({ bottom: [...document.querySelectorAll('.lb-stat')].pop().getBoundingClientRect().bottom, h: innerHeight }));
+    assert.ok(last.bottom <= last.h, `the last stat in sight (${Math.round(last.bottom)} of ${last.h})`);
     await p.setViewportSize({ width: 320, height: 700 });
     await p.setContent(page(false, 320));
     const phone = await p.evaluate(() => ({ bar: getComputedStyle(document.querySelector('.lbr-bar')).display, w: document.documentElement.scrollWidth }));
