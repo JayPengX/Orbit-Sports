@@ -39,3 +39,17 @@ export function pickFinals(events, sent = {}, now = Date.now()) {
   }
   return { games: out, sent: kept };
 }
+
+// Where a game's notice opens (its tap, kit sw.js): the game's own page,
+// #game=<league>/<id>/<day> (the day it's on, the phone's: read if the app
+// opens without it). The kit puts it after the app's address.
+export const gameHash = (e, day = '') => `game=${encodeURIComponent(e.league)}/${encodeURIComponent(e.id)}${/^\d{4}-\d{2}-\d{2}$/.test(day) ? `/${day}` : ''}`;
+export function readGameHash(hash) {
+  const m = /^#?game=([^/&]+)\/([^/&]+)(?:\/(\d{4}-\d{2}-\d{2}))?$/.exec(String(hash || ''));
+  if (!m) return null;
+  try {
+    return { league: decodeURIComponent(m[1]), id: decodeURIComponent(m[2]), day: m[3] || null };
+  } catch {
+    return null;
+  }
+}

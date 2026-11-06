@@ -25,3 +25,14 @@ test('a postponed game moved to a new day is no longer postponed', () => {
   noteLatest([moved]);
   assert.equal(freshGame(old).status.void, false);
 });
+
+// A game's notice opens that game (Jay 2026-11-06): its address round-trips.
+import { gameHash, readGameHash } from '../public/lib/notice.mjs';
+test('a game notice points at the game', () => {
+  const h = gameHash({ league: 'eng.1', id: '740/9' }, '2026-11-06');
+  assert.equal(h, 'game=eng.1/740%2F9/2026-11-06');
+  assert.deepEqual(readGameHash(`#${h}`), { league: 'eng.1', id: '740/9', day: '2026-11-06' });
+  assert.deepEqual(readGameHash('game=nba/401'), { league: 'nba', id: '401', day: null });
+  assert.equal(readGameHash('#live'), null);
+  assert.equal(gameHash({ league: 'nba', id: '1' }, 'bad'), 'game=nba/1');
+});

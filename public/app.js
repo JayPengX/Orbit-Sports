@@ -14,7 +14,7 @@ import { stripDays, chosenOf, sportBack, sportDay } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay, playsWithin } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
-import { transition, pickFinals } from './lib/notice.mjs';
+import { transition, pickFinals, gameHash, readGameHash } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
 import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
@@ -1013,7 +1013,7 @@ function syncPush() {
     // Its start only when it's on TV here; its final score in any case.
     // (Kept on the list for 10 minutes after the start: an open app sending its list again at the start
     // took it off before the Worker's run, and the notice never came. The Worker sends each once.)
-    if (e.status?.state !== 'post' && start > now - GRACE && !e.timeTbd && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
+    if (e.status?.state !== 'post' && start > now - GRACE && !e.timeTbd && (onTv(e) || isFollowedGame(e))) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: noticeHash(e), kind: 'start' });
     const end = resultItem(e, now);
     if (end) items.push(end);
   }
@@ -1024,7 +1024,7 @@ function syncPush() {
     if (e.status?.state === 'post' || e.status?.void || e.timeTbd || !(start > now - GRACE) || start > now + 86_400_000) continue;
     const key = `${e.league}:${e.id}`;
     if (items.some(x => x.tag === `start:${key}`)) continue;
-    items.push({ at: start, title: startTitle(e), body: startLine(e, true), tag: `pick:${key}`, hash: 'home', kind: 'pick' });
+    items.push({ at: start, title: startTitle(e), body: startLine(e, true), tag: `pick:${key}`, hash: noticeHash(e), kind: 'pick' });
   }
   // Today's picks, each ending (今日推薦賽果): every pick of the day, the ones
   // on now too (they've left 今日推薦 for 正在進行); one a followed team's or
@@ -1048,7 +1048,7 @@ function syncPush() {
     // (The start notice at the title time, a few minutes before the official start: the owner's call, 2026-10-18.)
     const start = Date.parse(e.start);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
-    if (start > now - GRACE) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: 'live', kind: 'start' });
+    if (start > now - GRACE) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: noticeHash(e), kind: 'start' });
     const end = resultItem(e, now);
     if (end) items.push(end);
   }
@@ -1060,12 +1060,14 @@ function syncPush() {
 // end (SHORTEST) at every Worker run until 8 hours after the start (`until`):
 // fixed times, so the list sent stays the same from one refresh to the next,
 // and an app opened mid-game hands over a check that's due at once.
+// A game's notice opens the game's own page (Jay 2026-11-06: "open that game").
+const noticeHash = e => gameHash(e, localDate(Date.parse(e.start)));
 const HOLD = 8 * 3_600_000;
 function resultItem(e, now, pick = false) {
   const espn = LEAGUES[e.league].espn;
   const start = Date.parse(e.official || e.start);
   if (e.timeTbd || !(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) return null;
-  const base = { body: [`{result}`, leagueName(e.league, locale), pick ? L(PICKED) : ''].filter(Boolean).join(' · '), tag: `end:${e.league}:${e.id}`, hash: 'home', kind: pick ? 'pickend' : 'end' };
+  const base = { body: [`{result}`, leagueName(e.league, locale), pick ? L(PICKED) : ''].filter(Boolean).join(' · '), tag: `end:${e.league}:${e.id}`, hash: noticeHash(e), kind: pick ? 'pickend' : 'end' };
   if (espn && e.kind === 'match' && /^\d+$/.test(e.id))
     return { ...base, at: Date.parse(e.start) + (SHORTEST[LEAGUES[e.league].sport] || 100) * 60_000, until: Date.parse(e.start) + HOLD, title: matchLine(e), check: { espn, event: e.id, names: [e.away.short || e.away.name, e.home.short || e.home.name] } };
   // CPBL (no ESPN): its game in TheSportsDB's day list, the one this app reads CPBL from.
@@ -1161,9 +1163,9 @@ function noticeChanges(events) {
     const change = transition(was, e.status);
     if (!change) continue;
     const league = leagueName(e.league, locale);
-    if (followed && change === 'start' && (onTv(e) || isFollowedGame(e))) notify(q, { title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: 'live', kind: 'start' });
+    if (followed && change === 'start' && (onTv(e) || isFollowedGame(e))) notify(q, { title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: noticeHash(e), kind: 'start' });
     if (change === 'end' && document.visibilityState === 'visible') bannered.add(key);
-    if (change === 'end') notify(q, { title: matchLine(e, true), body: [resultLine(e), league, followed ? '' : L(PICKED)].filter(Boolean).join(' · '), tag: `end:${key}`, hash: 'home', kind: followed ? 'end' : 'pickend' });
+    if (change === 'end') notify(q, { title: matchLine(e, true), body: [resultLine(e), league, followed ? '' : L(PICKED)].filter(Boolean).join(' · '), tag: `end:${key}`, hash: noticeHash(e), kind: followed ? 'end' : 'pickend' });
   }
 }
 
@@ -4646,9 +4648,48 @@ function firstTab() {
   if (hash === 'standings') state.scores.view = 'table';
   return TABS.includes(hash) ? hash : hash === 'scores' || hash === 'standings' ? 'matches' : 'home';
 }
+// A game's notice tapped (#game=<league>/<id>/<day>, lib/notice.mjs): that
+// game's page, over the tab the app opens on, once the game is known (the
+// day's board, a follow's or a pick's copy; its day read if it isn't one
+// read already). The address is cleared after: opening the app again opens
+// it where it would, and the same notice tapped again opens the game again.
+let gameAsk = 0;
+const sleepMs = ms => new Promise(r => setTimeout(r, ms));
+function knownGame(league, id) {
+  const key = `${league}:${id}`;
+  const hit = e => e && `${e.league}:${e.id}` === key;
+  for (const slot of state.days.values()) {
+    const e = (slot?.events || []).find(hit);
+    if (e) return e;
+  }
+  return [...followedGames(), ...(state.todayPicks || []), ...[...state.home.teams.values()].flat()].find(hit) || null;
+}
+async function openGameFromHash() {
+  const want = readGameHash(location.hash);
+  if (!want || !LEAGUES[want.league]) return;
+  const n = ++gameAsk;
+  const day = want.day || today();
+  const until = Date.now() + 20_000;
+  let e = knownGame(want.league, want.id);
+  while (!e && n === gameAsk && Date.now() < until) {
+    // (Once the follows are in: the day read for the leagues the person has.)
+    const slot = state.days.get(day);
+    const read = slot?.at && !slot.loading && slot.leagues === leaguesKey();
+    if (booted && read) break;
+    if (booted && !slot?.loading) loadDay(day);
+    await sleepMs(150);
+    e = knownGame(want.league, want.id);
+  }
+  if (n !== gameAsk) return;
+  if (readGameHash(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  if (!e) return;
+  $('loading').hidden = true;
+  openEvent(freshGame(e));
+}
 // A link or a notice's tap that points at a tab while the app is open.
 window.addEventListener('hashchange', () => {
   const hash = location.hash.slice(1);
+  if (readGameHash(hash)) return void openGameFromHash();
   if (!TABS.includes(hash) && hash !== 'scores' && hash !== 'standings') return;
   const tab = firstTab();
   if (tab === 'live') state.live.date = null;
@@ -4714,6 +4755,8 @@ function readJumpEarly() {
 }
 async function boot() {
   const until = Date.now() + BOOT_WAIT;
+  // (A game's notice tapped: its page as soon as the game is known.)
+  if (readGameHash(location.hash)) openGameFromHash();
   // A signed-in device opens at once on what it had: the follows and the
   // day it last read, while the Worker is asked for the fresh ones (the
   // picks wait behind the loading screen for their fresh day).
