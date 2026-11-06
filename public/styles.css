@@ -2559,8 +2559,39 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 :root.q-wide .page .tables.many { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
 :root.q-wide .page .tables.many > * { margin: 0; }
 /* 數據's ranking in two columns, read down each (1–10, then 11–20). */
-:root.q-wide .page .lb-list { display: block; columns: 2; column-gap: 32px; }
-:root.q-wide .page .lb-row { break-inside: avoid; }
+/* 數據 on a wide page (sheets.js statsSplit): the stats down the side, each
+   with its leader, and the chosen one's ranking beside them in one column
+   read down (two CSS columns split it 1 2 2 | 4 5 5 with their lines out of
+   step, Jay 2026-11-06 "Ugly"); a bar from each name to its value. */
+.lbr-bar { display: none; }
+.lb-wide { display: grid; grid-template-columns: minmax(250px, 300px) minmax(0, 1fr); gap: var(--q-s-4, 16px); align-items: start; margin-top: 8px; }
+:root.q-w3 .lb-wide { grid-template-columns: 340px minmax(0, 1fr); gap: var(--q-s-5, 24px); }
+.lb-wide > .q-card { margin: 0; }
+.lb-stats { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 128px); overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 2px; padding: 6px; scrollbar-width: thin; }
+:root.q-tabrail .lb-stats { max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px); }
+.lb-stat { display: grid; gap: 5px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--q-r-cell, 12px); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color var(--q-dur-fast, .15s); }
+.lb-stat[aria-pressed='true'] { background: var(--q-fill-3); cursor: default; }
+@media (hover: hover) and (pointer: fine) { .lb-stat[aria-pressed='false']:hover { background: var(--q-fill-4); } }
+.lb-stat-name { font-size: 13px; font-weight: 600; color: var(--q-label-2, var(--q-muted)); }
+.lb-stat[aria-pressed='true'] .lb-stat-name { color: var(--accent); }
+.lb-stat-lead { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; }
+.lb-stat-lead .logo.sm { width: 26px; height: 26px; }
+.lb-stat-lead strong { font-size: 15px; font-weight: 600; }
+.lb-stat-lead b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The ranking, a size up: faces you can see, the value by its bar. */
+.lb-wide .lb-list { container-type: inline-size; }
+.lb-wide .lb-row { grid-template-columns: 2em auto minmax(0, 1fr) auto; column-gap: 12px; padding: 10px 0; }
+.lb-wide .lb-row > .logo.sm, .lb-wide .lb-row > .skel-pic { width: 40px; height: 40px; }
+.lb-wide .lb-rank { font-size: 14px; }
+.lb-wide .lb-name strong { font-size: 16px; }
+.lb-wide .lb-name small { font-size: 13px; }
+.lb-wide .lb-value { min-width: 3.2em; font-family: var(--nv-display, inherit); font-size: 20px; font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+@container (min-width: 520px) {
+  .lb-wide .bars > .lb-row { grid-template-columns: 2em auto minmax(0, 15em) minmax(0, 1fr) auto; }
+  .lb-wide .bars > .lb-skel { grid-template-columns: 2em auto minmax(0, 1fr) auto; }
+  .lb-wide .lbr-bar { display: block; height: 6px; border-radius: 3px; background: var(--q-fill-4); overflow: hidden; }
+  .lb-wide .lbr-bar i { display: block; height: 100%; border-radius: inherit; background: var(--q-label-3, var(--q-muted)); }
+}
 .team-cards > * { align-content: start; }
 :root.q-wide .sport-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 :root.q-wide .following-settings { max-width: 560px; }

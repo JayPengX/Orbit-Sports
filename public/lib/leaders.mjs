@@ -452,11 +452,14 @@ export function parseFotmobPage(raw, { team = false } = {}) {
   const season = String(data.season || '').replace(/^(\d{4})\/(\d{2})(\d{2})$/, '$1-$3');
   return stats.length ? { season: season ? { name: season } : null, teams: data.teams || [], teamId: data.teamId ?? null, stats } : null;
 }
-// One stat's whole list (trimmed: its top hundred).
-export function parseFotmobStat(raw, key) {
+// One stat's whole list: a league's top hundred; `all`, everyone in it (a
+// team's page picks its own players out of the league's list: its top
+// hundred held 3 of Nashville's 14 scorers, Jay 2026-11-06).
+export function parseFotmobStat(raw, key, { all = false } = {}) {
   const t = raw?.TopLists?.[0];
-  const data = t ? { decimals: t.StatDecimals, list: (t.StatList || []).slice(0, LEAGUE_TOP).map(x => ({ id: x.ParticiantId ?? x.ParticipantId, name: x.ParticipantName, teamId: x.TeamId, teamName: x.TeamName, value: x.StatValue, games: x.MatchesPlayed })) } : raw;
-  return (data?.list || []).filter(x => x?.name).map(x => fotmobPerson(x, key, data.decimals));
+  const data = t ? { decimals: t.StatDecimals, list: (t.StatList || []).map(x => ({ id: x.ParticiantId ?? x.ParticipantId, name: x.ParticipantName, teamId: x.TeamId, teamName: x.TeamName, value: x.StatValue, games: x.MatchesPlayed })) } : raw;
+  const list = (data?.list || []).filter(x => x?.name);
+  return (all ? list : list.slice(0, LEAGUE_TOP)).map(x => fotmobPerson(x, key, data.decimals));
 }
 // FotMob's club for an ESPN one (`words`: the kit's ways of naming a side):
 // the same name, else the one its names say most of.

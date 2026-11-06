@@ -2107,8 +2107,8 @@ async function f1Leaders(league) {
   return parseF1Leaders([first, ...rest], poles, drivers);
 }
 // One football stat's top hundred (FotMob's whole list, trimmed).
-export async function leaderList(url, key) {
-  return parseFotmobStat(await getJson(url, { ttl: LEADERS_TTL }), key);
+export async function leaderList(url, key, { all = false } = {}) {
+  return parseFotmobStat(await getJson(url, { ttl: LEADERS_TTL }), key, { all });
 }
 // `side`: the team as ESPN names it (football's is found among FotMob's by name).
 // A league's teams by their own numbers (lib/teamstats.mjs): basketball's

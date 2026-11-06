@@ -5762,8 +5762,8 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
       const st = d.stats.find(x => x.key === teamPick) || d.stats[0];
       if (st.url && !teamLists.has(st.url)) {
         teamLists.set(st.url, null);
-        leaderList(st.url, st.key)
-          // (FotMob's whole list is the league's: this team's players in it.)
+        leaderList(st.url, st.key, { all: true })
+          // (FotMob's whole list is the league's, everyone in it: this team's players in it.)
           .then(list => {
             const own = new Set(st.list.map(x => x.fotmobTeam).filter(Boolean));
             const mine = (list || []).filter(x => (own.size ? own.has(x.fotmobTeam) : st.list.some(y => y.teamName && y.teamName === x.teamName)));
@@ -5969,29 +5969,32 @@ export function teamLeadersCard(data, league) {
 }
 // (The first 25, then 25 more a tap, to the hundred.)
 const LB_STEP = 25;
-export function leagueLeadersView(data, league, { teamOf = () => null, pick = null, onPick = () => {}, full = null } = {}) {
+export function leagueLeadersView(data, league, { teamOf = () => null, pick = null, onPick = () => {}, full = null, wide = false } = {}) {
   const sport = LEAGUES[league]?.sport;
   const en = L() === 'en';
   const chosen = data.stats.find(x => x.key === pick) || data.stats[0];
   // (A football stat's whole list once read; its page's top three until then.)
   const st = full?.length ? { ...chosen, list: full } : chosen;
-  const chips = data.stats.length > 1 ? segmented(data.stats.map(x => [x.key, en ? x.en : x.zh]), st.key, onPick, 'scroll stage-filter') : null;
+  const side = wide && splitWide(data.stats);
+  const chips = data.stats.length > 1 && !side ? segmented(data.stats.map(x => [x.key, en ? x.en : x.zh]), st.key, onPick, 'scroll stage-filter') : null;
   // (Level on the number, level in the list: four on 3 assists are all 2nd.)
   const list = st.list;
   const rankOf = i => list.findIndex(y => y.value === list[i].value) + 1;
+  const bars = side && lbBars(list, chosen.low);
   const row = (x, i) => {
     const t = teamOf(x.team, x);
     return el('button', { class: 'lb-row', type: 'button', onclick: () => openLeader(league, x) }, [
       el('span', { class: 'lb-rank num', text: String(rankOf(i)) }),
       personPic({ ...x, name: x.full || x.name }, league, 'sm round'),
       el('span', { class: 'lb-name' }, [fitName(el('strong', { class: 'one-line' }), x.full || x.name, x.full && x.name !== x.full ? x.name : shortWords(x.full || x.name)), t ? fitLine(el('small', { class: 'one-line' }, [teamTag(t, t.short || t.name, league, { tap: false })])) : x.teamName ? fitLine(el('small', { class: 'one-line', text: !en && x.teamZh ? x.teamZh : x.teamName })) : null]),
+      lbBar(x, list, chosen.low, bars),
       el('b', { class: 'lb-value num', text: x.value })
     ]);
   };
   // (A football stat's whole list still coming: its top three, and the rest
   // of the first ten held as shimmering rows the size of the ones coming, so
   // they fill in place, never three rows and then a flash of the rest.)
-  const box = el('div', { class: 'lb-list' }, [...list.slice(0, LB_STEP).map(row), ...lbHeld(chosen, full, list.length)]);
+  const box = el('div', { class: `lb-list${bars ? ' bars' : ''}` }, [...list.slice(0, LB_STEP).map(row), ...lbHeld(chosen, full, list.length)]);
   let shown = Math.min(LB_STEP, list.length);
   const more = moreToggle({
     less: null,
@@ -6007,26 +6010,91 @@ export function leagueLeadersView(data, league, { teamOf = () => null, pick = nu
   };
   label();
   const sub = [leadersSeason(data, sport, en), list.length > 10 ? (en ? `top ${list.length}` : `前 ${list.length} 名`) : ''].filter(Boolean).join(' · ');
-  return el('div', {}, [chips, card(leaderLabel(st, sport, en), el('div', {}, [box, more]), { sub })]);
+  const ranking = card(leaderLabel(st, sport, en), el('div', {}, [box, more]), { sub });
+  if (!side) return el('div', {}, [chips, ranking]);
+  const lead = x => [personPic({ ...x, name: x.full || x.name }, league, 'sm round'), fitName(el('strong', { class: 'one-line' }), x.full || x.name, x.full && x.name !== x.full ? x.name : shortWords(x.full || x.name)), el('b', { class: 'num', text: x.value })];
+  return statsSplit(`p:${league}`, data.stats, st.key, onPick, lead, en, ranking);
+}
+
+// 數據 on a wide page (a list and what it opens, side by side, DESIGN §10):
+// the stats down the side, each with its leader (a tap shows its ranking),
+// the chosen one's whole ranking beside them, each value's bar against the
+// best one's; a phone (and a team's sheet) keeps the chips over the ranking.
+// The side stays in sight (sticky, its own scroll when the stats are many:
+// MLB's 23, football's 20-odd) and keeps its place when a stat is picked.
+const splitWide = stats => stats.length > 1 && typeof document !== 'undefined' && document.documentElement.classList.contains('q-wide');
+const sideTops = new Map();
+function statsSplit(key, stats, chosen, onPick, leadOf, en, ranking) {
+  const rows = stats.map(st => {
+    const x = st.list[0];
+    const on = st.key === chosen;
+    return el('button', { class: 'lb-stat', type: 'button', 'aria-pressed': on ? 'true' : 'false', onclick: () => !on && onPick(st.key) }, [
+      fitLine(el('span', { class: 'lb-stat-name one-line', text: en ? st.en : st.zh })),
+      x && !x.stand ? el('span', { class: 'lb-stat-lead' }, leadOf(x, st)) : null
+    ]);
+  });
+  const pane = el('div', { class: 'q-card lb-stats' }, rows);
+  pane.addEventListener('scroll', () => sideTops.set(key, pane.scrollTop), { passive: true });
+  // (Where it was, and the chosen one in sight.)
+  requestAnimationFrame(() => {
+    if (!pane.isConnected || pane.scrollHeight <= pane.clientHeight) return;
+    const was = sideTops.get(key) || 0;
+    const r = rows[stats.findIndex(st => st.key === chosen)];
+    const top = r && (r.offsetTop < was || r.offsetTop + r.offsetHeight > was + pane.clientHeight) ? Math.max(0, r.offsetTop - 8) : was;
+    if (top) pane.scrollTop = top;
+  });
+  return el('div', { class: 'lb-wide' }, [pane, ranking]);
+}
+// A value's bar, against the list's best (lower is better: the best's over
+// it); none where the values aren't numbers. Drawn only on a wide ranking.
+const lbNum = v => {
+  const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+};
+// (Bars only where they tell something: a list whose values all sit near the
+// best's (batting averages .316 to .250, ratings 7.2 to 6.8) is all full bars.)
+const lbBars = (list, low) => {
+  const ns = list.map(x => lbNum(x.value)).filter(n => n != null && n > 0);
+  if (ns.length < 2) return false;
+  const lo = Math.min(...ns);
+  const hi = Math.max(...ns);
+  return lo / hi < 0.6;
+};
+function lbBar(x, list, low, on = true) {
+  if (!on) return null;
+  const best = lbNum(list[0]?.value);
+  const n = lbNum(x.value);
+  if (best == null || n == null || best <= 0 || n < 0) return null;
+  const f = low ? (n > 0 ? best / n : 0) : n / best;
+  return el('span', { class: 'lbr-bar', 'aria-hidden': 'true' }, [el('i', { style: `width:${Math.max(0, Math.min(1, f)) * 100}%` })]);
 }
 
 // A league's teams by one of their own numbers (lib/teamstats.mjs), as its
 // players' are drawn: the stat's chips, then every team in its order, its
 // place, logo and name; a tap opens its page. `teamOf(x)` the table's row
 // for a team (its Chinese name, its id: a FotMob club matched by name).
-export function teamStatsView(data, league, { teamOf = () => null, pick = null, onPick = () => {}, full = null } = {}) {
+export function teamStatsView(data, league, { teamOf = () => null, pick = null, onPick = () => {}, full = null, wide = false } = {}) {
   const en = L() === 'en';
   const chosen = data.stats.find(x => x.key === pick) || data.stats[0];
   const list = full?.length ? full : chosen.list;
-  const chips = data.stats.length > 1 ? segmented(data.stats.map(x => [x.key, en ? x.en : x.zh]), chosen.key, onPick, 'scroll stage-filter') : null;
+  const side = wide && splitWide(data.stats);
+  const bars = side && lbBars(list, chosen.low);
+  const chips = data.stats.length > 1 && !side ? segmented(data.stats.map(x => [x.key, en ? x.en : x.zh]), chosen.key, onPick, 'scroll stage-filter') : null;
   const row = x => {
     const t = teamOf(x) || (x.id ? { id: x.id, name: x.name, short: x.short, logo: x.logo } : null);
     const name = t?.short || t?.name || x.short || x.name;
-    const kids = [el('span', { class: 'lb-rank num', text: String(x.rank) }), logo(t?.logo || x.logo, name, 'sm'), el('span', { class: 'lb-name' }, [fitLine(el('strong', { class: 'one-line', text: name }))]), el('b', { class: 'lb-value num', text: x.value })];
+    const kids = [el('span', { class: 'lb-rank num', text: String(x.rank) }), logo(t?.logo || x.logo, name, 'sm'), el('span', { class: 'lb-name' }, [fitLine(el('strong', { class: 'one-line', text: name }))]), lbBar(x, list, chosen.low, bars), el('b', { class: 'lb-value num', text: x.value })];
     return t?.id && hasTeamPage(league) ? el('button', { class: 'lb-row', type: 'button', onclick: () => ctx.openTeam(league, String(t.id), t) }, kids) : el('div', { class: 'lb-row' }, kids);
   };
   const sub = [data.season?.name ? `${data.season.name}${LEAGUES[league]?.sport === 'soccer' ? '' : en ? ' regular season' : ' 例行賽'}` : '', chosen.low ? (en ? 'lower is better' : '越低越好') : ''].filter(Boolean).join(' · ');
-  return el('div', {}, [chips, card(en ? chosen.en : chosen.zh, el('div', { class: 'lb-list' }, [...list.map(row), ...lbHeld(chosen, full, list.length, 1)]), { sub })]);
+  const ranking = card(en ? chosen.en : chosen.zh, el('div', { class: `lb-list${bars ? ' bars' : ''}` }, [...list.map(row), ...lbHeld(chosen, full, list.length, 1)]), { sub });
+  if (!side) return el('div', {}, [chips, ranking]);
+  const lead = x => {
+    const t = teamOf(x) || (x.id ? { id: x.id, name: x.name, short: x.short, logo: x.logo } : null);
+    const name = t?.short || t?.name || x.short || x.name;
+    return [logo(t?.logo || x.logo, name, 'sm'), fitLine(el('strong', { class: 'one-line', text: name })), el('b', { class: 'num', text: x.value })];
+  };
+  return statsSplit(`t:${league}`, data.stats, chosen.key, onPick, lead, en, ranking);
 }
 // Rows held for a whole list being read (`full` null: asked, not in yet), to
 // ten, each the height of the row coming (a player's two lines, a team's one).

@@ -4298,7 +4298,7 @@ function teamsOf(league, d) {
     const club = x.fotmob ? d.teams?.find(t => String(t.id) === x.fotmob) : null;
     return club ? { id: '', name: club.shortName || club.name, short: club.shortName || club.name, logo: x.logo } : null;
   };
-  return teamStatsView(d, league, { teamOf, pick: st.key, full: st.url ? teamLists.get(st.url) : null, onPick: k => (teamPick.set(league, k), renderScores()) });
+  return teamStatsView(d, league, { teamOf, pick: st.key, full: st.url ? teamLists.get(st.url) : null, onPick: k => (teamPick.set(league, k), renderScores()), wide: true });
 }
 function playersOf(league) {
   const key = `leaders:${league}`;
@@ -4334,7 +4334,7 @@ function playersOf(league) {
       .catch(() => leaderLists.set(st.url, []))
       .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
   }
-  return leagueLeadersView(d, league, { teamOf: (id, x) => rows.get(String(id)) || clubs.get(String(x?.fotmobTeam ?? '')) || (x?.teamName ? byName(x.teamName) : null), pick: st.key, full: st.url ? leaderLists.get(st.url) : null, onPick: k => (leaderPick.set(league, k), renderScores()) });
+  return leagueLeadersView(d, league, { teamOf: (id, x) => rows.get(String(id)) || clubs.get(String(x?.fotmobTeam ?? '')) || (x?.teamName ? byName(x.teamName) : null), pick: st.key, full: st.url ? leaderLists.get(st.url) : null, onPick: k => (leaderPick.set(league, k), renderScores()), wide: true });
 }
 const leaderLists = new Map();
 function tableOf(league) {
@@ -4437,6 +4437,8 @@ onScreen(fit => {
   // (首頁: the board on q-w3, cols below it, drawn again for the new width.)
   if (state.home.drawnOnce) renderHome();
   if (state.tab === 'matches' && state.scores.league === ALL && state.prefsLoaded) renderAll();
+  // (數據: the stats down the side on a wide page, the chips over the ranking on a narrow one.)
+  else if (state.tab === 'matches' && state.scores.view === 'leaders') renderScores();
 });
 // A swipe on 首頁 or 轉播: the day before or after.
 kitUI.daySwipe($('panel-home'), dir => {

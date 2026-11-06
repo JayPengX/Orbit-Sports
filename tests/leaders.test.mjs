@@ -81,6 +81,10 @@ test("football from FotMob: its stats in our order (per 90 said), short names in
   assert.equal(parseFotmobPage(raw, { team: true }).stats.some(s => s.key === '_save_percentage'), false, "a team's grid: its main ones");
   const list = parseFotmobStat({ TopLists: [{ StatDecimals: 1, StatList: [{ ParticipantName: 'Conor Gallagher', ParticiantId: 966027, TeamName: 'Tottenham Hotspur', TeamId: 8586, StatValue: 4.3, MatchesPlayed: 4 }] }] }, 'total_tackle');
   assert.deepEqual([list[0].full, list[0].teamName, list[0].value], ['Conor Gallagher', 'Tottenham Hotspur', '4.3']);
+  // A league's list is its top hundred; a team's page reads everyone (Nashville's 14 scorers were 3 of the league's top hundred, Jay 2026-11-06).
+  const many = { list: Array.from({ length: 430 }, (_, i) => ({ id: i, name: `P${i}`, teamId: i % 30, teamName: `T${i % 30}`, value: 30 - i / 20 })) };
+  assert.equal(parseFotmobStat(many, 'goals').length, 100);
+  assert.equal(parseFotmobStat(many, 'goals', { all: true }).filter(x => x.fotmobTeam === '7').length, 15, "a team's every player in it");
   assert.equal(fotmobTeamOf(d.teams, { name: 'Tottenham Hotspur', short: 'Spurs' }).id, 8586);
   assert.equal(fotmobTeamOf(d.teams, { name: 'Wolverhampton Wanderers' }, ['wolverhampton', 'wolves']), null, 'not in the league: none, never a guess');
 });

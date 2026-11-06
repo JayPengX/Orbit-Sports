@@ -150,11 +150,20 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     results.
   - A team page ranks its own players; a player page shows their league
     ranks; a match shows each side's season leaders.
+  - 賽事's 數據 on a wide page (q-wide; Jay 2026-11-06, F1's on an iPad:
+    "Ugly"): the stats down the side, each with its leader (a tap shows its
+    ranking; sticky, its own scroll, its place kept), the chosen one's
+    ranking one column beside them, a size up, a bar to each value where the
+    values spread (`sheets.js statsSplit`, `lbBars`; styles `.lb-wide`).
+    A phone and a team's sheet keep the chips over the ranking
+    (`tests/stats-wide.test.mjs`).
   - A team page (`sheets.js openTeam`) keeps each tab once drawn (`kept`:
     back from 賽程 to 概況 is the same page), holds 聯盟排名 and 數據領先 in
     their shape while they're read (`ranksHeld`, `leadersHeld`, kit
     `waiting`), and 隊內排行's chips redraw only that list (`paintLb`), each
-    stat's whole list read from FotMob and kept to the team's players. A
+    stat's whole list read from FotMob (everyone in it, `leaderList(…, { all
+    })`: the league's top hundred held 3 of Nashville's 14 scorers, Jay
+    2026-11-06) and kept to the team's players. A
     player's 生涯車隊 / 生涯球隊 is held the same way (`careerKey`).
   - Long names: `fitName` (full, short, surname) and the layout gives the row: a
     play's who on its own line (`PLAY_WHO`; on a 320 phone the score under the
