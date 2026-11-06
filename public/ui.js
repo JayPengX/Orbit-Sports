@@ -65,6 +65,34 @@ export function cols(left, right) {
   // section's margin kept inside; one side: a plain block as before.)
   return el('div', { class: `q-flow tab-flow${l.length && r.length ? ' tab-flow-both' : ''}` }, [...l, ...r]);
 }
+// 首頁 on a tablet on its side or a computer (q-w3; Jay 2026-11-06, an iPad:
+// three columns dealt by height left holes, and a quiet day's two sections
+// sat in two of three columns, a third of the screen empty). A board instead:
+// the day in a main column as wide as the page allows, and what goes with it
+// (my leagues, my teams) in a side column. In the main column the lead pieces
+// (the lead game, 正在進行, 我的比賽) pair up side by side, one alone as wide
+// as the column; the rest (更多賽事, 已結束) take the column's whole width,
+// their cards in a grid. Narrower screens: cols, as before (the phone's
+// order untouched: this builds only on q-w3).
+export function homeBoard(main, side, pairs = new Set()) {
+  const m = main.flat().filter(Boolean);
+  const s = side.flat().filter(Boolean);
+  if (!m.length && !s.length) return null;
+  // (Each run of lead pieces in twos; an odd one out the column's width.)
+  let run = [];
+  const close = () => {
+    run.forEach((x, i) => x.classList.toggle('hb-full', run.length % 2 === 1 && i === run.length - 1));
+    run = [];
+  };
+  for (const x of m) {
+    if (pairs.has(x)) run.push(x);
+    else (close(), x.classList.add('hb-full'));
+  }
+  close();
+  const body = m.length ? el('div', { class: 'hb-main' }, m) : null;
+  const aside = s.length ? el('div', { class: 'hb-side' }, s) : null;
+  return el('div', { class: `home-board${body && aside ? '' : ' solo'}` }, [body, aside]);
+}
 // Like cards of a list (a day's leagues, the teams followed) in as many
 // columns as the screen has room for, each card to the shortest so far, so
 // they read left to right, top to bottom as on a phone. weight: a card's

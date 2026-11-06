@@ -38,7 +38,7 @@ import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { cols, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, eltaClosed, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
+import { cols, homeBoard, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, eltaClosed, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
 import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
@@ -1548,6 +1548,15 @@ const dayWaits = slot => !slot?.drawn && (slot?.partial > 0 || (state.prefs.fill
 // always among 我的比賽, its hour taken (not a league's chosen game, which
 // competes for its hour like any other).
 const ownGame = e => isFollowedEvent(e, { chosen: false });
+// 首頁's sections on the board (ui.js homeBoard): cols' two lists, in their
+// places: left [lead game, 正在進行, a day gone by, a note, the spinner,
+// 我的比賽], right [更多賽事, 我的聯賽, 我的球隊, 已結束]. The lead game,
+// 正在進行 and 我的比賽 pair up; my leagues and teams to the side.
+function homeLayout([hero, live, past, note, spin, mine], [more, leagues, teams, ended]) {
+  const isList = x => x?.classList?.contains('q-section');
+  const pairs = new Set([hero, live, isList(mine) ? mine : null].filter(Boolean));
+  return homeBoard([note, hero, live, isList(mine) ? mine : null, past, spin, isList(mine) ? null : mine, more, ended], [leagues, teams], pairs);
+}
 function renderHome() {
   const box = $('panel-home');
   const h = state.home;
@@ -1910,8 +1919,9 @@ function renderHome() {
     homeBar(),
     homeFilters(),
     h.picking ? sportPicker() : null,
-    // (A wide screen: the day's answer on the left, what's next of theirs on the right.)
-    cols([
+    // (A wide screen: the day's answer on the left, what's next of theirs on
+    // the right; a tablet on its side or a computer, the board, ui.js homeBoard.)
+    (screenFit().w3 ? homeLayout : cols)([
       h.picking ? null : hero,
       h.picking ? null : liveBlock,
       // A day gone by: its games, every one, by the clock, as they ended (no
@@ -1940,6 +1950,7 @@ function renderHome() {
   );
   // (Drawn: what comes later for this day goes in as it is.)
   if (!slot.stale) slot.drawn = true;
+  h.drawnOnce = true;
   // Back from a sport: the page where they left it, once that day is drawn.
   if (h.backY != null && slot.drawn) {
     const y = h.backY;
@@ -4414,6 +4425,8 @@ onScreen(fit => {
   if (fitKey(fit) === screenWas) return;
   screenWas = fitKey(fit);
   kitUI.flowColumns?.(document);
+  // (首頁: the board on q-w3, cols below it, drawn again for the new width.)
+  if (state.home.drawnOnce) renderHome();
   if (state.tab === 'matches' && state.scores.league === ALL && state.prefsLoaded) renderAll();
 });
 // A swipe on 首頁 or 轉播: the day before or after.

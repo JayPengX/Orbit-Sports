@@ -2441,8 +2441,31 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 :root.q-wide .tab-flow.q-flow-laid .game-grid { columns: auto; }
 /* A rail of cards in a column: a grid of whole cards (one or two across as
    the column has room), never a card cut at the column's edge. */
-:root.q-wide :is(.col, .q-flow-col) .q-rail { margin-inline: 0; padding-inline: 0; scroll-padding-inline: 0; grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 240px), 1fr)); overflow: visible; scroll-snap-type: none; }
-:root.q-wide :is(.col, .q-flow-col) .q-rail.league-rail { --grid-min: 76px; }
+:root.q-wide :is(.col, .q-flow-col, .q-flow-measure, .hb-main) .q-rail { margin-inline: 0; padding-inline: 0; scroll-padding-inline: 0; grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 240px), 1fr)); overflow: visible; scroll-snap-type: none; }
+:root.q-wide :is(.col, .q-flow-col, .q-flow-measure, .hb-main) .q-rail.league-rail { --grid-min: 76px; }
+/* 首頁's board on a tablet on its side or a computer (ui.js homeBoard, q-w3
+   only): the day in the main column, my leagues and teams beside it. The
+   main column pairs the lead pieces when it has room for two cards of a
+   phone's width; the rest take its whole width. Every piece starts at the
+   top of its cell: no hole is ever left by a dealt column. */
+.home-board { container: hb / inline-size; display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 32%, 380px); gap: 0 24px; align-items: start; margin-top: 8px; }
+.home-board.solo { grid-template-columns: minmax(0, 1fr); }
+.hb-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px 20px; align-items: start; }
+.hb-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; align-content: start; }
+/* (The kit's section margin loads after this sheet: beaten by specificity; the grid's gap spaces them.) */
+.home-board :is(.hb-main, .hb-side) > * { margin: 0; min-width: 0; }
+/* (Room for two cards of a phone's width in the main column, about 620:
+   the board 940 with the side beside it, 640 alone.) */
+@container hb (min-width: 940px) {
+  .hb-main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hb-main > .hb-full { grid-column: 1 / -1; }
+}
+@container hb (min-width: 640px) {
+  .home-board.solo .hb-main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-board.solo .hb-main > .hb-full { grid-column: 1 / -1; }
+}
+/* (Alone on the board, no side: the day's lead pieces read as wide as a pair, never a stretched single card.) */
+.home-board.solo .hb-main > .hb-full:not(.q-section, .home-note, .q-empty) { max-width: 720px; margin-inline: auto; }
 /* A list of games as tiles side by side (賽事's day, a race series' weekends). */
 :root.q-wide .q-card.list.game-grid { overflow: visible; border-radius: 0; background: none; }
 :root.q-wide .game-grid > :is(.event-row, .watch-row, .fg-row) { border-radius: 22px; background: var(--q-surface); overflow: hidden; }
