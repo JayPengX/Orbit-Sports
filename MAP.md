@@ -123,6 +123,11 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   - **A team:** 概況 (next and last game, 傷兵, home/away/last 10 and
     scored/let in from its games, 聯盟排名, 數據領先), 賽程, 數據 (its own
     numbers ranked among the league's teams, then 隊內排行), 陣容, 排名.
+    The strip's 連勝敗 is counted from the games the form chips are from
+    (`streakOf`; the table's is the regular season's). 陣容 by position in the
+    sport's order (門將, 後衛, 中場, 前鋒); a footballer's role and age from
+    FotMob's squad where the name matches (`squadFacts`, `squadFixed`: ESPN's
+    MLS roster had keeper Joe Willis a 25-year-old midfielder).
   - **A player:** 概況 (his team's next game, his last line, the season,
     聯盟排名), 賽程 (next game, game log), 數據 (every league rank, then
     歷年數據: each season's team and numbers), 資料 (profile with 選秀,
@@ -135,7 +140,17 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     FotMob's player page (found by name and club, checked by birthday;
     trims fotmob-search, fotmob-player), F1 teams from Jolpica. Each team
     row opens its team (a club in a European cup this season opens there; a
-    loan he was then bought from is one spell).
+    loan he was then bought from is one spell). A footballer's game log
+    shows each game's shots (ESPN's log says SHOT and SOG).
+  - **A team's or a player's page wide** (an iPad, a computer; Jay
+    2026-11-06): `tabLayout` sets each tab's body. 概況, 資料 and a team's
+    數據: the cards dealt into two even columns (kit `flowColumns`, never CSS
+    columns: Safari put them all on the left). The rest the sheet's whole
+    width (styles.css `.team-tab.tt-*`, by the sheet's own width): 本場 his
+    numbers in a row; 賽程 a team's 接下來 beside 已結束 (one alone: its rows
+    in two columns, `twoCols`), a player's log one game a line; 陣容 each
+    group across, its players in two or three columns; 排名 every column and
+    full names. A player's head has his numbers beside it, as a team's.
   - **An F1 practice stand-in** (a team's FP1 driver): his car, sessions and
     who he is, his face from TheSportsDB (the proxy's about.json).
   - **An F1 constructor.**

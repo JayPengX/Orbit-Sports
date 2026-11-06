@@ -7,7 +7,7 @@ import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, w
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
+import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -1159,7 +1159,7 @@ function gameCards(game, id, league) {
   return lines.map(({ table: tb, row: r }, i) =>
     card(
       title(lines.length > 1 ? boxTableName(tb.name) : en ? 'This game' : '本場數據'),
-      el('div', {}, [i === 0 ? scoreRow : null, el('div', { class: 'q-rows-full stat-grid dense' }, tb.labels.map((k, n) => [k, r.stats[n], tb.keys?.[n]]).filter(([, v, key]) => v !== '' && v != null && key !== 'yellowCards' && key !== 'redCards').map(([k, v]) => tile(statName(k, L(), { sport, long: tb.longs?.[tb.labels.indexOf(k)], pitching: tb.labels.includes('IP') }), String(v))))])
+      el('div', {}, [i === 0 ? scoreRow : null, el('div', { class: 'q-rows-full stat-grid dense pg-stats' }, tb.labels.map((k, n) => [k, r.stats[n], tb.keys?.[n]]).filter(([, v, key]) => v !== '' && v != null && key !== 'yellowCards' && key !== 'redCards').map(([k, v]) => tile(statName(k, L(), { sport, long: tb.longs?.[tb.labels.indexOf(k)], pitching: tb.labels.includes('IP') }), String(v))))])
     )
   );
 }
@@ -5675,10 +5675,15 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
     const sport = LEAGUES[league]?.sport;
     const want = sport === 'soccer' ? ['GP', 'W', 'D', 'L', 'GD', 'P'] : ['W', 'L', 'PCT', 'GB', 'STRK'];
     const stats = place ? want.filter(k => place.row.stats[k] != null && place.row.stats[k] !== '').slice(0, 5) : [];
+    // 連勝敗 from the games the form's chips are (Jay 2026-11-06, the Brewers:
+    // the table's W5 was the regular season's end, the chips the World
+    // Series' 勝勝勝敗勝); the table's while it's preseason.
+    const streak = pre ? '' : streakOf(formFrom.filter(x => x.home && x.away).map(resultOf));
+    const statOf = k => (k === 'STRK' && streak ? streak : place.row.stats[k]);
     const strip = place
       ? el('div', { class: 'team-strip' }, [
           el('div', { class: 'ts-cell lead' }, [el('strong', { class: 'num', text: String(place.pos) }), el('small', { text: (groups || []).length > 1 && place.group && !/20\d\d/.test(place.group) ? groupName(place.group, L()) : W('排名', 'Place') })]),
-          ...stats.map(k => el('div', { class: 'ts-cell' }, [el('strong', { class: 'num', text: place.row.stats[k] }), el('small', { text: colLabel(k) })]))
+          ...stats.map(k => el('div', { class: 'ts-cell' }, [el('strong', { class: 'num', text: statOf(k) }), el('small', { text: colLabel(k) })]))
         ])
       : null;
     const next = upcoming[0];
@@ -5834,6 +5839,7 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
     };
     const paint = () => {
       put(tabsBox, segmented(views, view, v => ((view = v), paint()), '', { seg: true }));
+      tabLayout(body, view, TEAM_FLOW);
       if (kept.has(view)) return put(body, ...kept.get(view));
       const keep = nodes => (kept.set(view, nodes), put(body, ...nodes));
       if (view === 'overview') {
@@ -5854,8 +5860,8 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
         keep(
           (upcoming.length || results.length
             ? [
-                upcoming.length ? block(W('接下來', 'Coming up'), el('div', { class: 'q-card list' }, withSeasonBreak(upcoming.slice(0, 15), league, x => eventRow(x, { league: comps })))) : null,
-                results.length ? block(W('已結束', 'Results'), el('div', {}, [el('div', { class: 'q-card list results-list' }, results.slice(0, shownResults).map(resultRow)), more])) : null
+                upcoming.length ? block(W('接下來', 'Coming up'), twoCols(el('div', { class: 'q-card list' }, withSeasonBreak(upcoming.slice(0, 15), league, x => eventRow(x, { league: comps }))))) : null,
+                results.length ? block(W('已結束', 'Results'), el('div', {}, [twoCols(el('div', { class: 'q-card list results-list' }, results.slice(0, shownResults).map(resultRow))), more])) : null
               ].filter(Boolean)
             : [empty(W('本季還沒有賽程。', 'Nothing scheduled this season yet.'))])
         );
@@ -5863,8 +5869,8 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
       if (view === 'roster') {
         if (!rosterList) {
           put(body, spinner());
-          roster(league, id, info.home)
-            .then(list => ((rosterList = list), view === 'roster' && paint()))
+          Promise.all([roster(league, id, info.home), squadFacts(league, { name: info.en || info.name, en: info.en, short: info.enShort }).catch(() => null)])
+            .then(([list, squad]) => ((rosterList = squadFixed(list, squad)), view === 'roster' && paint()))
             .catch(() => put(body, empty(T('failed'))));
           return;
         }
@@ -6171,6 +6177,28 @@ function sideSquad(head, groups, league, sport) {
   const parts = groups.filter(g => g.list?.length).flatMap(g => [g.name ? el('p', { class: 'mini-h', text: g.name }) : null, g.out ? el('div', { class: 'inj-report' }, g.list.map(x => injuryLine(x, league, { lead: true }))) : squadList(g.list, league, sport, g.note || (() => ''))]);
   return parts.length ? card(head, el('div', {}, parts)) : null;
 }
+// A team's or a player's tab on a wide sheet (an iPad, a computer; Jay
+// 2026-11-06: "what the fuck"): cards on the glance tabs dealt into two
+// even columns by the kit's flowColumns (CSS columns left Safari's 概況 all
+// in one column); a list, a log, a table or a game's card the sheet's whole
+// width (styles.css .team-tab.tt-*). A phone: one column, as ever.
+const TEAM_FLOW = new Set(['overview', 'stats']);
+const PLAYER_FLOW = new Set(['overview', 'bio']);
+function tabLayout(body, view, flow) {
+  // (Dealt afresh: the last tab's cards are not this one's.)
+  delete body.__qItems;
+  body.className = `team-tab tt-${view}${flow.has(view) ? ' q-flow q-flow-2' : ''}`;
+}
+// A list that may stand alone on a wide sheet's 賽程 (styles.css tt-games):
+// its rows read down the first column then the second, the second's first
+// row (.col-top) without a line above it.
+function twoCols(list) {
+  const rows = [...list.children];
+  const half = Math.ceil(rows.length / 2);
+  list.style.setProperty('--rows', String(half));
+  rows[half]?.classList.add('col-top');
+  return list;
+}
 function byPosition(list, sport) {
   const zh = L() !== 'en';
   if (list.length > 1 || list[0]?.name) return list.map(g => ({ ...g, name: zh ? ROSTER_GROUP[String(g.name).toLowerCase()] || g.name : g.name }));
@@ -6182,7 +6210,10 @@ function byPosition(list, sport) {
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(p);
   }
-  return groups.size > 1 ? [...groups].map(([name, ps]) => ({ name, players: ps })) : list;
+  // (In the sport's order, a keeper's group first: ESPN's list is by its own
+  // order, and Nashville's 陣容 opened on 中場, 門將, 後衛; Jay 2026-11-06.)
+  const rank = ps => Math.min(...ps.map(p => posRank(p.pos, sport)));
+  return groups.size > 1 ? [...groups].map(([name, ps]) => ({ name, players: ps })).sort((a, b) => rank(a.players) - rank(b.players)) : list;
 }
 // A table column's short name in the reader's language.
 const COL_ZH = { PD: '得失分', POD: '頒獎台', GP: '場', W: '勝', D: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', GAP: '落後' };
@@ -6210,7 +6241,8 @@ const LOG_PICKS = {
   basketball: [['PTS', 'REB', 'AST'], ['FG', '3PT', 'FT', 'MIN', 'STL', 'BLK', 'TO']],
   batting: [['H', 'HR', 'RBI'], ['AB', 'R', 'BB', 'SO', 'SB', 'AVG']],
   pitching: [['IP', 'ER', 'K'], ['DEC', 'H', 'BB', 'HR', 'P', 'ERA']],
-  soccer: [['G', 'A'], ['STRT', 'SH', 'ST', 'YC', 'RC']]
+  // (ESPN's football log says APP, SHOT and SOG; a box score STRT, SH and ST: each game's shots shown, Jay 2026-11-06.)
+  soccer: [['G', 'A'], ['APP', 'STRT', 'SHOT', 'SH', 'SOG', 'ST', 'YC', 'RC']]
 };
 // A season's row (例行賽, 季後賽, 生涯) as a card, as a game is: its games,
 // three numbers big, the rest in a line that wraps. Not played yet: said so.
@@ -6223,7 +6255,7 @@ const SEASON_PICKS = {
 function seasonRow(r, rows, sport, en) {
   const W = (zh, eng) => (en ? eng : zh);
   const name = splitName(r.name, rows, en) || zhLater(r.name);
-  if (r.none) return el('div', { class: 'glog-game' }, [el('div', { class: 'glog-head' }, [el('strong', { class: 'glog-split', text: name })]), el('p', { class: 'muted glog-none', text: W('還沒出賽', 'No games yet') })]);
+  if (r.none) return el('div', { class: 'glog-game' }, [el('div', { class: 'glog-head' }, [el('strong', { class: 'glog-split' }, [name])]), el('p', { class: 'muted glog-none', text: W('還沒出賽', 'No games yet') })]);
   const labels = r.cells.map(c => c.label);
   const has = k => labels.includes(k);
   const [big0, small0] = SEASON_PICKS[has('ERA') || has('IP') ? 'pitching' : has('AVG') || has('AB') ? 'batting' : sport] || [[], []];
@@ -6235,7 +6267,7 @@ function seasonRow(r, rows, sport, en) {
   const label = k => statName(k, en ? 'en' : 'zh', { sport, long: cell(k)?.long, pitching });
   const gp = cell('GP')?.value;
   return el('div', { class: 'glog-game' }, [
-    el('div', { class: 'glog-head' }, [el('strong', { class: 'glog-split', text: name }), gp ? el('span', { class: 'result-pill', text: W(`${gp} 場`, `${gp} games`) }) : null]),
+    el('div', { class: 'glog-head' }, [el('strong', { class: 'glog-split' }, [name]), gp ? el('span', { class: 'result-pill', text: W(`${gp} 場`, `${gp} games`) }) : null]),
     el('div', { class: 'glog-big' }, big.map(k => el('div', { class: 'glog-fig' }, [el('b', { class: 'num', text: cell(k)?.value ?? '–' }), el('small', { text: LOG_BIG[k]?.[en ? 1 : 0] || label(k) })]))),
     small.length ? el('p', { class: 'glog-more' }, small.map(k => (k === 'MIN' ? el('span', { class: 'num', text: W(`${cell(k).value} 分鐘`, `${cell(k).value} min`) }) : el('span', {}, [`${label(k)} `, el('b', { class: 'num', text: cell(k)?.value ?? '' })])))) : null
   ]);
@@ -6326,7 +6358,7 @@ function logPicks(log, sport) {
 }
 // Their words under a big number and in the line (shorter than the table's).
 const LOG_BIG = { PTS: ['得分', 'PTS'], REB: ['籃板', 'REB'], AST: ['助攻', 'AST'], H: ['安打', 'H'], HR: ['全壘打', 'HR'], RBI: ['打點', 'RBI'], IP: ['局數', 'IP'], ER: ['自責分', 'ER'], K: ['三振', 'K'], G: ['進球', 'Goals'], A: ['助攻', 'Assists'] };
-const LOG_SMALL = { FG: ['投籃', 'FG'], '3PT': ['三分', '3PT'], FT: ['罰球', 'FT'], STL: ['抄截', 'STL'], BLK: ['阻攻', 'BLK'], TO: ['失誤', 'TO'], AB: ['打數', 'AB'], R: ['得分', 'R'], BB: ['保送', 'BB'], SO: ['三振', 'SO'], SB: ['盜壘', 'SB'], AVG: ['打擊率', 'AVG'], H: ['被安打', 'H'], P: ['用球數', 'P'], ERA: ['防禦率', 'ERA'], SH: ['射門', 'Shots'], ST: ['射正', 'On target'], YC: ['黃牌', 'YC'], RC: ['紅牌', 'RC'] };
+const LOG_SMALL = { FG: ['投籃', 'FG'], '3PT': ['三分', '3PT'], FT: ['罰球', 'FT'], STL: ['抄截', 'STL'], BLK: ['阻攻', 'BLK'], TO: ['失誤', 'TO'], AB: ['打數', 'AB'], R: ['得分', 'R'], BB: ['保送', 'BB'], SO: ['三振', 'SO'], SB: ['盜壘', 'SB'], AVG: ['打擊率', 'AVG'], H: ['被安打', 'H'], P: ['用球數', 'P'], ERA: ['防禦率', 'ERA'], SH: ['射門', 'Shots'], ST: ['射正', 'On target'], SHOT: ['射門', 'Shots'], SOG: ['射正', 'On target'], YC: ['黃牌', 'YC'], RC: ['紅牌', 'RC'] };
 // A player's games newer than ESPN's log of them: the team's games over
 // since the log's newest (six hours' grace: a log's date is the game's
 // day), newest first, each with his line from its box score, in the log's
@@ -6859,6 +6891,7 @@ export async function openPlayer(league, id, fallback = {}) {
         put(box2, el('p', { class: 'mini-h', text: W('下一場', 'Next game') }), el('div', { class: 'q-card list' }, [eventRow(next, { league: false })]));
         box2.hidden = false;
         games.unshift(box2);
+        if (view === 'overview') paintTab();
         if (!views.some(v => v[0] === 'games')) {
           const at = views.findIndex(v => v[0] === 'numbers' || v[0] === 'bio');
           views.splice(at >= 0 ? at : views.length, 0, ['games', W('賽程', 'Games'), games]);
@@ -6917,7 +6950,9 @@ export async function openPlayer(league, id, fallback = {}) {
     const tabBody = el('div', { class: 'team-tab' });
     swipeTabs(tabBody, () => ({ list: views.map(v => v[0]), now: view, go: k => ((view = k), paintTab()) }));
     const paintTab = () => {
-      put(tabsBox, views.length > 1 ? segmented(views.map(([k, label]) => [k, label]), view, v => ((view = v), paintTab())) : null);
+      // (One full-width row as a team's, never a few pills and a gap: MAP.md.)
+      put(tabsBox, views.length > 1 ? segmented(views.map(([k, label]) => [k, label]), view, v => ((view = v), paintTab()), '', { seg: true }) : null);
+      tabLayout(tabBody, view, PLAYER_FLOW);
       const v = views.find(x => x[0] === view)?.[2];
       put(tabBody, ...((typeof v === 'function' ? v() : v) || []));
     };

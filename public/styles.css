@@ -2669,13 +2669,36 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
   .tables:not(.many) .standings:not(.compact) .nm-full { display: inline; }
   .tables:not(.many) .standings:not(.compact) .nm-short { display: none; }
   .match-content .plays-wrap { max-width: 720px; margin-inline: auto; }
-  /* A team's or a player's tab: its cards in two columns; one alone (a
-     list, a table) as wide as reads well. */
-  .team-tab:has(> :nth-child(2)) { display: block; columns: 2; column-gap: 12px; }
-  .team-tab:has(> :nth-child(2)) > * { break-inside: avoid; margin: 0 0 12px; }
-  .team-tab:has(> :nth-child(2)) > .stack { display: block; break-inside: auto; }
-  .team-tab:has(> :nth-child(2)) > .stack > * { break-inside: avoid; margin: 0 0 12px; }
-  .team-tab > :only-child { max-width: 760px; margin-inline: auto; }
+  /* A team's or a player's tab (sheets.js tabLayout; Jay 2026-11-06, an
+     iPad: a lone card shrunk to a sliver in the middle, Safari's CSS
+     columns put 概況 all on the left). 概況, 數據 (a team's) and 資料: the
+     cards dealt into two even columns (kit flowColumns). Every other tab
+     the sheet's whole width, its own way: never a centred narrow column
+     (a grid item with auto margins shrinks to its content). */
+  .team-tab.q-flow-laid > .q-flow-col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
+  .team-tab.q-flow:is(.q-flow-laid, .q-flow-measure) > *, .team-tab.q-flow-laid > .q-flow-col > * { margin: 0; }
+  .team-tab > * { min-width: 0; }
+  /* 賽程 (a team's): 接下來 beside 已結束; one of them alone, its rows in two columns. */
+  .team-tab.tt-games:has(> .team-next + .team-next) { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; column-gap: 12px; }
+  .team-tab.tt-games > .team-next { margin: 0; }
+  .team-tab.tt-games > .team-next:only-child :is(.team-next > .q-card.list, .results-list):has(> :nth-child(6)) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 5), auto); grid-auto-flow: column; }
+  .team-tab.tt-games > .team-next:only-child :is(.team-next > .q-card.list, .results-list):has(> :nth-child(6)) > .col-top { border-top: 0; }
+  .team-tab.tt-games > .team-next:only-child :is(.team-next > .q-card.list, .results-list):has(> :nth-child(6)) > :nth-child(n + 2) { min-width: 0; }
+  /* 陣容: each group the width, its players in columns (sheets.js byPosition: 門將, 後衛, 中場, 前鋒). */
+  .team-tab.tt-roster > .q-card { container: roster / inline-size; margin: 0; }
+  /* 排名: the whole table, every column and the full names. */
+  .team-tab.tt-table .standings.compact .extra { display: table-cell; }
+  .team-tab.tt-table .standings .nm-full { display: inline; }
+  .team-tab.tt-table .standings .nm-short { display: none; }
+  /* 本場: his numbers in one or two rows across. */
+  .team-tab.tt-game .pg-stats { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+  /* A player's head: his numbers beside it, as a team's. */
+  div:has(> .player-hero + .strip-slot:not(:empty)) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; }
+  div:has(> .player-hero + .strip-slot:not(:empty)) > * { grid-column: 1 / -1; min-width: 0; }
+  div:has(> .player-hero + .strip-slot:not(:empty)) > .player-hero { grid-column: 1; margin: 4px 0 12px; }
+  div:has(> .player-hero + .strip-slot:not(:empty)) > .strip-slot { grid-column: 2; margin: 4px 0 12px; display: grid; }
+  div:has(> .player-hero + .strip-slot:not(:empty)) > .strip-slot > .team-strip { margin: 0; align-items: stretch; }
+  div:has(> .player-hero + .strip-slot:not(:empty)) > .strip-slot > .team-strip > .ts-cell { align-content: center; }
   /* A team's or a player's head: its numbers beside it, not under it. */
   div:has(> .team-hero + .team-strip) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; }
   div:has(> .team-hero + .team-strip) > * { grid-column: 1 / -1; min-width: 0; }
@@ -2854,4 +2877,22 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
     .mh-fouls { font-size: 14px; line-height: 24px; }
     .mh-bonus { font-size: 13px; line-height: 22px; padding: 0 9px; }
   }
+}
+
+/* 陣容's players in columns by the card's own width (a wide sheet's, styles above). */
+@container roster (min-width: 560px) {
+  .roster-list { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+  .roster-list > li:nth-child(2) { border-top: 0; }
+}
+@container roster (min-width: 860px) {
+  .roster-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .roster-list > li:nth-child(3) { border-top: 0; }
+}
+/* A player's game log as wide as a sheet (Jay 2026-11-06, an iPad): each
+   game one line across, the game at the left, its numbers in a row. */
+.glog { container: glog / inline-size; }
+@container glog (min-width: 640px) {
+  .glog-game { grid-template-columns: minmax(250px, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr); align-items: center; column-gap: 24px; }
+  .glog-game > .glog-more:only-of-type { grid-column: 3; }
+  .glog-big { grid-template-columns: repeat(auto-fit, minmax(56px, max-content)); column-gap: 24px; }
 }

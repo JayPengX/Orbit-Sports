@@ -2154,6 +2154,43 @@ export async function teamLeaders(league, id, side = {}) {
   }
   return parseTeamAthletes(await athletePages(l), l.sport, league, id);
 }
+// A run of the same result at the end of a list of results, oldest first: W5, L2 (a draw: D1).
+export function streakOf(results) {
+  const rs = results.filter(Boolean);
+  const last = rs.at(-1);
+  if (!last) return '';
+  let n = 0;
+  for (let i = rs.length - 1; i >= 0 && rs[i] === last; i--) n++;
+  return `${last === 'T' ? 'D' : last}${n}`;
+}
+// A club's squad from FotMob ([{ name, shirt, role: G|D|M|F, age }], the
+// proxy's fotmob-team trim), found by its names among the league's clubs:
+// ESPN's MLS rosters have wrong roles and ages (Nashville's keeper Joe
+// Willis a 25-year-old midfielder; Jay 2026-11-06). Null when not found.
+export async function squadFacts(league, side = {}) {
+  if (LEAGUES[league]?.sport !== 'soccer' || !FOTMOB_LEAGUE[league]) return null;
+  const page = await fotmobPage(league);
+  const club = page && fotmobTeamOf(page.teams || [], side, sideWords(side));
+  if (!club) return null;
+  const d = await getJson(fotmobTeamUrl(club.id), { ttl: LEADERS_TTL });
+  return Array.isArray(d?.squad) && d.squad.length ? d.squad : null;
+}
+// ESPN's roster groups with each footballer's role and age as FotMob has
+// them, matched by name (else by shirt and surname); the rest as ESPN's.
+export function squadFixed(groups, squad) {
+  if (!squad?.length) return groups;
+  const key = s => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '');
+  const last = s => key(String(s || '').trim().split(/\s+/).pop());
+  const byName = new Map(squad.map(x => [key(x.name), x]));
+  const find = p => byName.get(key(p.name)) || squad.find(x => x.shirt != null && String(x.shirt) === String(p.jersey) && last(x.name) === last(p.name));
+  return groups.map(g => ({
+    ...g,
+    players: g.players.map(p => {
+      const x = find(p);
+      return x?.role ? { ...p, pos: x.role, age: x.age ?? p.age } : p;
+    })
+  }));
+}
 // A club opened from a cup whose own league isn't one of ours (ESPN files
 // Lech Poznań under the Europa League and has no Ekstraklasa; Real Madrid's
 // LaLiga isn't followed): that league from FotMob's page of the club, found
