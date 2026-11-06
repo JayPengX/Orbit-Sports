@@ -6511,12 +6511,12 @@ function f1FormCard(runs, color, en, { gap = '', sums } = {}) {
   const yOf = r => (r.out || !r.pos ? 1 : (r.pos - 1) / (floor - 1));
   const w = 320;
   const h = 120;
-  // (Broken at a retirement: no line through a race he didn't finish.)
+  // (A retirement keeps its cross on the floor; the line joins the races
+  // either side of it, never cut: Jay 2026-11-06.)
   let d = '';
   runs.forEach((r, i) => {
     if (r.out || !r.pos) return;
-    const prev = runs[i - 1];
-    d += `${!i || prev.out || !prev.pos ? 'M' : 'L'}${(xs[i] * w).toFixed(1)},${(yOf(r) * h).toFixed(1)} `;
+    d += `${d ? 'L' : 'M'}${(xs[i] * w).toFixed(1)},${(yOf(r) * h).toFixed(1)} `;
   });
   const podium = `<rect x="0" y="0" width="${w}" height="${((2.5 / (floor - 1)) * h).toFixed(1)}" class="f1f-podium"/>`;
   const lines = [1, 10, floor].map(p => `<line x1="0" x2="${w}" y1="${(((p - 1) / (floor - 1)) * h).toFixed(1)}" y2="${(((p - 1) / (floor - 1)) * h).toFixed(1)}" class="wp-mid"/>`).join('');

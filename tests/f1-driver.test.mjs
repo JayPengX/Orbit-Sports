@@ -49,6 +49,12 @@ test("the driver's page is built from the new pieces, never the old pills and ta
   assert.match(js, /f1RunRows\(runs, en\)/);
 });
 
+test('本季走勢: the line joins the races either side of a retirement, never cut (Jay 2026-11-06)', () => {
+  const body = js.slice(js.indexOf('function f1FormCard('), js.indexOf('function f1MateCard('));
+  assert.match(body, /d \+= `\$\{d \? 'L' : 'M'\}/);
+  assert.doesNotMatch(body, /prev\.out/);
+});
+
 test("a race weekend on a wide sheet: two set columns, never CSS columns (Safari left the right half empty)", () => {
   assert.doesNotMatch(css, /\.sheet-body:has\(> \.wk-hero\)\s*\{\s*columns/);
   assert.match(css, /\.wk-cols:has\(> \.wk-side > :not\(:empty\)\)\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
