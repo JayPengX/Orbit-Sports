@@ -2528,7 +2528,8 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 /* (A pair as tall as each other: a section's card takes the rest of its height.) */
 .home-board .hb-main > .q-section { display: flex; flex-direction: column; }
 .home-board .hb-main > .q-section > .q-card:last-child { flex: 1 1 auto; }
-.home-board .hb-main > .q-hero-card { margin-top: var(--hb-head, 0px); }
+/* (The lead game keeps its own height, never stretched to a longer list beside it: its two sides the same bands whatever the day; Jay 2026-11-06: "One is fat, they should look alike".) */
+.home-board .hb-main > .q-hero-card { margin-top: var(--hb-head, 0px); align-self: start; }
 /* (更多賽事's and 已結束's cards on the board's own tracks.) */
 :root.q-wide .home-board .hb-low .q-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px var(--hb-gap); }
 :root.q-wide .home-board.wide .hb-low .q-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }

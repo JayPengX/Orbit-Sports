@@ -90,7 +90,7 @@ const layout = async (page, { width, lead, low = [], side }) =>
     { fnSrc, width, lead, low, side }
   );
 
-test('the board: three even tracks, every edge lined up, a pair as tall as each other', { skip: !chromium && 'no browser here' }, async () => {
+test('the board: three even tracks, every edge lined up, the lead game its own height', { skip: !chromium && 'no browser here' }, async () => {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
@@ -103,7 +103,8 @@ test('the board: three even tracks, every edge lined up, a pair as tall as each 
     assert.ok(Math.abs(b.left - (a.left + a.width) - (c.left - (b.left + b.width))) <= 1, 'one gap');
     assert.equal(busy.cards[0].top, busy.cards[1].top, 'the lead game level with 我的比賽’s card, not its title');
     assert.equal(busy.cards[1].top, busy.cards[2].top, 'and with 我的聯賽’s');
-    assert.equal(busy.cards[0].bottom, busy.cards[1].bottom, 'a pair as tall as each other');
+    // (Never stretched to a longer list beside it: its sides the same bands whatever the day; Jay 2026-11-06 "One is fat, they should look alike".)
+    assert.equal(busy.cards[0].bottom - busy.cards[0].top, 380, 'the lead game its own height beside a taller 我的比賽');
     // 更多賽事's cards on the same tracks as the cards above.
     for (const [i, x] of busy.low.entries()) {
       assert.ok(Math.abs(x.left - busy.tracks[i].left) <= 1 && Math.abs(x.width - busy.tracks[i].width) <= 1, `更多賽事 card ${i} on track ${i}`);

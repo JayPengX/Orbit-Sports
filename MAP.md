@@ -97,7 +97,9 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   首頁 on a tablet on its side or a computer (q-w3; Jay 2026-11-06, an iPad,
   twice: "not aligned still ugly") is a board of three even tracks and one
   gap (ui.js `homeBoard`, `settleBoard`; app.js `homeLayout`): the lead
-  game, 正在進行 and 我的比賽 a track each in pairs as tall as each other, the
+  game, 正在進行 and 我的比賽 a track each in pairs as tall as each other (the
+  lead game keeps its own height, never stretched fat beside a longer list:
+  Jay 2026-11-06), the
   lead game's card level with the cards under titles (`--hb-head`); 我的聯賽
   and 我的球隊 the third track; 更多賽事 and 已結束 on the same tracks under
   the lead pieces or across all three (`.wide`), and 我的球隊 dropped under
