@@ -5711,7 +5711,10 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
     // 連勝敗 from the games the form's chips are (Jay 2026-11-06, the Brewers:
     // the table's W5 was the regular season's end, the chips the World
     // Series' 勝勝勝敗勝); the table's while it's preseason.
-    const streak = pre ? '' : streakOf(formFrom.filter(x => x.home && x.away).map(resultOf));
+    // Every such game, not only the chips' five (Jay 2026-11-06, the
+    // Warriors: six wins in a row read W5).
+    const streakFrom = (outside ? null : leagueForm(played, id, league, Infinity, Infinity)) || played;
+    const streak = pre ? '' : streakOf(streakFrom.filter(x => x.home && x.away).map(resultOf));
     const statOf = k => (k === 'STRK' && streak ? streak : place.row.stats[k]);
     const strip = place
       ? el('div', { class: 'team-strip' }, [

@@ -54,3 +54,11 @@ test('a team’s form in one competition: its finals there, the last five, none 
   // Before a game: only what came before it.
   assert.deepEqual(leagueForm(list, '1', 'epl', Date.parse('2026-09-16T00:00Z')).map(x => x.id), ['1', '3', '5']);
 });
+
+test('a streak runs past the five form chips (the Warriors: six wins read W5)', async () => {
+  const { streakOf } = await import('../public/lib/espn.mjs');
+  const rs = ['L', 'L', 'L', 'W', 'W', 'W', 'W', 'W', 'W'];
+  const list = rs.map((r, i) => game(side('1', r === 'W' ? '110' : '90'), side('2', '100'), { id: String(i), league: 'nba', start: `2026-10-${String(10 + i).padStart(2, '0')}T02:00Z` }));
+  assert.equal(leagueForm(list, '1', 'nba').length, 5, 'the chips: five');
+  assert.equal(streakOf(leagueForm(list, '1', 'nba', Infinity, Infinity).map(x => resultFor(x, '1'))), 'W6');
+});

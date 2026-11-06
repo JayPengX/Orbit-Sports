@@ -479,9 +479,10 @@ export function resultFor(x, id) {
 // list with the team's (its schedule, the league's season); before: a game's
 // start, only what came before it. Null under three games there yet: the
 // caller's every-competition form then.
-export function leagueForm(games, id, league, before = Infinity) {
+// (count: how many of the newest; Infinity for a streak, which runs past five.)
+export function leagueForm(games, id, league, before = Infinity, count = 5) {
   const list = (games || []).filter(x => x.league === league && x.home && x.away && (x.home.id === String(id) || x.away.id === String(id)) && x.status?.state === 'post' && !x.status.void && Date.parse(x.start) < before);
-  return list.length >= 3 ? list.slice(-5) : null;
+  return list.length >= 3 ? list.slice(-count) : null;
 }
 
 // ---- A football league's matchweek (第 N 輪) ----------------------------------------
