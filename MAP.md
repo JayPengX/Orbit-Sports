@@ -261,11 +261,14 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   season's group play is on the schedule. Teams level on record settled by
   the cup's own tiebreaks (head-to-head, point differential and total points
   without overtime, last season's record, the draw; the wild card and seeds
-  the same without head-to-head), each one said under its card.
+  the same without head-to-head), each one said under its card. The map
+  goes by its own width (`.playoffs`, a container): two rounds on a phone,
+  as many as fit at 180 px from 600 px (every round of MLS's on an iPad or
+  a computer); a seed clinched is filled in the text's colour, never green.
 - **Tiebreaks** (`lib/tiebreak.mjs`): each league's official order for sides
-  level on its table, folded under the table (同分怎麼排) with the step that
-  settled each pair where the table holds it; fresh finals re-sort by those
-  steps only, ESPN's order kept past them.
+  level on its table; fresh finals re-sort by those steps only, ESPN's order
+  kept past them. Never said under a table (Jay 2026-11-06: the 同分 line
+  made the cards uneven).
 - **Where to watch** (`lib/tv.mjs`): ELTA's own schedule (exact channel,
   commentary, MAX first); NBA.com's ELTA list (`public/nba-elta.json`,
   written every 6 h by the deploy); Apple TV's page per MLS game. Past

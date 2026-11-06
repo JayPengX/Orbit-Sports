@@ -19,7 +19,7 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - A player ESPN lists with an all-star side shows his club — `public/lib/espn.mjs`: `clubOfOverview`
 - Replay and highlights on a finished game — `public/sheets.js`: `replayLink`, `精華`
 - Title race and clinch lines under tables — `public/lib/title.mjs`, `public/sheets.js`: `standingsRace`, `nextNeeds`; a line whose day (1/28) is still being read is drawn waiting, never 第 N 場 first: `clinchPending`
-- Official tiebreaks and why level sides are ordered — `public/lib/tiebreak.mjs`: `TIEBREAKS`, `tieNotes`
+- Official tiebreaks order level sides — `public/lib/tiebreak.mjs`: `TIEBREAKS`, `tableKey`
 - Picks for you on 首頁, learning from what's opened and passed over (the kit's one engine, kept on the Pass) — `public/lib/picks.mjs`, `public/app.js`: `scoreMatch`, `feedback.keep`, `whyOf`
 - 首頁's lead game with each club on its own colour, its logo on the solid tile — `public/look.js`, `public/look.css`: `paintHero`, `hc-logo`
 - 我的球隊 on 首頁: each followed team's place and its next game — `public/look.js`, `public/app.js`: `function teams`, `teamsShelf`

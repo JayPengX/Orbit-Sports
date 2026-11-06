@@ -1416,8 +1416,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .br-maybe { grid-column: 1 / 5; gap: 4px; }
 /* A place with its seed (the 8th seed game's 7: 🏀/☀️ 勝者): beside it, not under it. */
 .br-seed:not(:empty) + .br-maybe { grid-column: 2 / 5; }
-/* A side clinched at its seed (a predicted bracket's): its seed filled green, the rest still a guess. */
-.br-side.sure .br-seed, .po-sure .br-seed { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--q-green); color: #fff; font-size: 10px; }
+/* A side clinched at its seed (a predicted bracket's): its seed filled in the text's own colour, never green (Jay 2026-11-06: "I hate the green"), the rest still a guess. */
+.br-side.sure .br-seed, .po-sure .br-seed { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--q-text); color: var(--q-bg); font-size: 10px; font-weight: 700; }
 .br-tie.sure { border-style: solid; }
 /* The NBA Cup's groups in the bracket: a small table a card, its place in the quarterfinals barred. */
 .br-tie.br-group { gap: 3px; padding: 8px 9px; align-content: start; }
@@ -1438,7 +1438,7 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .br-side.maybe .br-name { color: var(--q-muted); font-weight: 600; }
 .br-note { padding-top: 6px; border-top: 1px solid var(--q-border); font-size: 11.5px; font-weight: 600; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .br-note.live { color: var(--live); }
-/* Why one of two level teams is above (the NBA Cup's tiebreaks): one line each, sheets.js tieRow. */
+/* Why one of two level teams is above (the NBA Cup's tiebreaks): one short line each. */
 .br-why { font-size: 10.5px; font-weight: 500; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .br-grow + .br-why, .br-note + .br-why { margin-top: 5px; }
 /* Two rounds: stacked, each tie full width, every name whole. */
@@ -1458,6 +1458,16 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .bracket.stacked.no-seeds .br-maybe { grid-column: 1 / 4; }
 .playoffs.waiting .br-tie { min-height: 84px; align-content: center; gap: 9px; }
 .playoffs.waiting .br-head { gap: 6px; }
+/* The bracket by its own width (an iPad, a computer, a wide sheet): as many
+   whole rounds side by side as fit at 180 px or more each, every round at
+   once where they all do (MLS's five from 1000 px), so no column stands
+   half empty beside a full one (Jay 2026-11-06: "the unbalance of card").
+   A swipe still reaches the rest; fewer rounds than room share the width. */
+.playoffs { container: bracket / inline-size; }
+@container bracket (min-width: 600px) { .bracket:not(.stacked) > .br-col { flex: 1 0 calc((100% - 2 * 18px) / 3); } .bracket:not(.stacked) { gap: 18px; scroll-snap-type: x proximity; } }
+@container bracket (min-width: 800px) { .bracket:not(.stacked) > .br-col { flex-basis: calc((100% - 3 * 18px) / 4); } }
+@container bracket (min-width: 990px) { .bracket:not(.stacked) > .br-col { flex-basis: calc((100% - 4 * 18px) / 5); } }
+@container bracket (min-width: 1170px) { .bracket:not(.stacked) > .br-col { flex-basis: calc((100% - 5 * 18px) / 6); } }
 /* What's still to play for, above a table: a quiet list, a line each. */
 .title-race {
   display: grid;
@@ -2775,12 +2785,6 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 /* A tab with one section alone: as wide as reads well (a list of games keeps its columns). */
 :root.q-wide .tab-flow:not(.q-flow-laid) > :only-child:not(:has(.game-grid, .team-cards)) { max-width: 720px; margin-inline: auto; }
 
-/* A tie on a table's zone edge: one line each, never wrapped. */
-.tie-why { margin-top: 6px; font-size: 12px; }
-.tie-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 3px 0; white-space: nowrap; }
-.tie-row + .tie-row { border-top: 1px solid var(--q-border); }
-.tie-pair { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-.tie-by { color: var(--q-muted); font-variant-numeric: tabular-nums; }
 /* Where a team's games to come cross into the next season: a quiet line with the season's name. */
 .season-break { display: flex; align-items: baseline; gap: 8px; padding: 10px 16px 8px; border-top: 1px solid var(--q-sep); background: color-mix(in srgb, var(--q-text) 4%, transparent); font-size: 13px; }
 .season-break b { font-weight: 700; color: var(--q-text); }

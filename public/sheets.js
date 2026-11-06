@@ -31,7 +31,6 @@ import { parseSearch, placeTeams } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
-import { tieNotes } from './lib/tiebreak.mjs';
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, gbShown, nextNeeds, standingsRace } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
@@ -7631,21 +7630,11 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
             )
           ])
         ]),
-        zoneLegend(g.rows, out, settled),
-        // Sides level: the league's tiebreaks, and what settled each pair (Jay, 2026-11-01).
-        top || compact ? null : tieFold(tieNotes(g, league, L()))
+        // (No 同分 line under a table: the order is the league's tiebreaks, never said; Jay 2026-11-06: it made the cards uneven.)
+        zoneLegend(g.rows, out, settled)
       ]);
     })
   );
-}
-function tieFold(n) {
-  if (!n) return null;
-  // A tie on a zone's edge only: a line each, 同分 and the step that settled it (the league's order on a tap).
-  return el('div', { class: 'tie-why', title: n.rule }, n.lines.map(x => tieRow({ ...x, a: `${L() === 'en' ? 'Level: ' : '同分 '}${x.a}` })));
-}
-// One level pair on one line: 紐約紅牛 > 紐約城 · 勝場 11–9 (the names cut before the reason is).
-export function tieRow(x, cls = '') {
-  return el('div', { class: `tie-row${cls ? ` ${cls}` : ''}` }, [el('span', { class: 'tie-pair', text: `${x.seed ? (L() === 'en' ? 'Seed ' : '種子 ') : ''}${x.a} > ${x.b}` }), el('span', { class: 'tie-by', text: x.why })]);
 }
 // The sides greyed out in a table: those with no chance left at all. A
 // league with playoffs (MLB, the NBA, MLS) keeps them greyed once its
