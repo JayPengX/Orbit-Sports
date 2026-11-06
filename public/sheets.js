@@ -3708,7 +3708,8 @@ export function gameRecap(e, d) {
   const ways = (p, line, tight) => {
     const full = playerName(p.full || p.name, 'full', p.name);
     const short = p.name && p.name !== full ? p.name : shortWords(full);
-    const way = (who, what) => ({ html: `<strong>${esc(who)}</strong><small>${esc(what)}</small>` });
+    // (The name is one of the two places that open the player, with the face: recapList.)
+    const way = (who, what) => ({ html: `<strong class="recap-hit">${esc(who)}</strong><small>${esc(what)}</small>` });
     // (Still too long, a 320 phone's G. Antetokounmpo: the last name alone, never cut.)
     const last = short.replace(/^(\S+\.\s+)+/, '');
     // (`tight`: the stats' short words; a card's lines all take them if one must: recapSame.)
@@ -3717,14 +3718,25 @@ export function gameRecap(e, d) {
     const packed = t && tight.replace(/(?<=\d) (?=[^\d\s·])/g, '').replace(/ · /g, '·');
     return [way(full, line), way(short, line), ...(t ? [{ ...way(short, tight), tight: true }] : []), ...(last !== short ? [{ ...way(last, tight || line), tight: t }] : []), ...(packed && packed !== tight ? [{ ...way(last, packed), tight: true, packed: true }] : [])];
   };
+  // One card, one game (Jay 2026-11-06, iPad: "clicking empty space of that
+  // player area will result in opening player not the match"): only a
+  // player's face or name opens the player (the face a button, the name
+  // `.recap-hit`); anything else on the card opens the game (recapList).
+  // `data-side`: the side it stands for (0 away, 1 home), its row beside
+  // that side's on a wide card.
   return best.length
     ? [
-        el('div', { class: 'recap-best' }, best.map(({ star: { p, line, tight } }) =>
-          el('button', { class: 'recap-lead', type: 'button', disabled: p.id ? null : true, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
-            personPic({ ...p, name: p.full || p.name }, e.league, 'xs round'),
+        el('div', { class: 'recap-best' }, best.map(({ s, star: { p, line, tight } }) => {
+          const name = p.full || p.name;
+          const open = p.id ? () => ctx.openPlayer(e.league, p.id, { name, logo: p.headshot }) : null;
+          const face = personPic({ ...p, name }, e.league, 'xs round');
+          const lead = el('div', { class: 'recap-lead', 'data-side': String(sides.indexOf(s)) }, [
+            open ? el('button', { class: 'recap-face recap-hit', type: 'button', 'aria-label': name }, [face]) : face,
             fitChoice(el('span', { class: 'recap-text', 'data-same': 'recap' }), ways(p, line, tight))
-          ])
-        ))
+          ]);
+          lead.openPlayer = open;
+          return lead;
+        }))
       ]
     : [];
 }

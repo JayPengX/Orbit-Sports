@@ -58,7 +58,7 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     days either side in `readAround`, once each is read) and, while the day's
     shape is up anyway, the day waits for them (3 s at most; a day already in
     is drawn at once, never its shape swapped in mid-swipe); one later than that has its room kept, empty, and fades in
-    (`.recap-in`, opacity only); both lines in the same words and size. A
+    (`.recap-in`, opacity only); both lines in the same words and size. Such a card is one game (`recapList`, `recapTap`): only a player's face (a button) or name (`.recap-hit`) opens the player, any other spot the game, a press lights the whole card; on a wide card (its list 600px and up, `@container`) who led each side stands beside that side's row (Jay 2026-11-06; `tests/home-recap-card.test.mjs`). A
     game of theirs on TV is lit (`isPickEvent`) in every list at once, not once
     首頁 has drawn its day (Jay 2026-11-04: "the games often jump in";
     `tests/home-steady.test.mjs`, Orbit-Core `tools/live-scroll.mjs`).

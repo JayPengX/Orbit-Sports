@@ -2004,8 +2004,17 @@ function recapList(games, opts) {
       if (gone < BOX_FADE) lines[0]?.classList.add('recap-in'), lines[0]?.style.setProperty('animation-delay', `-${gone}ms`);
       else boxLate.delete(k);
     }
-    return el('div', { class: 'q-card recap' }, [eventRow(e, opts), ...lines]);
+    const row = eventRow(e, opts);
+    // The card is one game: a tap anywhere on it opens the game, but a
+    // player's face or name (sheets.js gameRecap), which opens the player.
+    return el('div', { class: 'q-card recap', onclick: ev => recapTap(ev, row) }, [row, ...lines]);
   }));
+}
+function recapTap(ev, row) {
+  if (row.contains(ev.target)) return;
+  const lead = ev.target.closest?.('.recap-hit')?.closest('.recap-lead');
+  if (lead?.openPlayer) return lead.openPlayer();
+  if (row.tagName === 'BUTTON' && !row.disabled) row.click();
 }
 // Cards that scroll sideways (the kit's rail).
 // A rail of games as cards; a lone game as a row in a full-width card (one
