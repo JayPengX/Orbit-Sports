@@ -1,6 +1,7 @@
-// Reads that fail (TRUTH §7: a failed read is never "nothing there"): the
-// proxy is stood in for by a fetch that answers ESPN's pages from here, a
-// page asked for in `down` failing.
+// Reads that fail (TRUTH §7: a failed read is never "nothing there"): ESPN
+// and the proxy are stood in for by a fetch that answers ESPN's pages from
+// here, a page asked for in `down` failing (the device's read of it, then
+// the proxy's: kit DEVICE_FIRST).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -22,7 +23,7 @@ globalThis.fetch = async url => {
     });
     return new Response(`${lines.join('\n')}\n`, { status: 200 });
   }
-  const target = u.searchParams.get('url') || u.pathname;
+  const target = u.searchParams.get('url') || String(url);
   const b = answer(target);
   return b == null ? new Response('down', { status: 502 }) : new Response(b, { status: 200 });
 };

@@ -340,6 +340,21 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000, ahead = LI
   return said(noteLatest(byMlbPostseason(settleSeries(live))).map(fixTime));
 }
 
+// One game as its day's list has it, alone (ESPN's scoreboard/<id>: the same
+// game, 2-4 KB, where its day's page carries every game of the day, 6-40 KB):
+// what an open game's page reads at each beat. A failure when ESPN has it no
+// more (the page reads its day instead).
+export async function gameNow(league, id) {
+  const l = LEAGUES[league];
+  const raw = await getJson(`${SITE}/${l.espn}/scoreboard/${encodeURIComponent(id)}`, { ttl: LIVE_TTL });
+  const events = raw?.id ? parseScoreboard({ events: [raw] }, league).map(e => ({ ...e, usDay: usDayOf(e.start) })) : [];
+  if (!events.length) throw new Error(`${league}: ${id} unread`);
+  settleSeries(events);
+  if (league !== 'mlb') return noteLatest(settleSeries(events)).map(fixTime)[0];
+  const [live] = await Promise.all([withMlbLive(events), loadPostseason(events)]);
+  return noteLatest(byMlbPostseason(settleSeries(live))).map(fixTime)[0];
+}
+
 // ---- MLB's postseason over the copies ------------------------------------------------
 //
 // The days are read through the proxy, each at its own moment, so one series could show G4 待定, G5

@@ -7,7 +7,7 @@ import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, w
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
+import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -364,18 +364,38 @@ export async function openMatch(e) {
   const soon = () => e.status.state === 'in' || (e.status.state === 'pre' && Date.parse(e.start) - Date.now() < 15 * 60_000);
   const gameDays = () => [...new Set([0, 5].map(h => new Date(Date.parse(e.start) - h * 3_600_000).toISOString().slice(0, 10).replaceAll('-', '')))];
   let busy = false;
+  // At each beat the game alone (ESPN's scoreboard/<id>, 2-4 KB; its day's
+  // pages when ESPN has it there no more), and its own page (the summary,
+  // 15-90 KB: its plays, box score and the rest) only when the game moved (a
+  // score, a play, the period or its state, the count) or 15 s on, read again
+  // at the next beat while it's behind the game. Both read whole every 3 s,
+  // an open game cost one or two megabytes a minute (2026-11-06).
+  const SUMMARY_EVERY = 15_000;
+  let summaryAt = 0;
+  let moved = '';
+  const moveOf = x => JSON.stringify([x.status?.state, x.status?.period, x.home?.score, x.away?.score, x.home?.lines, x.away?.lines, x.live ? [x.live.lastId || x.live.lastPlay, x.live.balls, x.live.strikes, x.live.outs, x.live.bases, x.live.events?.length] : null]);
+  // (The page as far as the game: its score and its last play the game's.)
+  const caughtUp = sm => String(sm?.home?.score ?? '') === String(e.home?.score ?? '') && String(sm?.away?.score ?? '') === String(e.away?.score ?? '') && (!e.live?.lastId || !sm?.lastPlay?.id || sm.lastPlay.id === e.live.lastId);
   const refresh = async () => {
     if (!s.dialog.isConnected) return stop();
     if (busy || document.visibilityState !== 'visible' || !soon()) return;
     busy = true;
     try {
-      // The day's list and the game's own page asked together: one request to the proxy, not two one after the other.
       const espn = Boolean(LEAGUES[e.league].espn);
-      const [list, sm] = await Promise.all([scoreboard(e.league, espn ? gameDays() : undefined).catch(() => []), espn ? summary(e.league, e.id).catch(() => data) : null]);
-      const fresh = list.find(x => x.id === e.id);
+      const fresh = espn ? (await gameNow(e.league, e.id).catch(() => null)) || (await scoreboard(e.league, gameDays()).catch(() => [])).find(x => x.id === e.id) : (await scoreboard(e.league).catch(() => [])).find(x => x.id === e.id);
       if (fresh) e = { ...e, ...fresh };
-      if (espn) (data = behind(sm)), fillNumbers();
-      else if (e.league === 'cpbl') {
+      if (espn) {
+        const move = moveOf(e);
+        if (!data || move !== moved || Date.now() - summaryAt >= SUMMARY_EVERY) {
+          const sm = await summary(e.league, e.id).catch(() => null);
+          if (sm) {
+            summaryAt = Date.now();
+            if (caughtUp(sm)) moved = move;
+          }
+          data = behind(sm || data);
+          fillNumbers();
+        } else data = behind(data);
+      } else if (e.league === 'cpbl') {
         const sm = await cpblGame(e).catch(() => null);
         boxUnread = !sm && !data;
         data = sm || data;

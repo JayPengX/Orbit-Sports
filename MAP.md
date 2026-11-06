@@ -238,7 +238,9 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   says 預估 (cards, hero, 台灣轉播) and gives way to ELTA's listing. A league
   ELTA has in part stays 轉播待公布. `scripts/tv-guess.mjs` measures it on
   ELTA's real lists (`tests/fixtures/elta-*.json`). Replays
-  and highlights from `watch.json` (R2).
+  and highlights from `watch.json` (R2, built hourly); a game over that
+  首頁 shows and the pack doesn't have yet is looked up ahead (`prefetchVideos`),
+  any other when its page opens (one YouTube search through the proxy each).
 - **A league followed as a league** (none of its teams or players
   followed; `picks.mjs leagueChoices`): of its games starting within the
   hour of one another, the best matchup on TV here (table, odds, stakes,

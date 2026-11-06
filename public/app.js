@@ -1436,7 +1436,6 @@ function renderAll() {
     for (const e of games) byLeague.set(e.league, [...(byLeague.get(e.league) || []), e]);
     const order = { in: 0, pre: 1, post: 2 };
     const groups = [...byLeague].sort(([a], [b]) => (place.get(a) ?? 999) - (place.get(b) ?? 999));
-    prefetchVideos(games);
     const group = ([k, rows]) => {
       rows.sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
       // The league's head: its mark and name, and how many, a tap to its page that day.
@@ -1723,7 +1722,12 @@ function renderHome() {
   // (With 填滿空檔 off, nothing of the others: 首頁 is theirs alone, Jay 2026-11-04.)
   if (isToday && !liveItems.length && h.filter === 'all' && state.prefs.fill) liveItems = rankOnNow(onNow(dayAll(slot).filter(e => !practice(e) && onTv(e) && !matchOnly(e, own, keptGames(state.prefs.games)))), { ...pctx, sports: [], leagues: [] }, planKeys).filter(x => x.score >= 0.3);
   const allLive = isToday ? onNow(dayAll(slot)).filter(onTv).length : 0;
-  if (slot?.at) prefetchVideos(dayAll(slot));
+  // (Videos are looked up ahead only for the games over that 首頁 shows, theirs and the ones
+  // 填滿空檔 put in: every league's games on the day had a phone search YouTube through the
+  // proxy 80 times, one request each, on an open after a night of European cups, 2026-11-06.
+  // Any other game's comes with the pack, built every hour, or is looked up when its page
+  // opens: its row says 搜尋精華影片 meanwhile, the same size, and works as a link.)
+  if (slot?.at) prefetchVideos([...dayGames.own, ...dayGames.filled]);
   // Today's picks on now first, each marked ★ 推薦, then the rest of theirs,
   // ranked. The picks as the plan has them (picks.mjs: games that don't
   // clash, a little overlap allowed, so two can be on at once), not every
@@ -3749,7 +3753,6 @@ function renderScores() {
     strip = scoresBarEl;
     const order = { in: 0, pre: 1, post: 2 };
     const games = [...(sc.byDay.get(sc.date) || [])].sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
-    prefetchVideos(games);
     // A filter by stage only when this day has games of more than one (a cup
     // night among regular-season games): the season's preseason and regular
     // season are never on the same day, so a filter by those picks nothing.
