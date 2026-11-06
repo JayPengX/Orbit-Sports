@@ -715,7 +715,10 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .series-text { font-size: 14px; }
 .injuries { display: grid; gap: 10px; }
 .sb-group { margin: 10px 0 -2px; }
-.sb-group:first-of-type { margin-top: 0; }
+.sb-legend + .sb-set .sb-group { margin-top: 0; }
+/* A phone: the sets one list, as before (sheets.js statSets); the sides' names only on the legend. */
+.sb-set, .sb-head { display: contents; }
+.sb-side { display: none; }
 .sb-legend { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 600; }
 .sb-legend .away { color: var(--away); }
 .sb-legend .home { color: var(--home, var(--accent)); }
@@ -2588,10 +2591,21 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 @container q-sheet (min-width: 600px) {
   .match-top:not(.stack .match-top):has(> :nth-child(2)) { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   .match-top > .q-card { margin: 0; }
-  .stat-bars { display: block; columns: 2; column-gap: 32px; }
-  .stat-bars > .sb-legend { column-span: all; margin-bottom: 12px; }
-  .stat-bars > .stat-bar { break-inside: avoid; margin-bottom: 12px; }
-  .stat-bars > .sb-group { break-after: avoid; margin: 0 0 8px; }
+  /* A wide sheet (Jay 2026-11-06, an iPad: "looks shit"): each group a tile,
+     its head the two sides by the group's name, whole tiles in two columns. */
+  .stat-bars { display: block; columns: 2; column-gap: 12px; }
+  .stat-bars > .sb-legend { display: none; }
+  .sb-set { display: grid; gap: 14px; padding: 14px 16px 16px; margin: 0 0 12px; border-radius: var(--q-r-cell, 12px); background: var(--q-fill-4, var(--q-sunken)); break-inside: avoid; }
+  .sb-set.loose { break-inside: auto; display: block; background: none; padding: 0; }
+  .sb-set.loose > .stat-bar { break-inside: avoid; margin-bottom: 14px; }
+  .sb-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+  .sb-side { display: block; min-width: 0; }
+  .sb-side.away { color: var(--away); }
+  .sb-side.home { color: var(--home, var(--accent)); justify-self: end; }
+  .sb-head > .sb-group, .sb-legend + .sb-set .sb-group { margin: 0; font-size: 14px; color: var(--q-text); }
+  .sb-top { font-size: 15px; }
+  .sb-track { height: 8px; gap: 4px; }
+  .sb-track i { border-radius: 4px; }
   .tables:not(.many) .standings:not(.compact) .extra { display: table-cell; }
   .tables:not(.many) .standings:not(.compact) .nm-full { display: inline; }
   .tables:not(.many) .standings:not(.compact) .nm-short { display: none; }

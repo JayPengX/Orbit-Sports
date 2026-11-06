@@ -631,3 +631,11 @@ test("a basketball game's scorebug: timeouts used and the fouls this period, 加
   const none = parseSummary({ header: { competitions: [{ competitors: [{ id: '1', homeAway: 'home', team: { id: '1' } }] }] } }, 'nba');
   assert.equal(none.home.fouls, null);
 });
+
+test("數據's team numbers in whole groups (an iPad's columns cut 籃板與傳導 in two, 2026-11-06)", async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
+  const fn = src.match(/export function statSets\(rows\) \{[\s\S]*?\n\}/)[0].replace('export ', '');
+  const statSets = new Function(`${fn}; return statSets;`)();
+  assert.deepEqual(statSets([{ group: 'A', k: 1 }, { group: 'A', k: 2 }, { group: 'B', k: 3 }, { k: 4 }]).map(s => [s.group, s.rows.length]), [['A', 2], ['B', 1], ['', 1]]);
+  assert.match(src, /class: `sb-set\$\{group \? '' : ' loose'\}`/);
+});

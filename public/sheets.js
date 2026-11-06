@@ -1254,6 +1254,16 @@ function seasonSub(season) {
   return season?.type === 3 ? (en ? 'Postseason' : '季後賽') : en ? 'This season' : '本季';
 }
 const boxTableName = name => BOX_TABLES[String(name).toLowerCase()]?.[L() === 'en' ? 1 : 0] || name;
+// A game's team numbers in their groups, each group's rows together in the feed's order: [{ group, rows }].
+export function statSets(rows) {
+  const out = [];
+  for (const r of rows || []) {
+    const last = out.at(-1);
+    if (last && last.group === (r.group || '')) last.rows.push(r);
+    else out.push({ group: r.group || '', rows: [r] });
+  }
+  return out;
+}
 function matchSection(view, d, e, table, lw = {}) {
   const nameOf = id => d?.byId[id]?.short || d?.byId[id]?.name || (id === e.home.id ? e.home.short : id === e.away.id ? e.away.short : '');
   const tag = tagOf(d, e);
@@ -1266,7 +1276,12 @@ function matchSection(view, d, e, table, lw = {}) {
         'div',
         { class: 'stat-bars', style: `--away:${tint.away};--home:${tint.home}` },
         [el('div', { class: 'sb-legend' }, inOrder(e, [el('span', { class: 'away' }, [tag(e.away.id)]), el('span', { class: 'home' }, [tag(e.home.id)])]))].concat(
-          teamStatRows(d.teamStats, LEAGUES[e.league]?.sport, L()).flatMap((s, i, rows) => {
+          // Each group its own set (Jay 2026-11-06, an iPad: two columns cut a group in two, 抄截 under no head, the sides' names at the far edges):
+          // on a phone one list as before; on a wide sheet each set a tile, its head the two sides by the group's name, two columns of whole tiles.
+          statSets(teamStatRows(d.teamStats, LEAGUES[e.league]?.sport, L())).map(({ group, rows: set }) =>
+            el('div', { class: `sb-set${group ? '' : ' loose'}` }, [
+              group ? el('div', { class: 'sb-head' }, inOrder(e, [el('span', { class: 'sb-side away' }, [tag(e.away.id)]), el('span', { class: 'sb-side home' }, [tag(e.home.id)])]).flatMap((x, i) => (i ? [el('p', { class: 'mini-h sb-group', text: group }), x] : [x]))) : null,
+              ...set.flatMap(s => {
             const [a, h] = [statValue(s.away), statValue(s.home)];
             const [aa, hh] = [Math.abs(a ?? 0), Math.abs(h ?? 0)];
             // Which side did better: more, or fewer for ERA, errors, fouls…
@@ -1274,13 +1289,14 @@ function matchSection(view, d, e, table, lw = {}) {
             // One full line split by the two sides' shares, as the leagues' own apps draw it.
             const share = aa + hh > 0 ? (aa / (aa + hh)) * 100 : 50;
             return [
-              s.group && s.group !== rows[i - 1]?.group ? el('p', { class: 'mini-h sb-group', text: s.group }) : null,
               el('div', { class: 'stat-bar' }, [
                 el('div', { class: 'sb-top' }, (([x, y]) => [x, el('span', { text: s.label }), y])(inOrder(e, [el('strong', { class: `num${better === 'away' ? ' lead' : ''}`, text: s.away }), el('strong', { class: `num${better === 'home' ? ' lead' : ''}`, text: s.home })]))),
                 aa + hh > 0 ? el('div', { class: 'sb-track' }, inOrder(e, [el('i', { class: 'away', style: `flex-grow:${share}` }), el('i', { class: 'home', style: `flex-grow:${100 - share}` })])) : null
               ])
             ];
           })
+            ])
+          )
         )
       )
     );
