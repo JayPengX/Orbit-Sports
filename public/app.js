@@ -10,7 +10,7 @@
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, readJson, writeJson, writeStore, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
-import { stripDays, chosenOf, sportBack } from './lib/strip.mjs';
+import { stripDays, chosenOf, sportBack, sportDay } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay, playsWithin } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
@@ -2054,7 +2054,7 @@ function homeFilters() {
   if (h.picking || !state.prefs.leagues.length) return null;
   const filters = [['all', t('f_all')], ...(watched().length ? [['teams', t('f_mine')]] : state.prefs.follows.length ? [['teams', t('f_teams')]] : []), ...homeSports().filter(isActiveSport).map(sp => [sp, L(SPORTS[sp])])];
   if (filters.length < 3) return null;
-  return el('div', { class: 'q-chips day-filters q-texttabs' }, filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => h.filter !== k && ((stripRange.recenter = true), pickFilter(k)) })));
+  return el('div', { class: 'q-chips day-filters q-texttabs', 'data-noswipe': '' }, filters.map(([k, label]) => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(h.filter === k), text: label, onclick: () => h.filter !== k && ((stripRange.recenter = true), pickFilter(k)) })));
 }
 // A day changed from below the top: the page starts at its top (the strip stays in view).
 function toPageTop() {
@@ -2108,6 +2108,8 @@ async function pickFilter(k) {
   if (way.back) {
     h.date = way.back.date;
     h.backY = way.back.y;
+    // (The day they were on stays: today's games over never moves it on to the next day now.)
+    h.autoDay = false;
   }
   h.filter = k;
   h.shown = 20;
@@ -2125,9 +2127,9 @@ async function pickFilter(k) {
   }
   const days = h.sportDays.get(k);
   if (h.filter !== k) return;
-  // The next day it plays (today included), else its latest.
-  const list = [...days].sort();
-  if (list.length && !days.has(h.date)) h.date = list.find(d => d >= today()) || list.at(-1);
+  // The day left from when it plays then, else its next (today included), else its latest:
+  // never the day another sport's chip moved to (lib/strip.mjs sportDay).
+  h.date = sportDay(days, { from: h.kept?.date || h.date, today: today() });
   renderHome();
 }
 // The days (the date strip's stretch so far) a followed sport's leagues play

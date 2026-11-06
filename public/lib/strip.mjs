@@ -27,3 +27,16 @@ export function sportBack(kept, { from, to, date, y }) {
   if (from && !to) return { kept: null, back: kept };
   return { kept, back: null };
 }
+
+// The day a sport's chip opens on (Jay 2026-11-06): the day left from
+// (`from`: the one before the first sport's chip, or one picked since) when
+// the sport plays then, else its next day on from there (today at the
+// earliest), else its latest. 足球 then 籃球 opens 籃球 on today when today
+// has a game, not on the day 足球 moved to.
+export function sportDay(days, { from, today }) {
+  const list = [...days].sort();
+  if (!list.length) return from;
+  if (days.has(from)) return from;
+  const on = from > today ? from : today;
+  return list.find(d => d >= on) || list.at(-1);
+}
