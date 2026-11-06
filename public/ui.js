@@ -186,14 +186,19 @@ export function openWatch(ev, b) {
     setTimeout(() => document.removeEventListener('visibilitychange', away), 8000);
   }, 1800);
 }
+// ELTA streams in Taiwan only (its rights are Taiwan's): outside Taiwan (kit
+// abroad, 2026-11-06: Taiwan-only services closed abroad) its channel is a
+// plain label, never a link that can't play.
+export const eltaClosed = () => Boolean(kitQ.abroad?.());
+const closedHere = b => b?.svc === 'elta' && eltaClosed();
 // A link that plays a channel (`b` from tvOf: url, app), or a plain label when it can't be watched online.
-export const watchLink = (b, attrs, children) => (b.url ? el('a', { ...attrs, href: b.url, target: '_blank', rel: 'noopener', onclick: ev => openWatch(ev, b) }, children) : el('div', attrs, children));
+export const watchLink = (b, attrs, children) => (b.url && !closedHere(b) ? el('a', { ...attrs, href: b.url, target: '_blank', rel: 'noopener', onclick: ev => openWatch(ev, b) }, children) : el('div', attrs, children));
 // One tap to watch a game on now (or starting within half an hour): ▶ 觀看 and where (MAX5台,
 // 愛爾達, Apple TV), straight into the app. Null when it can't be watched.
 export function watchButton(e, cls = '') {
   const on = !e.status?.void && (e.status?.state === 'in' || (e.status?.state === 'pre' && Date.parse(e.start) - Date.now() < 30 * 60_000));
   const b = on ? watchOf(e) : null;
-  if (!b) return null;
+  if (!b || closedHere(b)) return null;
   return watchLink(b, { class: `watch-btn ${cls}`.trim(), 'aria-label': `${ctx.locale === 'en' ? 'Watch on' : '觀看'} ${b[ctx.locale === 'en' ? 'en' : 'zh']}` }, [
     el('span', { class: 'watch-play', 'aria-hidden': 'true' }),
     el('span', { class: 'watch-text' }, [el('strong', { text: ctx.locale === 'en' ? 'Watch' : '觀看' }), cls.includes('wide') ? el('small', { text: b.short[ctx.locale === 'en' ? 'en' : 'zh'] }) : null])

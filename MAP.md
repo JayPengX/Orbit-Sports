@@ -282,6 +282,8 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
 
 ## Decisions in force
 
+- **ELTA abroad** (2026-11-06): ELTA streams in Taiwan only, so outside Taiwan (kit `abroad`) its channels are labels, no ▶ 觀看 (`ui.js eltaClosed`).
+
 - Picks are only games on TV here, 05:00 to midnight. In the small hours:
   every game of your own leagues, plus one big game of any other.
 - A followed league is never hidden by a failed read.
