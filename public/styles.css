@@ -1601,6 +1601,17 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .plays-jump { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
 .plays-jump::-webkit-scrollbar { display: none; }
 .plays-jump .q-chip { flex: none; }
+/* 過程 on a wide sheet (an iPad, a computer; the sheet's own width): its way around (全部 / 得分 /
+   關鍵, the periods) a column down the left, kept in view, and the plays the rest of the width,
+   never a phone's column in the middle of the sheet. */
+@container q-sheet (min-width: 760px) {
+  .plays-wrap.with-nav { display: grid; grid-template-columns: 220px minmax(0, 1fr); column-gap: 24px; align-items: start; }
+  .plays-wrap.with-nav > .plays-nav { top: calc(var(--plays-top, 0px) + 4px); grid-row: 1 / span 2; align-content: start; gap: 12px; padding: 0; background: none; }
+  .plays-wrap.with-nav > .plays { grid-column: 2; }
+  .plays-wrap.with-nav > .plays-end { grid-column: 2; }
+  .plays-wrap.with-nav .plays-jump { flex-direction: column; overflow: visible; }
+  .plays-wrap.with-nav .plays-jump .q-chip { justify-content: flex-start; width: 100%; }
+}
 .plays li.period-head { scroll-margin-top: 150px; }
 /* A player's team in their head: its logo and name, a tap to its page. */
 .hero-team { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin: 4px 0 2px; padding: 3px 10px 3px 4px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--hero, var(--q-text)) 16%, var(--q-sunken)); color: var(--q-text); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
@@ -2666,7 +2677,6 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
   .tables:not(.many) .standings:not(.compact) .extra { display: table-cell; }
   .tables:not(.many) .standings:not(.compact) .nm-full { display: inline; }
   .tables:not(.many) .standings:not(.compact) .nm-short { display: none; }
-  .match-content .plays-wrap { max-width: 720px; margin-inline: auto; }
   /* A team's or a player's tab (sheets.js tabLayout; Jay 2026-11-06, an
      iPad: a lone card shrunk to a sliver in the middle, Safari's CSS
      columns put 概況 all on the left). 概況, 數據 (a team's) and 資料: the

@@ -110,7 +110,7 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊. 數據 holds both
     球隊 and 球員 (the box score; before the start, the season's). Every sport shares one
     先發陣容 card, one 陣容 card per side (先發 or 打序, 替補, then 未上場 or
-    傷兵 in the injury report's rows) and one 傷兵 list (three, then 全部).
+    傷兵 in the injury report's rows) and one 傷兵 list (three, then 全部). 過程 (`playsNav`): on a wide sheet (760px and up, the sheet's own width) its filter and period jumps are a column down the left, kept in view under the sheet's head, the plays the rest of the width (`.plays-wrap.with-nav`; a phone keeps the bar on top).
   - **A race weekend:** a hero (flag, circuit, countdown to the next session),
     the sessions on one timeline (a tap picks whose order shows), then F1's
     冠軍之爭, 台灣轉播, 賽道 (outline, formula1.com's figures and lap record,

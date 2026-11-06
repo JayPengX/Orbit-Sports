@@ -2597,6 +2597,9 @@ function playsNav(items, clockless, keep = { rows: new Map() }) {
   // (Watched against the sheet's own scrolling box once it's on the page: against the screen, the box's edge cut the margin off.)
   const watch = () => {
     if (typeof IntersectionObserver !== 'function' || !wrap.isConnected) return;
+    // (A wide sheet's column of ways around stays in view under the sheet's own head, its height followed.)
+    const head = !st.head && wrap.closest('.q-sheet')?.querySelector('.q-sheet-head');
+    if (head && typeof ResizeObserver === 'function') (st.head = new ResizeObserver(() => wrap.style.setProperty('--plays-top', `${head.offsetHeight}px`))).observe(head);
     if (!st.io) {
       const root = wrap.closest('.q-sheet');
       st.io = new IntersectionObserver(seen => seen.some(x => x.isIntersecting) && st.more(), { root, rootMargin: '0px 0px 2400px 0px' });
@@ -2637,7 +2640,9 @@ function playsNav(items, clockless, keep = { rows: new Map() }) {
     // guessed until then: put right just under the bar once they are.)
     const settle = (tries = 3) => {
       const scroller = wrap.closest('.q-sheet');
-      const off = node.getBoundingClientRect().top - st.nav.getBoundingClientRect().bottom;
+      // (Under the bar; beside it on a wide sheet, at the bar's top.)
+      const bar = st.nav.getBoundingClientRect();
+      const off = node.getBoundingClientRect().top - (bar.right <= node.getBoundingClientRect().left ? bar.top : bar.bottom);
       if (scroller && Math.abs(off) > 2) scroller.scrollTop += off;
       if (tries > 1) requestAnimationFrame(() => settle(tries - 1));
     };
@@ -2651,6 +2656,8 @@ function playsNav(items, clockless, keep = { rows: new Map() }) {
     put(st.nav, kinds.length > 1 ? st.filter : null, jumps);
   }
   st.nav.style.display = long ? '' : 'none';
+  // (On a wide sheet the bar is a column down the left: styles.css .plays-wrap.with-nav.)
+  wrap.classList.toggle('with-nav', long);
   if (!was) wrap.append(st.nav, ol, st.end);
   return wrap;
 }
