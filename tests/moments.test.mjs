@@ -585,3 +585,34 @@ test('sheets: an own goal is its own dot on the chart (a hollow ring, no words),
   assert.match(src, /const can = p\.id && LEAGUES/);
   assert.match(readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8'), /\.wp-moment\.og \{/);
 });
+
+// World Series game 5, Brewers at Rays, 2026-10-28 (Jay 2026-11-06): Simpson's
+// RBI double, the Rays down 4-0 with two out in the 9th, read 釀酒人 +2%. The
+// half was measured whole, to the last out, which took the Rays to 0%. A run
+// only ever helps the side that scored, in every sport's 勝率走勢.
+test("a score helps only the side that scored (Simpson's 9th-inning double for the Rays, down 4-0)", () => {
+  const s = parseSummary(fixture('mlb-ws5-2026-summary.json'), 'mlb');
+  const side = { home: { id: s.home.id, name: '光芒' }, away: { id: s.away.id, name: '釀酒人' }, en: false };
+  const list = playMoments(s.winProb, 'baseball', side);
+  const simpson = list.find(m => /Simpson/.test(m.text));
+  assert.equal(simpson.side, 'home');
+  assert.ok(simpson.delta > 0, `the Rays' gain, not the Brewers' (${simpson.delta})`);
+  // The line itself moves up (towards the Rays) on the double.
+  assert.ok(s.winProb[simpson.i].home > s.winProb[simpson.i - 1].home);
+  // Every rally: the batting side's, its number in that side's favour.
+  for (const m of list.filter(m => m.rally)) {
+    const bats = s.winProb[m.i].half === 'top' ? 'away' : 'home';
+    assert.equal(m.side, bats, m.text);
+    assert.ok(bats === 'home' ? m.delta >= 0 : m.delta <= 0, m.text);
+  }
+});
+
+test('a late goal for the side behind, the final whistle inside its five minutes: the scorer\'s lift, not the settling', () => {
+  // Home 2-0 up; the away side scores at 90' (their chance 2% → 5%), the whistle at 93' (→ 0%).
+  const times = [5280, 5340, 5400, 5430, 5460, 5520, 5580];
+  const pts = [0.98, 0.98, 0.98, 0.95, 0.95, 0.97, 1].map((home, k) => ({ home, t: times[k] }));
+  const events = [{ t: 5400, kind: 'score', play: { team: 'a', who: 'X', kind: 'goal' } }];
+  const [m] = eventMoments(pts, events, 'soccer', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false }, times);
+  assert.equal(m.side, 'away');
+  assert.ok(m.delta < 0, `the away side's lift (${m.delta})`);
+});

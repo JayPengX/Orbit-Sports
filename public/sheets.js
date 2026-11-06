@@ -1390,7 +1390,7 @@ function matchSection(view, d, e, table, lw = {}) {
       const m = p.id ? marks.get(p.id) : null;
       const runs = Boolean(m && (m.periods || m.rally));
       const delta = m ? Math.round(Math.abs(m.delta) * 100) : 0;
-      const chip = () => el('span', { class: `wp-gain ${m.side}`, style: tint[m.side] ? `--side:${tint[m.side]}` : null, text: `${m.side === 'home' ? sideShort(e.home.id) : sideShort(e.away.id)} +${delta}%` });
+      const chip = () => !delta ? null : el('span', { class: `wp-gain ${m.side}`, style: tint[m.side] ? `--side:${tint[m.side]}` : null, text: `${m.side === 'home' ? sideShort(e.home.id) : sideShort(e.away.id)} +${delta}%` });
       const what = [p.id, p.clock, said(p), p.home, p.away, p.scoring, p.team, p.pic?.id, sport === 'soccer' ? period : '', m ? [m.side, delta, m.text, m.team, runs] : 0, clockless, L()];
       // A run: a line of its own after the play that ended it (its words, its swing).
       // (Its side's logo where a play has its face; the row tinted in the shirt that side wore, the chart's colour.)
@@ -1414,7 +1414,7 @@ function matchSection(view, d, e, table, lw = {}) {
         make: () => {
           // A key play: its swing under its words (the score stays on the right).
           const line = playLine(e.league, p, side(p.team));
-          if (m && !runs) line.querySelector('.play-words')?.append(chip());
+          if (m && !runs && delta) line.querySelector('.play-words')?.append(chip());
           // (A score tinted in the shirt its side wore, as the chart colours it.)
           const by = String(p.team) === String(e.home.id) ? 'home' : String(p.team) === String(e.away.id) ? 'away' : '';
           return el('li', { class: [p.scoring ? 'scoring' : '', m && !runs ? 'key' : ''].filter(Boolean).join(' '), style: (p.scoring || (m && !runs)) && tint[by] ? `--side:${tint[by]}` : null }, [
@@ -2233,9 +2233,10 @@ function winProbCard(line, e, timeline, events = []) {
     return [when, lateClock(sport, pts[at]), score ? inOrder(e, score).join('–') : ''].filter(Boolean).join(' · ');
   };
   // Whose chance it lifted, and by how much.
-  const gain = m => `${side[m.delta >= 0 ? 'home' : 'away'].name} +${Math.round(Math.abs(m.delta) * 100)}%`;
-  // (None on a decided game's run to the result: no price there to move.)
-  const gainChip = m => pts[m.i]?.settled ? null : el('span', { class: `wp-gain ${m.side}`, style: `--side:${sideC(m.delta >= 0 ? 'home' : 'away')}`, text: gain(m) });
+  // (The moment's side, never the sign of its number: a score helps only the side that scored, Jay 2026-11-06.)
+  const gain = m => `${side[m.side].name} +${Math.round(Math.abs(m.delta) * 100)}%`;
+  // (None on a decided game's run to the result: no price there to move; none where it didn't move.)
+  const gainChip = m => pts[m.i]?.settled || !Math.round(Math.abs(m.delta) * 100) ? null : el('span', { class: `wp-gain ${m.side}`, style: `--side:${sideC(m.side)}`, text: gain(m) });
   // The key moment closest to a finger (within 2.5% of the chart), if any.
   const near = i => nearestMoment(listed, xs, i);
   // The sides in the cards' order, adding up to 100.
@@ -2269,7 +2270,7 @@ function winProbCard(line, e, timeline, events = []) {
   const weight = m => (m.always ? 2 : 0) + (m.rally ? 1 : 0) + (m.turned ? 1 : 0) + Math.abs(m.delta);
   // A moment's dot on the edge of the band of the side it helped (the home
   // side's above, the away side's below the draw), not in the draw's middle.
-  const pinY = m => (asLine ? 1 - pts[m.i].home : m.delta >= 0 ? pts[m.i].home : pts[m.i].home + (pts[m.i].draw ?? 0));
+  const pinY = m => (asLine ? 1 - pts[m.i].home : m.side === 'home' ? pts[m.i].home : pts[m.i].home + (pts[m.i].draw ?? 0));
   const dotted = [];
   // (A soccer game's goals and red cards always: Ipswich–Man City's five goals moved a favourite's price little, and none had a dot.)
   // (A goal always: Messi's 2–0 at 56' and 3–0 at 60' sat closer than the
@@ -2308,7 +2309,7 @@ function winProbCard(line, e, timeline, events = []) {
     dot.style.top = `${(dotted.includes(m) ? pinY(m) : asLine ? 1 - midAt(i) : midAt(i)) * 100}%`;
   };
   // (An own goal: a hollow ring in the colour of the side it counted for, not a goal's solid dot; no words on the line, Jay 2026-11-06.)
-  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}${m.own ? ' og' : ''}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;${m.own ? '--side' : 'background'}:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
+  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}${m.own ? ' og' : ''}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;${m.own ? '--side' : 'background'}:${sideC(m.side)}` }));
   // Each band in its side's colour (a draw's grey), the even line dashed across.
   // A white or black side's band near solid, so it never reads as the draw's grey.
   const solid = c => (hasHue(c) ? '62%' : '92%');

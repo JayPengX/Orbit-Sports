@@ -156,6 +156,12 @@ export function playText(sport, play, en, team) {
 
 // The swing's side: the home side's chance up, theirs; down, the away side's.
 const sideOf = (delta, side) => (delta >= 0 ? side.home : side.away);
+// A score only ever helps the side that scored: its swing in that side's
+// favour, 0 when the line didn't show one, never a gain for the other side
+// (Simpson's RBI double, Rays down 4-0 with two out in the 9th, read
+// 釀酒人 +2%: the half's last out had been counted as the double's, Jay 2026-11-06).
+const toward = (s, d) => (s === 'home' ? Math.max(0, d) : Math.min(0, d));
+const homeAway = (id, side) => (id == null || id === '' ? null : String(id) === String(side.home.id) ? 'home' : String(id) === String(side.away.id) ? 'away' : null);
 const teamName = (id, side) => (String(id) === String(side.home.id) ? side.home.name : String(id) === String(side.away.id) ? side.away.name : '');
 
 // Basketball, a high-scoring game where one three is just a possession (and ESPN's line jumps on one, then jumps back): before the
@@ -300,9 +306,15 @@ function baseballMoments(points, side) {
       const [l0, l1] = [lead(s0), lead(s1)];
       const turned = l0 != null && l1 != null && l1 !== l0 ? (l1 === 0 ? 'tie' : 'lead') : '';
       const said = turned ? (side.en ? (turned === 'tie' ? ' · ties it' : ' · takes the lead') : turned === 'tie' ? ' · 追平' : ' · 超前') : '';
-      const delta = vals[b] - vals[a - 1];
+      // The rally's own swing: from the batting side's low in the half before its
+      // first run to its last run (the outs after it, or a strikeout before the
+      // first hit, aren't the rally's).
+      const lift = k => (bats === 'home' ? vals[k] : -vals[k]);
+      let low = a - 1;
+      for (let k = a; k < scored[0]; k++) if (lift(k) < lift(low)) low = k;
+      const delta = toward(bats, vals[last] - vals[low]);
       const text = told ? told + total + said : (side.en ? `${team.name} score ${runs} · ${when}` : `${team.name} ${when}攻下 ${runs} 分`) + said;
-      out.push({ i: last, from: a, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON.baseball, text, pic: key != null ? points[key].play.pic : null, pics: faces.length > 1 ? faces.slice(0, 2) : null, team: team.id, src: points[key ?? last].play, rally: true, always: true, turned });
+      out.push({ i: last, from: a, delta, side: bats, icon: ICON.baseball, text, pic: key != null ? points[key].play.pic : null, pics: faces.length > 1 ? faces.slice(0, 2) : null, team: team.id, src: points[key ?? last].play, rally: true, always: true, turned });
     }
     a = i;
   }
@@ -440,12 +452,15 @@ function clutchMoments(points, sport, side) {
     if (!(sport === 'baseball' ? p.n >= 9 : lateClock(sport, p))) continue;
     // ESPN puts a score's swing on the kickoff after it: the score's.
     if (/kickoff|kicks/i.test(`${play.type} ${play.text}`)) play = points.slice(Math.max(0, g.key - 3), g.key).reverse().find(q => q.play?.scoring)?.play || play;
-    const delta = vals[g.to] - vals[g.from - 1];
+    // A score: the scoring side's (the stop's own move when the clock's other plays took it the other way).
+    const scorer = play.scoring ? homeAway(play.team, side) : null;
+    const moved = vals[g.to] - vals[g.from - 1];
+    const delta = !scorer || toward(scorer, moved) ? moved : toward(scorer, vals[g.key] - vals[g.key - 1]);
     const turned = was != null && before != null && before !== was && points.slice(g.from, g.to + 1).some(q => q.play?.scoring);
     if (Math.abs(delta) < CLUTCH && !turned) continue;
     const tied = turned && before === 0;
     const text = playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name) + (turned ? (side.en ? (tied ? ' · ties it' : ' · takes the lead') : tied ? ' · 追平' : ' · 超前') : '');
-    out.push({ i: g.key, delta, side: delta >= 0 ? 'home' : 'away', icon: ICON[sport] || '•', text, pic: play.pic, team: play.team || sideOf(delta, side).id, clutch: true, src: play, turned: turned ? (tied ? 'tie' : 'lead') : '' });
+    out.push({ i: g.key, delta, side: scorer || (delta >= 0 ? 'home' : 'away'), icon: ICON[sport] || '•', text, pic: play.pic, team: play.team || sideOf(delta, side).id, clutch: true, src: play, turned: turned ? (tied ? 'tie' : 'lead') : '' });
   }
   return [...out]
     .sort((a, b) => Number(Boolean(b.turned)) - Number(Boolean(a.turned)) || Math.abs(b.delta) - Math.abs(a.delta))
@@ -512,7 +527,6 @@ export function eventMoments(points, events, sport, side, times) {
         let k = a;
         for (let j = a; j <= z; j++) if (Math.abs(value(points[j]) - value(points[a])) > Math.abs(value(points[k]) - value(points[a]))) k = j;
         const delta = value(points[k]) - value(points[a]);
-        const mover = ev.play.team ? (String(ev.play.team) === String(side.home.id) ? 'home' : 'away') : delta >= 0 ? 'home' : 'away';
         // A check: who it helped, by where the prices settled (a penalty
         // taken from Liverpool helps Brentford, whoever ESPN names on it);
         // a goal ruled out, its spike (the goal's swing, then back).
@@ -527,9 +541,17 @@ export function eventMoments(points, events, sport, side, times) {
           return { i: k, t: ev.t, delta: net, side: net >= 0 ? 'home' : 'away', icon: '📺', text: varText(ev.play, side.en), always: ruledOut, pic: ev.play.pic, team: ev.play.team };
         }
         const text = /injury/i.test(ev.play.text || '') ? (side.en ? 'Play stopped for an injury' : '球員受傷，比賽暫停') : side.en ? 'Play stopped' : '比賽暫停';
-        return { i: k, delta, side: mover, icon: '⏸', text, always: false };
+        return { i: k, delta, side: delta >= 0 ? 'home' : 'away', icon: '⏸', text, always: false };
       }
-      const delta = value(points[i1]) - value(points[i0]);
+      // A goal: the scoring side's swing (a late one for the side behind, the
+      // final whistle inside its five minutes: its own lift, not the settling).
+      const scorer = ev.kind === 'score' ? homeAway(ev.play.team, side) : null;
+      let delta = value(points[i1]) - value(points[i0]);
+      if (scorer && !toward(scorer, delta)) {
+        let k = i0;
+        for (let j = i0; j <= i1; j++) if (Math.abs(toward(scorer, value(points[j]) - value(points[i0]))) > Math.abs(toward(scorer, value(points[k]) - value(points[i0])))) k = j;
+        delta = toward(scorer, value(points[k]) - value(points[i0]));
+      }
       // On the line's step: the first point after it with half the swing
       // made (the prices move a minute or two after the goal), so the dot
       // sits where the line jumps, not before it (the owner, 2026-10-16).
@@ -540,7 +562,8 @@ export function eventMoments(points, events, sport, side, times) {
           break;
         }
       }
-      const mover = ev.play.team ? (String(ev.play.team) === String(side.home.id) ? 'home' : 'away') : delta >= 0 ? 'home' : 'away';
+      // Whose: a goal the scorer's; a card or a missed penalty, whoever it helped.
+      const mover = scorer || (delta >= 0 ? 'home' : 'away');
       const icon = ev.kind === 'red' ? '🟥' : ev.kind === 'miss' ? '❌' : ICON[sport] || '•';
       // An own goal: told as one, its face the badge of the side it counted for (as the goal list has it), the defender
       // who put it in a small head under it (`by`, a tap to his page), never his face alone beside the other side's
