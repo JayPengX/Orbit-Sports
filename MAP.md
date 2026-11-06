@@ -293,7 +293,9 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
 - A match followed on its own is that game, never its league: its league's other games are no one's, not even the fallback 正在進行's; once over (and its final told) it leaves 追蹤 by itself.
 - A player ESPN lists with an all-star side (MLS All-Stars) is shown with his club, the side of his newest games.
 - Live refreshes patch the page in place (`put` keeps nodes and drawn pictures,
-  a laid-out `.q-flow`'s cards too); the kit's `hold-place.mjs` keeps the
+  a laid-out `.q-flow`'s cards too; a drawn picture is swapped into the new
+  drawing, `lib/pictures.mjs`, so a part kept to be put back, the team page's
+  概況, keeps logos of its own); the kit's `hold-place.mjs` keeps the
   reader's place whatever redraws (`node ../Orbit-Core/tools/live-scroll.mjs sports`).
 - Nothing jumps (2026-11-03): a day is read as one (theirs and the other
   leagues together; 首頁 reads the days either side ahead, `readAround`), its

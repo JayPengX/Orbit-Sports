@@ -19,6 +19,7 @@ import { addDays } from '#kit/format.mjs';
 import { channelsOf, watchOf, replayHint } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
 import { fold } from './lib/text.mjs';
+import { keepPictures } from './lib/pictures.mjs';
 
 export const ctx = { t: k => k, locale: 'zh', state: null, openEvent: () => {}, openTeam: () => {}, openPlayer: () => {} };
 
@@ -28,7 +29,8 @@ export const el = kitUI.h;
 // A child drawn again as the same node (the date strip) stays where it is,
 // never taken out and put back: that lost its scroll and closed an open picker.
 // A picture drawn again the same (a logo, a headshot) is the one already on
-// screen, moved over (keepPictures): a new <img>, even of a file the phone
+// screen, moved over (lib/pictures.mjs keepPictures, swapped: a part kept
+// to be put back keeps one): a new <img>, even of a file the phone
 // holds, is blank a frame or more while it decodes, and every live refresh
 // (the game sheet's every few seconds, the lists' scores) flashed every logo.
 export function put(node, ...kids) {
@@ -46,48 +48,6 @@ export function put(node, ...kids) {
   // (Or the columns themselves given new sections: a live game's 概況 refreshed in place.)
   if (node.classList?.contains('q-flow')) kitUI.flowColumns?.(node);
   else if (list.some(k => k.classList?.contains('q-flow'))) kitUI.flowColumns?.(node);
-}
-// A picture's place: its <picture> (with the dark-screen <source>) or the <img> alone.
-const pictureOf = img => (img.parentNode?.tagName === 'PICTURE' ? img.parentNode : img);
-// What makes two pictures the same: the files and the img's class (never its
-// style: a new one fades in by it).
-const pictureKey = img => {
-  const pic = pictureOf(img);
-  const sources = pic === img ? '' : [...pic.querySelectorAll('source')].map(x => `${x.getAttribute('srcset')} ${x.getAttribute('media')}`).join('|');
-  return `${img.getAttribute('src')}#${sources}#${img.className}#${pic === img ? '' : pic.className}`;
-};
-function keepPictures(node, list, keep) {
-  if (!node.firstChild || !list.length) return;
-  // The ones on screen now that have drawn, in the children going away.
-  const shown = new Map();
-  for (const c of node.children) {
-    if (keep.has(c)) continue;
-    for (const img of c.tagName === 'IMG' ? [c] : c.querySelectorAll('img')) {
-      // (Never taken from a card that stays: it would leave it without its picture.)
-      if ([...keep].some(k => k.contains?.(img))) continue;
-      if (!img.complete || !img.naturalWidth || !img.getAttribute('src')) continue;
-      const k = pictureKey(img);
-      shown.has(k) ? shown.get(k).push(img) : shown.set(k, [img]);
-    }
-  }
-  if (!shown.size) return;
-  for (let i = 0; i < list.length; i++) {
-    const c = list[i];
-    if (c.nodeType !== 1 || keep.has(c)) continue;
-    for (const img of c.tagName === 'IMG' ? [c] : [...c.querySelectorAll('img')]) {
-      const was = shown.get(pictureKey(img))?.shift();
-      if (!was) continue;
-      // (Safari picks a <picture>'s source again when it's put back on the page:
-      // a lazy one then waited, never loaded, and drew nothing, a logo gone
-      // after 賽程 and back to 概況, Jay 2026-11-03. Eager, it's the cached one at once.)
-      was.loading = 'eager';
-      const [from, to] = [pictureOf(img), pictureOf(was)];
-      if (from === c) list[i] = to;
-      else from.replaceWith(to);
-      // (The new one's alt and title: a name can change language.)
-      for (const a of ['alt', 'title']) img.hasAttribute(a) ? was.setAttribute(a, img.getAttribute(a)) : was.removeAttribute(a);
-    }
-  }
 }
 // Every screen (Orbit-Core DESIGN.md §10): on a wide screen a page's
 // sections stand in two columns, each a phone's width: what the tab answers
