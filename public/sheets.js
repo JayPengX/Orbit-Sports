@@ -811,7 +811,7 @@ export function goalTimeline(e, events) {
         const p = x.person || { name: x.who };
         // An own goal: the team it counted for (the defender's face read as his goal), the defender named under it.
         const pic = x.kind === 'own' ? logo(team.logo, team.name, 'sm') : personPic({ ...p, en: p.name }, e.league, 'sm round');
-        const tag = x.kind === 'pen' ? (en ? 'Penalty' : '點球') : x.kind === 'own' ? (en ? 'Own goal' : '對方烏龍球') : red ? (en ? 'Red card' : '紅牌') : '';
+        const tag = x.kind === 'pen' ? (en ? 'Penalty' : '點球') : x.kind === 'own' ? (en ? 'own goal' : '烏龍球') : red ? (en ? 'Red card' : '紅牌') : '';
         const can = x.kind !== 'own' && p.id && LEAGUES[e.league]?.espn && /^\d+$/.test(String(p.id));
         const who = [
           pic,
@@ -820,7 +820,7 @@ export function goalTimeline(e, events) {
             // The team's badge and who set it up (the team's name when no one did); how it
             // went in on its own line (the foot or the head, where from, the corner), each one line.
             // (An assist by a player: their face and name, a tap to their page.)
-            x.helpers?.length ? helpersLine(e.league, x.helpers) : fitLine(el('small', { class: 'lg-sub' }, [x.kind === 'own' ? el('span', { text: [x.who || p.name, tag].filter(Boolean).join(' · ') }) : teamTag(team, x.how?.help || [team.short || team.name, x.how?.shot ? '' : tag].filter(Boolean).join(' · '), e.league, { tap: false })])),
+            x.helpers?.length ? helpersLine(e.league, x.helpers) : fitLine(el('small', { class: 'lg-sub' }, [x.kind === 'own' ? el('span', { text: [x.who || p.name, tag].filter(Boolean).join(' ') }) : teamTag(team, x.how?.help || [team.short || team.name, x.how?.shot ? '' : tag].filter(Boolean).join(' · '), e.league, { tap: false })])),
             x.how?.shot ? fitLine(el('small', { class: 'lg-how', text: x.how.shot })) : null
           ])
         ];
@@ -2299,12 +2299,15 @@ function winProbCard(line, e, timeline, events = []) {
     // (the owner, 2026-10-16: a dot anywhere else looked like a moment with
     // nothing in it).
     rule.hidden = i == null;
-    dot.hidden = i == null || !dotted.includes(m);
+    // (An own goal's tag is lifted itself, the ring would sit round it.)
+    dot.hidden = i == null || !dotted.includes(m) || Boolean(m?.own);
+    pins.forEach((p, n) => p.classList.toggle('on', i != null && dotted[n] === m && Boolean(m?.own)));
     if (i == null) return;
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
     dot.style.top = `${(dotted.includes(m) ? pinY(m) : asLine ? 1 - midAt(i) : midAt(i)) * 100}%`;
   };
-  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
+  // (An own goal: a tag on the line in the colours of the side it counted for, 烏龍 / OG, not a dot like a goal's: Jay 2026-11-06.)
+  const pins = dotted.map(m => (m.own ? el('span', { class: `wp-moment og ${m.side}${pinY(m) < 0.3 ? ' below' : ''}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;--side:${sideC(m.delta >= 0 ? 'home' : 'away')}`, text: en ? 'OG' : '烏龍' }) : el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` })));
   // Each band in its side's colour (a draw's grey), the even line dashed across.
   // A white or black side's band near solid, so it never reads as the draw's grey.
   const solid = c => (hasHue(c) ? '62%' : '92%');

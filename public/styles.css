@@ -779,6 +779,14 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 /* Key moments: dotted on the line, told under it (the one at the finger, or just now), listed. */
 .wp-moment { position: absolute; width: 9px; height: 9px; border-radius: 50%; transform: translate(-50%, -50%); border: 2px solid var(--q-surface, #fff); pointer-events: none; background: var(--q-text-2); }
 .wp-moment.home { background: var(--accent); }
+/* An own goal: a small tag (烏龍 / OG) in the colours of the side it counted for, never a goal's plain dot,
+   held just above its point (below, near the top) with a dot on the point, so a goal beside it stays in sight. */
+.wp-moment.og { width: auto; height: auto; padding: 1px 4px; border: 1.5px solid var(--side); border-radius: 6px; background: color-mix(in srgb, var(--side) 24%, var(--q-surface, #fff)); color: var(--q-text); font-size: 9.5px; font-weight: 700; line-height: 1.2; letter-spacing: 0.02em; white-space: nowrap; box-shadow: 0 0 0 1.5px var(--q-surface, #fff); transform: translate(-50%, calc(-100% - 7px)); transition: transform 0.15s; }
+.wp-moment.og::after { content: ''; position: absolute; left: 50%; bottom: -13px; width: 7px; height: 7px; margin-left: -5px; border-radius: 50%; background: var(--side); border: 1.5px solid var(--q-surface, #fff); }
+.wp-moment.og.below { transform: translate(-50%, 7px); }
+.wp-moment.og.below::after { bottom: auto; top: -13px; }
+.wp-moment.og.on { transform: translate(-50%, calc(-100% - 7px)) scale(1.15); box-shadow: 0 0 0 1.5px var(--q-surface, #fff), 0 0 0 3px var(--q-text); }
+.wp-moment.og.below.on { transform: translate(-50%, 7px) scale(1.15); }
 /* An F1 race's moments: a numbered marker on the driver's line, the same number in the list. */
 .wp-moment.rc-pin { display: grid; place-items: center; width: 15px; height: 15px; border-width: 1.5px; background: var(--team, var(--q-text-2)); color: #fff; font-size: 9px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; transition: transform 0.15s; }
 .wp-moment.rc-pin.on { transform: translate(-50%, -50%) scale(1.3); }

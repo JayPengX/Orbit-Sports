@@ -125,6 +125,9 @@ export function basketEn(p) {
   const what = ft ? `free throw ${ft[1]}/${ft[2]}` : /three point/i.test(t) ? 'three' : /dunk/i.test(t) ? 'dunk' : /alley oop/i.test(t) ? 'alley-oop' : /layup/i.test(t) ? 'layup' : /hook/i.test(t) ? 'hook shot' : /tip/i.test(t) ? 'tip-in' : 'jumper';
   return `${p.who} ${what}`;
 }
+// An own goal (ESPN's own-goal in every soccer league: filed under the side
+// it counts for, the defender who put it in named on it, as the rules credit it).
+export const ownGoal = play => /own-goal/.test(String(play?.kind || ''));
 export function playText(sport, play, en, team) {
   const who = play.who || named(play.text);
   // Baseball in English, as short as the Chinese: who, what, the RBIs (ESPN's
@@ -134,6 +137,7 @@ export function playText(sport, play, en, team) {
     if (what) return [who, what].filter(Boolean).join(' ') + (play.scoring && play.value ? ` · ${play.value} RBI` : '');
   }
   if (en && sport === 'basketball' && who && /\bmakes\b|\bmade\b/i.test(play.text || '')) return basketEn({ ...play, who });
+  if (en && sport === 'soccer' && ownGoal(play) && who) return `${who} own goal`;
   if (en) return sentence(play.text) || play.type;
   if (sport === 'baseball') {
     // A lineup change before any at-bat's words ("Kelly relieved Sulser" read
@@ -145,7 +149,8 @@ export function playText(sport, play, en, team) {
   }
   // A team's own (a team rebound, a shot clock violation): the side's name, never ESPN's English.
   if (sport === 'basketball') return [play.who || team || who, basketballZh(play)].filter(Boolean).join(' ');
-  if (sport === 'soccer') return [who, play.kind === 'red' ? '紅牌' : '進球'].filter(Boolean).join(' ');
+  // (An own goal said as one, by the defender who put it in: "T. Parker 進球" beside the other side's gain read as wrong, Jay 2026-11-06.)
+  if (sport === 'soccer') return [who, play.kind === 'red' ? '紅牌' : ownGoal(play) ? '烏龍球' : '進球'].filter(Boolean).join(' ');
   return [who, play.type].filter(Boolean).join(' ');
 }
 
@@ -537,8 +542,11 @@ export function eventMoments(points, events, sport, side, times) {
       }
       const mover = ev.play.team ? (String(ev.play.team) === String(side.home.id) ? 'home' : 'away') : delta >= 0 ? 'home' : 'away';
       const icon = ev.kind === 'red' ? '🟥' : ev.kind === 'miss' ? '❌' : ICON[sport] || '•';
-      const text = ev.kind === 'miss' ? (side.en ? `${ev.play.who || ''} misses a penalty`.trim() : `${ev.play.who || ''} 12 碼罰球未進`.trim()) : playText(sport, { ...ev.play, kind: ev.kind }, side.en, teamName(ev.play.team, side));
-      return { i, t: ev.t, delta, side: mover, icon, text, always: sport === 'soccer' && ev.kind !== 'miss', pic: ev.play.pic, team: ev.play.team };
+      // An own goal: told as one, its face the badge of the side it counted for (as the goal list has it), never the defender's
+      // own face beside the other side's gain; dotted as one on the chart (sheets.js .wp-moment.og).
+      const own = sport === 'soccer' && ev.kind === 'score' && ownGoal(ev.play);
+      const text = ev.kind === 'miss' ? (side.en ? `${ev.play.who || ''} misses a penalty`.trim() : `${ev.play.who || ''} 12 碼罰球未進`.trim()) : playText(sport, { ...ev.play, kind: own ? ev.play.kind : ev.kind }, side.en, teamName(ev.play.team, side));
+      return { i, t: ev.t, delta, side: mover, icon, text, always: sport === 'soccer' && ev.kind !== 'miss', pic: own ? null : ev.play.pic, team: ev.play.team, ...(own ? { own: true } : {}) };
     })
     .filter(m => m.always || Math.abs(m.delta) >= 0.08);
   return biggest(found);
@@ -705,7 +713,7 @@ export function lateClock(sport, point) {
 // a play with nothing known said by its team's name and the kind of play.
 const SOCCER_KIND = [
   // An own goal is the team's that it counts for (ESPN files it there): its goal, the defender aside (often given to an attacker minutes later).
-  [/own-goal/, (w, team) => `${team || w} 進球（${w && w !== team ? `${w} ` : ''}烏龍）`],
+  [/own-goal/, (w, team) => `${team || w} 進球（${w && w !== team ? `${w} ` : ''}烏龍球）`],
   [/penalty---scored|goal---penalty/, w => `${w} 12 碼進球`],
   [/penalty---missed/, w => `${w} 12 碼罰球未進`],
   [/penalty---saved/, w => `${w} 12 碼罰球被撲出`],

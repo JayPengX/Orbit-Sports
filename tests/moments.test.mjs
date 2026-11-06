@@ -539,3 +539,45 @@ test('basketball: a run never counts more points than the score its row shows', 
   assert.equal(run.lead, undefined);
   assert.match(run.text, /^湖人 2\d-\d+ 超前/);
 });
+
+// Own goals (Nashville 3–2 Red Bulls, MLS 2026-11-01: Parker's at 45' and
+// Bazán's at 78', both Red Bulls defenders, both Nashville's goals). ESPN files
+// an own goal under the side it counts for and names the defender who put it in,
+// as the rules credit it, in every soccer league (EPL, Bundesliga, Serie A,
+// Scotland, the Champions League checked the same, 2026-11-06). Told as one
+// everywhere: never "T. Parker 進球" with his face beside 納什維爾 +19% (Jay 2026-11-06).
+test('soccer: an own goal is told as one, its face the side it counted for', async () => {
+  const { soccerLine } = await import('../public/lib/soccerwp.mjs');
+  const { ownGoal, feedText } = await import('../public/lib/moments.mjs');
+  const s = parseSummary(fixture('mls-own-goals-summary.json'), 'mls');
+  const own = s.events.filter(ev => ev.kind === 'score' && ownGoal(ev.play));
+  assert.deepEqual(own.map(ev => [ev.play.who, ev.play.team]), [['T. Parker', String(s.home.id)], ['J. Bazán', String(s.home.id)]]);
+  const line = soccerLine({ prior: null, timeline: s.timeline, events: s.events, status: { state: 'post', period: 2 }, homeId: s.home.id, score: { home: '3', away: '2' } });
+  const pts = line.points;
+  const side = en => ({ home: { id: s.home.id, name: '納什維爾' }, away: { id: s.away.id, name: '紐約紅牛' }, en });
+  const zh = eventMoments(pts, s.events, 'soccer', side(false), pts.map(p => p.t));
+  const ogs = zh.filter(m => m.own);
+  assert.deepEqual(ogs.map(m => m.text), ['T. Parker 烏龍球', 'J. Bazán 烏龍球']);
+  // The side it counted for: its badge for a face (no defender's photo), its gain.
+  for (const m of ogs) {
+    assert.equal(m.pic, null);
+    assert.equal(String(m.team), String(s.home.id));
+    assert.equal(m.side, 'home');
+    assert.ok(m.delta > 0);
+  }
+  // A goal of their own stays a goal, with its scorer's face.
+  const goals = zh.filter(m => !m.own && m.icon === '⚽');
+  assert.ok(goals.length === 3 && goals.every(m => /進球$/.test(m.text) && m.pic));
+  const en = eventMoments(pts, s.events, 'soccer', side(true), pts.map(p => p.t)).filter(m => m.own);
+  assert.deepEqual(en.map(m => m.text), ['T. Parker own goal', 'J. Bazán own goal']);
+  // 過程: the side's goal, the defender's own goal in brackets.
+  assert.equal(feedText('soccer', own[0].play, false, '納什維爾'), '納什維爾 進球（T. Parker 烏龍球）');
+});
+
+test('sheets: an own goal is tagged on the chart (烏龍 / OG), never a goal\'s dot, and named 烏龍球 in the goal list', () => {
+  const src = readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
+  assert.match(src, /m\.own \? el\('span', \{ class: `wp-moment og/);
+  assert.match(src, /text: en \? 'OG' : '烏龍'/);
+  assert.match(src, /x\.kind === 'own' \? \(en \? 'own goal' : '烏龍球'\)/);
+  assert.match(readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8'), /\.wp-moment\.og \{/);
+});
