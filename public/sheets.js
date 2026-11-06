@@ -707,8 +707,20 @@ function livePanel(e, sm = null) {
     e.panelShown = true;
     return el('div', { class: `live-panel${fade ? ' fade-in' : ''}` }, rows);
   }
-  // Basketball before the box score is in: the panel's shape, so it doesn't push the page down when it comes.
-  if (sport === 'basketball' && !sm) return el('div', { class: 'live-panel waiting' }, [el('div', { class: 'lp-who lp-bb' }, [0, 1].map(() => el('div', { class: 'lp-person' }, [el('i', { class: 'skel skel-face' }), skeleton([55, 80, 65, 45])]))), skeleton([18, 92, 84, 88, 76])]);
+  // Basketball before the box score is in: the panel itself in its shape (kit
+  // waiting): each side's team as it is, a face, a name and its line, 最新 and
+  // its four plays shimmering where they'll be, so nothing moves when it comes
+  // (Jay 2026-11-06: the grey bars looked bad). An older kit: the bars.
+  if (sport === 'basketball' && !sm) {
+    if (!kitUI.waiting) return el('div', { class: 'live-panel waiting' }, [el('div', { class: 'lp-who lp-bb' }, [0, 1].map(() => el('div', { class: 'lp-person' }, [el('i', { class: 'skel skel-face' }), skeleton([55, 80, 65, 45])]))), skeleton([18, 92, 84, 88, 76])]);
+    const shape = el('div', { class: 'live-panel lp-held' }, [
+      el('div', { class: 'lp-who lp-bb' }, inOrder(e, [e.away, e.home]).map(t => el('div', { class: 'lp-person' }, [personPic({ stand: true }, e.league, 'md round'), el('p', {}, [el('small', { class: 'lp-team' }, [teamTag(t, `${t.short || t.name} · ${en ? 'top scorer' : '得分王'}`, e.league, { tap: false })]), el('strong', { class: 'lp-name', text: '口口口口口' }), el('small', { class: 'num lp-line', text: en ? '00 pts 0 reb 0 ast · fouls 0' : '00分 0籃板 0助攻 · 全隊犯規 0' })])]))),
+      el('small', { class: 'lp-feed-h', text: en ? 'Latest' : '最新' }),
+      el('ol', { class: 'lp-feed' }, [0, 1, 2, 3].map(() => el('li', {}, [el('span', { class: 'num play-when', text: '0.0' }), el('span', { class: 'play-text has-face' }, [el('span', { class: 'play-face' }, [personPic({ stand: true }, e.league, 'xs round')]), el('span', { class: 'play-words' }, [el('span', { class: 'play-main play-who', text: '口口口口口' }), el('span', { class: 'play-line' }, [el('span', { class: 'play-what', text: '口口口口口口' })])])])])))
+    ]);
+    kitUI.waiting(shape, { keep: '.lp-team, .lp-feed-h' });
+    return shape;
+  }
   if (!e.live) return null;
   if (sport === 'baseball' && lv.bases) {
     rows.push(
