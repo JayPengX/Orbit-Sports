@@ -3144,17 +3144,19 @@ async function loadScores({ quiet = false } = {}) {
     if (sc.picked && sc.date && !byDay.has(sc.date)) return pickScoresDay(sc.date);
     if (!sc.date || !byDay.has(sc.date)) sc.date = liveDay || next || nearestDay(sc.days) || today();
   }
-  if (quiet) {
-    scoresQuiet = true;
-    try {
-      renderScores();
-    } finally {
-      scoresQuiet = false;
-    }
-  } else renderScores();
+  if (quiet) quietScores();
+  else renderScores();
 }
 // While set, renderScores changes the page in place (morph), not anew.
 let scoresQuiet = false;
+function quietScores() {
+  scoresQuiet = true;
+  try {
+    renderScores();
+  } finally {
+    scoresQuiet = false;
+  }
+}
 // The page as drawn, made like the new drawing with the least change: a
 // node the same kept (its scroll, its handlers), text changed in place, an
 // element whose tag, attributes or children's count differ replaced whole.
@@ -3790,8 +3792,12 @@ function renderScores() {
     // cup night's 18 drawn at once froze a league switch for most of a second
     // on a phone). A quiet refresh redraws in place, every game at once.
     const row = e => eventRow(e, { league: false, day: false });
-    const card = shown.length ? el('div', { class: 'q-card list game-grid' }, (scoresQuiet ? shown : shown.slice(0, FIRST_ROWS)).map(row)) : null;
-    if (card && !scoresQuiet) moreRows(card, shown.slice(FIRST_ROWS), row);
+    // (On a wide page the games stand in columns, filled down each in turn:
+    // there every game at once, since each few added after dealt the columns
+    // again and the cards hopped from one to another: Jay 2026-11-06, an iPad.)
+    const whole = scoresQuiet || document.documentElement.classList.contains('q-wide');
+    const card = shown.length ? el('div', { class: 'q-card list game-grid' }, (whole ? shown : shown.slice(0, FIRST_ROWS)).map(row)) : null;
+    if (card && !whole) moreRows(card, shown.slice(FIRST_ROWS), row);
     list = el('div', {}, [el('p', { class: 'day-head', text: [dayLabel(sc.date, { long: true }), wk, t('gamesN', { n: shown.length })].filter(Boolean).join(' · ') }), card || empty(t('noGames'))]);
   }
   // The league as the page's head: its name, following it at the right.
@@ -4407,7 +4413,11 @@ function showTab(tab) {
   if (tab === 'home') renderHome();
   if (tab === 'matches') {
     // (It opens on 全部, never on whichever league is followed first: F1 every time.)
-    state.scores.byDay ? renderScores() : loadScores();
+    // Back on it: the page as it was, changed in place only where a game
+    // moved (drawn anew, its games came again a few at a time and an iPad's
+    // columns dealt them again: Jay 2026-11-06, "switching back to 賽程 has
+    // shuffle"; tests/tab-return.test.mjs).
+    state.scores.byDay ? quietScores() : loadScores();
   }
   if (tab === 'live') renderLive();
   if (tab === 'following') renderFollowing();

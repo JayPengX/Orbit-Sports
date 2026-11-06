@@ -3495,8 +3495,24 @@ const overflows = n => {
   r.selectNodeContents(n);
   return r.getBoundingClientRect().width > n.getBoundingClientRect().width + 0.1;
 };
+// Every name in one go: all written, then all measured, then the long ones
+// written short and measured again (three layouts in all). One name at a
+// time, written then measured, laid the whole sheet out again for each: an
+// F1 session's order and 數據 hold a few hundred names, and a tap on 一練 /
+// 二練 froze the sheet for a second on an iPad (Jay 2026-11-06: "laggy";
+// tests/sheet-speed.test.mjs).
+function fitNameList(names) {
+  const set = (n, text) => n.textContent !== text && (n.textContent = text);
+  for (const n of names) set(n, n.dataset.full);
+  const long = names.filter(overflows);
+  for (const n of long) set(n, n.dataset.short);
+  // (Even short, too long for a 320 phone's column, "S. Gilgeous-Alexander": the surname.)
+  const still = long.filter(overflows);
+  for (const n of still) set(n, n.dataset.short.split(' ').at(-1));
+}
 const fitWatch = typeof ResizeObserver === 'function'
   ? new ResizeObserver(list => {
+      const names = [];
       for (const { target: n } of list) {
         // (A name built off the page, 數據 behind 成績, is fitted once it's on it: it was let go, and cut.)
         if (!n.isConnected) {
@@ -3504,11 +3520,9 @@ const fitWatch = typeof ResizeObserver === 'function'
           continue;
         }
         n.dataset.fitted = '1';
-        n.textContent = n.dataset.full;
-        if (overflows(n)) n.textContent = n.dataset.short;
-        // (Even short, too long for a 320 phone's column, "S. Gilgeous-Alexander": the surname.)
-        if (overflows(n)) n.textContent = n.dataset.short.split(' ').at(-1);
+        names.push(n);
       }
+      fitNameList(names);
     })
   : null;
 // The leaders' columns (數據領先): every name whole on one line. Where even a

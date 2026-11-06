@@ -76,6 +76,10 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     季後賽, 數據 (球員's leaders, 球隊: every team by each of its own stats;
     F1's 車手 and 車隊, its teams added up from the same results,
     `leaders.mjs parseF1Leaders` `crews`).
+    Back on the tab it is changed in place (`quietScores`), never drawn anew;
+    a day's games come eight first and the rest a few at a time only on a
+    phone (one column): on a wide page, whose columns would deal them again,
+    all at once (Jay 2026-11-06; `tests/tab-return.test.mjs`).
     A followed or picked game in a list is a ★ 追蹤 / ★ 推薦 pill on a softly
     lit row. F1's 賽程 is a card a weekend (`weekendCard`): a panel with the
     next session's running countdown (or the one on, or the podium) beside the
@@ -185,7 +189,9 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     })`: the league's top hundred held 3 of Nashville's 14 scorers, Jay
     2026-11-06) and kept to the team's players. A
     player's 生涯車隊 / 生涯球隊 is held the same way (`careerKey`).
-  - Long names: `fitName` (full, short, surname) and the layout gives the row: a
+  - Long names: `fitName` (full, short, surname; every name on a sheet measured
+    in one go, `fitNameList`: one by one froze an F1 session switch for a
+    second, `tests/sheet-speed.test.mjs`) and the layout gives the row: a
     play's who on its own line (`PLAY_WHO`; on a 320 phone the score under the
     clock), 關鍵時刻's time and score above who; the leaders' columns
     (`leaderCols`, `leadWatch`) drop their faces, else go one column. Never an
