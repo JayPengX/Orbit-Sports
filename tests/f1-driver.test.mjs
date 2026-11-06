@@ -34,6 +34,17 @@ test("ESPN's finishes when formula1.com's aren't in, their points counted", () =
   assert.deepEqual(runs.map(r => [r.round, r.points]), [[1, 33], [2, 18]]);
 });
 
+test("a classified retirement is a DNF on the driver's page, not a place (Leclerc P15 'Retired', Barcelona 2026)", () => {
+  const w = (round, position, positionText, status) => ({ round, e: { name: `R${round}` }, me: { result: { position, positionText, status, points: '0' }, grid: 10 } });
+  const runs = seasonRuns([w(7, '15', '15', 'Retired'), w(6, '4', '4', 'Finished')], [], r => finishOf(r, false));
+  assert.equal(runs[1].out, true);
+  assert.equal(runs[1].pos, 0);
+  assert.equal(runs[1].text, '退賽');
+  const sums = seasonSums(runs);
+  assert.equal(sums.outs, 1);
+  assert.equal(sums.average, 4);
+});
+
 test('against his teammate: races and qualifying both drove, ahead and behind', () => {
   const ev = (race, qual) => ({ sessions: [{ abbr: 'Race', status: { state: 'post' }, field: race.map(id => ({ id })) }, { abbr: 'Qual', status: { state: 'post' }, field: qual.map(id => ({ id })) }] });
   const duel = mateDuel([ev(['a', 'b'], ['b', 'a']), ev(['b', 'x'], ['a', 'b']), ev(['a', 'b'], ['a', 'b'])], 'a', 'b');

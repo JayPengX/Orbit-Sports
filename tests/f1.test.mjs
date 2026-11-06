@@ -17,6 +17,11 @@ test('a finish reads as a place or a retirement, with its reason', () => {
   assert.deepEqual(finishOf({ position: '19', positionText: 'R', status: 'Engine' }, false), { pos: 0, text: '退賽', code: 'DNF', out: true, why: '引擎' });
   assert.equal(finishOf({ position: '20', positionText: 'R', status: 'Retired' }, true).why, '');
   assert.equal(finishOf({ position: '20', positionText: 'W', status: 'Did not start' }, true).text, 'DNS');
+  // Out but classified (a number for its place, 90% run): still a DNF, its place kept (Leclerc, Barcelona 2026; Jay 2026-11-06).
+  assert.deepEqual(finishOf({ position: '15', positionText: '15', status: 'Retired' }, false), { pos: 0, text: '退賽', code: 'DNF', out: true, place: 15, why: '' });
+  assert.equal(finishOf({ position: '16', positionText: '16', status: 'Engine' }, true).why, 'Engine');
+  assert.equal(finishOf({ position: '12', positionText: '12', status: 'Lapped' }, false).pos, 12);
+  assert.equal(finishOf({ position: '13', positionText: '13', status: '+1 Lap' }, false).pos, 13);
 });
 
 test("a Jolpica race is matched to the app's weekend by date", () => {

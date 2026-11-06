@@ -97,12 +97,17 @@ export async function f1Page(kind, slug) {
 // A retirement in words (Jolpica's positionText and status).
 const OUT = { R: ['退賽', 'DNF'], D: ['取消資格', 'DSQ'], E: ['除名', 'EXC'], W: ['未出賽', 'DNS'], F: ['未晉級', 'DNQ'], N: ['未列名次', 'NC'] };
 const WHY_ZH = { Accident: '事故', Collision: '碰撞', 'Collision damage': '碰撞車損', Engine: '引擎', Gearbox: '變速箱', Transmission: '傳動系統', Hydraulics: '液壓', Brakes: '煞車', 'Power Unit': '動力單元', 'Power loss': '失去動力', 'Spun off': '打滑', Disqualified: '取消資格', Withdrew: '退出', Suspension: '懸吊', Electrical: '電子系統', Electronics: '電子系統', Overheating: '過熱', Puncture: '爆胎', Damage: '車損', Mechanical: '機械故障', 'Fuel pressure': '油壓', 'Water leak': '漏水', 'Oil leak': '漏油', Wheel: '車輪', 'Wheel nut': '輪轂螺帽', Illness: '身體不適', Driveshaft: '傳動軸', Battery: '電池', Cooling: '冷卻系統' };
+// A result as a place or out. Out but classified (90% run, so a number for
+// its place) is still out: Leclerc P15 "Retired" in Barcelona 2026 was a DNF
+// (Jay 2026-11-06); its place kept as `place`.
+const RAN = /^(Finished|Lapped|\+\d+ Laps?)$/i;
 export function finishOf(r, en) {
   if (!r) return null;
-  const out = OUT[r.positionText];
   const pos = Number(r.position);
+  const placed = !OUT[r.positionText] && r.status && !RAN.test(r.status);
+  const out = OUT[r.positionText] || (placed ? OUT[/^Did not start$/i.test(r.status) ? 'W' : 'R'] : null);
   return out
-    ? { pos: 0, text: out[en ? 1 : 0], code: out[1], out: true, why: r.status && !/^(Retired|Did not start|Lapped|Finished)$/i.test(r.status) ? (en ? r.status : WHY_ZH[r.status] || r.status) : '' }
+    ? { pos: 0, text: out[en ? 1 : 0], code: out[1], out: true, ...(placed ? { place: pos } : {}), why: r.status && !/^(Retired|Did not start|Lapped|Finished)$/i.test(r.status) ? (en ? r.status : WHY_ZH[r.status] || r.status) : '' }
     : { pos, text: `P${pos}`, out: false, why: '' };
 }
 const mapRaces = (races, key) => new Map((races || []).map(r => [r.round, r[key] || []]));
@@ -241,12 +246,11 @@ export async function raceResult(start, sprint = false, en = false) {
   const down = x => (/^(Finished|Lapped|\+\d+ Laps?)$/.test(x.status || '') ? lead - (Number(x.laps) || 0) : 0);
   return list.map(x => ({
     ...finishOf(x, en),
-    // (Out but classified, 90% run: Albon P18 in Singapore 2026, its place kept, drawn as out.)
-    ...(x.status === 'Retired' ? { out: true, text: OUT.R[en ? 1 : 0], code: 'DNF' } : {}),
     driver: x.Driver || {},
     team: x.Constructor?.name || '',
     grid: Number(x.grid) || 0,
-    // (Where a car out was put, and the laps it ran: drawn as the live board draws it.)
+    // (Where a car out was put, and the laps it ran: drawn as the live board draws it.
+    // Out but classified, 90% run: Albon P18 in Singapore 2026, its place kept, drawn as out: finishOf.)
     place: Number(x.position) || 0,
     laps: Number(x.laps) || 0,
     time: down(x) > 0 ? (en ? `+${down(x)} lap${down(x) > 1 ? 's' : ''}` : `+${down(x)} 圈`) : x.Time?.time || '',
