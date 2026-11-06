@@ -126,6 +126,17 @@ test('a finger snaps to the closest key moment, not the first one near it', asyn
   assert.equal(nearestMoment(moments, xs, 1), null);
 });
 
+test('a finger on a lap with two moments shows both (Jay 2026-11-06: 4 and 5 at lap 33, one shown)', async () => {
+  const { momentsAt } = await import('../public/lib/wpline.mjs');
+  const xs = [0, 0.25, 0.5, 0.75, 1];
+  const climb = { i: 2, kind: 'climb' };
+  const stop = { i: 2, kind: 'stop' };
+  const other = { i: 3, kind: 'lead' };
+  assert.deepEqual(momentsAt([climb, stop, other], xs, 2), [climb, stop]);
+  assert.deepEqual(momentsAt([climb, stop, other], xs, 3), [other]);
+  assert.deepEqual(momentsAt([climb, stop, other], xs, 0), []);
+});
+
 test("a market that stopped trading early (Coventry 0–3 Arsenal, its last price at 49'): held to the whistle, so 下半 sits near the middle", () => {
   const k = 1787338812;
   const timeline = [

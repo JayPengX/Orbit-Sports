@@ -131,7 +131,7 @@ const state = {
 };
 
 const q = orbitSession('match', { lang: locale });
-Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, openLeague, isFollowed, toggleFollow, track, isFollowedEvent, isFollowedGame, toggleFollowGame });
+Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, openLeague, isFollowed, toggleFollow, track, isFollowedEvent, isFollowedGame, toggleFollowGame, weekendCard });
 
 // ---- What the person follows (on the pass) ---------------------------------------------
 

@@ -159,6 +159,21 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     in two columns, `twoCols`), a player's log one game a line; 陣容 each
     group across, its players in two or three columns; 排名 every column and
     full names. A player's head has his numbers beside it, as a team's.
+  - **An F1 driver** (Jay 2026-11-06, an iPad: "legacy looking"): his
+    place, points, wins and podiums in the strip beside his head
+    (`f1Strip`); 概況: 本季走勢, every race a point with P1 at the top (a
+    retirement a cross on the floor), a finger picking one and a tap
+    opening it (`f1FormCard`), his next weekend as 賽事's own card
+    (`ctx.weekendCard`), 隊友對比 as bars for points and who finished and
+    qualified ahead (`f1MateCard`); 賽程 a row a race (`f1RunRows`, two
+    columns wide). The numbers: `lib/f1driver.mjs` (`seasonRuns`,
+    `seasonSums`, `mateDuel`).
+  - **An F1 race weekend wide** (Jay 2026-11-06, an iPad: "Big empty"): its
+    hero across, then two set columns by the sheet's width (`.wk-cols`): the
+    sessions and the chosen one's order on the left, its chances (勝率走勢)
+    and the weekend's cards on the right; never CSS columns (Safari kept it
+    all on the left). In 勝率走勢 a finger on a lap with two moments shows
+    both, each with its number (`lib/wpline.mjs momentsAt`).
   - **An F1 practice stand-in** (a team's FP1 driver): his car, sessions and
     who he is, his face from TheSportsDB (the proxy's about.json).
   - **An F1 constructor.**

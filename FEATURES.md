@@ -38,5 +38,8 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - F1 title fight live during a race — `public/sheets.js`: `fight-live`, `現在結束`
 - F1 driver comparison under a red flag: no gap, no closing rate — `public/sheets.js`: `const held = race && !over`
 - F1 過程: the race lap by lap, and each driver's own — `public/lib/f1story.mjs`, `public/sheets.js`: `raceStory`, `f1RaceStory`, `story-pick`
+- An F1 driver's page: season strip, 本季走勢 chart, next weekend card, 隊友對比 bars, a row a race — `public/sheets.js`, `public/lib/f1driver.mjs`: `f1Strip`, `f1FormCard`, `f1MateCard`, `f1RunRows`, `seasonRuns`, `mateDuel`
+- An F1 race weekend on a wide sheet: the order beside 勝率走勢 and the weekend's cards — `public/sheets.js`, `public/styles.css`: `wk-cols`, `wk-side`
+- 勝率走勢 (F1): every moment at the lap a finger is on — `public/lib/wpline.mjs`: `momentsAt`
 - An F1 driver's birthplace from formula1.com — `public/lib/f1.mjs`: `birthPlaceOf`
 - Wide screens: sections dealt into columns — `public/ui.js`: `flowColumns`

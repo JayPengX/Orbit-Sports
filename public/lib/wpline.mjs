@@ -310,3 +310,11 @@ export function nearestMoment(moments, xs, j, within = 0.025) {
   }
   return best;
 }
+
+// Every key moment at the point a finger is nearest (Jay 2026-11-06: two
+// at lap 33, Norris into the lead and Piastri's stop, showed only one): the
+// closest one and any others drawn at its very spot, in the list's order.
+export function momentsAt(moments, xs, j, within = 0.025) {
+  const near = nearestMoment(moments, xs, j, within);
+  return near ? moments.filter(m => m === near || Math.abs(xs[m.i] - xs[near.i]) < 0.004) : [];
+}

@@ -13,7 +13,7 @@ import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod, withNewest } from './lib/live.mjs';
 import { personKey, pitcherRole } from './lib/mlb.mjs';
-import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, holdToEnd, sideColors, readableOn, hasHue } from './lib/wpline.mjs';
+import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, momentsAt, holdToEnd, sideColors, readableOn, hasHue } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText, goalHowParts, basketEn, sentence } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
 import { soccerLine } from './lib/soccerwp.mjs';
@@ -22,6 +22,7 @@ import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '
 import { isFlag } from '#kit/photos.mjs';
 import { raceControlParts } from './lib/racecontrol.mjs';
 import { raceStory } from './lib/f1story.mjs';
+import { seasonRuns, seasonSums, mateDuel } from './lib/f1driver.mjs';
 import { h2hPieces, PIECE_EACH } from './lib/meetings.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
@@ -2848,15 +2849,23 @@ function raceChanceCard(line, ss, feed = null) {
   const rule = el('span', { class: 'wp-rule', hidden: true });
   const lapText = p => (byLap ? (p.lap ? (en ? `Lap ${p.lap}` : `第 ${p.lap} 圈`) : en ? 'The start' : '起跑') : stampAt([], 'f1', p.t, en));
   const open = ss.status.state === 'in' ? bands.find(b => b.i1 >= last) : null;
-  const tell = (m, label) => {
-    why.hidden = !m;
-    if (m) put(why, el('span', { class: 'wp-why-icon' }, [m.band && !m.driver ? momentGlyph(m.icon) : face(m)]), el('span', { class: 'wp-why-text' }, momentWords(m.text, label)), gainChip(m));
+  // What happened there, a line each: every moment at that point (two at one lap: both).
+  const tell = (list, label) => {
+    const ms = (Array.isArray(list) ? list : [list]).filter(Boolean);
+    why.hidden = !ms.length;
+    why.classList.toggle('many', ms.length > 1);
+    const line = m => [el('span', { class: 'wp-why-icon' }, [m.band && !m.driver ? momentGlyph(m.icon) : face(m)]), el('span', { class: 'wp-why-text' }, momentWords(m.text, label)), gainChip(m)];
+    if (ms.length === 1) put(why, ...line(ms[0]));
+    // (Each with its number, as on the line and in the list.)
+    else if (ms.length) put(why, ...ms.map(m => el('div', { class: 'wp-why-row' }, [m.band ? null : el('b', { class: 'rc-pin-n', style: `--team:${colorOf(m.k)}`, text: String(numOf(m)) }), ...line(m)])));
   };
   const show = (j, picked) => {
-    // A moment picked from the list: that one; a finger close to a stop or a lead (the closest): on it.
-    const near = picked || (j != null ? nearestMoment(moments.filter(m => !m.band), xs, j) : null);
+    // A moment picked from the list: that one; a finger close to a stop or a
+    // lead: the closest, and any other at that very lap with it.
+    const here = picked ? [picked] : j != null ? momentsAt(moments.filter(m => !m.band), xs, j) : [];
+    const near = here[0] || null;
     rows.forEach((r, k) => r.classList.toggle('on', listed[k] === picked));
-    pins.forEach((p, n) => p.classList.toggle('on', numbered[n] === near));
+    pins.forEach((p, n) => p.classList.toggle('on', here.includes(numbered[n])));
     const i = near ? near.i : j;
     const p = pts[i ?? last];
     chips.forEach((c, k) => (c.lastChild.textContent = `${Math.round(p.c[k] * 100)}%`));
@@ -2872,7 +2881,7 @@ function raceChanceCard(line, ss, feed = null) {
     const bandOf = m => bands.find(b => m.i === Math.min(b.i1, b.i0 + 1));
     const inBand = i != null && !near ? moments.find(m => m.band && bands.some(b => b === bandOf(m) && i >= b.i0 && i <= b.i1)) : null;
     if (i == null) tell(open ? moments.find(m => m.band && bandOf(m) === open) : null, open ? (en ? 'Now' : '出動中') : '');
-    else tell(near || inBand, '');
+    else tell(here.length ? here : inBand, '');
     rule.hidden = i == null;
     if (i != null) rule.style.left = `${xs[i] * 100}%`;
   };
@@ -5427,7 +5436,8 @@ function fillField(s, e) {
     const box = el('div', { class: 'stack race-box' });
     let liveTimer = () => {};
     // F1's race: each driver's chance to win (to come, on, over), read again each minute while it runs.
-    const raceBox = el('div');
+    // (Beside the order on a wide sheet, at the top of the weekend's other cards; under it on a phone.)
+    const raceBox = el('div', { class: 'race-chance' });
     let raceAt = 0;
     const loadRace = () => {
       const ss = sessions[pick];
@@ -5522,8 +5532,7 @@ function fillField(s, e) {
           const one = { ...e, id: `${weekend}~${ss.abbr}`, weekend, sessionKey: ss.abbr, session: sessionName(ss, L()), start: ss.start, official: ss.start, status: ss.status };
           return ss.status.state === 'post' ? [replayLink(one), highlights(one)].filter(Boolean) : [];
         })(),
-        holder,
-        raceBox
+        holder
       );
       loadRace();
       const draw = (rows, board, fade) => {
@@ -5588,13 +5597,17 @@ function fillField(s, e) {
       }
     };
     paint();
-    s.body.append(box);
-  }
-  // A race weekend (the owner, 2026-10-27: before its sessions the sheet
-  // stood nearly empty): the title fight, where to watch, the circuit and
-  // its weather, last year's podium there.
-  if (sessions.length) s.body.append(...[e.league === 'f1' ? titleFightCard(e) : null, twCard(e.league, e), e.league === 'f1' ? circuitCard(e, sessions) : null, e.league === 'f1' ? podiumCard(e, sessions) : null].filter(Boolean));
-  else s.body.append(twCard(e.league, e));
+    // A race weekend (the owner, 2026-10-27: before its sessions the sheet
+    // stood nearly empty): the title fight, where to watch, the circuit and
+    // its weather, last year's podium there. On a wide sheet (Jay
+    // 2026-11-06, an iPad: "Big empty" beside a race's order, Safari's CSS
+    // columns kept it all on the left): two set columns by the sheet's own
+    // width, the sessions and the chosen one's order on the left, its
+    // chances and the weekend's cards on the right; a phone: one after the
+    // other, as ever (styles.css .wk-cols).
+    const side = el('div', { class: 'stack wk-side' }, [raceBox, ...[e.league === 'f1' ? titleFightCard(e) : null, twCard(e.league, e), e.league === 'f1' ? circuitCard(e, sessions) : null, e.league === 'f1' ? podiumCard(e, sessions) : null].filter(Boolean)]);
+    s.body.append(el('div', { class: 'stack wk-cols' }, [box, side]));
+  } else s.body.append(twCard(e.league, e));
 }
 
 // A finished session's official numbers, once read (they don't change).
@@ -6438,75 +6451,176 @@ const raceWhere = name => {
   const m = String(name || '').match(/^(.+?)\s*[（(]([^）)]+)[）)]$/);
   return m ? [m[1], m[2]] : [name, ''];
 };
-// Each weekend this season, latest first, a row each opening the race: its
-// round, flag and name; per car its race finish with the sprint's under it
-// (S3); the points. A team's cars head their columns with face and name (the
-// three-letter code when three share the width); one car (a driver's own
-// page): the grid, the race and the sprint. A grid, not a table: up to three
-// cars fit a phone without scrolling.
-// `grid: false`: no grid column (ESPN's finishes, which don't say where they started).
-function f1Weekends(weekends, en, cars, { grid = true } = {}) {
+// A team's weekends this season, latest first, a row each opening the race:
+// its round, flag and name; per car its race finish with the sprint's under
+// it (S3); the points. The cars head their columns with face and name (the
+// three-letter code when three share the width). A grid, not a table: up to
+// three cars fit a phone without scrolling. (A driver's own: f1RunRows.)
+function f1Weekends(weekends, en, cars) {
   const W = (zh, eng) => (en ? eng : zh);
-  const one = cars[0]?.key === 'me';
-  const carOf = (w, c) => (c.key === 'me' ? w.me : w.rows.find(r => r.driverId === c.key));
+  const carOf = (w, c) => w.rows.find(r => r.driverId === c.key);
   const sprints = weekends.some(w => cars.some(c => carOf(w, c)?.sprint));
   const sprintOf = r => (r?.sprint ? finishOf(r.sprint, en) : null);
-  const heads = one
-    ? [grid ? W('發車', 'Grid') : null, W('正賽', 'Race'), sprints ? W('衝刺', 'Sprint') : null].filter(Boolean).map(t => el('span', { class: 'rw-h', text: t }))
-    : cars.map(c => el('span', { class: 'rw-h rw-car', title: c.full || null }, [c.full ? personPic({ name: c.full }, 'f1', 'xs round') : null, el('span', { text: cars.length > 2 ? c.code || c.head : c.head })]));
-  const cols = one ? heads.length : cars.length;
-  const list = el('div', { class: 'race-weeks', style: `--cols:${cols}` }, [
+  const heads = cars.map(c => el('span', { class: 'rw-h rw-car', title: c.full || null }, [c.full ? personPic({ name: c.full }, 'f1', 'xs round') : null, el('span', { text: cars.length > 2 ? c.code || c.head : c.head })]));
+  const list = el('div', { class: 'race-weeks', style: `--cols:${cars.length}` }, [
     el('div', { class: 'rw-row rw-head' }, [el('span'), el('span', { class: 'rw-h left', text: W('分站', 'Race') }), ...heads, el('span', { class: 'rw-h', text: W('得分', 'Pts') })]),
     ...weekends.map(w => {
       const open = w.e ? () => ctx.openEvent(splitWeekend(w.e, Date.now(), L()).find(x => x.sessionKey === 'Race') || w.e) : null;
       const [name, where] = raceWhere(w.e?.name || w.name);
-      const cells = one
-        ? (r => [
-            grid ? el('span', { class: 'rw-cell num muted', text: r?.grid ? String(r.grid) : r ? W('維修區', 'Pit') : '–' }) : null,
-            el('span', { class: 'rw-cell' }, [finishPill(finishOf(r?.result, en))]),
-            sprints ? el('span', { class: 'rw-cell' }, [r?.sprint ? finishPill(sprintOf(r)) : el('span', { class: 'muted', text: '' })]) : null
-          ])(w.me).filter(Boolean)
-        : cars.map(c => {
-            const r = carOf(w, c);
-            const sp = sprintOf(r);
-            return el('span', { class: 'rw-cell' }, [finishPill(finishOf(r?.result, en)), sp ? el('small', { class: `rw-sprint num${sp.pos && sp.pos <= 3 ? ' podium' : ''}`, text: `S${sp.out ? '–' : sp.pos || ''}` }) : null]);
-          });
-      const pts = one ? Number(w.me?.result?.points || 0) + Number(w.me?.sprint?.points || 0) : w.points;
+      const cells = cars.map(c => {
+        const r = carOf(w, c);
+        const sp = sprintOf(r);
+        return el('span', { class: 'rw-cell' }, [finishPill(finishOf(r?.result, en)), sp ? el('small', { class: `rw-sprint num${sp.pos && sp.pos <= 3 ? ' podium' : ''}`, text: `S${sp.out ? '–' : sp.pos || ''}` }) : null]);
+      });
       return el(open ? 'button' : 'div', { class: 'rw-row', type: open ? 'button' : null, onclick: open }, [
         el('span', { class: 'rw-round num', text: String(w.round || '') }),
         el('span', { class: 'rw-race' }, [raceFlag(w.e), el('span', { class: 'rw-name' }, [el('span', { text: name }), where ? el('small', { class: 'muted', text: where }) : null])]),
         ...cells,
-        el('strong', { class: `rw-pts num${Number(pts) ? '' : ' muted'}`, text: String(pts) })
+        el('strong', { class: `rw-pts num${Number(w.points) ? '' : ' muted'}`, text: String(w.points) })
       ]);
     })
   ]);
-  return card(W('本季每站', 'Race by race'), list, { sub: sprints && !one ? W('S：衝刺賽名次', 'S: sprint finish') : '' });
+  return card(W('本季每站', 'Race by race'), list, { sub: sprints ? W('S：衝刺賽名次', 'S: sprint finish') : '' });
+}
+// ---- An F1 driver's page (Jay 2026-11-06, an iPad: "legacy looking" beside
+// the rest of the app). His season's numbers beside his head (a strip, as
+// every player's); his season as a line, race by race (本季走勢); his next
+// weekend as 賽事's own card; him against his teammate as bars; 賽程 a row a
+// race. lib/f1driver.mjs has the numbers.
+
+// The strip beside the head: his place, points, wins and podiums.
+function f1Strip(champ, sums, en) {
+  const W = (zh, eng) => (en ? eng : zh);
+  const cells = [
+    champ?.pos ? [`P${champ.pos}`, W('車手排名', 'Place'), true] : null,
+    champ ? [String(champ.points ?? 0), W('積分', 'Points')] : null,
+    sums.races ? [String(sums.wins), W('分站冠軍', 'Wins')] : null,
+    sums.races ? [String(sums.podiums), W('頒獎台', 'Podiums')] : null
+  ].filter(Boolean);
+  return cells.length > 1 ? el('div', { class: 'team-strip f1-strip' }, cells.map(([v, k, lead]) => el('div', { class: `ts-cell${lead ? ' lead' : ''}` }, [el('strong', { class: 'num', text: v }), el('small', { text: k })]))) : null;
+}
+// 本季走勢: every race this season as a point, P1 at the top, joined in order
+// (a retirement a cross on the floor, the line broken there), the podium's
+// band faint behind. A finger (or a mouse) on it picks a race: its name,
+// place and points over the chart, a tap there opens it; the latest at first.
+function f1FormCard(runs, color, en, { gap = '', sums } = {}) {
+  const W = (zh, eng) => (en ? eng : zh);
+  if (runs.length < 2) return null;
+  const floor = Math.max(20, ...runs.map(r => r.pos || 0));
+  const xs = runs.map((r, i) => (runs.length === 1 ? 0.5 : i / (runs.length - 1)));
+  const yOf = r => (r.out || !r.pos ? 1 : (r.pos - 1) / (floor - 1));
+  const w = 320;
+  const h = 120;
+  // (Broken at a retirement: no line through a race he didn't finish.)
+  let d = '';
+  runs.forEach((r, i) => {
+    if (r.out || !r.pos) return;
+    const prev = runs[i - 1];
+    d += `${!i || prev.out || !prev.pos ? 'M' : 'L'}${(xs[i] * w).toFixed(1)},${(yOf(r) * h).toFixed(1)} `;
+  });
+  const podium = `<rect x="0" y="0" width="${w}" height="${((2.5 / (floor - 1)) * h).toFixed(1)}" class="f1f-podium"/>`;
+  const lines = [1, 10, floor].map(p => `<line x1="0" x2="${w}" y1="${(((p - 1) / (floor - 1)) * h).toFixed(1)}" y2="${(((p - 1) / (floor - 1)) * h).toFixed(1)}" class="wp-mid"/>`).join('');
+  const dots = runs.map((r, i) => el('span', { class: `f1f-dot${r.out ? ' out' : ''}${r.pos === 1 ? ' win' : ''}`, style: `left:${(xs[i] * 100).toFixed(2)}%;top:${(yOf(r) * 100).toFixed(2)}%` }));
+  const rule = el('span', { class: 'wp-rule' });
+  const read = el('button', { class: 'f1f-read', type: 'button' });
+  let at = runs.length - 1;
+  const show = i => {
+    at = i;
+    const r = runs[i];
+    dots.forEach((n, k) => n.classList.toggle('on', k === i));
+    rule.style.left = `${(xs[i] * 100).toFixed(2)}%`;
+    const [name] = raceWhere(r.name);
+    put(
+      read,
+      raceFlag(r.e) || el('span', { class: 'race-flag' }),
+      el('span', { class: 'f1f-read-text' }, [el('strong', { text: name }), el('small', { class: 'muted num', text: [W(`第 ${r.round} 站`, `Round ${r.round}`), r.grid ? W(`發車 ${r.grid}`, `Grid ${r.grid}`) : '', r.sprint > 0 ? W(`衝刺 P${r.sprint}`, `Sprint P${r.sprint}`) : ''].filter(Boolean).join(' · ') })]),
+      el('span', { class: 'f1f-read-fin' }, [el('strong', { class: `num${r.out ? ' out' : ''}`, text: r.text }), el('small', { class: 'muted num', text: W(`${r.points} 分`, `${r.points} pts`) })]),
+      r.e ? el('span', { class: 'f1f-chev', 'aria-hidden': 'true', text: '›' }) : null
+    );
+    read.disabled = !r.e;
+  };
+  read.onclick = () => {
+    const r = runs[at];
+    if (r?.e) ctx.openEvent(splitWeekend(r.e, Date.now(), L()).find(x => x.sessionKey === 'Race') || r.e);
+  };
+  const pick = ev => {
+    const b = plot.getBoundingClientRect();
+    const f = Math.min(1, Math.max(0, (ev.clientX - b.left) / b.width));
+    let best = 0;
+    xs.forEach((x, k) => Math.abs(x - f) < Math.abs(xs[best] - f) && (best = k));
+    if (best !== at) show(best);
+  };
+  let held = false;
+  const plot = el(
+    'div',
+    {
+      class: 'wp-plot f1f-plot',
+      onpointerdown: ev => ((held = true), plot.setPointerCapture?.(ev.pointerId), pick(ev)),
+      onpointermove: ev => (held || ev.pointerType === 'mouse') && pick(ev),
+      onpointerup: () => (held = false),
+      onpointercancel: () => (held = false)
+    },
+    [el('div', { html: `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart f1f-chart" aria-hidden="true">${podium}${lines}<path d="${d}" class="f1f-line" style="stroke:${color || 'var(--q-label)'}"/></svg>` }), rule, ...dots]
+  );
+  plot.style.setProperty('--team', color || 'var(--q-label)');
+  show(at);
+  const axis = el('div', { class: 'f1f-axis', 'aria-hidden': 'true' }, [el('span', { text: 'P1' }), el('span', { text: 'P10' }), el('span', { text: `P${floor}` })]);
+  const foot = [sums?.best ? W(`最佳 P${sums.best}`, `Best P${sums.best}`) : '', sums?.average ? W(`平均 P${sums.average.toFixed(1)}`, `Average P${sums.average.toFixed(1)}`) : '', sums?.outs ? W(`退賽 ${sums.outs} 次`, `${sums.outs} DNF`) : ''].filter(Boolean).join(' · ');
+  return card(W('本季走勢', 'Season so far'), el('div', { class: 'f1-form' }, [read, el('div', { class: 'f1f-box' }, [axis, plot]), foot ? el('p', { class: 'f1f-foot muted num', text: foot }) : null]), { sub: gap ? W(`落後領先者 ${gap} 分`, `${gap} behind the leader`) : '' });
+}
+// 隊友對比: the two of them at either end, then a bar a measure, his share
+// in the team's colour, the teammate's in its lighter tint; the bigger number
+// in the label's colour, the other grey.
+function f1MateCard(me, mate, duel, color, en) {
+  const W = (zh, eng) => (en ? eng : zh);
+  const side = (p, they) => el(they ? 'button' : 'div', { class: `duel-who${they ? ' them' : ''}`, type: they ? 'button' : null, onclick: they ? () => ctx.openPlayer('f1', p.id, p.row) : null }, [personPic(p.pic, 'f1', 'lg round'), el('span', { class: 'duel-name' }, [el('strong', { text: p.name }), el('small', { class: 'muted num', text: p.line })])]);
+  const rows = [
+    [W('積分', 'Points'), Number(me.points) || 0, Number(mate.points) || 0],
+    duel.race[0] + duel.race[1] ? [W('正賽名次較前', 'Ahead in races'), ...duel.race] : null,
+    duel.quali[0] + duel.quali[1] ? [W('排位名次較前', 'Ahead in qualifying'), ...duel.quali] : null
+  ].filter(Boolean);
+  return card(
+    W('隊友對比', 'Against his teammate'),
+    el('div', { class: 'duel', style: `--team:${color || 'var(--q-label)'}` }, [
+      el('div', { class: 'duel-head' }, [side(me), side(mate, true)]),
+      ...rows.map(([k, a, b]) => {
+        const share = a + b ? a / (a + b) : 0.5;
+        return el('div', { class: 'duel-row' }, [
+          el('strong', { class: `duel-v num${a >= b ? ' more' : ''}`, text: String(a) }),
+          el('span', { class: 'duel-mid' }, [el('small', { class: 'muted', text: k }), el('span', { class: 'duel-bar' }, [el('i', { class: 'me', style: `flex-grow:${Math.max(0.02, share)}` }), el('i', { class: 'mate', style: `flex-grow:${Math.max(0.02, 1 - share)}` })])]),
+          el('strong', { class: `duel-v num${b >= a ? ' more' : ''}`, text: String(b) })
+        ]);
+      })
+    ])
+  );
+}
+// 賽程: a row a race, the latest first, each opening it: the flag, the race
+// (its round, where he started and the sprint under it), his place (a
+// retirement in red, its cause under it) and the points.
+function f1RunRows(runs, en) {
+  const W = (zh, eng) => (en ? eng : zh);
+  return [...runs].reverse().map(r => {
+    const [name, where] = raceWhere(r.name);
+    const moved = r.grid && r.pos && !r.out ? r.grid - r.pos : 0;
+    const open = r.e ? () => ctx.openEvent(splitWeekend(r.e, Date.now(), L()).find(x => x.sessionKey === 'Race') || r.e) : null;
+    return el(open ? 'button' : 'div', { class: 'f1-run', type: open ? 'button' : null, onclick: open }, [
+      raceFlag(r.e) || el('span', { class: 'race-flag' }),
+      el('span', { class: 'f1-run-text' }, [
+        el('strong', {}, [el('span', { text: name }), where ? el('small', { class: 'muted', text: ` ${where}` }) : null]),
+        // (Where he started and what it made, the sprint, a retirement's cause: one line at 320.)
+        el('small', { class: 'muted num' }, joinNodes([
+          r.grid ? el('span', {}, [W(`發車 ${r.grid}`, `Grid ${r.grid}`), moved ? el('span', { class: `f1-run-moved ${moved > 0 ? 'up' : 'down'}`, text: ` ${moved > 0 ? '▲' : '▼'}${Math.abs(moved)}` }) : null]) : null,
+          r.sprint > 0 ? W(`衝刺 P${r.sprint}`, `Sprint P${r.sprint}`) : r.sprint < 0 ? W('衝刺退賽', 'Sprint DNF') : null,
+          r.out && r.why ? r.why : null,
+          r.grid || r.sprint || (r.out && r.why) ? null : W(`第 ${r.round} 站`, `Round ${r.round}`)
+        ].filter(Boolean), ' · '))
+      ]),
+      el('span', { class: 'f1-run-fin' }, [el('strong', { class: `num${r.out ? ' out' : r.pos === 1 ? ' win' : r.pos <= 3 ? ' podium' : ''}`, text: r.text }), el('small', { class: 'muted num', text: W(`${r.points} 分`, `${r.points} pts`) })])
+    ]);
+  });
 }
 // A fact with its mark (a team's badge, a country's flag) before it; the text alone without one.
 const withMark = (mark, text) => (text && mark ? el('span', { class: 'fact-mark' }, [mark, el('span', { text })]) : text);
-// The next race weekend, to tap: its flag, name and circuit, how soon the
-// race is, and the sessions still to come (each opening its own sheet).
-function nextRaceCard(e, en) {
-  const W = (zh, eng) => (en ? eng : zh);
-  const left = splitWeekend(e, Date.now(), L()).filter(x => x.status.state !== 'post');
-  const race = left.find(x => x.sessionKey === 'Race') || left.at(-1) || e;
-  const days = Math.round((Date.parse(localDate(Date.parse(race.official || race.start))) - Date.parse(today())) / 86_400_000);
-  const soon = days <= 0 ? W('今天', 'Today') : days === 1 ? W('明天', 'Tomorrow') : W(`${days} 天後`, `In ${days} days`);
-  return el('button', { class: 'q-card next-race', type: 'button', onclick: () => ctx.openEvent(race) }, [
-    el('div', { class: 'next-race-head' }, [
-      raceFlag(e, 'big'),
-      el('span', { class: 'next-race-text' }, [el('small', { class: 'muted', text: W('下一站', 'Next race') }), el('strong', { text: e.name }), e.venue ? el('small', { class: 'muted', text: e.venue }) : null]),
-      el('span', { class: 'next-race-soon', text: soon })
-    ]),
-    left.length > 1
-      ? el(
-          'div',
-          { class: 'next-race-sessions' },
-          left.map(x => el('span', { class: `nr-sess${x === race ? ' main' : ''}`, onclick: ev => (ev.stopPropagation(), ctx.openEvent(x)) }, [sessionTag(x), el('small', { class: 'num', text: `${dayLabel(localDate(Date.parse(x.official || x.start)))} ${clock(shownStart(x))}` })]))
-        )
-      : el('small', { class: 'muted num', text: whenOf(race) })
-  ]);
-}
 // A moment's sign where it has no face or badge, drawn (an emoji in the
 // list looked out of place: the owner, 2026-10-18): play stopped, VAR, a red
 // card or flag, a safety car, the chequered flag, out, a pit stop, a ball.
@@ -6687,35 +6801,21 @@ export async function openPlayer(league, id, fallback = {}) {
           tile(W('平均名次', 'Average finish'), `P${(finishes.reduce((x, y) => x + y, 0) / finishes.length).toFixed(1)}`)
         ]
       : [];
-    // Their teammate (same car, the fairest yardstick): points, place, and who finished ahead race by race.
+    // Their season race by race (formula1.com's, else ESPN's finishes) and its sums.
+    const runs = sport === 'racing' ? seasonRuns(weekends, raceRows, r => finishOf(r, en), (pos, sp) => (RACE_PTS[pos - 1] || 0) + (SPRINT_PTS[sp - 1] || 0)) : [];
+    const sums = seasonSums(runs);
+    // Their teammate (same car, the fairest yardstick): points, place, and who finished (and qualified) ahead.
     const mateRow = driver?.team ? table?.flatMap(g => g.rows).find(r => r.athlete && r.id !== String(id) && f1Driver(r.en || r.name).team === driver.team) : null;
     const mate = mateRow ? driverSeason(table, mateRow.id) : null;
-    let ahead = 0;
-    let behind = 0;
-    if (mate) {
-      for (const e of races || []) {
-        const race = (e.sessions || []).find(x => x.abbr === 'Race' && x.status.state === 'post');
-        const me = race ? race.field.findIndex(c => c.id === String(id)) : -1;
-        const them = race ? race.field.findIndex(c => c.id === mateRow.id) : -1;
-        if (me >= 0 && them >= 0) me < them ? ahead++ : behind++;
-      }
-    }
     const mateName = mateRow ? (en ? mateRow.en || mateRow.name : f1Driver(mateRow.en || mateRow.name).zh) : '';
+    const placeLine = c => (c ? W(`P${c.pos} · ${c.points} 分`, `P${c.pos} · ${c.points} pts`) : '');
     const mateCard = mate
-      ? card(
-          W(`隊友對比 · ${mateName}`, `Against teammate ${mateName}`),
-          el('div', { class: 'mate-grid' }, [
-            el('span'),
-            el('span', { class: 'mate-who mate-me' }, [personPic({ id, name: a.name, headshot: a.headshot, logo: fallback.logo }, league, 'lg round'), el('strong', { text: name })]),
-            el('button', { class: 'mate-who mate-them', type: 'button', onclick: () => ctx.openPlayer(league, mateRow.id, mateRow) }, [personPic(mateRow, league, 'lg round'), el('strong', { text: `${mateName} ›` })]),
-            ...[
-              [W('排名', 'Place'), `P${champ?.pos ?? '–'}`, `P${mate.pos}`, (champ?.pos ?? 99) < mate.pos],
-              [W('積分', 'Points'), String(champ?.points ?? '–'), String(mate.points), Number(champ?.points) > Number(mate.points)],
-              ahead + behind ? [W('正賽名次較前', 'Ahead in races'), String(ahead), String(behind), ahead > behind] : null
-            ]
-              .filter(Boolean)
-              .flatMap(([k, x, y, win]) => [el('span', { class: 'mate-k', text: k }), el('strong', { class: `num${win ? ' mate-win' : ''}`, text: x }), el('strong', { class: `num${!win && x !== y ? ' mate-win' : ''}`, text: y })])
-          ])
+      ? f1MateCard(
+          { id, name: driverShort(a.name), pic: { id, name: a.name, headshot: a.headshot, logo: fallback.logo }, points: champ?.points, line: placeLine(champ) },
+          { id: mateRow.id, row: mateRow, name: driverShort(mateRow.en || mateRow.name), pic: mateRow, points: mate.points, line: placeLine(mate) },
+          mateDuel(races, id, mateRow.id),
+          driver?.color,
+          en
         )
       : null;
     // Their last games (team sports): the date, the other side, the result,
@@ -6859,11 +6959,12 @@ export async function openPlayer(league, id, fallback = {}) {
     const sub = guest ? [lastCar?.number ? `#${lastCar.number}` : '', W('試車手', 'Test driver')].filter(Boolean) : [a.jersey ? `#${a.jersey}` : '', zhLater(position), teamChip ? '' : teamShown || countryName(a.country, L())].filter(Boolean);
     const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : guestTeam ? lastCar.colour || f1Constructor(guestTeam).color : a.teamColor;
-    const lastFive = weekends.length ? weekends.slice(0, 5).reverse().map(w => ({ name: w.e?.name || w.name, e: w.e, ...finishOf(w.me?.result, en) })) : raceRows.slice(0, 5).reverse().map(r => ({ ...r, text: `P${r.pos}` }));
     // Their headshot (ESPN's; none, every footballer: TheSportsDB's cut-out, personPic finds it).
     const pic = el('span', { class: 'pic-slot' }, [personPic({ id, name: a.name, headshot: a.headshot || guest?.about?.photo || null, logo: fallback.logo, flag: a.flag }, league, 'xxl round')]);
     // The key numbers in a strip under the hero (the season's first few).
     const stripOf = () => {
+      // (A driver: his place, points, wins and podiums.)
+      if (sport === 'racing') return f1Strip(champ, sums, en);
       const keyNums = a.stats.list.slice(0, 4);
       return keyNums.length ? el('div', { class: 'team-strip' }, keyNums.map(x => el('div', { class: 'ts-cell' }, [el('strong', { class: 'num', text: x.value }), el('small', { text: statName(x.label, L(), { sport, long: x.name }) })]))) : null;
     };
@@ -6882,18 +6983,12 @@ export async function openPlayer(league, id, fallback = {}) {
     let seasonCard = seasonCardOf();
     const rowsCardOf = () => (ov?.season ? card(en || !/career/i.test(ov.season.title) ? statsTitle(ov.season.title, L()) || T('season') : '生涯數據', el('div', { class: 'glog' }, ov.season.rows.map(r => seasonRow(r, ov.season.rows, sport, en))), { sub: a.stats.live ? W('含進行中的比賽', 'With the game on now') : '' }) : null);
     let rowsCard = rowsCardOf();
+    // 概況 (a driver): his season as a line, his next weekend as 賽事 shows it, his teammate.
+    // (Not a stand-in's next race: he isn't in it.)
+    const nextWeekend = nextRace && !guest ? ctx.weekendCard(splitWeekend(nextRace, Date.now(), L())) : null;
     const overview = keep([
-      og.season
-        ? card(W(`${year} 賽季`, `${year} season`), el('div', { class: 'q-rows-full stat-grid' }, [...freshSeason(og.season, champ).map(([k, v]) => f1Tile(k, v, en)), champ?.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null].filter(Boolean)))
-        : null,
-      !og.season && champ
-        ? card(
-            W(`${year} 車手積分榜`, `${year} drivers' championship`),
-            el('div', { class: 'q-rows-full stat-grid' }, [tile(W('排名', 'Place'), T('placeN', { n: champ.pos }), W(`共 ${champ.of} 位`, `of ${champ.of}`)), tile(W('積分', 'Points'), champ.points), champ.pos > 1 && champ.gap ? tile(W('落後領先者', 'Behind the leader'), champ.gap) : null, tile(W('完成站數', 'Races'), String(champ.races.length))].filter(Boolean))
-          )
-        : null,
-      // (Not a stand-in's: he isn't in the next race.)
-      nextRace && !guest ? nextRaceCard(nextRace, en) : null,
+      racing ? f1FormCard(runs, heroColor, en, { gap: champ?.pos > 1 ? champ.gap : '', sums }) : null,
+      nextWeekend ? el('div', { class: 'team-next' }, [el('p', { class: 'mini-h', text: W('下一站', 'Next race') }), nextWeekend]) : null,
       outings.length ? outingsCard(outings, en) : null,
       guest?.about ? aboutCard(guest.about, en) : null,
       mateCard,
@@ -6933,16 +7028,8 @@ export async function openPlayer(league, id, fallback = {}) {
     ]);
     const games = keep([
       logCard,
-      weekends.length ? f1Weekends(weekends, en, [{ key: 'me', head: '' }]) : null,
-      // (Jolpica's results not in: ESPN's finishes, drawn the same way.)
-      !weekends.length && raceRows.length
-        ? f1Weekends(
-            raceRows.map((r, i) => ({ e: r.e, round: r.e?.round || raceRows.length - i, me: { result: { position: String(r.pos), positionText: String(r.pos), points: RACE_PTS[r.pos - 1] || 0 }, sprint: r.sprint ? { position: String(r.sprint), positionText: String(r.sprint), points: SPRINT_PTS[r.sprint - 1] || 0 } : null } })),
-            en,
-            [{ key: 'me', head: '' }],
-            { grid: false }
-          )
-        : null
+      // A driver's races, a row each (two columns on a wide sheet: twoCols).
+      runs.length ? el('div', { class: 'team-next' }, [el('p', { class: 'mini-h', text: W('本季每站', 'Race by race') }), twoCols(el('div', { class: 'q-card list results-list f1-runs' }, f1RunRows(runs, en)))]) : null
     ]);
     // 資料: who he is and how he got here: the profile, every team he has
     // played for (his career, read behind the page), his honours.
@@ -7035,18 +7122,7 @@ export async function openPlayer(league, id, fallback = {}) {
           // Why he's out and when he's back, as the team's page says it (Jay, 2026-10-22), the report's word under it.
           a.injuries.length ? el('p', { class: 'injury-tag' }, joinNodes(['🩹', ...a.injuries.map(injuryText)], ' ')) : null,
         ]),
-        followBtn,
-        lastFive.length
-          ? el('div', { class: 'hero-races' }, [
-              el('small', { class: 'muted', text: W(`近${lastFive.length}站`, `Last ${lastFive.length}`) }),
-              ...lastFive.map(r =>
-                el('button', { class: 'hero-race', type: 'button', title: [r.name, r.out ? r.text : ''].filter(Boolean).join(' · '), onclick: r.e ? () => ctx.openEvent(splitWeekend(r.e, Date.now(), L()).find(x => x.sessionKey === 'Race') || r.e) : null }, [
-                  raceFlag(r.e) || el('span', { class: 'race-flag' }),
-                  el('span', { class: `pos-pill num${r.out ? ' out' : r.pos <= 3 ? ' podium' : ''}${r.pos === 1 ? ' win' : ''}`, text: r.code || r.text })
-                ])
-              )
-            ])
-          : null
+        followBtn
       ]),
       // Why he's out and when he's back (Jay, 2026-10-22: said only on the
       // team's page), the report's word under it: a card of its own under

@@ -787,6 +787,11 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .rc-band-tag.r2 { top: 18px; }
 .wp-why { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--q-border) 45%, transparent); font-size: 13px; }
 .wp-why[hidden] { display: none; }
+/* Two moments at one point (an F1 lap: a climb into the lead and a stop): a line each. */
+.wp-why.many { display: grid; gap: 8px; }
+.wp-why-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.wp-why-row > .rc-pin-n { flex: none; margin: 0; }
+.wp-why-row + .wp-why-row { padding-top: 8px; border-top: 0.5px solid var(--q-separator, var(--q-border)); }
 .wp-why-icon { flex: none; display: inline-flex; }
 .wp-why-icon .logo, .wp-mo-face .logo { width: 26px; height: 26px; }
 .wp-mo-face { display: inline-flex; align-items: center; justify-content: center; }
@@ -971,25 +976,6 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .hero-form .pos-pill { flex: none; font-size: 12px; padding: 1px 6px; }
 /* A hero's line under the name wraps whole, at its · (never cut to 31…). */
 .player-hero .team-head-text > p.muted { white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
-.hero-races { grid-column: 1 / -1; display: flex; align-items: flex-end; gap: 6px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--hero, var(--q-border)) 25%, var(--q-border)); }
-.hero-races > small { flex: none; align-self: center; margin-right: auto; font-size: 12.5px; }
-.hero-race { flex: 0 1 52px; min-width: 0; display: grid; justify-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
-.hero-race .race-flag { width: 20px; height: 20px; }
-.hero-race .pos-pill { justify-self: stretch; text-align: center; font-size: 12px; padding: 2px 4px; }
-/* The next weekend, to tap: flag, name and circuit, how soon, then its sessions. */
-.next-race { display: grid; gap: 12px; width: 100%; padding: 14px; text-align: left; font: inherit; color: inherit; cursor: pointer; }
-.next-race-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.next-race-head .race-flag.big { width: 40px; height: 40px; }
-.next-race-head .race-flag.emoji.big { font-size: 34px; }
-.next-race-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
-.next-race-text strong { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.next-race-text small { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.next-race-soon { flex: none; padding: 4px 10px; border-radius: 999px; background: var(--q-fill-3); color: var(--q-text); font-size: 13px; font-weight: 600; white-space: nowrap; }
-.next-race-head::after { content: '›'; flex: none; color: var(--q-muted); font-size: 20px; line-height: 1; }
-.next-race-sessions { display: grid; gap: 4px; }
-.nr-sess { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px 6px 8px; border-radius: 10px; background: var(--q-sunken); min-width: 0; }
-.nr-sess small { white-space: nowrap; color: var(--q-text-2); font-size: 13px; }
-.nr-sess.main { outline: 1px solid color-mix(in srgb, var(--accent, #e10600) 45%, transparent); }
 /* A fact with its badge or flag; a race's name with its flag. */
 .fact-mark { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 .fact-flag { font-size: 16px; line-height: 1; }
@@ -1002,16 +988,6 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .player-inj strong { font-size: 17px; font-weight: 600; }
 .player-inj-back { margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--q-label-2); }
 .player-injury .injury-note { margin-top: 12px; padding-top: 12px; border-top: 0.5px solid var(--q-sep); font-size: 14px; line-height: 1.55; }
-.mate-grid { display: grid; grid-template-columns: minmax(0, 1fr) 84px 84px; align-items: center; gap: 8px 10px; font-size: 14px; }
-/* Each side's face over their name; the teammate's opens their sheet. */
-.mate-who { display: grid; justify-items: center; gap: 5px; min-width: 0; font: inherit; color: inherit; background: none; border: 0; padding: 0; }
-.mate-who strong { max-width: 100%; font-size: 12.5px; font-weight: 600; line-height: 1.25; text-align: center; white-space: normal; text-wrap: balance; overflow-wrap: anywhere; }
-.mate-who .logo.round { object-position: center 18%; }
-.mate-them { cursor: pointer; }
-.mate-them strong { color: var(--q-text); }
-.mate-grid > strong.num { text-align: center; font-size: 17px; color: var(--q-text-2); }
-.mate-grid > strong.mate-win { color: var(--q-text); }
-.mate-grid .mate-k { color: var(--q-text-2); }
 table.game-log td, table.game-log th { white-space: nowrap; }
 /* A player's last games: a card each, big numbers, nothing to scroll sideways. */
 .glog { display: grid; gap: 10px; }
@@ -2135,7 +2111,11 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .tie-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .h2h-side.home button.h2h-who { justify-self: end; }
 /* A race weekend's session (its chips, its line, its replay): clear of the card above it. */
-.race-box { margin-top: 6px; }
+.race-box { margin-top: 0; }
+/* The weekend under its hero: the order, then its chances and the weekend's cards (a wide sheet: side by side). */
+.wk-cols { margin-top: 6px; }
+.wk-side:not(:has(> :not(:empty))), .wk-side > .race-chance:empty { display: none; }
+.wk-side > .q-card, .wk-side > .race-chance > .q-card { margin: 0; }
 .race-box > .muted.small { margin: -4px 0 0; }
 /* An empty slot (no order yet, no race chance) takes no gap in the stack. */
 .race-box > :empty { display: none; }
@@ -2727,13 +2707,12 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
   div:has(> .team-hero + .team-strip) > .team-hero { grid-column: 1; margin: 4px 0 12px; }
   div:has(> .team-hero + .team-strip) > .team-strip { grid-column: 2; margin: 4px 0 12px; align-items: stretch; }
   div:has(> .team-hero + .team-strip) > .team-strip > .ts-cell { align-content: center; }
-  /* A race weekend: its hero across, then the day (timeline, result, chart)
-     on the left and the title fight, TV and circuit beside it. */
-  .sheet-body:has(> .wk-hero) { columns: 2; column-gap: 12px; }
-  .sheet-body:has(> .wk-hero) > .wk-hero { column-span: all; margin-bottom: 12px; }
-  .sheet-body:has(> .wk-hero) > :not(.wk-hero) { margin: 0 0 12px; break-inside: avoid; }
-  .sheet-body:has(> .wk-hero) > .race-box { display: block; break-inside: auto; }
-  .sheet-body:has(> .wk-hero) > .race-box > * { break-inside: avoid; margin: 0 0 12px; }
+  /* A race weekend (sheets.js fillField .wk-cols; Jay 2026-11-06, an iPad:
+     "Big empty" beside the order, as Safari laid the CSS columns this was):
+     its hero across, then two set columns, the sessions and the chosen one's
+     order on the left, its chances (勝率走勢) and the weekend's cards on the
+     right. */
+  .wk-cols:has(> .wk-side > :not(:empty)) { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 }
 /* A phone on its side is short: a game's head on one line (each side's
    crest, name, record and 追蹤 beside the score), 追蹤這場比賽 and 觀看
@@ -2912,3 +2891,76 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
   .glog-game > .glog-more:only-of-type { grid-column: 3; }
   .glog-big { grid-template-columns: repeat(auto-fit, minmax(56px, max-content)); column-gap: 24px; }
 }
+
+/* An F1 driver's page (sheets.js f1Strip, f1FormCard, f1MateCard, f1RunRows;
+   Jay 2026-11-06, an iPad: "legacy looking"). */
+/* 本季走勢: the race picked over the chart (a tap opens it), the chart with P1 at the top. */
+.f1-form { display: grid; gap: 10px; }
+.f1f-read { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 10px; border: 0; border-radius: var(--q-r-cell, 12px); background: var(--q-fill-4, var(--q-sunken)); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.f1f-read:disabled { cursor: default; }
+.f1f-read .race-flag { width: 24px; height: 24px; }
+.f1f-read-text, .f1f-read-fin { display: grid; gap: 1px; min-width: 0; }
+.f1f-read-text strong { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f1f-read-text small, .f1f-read-fin small { font-size: 12px; white-space: nowrap; }
+.f1f-read-fin { justify-items: end; }
+.f1f-read-fin strong { font: 300 22px/1 var(--nv-display, var(--q-font, system-ui)); font-variant-numeric: tabular-nums; }
+.f1f-read-fin strong.out { font-size: 15px; font-weight: 600; color: var(--q-bad, #ff453a); }
+.f1f-chev { color: var(--q-label-3, var(--q-muted)); font-size: 18px; line-height: 1; }
+.f1f-box { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+.f1f-axis { display: flex; flex-direction: column; justify-content: space-between; padding: 0; font-size: 10.5px; line-height: 1; color: var(--q-label-3, var(--q-muted)); font-variant-numeric: tabular-nums; text-align: right; margin: -5px 0; }
+.f1f-plot { margin: 0; height: 120px; }
+.f1f-plot > div, .f1f-chart { height: 100%; }
+.f1f-chart { display: block; width: 100%; overflow: visible; }
+.f1f-podium { fill: color-mix(in srgb, #d4a017 12%, transparent); }
+.f1f-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.f1f-dot { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--team); box-shadow: 0 0 0 2px var(--nv-card, var(--q-surface)); pointer-events: none; transition: transform var(--q-dur-fast, 0.15s) ease; }
+.f1f-dot.win { background: #d4a017; }
+.f1f-dot.out { background: none; box-shadow: none; width: 10px; height: 10px; margin: -5px 0 0 -5px; }
+.f1f-dot.out::before, .f1f-dot.out::after { content: ''; position: absolute; left: 4px; top: -1px; width: 2px; height: 12px; border-radius: 1px; background: var(--q-label-3, var(--q-muted)); transform: rotate(45deg); }
+.f1f-dot.out::after { transform: rotate(-45deg); }
+.f1f-dot.on { transform: scale(1.6); }
+.f1f-plot > .wp-rule { border-left-color: var(--q-label-3, var(--q-muted)); }
+.f1f-foot { margin: 0; font-size: 12.5px; }
+/* 隊友對比: the two at either end, a bar a measure between their numbers. */
+.duel { display: grid; gap: 14px; container: duel / inline-size; }
+/* A narrow card (a 320 phone): each face over its name, so both names stay whole. */
+@container duel (max-width: 330px) {
+  .duel .duel-who, .duel .duel-who.them { flex-direction: column; align-items: center; gap: 6px; text-align: center; flex: 1 1 0; }
+  .duel-who .logo.round { width: 40px; height: 40px; }
+  .duel-name { justify-items: center; }
+  .duel-name strong { font-size: 15px; }
+}
+.duel-head { display: flex; justify-content: space-between; gap: 12px; }
+.duel-who { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.duel-who.them { flex-direction: row-reverse; text-align: right; cursor: pointer; }
+.duel-who .logo.round { flex: none; width: 44px; height: 44px; object-position: center 18%; }
+.duel-name { display: grid; gap: 1px; min-width: 0; }
+.duel-name strong { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.duel-name small { font-size: 12.5px; white-space: nowrap; }
+.duel-who.them .duel-name strong::after { content: ' ›'; color: var(--q-label-3, var(--q-muted)); }
+.duel-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; align-items: end; gap: 10px; }
+.duel-v { font: 300 24px/1 var(--nv-display, var(--q-font, system-ui)); font-variant-numeric: tabular-nums; color: var(--q-label-2, var(--q-muted)); }
+.duel-v.more { color: var(--q-label, var(--q-text)); }
+.duel-row > .duel-v:last-child { text-align: right; }
+.duel-mid { display: grid; gap: 6px; min-width: 0; }
+.duel-mid small { font-size: 12px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.duel-bar { display: flex; gap: 3px; height: 6px; margin-bottom: 4px; }
+.duel-bar > i { flex: 1 1 0; min-width: 3px; border-radius: 3px; background: var(--team); }
+.duel-bar > i.mate { background: color-mix(in srgb, var(--team) 35%, var(--q-fill-3, var(--q-sunken))); }
+/* 賽程: a row a race; the place in the display face, its points under it. */
+.f1-runs { padding: 0; }
+.f1-run { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 16px; border: 0; border-top: 0.5px solid var(--q-divider, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.f1-run:first-child, .f1-run.col-top { border-top: 0; }
+.f1-run:active { background: var(--q-fill-4, var(--q-sunken)); }
+.f1-run .race-flag { width: 26px; height: 26px; }
+.f1-run-text { display: grid; gap: 2px; min-width: 0; }
+.f1-run-text strong { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f1-run-text strong small { font-size: 12px; font-weight: 400; }
+.f1-run-text > small { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f1-run-moved.up { color: var(--q-good, #22c55e); }
+.f1-run-moved.down { color: var(--q-bad, #ef4444); }
+.f1-run-fin { display: grid; justify-items: end; gap: 2px; min-width: 52px; }
+.f1-run-fin strong { font: 300 22px/1 var(--nv-display, var(--q-font, system-ui)); font-variant-numeric: tabular-nums; }
+.f1-run-fin strong.win { color: #d4a017; font-weight: 400; }
+.f1-run-fin strong.out { font-size: 14px; font-weight: 600; color: var(--q-bad, #ff453a); }
+.f1-run-fin small { font-size: 12px; white-space: nowrap; }
