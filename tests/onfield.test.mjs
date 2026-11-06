@@ -110,3 +110,7 @@ test("過程's rows never content-visibility (Safari's empty band on a fast scro
   const css = readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.doesNotMatch(css, /\.plays[^{]*\{[^}]*content-visibility/);
 });
+test("概況's line score and moment are its flow's first card (an iPad's half-empty row, 2026-11-06)", () => {
+  const src = readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
+  assert.match(src, /view === 'overview' && next\?\.classList\?\.contains\('q-flow'\)\) next\.prepend\(top\)/);
+});

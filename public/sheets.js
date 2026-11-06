@@ -519,6 +519,12 @@ export async function openMatch(e) {
     const fresh = () => matchSection(shownView, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait, coming: past() ? heldPast(coming) : coming, plays: Object.assign(playsKeep, { shown: view === 'plays' ? content.firstElementChild : null }) });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
     const next = shownView === 'playoffs' ? playoffsNode(e.league, shownView) : shownView === 'cup' ? playoffsNode('nbacup', shownView) : keep || fresh();
+    // 概況: the line score and the game's moment are its flow's first card,
+    // dealt with the rest (Jay 2026-11-06, an iPad: beside 最新 the line
+    // score left half the row empty above the cards); on a phone, one
+    // column, first as before. Any other view: back in their own place, hidden.
+    if (view === 'overview' && next?.classList?.contains('q-flow')) next.prepend(top);
+    else if (top.nextElementSibling !== content) content.before(top);
     // The same view again (a live refresh): its cards changed inside the
     // stack already there, so a card kept from the last drawing (the win
     // chance chart, a finger on it) never leaves the page.
