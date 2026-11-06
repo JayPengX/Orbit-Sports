@@ -809,10 +809,11 @@ export function goalTimeline(e, events) {
         const red = x.kind === 'red';
         if (!red) score[s] += 1;
         const p = x.person || { name: x.who };
-        // An own goal: the team it counted for (the defender's face read as his goal), the defender named under it.
-        const pic = x.kind === 'own' ? logo(team.logo, team.name, 'sm') : personPic({ ...p, en: p.name }, e.league, 'sm round');
+        // An own goal: the team it counted for (the defender's face alone read as his goal), his small head under its badge, named under it.
+        // (Its row a tap to the defender, as any scorer's: Jay 2026-11-06, the badge with his small head under it.)
+        const pic = x.kind === 'own' ? el('span', { class: 'wp-pair og' }, [logo(team.logo, team.name, 'sm'), p.name ? personPic({ ...p, en: p.name }, e.league, 'sm round') : null].filter(Boolean)) : personPic({ ...p, en: p.name }, e.league, 'sm round');
         const tag = x.kind === 'pen' ? (en ? 'Penalty' : '點球') : x.kind === 'own' ? (en ? 'own goal' : '烏龍球') : red ? (en ? 'Red card' : '紅牌') : '';
-        const can = x.kind !== 'own' && p.id && LEAGUES[e.league]?.espn && /^\d+$/.test(String(p.id));
+        const can = p.id && LEAGUES[e.league]?.espn && /^\d+$/.test(String(p.id));
         const who = [
           pic,
           el('span', { class: 'lg-text' }, [
@@ -2252,7 +2253,9 @@ function winProbCard(line, e, timeline, events = []) {
   // The player's face (the batter, the scorer), else the team's badge (a run), else the sport's sign.
   // A run's team badge to the team's page.
   const teamTap = x => (hasTeamPage(e.league) && x.id && !x.guest ? el('button', { class: 'wp-who team', type: 'button', 'aria-label': x.name || '', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, x.id, x)) }, [sideLogo(x, e.league, 'sm')]) : sideLogo(x, e.league, 'sm'));
-  const face = m => (m.pics?.length > 1 ? el('span', { class: 'wp-pair' }, m.pics.map(p => personTap(e.league, p, personPic(p, e.league, 'sm round')))) : m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : momentGlyph(m.icon));
+  // (An own goal: the badge of the side it counted for, the defender's small head under it, a tap to his page: Jay 2026-11-06.)
+  const sideOfTeam = id => (String(id) === String(e.home.id) ? e.home : e.away);
+  const face = m => (m.own ? el('span', { class: 'wp-pair og' }, [teamTap(sideOfTeam(m.team)), m.by ? personTap(e.league, m.by, personPic(m.by, e.league, 'sm round')) : null].filter(Boolean)) : m.pics?.length > 1 ? el('span', { class: 'wp-pair' }, m.pics.map(p => personTap(e.league, p, personPic(p, e.league, 'sm round')))) : m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : momentGlyph(m.icon));
   const tell = (m, label) => {
     why.hidden = !m;
     // The words on one line, the chance's move under them (the owner,
@@ -2299,15 +2302,13 @@ function winProbCard(line, e, timeline, events = []) {
     // (the owner, 2026-10-16: a dot anywhere else looked like a moment with
     // nothing in it).
     rule.hidden = i == null;
-    // (An own goal's tag is lifted itself, the ring would sit round it.)
-    dot.hidden = i == null || !dotted.includes(m) || Boolean(m?.own);
-    pins.forEach((p, n) => p.classList.toggle('on', i != null && dotted[n] === m && Boolean(m?.own)));
+    dot.hidden = i == null || !dotted.includes(m);
     if (i == null) return;
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
     dot.style.top = `${(dotted.includes(m) ? pinY(m) : asLine ? 1 - midAt(i) : midAt(i)) * 100}%`;
   };
-  // (An own goal: a tag on the line in the colours of the side it counted for, 烏龍 / OG, not a dot like a goal's: Jay 2026-11-06.)
-  const pins = dotted.map(m => (m.own ? el('span', { class: `wp-moment og ${m.side}${pinY(m) < 0.3 ? ' below' : ''}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;--side:${sideC(m.delta >= 0 ? 'home' : 'away')}`, text: en ? 'OG' : '烏龍' }) : el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` })));
+  // (An own goal: a hollow ring in the colour of the side it counted for, not a goal's solid dot; no words on the line, Jay 2026-11-06.)
+  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}${m.own ? ' og' : ''}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;${m.own ? '--side' : 'background'}:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
   // Each band in its side's colour (a draw's grey), the even line dashed across.
   // A white or black side's band near solid, so it never reads as the draw's grey.
   const solid = c => (hasHue(c) ? '62%' : '92%');
@@ -2915,7 +2916,8 @@ function playLine(league, p, side) {
   // Who helped, as faces (a tap to their page): their names taken out of the small line.
   const helpers = (p.helpers || []).filter(h => h.pic?.id);
   const sub = whole(helpers.length ? String(parts.sub || '').split(' · ').filter(x => !helpers.some(h => h.name && x.includes(h.name.split(' ').at(-1)))).join(' · ') : parts.sub);
-  const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge', { onWhite: true }) : null])) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
+  // (An own goal: the team's badge, the defender's small head on it, a tap to his page.)
+  const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge', { onWhite: true }) : null])) : own && p.pic && side?.logo ? personTap(league, p.pic, el('span', { class: 'play-face og' }, [logo(side.logo, team, 'xs play-team'), personPic(p.pic, league, 'play-head round')])) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
   // A play with neither (本節結束, 比賽結束): the league's mark, so every row has its picture.
   // Who on a line of their own, what they did under it with the rest
   // (Jay 2026-11-03: "S. Gilgeous-Alexander 跳投不進" crammed on one line):

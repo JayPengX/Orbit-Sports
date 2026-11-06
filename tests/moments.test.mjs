@@ -561,6 +561,8 @@ test('soccer: an own goal is told as one, its face the side it counted for', asy
   // The side it counted for: its badge for a face (no defender's photo), its gain.
   for (const m of ogs) {
     assert.equal(m.pic, null);
+    // The defender kept, for a small head under the badge (a tap to his page).
+    assert.ok(m.by?.id);
     assert.equal(String(m.team), String(s.home.id));
     assert.equal(m.side, 'home');
     assert.ok(m.delta > 0);
@@ -574,10 +576,12 @@ test('soccer: an own goal is told as one, its face the side it counted for', asy
   assert.equal(feedText('soccer', own[0].play, false, '納什維爾'), '納什維爾 進球（T. Parker 烏龍球）');
 });
 
-test('sheets: an own goal is tagged on the chart (烏龍 / OG), never a goal\'s dot, and named 烏龍球 in the goal list', () => {
+test('sheets: an own goal is its own dot on the chart (a hollow ring, no words), and named 烏龍球 in the goal list', () => {
   const src = readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
-  assert.match(src, /m\.own \? el\('span', \{ class: `wp-moment og/);
-  assert.match(src, /text: en \? 'OG' : '烏龍'/);
+  assert.match(src, /\$\{m\.own \? ' og' : ''\}/);
   assert.match(src, /x\.kind === 'own' \? \(en \? 'own goal' : '烏龍球'\)/);
+  // The defender's small head under the badge, his row a tap to his page.
+  assert.match(src, /m\.own \? el\('span', \{ class: 'wp-pair og' \}/);
+  assert.match(src, /const can = p\.id && LEAGUES/);
   assert.match(readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8'), /\.wp-moment\.og \{/);
 });

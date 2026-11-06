@@ -779,14 +779,8 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 /* Key moments: dotted on the line, told under it (the one at the finger, or just now), listed. */
 .wp-moment { position: absolute; width: 9px; height: 9px; border-radius: 50%; transform: translate(-50%, -50%); border: 2px solid var(--q-surface, #fff); pointer-events: none; background: var(--q-text-2); }
 .wp-moment.home { background: var(--accent); }
-/* An own goal: a small tag (烏龍 / OG) in the colours of the side it counted for, never a goal's plain dot,
-   held just above its point (below, near the top) with a dot on the point, so a goal beside it stays in sight. */
-.wp-moment.og { width: auto; height: auto; padding: 1px 4px; border: 1.5px solid var(--side); border-radius: 6px; background: color-mix(in srgb, var(--side) 24%, var(--q-surface, #fff)); color: var(--q-text); font-size: 9.5px; font-weight: 700; line-height: 1.2; letter-spacing: 0.02em; white-space: nowrap; box-shadow: 0 0 0 1.5px var(--q-surface, #fff); transform: translate(-50%, calc(-100% - 7px)); transition: transform 0.15s; }
-.wp-moment.og::after { content: ''; position: absolute; left: 50%; bottom: -13px; width: 7px; height: 7px; margin-left: -5px; border-radius: 50%; background: var(--side); border: 1.5px solid var(--q-surface, #fff); }
-.wp-moment.og.below { transform: translate(-50%, 7px); }
-.wp-moment.og.below::after { bottom: auto; top: -13px; }
-.wp-moment.og.on { transform: translate(-50%, calc(-100% - 7px)) scale(1.15); box-shadow: 0 0 0 1.5px var(--q-surface, #fff), 0 0 0 3px var(--q-text); }
-.wp-moment.og.below.on { transform: translate(-50%, 7px) scale(1.15); }
+/* An own goal: a hollow ring in the colour of the side it counted for, never a goal's solid dot. */
+.wp-moment.og { width: 11px; height: 11px; background: var(--q-surface, #fff); border: 2.5px solid var(--side); box-shadow: 0 0 0 1.5px var(--q-surface, #fff); }
 /* An F1 race's moments: a numbered marker on the driver's line, the same number in the list. */
 .wp-moment.rc-pin { display: grid; place-items: center; width: 15px; height: 15px; border-width: 1.5px; background: var(--team, var(--q-text-2)); color: #fff; font-size: 9px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; transition: transform 0.15s; }
 .wp-moment.rc-pin.on { transform: translate(-50%, -50%) scale(1.3); }
@@ -805,6 +799,15 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .wp-pair > :first-child { left: 0; top: 0; }
 .wp-pair > :last-child { right: 0; bottom: 0; border-radius: 50%; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 0 3px var(--q-surface); }
 .wp-pair .logo, .wp-why-icon .wp-pair .logo, .wp-mo-face .wp-pair .logo { width: 23px; height: 23px; }
+/* An own goal: the badge of the side it counted for, the defender's small head under it (a tap to his page). */
+.wp-pair.og { width: 30px; height: 36px; }
+.wp-pair.og > :first-child .logo, .wp-pair.og > .logo:first-child { width: 24px; height: 24px; }
+.wp-pair.og > :last-child { box-shadow: 0 0 0 2px var(--q-surface); }
+.wp-pair.og > :last-child .logo, .wp-pair.og > .logo:last-child { width: 17px; height: 17px; }
+/* (In the goal list, the badge in a face's own column, the names lined up with the others'; the head overhanging a little into the gap.) */
+.lp-goals .wp-pair.og { width: 22px; margin: -2px 0; }
+.lp-goals .wp-pair.og > .logo:first-child { width: 22px; height: 22px; }
+.lp-goals .wp-pair.og > :last-child { right: -3px; }
 /* A moment's drawn sign (sheets.js momentGlyph): a round tile the size of a face. */
 .wp-glyph { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--q-fill, rgba(127,127,127,.18)); color: var(--q-text); flex: none; }
 .wp-why-icon .wp-glyph { width: 28px; height: 28px; }
@@ -857,6 +860,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .play-line { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; min-width: 0; font-size: 13.5px; color: var(--q-text-2); }
 .play-line > .play-sub { font-size: 11.5px; }
 .play-face { position: relative; display: inline-grid; flex: none; }
+.play-text .play-face.og .logo.play-head { position: absolute; right: -5px; bottom: -4px; width: 15px; height: 15px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--q-surface, #1c1c1e); object-fit: cover; }
 .play-text .play-face .logo.play-badge { position: absolute; right: -4px; bottom: -3px; width: 14px; height: 14px; padding: 1px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px var(--q-surface, #1c1c1e); object-fit: contain; }
 .cmp-row > strong { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
 .cmp-val small { display: block; font-size: 11.5px; font-weight: 600; color: var(--q-muted); line-height: 1.3; }

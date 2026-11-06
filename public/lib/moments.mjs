@@ -542,11 +542,12 @@ export function eventMoments(points, events, sport, side, times) {
       }
       const mover = ev.play.team ? (String(ev.play.team) === String(side.home.id) ? 'home' : 'away') : delta >= 0 ? 'home' : 'away';
       const icon = ev.kind === 'red' ? '🟥' : ev.kind === 'miss' ? '❌' : ICON[sport] || '•';
-      // An own goal: told as one, its face the badge of the side it counted for (as the goal list has it), never the defender's
-      // own face beside the other side's gain; dotted as one on the chart (sheets.js .wp-moment.og).
+      // An own goal: told as one, its face the badge of the side it counted for (as the goal list has it), the defender
+      // who put it in a small head under it (`by`, a tap to his page), never his face alone beside the other side's
+      // gain; its own dot on the chart (sheets.js .wp-moment.og).
       const own = sport === 'soccer' && ev.kind === 'score' && ownGoal(ev.play);
       const text = ev.kind === 'miss' ? (side.en ? `${ev.play.who || ''} misses a penalty`.trim() : `${ev.play.who || ''} 12 碼罰球未進`.trim()) : playText(sport, { ...ev.play, kind: own ? ev.play.kind : ev.kind }, side.en, teamName(ev.play.team, side));
-      return { i, t: ev.t, delta, side: mover, icon, text, always: sport === 'soccer' && ev.kind !== 'miss', pic: own ? null : ev.play.pic, team: ev.play.team, ...(own ? { own: true } : {}) };
+      return { i, t: ev.t, delta, side: mover, icon, text, always: sport === 'soccer' && ev.kind !== 'miss', pic: own ? null : ev.play.pic, team: ev.play.team, ...(own ? { own: true, by: ev.play.pic || null } : {}) };
     })
     .filter(m => m.always || Math.abs(m.delta) >= 0.08);
   return biggest(found);
