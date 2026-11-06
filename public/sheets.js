@@ -1776,6 +1776,18 @@ function onFieldCard(d, e, nameOf) {
     const five = order(onCourt(d.players));
     if (!five.length) return null;
     const shirt = shirtsOf(d, e);
+    // A stop (a timeout, a period's end, half-time): said in the card's
+    // corner in 即時's place, and the ↑ only on who came on in it (every
+    // one who'd ever come on wore it, all ten by the second quarter). With
+    // subs in it the five shown are the five to come (接下來上場); without,
+    // the five on before it (休息前在場).
+    const W = (zh, eng) => (en ? eng : zh);
+    const half = /HALFTIME/.test((d.status || e.status).name || '');
+    const stop = d.stop || (half ? { kind: 'period', on: [] } : null);
+    const stopOn = new Set(stop?.on || []);
+    const stopWord = !stop ? '' : half ? W('中場休息', 'Halftime') : stop.kind === 'timeout' ? W('暫停', 'Timeout') : W('節間休息', 'Break');
+    const sub = stop ? `${stopWord} · ${stopOn.size ? W('接下來上場', 'Up next') : W('休息前在場', 'Last on')}` : en ? 'Live' : '即時';
+    const arrow = p => (stop ? stopOn.has(p.id) : !(p.starter && !p.cameOn));
     // Each side's five as a row of faces (no court: a basketball position
     // is no place on the floor): the number; a green ↑ at the corner for one
     // who came on (off the bench, or a starter back from a rest; soccer's sub on), and under the name 先發 or 替補 in
@@ -1784,7 +1796,7 @@ function onFieldCard(d, e, nameOf) {
     // in red. Under the row, the side's starters sitting now.
     const tile = (p, colour) =>
       el('button', { class: 'five-tile', type: 'button', style: `--shirt:${colour}`, 'aria-label': `${p.full || p.name}${p.starter ? (en ? ', starter' : '，先發') : en ? ', off the bench' : '，替補'}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [
-        el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, p.starter && !p.cameOn ? null : el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' })]),
+        el('span', { class: 'pm-face' }, [personPic({ ...p, name: p.full || p.name }, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(colour)}`, text: p.jersey }) : null, arrow(p) ? el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' }) : null]),
         el('span', { class: 'pm-name one' }, [playerName(p.full || p.name, 'short', tileName(p))]),
         // Said in words, not a mark to learn: 先發 or 替補 (the green ↑ on the face too).
         el('span', { class: `five-role${p.starter ? ' starter' : ''}`, text: p.starter ? (en ? 'Starter' : '先發') : en ? 'Bench' : '替補' }),
@@ -1801,7 +1813,7 @@ function onFieldCard(d, e, nameOf) {
             ...s.resting.map(p => el('button', { class: 'rest-face', type: 'button', style: `--shirt:${shirt[s.team]}`, 'aria-label': `${p.full || p.name}, ${en ? `${p.line.pts || 0} points` : `${p.line.pts || 0} 分`}`, title: surnameOf(p), onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.full || p.name, logo: p.headshot }) }, [personPic({ ...p, name: p.full || p.name }, e.league, 'rest-pic round')]))
           ])
         : null;
-    return card(en ? 'On the court' : '場上球員', el('div', { class: 'five-sides' }, five.map(s => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(s.team)]), fitFive(el('div', { class: 'five-row' }, s.players.map(p => tile(p, shirt[s.team])))), resting(s)]))), { sub: en ? 'Live' : '即時' });
+    return card(en ? 'On the court' : '場上球員', el('div', { class: 'five-sides' }, five.map(s => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(s.team)]), fitFive(el('div', { class: 'five-row' }, s.players.map(p => tile(p, shirt[s.team])))), resting(s)]))), { sub });
   }
   if (sport === 'baseball' && d.field) return card(en ? 'On the field' : '場上球員', diamondView(d, e, nameOf), { sub: en ? 'Live' : '即時' });
   if (sport === 'soccer') {
@@ -2523,7 +2535,8 @@ function playsNav(items, clockless, keep = { rows: new Map() }) {
     st.count = Math.min(n, list.length);
     for (const [k, v] of made) keep.rows.set(k, v);
   };
-  // More once the list's end comes near (a screen and a half ahead).
+  // More once the list's end comes near (three screens ahead: a fling
+  // outran a screen and a half, an empty band till they came).
   const more = n => {
     if (st.count >= list.length) return;
     const add = document.createDocumentFragment();
@@ -2540,7 +2553,7 @@ function playsNav(items, clockless, keep = { rows: new Map() }) {
     if (typeof IntersectionObserver !== 'function' || !wrap.isConnected) return;
     if (!st.io) {
       const root = wrap.closest('.q-sheet');
-      st.io = new IntersectionObserver(seen => seen.some(x => x.isIntersecting) && st.more(), { root, rootMargin: '0px 0px 1200px 0px' });
+      st.io = new IntersectionObserver(seen => seen.some(x => x.isIntersecting) && st.more(), { root, rootMargin: '0px 0px 2400px 0px' });
     }
     st.io.unobserve(st.end);
     if (st.count < list.length) st.io.observe(st.end);

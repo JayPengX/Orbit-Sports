@@ -100,3 +100,33 @@ export function pitchSpots(held, formation) {
   });
   return out;
 }
+
+// Basketball at a stop (Jay, 2026-11-06: "it's in a break but we have
+// who's on court"): the plays after the last live one (substitutions,
+// timeouts, a period's end), read from ESPN's summary's own plays.
+// { kind: 'timeout' | 'period', on: [ids who came on in it] }, or null
+// while the ball is live (subs at a free throw are no break). ESPN logs a
+// timeout's subs before play resumes (the five shown are then the five to
+// come), and a period's only once it starts (the five shown are the last).
+const DEAD = /substitution|timeout|end period|end of|end game/i;
+export function courtStop(plays) {
+  const list = plays || [];
+  let i = list.length;
+  while (i > 0 && DEAD.test(list[i - 1]?.type?.text || '')) i--;
+  const run = list.slice(i);
+  const type = p => p?.type?.text || '';
+  const kind = run.some(p => /end period|end of|end game/i.test(type(p))) ? 'period' : run.some(p => /timeout/i.test(type(p)) && !/end (of )?timeout/i.test(type(p))) ? 'timeout' : null;
+  if (!kind) return null;
+  // Only subs in the stop itself: after its play, or at its clock (one at
+  // 0:02 before a quarter's end came on in play, not in the break).
+  const at = run.findIndex(p => !/substitution/i.test(type(p)));
+  const when = p => `${p?.period?.number ?? ''}|${p?.clock?.displayValue ?? ''}`;
+  const on = new Set();
+  for (const [j, p] of run.entries()) {
+    if (!/substitution/i.test(type(p)) || (j < at && when(p) !== when(run[at]))) continue;
+    const [inn, out] = (p.participants || []).map(x => String(x.athlete?.id ?? ''));
+    if (inn) on.add(inn);
+    if (out) on.delete(out);
+  }
+  return { kind, on: [...on] };
+}

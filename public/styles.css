@@ -549,8 +549,7 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .plays li:first-child { border-top: 0; }
 /* A small phone (320 px): the clock's column as narrow as a clock, so a play's words have the room. */
 @media (max-width: 359px) { .plays li { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; padding: 9px 12px; } .plays .play-text { gap: 9px; } }
-/* A long game (an NBA game's 500-odd rows): rows off screen aren't laid out until they're near, so the tab opens at once. */
-.plays > li { content-visibility: auto; contain-intrinsic-size: auto 52px; }
+/* (No content-visibility on the rows: Safari painted skipped rows late, an empty band on a fast scroll (Jay, 2026-11-06). The rows are made 40 at a time instead, sheets.js playsNav.) */
 .plays li.scoring { background: var(--q-fill-4); }
 .plays li.scoring[style*='--side'] { background: color-mix(in srgb, var(--side) 9%, transparent); }
 .plays li.scoring .play-text { font-weight: 600; }

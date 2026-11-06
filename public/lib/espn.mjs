@@ -17,6 +17,7 @@ import { polymarketLine, polymarketNow, monthPack, gameKey, unpackLine, PM_LEAGU
 import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTables, mlbSeasonTables, mlbSquad, emptyBox, mlbDayGames, mlbGameAt, mlbLogLine, personKey, withPitchingChange } from './mlb.mjs';
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName, rotowireUrl, rotowireGame } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
+import { courtStop } from './onfield.mjs';
 import { athleteAverages, boxSeasonPage, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf, FOTMOB_LEAGUE, FOTMOB_HOME, fotmobLeagueLogo, fotmobTeamLogo, noteBadges } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { teamStatsUrl, parseTeamStats, parseFotmobTeamStats, parseFotmobTeamList, teamRanks } from './teamstats.mjs';
@@ -1258,6 +1259,8 @@ export function parseSummary(data, league) {
     teamStats,
     details,
     players,
+    // Basketball at a timeout or a period's end: who came on in it (lib/onfield.mjs).
+    stop: LEAGUES[league]?.sport === 'basketball' ? courtStop(data?.plays) : null,
     plays,
     feed,
     keyEvents,

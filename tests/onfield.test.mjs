@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { onCourt, onPitch } from '../public/lib/onfield.mjs';
+import { onCourt, onPitch, courtStop } from '../public/lib/onfield.mjs';
+import { readFileSync } from 'node:fs';
 
 test('basketball: the five marked on the court, with their points, rebounds, assists and fouls', () => {
   const labels = ['MIN', 'PTS', 'FG', '3PT', 'FT', 'REB', 'AST', 'TO', 'STL', 'BLK', 'OREB', 'DREB', 'PF', '+/-'];
@@ -81,4 +82,31 @@ test('withoutPlayed: the injured who have played this game are left off; the res
   const data = { players: [{ team: '10', tables: [{ rows: [{ id: 'kd', on: false, stats: ['14', '3-7'] }, { id: 'x', on: false, stats: ['0', '0-0'] }, { id: 'adams', dnp: true, stats: [] }] }] }], rosters: [] };
   assert.deepEqual(withoutPlayed(injuries, data)[0].list.map(x => x.id), ['adams', 'x']);
   assert.equal(withoutPlayed(injuries, { players: [], rosters: [] }), injuries);
+});
+
+// Jay 2026-11-06: at a break 場上球員 read 即時 with a ↑ on all ten.
+const play = (type, clock, ids = [], period = 2) => ({ type: { text: type }, clock: { displayValue: clock }, period: { number: period }, participants: ids.map(id => ({ athlete: { id } })) });
+test('courtStop: the ball live is no stop, subs at a free throw neither', () => {
+  assert.equal(courtStop([play('Jump Shot', '5:00')]), null);
+  assert.equal(courtStop([play('Personal Foul', '5:00'), play('Substitution', '5:00', ['a', 'b'])]), null);
+  assert.equal(courtStop([]), null);
+});
+test("courtStop: a timeout's subs are who comes on next; one subbed off again isn't", () => {
+  const got = courtStop([play('Jump Shot', '4:12'), play('Full Timeout', '4:12'), play('Substitution', '4:12', ['a', 'b']), play('Substitution', '4:12', ['c', 'd']), play('Substitution', '4:12', ['e', 'a'])]);
+  assert.deepEqual(got, { kind: 'timeout', on: ['c', 'e'] });
+  // A dead-ball sub at the timeout's own clock, logged just before it, is in it too.
+  assert.deepEqual(courtStop([play('Jump Shot', '4:12'), play('Substitution', '4:12', ['a', 'b']), play('Full Timeout', '4:12')]).on, ['a']);
+});
+test("courtStop: a period's end; a sub in play before it (0:02) didn't come on in the break", () => {
+  assert.deepEqual(courtStop([play('Jump Shot', '28.0'), play('Substitution', '2.4', ['a', 'b']), play('End Period', '0.0')]), { kind: 'period', on: [] });
+});
+test('the game page says the stop in 即時\'s place and puts the ↑ only on who came on in it', () => {
+  const src = readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
+  assert.match(src, /const sub = stop \?/);
+  assert.match(src, /stop \? stopOn\.has\(p\.id\)/);
+  assert.match(readFileSync(new URL('../public/lib/espn.mjs', import.meta.url), 'utf8'), /stop: .*courtStop\(data\?\.plays\)/);
+});
+test("過程's rows never content-visibility (Safari's empty band on a fast scroll, 2026-11-06)", () => {
+  const css = readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(css, /\.plays[^{]*\{[^}]*content-visibility/);
 });
