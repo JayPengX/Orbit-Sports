@@ -9,7 +9,7 @@ import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
 import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
-import { recapDays, recapPath, whyFrom } from './lib/why.mjs';
+import { recapDays, recapPath, whyFrom, f1StoryPath, f1StoryFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
 import { previewLine } from './lib/preview.mjs';
 import { tableStarted } from './lib/picks.mjs';
@@ -1028,6 +1028,24 @@ function goPark(e, d) {
     })
     .catch(() => {});
   return chip;
+}
+
+// F1 賽後故事: a race's or sprint's story over its order, once the
+// family's builder has told it (lib/why.mjs); hidden till it's read, and
+// nothing at all for a race it hasn't.
+const storyDocs = new Map();
+function f1Story(e, ss) {
+  if (e.league !== 'f1' || ss.status.state !== 'post' || !(ss.abbr === 'Race' || ss.abbr === 'SR')) return null;
+  const path = f1StoryPath(ss.start);
+  if (!storyDocs.has(path)) storyDocs.set(path, packJson(path, { ttl: 10 * 60_000 }).catch(() => (storyDocs.delete(path), null)));
+  const holder = el('p', { class: 'lp-why f1-story', hidden: true });
+  storyDocs.get(path).then(doc => {
+    const text = f1StoryFrom(doc, ss.start, L() === 'en');
+    if (!text || !holder.isConnected) return;
+    holder.replaceChildren(el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.spark || '' }), el('span', { text }));
+    holder.hidden = false;
+  });
+  return holder;
 }
 
 function whyLine(e) {
@@ -5755,6 +5773,7 @@ function fillField(s, e) {
           const one = { ...e, id: `${weekend}~${ss.abbr}`, weekend, sessionKey: ss.abbr, session: sessionName(ss, L()), start: ss.start, official: ss.start, status: ss.status };
           return ss.status.state === 'post' ? [replayLink(one), highlights(one)].filter(Boolean) : [];
         })(),
+        f1Story(e, ss),
         holder
       );
       // A race to come, its qualifying over: the starting grid with every drop in it (OpenF1's),

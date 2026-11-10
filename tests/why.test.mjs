@@ -1,7 +1,7 @@
 // 賽後三句話's why line (lib/why.mjs): where it's kept and which one is read.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recapDays, whyFrom, recapPath } from '../public/lib/why.mjs';
+import { recapDays, whyFrom, recapPath, f1StoryPath, f1StoryFrom } from '../public/lib/why.mjs';
 
 test('a game’s why line: its Taiwan day, then the next; the reader’s language', () => {
   assert.deepEqual(recapDays({ start: '2026-11-10T02:30Z' }), ['2026-11-10', '2026-11-11']);
@@ -13,4 +13,13 @@ test('a game’s why line: its Taiwan day, then the next; the reader’s languag
   assert.equal(whyFrom(doc, e, true), 'James’s late three turned it.');
   assert.equal(whyFrom(doc, { league: 'nba', id: '8' }), '', 'let go: none');
   assert.equal(whyFrom(null, e), '');
+});
+
+test('an F1 race’s story: its year’s file, found by its start however it’s written', () => {
+  assert.equal(f1StoryPath('2026-11-08T17:00Z'), 'sports/f1/stories/2026.json');
+  const doc = { races: { '2026-11-08T17:00Z': { zh: '諾里斯第一次進站後超前，最後一段換回半雨胎守住。', en: 'Norris took the lead at the first stops and held it on inters.' }, '2026-11-01T20:00Z': null } };
+  assert.equal(f1StoryFrom(doc, '2026-11-08T17:00:00.000Z'), '諾里斯第一次進站後超前，最後一段換回半雨胎守住。');
+  assert.equal(f1StoryFrom(doc, '2026-11-08T17:00Z', true), 'Norris took the lead at the first stops and held it on inters.');
+  assert.equal(f1StoryFrom(doc, '2026-11-01T20:00Z'), '');
+  assert.equal(f1StoryFrom(null, '2026-11-08T17:00Z'), '');
 });
