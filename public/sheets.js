@@ -10,6 +10,7 @@ import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
 import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { recapDays, recapPath, whyFrom } from './lib/why.mjs';
+import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod, withNewest } from './lib/live.mjs';
@@ -987,6 +988,47 @@ const whyDoc = day => {
   return whyDocs.get(day);
 };
 const whyKnown = new Map();
+// 去球場: a chip under the park that opens Orbit Transit planning the trip
+// (from where the phone is, there by half an hour before the start). Only
+// where the park is known and the game is near; the family's link builder
+// read from the kit (an older kit: no chip).
+// 球場天氣: the park's weather for the game's hours, filled when read (a
+// game within two days at a known park), a rain risk said under it
+// (可能因雨延賽). Nothing read: the row goes.
+function parkWeather(e, d) {
+  const park = parkOf(d?.venue || e.venue);
+  if (!park || e.status?.state !== 'pre') return null;
+  const t = Date.parse(e.start);
+  if (!(t - Date.now() < 2.5 * 86_400_000)) return null;
+  const en = L() === 'en';
+  if (park.dome) return gameWeatherText(null, park, en);
+  const box = el('span', { class: 'park-wx' }, [el('span', { class: 'nb', text: '…' })]);
+  getJsonWx(parkForecastUrl(park))
+    .then(fc => {
+      const w = gameWeather(fc, e.start, park);
+      if (!w) throw new Error('no hours');
+      box.replaceChildren(el('span', { class: 'nb', text: gameWeatherText(w, park, en) }), w.wet ? el('small', { class: 'info-sub park-wet', text: en ? 'Rain may hold the game' : '可能因雨延賽' }) : null);
+    })
+    .catch(() => box.closest('li')?.remove());
+  return box;
+}
+const getJsonWx = url => proxyJson(url, { ttl: 30 * 60_000 });
+
+function goPark(e, d) {
+  const park = parkOf(d?.venue || e.venue);
+  const by = park && e.status?.state === 'pre' ? arriveBy(e.start) : null;
+  if (!by) return null;
+  const chip = el('button', { class: 'q-chip info-go', type: 'button', hidden: true }, [el('span', { class: 'info-go-mark', 'aria-hidden': 'true', html: kitUI.icons?.bus || '' }), el('span', { text: L() === 'en' ? 'Get there' : '怎麼去' })]);
+  import('#kit/family.mjs')
+    .then(f => {
+      if (typeof f.planHash !== 'function') return;
+      chip.hidden = false;
+      chip.onclick = () => (ctx.q?.go ? ctx.q.go('transit', f.planHash(park, by)) : location.assign(`/transit/${f.planHash(park, by)}`));
+    })
+    .catch(() => {});
+  return chip;
+}
+
 function whyLine(e) {
   if (!LEAGUES[e.league]?.espn) return null;
   const key = `${e.league}:${e.id}`;
@@ -1718,13 +1760,15 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     // A game over: when it ended, under the start (the last play's own clock; the owner, 2026-10-14).
     ['🕒', T('kickoff'), [el('span', { class: 'nb', text: `${dayLabel(localDate(when.getTime()), { long: true })} ${timeText(e)}` }), e.timeTbd && e.timeFrom === 'elta' ? el('small', { class: 'info-sub', text: L() === 'en' ? `ELTA's slot ${clock(e.start)}` : `愛爾達暫排 ${clock(e.start)}` }) : null, d?.endedAt ? el('small', { class: 'info-sub nb', text: endedText(d.endedAt, e.start) }) : null].filter(Boolean)],
     // The ground, and its city on a line of its own (each said apart: a ground's name never broken by its city's).
-    ['📍', T('venue'), d?.venue || e.venue || d?.city ? [d?.venue || e.venue ? zhLater(d?.venue || e.venue) : null, d?.city ? el('small', { class: 'muted venue-city' }, [zhLater(d.city)]) : null].filter(Boolean) : ''],
+    // (去球場: a park in Taiwan, the game within two days: Orbit Transit plans the trip, there half an hour early.)
+    ['📍', T('venue'), d?.venue || e.venue || d?.city ? [d?.venue || e.venue ? zhLater(d?.venue || e.venue) : null, d?.city ? el('small', { class: 'muted venue-city' }, [zhLater(d.city)]) : null, goPark(e, d)].filter(Boolean) : ''],
     // Each channel on a line of its own (two in a row ran onto a second line mid-name).
     exactTv ? null : ['📺', T('tv'), tvOf(e).length ? tvOf(e).map(b => el('span', { class: 'nb info-line', text: tvName(b) })) : T('noTw')],
     // Each part whole on a line ("2-1 領先" never split; a name never broken).
     // The round, then how the series stands under it (a line each: " · " between them wrapped, the dot left hanging).
     stageTag(e, L()) ? ['🏅', T('stage'), [el('span', { class: 'nb', text: stageTag(e, L()) }), seriesText(e) ? el('small', { class: 'info-sub', text: seriesText(e) }) : null].filter(Boolean)] : null,
-    ['🌤', T('weather'), weatherText(d?.weather)],
+    // (球場天氣: ESPN says none for a CPBL game; a known park's forecast for the game's hours, read from the phone.)
+    ['🌤', T('weather'), weatherText(d?.weather) || parkWeather(e, d)],
     ['👥', T('attendance'), d?.attendance ? Number(d.attendance).toLocaleString(L() === 'en' ? 'en-US' : 'zh-TW') : ''],
     ['🧑‍⚖️', T('officials'), joinNodes((d?.officials || []).slice(0, 3).map(x => el('span', { class: 'nb', text: x })), '、')],
     // ESPN's note ("ALWC - Game 1") only where the stage tag doesn't already say it.

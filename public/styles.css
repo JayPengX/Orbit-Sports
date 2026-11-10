@@ -1641,6 +1641,11 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .info-v .nb { white-space: nowrap; }
 .info-v .info-sub { display: block; margin-top: 2px; font-size: 13px; color: var(--q-muted); }
 .venue-city { display: block; margin-top: 2px; font-size: 13px; }
+.info-go { display: flex; width: fit-content; align-items: center; gap: 4px; margin-top: 6px; }
+.info-go[hidden] { display: none; }
+.info-go-mark { display: inline-flex; width: 15px; height: 15px; }
+.info-go-mark svg { width: 100%; height: 100%; fill: currentColor; }
+.park-wet { color: var(--q-orange); }
 .rc-bars button.rc-bar { width: 100%; border: 0; background: none; color: inherit; font: inherit; padding: 0; text-align: left; cursor: pointer; }
 span.hero-team { cursor: default; }
 .hero-team-league { display: block; font-size: 11.5px; font-weight: 600; color: var(--q-text-2); }
