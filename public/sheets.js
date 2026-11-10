@@ -11,6 +11,7 @@ import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caugh
 import { stageTag, groupName } from './lib/stage.mjs';
 import { recapDays, recapPath, whyFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
+import { previewLine } from './lib/preview.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod, withNewest } from './lib/live.mjs';
@@ -1741,7 +1742,10 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   ].filter(Boolean);
   // (The table still being read: its rows held in their shape, 名次 and the sport's figures, BLANK.)
   const tableHeld = still('table') && !places.some(Boolean) ? [T('standing'), ...keyNames(e.league)] : [];
+  // 賽前看點: a game to come, why it matters (a close race in the table, a run), over the two sides.
+  const why = e.status.state === 'pre' ? previewLine({ sport: LEAGUES[e.league]?.sport, places, forms, names: sides.map(s => s.short || s.name), en: L() === 'en' }) : '';
   const compare = el('div', { class: 'compare' }, [
+    why ? el('p', { class: 'cmp-why' }, [el('b', { text: L() === 'en' ? 'Why watch ' : '看點 ' }), why]) : null,
     el('div', { class: 'cmp-head' }, sides.map((x, i) => cmpTeam(x, i ? 'home' : 'away', e.league)).flatMap((x, i) => (i ? [el('span', { class: 'cmp-vs', text: 'vs' }), x] : [x]))),
     ...compareRows.map(([label, a, h]) => el('div', { class: 'cmp-row' }, [cmpValue(a), el('span', { text: label }), cmpValue(h)])),
     // (名次 with its group under it, as a table of conferences or groups has it: all but football's leagues.)
