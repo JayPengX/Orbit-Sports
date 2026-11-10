@@ -1096,6 +1096,22 @@ function syncPush() {
     if (end) items.push(end);
   }
   schedulePush(q, items);
+  tellNext(items, now);
+}
+// The family's notebook (kit family.mjs sports.next): the followed games and
+// sessions starting within a day, as their start notices say them, for the
+// Orbit Pass's 今天 (a tap opens the game here: `hash`).
+let toldNext = '';
+function tellNext(items, now) {
+  const next = items
+    .filter(x => x.kind === 'start' && x.at > now - 3 * 3_600_000 && x.at < now + 86_400_000)
+    .sort((a, b) => a.at - b.at)
+    .slice(0, 4)
+    .map(x => ({ at: x.at, title: x.title.replace(/ (開賽|開始|is on)$/, ''), hash: x.hash }));
+  const key = JSON.stringify(next);
+  if (key === toldNext) return;
+  toldNext = key;
+  import('#kit/family.mjs').then(f => f.tell?.('sports', 'next', next)).catch(() => {});
 }
 // A game's or a sprint's or race's final, for the Worker to send the moment
 // it's over (it fills in the score or the podium, and who won: {result}); a
