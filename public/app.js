@@ -2382,6 +2382,15 @@ function renderLive() {
   // guide, beside the next game, not the guide under it and half the page empty.)
   const rightEmpty = !mineBlock && !later.length;
   const nextShows = rightEmpty && guide ? guideItems().filter(p => p.start > now && !(heroEvent && p.league === heroEvent.league && tvOf(heroEvent).some(b => b.at === p.start))).slice(0, 5) : [];
+  // (ELTA lists nothing more: today's games already over, their replays, there instead.)
+  const doneToday = rightEmpty && !nextShows.length ? all.filter(e => e.status.state === 'post' && !e.status.void && inDay(Date.parse(e.start), today())).sort((a, b) => b.start.localeCompare(a.start)).slice(0, 8) : [];
+  const beside = !rightEmpty
+    ? null
+    : nextShows.length
+      ? section(L({ zh: '接下來的轉播', en: 'Next on TV' }), el('div', { class: 'by-day' }, [...new Set(nextShows.map(p => localDate(p.start)))].flatMap(d => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list tv-guide' }, nextShows.filter(p => localDate(p.start) === d).map(p => guideRow(p, all, now)))])))
+      : doneToday.length
+        ? section(L({ zh: '今天稍早', en: 'Earlier today' }), el('div', { class: 'q-card list' }, doneToday.map(e => eventRow(e, { day: false }))))
+        : null;
   put(
     box,
     liveBar(),
@@ -2390,10 +2399,10 @@ function renderLive() {
       [
         hero,
         !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })])) : null,
-        rightEmpty ? null : guide,
+        beside ? null : guide,
         live.length > 1 ? section(t('liveNow'), el('div', { class: 'q-card list' }, live.slice(1).map(liveRow)), { cls: 'live-now' }) : null
       ],
-      [mineBlock, later.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null, rightEmpty && nextShows.length ? section(L({ zh: '接下來的轉播', en: 'Next on TV' }), el('div', { class: 'by-day' }, [...new Set(nextShows.map(p => localDate(p.start)))].flatMap(d => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list tv-guide' }, nextShows.filter(p => localDate(p.start) === d).map(p => guideRow(p, all, now)))]))) : null, rightEmpty ? guide : null]
+      [mineBlock, later.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null, beside, beside ? guide : null]
     )
   );
 }

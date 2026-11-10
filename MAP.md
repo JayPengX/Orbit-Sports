@@ -95,7 +95,7 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   - **轉播:** when and where. The same date strip (yesterday to two weeks
     on). Today: on now with 觀看, yours in the next 7 days, the next 24 h,
     ELTA's whole guide (a quiet day, nothing else coming: ELTA's next five
-    showings by day beside the next game, `nextShows`); another day: its best game, then all it has on TV.
+    showings by day beside the next game, `nextShows`; ELTA listing nothing more, today's games already over with their replays, `doneToday`); another day: its best game, then all it has on TV.
   - **追蹤:** how yours are doing. Teams, players, matches, drivers; 設定
     at its foot (leagues and follows as rows, put in order by their grips,
     kit `reorder`, each let go by its ✕ with 復原; commentary).
