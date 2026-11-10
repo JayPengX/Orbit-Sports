@@ -225,6 +225,21 @@ export function seriesLineZh(text, name = x => x) {
   if (m) return `系列賽 ${m[1]} 平手`;
   m = /^series starts/i.exec(t);
   if (m) return '系列賽即將開打';
+  // A cup tie (ESPN writes the club out in full: "Notts County win 3-2 on penalties", Jay 2026-11-09).
+  m = /^(.+?) (?:win|wins|won|advance|advances|advanced) (\d+\s*-\s*\d+) on penalties$/i.exec(t);
+  if (m) return `${name(m[1])} PK 大戰 ${m[2].replace(/\s/g, '')} 勝出`;
+  m = /^(.+?) (?:win|wins|won|advance|advances|advanced) (\d+\s*-\s*\d+) on aggregate$/i.exec(t);
+  if (m) return `${name(m[1])} 總比分 ${m[2].replace(/\s/g, '')} 晉級`;
+  m = /^(.+?) (?:win|wins|won|advance|advances|advanced) on away goals$/i.exec(t);
+  if (m) return `${name(m[1])} 以客場進球晉級`;
+  m = /^(.+?) (?:win|wins|won|advance|advances|advanced) (?:after|in) extra time$/i.exec(t);
+  if (m) return `${name(m[1])} 延長賽勝出`;
+  m = /^(.+?) (?:lead|leads) (\d+\s*-\s*\d+) on aggregate$/i.exec(t);
+  if (m) return `${name(m[1])} 總比分 ${m[2].replace(/\s/g, '')} 領先`;
+  m = /^aggregate:?\s*(\d+\s*-\s*\d+)$/i.exec(t);
+  if (m) return `總比分 ${m[1].replace(/\s/g, '')}`;
+  m = /^(?:aggregate|agg\.?) (?:tied|level) (\d+\s*-\s*\d+)$/i.exec(t);
+  if (m) return `總比分 ${m[1].replace(/\s/g, '')} 平手`;
   return null;
 }
 // ESPN's weather ("65°", Fahrenheit, sometimes with words) in Celsius.

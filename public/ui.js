@@ -399,6 +399,9 @@ const initialsPic = (name, cls) =>
   });
 function driverBadge(name, cls) {
   const d = f1Driver(name);
+  // (A face nobody has, a stand-in's: a person drawn on the team's colour, never letters, Jay 2026-11-09.)
+  const drawn = markPic('user', name, `driver-badge ${cls}`);
+  if (drawn) return (drawn.style.setProperty('--team', d.color), drawn);
   const initials = String(name || '').split(/\s+/).filter(w => !/^jr\.?$/i.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   return el('span', { class: `logo driver-badge ${cls}`, style: `--team:${d.color}`, 'aria-hidden': 'true', text: initials });
 }
@@ -588,7 +591,9 @@ export const seriesText = e => {
   const s = e.series?.summary;
   const len = bestOf(e);
   if (!s || /^series starts/i.test(s)) return len;
-  const name = abbr => [e.home, e.away].find(x => x?.abbr && x.abbr.toUpperCase() === String(abbr).toUpperCase())?.short || abbr;
+  // (A side by its abbreviation, or by its English name written out: a cup's "Notts County win 3-2 on penalties".)
+  const same = (a, b) => a && String(a).toUpperCase() === String(b).toUpperCase();
+  const name = said => { const x = [e.home, e.away].find(x => x && (same(x.abbr, said) || same(x.en, said) || same(x.full, said) || same(x.enShort, said))); return x?.short || x?.name || said; };
   const now = ctx.locale === 'en' ? s : seriesLineZh(s, name) || s;
   return [len, now].filter(Boolean).join(' · ');
 };

@@ -412,6 +412,24 @@ export const sessionLaps = async (start, over) => {
 // A circuit's outline, corners and the time a stop costs there (f1-live.js /circuit.json).
 export const circuitMap = (key, year) => getJson(`https://f1-live.orbit/circuit.json?key=${Number(key)}&year=${Number(year)}`, { ttl: 7 * 24 * 3_600_000 }).then(c => (c?.x?.length ? c : null));
 export const sessionTiming = start => getJson(ARCHIVE(start), { ttl: 24 * 3_600_000 }).then(b => (b?.cars?.length ? b : null));
+// A race's starting grid with the stewards' and the rule book's drops in it
+// (engine parts, a gearbox, a pit-lane start), OpenF1's, as the qualifying
+// session's key has it: [{ pos, no, name, team, quali }] in grid order, or []
+// (Brazil 2026: ESPN's field was the qualifying order, Russell's five places and
+// Leclerc's ten nowhere, Jay 2026-11-09). `quali`: where the car qualified.
+export async function startingGrid(qualStart) {
+  const t = await sessionTiming(qualStart).catch(() => null);
+  const key = t?.session?.key;
+  if (!key) return [];
+  const rows = await getJson(`https://api.openf1.org/v1/starting_grid?session_key=${encodeURIComponent(key)}`, { ttl: 30 * 60_000 }).catch(() => null);
+  if (!Array.isArray(rows) || rows.length < 2) return [];
+  const car = no => (t.cars || []).find(c => String(c.no) === String(no)) || null;
+  return rows
+    .filter(r => Number(r.position) > 0)
+    .sort((a, b) => a.position - b.position)
+    .map(r => ({ pos: Number(r.position), no: String(r.driver_number), name: car(r.driver_number)?.name || '', team: car(r.driver_number)?.team || '', quali: Number(car(r.driver_number)?.pos) || 0 }))
+    .filter(r => r.name);
+}
 // The last reading of this session if it's recent (10 minutes), or its last
 // word (the session over: it stands until the official numbers come), else null.
 export const keptTiming = (abbr, start) => (last && sameSession(last, abbr, start) && (Date.now() - last.at < 10 * 60_000 || (feedOver(last) && Date.now() - last.at < 2 * 86_400_000)) ? last : null);

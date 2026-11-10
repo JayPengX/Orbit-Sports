@@ -1705,7 +1705,11 @@ function renderHome() {
   // never the others' results (six small-hours 歐冠 games, Jay 2026-11-04).
   const endedOf = list => list.filter(e => e.status.state === 'post' || e.status.void).sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
   const filledStood = state.prefs.fill && h.filter !== 'teams' ? new Set(rank([...filtered(mine), ...fillPool()], 999, pctx, true)[0].filter(x => x.filled).map(x => `${x.event.league}:${x.event.id}`)) : new Set();
-  const dayGames = homeGames([...filtered(mine), ...fillPool()], { followed: e => isFollowedEvent(e), filled: filledStood });
+  // (A league they follow: every one of its games on TV here is theirs once over, not only the
+  // one or two its plan chose; Jay 2026-11-09, MLS followed: 已結束 showed 2 of the day's 15.)
+  const dayGames = homeGames([...filtered(mine), ...fillPool()], { followed: e => isFollowedEvent(e) || own.has(e.league), filled: filledStood });
+  // (Videos are looked ahead only for the games the plan had: a followed league's whole day is looked up on its page.)
+  const planGames = homeGames([...filtered(mine), ...fillPool()], { followed: e => isFollowedEvent(e), filled: filledStood });
   const endedGames = isToday ? endedOf(dayGames.own) : [];
   const endedFilled = isToday ? endedOf(dayGames.filled) : [];
   // A light day's games over are drawn as cards with who led each side: their
@@ -1738,7 +1742,7 @@ function renderHome() {
   // proxy 80 times, one request each, on an open after a night of European cups, 2026-11-06.
   // Any other game's comes with the pack, built every hour, or is looked up when its page
   // opens: its row says 搜尋精華影片 meanwhile, the same size, and works as a link.)
-  if (slot?.at) prefetchVideos([...dayGames.own, ...dayGames.filled]);
+  if (slot?.at) prefetchVideos([...planGames.own, ...planGames.filled]);
   // Today's picks on now first, each marked ★ 推薦, then the rest of theirs,
   // ranked. The picks as the plan has them (picks.mjs: games that don't
   // clash, a little overlap allowed, so two can be on at once), not every
@@ -1818,7 +1822,9 @@ function renderHome() {
   // busy day stays a plain list. Only the day's own games.
   const light = dayGames.own.length <= 3;
   // Games 填滿空檔 filled in, over: the same quiet line as before they started, with the score.
-  const filledOver = list => (list.length ? el('div', { class: 'q-card list pick-list filled-over' }, list.map(e => planRow({ event: e, reasons: [], filled: true }, rowDay))) : null);
+  // (Over, a result like any other: the two sides and their scores, a row each, never the quiet one-line
+  // form spread across the card with the score off at its end; Jay 2026-11-09.)
+  const filledOver = list => (list.length ? el('div', { class: 'q-card list filled-over' }, list.map(e => eventRow(e, endedRow))) : null);
   const endedBody = (own, fill, rowsOf) => (fill.length ? el('div', { class: 'ended-both' }, [own.length ? rowsOf(own) : null, filledOver(fill)]) : rowsOf(own));
   function pastDay() {
     const games = pastGames;
@@ -1947,7 +1953,7 @@ function renderHome() {
       !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
       leaguesShelf,
       teamsShelf || placesShelf,
-      endedGames.length || endedFilled.length ? section(t('pastEvents'), endedBody(endedGames, endedFilled, g => (light ? recapList(g, endedRow) : kitRail(g))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length + endedFilled.length }) }) }) : null
+      endedGames.length || endedFilled.length ? section(t('pastEvents'), endedBody(endedGames, endedFilled, g => (light ? recapList(g, endedRow) : kitRail(g, endedRow))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length + endedFilled.length }) }) }) : null
     ])
   );
   // (Drawn: what comes later for this day goes in as it is.)
@@ -2021,7 +2027,7 @@ function recapTap(ev, row) {
 // Cards that scroll sideways (the kit's rail).
 // A rail of games as cards; a lone game as a row in a full-width card (one
 // card by itself in a rail looked empty, Jay 2026-10-23).
-const kitRail = games => (games.length === 1 ? el('div', { class: 'q-card list' }, [eventRow(games[0], { day: true })]) : el('div', { class: 'q-rail score-rail' }, games.map(e => scoreCard(e, openEvent))));
+const kitRail = (games, opts = {}) => (games.length === 1 ? el('div', { class: 'q-card list' }, [eventRow(games[0], { day: true, ...opts })]) : el('div', { class: 'q-rail score-rail' }, games.map(e => scoreCard(e, openEvent))));
 // 稍後's 全部: the rest of the day worth a look, by the clock.
 function openMore(items, opts) {
   const s = sheet(t('moreGames'));
@@ -2941,7 +2947,9 @@ function playoffView(model, key) {
     if (!t || t.projected || t.pending) return el('div', { class: `br-tie ${t?.pending ? 'pending' : t?.sure ? 'sure' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
     // (Its sheet from the card as last drawn: patchPlayoffs moves __open over with the newer games.)
     const card = el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => card.__open() }, body);
-    card.__open = () => openTie(t, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh);
+    // A tie that is one game (a cup's single match): straight to that game, never a sheet listing
+    // it alone; a series or two legs keep their sheet (Jay 2026-11-09).
+    card.__open = () => (t.kind === 'single' && t.games?.length === 1 ? openEvent(t.games[0]) : openTie(t, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh));
     return card;
   };
   const entry = brackets.get(key);
