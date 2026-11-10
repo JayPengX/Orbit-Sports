@@ -3924,8 +3924,8 @@ function whereTv(e) {
 }
 
 // 我的聯賽: a short list, each league with how many games today has, its
-// 賽事 a tap away (Jay 2026-11-04: the big tiles never pleased). On 追蹤
-// beside 設定 (Jay 2026-11-10: off 首頁, "fill the gap" beside 設定).
+// 賽事 a tap away (Jay 2026-11-04: the big tiles never pleased). At the top of
+// 追蹤 (Jay 2026-11-10: off 首頁); on a wide page its rows in three columns.
 function myLeaguesCard() {
   const slot = state.days.get(today());
   const dayCount = k => (slot ? dayAll(slot).filter(e => e.league === k && !practice(e)).length : 0);
@@ -3959,19 +3959,21 @@ function renderFollowing() {
     ]),
     { cls: 'following-settings' }
   );
-  // 我的聯賽 and 設定 side by side where there's room (one under the other on a phone).
-  const leaguesAndSettings = p.leagues.length ? el('div', { class: 'q-cols following-foot' }, [section(t('yourLeagues'), myLeaguesCard(), { cls: 'following-leagues' }), settings]) : settings;
+  // 我的聯賽 first, what's followed from the widest down: leagues, then
+  // matches, teams, players (Jay 2026-11-10: at the foot beside 設定 it went unseen).
+  const leagues = p.leagues.length ? section(t('yourLeagues'), myLeaguesCard(), { cls: 'following-leagues' }) : null;
   if (!teams.length && !people.length) {
-    put(box, pageHead(t('tab_following')), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'q-rowcard' }, SUGGEST.map(suggestCard)), { cls: 'suggest-teams' }), settings);
+    put(box, pageHead(t('tab_following')), leagues, gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'q-rowcard' }, SUGGEST.map(suggestCard)), { cls: 'suggest-teams' }), settings);
     return;
   }
   put(
     box,
     pageHead(t('tab_following')),
+    leagues,
     gamesBlock,
     teams.length ? section(L({ zh: '球隊', en: 'Teams' }), el('div', { class: 'team-cards' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamCard(f))))) : null,
     people.length ? section(L({ zh: '選手', en: 'Players' }), el('div', { class: 'team-cards' }, people.map(personRow))) : null,
-    leaguesAndSettings
+    settings
   );
 }
 // A popular team, followed with a tap.

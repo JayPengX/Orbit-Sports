@@ -42,8 +42,8 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     2026-11-04 picked it over a grey row). In every other list (賽事, 轉播)
     a pick is ★ 推薦 on a grey-lit row when it's theirs (a followed league's
     chosen game), and an outlined ☆ 推薦 on an unlit row when only 填滿空檔
-    put it there (`lib/follows.mjs pickKind`, ui.js `eventRow`; Jay 2026-11-05). 我的聯賽 lives on 追蹤 (Jay 2026-11-10: "Remove 我的聯賽 from Home"),
-    beside 設定 on a wide page, each league with today's count of games (app.js `myLeaguesCard`). Every list on
+    put it there (`lib/follows.mjs pickKind`, ui.js `eventRow`; Jay 2026-11-05). 我的聯賽 lives at the top of 追蹤 (Jay 2026-11-10: "Remove 我的聯賽 from Home"),
+    its rows in two or three columns on a wide page, each league with today's count of games (app.js `myLeaguesCard`). Every list on
     首頁, 已結束 and a past day too, is only their own games and, with
     填滿空檔 on, the filled ones as the day stood (`lib/home-shown.mjs`
     `homeGames`): never the others' results; a filled game over is the same
