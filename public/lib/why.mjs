@@ -13,11 +13,32 @@ export function recapDays(e) {
   return d ? [d, addDays(d, 1)] : [];
 }
 // The line in the reader's language ('' when there's none, or it was let go).
+// v2 (Jay 11-10): only what the card doesn't show, its teams and players as
+// tokens ({t:<id>}, {p:<id>}); a file from before (lines that said the
+// leaders again) is never read.
 export function whyFrom(doc, e, en = false) {
+  if (!doc || doc.v !== 2) return '';
   const r = doc?.games?.[`${e?.league}:${e?.id}`];
   if (!r || typeof r !== 'object') return '';
   const line = String((en ? r.en : r.zh) || r.zh || r.en || '').trim();
   return line.length > 3 ? line : '';
+}
+// Its players (each { short, team }), for their chips.
+export const whoFrom = (doc, e) => (doc?.v === 2 && doc.games?.[`${e?.league}:${e?.id}`]?.who) || {};
+// The line in pieces: text, and the teams and players it names, in order:
+// [{ text } | { team: id } | { player: id }]. A token not known: left out.
+export function whyPieces(line, { teams = [], who = {} } = {}) {
+  const out = [];
+  let last = 0;
+  for (const m of String(line || '').matchAll(/\{([pt]):([^}]+)\}/g)) {
+    if (m.index > last) out.push({ text: line.slice(last, m.index) });
+    if (m[1] === 'p' && who[m[2]]) out.push({ player: m[2] });
+    else if (m[1] === 't' && teams.includes(m[2])) out.push({ team: m[2] });
+    last = m.index + m[0].length;
+  }
+  if (last < line.length) out.push({ text: line.slice(last) });
+  // (A space left beside a chip in Chinese: gone.)
+  return out.map(x => (x.text != null ? { text: x.text.replace(/^\s+(?=[\u4e00-\u9fff，。])/, '').replace(/(?<=[\u4e00-\u9fff，。])\s+$/, '') } : x)).filter(x => x.text !== '');
 }
 
 // F1 賽後故事 (Jay 11-10): how a race or sprint was won, made once by

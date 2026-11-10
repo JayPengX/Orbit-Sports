@@ -1,18 +1,27 @@
 // 賽後三句話's why line (lib/why.mjs): where it's kept and which one is read.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recapDays, whyFrom, recapPath, f1StoryPath, f1StoryFrom } from '../public/lib/why.mjs';
+import { recapDays, whyFrom, whoFrom, whyPieces, recapPath, f1StoryPath, f1StoryFrom } from '../public/lib/why.mjs';
 
 test('a game’s why line: its Taiwan day, then the next; the reader’s language', () => {
   assert.deepEqual(recapDays({ start: '2026-11-10T02:30Z' }), ['2026-11-10', '2026-11-11']);
   assert.deepEqual(recapDays({ start: '2026-11-10T17:00Z' }), ['2026-11-11', '2026-11-12'], 'past 16:00 UTC is Taiwan’s next day');
   assert.equal(recapPath('2026-11-10'), 'sports/recaps/2026-11-10.json');
-  const doc = { games: { 'nba:9': { zh: '詹姆斯最後 1 分鐘的三分球逆轉戰局。', en: 'James’s late three turned it.' }, 'nba:8': null } };
+  const doc = { v: 2, games: { 'nba:9': { zh: '詹姆斯最後 1 分鐘的三分球逆轉戰局。', en: 'James’s late three turned it.' }, 'nba:8': null } };
   const e = { league: 'nba', id: '9' };
   assert.equal(whyFrom(doc, e), '詹姆斯最後 1 分鐘的三分球逆轉戰局。');
   assert.equal(whyFrom(doc, e, true), 'James’s late three turned it.');
   assert.equal(whyFrom(doc, { league: 'nba', id: '8' }), '', 'let go: none');
   assert.equal(whyFrom(null, e), '');
+  assert.equal(whyFrom({ ...doc, v: undefined }, e), '', 'a file from before v2 (lines that said the leaders again): never read');
+});
+
+test('the line’s teams and players as chips, in order; a token not known left out (Jay 11-10)', () => {
+  const doc = { v: 2, games: { 'nba:9': { zh: '{t:10} 第三節靠 {p:44} 打出 14-0 攻勢反超', en: '{p:44} led a 14-0 run', who: { 44: { short: 'T. Eason', team: '10' } } } } };
+  const e = { league: 'nba', id: '9' };
+  assert.deepEqual(whoFrom(doc, e), { 44: { short: 'T. Eason', team: '10' } });
+  assert.deepEqual(whyPieces(whyFrom(doc, e), { teams: ['10', '7'], who: whoFrom(doc, e) }), [{ team: '10' }, { text: '第三節靠' }, { player: '44' }, { text: '打出 14-0 攻勢反超' }]);
+  assert.deepEqual(whyPieces('{p:99} 拿下', { teams: [], who: {} }), [{ text: '拿下' }]);
 });
 
 test('an F1 race’s story: its year’s file, found by its start however it’s written', () => {

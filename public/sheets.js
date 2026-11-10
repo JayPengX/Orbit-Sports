@@ -9,7 +9,7 @@ import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
 import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
-import { recapDays, recapPath, whyFrom, f1StoryPath, f1StoryFrom } from './lib/why.mjs';
+import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
 import { previewLine } from './lib/preview.mjs';
 import { tableStarted } from './lib/picks.mjs';
@@ -1048,20 +1048,42 @@ function f1Story(e, ss) {
   return holder;
 }
 
+// Its teams and players as chips (Jay 11-10): a player with his face, a
+// team by its name; each opens its page.
+function whyNodes(e, line, who) {
+  const sides = [e.home, e.away].filter(Boolean);
+  return whyPieces(line, { teams: sides.map(t => String(t.id)), who }).map(x => {
+    if (x.text != null) return document.createTextNode(x.text);
+    if (x.team) {
+      const t = sides.find(s => String(s.id) === x.team);
+      const name = t.short || t.name || '';
+      return hasTeamPage(e.league) ? el('button', { class: 'lp-chip', type: 'button', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, String(t.id), t)) }, [el('span', { text: name })]) : el('span', { class: 'lp-chip', text: name });
+    }
+    const p = who[x.player];
+    return el('button', { class: 'lp-chip lp-chip-who', type: 'button', 'aria-label': p.short, onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, x.player, { name: p.short })) }, [personPic({ id: x.player, name: p.short }, e.league, 'xs round'), el('span', { text: p.short })]);
+  });
+}
 function whyLine(e) {
   if (!LEAGUES[e.league]?.espn) return null;
   const key = `${e.league}:${e.id}`;
   const en = L() === 'en';
-  const make = text => el('p', { class: 'lp-why' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.spark || '' }), el('span', { text })]);
+  const make = ({ text, who }) => el('p', { class: 'lp-why' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.spark || '' }), el('span', { class: 'lp-why-text' }, whyNodes(e, text, who))]);
   if (whyKnown.has(key)) return whyKnown.get(key) ? make(whyKnown.get(key)) : null;
   const holder = el('p', { class: 'lp-why', hidden: true });
   (async () => {
     let text = '';
-    for (const day of recapDays(e)) if ((text = whyFrom(await whyDoc(day), e, en))) break;
-    whyKnown.set(key, text);
+    let who = {};
+    for (const day of recapDays(e)) {
+      const doc = await whyDoc(day);
+      if ((text = whyFrom(doc, e, en))) {
+        who = whoFrom(doc, e);
+        break;
+      }
+    }
+    whyKnown.set(key, text ? { text, who } : '');
     if (!text || !holder.isConnected) return;
     const panel = holder.closest('.live-panel');
-    holder.replaceWith(make(text));
+    holder.replaceWith(make({ text, who }));
     if (panel) panel.hidden = false;
   })();
   return holder;

@@ -939,7 +939,14 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .live-line .live-who { color: var(--q-muted); }
 .live-panel { display: grid; gap: 12px; margin: 12px 0 4px; padding: 14px 16px; border-radius: 14px; background: var(--q-fill, var(--q-surface-2)); border: 1px solid transparent; color: var(--q-text); }
 /* 賽後三句話's why line (lib/why.mjs): the panel's first line, the AI's spark beside it. */
-.live-panel .lp-why { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 15px; line-height: 1.5; color: var(--q-text); }
+.live-panel .lp-why { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding-bottom: 12px; border-bottom: 0.5px solid var(--q-separator, var(--q-border)); font-size: 15px; line-height: 1.7; color: var(--q-text); }
+.live-panel .lp-why:last-child { padding-bottom: 0; border-bottom: 0; }
+.lp-why-text { flex: 1; min-width: 0; text-wrap: pretty; }
+/* A team or player the line names (Jay 11-10): a chip, a player's with his face; each opens its page. */
+.lp-chip { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; max-width: 100%; margin: 0 2px; padding: 0 8px; height: 22px; border: 0; border-radius: 11px; background: var(--q-fill-3, var(--q-surface-2)); color: var(--q-text); font: 600 13px/22px var(--q-font, inherit); white-space: nowrap; }
+.lp-chip-who { padding-left: 2px; }
+.lp-chip .logo { width: 18px; height: 18px; flex: none; border-radius: 50%; }
+button.lp-chip { cursor: pointer; }
 /* F1 賽後故事: the race's story over its order (sheets.js f1Story). */
 .f1-story { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 15px; line-height: 1.5; color: var(--q-text); }
 .lp-why-mark { flex: none; display: inline-flex; width: 16px; height: 16px; margin-top: 3px; color: var(--q-accent, var(--q-orange)); }
