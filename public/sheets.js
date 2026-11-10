@@ -1317,6 +1317,22 @@ function seasonSub(season) {
 }
 const boxTableName = name => BOX_TABLES[String(name).toLowerCase()]?.[L() === 'en' ? 1 : 0] || name;
 // A game's team numbers in their groups, each group's rows together in the feed's order: [{ group, rows }].
+// The groups' tiles in two columns on a wide sheet, split where the two sides
+// come nearest in rows, in order (a phone reads them one list, the same
+// order). CSS columns left the second column a margin lower in Safari (Jay
+// 2026-11-10, an iPad: 防守 under 攻勢's top); loose rows (no groups) flow as before.
+export function dealSets(sets, draw) {
+  const tiles = sets.map(draw);
+  if (sets.length < 2 || sets.some(x => !x.group)) return tiles;
+  const weight = sets.map(x => x.rows.length + 1.5);
+  const all = weight.reduce((a, b) => a + b, 0);
+  let best = 1, gap = Infinity, run = 0;
+  for (let k = 1; k < sets.length; k++) {
+    run += weight[k - 1];
+    if (Math.abs(all - 2 * run) < gap) (gap = Math.abs(all - 2 * run)), (best = k);
+  }
+  return [el('div', { class: 'sb-col' }, tiles.slice(0, best)), el('div', { class: 'sb-col' }, tiles.slice(best))];
+}
 export function statSets(rows) {
   const out = [];
   for (const r of rows || []) {
@@ -1340,7 +1356,7 @@ function matchSection(view, d, e, table, lw = {}) {
         [el('div', { class: 'sb-legend' }, inOrder(e, [el('span', { class: 'away' }, [tag(e.away.id)]), el('span', { class: 'home' }, [tag(e.home.id)])]))].concat(
           // Each group its own set (Jay 2026-11-06, an iPad: two columns cut a group in two, 抄截 under no head, the sides' names at the far edges):
           // on a phone one list as before; on a wide sheet each set a tile, its head the two sides by the group's name, two columns of whole tiles.
-          statSets(teamStatRows(d.teamStats, LEAGUES[e.league]?.sport, L())).map(({ group, rows: set }) =>
+          dealSets(statSets(teamStatRows(d.teamStats, LEAGUES[e.league]?.sport, L())), ({ group, rows: set }) =>
             el('div', { class: `sb-set${group ? '' : ' loose'}` }, [
               group ? el('div', { class: 'sb-head' }, inOrder(e, [el('span', { class: 'sb-side away' }, [tag(e.away.id)]), el('span', { class: 'sb-side home' }, [tag(e.home.id)])]).flatMap((x, i) => (i ? [el('p', { class: 'mini-h sb-group', text: group }), x] : [x]))) : null,
               ...set.flatMap(s => {
@@ -1356,7 +1372,8 @@ function matchSection(view, d, e, table, lw = {}) {
             return [
               el('div', { class: 'stat-bar' }, [
                 el('div', { class: 'sb-top' }, (([x, y]) => [x, el('span', { text: s.label }), y])(inOrder(e, [el('strong', { class: `num${better === 'away' ? ' lead' : ''}`, text: s.away }), el('strong', { class: `num${better === 'home' ? ' lead' : ''}`, text: s.home })]))),
-                aa + hh > 0 ? el('div', { class: 'sb-track' }, inOrder(e, [el('i', { class: 'away', style: `flex-grow:${share}` }), el('i', { class: 'home', style: `flex-grow:${100 - share}` })])) : null
+                // (Nothing on either side, 0–0: an empty line, so every row keeps one rhythm; Jay 2026-11-10.)
+                aa + hh > 0 ? el('div', { class: 'sb-track' }, inOrder(e, [el('i', { class: 'away', style: `flex-grow:${share}` }), el('i', { class: 'home', style: `flex-grow:${100 - share}` })])) : el('div', { class: 'sb-track none', 'aria-hidden': 'true' }, [el('i')])
               ])
             ];
           })
@@ -1461,7 +1478,7 @@ function matchSection(view, d, e, table, lw = {}) {
             run: true,
             make: () => {
               const runSide = side(m.team) || (m.side === 'home' ? e.home : e.away);
-              const runLogo = () => (runSide?.logo ? logo(runSide.logo, sideShort(m.team), 'xs play-team') : el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(e.league)]));
+              const runLogo = () => (runSide?.logo ? teamLogoTap(e.league, runSide, logo(runSide.logo, sideShort(m.team), 'xs play-team')) : el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(e.league)]));
               const runWords = () => el('span', { class: 'play-words' }, [el('span', { class: 'play-main q-fit-wrap', text: m.text })]);
               return el('li', { class: 'run-mark', style: tint[m.side] ? `--side:${tint[m.side]}` : null }, [clockless ? null : el('span', { class: 'play-when run-logo' }, [runLogo()]), el('span', { class: `play-text${clockless ? ' has-face' : ''}` }, [clockless ? runLogo() : null, runWords()]), chip()]);
             }
@@ -2206,8 +2223,8 @@ function winChanceCard(odds, e) {
     el('div', { class: 'wp', style: sideVars(e) }, [
       // Each side with its small logo beside its name and chance.
       el('div', { class: 'wp-labels wc-labels' }, (() => {
-        const a = el('span', { class: 'away' }, homeFirst(e) ? [document.createTextNode(`${e.away.short || e.away.name} ${away}%`), logo(e.away.logo, e.away.name, 'xs')] : [logo(e.away.logo, e.away.name, 'xs'), document.createTextNode(`${e.away.short || e.away.name} ${away}%`)]);
-        const h = el('span', { class: 'home' }, homeFirst(e) ? [logo(e.home.logo, e.home.name, 'xs'), document.createTextNode(`${e.home.short || e.home.name} ${home}%`)] : [document.createTextNode(`${e.home.short || e.home.name} ${home}%`), logo(e.home.logo, e.home.name, 'xs')]);
+        const a = el('span', { class: 'away' }, homeFirst(e) ? [document.createTextNode(`${e.away.short || e.away.name} ${away}%`), teamLogoTap(e.league, e.away, logo(e.away.logo, e.away.name, 'xs'))] : [teamLogoTap(e.league, e.away, logo(e.away.logo, e.away.name, 'xs')), document.createTextNode(`${e.away.short || e.away.name} ${away}%`)]);
+        const h = el('span', { class: 'home' }, homeFirst(e) ? [teamLogoTap(e.league, e.home, logo(e.home.logo, e.home.name, 'xs')), document.createTextNode(`${e.home.short || e.home.name} ${home}%`)] : [document.createTextNode(`${e.home.short || e.home.name} ${home}%`), teamLogoTap(e.league, e.home, logo(e.home.logo, e.home.name, 'xs'))]);
         return [...inOrder(e, [a, h]).flatMap((x, i) => (i ? [x] : [x, draw != null ? el('span', { class: 'draw', text: `${en ? 'Draw' : '和局'} ${draw}%` }) : null]))];
       })()),
       el('div', { class: 'wc-bar', 'aria-hidden': 'true' }, inOrder(e, [el('span', { class: 'away', style: `flex:${away}` }), el('span', { class: 'home', style: `flex:${home}` })]).flatMap((x, i) => (i ? [x] : [x, draw ? el('span', { class: 'draw', style: `flex:${draw}` }) : null])))
@@ -2405,7 +2422,7 @@ function winProbCard(line, e, timeline, events = []) {
   const plot = scrubPlot(xs, show, [el('div', { html: svg }), ...pins, rule, dot]);
   dot.classList.add('ring');
   // Whose half is whose: each side's logo beside the chart (never over the line).
-  const frame = el('div', { class: 'wp-frame' }, [el('div', { class: 'wp-sides', 'aria-hidden': 'true' }, [sideLogo(e.home, e.league, 'xs'), sideLogo(e.away, e.league, 'xs')]), plot]);
+  const frame = el('div', { class: 'wp-frame' }, [el('div', { class: 'wp-sides' }, [teamLogoTap(e.league, e.home, sideLogo(e.home, e.league, 'xs')), teamLogoTap(e.league, e.away, sideLogo(e.away, e.league, 'xs'))]), plot]);
   // The key moments, in the game's order: a tap puts the chart on that one (brought into view).
   const rows = listed.map(m =>
     // The face to the player's page, the rest to the chart.
@@ -2430,7 +2447,7 @@ function winProbCard(line, e, timeline, events = []) {
       ])
     : null;
   const box = el('div', { class: 'wp', style: sideVars(e) }, [
-    el('div', { class: 'wp-labels wc-labels' }, (([l, rt]) => [l, draw, rt])(inOrder(e, [el('span', { class: 'away' }, homeFirst(e) ? [away, sideLogo(e.away, e.league, 'xs')] : [sideLogo(e.away, e.league, 'xs'), away]), el('span', { class: 'home' }, homeFirst(e) ? [sideLogo(e.home, e.league, 'xs'), home] : [home, sideLogo(e.home, e.league, 'xs')])]))),
+    el('div', { class: 'wp-labels wc-labels' }, (([l, rt]) => [l, draw, rt])(inOrder(e, [el('span', { class: 'away' }, homeFirst(e) ? [away, teamLogoTap(e.league, e.away, sideLogo(e.away, e.league, 'xs'))] : [teamLogoTap(e.league, e.away, sideLogo(e.away, e.league, 'xs')), away]), el('span', { class: 'home' }, homeFirst(e) ? [teamLogoTap(e.league, e.home, sideLogo(e.home, e.league, 'xs')), home] : [home, teamLogoTap(e.league, e.home, sideLogo(e.home, e.league, 'xs'))])]))),
     at,
     frame,
     el('div', { class: 'wp-axis-in' }, [axisRow(marks)]),
@@ -2985,6 +3002,12 @@ function personTap(league, p, pic) {
   const can = p?.id && LEAGUES[league]?.espn && /^\d+$/.test(String(p.id));
   return can ? el('button', { class: 'wp-who', type: 'button', 'aria-label': p.name || '', onclick: ev => (ev.stopPropagation(), ctx.openPlayer(league, p.id, p)) }, [pic]) : pic;
 }
+// A team's logo anywhere on a game's page opens the team (Jay 2026-11-10: "every
+// player and team clickable, headshots and logos too"); a team with no page, as drawn.
+function teamLogoTap(league, t, pic) {
+  const can = t?.id && !t.guest && !t.athlete && hasTeamPage(league);
+  return can ? el('button', { class: 'wp-who team', type: 'button', 'aria-label': t.short || t.name || '', onclick: ev => (ev.stopPropagation(), ctx.openTeam(league, String(t.id), t)) }, [pic]) : pic;
+}
 function personName(league, p, cls = 'field-name') {
   if (!p) return el('span', { class: cls });
   const can = p.id && LEAGUES[league]?.espn && /^\d+$/.test(String(p.id));
@@ -3010,7 +3033,7 @@ function playLine(league, p, side) {
   const helpers = (p.helpers || []).filter(h => h.pic?.id);
   const sub = whole(helpers.length ? String(parts.sub || '').split(' · ').filter(x => !helpers.some(h => h.name && x.includes(h.name.split(' ').at(-1)))).join(' · ') : parts.sub);
   // (An own goal: the team's badge, the defender's small head on it, a tap to his page.)
-  const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge', { onWhite: true }) : null])) : own && p.pic && side?.logo ? personTap(league, p.pic, el('span', { class: 'play-face og' }, [logo(side.logo, team, 'xs play-team'), personPic(p.pic, league, 'play-head round')])) : side?.logo ? logo(side.logo, team, 'xs play-team') : null;
+  const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge', { onWhite: true }) : null])) : own && p.pic && side?.logo ? personTap(league, p.pic, el('span', { class: 'play-face og' }, [logo(side.logo, team, 'xs play-team'), personPic(p.pic, league, 'play-head round')])) : side?.logo ? teamLogoTap(league, side, logo(side.logo, team, 'xs play-team')) : null;
   // A play with neither (本節結束, 比賽結束): the league's mark, so every row has its picture.
   // Who on a line of their own, what they did under it with the rest
   // (Jay 2026-11-03: "S. Gilgeous-Alexander 跳投不進" crammed on one line):

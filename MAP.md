@@ -113,12 +113,12 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   empty, measured as drawn (`tests/home-board.test.mjs`). A swipe anywhere
   on the page, its empty space too, goes a day either way (kit `daySwipe`).
 - **Sheets** (full height):
-  - **A match:** header and line score, a live panel, then sections drawn
+  - **A match:** header (each side's crest sized to the sheet, the score level with the crests' middle and the biggest thing, the status under it, 追蹤 small; Jay 2026-11-10) and line score, a live panel, then sections drawn
     once in an order set by the game's moment: 概況, 數據, 球員, 過程, 先發,
     場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊. 數據 holds both
     球隊 and 球員 (the box score; before the start, the season's). Every sport shares one
     先發陣容 card, one 陣容 card per side (先發 or 打序, 替補, then 未上場 or
-    傷兵 in the injury report's rows) and one 傷兵 list (three, then 全部). Soccer's 場上球員 pitch is at most 600px wide and its faces, numbers and names grow with it (`.soccer-pitch`, container units; Jay 2026-11-10). Game cards in a grid on a wide page are rows of even height (`.game-grid`, `.team-cards`). 過程 (`playsNav`): on a wide sheet (760px and up, the sheet's own width) its filter and period jumps are a column down the left, kept in view under the sheet's head, the plays the rest of the width (`.plays-wrap.with-nav`; a phone keeps the bar on top).
+    傷兵 in the injury report's rows) and one 傷兵 list (three, then 全部). Every team logo on the page opens the team (`teamLogoTap`) and every face the player (`personTap`). 數據's group tiles on a wide sheet are two columns split where the rows come nearest (`dealSets`), a 0–0 row an empty line. Soccer's 場上球員 pitch is at most 600px wide and its faces, numbers and names grow with it (`.soccer-pitch`, container units; Jay 2026-11-10). Game cards in a grid on a wide page are rows of even height (`.game-grid`, `.team-cards`). 過程 (`playsNav`): on a wide sheet (760px and up, the sheet's own width) its filter and period jumps are a column down the left, kept in view under the sheet's head, the plays the rest of the width (`.plays-wrap.with-nav`; a phone keeps the bar on top).
   - **A race weekend:** a hero (flag, circuit, countdown to the next session),
     the sessions on one timeline (a tap picks whose order shows), then F1's
     冠軍之爭, 台灣轉播, 賽道 (outline, formula1.com's figures and lap record,

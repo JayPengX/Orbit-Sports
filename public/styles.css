@@ -499,6 +499,22 @@ img { max-width: 100%; }
 .mh-bonus { padding: 0 7px; border-radius: 999px; background: var(--live-wash); color: var(--live); font-size: 11.5px; font-weight: 700; line-height: 20px; }
 .mh-score { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; line-height: 1.1; }
 .mh-time { font-size: 26px; font-weight: 700; white-space: nowrap; }
+/* A game's head, upright on a phone (Jay 2026-11-10, S36: "cleaner, bigger team
+   logos, better hierarchy and alignment"): the crests large and sized by the
+   sheet's width, the score the biggest thing and level with the crests' middle,
+   the status under it; each side's name, then its record, then 追蹤 small and quiet. */
+@container q-sheet (max-width: 599px) {
+  .match-head { --mh-logo: clamp(56px, 18cqi, 76px); --mh-score: clamp(30px, 10.5cqi, 44px); }
+  .mh-team .logo.lg { width: var(--mh-logo); height: var(--mh-logo); }
+  .mh-team { gap: 6px; }
+  .mh-team strong { font-size: 16px; font-weight: 700; }
+  .mh-side { gap: 2px; }
+  .mh-side > small { font-size: 12.5px; }
+  .mh-score { font-size: var(--mh-score); line-height: 1; }
+  .mh-time { font-size: calc(var(--mh-score) * 0.8); line-height: 1.25; }
+  .mh-mid { padding-top: calc((var(--mh-logo) - var(--mh-score)) / 2); gap: 6px; }
+  .mh-side .follow-btn { margin-top: 6px; min-height: 28px; padding: 0 12px; font-size: 13px; }
+}
 /* (Its own stacking: the pinned column stays over the table's columns, never over a sheet's sticky title.) */
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; isolation: isolate; }
 .table-wrap.more-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
@@ -715,9 +731,10 @@ tbody th.left small { color: var(--q-muted); font-weight: 500; }
 .series-text { font-size: 14px; }
 .injuries { display: grid; gap: 10px; }
 .sb-group { margin: 10px 0 -2px; }
-.sb-legend + .sb-set .sb-group { margin-top: 0; }
+.sb-legend + .sb-set .sb-group, .sb-legend + .sb-col > .sb-set:first-child .sb-group { margin-top: 0; }
 /* A phone: the sets one list, as before (sheets.js statSets); the sides' names only on the legend. */
-.sb-set, .sb-head { display: contents; }
+.sb-set, .sb-head, .sb-col { display: contents; }
+.sb-track.none i { flex: 1; background: var(--q-fill-3, rgba(120, 120, 128, 0.2)); }
 .sb-side { display: none; }
 .sb-legend { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 600; }
 .sb-legend .away { color: var(--away); }
@@ -863,8 +880,10 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .play-line { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; min-width: 0; font-size: 13.5px; color: var(--q-text-2); }
 .play-line > .play-sub { font-size: 11.5px; }
 .play-face { position: relative; display: inline-grid; flex: none; }
-.play-text .play-face.og .logo.play-head { position: absolute; right: -5px; bottom: -4px; width: 15px; height: 15px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--q-surface, #1c1c1e); object-fit: cover; }
-.play-text .play-face .logo.play-badge { position: absolute; right: -4px; bottom: -3px; width: 14px; height: 14px; padding: 1px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px var(--q-surface, #1c1c1e); object-fit: contain; }
+.play-text .play-face.og .logo.play-head { position: absolute; right: -7px; bottom: -5px; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--q-surface, #1c1c1e); object-fit: cover; }
+/* The team beside the player is a badge one can read (Jay 2026-11-10: "more noticeable"). */
+.play-text .play-face:has(> .play-badge, > .play-head) { margin-inline-end: 6px; }
+.play-text .play-face .logo.play-badge { position: absolute; right: -7px; bottom: -5px; width: 20px; height: 20px; padding: 1.5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px var(--q-surface, #1c1c1e), 0 1px 3px rgba(0, 0, 0, 0.25); object-fit: contain; }
 .cmp-row > strong { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
 .cmp-val small { display: block; font-size: 11.5px; font-weight: 600; color: var(--q-muted); line-height: 1.3; }
 .fx-card { min-width: 0; overflow: hidden; }
@@ -2679,6 +2698,9 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
      its head the two sides by the group's name, whole tiles in two columns. */
   .stat-bars { display: block; columns: 2; column-gap: 12px; }
   .stat-bars > .sb-legend { display: none; }
+  .stat-bars:has(> .sb-col) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; columns: auto; }
+  .sb-col { display: grid; gap: 12px; align-content: start; min-width: 0; }
+  .sb-col > .sb-set { margin: 0; }
   .sb-set { display: grid; gap: 14px; padding: 14px 16px 16px; margin: 0 0 12px; border-radius: var(--q-r-cell, 12px); background: var(--q-fill-4, var(--q-sunken)); break-inside: avoid; }
   .sb-set.loose { break-inside: auto; display: block; background: none; padding: 0; }
   .sb-set.loose > .stat-bar { break-inside: avoid; margin-bottom: 14px; }
@@ -2868,6 +2890,17 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 .pick-list .event-row.filled .side-score { display: none; }
 .pick-list .event-row.filled:has(.filled-score) { grid-template-columns: 64px minmax(0, 1fr) auto; }
 .pick-list .event-row.filled:has(.filled-score)::after { content: none; }
+/* A filled game over reads as a result (Jay 2026-11-10, S26: "improve the layout"):
+   the score between the two sides, each side's crest by the score, one line. */
+.pick-list .event-row.filled:has(.filled-score) { grid-template-columns: 64px minmax(0, 1fr) auto minmax(0, 1fr); column-gap: 10px; }
+.pick-list .event-row.filled:has(.filled-score) .event-sides { display: contents; }
+.pick-list .event-row.filled:has(.filled-score) .event-sides > .side { grid-row: 1; grid-column: 4; }
+.pick-list .event-row.filled:has(.filled-score) .event-sides > .side:first-child { grid-column: 2; flex-direction: row-reverse; text-align: right; }
+.pick-list .event-row.filled:has(.filled-score) .event-sides > .side:first-child .side-name { flex: 0 1 auto; }
+.pick-list .event-row.filled:has(.filled-score) .event-sides > .side .side-name { overflow: hidden; text-overflow: ellipsis; }
+.pick-list .event-row.filled:has(.filled-score) .event-sides > :not(.side) { display: none; }
+.pick-list .event-row.filled:has(.filled-score) > .filled-score { grid-row: 1; grid-column: 3; min-width: 3.6em; box-sizing: border-box; text-align: center; padding: 4px 10px; border-radius: 8px; background: var(--q-fill-4, rgba(127, 127, 127, 0.12)); }
+.pick-list .event-row.filled:has(.filled-score) > .event-meta { grid-row: 1; grid-column: 1; }
 .filled-score { color: var(--q-label); font: 600 15px/1 var(--q-font-rounded); white-space: nowrap; }
 
 /* 我的設定 安靜時段: two hours, each the phone's own picker under it. */
@@ -2880,13 +2913,13 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
    sheet's room. A phone, upright or on its side, as before. */
 @media (min-height: 521px) {
   @container q-sheet (min-width: 600px) {
-    .mh-team .logo.lg { width: 76px; height: 76px; }
-    .mh-team { gap: 8px; }
-    .mh-team strong { font-size: 22px; }
+    .mh-team .logo.lg { width: 92px; height: 92px; }
+    .mh-team { gap: 10px; }
+    .mh-team strong { font-size: 22px; font-weight: 700; }
     .mh-side small { font-size: 14px; }
-    .mh-score { font-size: 56px; }
-    .mh-time { font-size: 40px; }
-    .mh-mid { gap: 8px; }
+    .mh-score { font-size: 60px; line-height: 1; }
+    .mh-time { font-size: 40px; line-height: 1.5; }
+    .mh-mid { gap: 10px; padding-top: 16px; }
     .mh-status { padding: 3px 14px; font-size: 15px; }
     .mh-bug { gap: 10px; height: 24px; }
     .mh-tos { gap: 4px; }
