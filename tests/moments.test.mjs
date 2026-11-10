@@ -643,11 +643,14 @@ test('basketball: a late basket the other side answered at once with as much is 
 // A game over said by what it meant, not the winner at 100% (Jay 2026-11-09).
 test("a finished game's line: each side's chance before it, an upset, the winner's lowest", async () => {
   const { gameArc } = await import('../public/lib/wpline.mjs');
-  // Lakers (away) at Pistons, the book's 72% for Detroit: the Lakers won from 28%, as low as 8% on the way.
+  // Lakers (away) at Pistons, the line's start 70% for Detroit (not the book's 72%: the number
+  // at rest is the one at the line's start, Jay 2026-11-10): the Lakers won from 30%, as low as 8%.
   const pts = [{ home: 0.7 }, { home: 0.92 }, { home: 0.4 }, { home: 0.0, settled: true }];
   const arc = gameArc(pts, { home: 0.718 }, 'L');
   assert.equal(arc.side, 'away');
-  assert.ok(Math.abs(arc.pre - 0.282) < 1e-9 && arc.upset);
+  assert.ok(Math.abs(arc.pre - 0.3) < 1e-9 && arc.upset);
+  // A line with no start of its own: the book's.
+  assert.ok(Math.abs(gameArc([{}, { home: 0.4 }], { home: 0.718 }, 'L').pre - 0.282) < 1e-9);
   assert.ok(Math.abs(arc.low - 0.08) < 1e-9, 'the settled end is not a low');
   // No book: the line's first point; a draw's own chance.
   const draw = gameArc([{ home: 0.45, draw: 0.27 }, { home: 0.2, draw: 0.6 }], null, 'D');

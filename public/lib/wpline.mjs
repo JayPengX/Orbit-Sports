@@ -321,15 +321,17 @@ export function momentsAt(moments, xs, j, within = 0.025) {
 
 // A finished game's line by what it meant, not the winner at 100% (Jay
 // 2026-11-09: "how much they exceeded their pre-game odds"): each side's
-// chance before the start (the sportsbook's the game page showed, else the
-// line's first point), the winner's from that (under 40%: an upset), and
+// chance before the start (the line's own first point, so the number at
+// rest is the one a finger reads at the line's start: Jay 2026-11-10, 64%
+// said, 78% at 0–0; the sportsbook's only for a line with no start), the
+// winner's from that (under 40%: an upset), and
 // the winner's lowest on the way (inpredictable's comeback factor, 1 in N).
 // result: the home side's 'W', 'L' or 'D'. null without a chance before.
 export const UPSET = 0.4;
 export function gameArc(points, prior, result) {
   const side = { W: 'home', L: 'away', D: 'draw' }[result];
   if (!side || !points?.length) return null;
-  const at = prior?.home != null ? prior : points[0];
+  const at = points[0]?.home != null ? points[0] : prior;
   if (at?.home == null) return null;
   const start = { home: at.home, draw: at.draw ?? null, away: Math.max(0, 1 - at.home - (at.draw ?? 0)) };
   const of = p => (side === 'home' ? p.home : side === 'draw' ? p.draw : p.home == null ? null : 1 - p.home - (p.draw ?? 0));

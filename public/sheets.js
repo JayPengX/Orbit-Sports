@@ -2304,14 +2304,14 @@ function winProbCard(line, e, timeline, events = []) {
   const sideC = s => (s === 'home' ? homeC : awayC);
   const side = { home: { id: e.home.id, name: sideName(e.home) }, away: { id: e.away.id, name: sideName(e.away) }, en };
   const moments = (pts.every(p => p.n) ? playMoments(pts, sport, side) : eventMoments(pts, events, sport, side, pts.map(p => p.t))).filter(m => !isQuiet(m.i));
-  // When it was: the period (a stretch, its periods), the clock in the last two minutes, the score after it.
+  // When it was: the one period of the point it's dotted at (a run over two
+  // quarters said where it ended, never 第3–4節: Jay 2026-11-10, a point is
+  // in one quarter), the clock in the last two minutes, the score after it.
   const momentAt = m => {
-    const [a, b] = m.periods || [];
-    // 第2–3節, 2–3局 (one word for both ends).
-    const when = a && b && b > a ? (en ? `${periodName(sport, a, en)}–${periodName(sport, b, en)}` : `${periodName(sport, a, en).replace(/[節局]$/, '')}–${periodName(sport, b, en).replace(/^第/, '')}`) : pointStamp(timeline, sport, m.t != null ? { ...pts[m.i], t: m.t } : pts[m.i], en);
     // A run that took the lead (or tied it): the score on the play that did,
     // not where the lagging price peaked (98–91 for a lead taken at 89–88).
     const at = m.lead ?? m.i;
+    const when = pointStamp(timeline, sport, m.t != null && at === m.i ? { ...pts[m.i], t: m.t } : pts[at], en);
     const score = scoreAt(pts, at, events, e.home.id);
     return [when, lateClock(sport, pts[at]), score ? inOrder(e, score).join('–') : ''].filter(Boolean).join(' · ');
   };
