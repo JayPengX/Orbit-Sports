@@ -2515,11 +2515,12 @@ async function playoffWeeks(league, days, ttl) {
   }
   return out;
 }
-// The playoffs so far: from the next ten days back.
+// The playoffs so far: from the next two and a half weeks back (MLS's first
+// round on ESPN's schedule twelve days before it, Jay 2026-11-10: "display the schedule").
 async function postseason(league) {
   const cal = await seasonCalendar(league);
   const from = yyyymmdd(new Date(Date.now() - 80 * 86_400_000));
-  return playoffWeeks(league, (cal?.days || []).filter(d => d >= from && d <= yyyymmdd(new Date(Date.now() + 10 * 86_400_000))).reverse());
+  return playoffWeeks(league, (cal?.days || []).filter(d => d >= from && d <= yyyymmdd(new Date(Date.now() + 17 * 86_400_000))).reverse());
 }
 // Last season's playoffs: from the end of its calendar back (kept a month on the phone: it's over).
 async function lastSeason(league, info) {
@@ -2687,7 +2688,11 @@ async function playoffData(league) {
     if (!before.length) before = (await seasonEvents(league, start - 30 * 86_400_000).catch(() => [])).filter(e => e.round);
     return { mode: 'last', events: before, season: '' };
   }
-  if (season.phase === 'post') return { mode: 'live', events: await postseason(league), stages, season: season.name };
+  if (season.phase === 'post') {
+    // (MLS's games carry no seeds: the final table gives them, a moment at most.)
+    const [events, groups] = await Promise.all([postseason(league), FORMATS[league]?.tableSeeds ? Promise.race([table().catch(() => null), new Promise(r => setTimeout(() => r(null), 4000))]) : null]);
+    return { mode: 'live', events, groups, stages, season: season.name };
+  }
   if (season.phase === 'regular') {
     const groups = await table();
     const last = info?.days?.at(-1);
@@ -2810,7 +2815,7 @@ const md = ms => {
 };
 const roundDates = r => (!r.dates ? '' : r.dates.by ? (locale === 'en' ? `By ${md(r.dates.to)}` : `${md(r.dates.to)} 前`) : r.dates.about ? `${locale === 'en' ? 'c.' : '約'} ${md(r.dates.from)}${locale === 'en' ? '' : ' 起'}` : md(r.dates.from) === md(r.dates.to) ? md(r.dates.from) : `${md(r.dates.from)}–${md(r.dates.to)}`);
 // How many games a round's series runs to, where its games don't say yet.
-const SERIES_LEN = { mlb: { RD16: 3, QTR: 5, SEMI: 7, FINAL: 7 }, nba: { RD16: 7, QTR: 7, SEMI: 7, FINAL: 7 } };
+const SERIES_LEN = { mlb: { RD16: 3, QTR: 5, SEMI: 7, FINAL: 7 }, nba: { RD16: 7, QTR: 7, SEMI: 7, FINAL: 7 }, mls: { 'round-one': 3 } };
 // (`key`: the bracket's, 'nbacup' for the NBA Cup; its logos and sheets the league's.)
 function playoffView(model, key) {
   const league = leagueOfBracket(key);
@@ -2850,7 +2855,8 @@ function playoffView(model, key) {
       return el('div', { class: 'br-side maybe' }, [
         el('span', { class: 'br-seed num' }),
         // Each side's logo beside its own name: "🅼 釀酒人 / 🆂 教士".
-        el('span', { class: 'br-maybe' }, maybe.flatMap((x, j) => [j ? el('span', { class: 'br-or', text: '/' }) : null, el('span', { class: 'br-opt' }, [sideLogo(x, league, 'xs'), el('span', { class: 'br-name', text: x.short || x.name })])]))
+        // (Too long for its card, a phone's: the two logos and 勝者, never cut: `tight`.)
+        el('span', { class: 'br-maybe' }, [...maybe.flatMap((x, j) => [j ? el('span', { class: 'br-or', text: '/' }) : null, el('span', { class: 'br-opt' }, [sideLogo(x, league, 'xs'), el('span', { class: 'br-name', text: x.short || x.name })])]), el('span', { class: 'br-name br-word br-won', text: en ? 'winner' : '勝者' })])
       ]);
     return el('div', { class: `br-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}${s ? '' : ' tbd'}${t.projected && s?.sure ? ' sure' : ''}` }, [
       el('span', { class: 'br-seed num', text: seed ? String(seed) : '' }),
@@ -2964,6 +2970,11 @@ function playoffView(model, key) {
     model.rounds.map(r => el('section', { class: `br-col ${r.state}` }, [el('div', { class: 'br-head' }, [el('strong', { text: en ? r.title.en : r.title.zh }), el('small', { text: [lenOf(r), stateText(r)].filter(Boolean).join(' · ') })]), el('div', { class: 'br-ties' }, r.undrawn ? [el('div', { class: 'br-undrawn' }, en ? 'Not drawn yet' : '尚未抽籤')] : r.ties.map(t => tie(t, r)))]))
   );
   if (!stacked) linkTies(map, model);
+  // A place's two names too long for its card: its logos and 勝者 (measured as the map's width changes).
+  if (map.querySelector('.br-won')) {
+    const tight = () => map.querySelectorAll('.br-maybe:has(.br-won)').forEach(m => (m.classList.remove('tight'), m.classList.toggle('tight', m.scrollWidth > m.clientWidth + 1)));
+    new ResizeObserver(() => requestAnimationFrame(tight)).observe(map);
+  }
   // Opened on the round that's on (or next), not always the first.
   const at = stacked ? 0 : openRound(model) - 1;
   // (By the rounds themselves: the lines' drawing sits first in the map.)

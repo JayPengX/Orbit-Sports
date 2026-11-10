@@ -39,6 +39,8 @@ export const FORMATS = {
     official: {
       2026: { wildcard: ['2026-11-18'], 'round-one': ['2026-11-20', '2026-12-02'], 'conf-semis': ['2026-12-05', '2026-12-06'], 'conf-finals': ['2026-12-11', '2026-12-12'], final: ['2026-12-18'] }
     },
+    // ESPN's games carry no seeds: each side's place in its conference's final table.
+    tableSeeds: true,
     // Each conference: 8 v 9 for the last place; 1 v that winner, 4 v 5, 3 v 6, 2 v 7.
     project: g => leagues2(g).reduce((o, rows) => ({ wildcard: [...(o.wildcard || []), pair(rows, 8, 9)], 'round-one': [...(o['round-one'] || []), waits(rows, 1, '8/9'), pair(rows, 4, 5), pair(rows, 3, 6), pair(rows, 2, 7)] }), {})
   },
@@ -172,6 +174,17 @@ function markSure(rounds, groups, league) {
     if (t.sides.some(Boolean) && t.sides.every((s, i) => (s ? s.sure : Boolean(t.labels?.[i])))) t.sure = true;
   }
 }
+// The playoffs under way with no seeds on their games (MLS's): each side's
+// place in its conference's table, on it and on the sides a place waits for.
+function seedFromTable(rounds, groups) {
+  const place = new Map(leagues2(groups).flatMap(rows => rows.map((r, i) => [String(r.id), i + 1])));
+  const seeded = x => (x && !x.seed && place.has(String(x.id)) ? { ...x, seed: place.get(String(x.id)) } : x);
+  for (const t of rounds.flatMap(r => r.ties)) {
+    if (!t || t.gap || t.projected) continue;
+    t.sides = t.sides?.map(seeded);
+    if (t.options) t.options = t.options.map(o => o?.map(seeded) || o);
+  }
+}
 // A calendar stage's name as its round key ("Rd of 16" -> round-of-16).
 export const stageKey = label =>
   String(label || '')
@@ -208,6 +221,7 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
     markSure(rounds, groups, league);
   }
   if (mode !== 'projected') fmt?.fill?.(rounds, groups, seeds);
+  if (mode === 'live' && fmt?.tableSeeds && groups) seedFromTable(rounds, groups);
   mergePlayIn(rounds);
   alignFeeders(rounds);
   // A big round nothing of which is drawn yet (the FA Cup's 32 of the third,

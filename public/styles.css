@@ -1414,6 +1414,9 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .br-maybe .br-name { overflow: visible; }
 .br-maybe .logo { width: 20px; height: 20px; flex: none; }
 .br-or { color: var(--q-muted); font-weight: 600; }
+.br-maybe .br-won { display: none; }
+.br-maybe.tight .br-opt .br-name { display: none; }
+.br-maybe.tight .br-won { display: inline; }
 .br-side.maybe .br-name { color: var(--q-muted); font-weight: 600; }
 .br-note { padding-top: 6px; border-top: 1px solid var(--q-border); font-size: 11.5px; font-weight: 600; color: var(--q-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .br-note.live { color: var(--live); }

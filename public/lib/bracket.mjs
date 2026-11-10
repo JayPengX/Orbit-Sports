@@ -49,7 +49,8 @@ function finish(t) {
 }
 
 // A side not decided yet (ESPN's "TBD", its ids -1 and -2); none at all is not one.
-export const undecided = x => Boolean(x) && (/^tbd$/i.test(String(x.en || x.abbr || x.name || x.short || '').trim()) || /^tbd$/i.test(String(x.short || '').trim()) || Number(x.id) <= 0);
+// ("TBD", and MLS's "TBD Away" / "TBD Home": a place a wild card fills.)
+export const undecided = x => Boolean(x) && (/^tbd( (away|home))?$/i.test(String(x.en || x.abbr || x.name || x.short || '').trim()) || /^tbd( (away|home))?$/i.test(String(x.short || '').trim()) || Number(x.id) <= 0);
 // A game's half of the draw (美聯 / 國聯, 東區 / 西區), '' when it has none:
 // from its note ("NLDS - Game 4"), ESPN's series title being "Playoff Series".
 const halfOf = e => /^(美聯|國聯|東區|西區)/.exec(roundName(e?.note || '', 'zh'))?.[1] || /^(美聯|國聯|東區|西區)/.exec(roundName(e?.round?.title || '', 'zh'))?.[1] || '';
@@ -136,12 +137,13 @@ export function buildBracket(events, league, { shape: given = null } = {}) {
   const ties = new Map();
   // Games of a round between sides not all known yet ("TBD", "CLE/CHW"):
   // its places, filled from the ties that feed it. One place a pairing (a
-  // placeholder known by its name: ESPN's ids for it change game to game).
+  // placeholder known by its name: ESPN's ids for it change game to game;
+  // MLS's "TBD Home" and "TBD Away" the same place, home or away by the game).
   const slots = new Map();
   for (const e of events || []) {
     if (!e?.round || e.kind !== 'match' || !e.home?.id || !e.away?.id || e.status?.void) continue;
     if ([e.home, e.away].some(undecided)) {
-      const key = `${e.round.key}|${halfOf(e)}|${[e.home, e.away].map(x => (undecided(x) ? `?${x.abbr || ''}` : String(x.id))).sort().join('|')}`;
+      const key = `${e.round.key}|${halfOf(e)}|${[e.home, e.away].map(x => (undecided(x) ? `?${String(x.abbr || '').includes('/') ? x.abbr : ''}` : String(x.id))).sort().join('|')}`;
       const had = slots.get(key);
       const pre = e.status?.state === 'pre' ? e : null;
       if (!had) slots.set(key, { round: e.round.key, half: halfOf(e), home: e.home, away: e.away, next: pre });

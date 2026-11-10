@@ -126,3 +126,31 @@ test('A predicted tie the table has settled is sure (Nashville first in the East
   // Nothing settled yet: still a prediction.
   assert.ok(!m.rounds[1].ties.some(t => t?.sure && t.sides[0].id.startsWith('W')));
 });
+
+// Jay 2026-11-10 ("Clarify playoff status and display the schedule"): MLS's
+// bracket said 待定 everywhere with its games on ESPN, their round only in the
+// season's slug ("eastern-conference-playoffs---round-one"), the wild card's
+// place "TBD Away" in one game and "TBD Home" in the next.
+test('MLS: the playoffs from ESPN’s games (rounds by slug), seeds from the table, the wild card’s place one tie', async () => {
+  const { parseScoreboard } = await import('../.kit/sports-espn.mjs');
+  const team = (id, abbr, name) => ({ homeAway: '', team: { id, abbreviation: abbr, displayName: name, shortDisplayName: name } });
+  const game = (id, date, slug, home, away) => ({ id, date, name: '', shortName: '', season: { year: 2026, type: 13844, slug }, competitions: [{ status: { type: { state: 'pre', completed: false } }, competitors: [{ ...home, homeAway: 'home' }, { ...away, homeAway: 'away' }] }] });
+  const [orl, cin, nsh, tbdA, tbdH, ne, phi] = [team('12011', 'ORL', 'Orlando City SC'), team('18267', 'CIN', 'FC Cincinnati'), team('18986', 'NSH', 'Nashville SC'), team('131554', 'TBD Away', 'TBD Away'), team('131555', 'TBD Home', 'TBD Home'), team('189', 'NE', 'New England Revolution'), team('10739', 'PHI', 'Philadelphia Union')];
+  const events = parseScoreboard({ events: [
+    game('1', '2026-11-20T00:30Z', 'eastern-conference-playoffs---wild-card', orl, cin),
+    game('2', '2026-11-21T19:00Z', 'eastern-conference-playoffs---round-one', ne, phi),
+    game('3', '2026-11-22T21:00Z', 'eastern-conference-playoffs---round-one', nsh, tbdA),
+    game('4', '2026-11-28T23:30Z', 'eastern-conference-playoffs---round-one', tbdH, nsh)
+  ] }, 'mls', { lang: 'zh' });
+  assert.deepEqual(events.map(e => e.round?.key), ['wildcard', 'round-one', 'round-one', 'round-one']);
+  assert.equal(events[0].stage.round.zh, '東區外卡賽');
+  const ids = ['18986', '0', '189', '0', '0', '10739', '0', '12011', '18267'];
+  const groups = [{ en: 'Eastern Conference', rows: ids.map((id, i) => ({ id: id === '0' ? `x${i}` : id, name: id, stats: { GP: '34' } })) }, { en: 'Western Conference', rows: rows('W', 9) }];
+  const m = playoffModel({ league: 'mls', mode: 'live', events, groups });
+  const one = m.rounds.find(r => r.key === 'round-one').ties.filter(Boolean);
+  const nashville = one.filter(t => t.sides.some(s => s?.id === '18986'));
+  assert.equal(nashville.length, 1, 'TBD Home and TBD Away: one place');
+  assert.deepEqual(nashville[0].options[1].map(s => [s.id, s.seed]), [['12011', 8], ['18267', 9]]);
+  assert.equal(nashville[0].sides[0].seed, 1);
+  assert.deepEqual(one.find(t => t.sides.some(s => s?.id === '189')).sides.map(s => s.seed), [3, 6]);
+});
