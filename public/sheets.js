@@ -7,7 +7,7 @@ import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, w
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
+import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
@@ -27,6 +27,7 @@ import { seasonRuns, seasonSums, mateDuel } from './lib/f1driver.mjs';
 import { h2hPieces, PIECE_EACH } from './lib/meetings.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
+import { hoopsSeason, fig } from './lib/hoops.mjs';
 import { driverAbout, startingGrid, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, teamsAt, settleScoring, liveLapEnds, liveRaceEvents, flagNow, birthPlaceOf, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch, placeTeams } from './lib/search.mjs';
@@ -6573,6 +6574,151 @@ async function newerGames(league, id, teamId, log, scheduleOf, name = '') {
   });
 }
 
+// ---- A basketball player's season, beyond the four (hoops.mjs) ----
+// (Jay 2026-11-09: "Add significantly more individual player statistics and
+// data, especially for basketball players".) 概況: his points game by game
+// (each bar a game, a loss lighter, a tap opens it) and his last five against
+// his season; 數據: his shooting, per 36 minutes, his highs, his splits.
+const pctOf = v => (v == null ? '–' : `${fig(v)}%`);
+const madeOf = ([m, a]) => (a ? `${m}/${a}` : '');
+const hoopsCounts = (h, en) => {
+  const c = h.counts;
+  return [
+    c.p20 ? (en ? `20+ points ${c.p20}×` : `20 分以上 ${c.p20} 場`) : '',
+    c.p30 ? (en ? `30+ ${c.p30}×` : `30 分以上 ${c.p30} 場`) : '',
+    c.p40 ? (en ? `40+ ${c.p40}×` : `40 分以上 ${c.p40} 場`) : '',
+    c.dd ? (en ? `${c.dd} double-double${c.dd > 1 ? 's' : ''}` : `雙十 ${c.dd} 場`) : '',
+    c.td ? (en ? `${c.td} triple-double${c.td > 1 ? 's' : ''}` : `大三元 ${c.td} 場`) : ''
+  ].filter(Boolean);
+};
+function hoopsFormCard(h, color, en, open) {
+  const W = (zh, eng) => (en ? eng : zh);
+  const pts = h.points;
+  if (pts.length < 3) return null;
+  const top = Math.max(...pts.map(p => p.pts));
+  const max = Math.max(10, top);
+  const avg = pts.reduce((n, p) => n + p.pts, 0) / pts.length;
+  const read = el('button', { class: 'f1f-read hp-read', type: 'button' });
+  const bars = pts.map(p => el('span', { class: `hp-bar${p.result === 'L' ? ' l' : ''}`, style: `height:${Math.max(3, (p.pts / max) * 100).toFixed(1)}%` }));
+  let at = pts.length - 1;
+  const show = i => {
+    at = i;
+    bars.forEach((b, k) => b.classList.toggle('on', k === i));
+    const p = pts[i];
+    const g = p.game;
+    const res = g.result ? (en ? g.result : { W: '勝', L: '敗', D: '和', T: '和' }[g.result] || g.result) : '';
+    put(
+      read,
+      logo(g.opp.logo, g.opp.name, 'sm'),
+      el('span', { class: 'f1f-read-text' }, [el('strong', { text: `${g.at === '@' ? '@' : 'vs'} ${g.opp.abbr || g.opp.name}` }), el('small', { class: 'muted num', text: [g.date ? localDate(Date.parse(g.date)).slice(5).replace('-', '/') : '', [res, g.score].filter(Boolean).join(' ')].filter(Boolean).join(' · ') })]),
+      el('span', { class: 'f1f-read-fin' }, [el('strong', { class: 'num', text: String(p.pts) }), el('small', { class: 'muted num', text: W(`${p.reb} 板 ${p.ast} 助`, `${p.reb} reb ${p.ast} ast`) })]),
+      el('span', { class: 'f1f-chev', 'aria-hidden': 'true', text: '›' })
+    );
+  };
+  read.onclick = () => open(pts[at].game);
+  const pick = ev => {
+    const b = plot.getBoundingClientRect();
+    const i = Math.min(pts.length - 1, Math.max(0, Math.floor(((ev.clientX - b.left) / b.width) * pts.length)));
+    if (i !== at) show(i);
+  };
+  let held = false;
+  const plot = el(
+    'div',
+    {
+      class: `hp-plot${pts.length > 40 ? ' many' : ''}`,
+      onpointerdown: ev => ((held = true), plot.setPointerCapture?.(ev.pointerId), pick(ev)),
+      onpointermove: ev => (held || ev.pointerType === 'mouse') && pick(ev),
+      onpointerup: () => (held = false),
+      onpointercancel: () => (held = false)
+    },
+    [el('span', { class: 'hp-avg', style: `bottom:${((avg / max) * 100).toFixed(1)}%` }), ...bars]
+  );
+  plot.style.setProperty('--team', color || 'var(--q-label)');
+  show(at);
+  const foot = [W(`虛線為平均 ${fig(avg)} 分`, `Dashed: ${fig(avg)} a game`), W(`最高 ${top} 分`, `High ${top}`), pts.some(p => p.result === 'L') ? W('淺色為敗場', 'Lighter: a loss') : ''].filter(Boolean).join(' · ');
+  // His last five against his season (from eight games: before that, the five are most of it).
+  const f = h.form;
+  const formTable = f
+    ? el('table', { class: 'data hp-form-table' }, [
+        el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...[W('得分', 'PTS'), W('籃板', 'REB'), W('助攻', 'AST'), W('命中率', 'FG%'), W('時間', 'MIN')].map(t => el('th', { text: t }))])]),
+        el(
+          'tbody',
+          {},
+          [
+            [W(`近 ${f.n} 場`, `Last ${f.n}`), f.last, ''],
+            [W('本季', 'Season'), f.season, 'muted']
+          ].map(([name, x, cls]) => el('tr', { class: cls }, [el('td', { class: 'left', text: name }), ...[x.pts, x.reb, x.ast].map(v => el('td', { class: 'num', text: fig(v) })), el('td', { class: 'num', text: fig(x.fg) }), el('td', { class: 'num', text: fig(x.min) })]))
+        )
+      ])
+    : null;
+  return card(W('每場得分', 'Points, game by game'), el('div', { class: 'f1-form hp-form' }, [read, plot, el('p', { class: 'f1f-foot hp-foot muted num', text: foot }), formTable]), { sub: W(`本季 ${h.games} 場`, `${h.games} games`) });
+}
+function hoopsShootingCard(h, en) {
+  const W = (zh, eng) => (en ? eng : zh);
+  const s = h.shooting;
+  const rate = ([m, a]) => (a ? (100 * m) / a : null);
+  return card(
+    W('投籃效率', 'Shooting'),
+    el('div', { class: 'q-rows-full stat-grid' }, [
+      tile(W('真實命中率', 'True shooting'), pctOf(s.ts), W('三分、罰球都算進去', 'Threes and free throws in')),
+      tile(W('有效命中率', 'Effective FG'), pctOf(s.efg), W('三分算 1.5 球', 'A three as 1.5')),
+      tile(W('兩分', '2-pointers'), pctOf(s.two), madeOf(s.twoMade)),
+      tile(W('三分', '3-pointers'), pctOf(rate(s.threeMade)), [madeOf(s.threeMade), s.threeRate != null ? W(`占出手 ${Math.round(s.threeRate)}%`, `${Math.round(s.threeRate)}% of shots`) : ''].filter(Boolean).join(W('，', ', '))),
+      tile(W('罰球', 'Free throws'), pctOf(rate(s.ftMade)), madeOf(s.ftMade)),
+      tile(W('罰球率', 'FT rate'), s.ftRate == null ? '–' : (s.ftRate / 100).toFixed(2), W('每次出手的罰球', 'FTA per shot'))
+    ]),
+    { sub: W(`本季 ${h.games} 場`, `${h.games} games`) }
+  );
+}
+function hoopsMoreCard(h, en) {
+  const W = (zh, eng) => (en ? eng : zh);
+  const p = h.per36;
+  if (!p) return null;
+  return card(
+    W('每 36 分鐘', 'Per 36 minutes'),
+    el('div', { class: 'q-rows-full stat-grid' }, [
+      tile(W('得分', 'Points'), fig(p.pts)),
+      tile(W('籃板', 'Rebounds'), fig(p.reb)),
+      tile(W('助攻', 'Assists'), fig(p.ast)),
+      tile(W('抄截＋阻攻', 'Steals + blocks'), fig(p.stocks)),
+      tile(W('助攻失誤比', 'Assists per TO'), h.astTo == null ? '–' : h.astTo.toFixed(2), W('整季', 'Season'))
+    ]),
+    { sub: W('上場時間一樣長時', 'As if all played as long') }
+  );
+}
+const HIGH_WORDS = { PTS: ['得分', 'Points'], REB: ['籃板', 'Rebounds'], AST: ['助攻', 'Assists'], '3PM': ['三分球', 'Threes'], STL: ['抄截', 'Steals'], BLK: ['阻攻', 'Blocks'] };
+function hoopsHighsCard(h, en, open) {
+  const W = (zh, eng) => (en ? eng : zh);
+  if (!h.highs.length) return null;
+  const counts = hoopsCounts(h, en);
+  const rows = h.highs.map(x => {
+    const g = x.game;
+    const when = [g.date ? localDate(Date.parse(g.date)).slice(5).replace('-', '/') : '', `${g.at === '@' ? '@' : 'vs'} ${g.opp.abbr || g.opp.name}`].filter(Boolean).join(' ');
+    return el('li', { class: 'q-press', role: 'button', tabIndex: 0, onclick: () => open(g) }, [
+      el('span', { class: 'info-k' }, [el('strong', { text: HIGH_WORDS[x.key]?.[en ? 1 : 0] || x.key }), el('small', { class: 'muted hp-high-when' }, [logo(g.opp.logo, g.opp.name, 'xs'), el('span', { class: 'num', text: when })])]),
+      el('span', { class: 'info-v num hp-high', text: String(x.value) }),
+      el('span', { class: 'row-chev', 'aria-hidden': 'true', text: '›' })
+    ]);
+  });
+  return card(W('本季單場最高', 'Season highs'), el('div', {}, [el('ul', { class: 'info-list results hp-highs' }, rows), counts.length ? el('p', { class: 'f1f-foot hp-foot muted num', text: counts.join(' · ') }) : null]));
+}
+const SPLIT_WORDS = { home: ['主場', 'Home'], road: ['客場', 'Road'], wins: ['勝場', 'In wins'], losses: ['敗場', 'In losses'] };
+const MONTH_EN = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function hoopsSplitsCard(sp, en) {
+  const W = (zh, eng) => (en ? eng : zh);
+  if (!sp?.rows?.length) return null;
+  const cols = [['GP', W('場', 'GP')], ['PTS', W('得分', 'PTS')], ['REB', W('籃板', 'REB')], ['AST', W('助攻', 'AST')], ['FG%', W('命中率', 'FG%')]];
+  const nameOf = r => (r.kind === 'month' ? (en ? MONTH_EN[r.month] : `${r.month} 月`) : SPLIT_WORDS[r.kind]?.[en ? 1 : 0] || r.name);
+  // (A line between the pairs: home and road, wins and losses, the months.)
+  let was = '';
+  const rows = sp.rows.map(r => {
+    const group = r.kind === 'home' || r.kind === 'road' ? 'where' : r.kind === 'month' ? 'month' : 'result';
+    const tr = el('tr', { class: was && was !== group ? 'hp-split-new' : null }, [el('td', { class: 'left', text: nameOf(r) }), ...cols.map(([k]) => el('td', { class: 'num', text: r.stats[k] || '–' }))]);
+    was = group;
+    return tr;
+  });
+  return card(W('分項數據', 'Splits'), el('table', { class: 'data hp-splits' }, [el('thead', {}, [el('tr', {}, [el('th', { class: 'left' }), ...cols.map(([, t]) => el('th', { text: t }))])]), el('tbody', {}, rows)]), { sub: W('場均', 'Per game') });
+}
 // formula1.com's figures as tiles, in the app's words.
 // "P1（133 次）" reads as P1 with "133 次" under it: a tile is too narrow for both on a line.
 const f1Tile = (k, v, en) => {
@@ -7124,6 +7270,15 @@ export async function openPlayer(league, id, fallback = {}) {
     let seasonCard = seasonCardOf();
     const rowsCardOf = () => (ov?.season ? card(en || !/career/i.test(ov.season.title) ? statsTitle(ov.season.title, L()) || T('season') : '生涯數據', el('div', { class: 'glog' }, ov.season.rows.map(r => seasonRow(r, ov.season.rows, sport, en))), { sub: a.stats.live ? W('含進行中的比賽', 'With the game on now') : '' }) : null);
     let rowsCard = rowsCardOf();
+    // A basketball player's season beyond the four (hoops.mjs), from this season's own log
+    // (made and tried in it): 概況 his points game by game and his form, 數據 his shooting,
+    // per 36, his highs; his splits read behind the page.
+    const hoopsLog = sport === 'basketball' && ov?.seasonLog?.labels?.includes('FG') ? ov.seasonLog : null;
+    const hoopsGame = g => openLogGame({ ...g, league: g.league || league });
+    let hoops = hoopsLog ? hoopsSeason(hoopsLog) : null;
+    let hoopsForm = hoops ? hoopsFormCard(hoops, heroColor, en, hoopsGame) : null;
+    const hoopsMoreOf = () => (hoops ? keep([hoopsShootingCard(hoops, en), hoopsMoreCard(hoops, en), hoopsHighsCard(hoops, en, hoopsGame)]) : []);
+    let hoopsMore = hoopsMoreOf();
     // 概況 (a driver): his season as a line, his next weekend as 賽事 shows it, his teammate.
     // (Not a stand-in's next race: he isn't in it.)
     const nextWeekend = nextRace && !guest ? ctx.weekendCard(splitWeekend(nextRace, Date.now(), L())) : null;
@@ -7133,7 +7288,8 @@ export async function openPlayer(league, id, fallback = {}) {
       outings.length ? outingsCard(outings, en) : null,
       guest?.about ? aboutCard(guest.about, en) : null,
       mateCard,
-      seasonCard
+      seasonCard,
+      hoopsForm
     ]);
     // A team sport's player as his team's page has it (Jay 2026-10-30, one
     // shape for every page): 概況 opens on his team's next game and his last
@@ -7167,6 +7323,7 @@ export async function openPlayer(league, id, fallback = {}) {
       og.gp ? card(W('正賽', 'Grand Prix'), f1Tiles(og.gp, en)) : summaryTiles.length ? card(W('本季表現', 'This season'), el('div', { class: 'q-rows-full stat-grid' }, summaryTiles)) : null,
       og.sprint ? card(W('衝刺賽', 'Sprint'), f1Tiles(og.sprint, en)) : null,
       rowsCard,
+      ...hoopsMore,
       ov?.rankings?.length ? card(T('rankings'), el('div', { class: 'q-rows-full stat-grid' }, ov.rankings.map(x => tile(statName(x.label, L(), { sport, long: x.long }), x.value, x.rank)))) : null,
       og.career ? card(W('生涯數據', 'Career'), f1Tiles(og.career, en)) : null
     ]);
@@ -7278,6 +7435,18 @@ export async function openPlayer(league, id, fallback = {}) {
       tabBody
     );
     paintTab();
+    // 分項數據 (ESPN's splits: home and road, wins and losses, each month), after his highs.
+    if (hoops)
+      athleteSplits(league, id)
+        .then(sp => {
+          const sc = hoopsSplitsCard(sp, en);
+          if (!sc || !s.dialog.isConnected) return;
+          const after = hoopsMore.at(-1);
+          const k = after ? numbers.indexOf(after) : -1;
+          numbers.splice(k >= 0 ? k + 1 : numbers.length, 0, sc);
+          if (view === 'numbers') paintTab();
+        })
+        .catch(() => {});
     // 聯盟排名: where he stands in each of the league's 數據領先 lists (its
     // top hundred), the best places first, put into 概況 once read; two at least.
     if (!racing && hasLeaders(sport, LEAGUES[league]?.espn))
@@ -7346,6 +7515,14 @@ export async function openPlayer(league, id, fallback = {}) {
         ov.season = { ...ov.season, rows: [line.row, ...ov.season.rows.filter(r => /career/i.test(r.name))] };
         seasonCard = swap(overview, seasonCard, seasonCardOf());
         rowsCard = swap(numbers, rowsCard, rowsCardOf());
+        // (His shooting, highs and points by game with the games ESPN's log hasn't yet: the one on now left out.)
+        if (hoopsLog && own === hoopsLog) {
+          hoops = hoopsSeason({ labels: own.labels, games: [...ownNewer, ...own.games] }) || hoops;
+          const form = hoopsFormCard(hoops, heroColor, en, hoopsGame);
+          if (hoopsForm && form) hoopsForm = swap(overview, hoopsForm, form);
+          const more = hoopsMoreOf();
+          if (more.length === hoopsMore.length) hoopsMore = hoopsMore.map((c, k) => swap(numbers, c, more[k]));
+        }
         put(stripBox, stripOf());
       });
   } catch {

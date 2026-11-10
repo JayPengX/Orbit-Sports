@@ -28,6 +28,7 @@ import { roundName } from './stage.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { groupZh } from './statnames.mjs';
 import { fold } from './text.mjs';
+import { parseSplits } from './hoops.mjs';
 import { pctText, gbText } from './title.mjs';
 import { SITE, yyyymmdd, parseStatus, overByRule, freshHeadshot, fallbackLogo, parseSeries, knockoutRound, favChance, usDayOf, startOf, localSide as kitLocalSide, withLogo as kitWithLogo, parseScoreboard as kitParseScoreboard } from '#kit/sports-espn.mjs';
 export { SITE, yyyymmdd, parseStatus, overByRule, freshHeadshot, fallbackLogo, parseSeries, knockoutRound, favChance, startOf, usDayOf };
@@ -2576,7 +2577,8 @@ export function parseSeasonLog(data) {
 export function logSeasonLine(log, year) {
   const at = k => log?.labels?.indexOf(k) ?? -1;
   if (!log || at('PTS') < 0) return null;
-  const games = log.games.filter(g => !g.pre && Number.isFinite(Number(g.stats[at('PTS')])));
+  // (A game he sat out, newer than ESPN's log, reads DNP and '': never a game of 0 points.)
+  const games = log.games.filter(g => !g.pre && /^\d+$/.test(String(g.stats[at('PTS')] ?? '').trim()));
   if (!games.length) return null;
   const sum = k => games.reduce((n, g) => n + (Number(g.stats[at(k)]) || 0), 0);
   const pair = k => games.reduce(([m, a], g) => { const [x, y] = String(g.stats[at(k)] || '').split('-').map(Number); return [m + (x || 0), a + (y || 0)]; }, [0, 0]);
@@ -2602,6 +2604,9 @@ export function noSeasonLine(year) {
   const name = `${year - 1}-${String(year).slice(2)}`;
   return { name, none: true, stats: { title: `${name} regular season stats`, list: [], none: true }, row: { name: 'Regular Season', none: true, cells: [] } };
 }
+// A basketball player's splits this season (ESPN's: home and road, wins and
+// losses, each month), read only for his 數據 (hoops.mjs `parseSplits`).
+export const athleteSplits = (league, id) => getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/splits`, { ttl: 60 * 60_000 }).then(parseSplits);
 export async function athleteOverview(league, id) {
   const season = logSeason(league);
   const basketball = LEAGUES[league].sport === 'basketball';

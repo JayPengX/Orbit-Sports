@@ -2987,3 +2987,32 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 .standings .moved.down { color: var(--q-muted); }
 /* (320: the score as plain red words, the table's columns all in.) */
 @media (max-width: 360px) { .standings .live-score { padding: 0; margin-left: 4px; background: none; } }
+
+/* ---- A basketball player's season beyond the four (hoops.mjs, sheets.js hoops*Card) ---- */
+/* Points game by game: a bar a game in the team's colour, a loss lighter, the season's average a dashed line; the picked one ringed. */
+.hp-plot { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 96px; padding-top: 4px; border-bottom: 1px solid var(--q-border); touch-action: pan-y; cursor: pointer; }
+.hp-plot.many { gap: 1px; }
+.hp-bar { flex: 1 1 0; min-width: 0; border-radius: 3px 3px 0 0; background: var(--team); }
+.hp-bar.l { background: color-mix(in srgb, var(--team) 38%, transparent); }
+.hp-bar.on { outline: 2px solid var(--q-text); outline-offset: 1px; }
+.hp-avg { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--q-text-2, var(--q-muted)); pointer-events: none; z-index: 1; }
+.hp-read .logo { width: 28px; height: 28px; }
+.hp-read .f1f-read-text small { overflow: hidden; text-overflow: ellipsis; }
+/* (Short tables that never scroll: the first column needn't stand still, nor carry the page's colour over the card's.) */
+:is(table.hp-form-table, table.hp-splits) :is(thead th, tbody td).left:first-child { position: static; background: none; }
+/* (Every column on a 320 phone: nothing to scroll.) */
+table.hp-form-table th, table.hp-form-table td, table.hp-splits th, table.hp-splits td { padding-left: 4px; padding-right: 4px; }
+table.hp-form-table :is(th, td):first-child, table.hp-splits :is(th, td):first-child { padding-left: 0; text-align: left; }
+table.hp-form-table :is(th, td):last-child, table.hp-splits :is(th, td):last-child { padding-right: 0; }
+table.hp-form-table th, table.hp-splits th { font-size: 12px; font-weight: 500; color: var(--q-text-2, var(--q-muted)); }
+table.hp-form-table tr.muted td { color: var(--q-text-2, var(--q-muted)); }
+table.hp-form-table tbody tr:first-child td { font-weight: 600; }
+/* (A line between the pairs only: home and road, wins and losses, the months.) */
+table.hp-splits tbody tr + tr > * { border-top-color: transparent; }
+table.hp-splits tbody tr.hp-split-new > * { border-top-color: var(--q-divider, var(--q-border)); }
+.hp-foot { white-space: normal; text-wrap: pretty; }
+.hp-highs li.q-press { grid-template-columns: minmax(0, 1fr) auto auto; cursor: pointer; }
+.hp-highs .row-chev { color: var(--q-muted); font-size: 18px; line-height: 1; align-self: center; }
+.hp-high-when { display: flex; align-items: center; gap: 5px; }
+.hp-high-when .logo { width: 16px; height: 16px; }
+.hp-high { font: 300 24px/1 var(--nv-display, var(--q-font, system-ui)); font-variant-numeric: tabular-nums; color: var(--q-text); }
