@@ -49,7 +49,11 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     `homeGames`): never the others' results; 已結束 in two groups when it has
     both, 推薦給你 (the day's plan: `isFollowedEvent`'s picks, and the filled
     ones) then 其他比賽 (the rest of their leagues' games), rows unmarked
-    (Jay 2026-11-10, `endedBody`); a filled game over is the same
+    (Jay 2026-11-10, `endedBody`). A followed league's pick for each hour
+    (`leagueChoices`) is kept on the device as it stood before that hour's
+    games began (`keptChoices`, `fx.chosen.v1`, three weeks): worked out again
+    after a result it named another game (the table moved, the odds gone),
+    so 首頁 and 賽事 disagreed (Jay 2026-11-10); a filled game over is the same
     quiet line with its score at the end. 完賽 is as big as a start time. 下一場 is always their own next game (a later
     day's when the open day has none), never a filled one.
     A day is drawn once: its first drawing waits in its shape (up to 6 s,

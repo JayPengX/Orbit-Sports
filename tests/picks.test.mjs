@@ -193,6 +193,22 @@ test('a league followed as a league: the game of each hour it would be chosen, a
   assert.equal(leagueChoices([none], { watched: ['epl'], onTv: () => false, tvKnown: () => false, ctx }).size, 1);
   // The small hours: never a choice.
   assert.equal(leagueChoices([main, max], { watched: ['epl'], onTv, awake: () => false, ctx }).size, 0);
+  // Kept as it stood (Jay 2026-11-10: 11/7's 23:00 slot named another game once it was over):
+  // chosen before the start, that choice holds after it, whatever the table says by then.
+  const store = new Map();
+  const kept = { get: k => store.get(k) || null, set: (k, v) => store.set(k, v) };
+  assert.ok(leagueChoices([main, max], { watched: ['epl'], onTv, ctx, kept }).has('epl:x'));
+  assert.equal(store.get('epl:m'), 'epl:x');
+  const flipped = { ...ctx, tables: { epl: tableIndex([{ rows: Array.from({ length: 20 }, (_, i) => ({ id: String(20 - i) })) }]) } };
+  const over = [main, max].map(e => ({ ...e, status: { state: 'post' } }));
+  assert.ok(leagueChoices(over, { watched: ['epl'], onTv, ctx: flipped }).has('epl:m'), 'worked out again after the results, the other game');
+  assert.ok(leagueChoices(over, { watched: ['epl'], onTv, ctx: flipped, kept }).has('epl:x'), 'kept: the game it was before the start');
+  assert.equal(store.get('epl:m'), 'epl:x', 'never rewritten once begun');
+  // A slot over before anything was kept: its first choice (the table in) is kept and holds.
+  const fresh = new Map();
+  const kept2 = { get: k => fresh.get(k) || null, set: (k, v) => fresh.set(k, v) };
+  assert.ok(leagueChoices(over, { watched: ['epl'], onTv, ctx: flipped, kept: kept2 }).has('epl:m'));
+  assert.ok(leagueChoices(over, { watched: ['epl'], onTv, ctx, kept: kept2 }).has('epl:m'), 'the first choice holds, the table moved again');
   // The chosen game scores as a followed team's.
   const s = scoreMatch(max, { ...ctx, chosen: new Set(['epl:x']) });
   const t = scoreMatch(max, ctx);

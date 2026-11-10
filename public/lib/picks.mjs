@@ -280,9 +280,14 @@ export function watchedLeagues(leagues = [], follows = []) {
 // whose games is on TV here has no choice, unless TV isn't known for it yet.
 // `awake`: the hours a choice can be (Jay 2026-10-23: a 03:00 game is never
 // his, it's among 更多賽事).
+// `kept` ({ get(key), set(key, chosen) }): the choice as it stood before the slot began. Each
+// slot's choice is kept for its games while none has started, and once one has, the kept one
+// is the choice (one begun with none kept: its first choice, kept): the table moves with the results and a game's odds go with its end, so a
+// choice worked out again after it named another game (Jay 2026-11-10: 11/7's 23:00 was
+// 富勒姆 v 紐卡索 before it, 兵工廠 v 赫爾城 after).
 // Returns a Set of 'league:id'.
 const SLOT = 3_600_000;
-export function leagueChoices(events, { watched = [], onTv = () => true, tvKnown = () => true, awake = () => true, ctx = {} } = {}) {
+export function leagueChoices(events, { watched = [], onTv = () => true, tvKnown = () => true, awake = () => true, ctx = {}, kept = null } = {}) {
   const out = new Set();
   const w = new Set(watched);
   const byLeague = new Map();
@@ -297,13 +302,23 @@ export function leagueChoices(events, { watched = [], onTv = () => true, tvKnown
   const sctx = { ...ctx, games: [], chosen: null, featured: null, why: null, personal: null };
   const featured = ctx.featured || (() => false);
   const before = e => ({ ...e, status: { ...e.status, state: 'pre' } });
+  const keyOf = e => `${e.league}:${e.id}`;
   const choose = slot => {
+    const begun = slot.some(e => e.status?.state && e.status.state !== 'pre');
+    if (begun && kept) {
+      const had = slot.map(e => kept.get(keyOf(e))).find(k => k && slot.some(e => keyOf(e) === k));
+      if (had) return void out.add(had);
+    }
     let pool = slot.filter(onTv);
     if (!pool.length) pool = slot.some(tvKnown) ? [] : slot;
     const best = pool
       .map(e => ({ e, score: scoreMatch(before(e), sctx).score, main: featured(e) ? 1 : 0 }))
       .sort((x, y) => y.score - x.score || y.main - x.main || String(x.e.id).localeCompare(String(y.e.id)))[0];
-    if (best) out.add(`${best.e.league}:${best.e.id}`);
+    if (best) out.add(keyOf(best.e));
+    // (Begun with none kept, a slot before this was kept: its first choice with the league's table in
+    // is kept, so 首頁 and 賽事 name the same game from then on, whatever loads after.)
+    const table = ctx.tables?.[slot[0].league];
+    if (best && kept && (!begun || (table && Object.keys(table).length))) for (const e of slot) kept.set(keyOf(e), keyOf(best.e));
   };
   for (const list of byLeague.values()) {
     list.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));

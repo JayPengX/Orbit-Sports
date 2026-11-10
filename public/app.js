@@ -393,6 +393,32 @@ function dropEnded() {
 const watched = () => watchedLeagues(state.prefs.leagues, state.prefs.follows);
 let tvGen = 0;
 const chosenMemo = { key: '', set: new Set() };
+// Each slot's choice as it stood before its games began (picks.mjs leagueChoices `kept`), kept
+// on the device three weeks: { 'league:id': ['league:id' chosen, ms of its start] }.
+const CHOSEN_KEY = 'fx.chosen.v1';
+const keptChoices = (() => {
+  let map = null;
+  let timer = 0;
+  const load = () => {
+    if (map) return map;
+    const old = Date.now() - 21 * 86_400_000;
+    map = new Map(Object.entries(readJson(CHOSEN_KEY, {}) || {}).filter(([, v]) => Array.isArray(v) && v[1] > old));
+    return map;
+  };
+  const save = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => writeJson(CHOSEN_KEY, Object.fromEntries(map)), 500);
+  };
+  return {
+    get: k => load().get(k)?.[0] || null,
+    set: (k, chosen, at = Date.now()) => {
+      const had = load().get(k);
+      if (had?.[0] === chosen) return;
+      map.set(k, [chosen, at]);
+      save();
+    }
+  };
+})();
 // Each league's playoff map read (季後賽, a series sheet): every playoff game in it.
 const brackets = new Map();
 function chosenGames() {
@@ -406,7 +432,9 @@ function chosenGames() {
   const all = [...slots.flatMap(x => x.events || []), ...[...brackets.values()].flatMap(b => b.model?.rounds?.flatMap(r => r.ties.flatMap(t => t?.games || [])) || [])];
   const ctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, tables: state.home.tables, featured: featuredIn(all), ...theirs(Date.now()) };
   chosenMemo.key = key;
-  chosenMemo.set = leagueChoices(all, { watched: w, onTv, tvKnown, awake: e => !asleep(officialMs(e)), ctx });
+  const byKey = new Map(all.map(e => [`${e.league}:${e.id}`, e]));
+  const kept = { get: keptChoices.get, set: (k, chosen) => keptChoices.set(k, chosen, Date.parse(byKey.get(k)?.start) || Date.now()) };
+  chosenMemo.set = leagueChoices(all, { watched: w, onTv, tvKnown, awake: e => !asleep(officialMs(e)), ctx, kept });
   return chosenMemo.set;
 }
 const isChosenGame = e => e.kind === 'match' && chosenGames().has(`${e.league}:${e.id}`);
@@ -3285,6 +3313,9 @@ function watchMonthsOf(events) {
 }
 async function pickScoresDay(d) {
   const sc = state.scores;
+  // Another day from below the top: the page at its top, as on 首頁 and 全部 (a long day's
+  // scroll held over a short one left a screen of black, Jay 2026-11-10).
+  if (sc.date !== d) toPageTop();
   sc.date = d;
   sc.picked = true;
   sc.chosen = chosenOf(d, today());
