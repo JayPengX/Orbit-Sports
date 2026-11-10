@@ -1042,7 +1042,7 @@ function f1Story(e, ss) {
   storyDocs.get(path).then(doc => {
     const text = f1StoryFrom(doc, ss.start, L() === 'en');
     if (!text || !holder.isConnected) return;
-    holder.replaceChildren(el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.spark || '' }), el('span', { text }));
+    holder.replaceChildren(el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' }), el('span', { text }));
     holder.hidden = false;
   });
   return holder;
@@ -1067,7 +1067,7 @@ function whyLine(e) {
   if (!LEAGUES[e.league]?.espn) return null;
   const key = `${e.league}:${e.id}`;
   const en = L() === 'en';
-  const make = ({ text, who }) => el('p', { class: 'lp-why' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.spark || '' }), el('span', { class: 'lp-why-text' }, whyNodes(e, text, who))]);
+  const make = ({ text, who }) => el('p', { class: 'lp-why' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' }), el('span', { class: 'lp-why-text' }, whyNodes(e, text, who))]);
   if (whyKnown.has(key)) return whyKnown.get(key) ? make(whyKnown.get(key)) : null;
   const holder = el('p', { class: 'lp-why', hidden: true });
   (async () => {
