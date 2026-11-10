@@ -154,3 +154,38 @@ test('MLS: the playoffs from ESPN’s games (rounds by slug), seeds from the tab
   assert.equal(nashville[0].sides[0].seed, 1);
   assert.deepEqual(one.find(t => t.sides.some(s => s?.id === '189')).sides.map(s => s.seed), [3, 6]);
 });
+
+// Jay 2026-11-10 ("Best of 3 should not just give me the first game"): MLS's
+// Round One is a best of three, its games carrying no series of their own:
+// the tie is a series (its sheet lists the games), each game's winner a win.
+test('MLS Round One: a best of three, every game in the tie, the winner at two wins', async () => {
+  const { parseScoreboard } = await import('../.kit/sports-espn.mjs');
+  const team = (id, abbr, name, score, winner) => ({ homeAway: '', score, winner, team: { id, abbreviation: abbr, displayName: name, shortDisplayName: name } });
+  const game = (id, date, state, home, away) => ({ id, date, name: '', shortName: '', season: { year: 2026, type: 13844, slug: 'eastern-conference-playoffs---round-one' }, competitions: [{ status: { type: { state, completed: state === 'post' } }, competitors: [{ ...home, homeAway: 'home' }, { ...away, homeAway: 'away' }] }] });
+  const NE = (s, w) => team('189', 'NE', 'New England Revolution', s, w);
+  const PHI = (s, w) => team('10739', 'PHI', 'Philadelphia Union', s, w);
+  const tieOf = list => playoffModel({ league: 'mls', mode: 'live', events: parseScoreboard({ events: list }, 'mls', { lang: 'zh' }) }).rounds.find(r => r.key === 'round-one').ties.find(t => t?.sides?.some(s => s?.id === '189'));
+  // Not begun: three games, a series, the first next.
+  let t = tieOf([game('1', '2026-11-21T19:00Z', 'pre', NE(), PHI()), game('2', '2026-11-28T21:30Z', 'pre', PHI(), NE()), game('3', '2026-12-02T20:00Z', 'pre', NE(), PHI())]);
+  assert.equal(t.kind, 'series');
+  assert.equal(t.bestOf, 3);
+  assert.equal(t.games.length, 3);
+  assert.equal(t.next.id, '1');
+  assert.equal(t.winner, null);
+  // 1-1 after a draw won on penalties (the flag, not the score), then a win.
+  t = tieOf([game('1', '2026-11-21T19:00Z', 'post', NE('1', true), PHI('1', false)), game('2', '2026-11-28T21:30Z', 'post', PHI('2', true), NE('0', false)), game('3', '2026-12-02T20:00Z', 'pre', NE(), PHI())]);
+  assert.deepEqual(t.score, { 189: 1, 10739: 1 });
+  assert.equal(t.next.id, '3');
+  // 2-0: through, game 3 never the next.
+  t = tieOf([game('1', '2026-11-21T19:00Z', 'post', NE('2', true), PHI('0', false)), game('2', '2026-11-28T21:30Z', 'post', PHI('1', false), NE('3', true)), game('3', '2026-12-02T20:00Z', 'pre', NE(), PHI())]);
+  assert.equal(t.winner, '189');
+  assert.equal(t.next, null);
+});
+
+test('the playoffs are read to the end of a round begun within the 17 days (MLS Round One to 12/2)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const body = app.slice(app.indexOf('async function postseason'), app.indexOf('// Last season'));
+  assert.match(body, /FORMATS\[league\]\?\.official/);
+  assert.match(body, /d <= to\)/);
+});

@@ -46,7 +46,10 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     its rows in two or three columns on a wide page, each league with today's count of games (app.js `myLeaguesCard`). Every list on
     首頁, 已結束 and a past day too, is only their own games and, with
     填滿空檔 on, the filled ones as the day stood (`lib/home-shown.mjs`
-    `homeGames`): never the others' results; a filled game over is the same
+    `homeGames`): never the others' results; 已結束 in two groups when it has
+    both, 推薦給你 (the day's plan: `isFollowedEvent`'s picks, and the filled
+    ones) then 其他比賽 (the rest of their leagues' games), rows unmarked
+    (Jay 2026-11-10, `endedBody`); a filled game over is the same
     quiet line with its score at the end. 完賽 is as big as a start time. 下一場 is always their own next game (a later
     day's when the open day has none), never a filled one.
     A day is drawn once: its first drawing waits in its shape (up to 6 s,
@@ -280,7 +283,12 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   magic number; the fullest wording that fits one line (`fitChoice`). F1's
   title won, the runner-up's place is followed the same way.
 - **Playoffs** (`lib/playoffs.mjs`, `bracket.mjs`): real ties, predicted
-  from the table while the season runs, or last season's. The NBA Cup
+  from the table while the season runs, or last season's. Read to the end of
+  any round begun within 17 days (`postseason`, the league's `official` dates).
+  A round whose games carry no series (MLS's Round One, best of three:
+  `FORMATS.mls.bestOf`) is a series all the same (`bracket.mjs finish`: each
+  game's winner a win, penalties by the flag); its sheet lists every game,
+  the last 如需要 until it's won (Jay 2026-11-10). The NBA Cup
   (`lib/nbacup.mjs`) beside the NBA's: its groups, found from who meets whom
   in group play (no feed names them, so no letters), first and best second
   marked, and its knockout; chips in 季後賽, an NBA 盃 tab on a cup game (a

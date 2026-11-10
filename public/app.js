@@ -1825,13 +1825,41 @@ function renderHome() {
   // (Over, a result like any other: the two sides and their scores, a row each, never the quiet one-line
   // form spread across the card with the score off at its end; Jay 2026-11-09.)
   const filledOver = list => (list.length ? el('div', { class: 'q-card list filled-over' }, list.map(e => eventRow(e, endedRow))) : null);
-  const endedBody = (own, fill, rowsOf) => (fill.length ? el('div', { class: 'ended-both' }, [own.length ? rowsOf(own) : null, filledOver(fill)]) : rowsOf(own));
+  // 已結束 in two groups when it has both (Jay 2026-11-10: "you used to categorize them by if you
+  // recommended that game for me"): 推薦給你, the games the day's plan chose for them (a followed
+  // team's, a league's chosen game, a race session) and the ones 填滿空檔 put in, then 其他比賽, the
+  // rest of their leagues' games (every one since 11-09). Each group's rows stay unmarked (the head
+  // says it; the grey ★ rows read "weird", 11-05); one group alone has no head.
+  const gameKey = e => `${e.league}:${e.id}:${e.sessionKey || ''}`;
+  const pickedKeys = new Set(planGames.own.map(gameKey));
+  // (Split: the picks and the rest; grouped only when both are there.)
+  const endedSplit = (own, fill) => {
+    const picked = own.filter(e => pickedKeys.has(gameKey(e)));
+    const others = own.filter(e => !pickedKeys.has(gameKey(e)));
+    return { picked, others, grouped: (picked.length > 0 || fill.length > 0) && others.length > 0 };
+  };
+  const endedHead = text => el('h3', { class: 'q-list-head ended-head', text });
+  // rowsOf draws the picks (or the one list), restOf the rest (a busy day's, 30 at a time); tail under the rest.
+  const endedBody = (own, fill, rowsOf, { rest: restOf = rowsOf, tail = null } = {}) => {
+    const { picked, others, grouped } = endedSplit(own, fill);
+    if (!grouped) {
+      const one = [own.length ? restOf(own) : null, tail, filledOver(fill)].filter(Boolean);
+      return one.length === 1 ? one[0] : el('div', { class: 'ended-both' }, one);
+    }
+    return el('div', { class: 'ended-both ended-groups' }, [endedHead(t('endedPicked')), picked.length ? rowsOf(picked) : null, filledOver(fill), endedHead(t('endedOthers')), restOf(others), tail].filter(Boolean));
+  };
   function pastDay() {
     const games = pastGames;
-    if (light && (games.length || pastFilled.length)) return section(t('pastEvents'), endedBody(games, pastFilled, g => recapList(g, endedRow)), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length + pastFilled.length }) }) });
+    const count = { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length + pastFilled.length }) }) };
+    if (light && (games.length || pastFilled.length)) return section(t('pastEvents'), endedBody(games, pastFilled, g => recapList(g, endedRow)), count);
     const title = t('pastEvents');
     if (!games.length && !pastFilled.length) return section(title, note('', gap === 'leagues' ? t('someUnread') : hasFollows ? t('noMineDay') : t('noFollowsYet')));
-    return section(title, el('div', { class: 'ended-both' }, [games.length ? el('div', { class: 'q-card list' }, games.slice(0, h.shown).map(e => eventRow(e, endedRow))) : null, games.length > h.shown ? moreToggle({ more: `${t('showMore')} (${games.length - h.shown})`, less: null, cls: 'show-more', onToggle: () => ((h.shown += 30), renderHome()) }) : null, filledOver(pastFilled)]), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: games.length + pastFilled.length }) }) });
+    // (A busy day: the picks whole, the rest of their leagues' games 30 at a time.)
+    const { others, grouped } = endedSplit(games, pastFilled);
+    const cut = grouped ? others : games;
+    const tail = cut.length > h.shown ? moreToggle({ more: `${t('showMore')} (${cut.length - h.shown})`, less: null, cls: 'show-more', onToggle: () => ((h.shown += 30), renderHome()) }) : null;
+    const rows = list => el('div', { class: 'q-card list' }, list.map(e => eventRow(e, endedRow)));
+    return section(title, endedBody(games, pastFilled, rows, { rest: list => rows(list.slice(0, h.shown)), tail }), count);
   }
   // Shelves under the picks (each game once: the hero and 正在進行 first, then
   // 我的球隊, the picks, 今晚, the ended): my teams' games still to come, the
@@ -2517,10 +2545,15 @@ async function playoffWeeks(league, days, ttl) {
 }
 // The playoffs so far: from the next two and a half weeks back (MLS's first
 // round on ESPN's schedule twelve days before it, Jay 2026-11-10: "display the schedule").
+// (A round begun in that time is read to its own last day: MLS's best-of-three first round runs
+// 11/21–12/2, its games 2 and 3 past the 17 days, so a series showed only its first game, Jay 2026-11-10.)
 async function postseason(league) {
   const cal = await seasonCalendar(league);
   const from = yyyymmdd(new Date(Date.now() - 80 * 86_400_000));
-  return playoffWeeks(league, (cal?.days || []).filter(d => d >= from && d <= yyyymmdd(new Date(Date.now() + 17 * 86_400_000))).reverse());
+  const soon = yyyymmdd(new Date(Date.now() + 17 * 86_400_000));
+  const ends = Object.values(FORMATS[league]?.official || {}).flatMap(y => Object.values(y)).filter(d => d[0].replaceAll('-', '') <= soon).map(d => d.at(-1).replaceAll('-', ''));
+  const to = [soon, ...ends].sort().at(-1);
+  return playoffWeeks(league, (cal?.days || []).filter(d => d >= from && d <= to).reverse());
 }
 // Last season's playoffs: from the end of its calendar back (kept a month on the phone: it's over).
 async function lastSeason(league, info) {

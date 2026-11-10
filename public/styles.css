@@ -2892,6 +2892,9 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 
 /* 已結束 with 填滿空檔 on: their own games as before, then the filled ones as quiet lines with their scores. */
 .ended-both { display: grid; gap: 12px; }
+/* 已結束's two groups (推薦給你, 其他比賽): a quiet label close to its rows, as the kit's list label. */
+.ended-groups > .ended-head { margin: 0 4px -4px; color: var(--q-label-2); font: 600 15px/20px var(--q-font); letter-spacing: 0; }
+.ended-groups > .ended-head:not(:first-child) { margin-top: 8px; }
 .pick-list .event-row.filled .side-score { display: none; }
 .pick-list .event-row.filled:has(.filled-score) { grid-template-columns: 64px minmax(0, 1fr) auto; }
 .pick-list .event-row.filled:has(.filled-score)::after { content: none; }

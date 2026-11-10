@@ -41,6 +41,8 @@ export const FORMATS = {
     },
     // ESPN's games carry no seeds: each side's place in its conference's final table.
     tableSeeds: true,
+    // Round One is a best of three (each game a win, a draw to penalties); ESPN's games don't say so.
+    bestOf: { 'round-one': 3 },
     // Each conference: 8 v 9 for the last place; 1 v that winner, 4 v 5, 3 v 6, 2 v 7.
     project: g => leagues2(g).reduce((o, rows) => ({ wildcard: [...(o.wildcard || []), pair(rows, 8, 9)], 'round-one': [...(o['round-one'] || []), waits(rows, 1, '8/9'), pair(rows, 4, 5), pair(rows, 3, 6), pair(rows, 2, 7)] }), {})
   },
@@ -212,7 +214,7 @@ export function playoffModel({ league, mode = 'live', events = [], groups = null
   const shape = fmt?.rounds?.map(r => [r.key, r.zh, r.en, r.n]);
   // Only the rounds the view shows (a cup's early rounds, before its third, left out).
   const shown = shape ? events.filter(e => shape.some(r => r[0] === e.round?.key)) : events;
-  let rounds = buildBracket(shown, league, { shape });
+  let rounds = buildBracket(shown, league, { shape, bestOf: fmt?.bestOf });
   if (!rounds.length && shape) rounds = shape.map(([key, zh, en, n]) => ({ key, title: { zh, en }, ties: Array(n).fill(null) }));
   // The table's prediction in the rounds it decides.
   if (mode === 'projected' && fmt?.project) {

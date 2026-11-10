@@ -18,5 +18,15 @@ test('every 已結束 list on 首頁 draws its rows unmarked', () => {
   assert.doesNotMatch(body, /recapList\(g, rowDay\)/);
   assert.doesNotMatch(body, /eventRow\(e, rowDay\)\) : null, games\.length > h\.shown/);
   assert.equal((body.match(/recapList\(g, endedRow\)/g) || []).length, 2);
-  assert.match(body, /games\.slice\(0, h\.shown\)\.map\(e => eventRow\(e, endedRow\)\)/);
+  assert.match(body, /const rows = list => el\('div', \{ class: 'q-card list' \}, list\.map\(e => eventRow\(e, endedRow\)\)\)/);
+});
+
+// Jay 2026-11-10: "you used to categorize them by if you recommended that game for me". Since every
+// game of a followed league is in 已結束 (11-09), the day's picks come first under 推薦給你, then 其他比賽.
+test('已結束 groups the day\'s picks apart from the rest of their leagues\' games', () => {
+  const body = app.slice(app.indexOf('const endedRow'), app.indexOf('function recapList'));
+  assert.match(body, /const pickedKeys = new Set\(planGames\.own\.map\(gameKey\)\)/);
+  assert.match(body, /endedHead\(t\('endedPicked'\)\)/);
+  assert.match(body, /endedHead\(t\('endedOthers'\)\)/);
+  assert.match(app, /endedBody\(endedGames, endedFilled,/);
 });

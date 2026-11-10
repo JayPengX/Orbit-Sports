@@ -6,7 +6,7 @@
 //
 //   buildBracket(events, league) -> [{ key, title: { zh, en }, ties: [tie | null] }]
 //   tie: { id, round, sides: [a, b], score: { [id]: n }, kind: 'series' | 'agg' | 'single',
-//          winner: id | null, live, next: event | null, games: [event] }
+//          winner: id | null, live, next: event | null, games: [event], bestOf? }
 //   or, a tie of sides still being decided: see pendingTies.
 import { roundName } from './stage.mjs';
 
@@ -20,7 +20,10 @@ const BY_COUNT = { 1: ['決賽', 'Final'], 2: ['準決賽', 'Semifinals'], 4: ['
 // A round's name without the league it's in (美聯 / 國聯, 東區 / 西區): one column holds both.
 const plainRound = text => roundName(text, 'zh').replace(/^(美聯|國聯|東區|西區)/, '').replace(/\s*G\d+.*$/, '');
 
-function finish(t) {
+// `bestOf`: the round's series length where its games carry no series of their own (MLS's
+// first round, best of three: ESPN's games say nothing of it, Jay 2026-11-10 "Best of 3 should
+// not just give me the first game"); each game's winner (a draw goes to penalties) a win.
+function finish(t, bestOf = 0) {
   const games = t.games.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   // The side at home in the first game (the better seed in a series) on top.
   const first = games[0];
@@ -36,6 +39,28 @@ function finish(t) {
     t.score = played.length ? Object.fromEntries(ids.map(id => [id, Number(last.series.wins[id]) || 0])) : {};
     const wins = id => Number(last.series.wins[id]) || 0;
     t.winner = last.series.completed && wins(ids[0]) !== wins(ids[1]) ? (wins(ids[0]) > wins(ids[1]) ? ids[0] : ids[1]) : null;
+    return t;
+  }
+  if (bestOf > 1) {
+    t.kind = 'series';
+    t.bestOf = bestOf;
+    const won = g => {
+      if (g.status?.state !== 'post') return null;
+      const side = ids.find(id => [g.home, g.away].find(x => String(x?.id) === id)?.winner);
+      if (side) return side;
+      const [a, b] = ids.map(id => Number([g.home, g.away].find(x => String(x?.id) === id)?.score));
+      return Number.isFinite(a) && Number.isFinite(b) && a !== b ? (a > b ? ids[0] : ids[1]) : null;
+    };
+    const wins = Object.fromEntries(ids.map(id => [id, 0]));
+    for (const g of games) {
+      const w = won(g);
+      if (w) wins[w]++;
+    }
+    t.score = played.length ? wins : {};
+    const need = Math.ceil(bestOf / 2);
+    t.winner = ids.find(id => wins[id] >= need) || null;
+    // (Won: a game still listed after it, "if necessary", is never the next.)
+    if (t.winner) t.next = null;
     return t;
   }
   t.kind = games.length > 1 ? 'agg' : 'single';
@@ -133,7 +158,7 @@ function pendingTies(rounds, slots) {
   }
 }
 
-export function buildBracket(events, league, { shape: given = null } = {}) {
+export function buildBracket(events, league, { shape: given = null, bestOf = null } = {}) {
   const ties = new Map();
   // Games of a round between sides not all known yet ("TBD", "CLE/CHW"):
   // its places, filled from the ties that feed it. One place a pairing (a
@@ -156,7 +181,7 @@ export function buildBracket(events, league, { shape: given = null } = {}) {
     if (!t.games.some(g => g.id === e.id)) t.games.push(e);
   }
   if (!ties.size) return [];
-  const all = [...ties.values()].map(finish);
+  const all = [...ties.values()].map(t => finish(t, Number(bestOf?.[t.round]) || 0));
   // The rounds: the league's own shape, else the order they were played in
   // and halving after the last one drawn.
   const byRound = new Map();

@@ -8212,13 +8212,18 @@ export function openTie(t, league, roundTitle = '') {
     return el('div', { class: `tie-side${t.winner ? (t.winner === id ? ' win' : ' out') : ''}` }, [teamTap(x, league, 'tie-who', [sideLogo(x, league, 'sm'), el('strong', { class: 'tie-name', text: x.short || x.name })]), el('strong', { class: 'num tie-score', text: t.score?.[id] ?? '' })]);
   };
   const said = won ? (en ? `${won.short || won.name} through` : `${won.short || won.name} 晉級`) : t.live ? (en ? 'On now' : '進行中') : t.kind === 'agg' ? (en ? 'Aggregate' : '總比分') : t.kind === 'series' ? (en ? 'Series' : '系列賽') : '';
-  const label = (g, i) => [t.kind === 'series' ? (en ? `Game ${i + 1}` : `第 ${i + 1} 戰`) : t.kind === 'agg' ? (en ? `Leg ${i + 1}` : `第 ${i + 1} 回合`) : '', dayLabel(localDate(Date.parse(g.start)))].filter(Boolean).join(' · ');
+  // A series' games past the wins it needs, not yet played: 如需要 (MLS's game 3 of three); once
+  // it's won, never listed (Jay 2026-11-10: a best of three lists its games, not only the first).
+  const need = t.bestOf ? Math.ceil(t.bestOf / 2) : 0;
+  const games = t.winner && need ? t.games.filter(g => g.status?.state !== 'pre') : t.games;
+  const ifNeeded = (g, i) => need && !t.winner && i >= need && g.status?.state === 'pre';
+  const label = (g, i) => [t.kind === 'series' ? (en ? `Game ${i + 1}` : `第 ${i + 1} 戰`) : t.kind === 'agg' ? (en ? `Leg ${i + 1}` : `第 ${i + 1} 回合`) : '', dayLabel(localDate(Date.parse(g.start))), ifNeeded(g, i) ? (en ? 'if needed' : '如需要') : ''].filter(Boolean).join(' · ');
   s.body.append(
     el('div', { class: 'tie-head' }, [roundTitle ? el('p', { class: 'mini-h', text: roundTitle }) : null, ...t.sides.map(sideRow), said ? el('small', { class: `muted tie-said${t.live ? ' live' : ''}`, text: said }) : null]),
     el(
       'div',
       { class: 'q-card list tie-games' },
-      t.games.map((g, i) => el('div', { class: 'tie-game' }, [label(g, i) ? el('small', { class: 'tie-gn', text: label(g, i) }) : null, eventRow(g, { league: false })]))
+      games.map((g, i) => el('div', { class: 'tie-game' }, [label(g, i) ? el('small', { class: 'tie-gn', text: label(g, i) }) : null, eventRow(g, { league: false })]))
     )
   );
 }
