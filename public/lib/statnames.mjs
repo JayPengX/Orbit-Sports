@@ -354,7 +354,11 @@ export function teamStatRows(stats, sport, lang = 'zh') {
       .filter(([k]) => byKey.has(k))
       .map(([k, name, low, group]) => {
         const s = byKey.get(k);
-        const [away, home] = pctText(k, s.away, s.home);
+        // ESPN's turnoverPoints is what a side gave away off its own
+        // turnovers ("Points Conceded Off Turnovers"): 失誤得分 is the
+        // other side's (Jay 2026-11-09: the Kings, 13 turnovers to Miami's
+        // 3, read 18 to Miami's 0).
+        const [away, home] = k === 'turnoverPoints' ? pctText(k, s.home, s.away) : pctText(k, s.away, s.home);
         const g = group ? (zh ? group : GROUP_EN[group] || group) : zh ? GROUP_ZH[s.group] || s.group : String(s.group || '').replace(/^./, c => c.toUpperCase());
         return { group: g, label: zh ? name : s.label, away, home, low: Boolean(low) };
       })

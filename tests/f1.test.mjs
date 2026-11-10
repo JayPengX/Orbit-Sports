@@ -222,3 +222,30 @@ test("a driver's birthplace is formula1.com's before ESPN's, which cut Hamilton'
   assert.equal(birthPlaceOf({}, 'Hasselt'), 'Hasselt');
   assert.equal(birthPlaceOf(null, undefined), '');
 });
+
+test('the table just after a weekend counts back from each total; a team\'s weekend from its drivers\' (Brazil 2026: ESPN\'s teams\' Miami column was wrong)', async () => {
+  const { standingAfter, teamsAt } = await import('../public/lib/f1.mjs');
+  // ESPN after Brazil 2026, cut down: the drivers' columns add up, Mercedes' teams' MIA column 8 for its drivers' 45.
+  const rounds = [{ key: 'MIA' }, { key: 'MEX' }, { key: 'BRA' }, { key: 'LAS' }];
+  const drivers = { rounds, rows: [
+    { id: 'ant', name: 'Kimi Antonelli', stats: { PTS: '53', MIA: '28', MEX: '15', BRA: '10', LAS: ' ' } },
+    { id: 'rus', name: 'George Russell', stats: { PTS: '37', MIA: '17', MEX: '8', BRA: '12', LAS: ' ' } },
+    { id: 'lec', name: 'Charles Leclerc', stats: { PTS: '26', MIA: '10', MEX: '12', BRA: '4', LAS: ' ' } }
+  ] };
+  const teams = { rounds, rows: [
+    { id: 'm', name: 'Mercedes', stats: { RK: '1', PTS: '90', MIA: '8', MEX: '23', BRA: '22', LAS: ' ' } },
+    { id: 'f', name: 'Ferrari', stats: { RK: '2', PTS: '26', MIA: '10', MEX: '12', BRA: '4', LAS: ' ' } }
+  ] };
+  const team = { 'Kimi Antonelli': 'Mercedes', 'George Russell': 'Mercedes', 'Charles Leclerc': 'Ferrari' };
+  const at = teamsAt(drivers, d => team[d.name] || null);
+  const s = standingAfter(teams, 'BRA', (r, k) => at(k, r.name, r));
+  assert.deepEqual(s.map(r => [r.id, r.before, r.add]), [['m', 68, 22], ['f', 22, 4]]);
+  // (Summing the columns ahead would have read Mercedes 31 before Brazil.)
+  // A weekend with a scorer whose team isn't known: the team's own column.
+  const blind = teamsAt(drivers, d => (d.id === 'lec' ? null : team[d.name]));
+  assert.equal(blind('BRA', 'Mercedes', teams.rows[0]), 22);
+  assert.equal(blind('MEX', 'Ferrari', teams.rows[1]), 12);
+  // No totals (an old copy): the columns ahead, as before.
+  const bare = { rounds, rows: [{ id: 'x', stats: { MIA: '5', MEX: '3', BRA: '1' } }] };
+  assert.deepEqual(standingAfter(bare, 'BRA').map(r => [r.before, r.add]), [[8, 1]]);
+});

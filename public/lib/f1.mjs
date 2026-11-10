@@ -690,17 +690,53 @@ export const pointsFor = (abbr, pos, out = false) => (out ? 0 : POINTS[abbr]?.[p
 // then the order it stood in), each with where it was and is.
 // The championship just after one weekend (its column `roundKey` in ESPN's
 // table, a column a weekend in the season's order): each row's points before
-// it (`before`, the columns ahead of it), its place then (`rank`) and that
-// weekend's (`add`); null when the table has no such column.
-export function standingAfter(group, roundKey) {
+// it (`before`), its place then (`rank`) and that weekend's (`add`); null
+// when the table has no such column. Before it is the row's total less that
+// weekend and any after it, never the columns ahead added up: ESPN's
+// teams' columns can be wrong (2026's Miami had Mercedes on 8 for its two
+// drivers' 45, so the table after Brazil read 615 for 652 and missed
+// their title, Jay 2026-11-09). `pointsAt(row, key)`: a weekend's points
+// another way (a team's from its drivers', teamsAt); else its column.
+const ptsNum = v => Number(String(v ?? '').replace(/[^\d.]/g, '')) || 0;
+export function standingAfter(group, roundKey, pointsAt = null) {
   const keys = (group?.rounds || []).map(r => r.key);
   const i = keys.indexOf(roundKey);
   if (i < 0) return null;
-  const n = v => Number(String(v ?? '').replace(/[^\d.]/g, '')) || 0;
+  const at = (r, k) => (pointsAt ? pointsAt(r, k) : ptsNum(r.stats?.[k]));
+  const hasTotal = r => /\d/.test(String(r.stats?.PTS ?? ''));
   return (group.rows || [])
-    .map(r => ({ ...r, before: keys.slice(0, i).reduce((sum, k) => sum + n(r.stats?.[k]), 0), add: n(r.stats?.[keys[i]]) }))
-    .sort((a, b) => b.before - a.before)
+    .map(r => ({ ...r, before: hasTotal(r) ? ptsNum(r.stats.PTS) - keys.slice(i).reduce((sum, k) => sum + at(r, k), 0) : keys.slice(0, i).reduce((sum, k) => sum + at(r, k), 0), add: at(r, keys[i]) }))
+    .sort((a, b) => b.before - a.before || (Number(a.stats?.RK) || 0) - (Number(b.stats?.RK) || 0))
     .map((r, j) => ({ ...r, rank: j + 1 }));
+}
+// Each team's points at each weekend from its drivers' (the drivers'
+// columns add up to their totals; the teams' can't be trusted), by the team
+// each scorer drove for (`teamOf(driverRow)`, its key; null when not
+// known): (teamKey, column) → points. A weekend with a scorer whose team
+// isn't known gives null for every team (its own column is used then).
+export function teamsAt(drivers, teamOf) {
+  const cache = new Map();
+  const of = k => {
+    if (cache.has(k)) return cache.get(k);
+    const m = new Map();
+    let known = true;
+    for (const d of drivers?.rows || []) {
+      const p = ptsNum(d.stats?.[k]);
+      if (!p) continue;
+      const t = teamOf(d);
+      if (!t) {
+        known = false;
+        break;
+      }
+      m.set(t, (m.get(t) || 0) + p);
+    }
+    cache.set(k, known ? m : null);
+    return cache.get(k);
+  };
+  return (key, team, row) => {
+    const m = of(key);
+    return m ? m.get(team) || 0 : ptsNum(row?.stats?.[key]);
+  };
 }
 export function asItStands(rows = [], gains = new Map()) {
   return rows

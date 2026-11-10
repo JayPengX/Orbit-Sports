@@ -402,12 +402,13 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
 | `look.js`, `look.css` | Orbit's own look: the lead game's club colours, 我的球隊, and the look's overrides of the old card |
 | `lib/espn.mjs` | Every read and parser (the scoreboard parser is the kit's `sports-espn.mjs`); `sessionStatus` |
 | `lib/f1.mjs`, `racecontrol.mjs` | F1 data and the board's maths; race control in Chinese |
-| `lib/title.mjs`, `playoffs.mjs`, `bracket.mjs`, `tiebreak.mjs` | Live tables and title race; playoffs; tiebreaks |
+| `lib/title.mjs`, `playoffs.mjs`, `bracket.mjs`, `tiebreak.mjs` | Live tables and title race (`liveTable`'s `live`: the games on now as they stand, marked, on 排名 and a game's 排名 only; the races on finals); playoffs; tiebreaks |
 | `lib/leaders.mjs` | 數據領先: stats, ranks, team and player |
 | `lib/teamstats.mjs` | Teams' own numbers ranked in their league (數據 球隊) |
 | `lib/picks.mjs`, `foryou.mjs` | Today's picks; affinity (shared with Play) |
 | `lib/broadcast.mjs`, `tv.mjs`, `highlights.mjs` | Where to watch (the kit's, shared with the proxy); channels; videos |
-| `lib/winprob.mjs`, `soccerwp.mjs`, `wpline.mjs`, `moments.mjs` | Win chance line and key moments |
+| `lib/winprob.mjs`, `soccerwp.mjs`, `wpline.mjs`, `moments.mjs` | Win chance line and key moments (a basket answered at once by as much isn't one: `answered`); soccer's line moves with each side's shots as rough xG (`shotsOf`, `shownRates`); a game over said by its odds before (`gameArc`: 賽前勝率, 爆冷, 最低曾剩) |
+| `lib/plays.mjs` | Basketball's plays by stoppage (`foldPlays`: a free-throw trip one row with its foul, an and-one on its basket, the changes one row) for 過程, 最新 and the closing stretch; a game on at a glance (`liveState`: the run on now, a drought, lead changes) for the live panel's chips |
 | `lib/live.mjs`, `lineups.mjs`, `onfield.mjs`, `mlb.mjs`, `cpblbox.mjs` | Live state; starters (MLB's own, the NBA's from RotoWire through the proxy: ESPN's core API refuses it); who's on (and at a break, who came on in it: `courtStop`); MLB and CPBL fill-ins |
 | `lib/leagues.mjs`, `search.mjs`, `statnames.mjs`, `stage.mjs`, `compname.mjs`, `i18n.mjs`, `text.mjs` | Leagues; search; Chinese names for stats, stages and competitions; text |
 | `lib/days.mjs`, `bounds.mjs`, `strip.mjs`, `retry.mjs` | Days on the viewer's clock; the days a league has; the date strip and 賽事's chosen day (kept across 全部 and the leagues); 首頁's way back from a sport chip (`sportBack`); failed reads tried again |

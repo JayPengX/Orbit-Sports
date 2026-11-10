@@ -13,10 +13,11 @@ import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod, withNewest } from './lib/live.mjs';
 import { personKey, pitcherRole } from './lib/mlb.mjs';
-import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, momentsAt, holdToEnd, sideColors, readableOn, hasHue } from './lib/wpline.mjs';
+import { lineXs, periodMarks, pointStamp, stampAt, quietRuns, periodName, nearestMoment, momentsAt, holdToEnd, sideColors, readableOn, hasHue, gameArc } from './lib/wpline.mjs';
 import { playMoments, eventMoments, raceMoments, scoreAt, bandName, lateClock, feedText, playParts, playText, goalHowParts, basketEn, sentence } from './lib/moments.mjs';
 import { controlBands, causeOf, PM_LEAGUE } from './lib/winprob.mjs';
-import { soccerLine } from './lib/soccerwp.mjs';
+import { soccerLine, shotsOf } from './lib/soccerwp.mjs';
+import { foldPlays, isSub, foulZh, foulEn, liveState } from './lib/plays.mjs';
 import { statName, boxHead, statsTitle, metric, fixedWord, dateText, injuryZh, injuryWhatZh, seriesLineZh, weatherZh, pitchZh, posZh, standingZh, leaderValue, teamStatRows } from './lib/statnames.mjs';
 import { f1Driver, f1Constructor, countryName, logoPicture, countryFlag } from '#kit/logos.mjs';
 import { isFlag } from '#kit/photos.mjs';
@@ -26,7 +27,7 @@ import { seasonRuns, seasonSums, mateDuel } from './lib/f1driver.mjs';
 import { h2hPieces, PIECE_EACH } from './lib/meetings.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
-import { driverAbout, startingGrid, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, settleScoring, liveLapEnds, liveRaceEvents, flagNow, birthPlaceOf, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
+import { driverAbout, startingGrid, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, teamsAt, settleScoring, liveLapEnds, liveRaceEvents, flagNow, birthPlaceOf, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
 import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch, placeTeams } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
@@ -379,7 +380,13 @@ export async function openMatch(e) {
   // sections again every 15 seconds while the sheet is open, and at once on
   // coming back to the app. Its own day's page (a cup's default page can be
   // another round).
-  const soon = () => e.status.state === 'in' || (e.status.state === 'pre' && Date.parse(e.start) - Date.now() < 15 * 60_000);
+  // Over, and its own page not there yet (ESPN's summary runs a minute and
+  // more behind the score): read on until it has the end, two minutes at
+  // most, so the last plays, the box score and the chance are the final's.
+  let overAt = 0;
+  let pageOver = false;
+  const finishing = () => e.status.state === 'post' && !pageOver && Date.now() - (overAt ||= Date.now()) < 120_000;
+  const soon = () => e.status.state === 'in' || (e.status.state === 'pre' && Date.parse(e.start) - Date.now() < 15 * 60_000) || finishing();
   const gameDays = () => [...new Set([0, 5].map(h => new Date(Date.parse(e.start) - h * 3_600_000).toISOString().slice(0, 10).replaceAll('-', '')))];
   let busy = false;
   // At each beat the game alone (ESPN's scoreboard/<id>, 2-4 KB; its day's
@@ -410,6 +417,7 @@ export async function openMatch(e) {
           if (sm) {
             summaryAt = Date.now();
             if (pageCaughtUp(sm)) moved = move;
+            if (sm.status?.state === 'post' && pageCaughtUp(sm)) pageOver = true;
           }
           data = behind(withNewest(sm || data, e));
           fillNumbers();
@@ -419,15 +427,26 @@ export async function openMatch(e) {
         boxUnread = !sm && !data;
         data = sm || data;
       }
-      // Read while a finger took the sheet (or it's closing): drawn at the next beat, not under the drag.
-      if (document.querySelector('dialog.q-sheet.q-dragging, dialog.q-sheet.q-leaving')) return;
-      paintHeader(data);
-      paint();
-      loadLine();
+      // Read while a finger took the sheet (or it's closing): drawn at the
+      // next beat, not under the drag; never put off for more than a few
+      // seconds (a drag whose end the page never heard held it for good).
+      if (document.querySelector('dialog.q-sheet.q-dragging, dialog.q-sheet.q-leaving') && Date.now() - (heldAt ||= Date.now()) < 6_000) return;
+      heldAt = 0;
+      // Each part drawn on its own: one that fails (a play the page can't
+      // read) never stops the score and the clock (Jay 2026-11-09: a game's
+      // page stuck near the end); the failure goes to the 除錯紀錄.
+      for (const draw of [() => paintHeader(data), paint, loadLine]) {
+        try {
+          draw();
+        } catch (error) {
+          globalThis.reportError?.(error);
+        }
+      }
     } finally {
       busy = false;
     }
   };
+  let heldAt = 0;
   // (Every dev('sportsGame') seconds: the admin panel's 開發, 5 by default.)
   const stopBeat = everyDev('sportsGame', refresh);
   document.addEventListener('visibilitychange', refresh);
@@ -661,6 +680,8 @@ export async function openMatch(e) {
     );
   try {
     data = behind(await summary(e.league, e.id));
+    // (Opened over, its page over too: nothing more to read.)
+    if (data?.status?.state === 'post' && e.status.state === 'post') pageOver = true;
   } catch {}
   fillNumbers();
   wait.summary = true;
@@ -703,6 +724,33 @@ function topScorers(e, sm) {
     };
   return el('div', { class: 'lp-who lp-bb' }, inOrder(e, [e.away, e.home]).map(t => person(t.id)));
 }
+// A basketball game on now at a glance (lib/plays.mjs liveState): the run on
+// now (湖人 9-0 攻勢), a side with no field goal for three minutes, how
+// often the lead changed hands, a player one foul from out. Each in its
+// side's colour; none, nothing.
+function liveChips(e, sm) {
+  const en = L() === 'en';
+  const now = liveState(sm.feed, e.home.id, e.away.id);
+  const tint = tintOf(e);
+  const sideOf = id => (String(id) === String(e.home.id) ? 'home' : 'away');
+  const short = id => sm.byId[id]?.short || sm.byId[id]?.name || (sideOf(id) === 'home' ? e.home : e.away).short || '';
+  const chip = (text, id = null) => el('span', { class: `wp-gain lp-chip${id ? ` ${sideOf(id)}` : ''}`, style: id && tint[sideOf(id)] ? `--side:${tint[sideOf(id)]}` : null, text });
+  const chips = [];
+  if (now.run) chips.push(chip(en ? `${short(now.run.team)} ${now.run.mine}-${now.run.theirs} run` : `${short(now.run.team)} ${now.run.mine}-${now.run.theirs} 攻勢`, now.run.team));
+  if (now.drought) chips.push(chip(en ? `${short(now.drought.team)} no FG ${mmss(now.drought.secs)}` : `${short(now.drought.team)} ${mmss(now.drought.secs)} 未投進`, now.drought.team));
+  // (Six fouls and out in the NBA: five is one from it.)
+  for (const t of sm.players || []) {
+    const tb = t.tables?.[0];
+    const i = tb?.labels.indexOf('PF') ?? -1;
+    if (i < 0) continue;
+    for (const r of tb.rows) {
+      const pf = Number(r.stats[i]);
+      if (pf >= 5 && chips.length < 3) chips.push(chip(pf >= 6 ? (en ? `${r.name} fouled out` : `${r.name} 犯滿`) : en ? `${r.name} ${pf} fouls` : `${r.name} ${pf} 犯`, t.team));
+    }
+  }
+  if (now.changes >= 3 && chips.length < 3) chips.push(chip(en ? `${now.changes} lead changes` : `領先易手 ${now.changes} 次`));
+  return chips.length ? el('div', { class: 'lp-now' }, chips) : null;
+}
 // The situation of a game on now, by sport: the bases, count and outs, and
 // who bats against whom; the goals and red cards by minute; and the last play.
 function livePanel(e, sm = null) {
@@ -715,7 +763,9 @@ function livePanel(e, sm = null) {
   // each side's top scorer now, the team fouls, then the last plays.
   if (sport === 'basketball' && sm) {
     rows.push(topScorers(e, sm));
-    const last = sm.feed.slice(-4).reverse();
+    rows.push(liveChips(e, sm));
+    // (Read by stoppage, plays.mjs: a free-throw trip one row; the changes left out of these four.)
+    const last = foldPlays(sm.feed.slice(-24)).filter(p => !p.subs && !isSub(p)).slice(-4).reverse();
     if (last.length) {
       const nameOf = id => sm.byId[id]?.short || sm.byId[id]?.name || '';
       rows.push(el('small', { class: 'lp-feed-h', text: en ? 'Latest' : '最新' }));
@@ -873,7 +923,7 @@ export function storyRows(e, sm) {
     const [m, x] = String(c || '').split(':');
     return x == null ? Number(m) || 0 : Number(m) * 60 + (Number(x) || 0);
   };
-  const plays = sport === 'basketball' ? clutchPlays(sm.feed || [], secs) : (sm.plays || []).filter(p => p.team && p.home != null && p.away != null);
+  const plays = sport === 'basketball' ? clutchPlays(foldPlays(sm.feed || []), secs) : (sm.plays || []).filter(p => p.team && p.home != null && p.away != null);
   if (!plays.length) return null;
   const sideOf = p => (p.team === String(e.home.id) ? 'home' : 'away');
   // (A clock's period over its time, each on its line: the minute's column is narrow.)
@@ -888,7 +938,8 @@ export function storyRows(e, sm) {
       // (Baseball as its key moments say it, short in both languages: who, what, the RBIs.)
       // (Baseball: the batter on the line, what he did and its RBIs under it, as its key moments: one line ran onto three.)
       const hit = sport === 'baseball' ? playText(sport, { ...p, scoring: true }, en, tname) : '';
-      const { main, sub } = sport === 'baseball' ? (p.who && hit.startsWith(`${p.who} `) ? { main: p.who, sub: hit.slice(p.who.length + 1) } : { main: hit, sub: '' }) : sport === 'basketball' ? { main: en ? basketEn(p) : playParts(feedText(sport, p, en, tname), '').main, sub: '' } : playParts(feedText(sport, p, en, tname), '');
+      // (Basketball: a free-throw trip's foul under it, R. Jenkins 犯規.)
+      const { main, sub } = sport === 'baseball' ? (p.who && hit.startsWith(`${p.who} `) ? { main: p.who, sub: hit.slice(p.who.length + 1) } : { main: hit, sub: '' }) : sport === 'basketball' ? { main: en ? basketEn(p) : playParts(feedText(sport, p, en, tname), '').main, sub: en ? foulEn(p.foul) : foulZh(p.foul) } : playParts(feedText(sport, p, en, tname), '');
       // Who helped (an assist): the player's face, a tap away (not their name in brackets).
       const helper = helpersLine(e.league, p.helpers);
       const pic = p.pic ? personPic({ ...p.pic, en: p.pic.name }, e.league, 'sm round') : logo(team.logo, tname, 'sm');
@@ -898,7 +949,7 @@ export function storyRows(e, sm) {
       const back = p.reb ? [p.reb.who || '', en ? (off ? 'off. rebound' : 'rebound') : off ? '進攻籃板' : '籃板'].filter(Boolean).join(' ') : '';
       const rebTeam = p.reb && [e.home, e.away].find(t => String(t.id) === p.reb.team);
       const under = p.empty ? (back ? fitLine(el('small', { class: 'lg-sub' }, [rebTeam ? teamTag(rebTeam, back, e.league, { tap: false }) : document.createTextNode(back)])) : fitLine(el('small', { class: 'lg-sub' }, [teamTag(team, tname, e.league, { tap: false })]))) : null;
-      const said = p.empty ? (en ? sentence(p.text) : playParts(feedText(sport, p, false, tname), '').main) : main;
+      const said = p.empty ? (en ? (p.ft ? basketEn(p) : sentence(p.text)) : playParts(feedText(sport, p, false, tname), '').main) : main;
       const second = under || helper || fitLine(el('small', { class: 'lg-sub' }, [teamTag(team, sport === 'baseball' && sub ? sub : [tname, sub].filter(Boolean).join(' · '), e.league, { tap: false })]));
       // Who on a line of their own, what they did and the rest under it (as 過程's rows: never a long name squeezed smaller, Jay 2026-11-03).
       const split = !en && sport === 'basketball' ? PLAY_WHO.exec(said) : null;
@@ -926,8 +977,9 @@ function storyPanel(e, sm) {
 // listed). Each basket, and each trip that came up empty: a missed shot
 // with who took the rebound, a turnover (Jay 2026-10-31: 1:10 to 33.6 said
 // nothing, Brunson's miss to go ahead and James's rebound in it). Fouls,
-// timeouts and changes aren't listed.
-const MISS = /\bmisses\b/i;
+// timeouts and changes aren't listed; a free-throw trip is one row with
+// its foul (plays.mjs).
+const MISS = /\bmisses\b|\bblocks\b/i;
 const LOST = /turnover|bad pass|traveling|lost ball|offensive foul|shot clock/i;
 function clutchPlays(feed, secs) {
   const scored = feed.filter(p => p.scoring && p.team && p.home != null && p.away != null);
@@ -941,7 +993,8 @@ function clutchPlays(feed, secs) {
   feed.slice(from).forEach((p, k, rest) => {
     if (!late(p) || !p.team || p.home == null || p.away == null) return;
     if (p.scoring) return out.push(p);
-    const empty = (MISS.test(p.text) && !/free throw/i.test(p.text)) || LOST.test(`${p.type} ${p.text}`);
+    // (A free-throw trip that scored nothing, its last shot missed: plays.mjs folded it.)
+    const empty = (MISS.test(p.text) && !/free throw/i.test(p.text)) || LOST.test(`${p.type} ${p.text}`) || Boolean(p.ft && !p.ft.made && p.ft.tries === p.ft.of);
     if (!empty) return;
     // (Who got the ball back: the next play's rebound, on the same clock.)
     const reb = MISS.test(p.text) ? rest.slice(k + 1, k + 3).find(q => /rebound/i.test(`${q.type} ${q.text}`) && q.clock === p.clock) : null;
@@ -1294,8 +1347,11 @@ function matchSection(view, d, e, table, lw = {}) {
             const [aa, hh] = [Math.abs(a ?? 0), Math.abs(h ?? 0)];
             // Which side did better: more, or fewer for ERA, errors, fouls…
             const better = a === h || a == null || h == null ? '' : (a > h) !== s.low ? 'away' : 'home';
-            // One full line split by the two sides' shares, as the leagues' own apps draw it.
-            const share = aa + hh > 0 ? (aa / (aa + hh)) * 100 : 50;
+            // One full line split by the two sides' shares, as the leagues' own
+            // apps draw it; the side that did better holds more of it (Jay
+            // 2026-11-09: 3 turnovers to 13 drew the 13 long): fewer is the
+            // larger share where fewer is better (turnovers, fouls, ERA).
+            const share = aa + hh > 0 ? ((s.low ? hh : aa) / (aa + hh)) * 100 : 50;
             return [
               el('div', { class: 'stat-bar' }, [
                 el('div', { class: 'sb-top' }, (([x, y]) => [x, el('span', { text: s.label }), y])(inOrder(e, [el('strong', { class: `num${better === 'away' ? ' lead' : ''}`, text: s.away }), el('strong', { class: `num${better === 'home' ? ' lead' : ''}`, text: s.home })]))),
@@ -1357,7 +1413,8 @@ function matchSection(view, d, e, table, lw = {}) {
     const sideShort = id => side(id)?.short || side(id)?.name || '';
     const live = (d.status || e.status).state === 'in';
     // Football: the whole commentary (every shot, corner and foul), its key events where there's none.
-    const list = sport === 'basketball' && d.feed.length ? d.feed : sport === 'baseball' && d.feed.some(p => p.kind === 'play-result') ? d.feed.filter(p => p.kind === 'play-result' || (p.scoring && p.kind !== 'play-result')) : sport === 'soccer' && d.commentary?.length ? d.commentary : d.keyEvents.length ? d.keyEvents : d.plays;
+    // (Basketball read by stoppage, plays.mjs: a free-throw trip one row with its foul, an and-one on its basket, the changes one row.)
+    const list = sport === 'basketball' && d.feed.length ? foldPlays(d.feed) : sport === 'baseball' && d.feed.some(p => p.kind === 'play-result') ? d.feed.filter(p => p.kind === 'play-result' || (p.scoring && p.kind !== 'play-result')) : sport === 'soccer' && d.commentary?.length ? d.commentary : d.keyEvents.length ? d.keyEvents : d.plays;
     // The chart's key moments, by play: a run told where it ended (or where it took the lead), a play by itself.
     const marks = new Map();
     const tint = tintOf(e);
@@ -1389,7 +1446,7 @@ function matchSection(view, d, e, table, lw = {}) {
       const period = playPeriod(p, sport, L());
       if (period && period !== at && sport !== 'soccer') items.push({ key: `h|${period}`, head: period, make: () => el('li', { class: 'period-head', text: period }) });
       at = period || at;
-      const m = p.id ? marks.get(p.id) : null;
+      const m = (p.ids || [p.id]).map(id => id && marks.get(id)).find(Boolean) || null;
       const runs = Boolean(m && (m.periods || m.rally));
       const delta = m ? Math.round(Math.abs(m.delta) * 100) : 0;
       const chip = () => !delta ? null : el('span', { class: `wp-gain ${m.side}`, style: tint[m.side] ? `--side:${tint[m.side]}` : null, text: `${m.side === 'home' ? sideShort(e.home.id) : sideShort(e.away.id)} +${delta}%` });
@@ -1514,7 +1571,8 @@ function matchSection(view, d, e, table, lw = {}) {
     // This game over (or the day's others) before the official table has it: counted in at once, as 賽事's table does.
     const sport = LEAGUES[e.league]?.sport;
     const recent = [...(ctx.recentOf?.(e.league) || []).filter(x => x.id !== e.id), { ...e, status: d?.status || e.status, home: { ...e.home, ...(d?.home || {}) }, away: { ...e.away, ...(d?.away || {}) } }];
-    const groups = table?.length && sport !== 'racing' ? tableNow(official, e.league, recent) : official;
+    // (The games on now too, this one and the others at the same time, as they stand: Jay 2026-11-09.)
+    const groups = table?.length && sport !== 'racing' ? tableNow(official, e.league, recent, { live: true }) : official;
     // A league by division (MLB's six): the divisions of this game's two sides.
     const mine = groups.filter(g => g.parent && g.rows.some(r => r.id === String(e.home.id) || r.id === String(e.away.id)));
     return standingsTables(mine.length ? mine : groups, e.league, { mark: [e.home.id, e.away.id], many: mine.length > 0 || groups.length > 1 });
@@ -2101,11 +2159,14 @@ function winCard(d, e, line, wait) {
       // ESPN's or the sportsbook's, else the market's first price, else a usual game's.
       const prior = d?.predict || (line?.points?.[0] ? line.points[0] : null);
       const status = { ...(d?.status || e.status) };
-      const model = d && (prior || !market || wait.line) ? soccerLine({ prior, timeline: d.timeline, events: d.events, status, homeId: e.home.id, start: e.start, score: { home: (d.home || e.home)?.score, away: (d.away || e.away)?.score } }) : null;
-      real = model ? winProbCard(model, e, d.timeline, d.events) : null;
+      // (Its shots too, from the commentary: the line moves with the chances, not only the goals.)
+      const model = d && (prior || !market || wait.line) ? soccerLine({ prior, timeline: d.timeline, events: d.events, shots: shotsOf(d.commentary, e.home.id), status, homeId: e.home.id, start: e.start, score: { home: (d.home || e.home)?.score, away: (d.away || e.away)?.score } }) : null;
+      real = model ? winProbCard({ ...model, prior: model.prior || prior }, e, d.timeline, d.events) : null;
       coming = !real && (!wait.summary || (market && !d?.predict && !wait.line));
     } else {
-      real = d?.winProb.length > 3 ? winProbCard({ points: d.winProb }, e, d.timeline) : line?.points?.length > 3 ? winProbCard(line, e, d?.timeline, d?.events) : null;
+      // (Its odds before the start too: a game over says the winner's against them, gameArc.)
+      const prior = d?.predict && d.predict.source !== 'espn' ? d.predict : null;
+      real = d?.winProb.length > 3 ? winProbCard({ points: d.winProb, prior }, e, d.timeline) : line?.points?.length > 3 ? winProbCard({ ...line, prior }, e, d?.timeline, d?.events) : null;
       coming = !real && ((!wait.summary && (market || ['baseball', 'basketball'].includes(sport))) || (market && wait.summary && !wait.line));
     }
   }
@@ -2169,11 +2230,13 @@ function winProbCard(line, e, timeline, events = []) {
   // (Over: the result, as the chances a point holds.)
   const r = e.status.state === 'post' ? outcome(e.home, e.away) : '';
   const final = r ? { W: { home: 1, draw: 0 }, L: { home: 0, draw: 0 }, D: { home: 0, draw: 1 } }[r] : null;
+  // (Over: at rest it says each side's chance before the start and how the winner got there, not 100% to 0%.)
+  const arc = r ? gameArc(line.points, line.prior, r) : null;
   const pts = holdToEnd(line.points, timeline, final);
   const keyOf = `${e.league}|${e.id}`;
   const kept = wpKept.get(keyOf) || {};
   const last = pts.at(-1) || {};
-  const sig = [pts.length, last.home, last.draw, last.t, e.status.state, L(), cardBg(), (events || []).length].join('|');
+  const sig = [pts.length, last.home, last.draw, last.t, e.status.state, L(), cardBg(), (events || []).length, arc?.pre].join('|');
   // On the page already: a stand-in for it in the new drawing (paint puts the card itself back in its place).
   const stay = c => (c.isConnected ? Object.assign(el('div', { hidden: true }), { __keep: c }) : c);
   if (kept.card && kept.sig === sig) return stay(kept.card);
@@ -2251,6 +2314,16 @@ function winProbCard(line, e, timeline, events = []) {
   const dot = el('span', { class: 'wp-dot', hidden: true });
   const live = e.status.state === 'in';
   const rest = e.status.state === 'post' ? (en ? 'Final' : '終場') : pointStamp(timeline, sport, pts.at(-1), en) || (en ? 'Now' : '目前');
+  // 賽前勝率 · 湖人爆冷勝出 · 最低曾剩 9% (its lowest only where it was behind).
+  const arcWords = arc
+    ? (() => {
+        const name = arc.side === 'draw' ? '' : sideName(e[arc.side]);
+        // (Only a real dip: a favourite that led from the start has its lowest at the start.)
+        const low = arc.low != null && arc.low < 0.5 && arc.low < arc.pre - 0.1 ? Math.max(1, Math.round(arc.low * 100)) : null;
+        const how = arc.side === 'draw' ? (en ? 'a draw' : '和局') : en ? `${name} ${arc.upset ? 'upset win' : 'won'}` : `${name}${arc.upset ? '爆冷勝出' : '勝出'}`;
+        return [en ? 'Pre-game chances' : '賽前勝率', how, low == null ? '' : en ? `as low as ${low}%` : `最低曾剩 ${low}%`].filter(Boolean).join(' · ');
+      })()
+    : '';
   // A game on: a swing among its last few points is news.
   const latestOf = () => (live ? listed.find(m => pts.length - 1 - m.i <= Math.max(2, pts.length * 0.03)) : null);
   // The player's face (the batter, the scorer), else the team's badge (a run), else the sport's sign.
@@ -2286,7 +2359,8 @@ function winProbCard(line, e, timeline, events = []) {
     const m = picked || (j != null ? near(j) : null);
     rows.forEach((r, k) => r.classList.toggle('on', listed[k] === picked));
     const i = m ? m.i : j;
-    const p = pts[i ?? pts.length - 1];
+    // (A game over, nothing picked: the chances before the start, said so under them.)
+    const p = i == null && arc ? { ...pts[0], ...arc.start } : pts[i ?? pts.length - 1];
     const [hh, dd] = [Math.round(p.home * 100), p.draw != null ? Math.round(p.draw * 100) : 0];
     const pct = v => `${v}%`;
     away.textContent = `${sideName(e.away)} ${pct(Math.max(0, 100 - hh - dd))}`;
@@ -2297,7 +2371,7 @@ function winProbCard(line, e, timeline, events = []) {
     const tally = score ? ` · ${inOrder(e, score).join('–')}` : '';
     const stamp = [pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`, lateClock(sport, p)].filter(Boolean).join(' ');
     // (On a key moment: its own words, as its row in the list has them, so the two never differ: Jay, 2026-10-28.)
-    at.textContent = i == null ? `${rest}${tally}` : m ? momentAt(m) : `${stamp}${tally}`;
+    at.textContent = i == null ? (arc ? arcWords : `${rest}${tally}`) : m ? momentAt(m) : `${stamp}${tally}`;
     at.classList.toggle('on', i != null);
     const latest = latestOf();
     tell(i == null ? latest : m, i == null && latest ? (en ? 'Just now' : '剛剛') : '');
@@ -5047,15 +5121,18 @@ function f1LiveTable(b, ss) {
     // after this weekend, from its own column (the tab stood empty for every
     // past race, 2026-10-26); its column not found, nothing.
     const settled = over && counted(groups[0]);
-    const after = (group, key) => {
-      const s = standingAfter(group, roundOf(group, b.meeting || '')?.key);
+    const after = (group, key, pointsAt = null) => {
+      const s = standingAfter(group, roundOf(group, b.meeting || '')?.key, pointsAt);
       return s && asItStands(s.map(r => ({ ...r, key: key(r), pts: r.before })), new Map(s.map(r => [key(r), r.add])));
     };
     let dRows;
     let tRows;
     if (settled) {
       dRows = after(groups[0], r => r.id);
-      tRows = (groups[1] && after(groups[1], r => teamOf(r.en || r.name))) || [];
+      // (A team's points each weekend from its drivers', by the car each drove here: ESPN's teams' own columns can be wrong.)
+      const tAt = teamsAt(groups[0], d => (carOf(d)?.team ? teamOf(carOf(d).team) : null));
+      const tKey = r => teamOf(r.en || r.name);
+      tRows = (groups[1] && after(groups[1], tKey, (r, k) => tAt(k, tKey(r), r))) || [];
       if (!dRows) return put(box);
     } else {
       dRows = asItStands(drivers.map(r => ({ ...r, key: r.id, pts: r.stats?.PTS, rank: r.stats?.RK })), new Map(drivers.map(r => [r.id, carOf(r) ? gain(carOf(r)) : 0])));
@@ -5068,7 +5145,19 @@ function f1LiveTable(b, ss) {
     const all = f1TableAll.has(ss.start);
     const shown = all || list.length <= 12 ? list : list.slice(0, 10);
     const [first, second] = list;
-    const lead = first && second ? (en ? `${view === 'teams' ? f1Constructor(first.en || first.name).name : f1Sur({ name: first.en || first.name })} leads by ${first.total - second.total}` : `${view === 'teams' ? f1Constructor(first.en || first.name).zh : f1Sur({ name: first.en || first.name })} 領先 ${first.total - second.total} 分`) : '';
+    const who = first ? (view === 'teams' ? f1Constructor(first.en || first.name)[en ? 'name' : 'zh'] : f1Sur({ name: first.en || first.name })) : '';
+    // The title, once these points settle it (Jay 2026-11-09: Mercedes'
+    // after Brazil went unsaid): the weekends still to run after this one
+    // (this race on, it's counted as run), only for the season's latest.
+    const won = (() => {
+      const left = ctx.racesLeft?.('f1');
+      if (!left || !first || !second || !latest(groups[0])) return null;
+      const run = !over && ss.abbr === 'Race' ? { ...left, races: Math.max(0, left.races - 1), list: left.list.slice(1) } : !over && ss.abbr === 'SR' ? { ...left, sprints: Math.max(0, left.sprints - 1) } : left;
+      const g = { rows: list.map(r => ({ ...r, id: r.key, stats: { ...r.stats, PTS: String(r.total) } })) };
+      return standingsRace(g, 'racing', { left: run, team: view === 'teams' })?.title?.done ? run : null;
+    })();
+    const leadText = first && second ? (en ? `${who} lead${view === 'teams' ? '' : 's'} by ${first.total - second.total}` : `${who} 領先 ${first.total - second.total} 分`) : '';
+    const lead = won ? (en ? `${who} ${!over ? 'would clinch the title' : won.races ? 'have clinched the title' : 'are champions'} · ${leadText.replace(`${who} `, '')}` : `${who} ${!over ? '將封王' : won.races ? '提前封王' : '奪冠'} · ${leadText.replace(`${who} `, '')}`) : leadText;
     const rows = shown.map(r => {
       const moved = r.was - r.now;
       const c = view === 'drivers' ? carOf(r) : null;
@@ -5088,7 +5177,7 @@ function f1LiveTable(b, ss) {
     const more = list.length > 12 ? moreToggle({ more: en ? `All ${list.length}` : `全部 ${list.length} ${view === 'teams' ? '隊' : '位'}`, less: en ? 'Top 10' : '只看前 10', open: all, onToggle: () => (all ? f1TableAll.delete(ss.start) : f1TableAll.add(ss.start), draw(groups)) }) : null;
     const what = ss.abbr === 'SR' ? (en ? 'sprint' : '衝刺賽') : en ? 'race' : '正賽';
     const key = settled ? (en ? 'Just after this weekend. ▲▼ places moved; + its points.' : '本站結束時 · ▲▼ 名次變化 · + 本站得分') : over ? (en ? `▲▼ places moved; + points from this ${what}.` : `▲▼ 名次變化 · + 本場得分`) : en ? `If the ${what} ended now. ▲▼ places moved; + points from this ${what}.` : `假如${what}現在結束 · ▲▼ 名次變化 · + 本場得分`;
-    put(box, card(over ? (en ? 'Championship' : '積分榜') : en ? 'Championship, as it stands' : '即時積分榜', el('div', { class: 'lc' }, [pick, lead ? el('p', { class: 'st-lead', text: lead }) : null, el('ol', { class: 'fs-rows st-rows' }, rows), more, el('p', { class: 'muted small lc-key-note', text: key })]), { sub: over ? null : el('span', { class: 'live-dot-text', text: en ? 'Live' : '即時' }) }));
+    put(box, card(over ? (en ? 'Championship' : '積分榜') : en ? 'Championship, as it stands' : '即時積分榜', el('div', { class: 'lc' }, [pick, lead ? el('p', { class: `st-lead${won ? ' won' : ''}`, text: lead }) : null, el('ol', { class: 'fs-rows st-rows' }, rows), more, el('p', { class: 'muted small lc-key-note', text: key })]), { sub: over ? null : el('span', { class: 'live-dot-text', text: en ? 'Live' : '即時' }) }));
   };
   // Over, until ESPN's table has it in (title.mjs roundCounted, the rule the
   // 賽事 table's count goes by; a race in only past a sprint's 36 points,
@@ -5096,6 +5185,12 @@ function f1LiveTable(b, ss) {
   // (Only the latest: an older race's 數據 put its points on today's table,
   // its column not found, 2026-10-12. Its round found and not yet in, and
   // the race in the last two days, or nothing.)
+  // (This weekend the table's last counted one: no later weekend in yet.)
+  const latest = group => {
+    const keys = (group?.rounds || []).map(r => r.key);
+    const i = keys.indexOf(roundOf(group, b.meeting || '')?.key);
+    return i >= 0 && !keys.slice(i + 1).some(k => group.rows.some(r => /\d/.test(String(r.stats?.[k] ?? ''))));
+  };
   const counted = group => !roundOf(group, b.meeting || '') || Date.now() - Date.parse(ss.start) > 2 * 86_400_000 || roundCounted(group, b.meeting || '', ss.abbr, true);
   // (Drawn at once from the last table: the board is drawn again every 5 seconds.)
   if (f1TableLast) draw(f1TableLast);
@@ -6470,9 +6565,11 @@ async function newerGames(league, id, teamId, log, scheduleOf, name = '') {
       return m ? (Number(m[2]) ? ((100 * Number(m[1])) / Number(m[2])).toFixed(1) : '0.0') : '–';
     };
     const stats = mlb[i] || (best ? log.labels.map(val) : log.labels.map((_, k) => (k ? '' : 'DNP')));
+    // (His line in another log's columns: the season's own, made and tried, for the season's sums.)
+    const statsFor = labels => (best ? labels.map(val) : null);
     // (A box score with nobody's numbers in it, football's at ESPN: his line unknown, never "didn't play".)
     const unknown = !mlb[i] && !(d?.players || []).some(p => p.tables.some(tb => tb.rows.some(r => r.stats?.some(v => v !== '' && v != null))));
-    return { unknown, id: String(x.id), date: x.start, live, at: home ? 'vs' : '@', home, league: compOf(x) || (x.other ? null : league), leagueName: x.other ? otherName(x.other, L() === 'en') : '', pre: Boolean(x.preseason || /preseason/i.test(x.note || '')), team: { id: String(teamId), abbr: us?.abbr || '', logo: us?.logo || null }, opp: { id: String(them?.id ?? ''), name: them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: sideScore(us, them), stats };
+    return { unknown, statsFor, id: String(x.id), date: x.start, live, at: home ? 'vs' : '@', home, league: compOf(x) || (x.other ? null : league), leagueName: x.other ? otherName(x.other, L() === 'en') : '', pre: Boolean(x.preseason || /preseason/i.test(x.note || '')), team: { id: String(teamId), abbr: us?.abbr || '', logo: us?.logo || null }, opp: { id: String(them?.id ?? ''), name: them?.name || '', abbr: them?.abbr || '', logo: them?.logo || null }, result, score: sideScore(us, them), stats };
   });
 }
 
@@ -6688,9 +6785,11 @@ function momentGlyph(icon) {
 // the race in).
 const freshSeason = (grid, champ) => (champ ? grid.map(([k, v]) => (k === 'Season Position' ? [k, String(champ.pos)] : k === 'Season Points' ? [k, String(champ.points)] : [k, v])) : grid);
 // The one rule for every table shown (賽事's 排名 too, app.js tableOf).
-export function tableNow(groups, league, recent = []) {
+// `live`: the games on now in too, as they stand (marked on their rows, said
+// over the table: 即時排名); only where the table is looked at, never for a race.
+export function tableNow(groups, league, recent = [], { live = false } = {}) {
   const sport = LEAGUES[league]?.sport;
-  return liveTable(groups, sport === 'racing' ? settleScoring(recent) : recent, sport, { league, teamOf: side => f1Driver(side.en || side.name).team });
+  return liveTable(groups, sport === 'racing' ? settleScoring(recent) : recent, sport, { league, teamOf: side => f1Driver(side.en || side.name).team, live: live && sport !== 'racing' });
 }
 function freshStandings(league) {
   return standings(league).then(g => (g?.length ? tableNow(g, league, ctx.recentOf?.(league) || []) : g));
@@ -7235,7 +7334,13 @@ export async function openPlayer(league, id, fallback = {}) {
           paintTab();
         }
         // ESPN's card still last season's: this season's numbers with these games (the one on now counted, said so).
-        const line = ov?.now ? logSeasonLine({ labels: log.labels, games: all }, logSeason(league)) : null;
+        // (Added up from this season's own log and the games newer than it,
+        // in its columns: the log shown can be the overview's, rates alone,
+        // last season's games in it, and the season read 0.0 for every rate.)
+        const own = ov?.seasonLog?.labels?.includes('FG') ? ov.seasonLog : log;
+        const ownIds = new Set(own.games.map(g => String(g.id)));
+        const ownNewer = newer.filter(g => !ownIds.has(String(g.id))).map(g => ({ ...g, stats: (own !== log && g.statsFor?.(own.labels)) || g.stats }));
+        const line = ov?.now ? logSeasonLine({ labels: own.labels, games: [...ownNewer, ...own.games.filter(g => !g.pre)] }, logSeason(league)) : null;
         if (!line) return;
         a.stats = { ...line.stats, live: all.some(g => g.live) };
         ov.season = { ...ov.season, rows: [line.row, ...ov.season.rows.filter(r => /career/i.test(r.name))] };
@@ -7748,8 +7853,11 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
       // A lock on a settled place (not when the whole table is: the season's over).
       const settled = new Set(race && race.rows.some(x => !x.settled) ? race.rows.filter(x => x.settled).map(x => x.id) : []);
       const out = outOfIt(g, race, league);
+      // Games on now counted as they stand (tableNow's live): said so over the table, each such row its score and its move.
+      const onNow = g.rows.filter(r => r.live).length / 2;
       return el('div', { class: 'q-card pad fx-card' }, [
         g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
+        onNow ? el('p', { class: 'live-table-note' }, [el('i', { class: 'live-dot', 'aria-hidden': 'true' }), document.createTextNode(L() === 'en' ? 'Live: games on count as they stand' : '即時排名：進行中的比賽依目前比分計算')]) : null,
         raceBlock(race, g, league, many),
         el('div', { class: 'table-wrap' }, [
           el('table', { class: `data standings${compact ? ' compact' : ''}` }, [
@@ -7760,11 +7868,14 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
               rows.map(r => {
                 const i = g.rows.indexOf(r);
                 const name = [el('span', { class: 'nm-full' }, [playerName(r.full || r.name, 'full', r.name)]), el('span', { class: 'nm-short', text: r.short || r.name })];
-                const rowCls = [ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '', out.has(r.id) ? 'out' : ''].filter(Boolean).join(' ');
+                const rowCls = [ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '', out.has(r.id) ? 'out' : '', r.live ? 'live' : ''].filter(Boolean).join(' ');
+                // A side playing now: its score as it stands beside its name; up or down from the table at kick-off by its place.
+                const now = r.live ? el('small', { class: `num live-score ${r.live.for > r.live.against ? 'ahead' : r.live.for < r.live.against ? 'behind' : 'level'}`, text: `${r.live.for}-${r.live.against}` }) : null;
+                const move = r.moved ? el('small', { class: `moved ${r.moved > 0 ? 'up' : 'down'}`, 'aria-label': String(r.moved), text: r.moved > 0 ? '▲' : '▼' }) : null;
                 return el('tr', { class: rowCls }, [
-                  el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null }, [String(i + 1), settled.has(r.id) ? glyph('lock', 'rank-lock') : null]),
+                  el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null }, [String(i + 1), move, settled.has(r.id) && !r.live ? glyph('lock', 'rank-lock') : null]),
                   el('th', { class: 'left name-cell' }, [
-                    el(open ? 'button' : 'span', open ? { class: 'link team-link', type: 'button', onclick: () => (r.athlete ? r.id && ctx.openPlayer(league, r.id, r) : league === 'f1' ? openConstructor(r) : r.id && openTeam(league, r.id, r)) } : { class: 'team-link' }, [r.athlete ? personPic(r, league, 'xs round') : league === 'f1' ? constructorBadge(r.en || r.name, 'xs') : logo(r.logo, r.name, 'xs'), el('span', { class: 'nm' }, name)])
+                    el(open ? 'button' : 'span', open ? { class: 'link team-link', type: 'button', onclick: () => (r.athlete ? r.id && ctx.openPlayer(league, r.id, r) : league === 'f1' ? openConstructor(r) : r.id && openTeam(league, r.id, r)) } : { class: 'team-link' }, [r.athlete ? personPic(r, league, 'xs round') : league === 'f1' ? constructorBadge(r.en || r.name, 'xs') : logo(r.logo, r.name, 'xs'), el('span', { class: 'nm' }, name), now])
                   ]),
                   ...cols.map(c => el('td', { class: cls(c), text: (c === 'GB' ? gbShown(r.stats[c]) : r.stats[c]) ?? '' }))
                 ]);

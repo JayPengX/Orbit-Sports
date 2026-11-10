@@ -55,3 +55,30 @@ test('soccerLine: no moments by the clock, still drawn from kickoff', () => {
   const line = soccerLine({ prior: null, status: { state: 'in', period: 1, clock: "20'" }, homeId: 'H', start, score: { home: '0', away: '0' }, now: 1_800_000_000 + 20 * 60 });
   assert.ok(line.points.length >= 20);
 });
+
+// Jay 2026-11-09: "should update during matches, not only after goals". Each
+// side's shots (the commentary's words, as rough expected goals) move its
+// rate for the rest: a side in the box again and again gains with no goal.
+test('soccerLine: the shots move it between goals', async () => {
+  const { shotXg, shotsOf, shownRates } = await import('../public/lib/soccerwp.mjs');
+  assert.equal(shotXg('penalty---saved', 'Penalty saved. Cade Cowell (New York Red Bulls) right footed shot saved'), 0.76);
+  assert.equal(shotXg('shot-on-target', 'Attempt saved. X (Y) left footed shot from the centre of the box is saved'), 0.12);
+  assert.ok(Math.abs(shotXg('shot-off-target', 'Attempt missed. X (Y) header from the centre of the box is too high') - 0.078) < 1e-9);
+  assert.equal(shotXg('shot-blocked', 'Attempt blocked. X (Y) right footed shot from outside the box is blocked.'), 0.03);
+  assert.equal(shotXg('corner-awarded', 'Corner, Chelsea.'), 0);
+  assert.equal(shotXg('own-goal', 'Own Goal by X'), 0);
+  const shots = shotsOf([{ kind: 'shot-on-target', text: 'from very close range', clock: "20'", periodNum: 1, team: 'H' }, { kind: 'shot-blocked', text: 'from the centre of the box', clock: "45'+2'", periodNum: 1, team: 'A' }, { kind: 'foul', text: 'Foul by X', clock: "30'", periodNum: 1, team: 'A' }], 'H');
+  assert.deepEqual(shots, [{ n: 1, minute: 20, home: true, xg: 0.4 }, { n: 1, minute: 47, home: false, xg: 0.12 }]);
+  // What a side showed only counts once it happened; as much as expected leaves its rate as it was.
+  assert.deepEqual(shownRates(1.5, 1.2, shots, 1, 19), [1.5 / (1 + 19 / 90), 1.2 / (1 + 19 / 90)]);
+  assert.ok(shownRates(1.5, 1.2, shots, 1, 20)[0] > shownRates(1.5, 1.2, shots, 1, 19)[0]);
+  // A 0–0 where the home side keeps shooting: its chance rises minute by minute, no goal.
+  const k = 1_800_000_000;
+  const timeline = [{ t: k, n: 1, type: 'kickoff' }];
+  const many = Array.from({ length: 8 }, (_, i) => ({ n: 1, minute: 5 + i * 4, home: true, xg: 0.15 }));
+  const at = s => soccerLine({ prior, timeline, events: [], shots: s, status: { state: 'in', period: 1, clock: "40'" }, homeId: 'H', score: { home: '0', away: '0' }, now: k + 40 * 60 });
+  const [quiet, busy] = [at([]), at(many)];
+  assert.ok(busy.points.at(-1).home - quiet.points.at(-1).home > 0.05, `${busy.points.at(-1).home} vs ${quiet.points.at(-1).home}`);
+  const moves = busy.points.slice(1).filter((p, i) => p.home !== busy.points[i].home).length;
+  assert.ok(moves > 30, `it moved ${moves} times`);
+});

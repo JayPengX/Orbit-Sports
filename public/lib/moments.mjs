@@ -1,3 +1,4 @@
+import { foulEn, foulZh, subsEn, subsZh, tripEn, tripZh } from './plays.mjs';
 // A win probability line's key moments: where the game turned, and why.
 // A swing is a move of the home side's chance (a draw counting half) of 12
 // points or more without turning back as far; its cause, ESPN's play that
@@ -92,6 +93,9 @@ function basketballZh(play) {
   if (/foul/i.test(t)) return '犯規';
   if (/offensive rebound/i.test(t)) return '進攻籃板';
   if (/rebound/i.test(t)) return '防守籃板';
+  // A shot blocked: ESPN files it under the shooter ("Z. Williams blocks D. Jenkins's three"): his shot, who blocked it.
+  const blocker = /^(.+?) blocks /i.exec(String(play.text || ''))?.[1];
+  if (blocker) return `${/three point|3-pt/i.test(t) ? '三分' : /dunk/i.test(t) ? '灌籃' : /layup|finger roll/i.test(t) ? '上籃' : '出手'}被火鍋（${initial(blocker)}）`;
   if (/block/i.test(t)) return '火鍋';
   const shot = /three point|3-pt/i.test(t) ? '三分' : /dunk/i.test(t) ? '灌籃' : /layup|finger roll/i.test(t) ? '上籃' : /hook/i.test(t) ? '勾射' : /tip/i.test(t) ? '補籃' : '跳投';
   return `${shot}${made ? '命中' : '不進'}`;
@@ -120,8 +124,11 @@ export function lineupZh(play) {
 // A basket in English as short as the Chinese: who, then what (ESPN's
 // "Dillon Jones makes running layup (Labaron Philon Jr. assists)" ran past its row).
 export function basketEn(p) {
-  const t = String(p.text || '');
-  const ft = /free throw[^0-9]*(\d) of (\d)/i.exec(t);
+  // (A folded free-throw trip, an and-one: plays.mjs.)
+  if (p.ft) return `${p.who} ${tripEn(p.ft)}`;
+  if (p.andOne) return `${basketEn({ ...p, andOne: null })}, and-one${p.andOne.made ? '' : ' missed'}`;
+  const t = `${p.type || ''} ${p.text || ''}`;
+  const ft = /free throw[^0-9]*(\d) of (\d)/i.exec(String(p.text || ''));
   const what = ft ? `free throw ${ft[1]}/${ft[2]}` : /three point/i.test(t) ? 'three' : /dunk/i.test(t) ? 'dunk' : /alley oop/i.test(t) ? 'alley-oop' : /layup/i.test(t) ? 'layup' : /hook/i.test(t) ? 'hook shot' : /tip/i.test(t) ? 'tip-in' : 'jumper';
   return `${p.who} ${what}`;
 }
@@ -439,11 +446,32 @@ function stops(points) {
 const CLUTCH = 0.08;
 const CLOSE_MAX = 5;
 const lead = p => (p && p.home != null && p.away != null ? Math.sign(Number(p.home) - Number(p.away)) : null);
+// A basket the other side answered at once with as much (the margin back
+// where it was before it, nothing scored by the first side between) moved
+// nothing that lasted: not a key moment unless it tied the game or took the
+// lead (Jay 2026-11-09: Reaves' three at 45.6, Huerter's straight back, and
+// the three was marked as what decided it). The win-probability idea of
+// crediting a play with the line after the opponent's reply (WPA over the
+// exchange), said by the score.
+const margin = (play, by) => (play && play.home != null && play.away != null ? (by === 'home' ? 1 : -1) * (Number(play.home) - Number(play.away)) : null);
+export function answered(points, groups, k, by, side) {
+  const g = groups[k];
+  const was = margin(points.slice(0, g.from).reverse().find(q => margin(q.play, by) != null)?.play, by);
+  if (was == null) return false;
+  for (const h of groups.slice(k + 1)) {
+    const scores = points.slice(h.from, h.to + 1).filter(q => q.play?.scoring && margin(q.play, by) != null);
+    if (!scores.length) continue;
+    if (scores.some(q => homeAway(q.play.team, side) === by)) return false;
+    return margin(scores.at(-1).play, by) <= was;
+  }
+  return false;
+}
 function clutchMoments(points, sport, side) {
   const vals = points.map(value);
   const out = [];
   let before = null;
-  for (const g of stops(points)) {
+  const groups = stops(points);
+  for (const [k, g] of groups.entries()) {
     const was = before;
     for (let i = g.from; i <= g.to; i++) if (lead(points[i].play) != null) before = lead(points[i].play);
     const p = points[g.key];
@@ -458,6 +486,7 @@ function clutchMoments(points, sport, side) {
     const delta = !scorer || toward(scorer, moved) ? moved : toward(scorer, vals[g.key] - vals[g.key - 1]);
     const turned = was != null && before != null && before !== was && points.slice(g.from, g.to + 1).some(q => q.play?.scoring);
     if (Math.abs(delta) < CLUTCH && !turned) continue;
+    if (!turned && scorer && sport === 'basketball' && answered(points, groups, k, scorer, side)) continue;
     const tied = turned && before === 0;
     const text = playText(sport, play, side.en, teamName(play.team, side) || sideOf(delta, side).name) + (turned ? (side.en ? (tied ? ' · ties it' : ' · takes the lead') : tied ? ' · 追平' : ' · 超前') : '');
     out.push({ i: g.key, delta, side: scorer || (delta >= 0 ? 'home' : 'away'), icon: ICON[sport] || '•', text, pic: play.pic, team: play.team || sideOf(delta, side).id, clutch: true, src: play, turned: turned ? (tied ? 'tie' : 'lead') : '' });
@@ -759,9 +788,16 @@ const SOCCER_KIND = [
   [/shot|attempt/, w => `${w} 射門`]
 ];
 function basketballFeed(play, team) {
+  // Folded (plays.mjs): a side's changes in one row; a trip's result once, the foul that sent them under it; an and-one on its basket.
+  if (play.subs) return `${team ? `${team} ` : ''}${subsZh(play.subs)}`;
+  const foul = play.foul ? `（${foulZh(play.foul)}）` : '';
+  if (play.ft) return `${play.who || team} ${tripZh(play.ft)}${foul}`;
+  if (play.andOne) return `${play.who || team} ${basketballZh(play)}，加罰${play.andOne.made ? '命中' : '不中'}${foul}`;
   const t = `${play.type} ${play.text}`;
   if (/end (of )?game/i.test(t)) return '比賽結束';
   if (/end (of )?(period|quarter|\d)/i.test(t)) return '本節結束';
+  // (A coach's challenge is charged a timeout: said as the challenge, and how it came out.)
+  if (/challenge/i.test(t)) return `${team ? `${team} ` : ''}教練挑戰${/stands|upheld/i.test(t) ? '（維持原判）' : /overturn|successful/i.test(t) ? '（改判）' : ''}`;
   if (/timeout/i.test(t)) return `${team ? `${team} ` : ''}暫停`;
   if (/jump ?ball/i.test(t)) return '跳球';
   if (/enters the game|substitution/i.test(t)) return play.other ? `${play.who} 替換 ${play.other}` : `${play.who} 上場`;
@@ -903,6 +939,11 @@ export function goalHowParts(text, kind = '', en = false) {
 export function feedText(sport, play, en, team = '') {
   // A league's own words (CPBL's, Chinese already).
   if (play.zh) return play.zh;
+  // Basketball's folded rows (plays.mjs): a trip, an and-one, a side's changes, said by what they add up to.
+  if (en && sport === 'basketball' && (play.ft || play.andOne || play.subs)) {
+    const foul = foulEn(play.foul);
+    return play.subs ? `${team ? `${team} ` : ''}${subsEn(play.subs)}` : `${basketEn(play)}${foul ? ` (${foul})` : ''}`;
+  }
   if (en) return play.text || play.type || '';
   const who = play.who || named(play.text) || team;
   if (sport === 'soccer') {

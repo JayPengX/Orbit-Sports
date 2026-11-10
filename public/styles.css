@@ -1305,6 +1305,9 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .lp-bb strong.lp-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
 .live-panel .lp-bb .lp-line { font-size: 12px; font-weight: 600; color: var(--q-text-2); white-space: nowrap; overflow-wrap: normal; }
 .lp-feed-h { font-size: 11px; color: var(--q-muted); font-weight: 600; }
+/* A game on at a glance (liveChips): the run on now, a drought, foul trouble, each in its side's colour. */
+.lp-now { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.lp-now .lp-chip { font-size: 12px; padding: 3px 9px; }
 .lp-feed { list-style: none; margin: -4px 0 0; padding: 0; display: grid; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--q-text-2); }
 .lp-feed li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .lp-feed li .play-when { color: var(--q-muted); font-weight: 600; }
@@ -2970,3 +2973,14 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 /* A race to come: the drops that moved its grid from the qualifying order, in a line over it (Jay 2026-11-09). */
 .grid-drops { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 var(--q-s-3, 12px); color: var(--q-label-2); font: 500 14px/1.4 var(--q-font); }
 .grid-drops strong { color: var(--q-label); font-weight: 600; }
+
+/* A table counting the games on now as they stand (tableNow's live): said over it, each such row its score and move. */
+.live-table-note { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--q-text-2); }
+.live-table-note .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--q-live, #ff3b30); flex: none; }
+.standings .live-score { margin-left: 5px; padding: 0 5px; border-radius: 999px; font-size: 10.5px; font-weight: 700; white-space: nowrap; letter-spacing: -0.2px; color: var(--q-live, #ff3b30); background: color-mix(in srgb, var(--q-live, #ff3b30) 12%, transparent); }
+.standings .moved { margin-left: 2px; font-size: 8px; vertical-align: 1px; }
+/* (No green in a table, Jay 2026-11-06: the arrow says which way.) */
+.standings .moved.up { color: var(--q-text); }
+.standings .moved.down { color: var(--q-muted); }
+/* (320: the score as plain red words, the table's columns all in.) */
+@media (max-width: 360px) { .standings .live-score { padding: 0; margin-left: 4px; background: none; } }

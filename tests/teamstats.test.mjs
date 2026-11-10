@@ -34,3 +34,17 @@ test('soccer percentages read as percents; untranslated stats are left out in Ch
   ]);
   assert.equal(teamStatRows([{ key: 'mysteryIndex', label: 'Mystery Index', away: '3', home: '2' }], 'soccer', 'en')[0].label, 'Mystery Index');
 });
+
+test('失誤得分 is the side that scored off the other\'s turnovers (ESPN\'s turnoverPoints is what a side conceded)', () => {
+  // Miami at Sacramento 2026-11-09: Sacramento 20 turnovers, conceded 23; Miami 13, conceded 9.
+  const rows = teamStatRows(
+    [
+      { key: 'totalTurnovers', label: 'Total Turnovers', away: '13', home: '20' },
+      { key: 'turnoverPoints', label: 'Points Conceded Off Turnovers', away: '9', home: '23' }
+    ],
+    'basketball'
+  );
+  const pts = rows.find(r => r.label === '失誤得分');
+  assert.deepEqual([pts.away, pts.home, pts.low], ['23', '9', false]);
+  assert.equal(rows.find(r => r.label === '失誤').low, true);
+});

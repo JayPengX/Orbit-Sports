@@ -11,6 +11,12 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - Line-ups: basketball starters and bench, MLB batting order and bullpen — `public/sheets.js`, `public/lib/lineups.mjs`: `打序`, `牛棚`, `mlbLineups`, `rotowireGame`
 - Injuries with return dates — `public/sheets.js`: `回歸待定`
 - A game's page holds every part still being read in its shape (先發陣容, 本季數據領先, 傷兵, the table's rows) — `public/sheets.js`, `public/lib/espn.mjs`: `later(`, `holdShape`, `asksLineups`
+- Basketball's plays read by stoppage: a free-throw trip one row (兩罰一中) with the foul under it, an and-one on its basket, a stoppage's changes one row (過程, 最新, the closing stretch) — `public/lib/plays.mjs`, `public/sheets.js`: `foldPlays`, `tripZh`, `加罰`
+- A basket the other side answered at once with as much is not a key moment — `public/lib/moments.mjs`: `answered(`
+- A game over: the win chart says each side's chance before it, an upset and the winner's lowest (賽前勝率 · 爆冷勝出 · 最低曾剩) — `public/lib/wpline.mjs`, `public/sheets.js`: `gameArc`, `賽前勝率`, `爆冷勝出`
+- Soccer's win chance moves with each side's shots, not only goals — `public/lib/soccerwp.mjs`, `public/sheets.js`: `shotsOf`, `shownRates`
+- A basketball game on at a glance: the run on now, a side without a field goal, foul trouble, lead changes — `public/lib/plays.mjs`, `public/sheets.js`: `liveState`, `liveChips`, `攻勢`, `未投進`
+- Live standings: the games on now counted as they stand, each side's score and move, said 即時排名 (排名 and a game's 排名) — `public/lib/title.mjs`, `public/sheets.js`, `public/app.js`: `live: true`, `即時排名`, `live-score`
 - Player careers — `public/sheets.js`, `public/lib/career.mjs`: `openPlayer`, `playerCareer`
 - Team pages — `public/sheets.js`: `openTeam`
 - Follow a game from its page — `public/sheets.js`: `追蹤這場比賽`

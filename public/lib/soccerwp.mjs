@@ -14,8 +14,18 @@
 //   strengths(prior)  → [home goals, away goals] per game a prior's chances
 //                       ({ home, draw }) point to; none: a home side's usual edge
 //   chances(state)    → { home, draw } from { lh, la, home, away, minute, reds }
-//   soccerLine({ prior, timeline, events, status, homeId, start, now })
+//   soccerLine({ prior, timeline, events, status, homeId, start, now, shots })
 //                     → { source: 'model', points: [{ t, home, draw }] } | null
+//   shotsOf(commentary, homeId) → [{ n, minute, home, xg }]: each shot's rough
+//                       expected goals, from the commentary's words
+//
+// What the game has shown moves it too, not only its goals (Jay 2026-11-09:
+// "should update during matches, not only after goals"): each side's
+// chances so far as rough expected goals (where the shot was from, a header,
+// a penalty: the usual values for those places), and its rate for the rest
+// moved toward them, its strength before the start weighed as one whole
+// game's worth (a Poisson rate's gamma prior: (rate × 1 + shown) / (1 + the
+// part played)). A side that keeps getting into the box gains each minute.
 
 // The usual game: 2.6 goals, the home side a little more of them.
 const USUAL = [1.45, 1.15];
@@ -152,7 +162,40 @@ const END = new Set(['end-regular-time', 'end-extra-time', 'end-of-game', 'final
 // A game on runs to now, at the minute and score its status says. A game
 // with no moments by the clock: from its kickoff, the halves as they're
 // usually played (a quarter of an hour between them).
-export function soccerLine({ prior, timeline = [], events = [], status, homeId, start, score, now = Date.now() / 1000 }) {
+// A shot's rough expected goals from Opta's set phrases (ESPN's commentary):
+// the usual chance of a goal from that place (public xG tables' round
+// values), a header's lower, a fast break's higher.
+const XG_FROM = [
+  [/penalty/, 0.76], [/from very close range/, 0.4], [/from the (left|right) side of the six yard box/, 0.15], [/six yard box/, 0.3],
+  [/from the centre of the box/, 0.12], [/from a direct free kick/, 0.06], [/from the (left|right) side of the box/, 0.06], [/from a difficult angle/, 0.04],
+  [/from more than \d+ yards|from long range/, 0.01], [/from outside the box/, 0.03]
+];
+const SHOT = /^(goal|shot-|penalty)/;
+export function shotXg(kind, text) {
+  const t = String(text || '').toLowerCase();
+  const k = String(kind || '');
+  if (!SHOT.test(k) || /own-goal|penalty---(awarded|conceded)/.test(k)) return 0;
+  let xg = /penalty/.test(k) ? 0.76 : XG_FROM.find(([re]) => re.test(t))?.[1] ?? 0.07;
+  if (xg < 0.76 && (/header/.test(t) || /header/.test(k))) xg *= 0.65;
+  if (xg < 0.76 && /fast break/.test(t)) xg *= 1.3;
+  return xg;
+}
+export function shotsOf(commentary = [], homeId = '') {
+  return (commentary || [])
+    .map(c => ({ n: c.periodNum || 1, minute: minuteOf(c.clock), home: String(c.team) === String(homeId), team: c.team, xg: shotXg(c.kind, c.text) }))
+    .filter(x => x.xg > 0 && x.team && Number.isFinite(x.minute))
+    .map(({ team, ...x }) => x);
+}
+// Each side's rate for the rest, by what it has shown by minute m of period n.
+export const SHOWN_WEIGHT = 1;
+export function shownRates(lh, la, shots, n, minute) {
+  if (!shots?.length) return [lh, la];
+  const by = shots.filter(x => x.n < n || (x.n === n && x.minute <= minute));
+  const played = Math.max(0, Math.min(minute, 120)) / 90;
+  const sum = home => by.reduce((a, x) => a + (x.home === home ? x.xg : 0), 0);
+  return [(lh * SHOWN_WEIGHT + sum(true)) / (SHOWN_WEIGHT + played), (la * SHOWN_WEIGHT + sum(false)) / (SHOWN_WEIGHT + played)];
+}
+export function soccerLine({ prior, timeline = [], events = [], status, homeId, start, score, now = Date.now() / 1000, shots = [] }) {
   const [lh, la] = strengths(prior);
   const state = status?.state;
   if (state !== 'in' && state !== 'post') return null;
@@ -180,7 +223,10 @@ export function soccerLine({ prior, timeline = [], events = [], status, homeId, 
     const h = by.filter(isHome).length;
     return [h, by.length - h];
   };
-  const point = (t, minute, n, [home, away], r) => ({ t, ...round(chances({ lh, la, home, away, minute, period: n, reds: r })) });
+  const point = (t, minute, n, [home, away], r) => {
+    const [h, a] = shownRates(lh, la, shots, n, minute);
+    return { t, ...round(chances({ lh: h, la: a, home, away, minute, period: n, reds: r })) };
+  };
   const halves = [...starts.keys()].sort((a, b) => a - b);
   const points = [];
   halves.forEach((n, k) => {

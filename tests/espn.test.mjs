@@ -639,3 +639,12 @@ test("數據's team numbers in whole groups (an iPad's columns cut 籃板與傳�
   assert.deepEqual(statSets([{ group: 'A', k: 1 }, { group: 'A', k: 2 }, { group: 'B', k: 3 }, { k: 4 }]).map(s => [s.group, s.rows.length]), [['A', 2], ['B', 1], ['', 1]]);
   assert.match(src, /class: `sb-set\$\{group \? '' : ' loose'\}`/);
 });
+
+test('a season added up from a log of rates alone reads a dash, never 0.0 (ESPN\'s overview log has FG% but no 14-27)', () => {
+  const labels = ['MIN', 'FG%', '3P%', 'FT%', 'REB', 'AST', 'BLK', 'STL', 'PF', 'TO', 'PTS'];
+  const now = logSeasonLine({ labels, games: [{ stats: ['30', '50.0', '40.0', '80.0', '3', '4', '0', '1', '2', '2', '12'] }] }, 2027);
+  const cell = k => now.row.cells.find(c => c.label === k).value;
+  assert.equal(cell('FG%'), '–');
+  assert.equal(cell('PTS'), '12.0');
+  assert.equal(cell('BLK'), '0.0');
+});

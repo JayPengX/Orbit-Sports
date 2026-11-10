@@ -618,3 +618,40 @@ test('a late goal for the side behind, the final whistle inside its five minutes
   assert.equal(m.side, 'away');
   assert.ok(m.delta < 0, `the away side's lift (${m.delta})`);
 });
+
+// Lakers at Pistons, 2026-11-08: Reaves' three at 45.6 (112-104, the Pistons
+// 14% → 2%), Huerter's three straight back (112-107): the three was marked as
+// the end's key play, though it moved nothing that lasted (Jay 2026-11-09).
+test('basketball: a late basket the other side answered at once with as much is not a key moment', () => {
+  const side = { home: { id: 'det', name: 'DET' }, away: { id: 'lal', name: 'LAL' }, en: false };
+  const line = answer => {
+    const pts = [];
+    const add = (v, n, clock, home, away, extra = {}) => pts.push({ home: v, n, play: { home, away, clock, type: '', text: '', ...extra } });
+    for (let i = 0; i < 40; i++) add(0.3, i < 30 ? 1 : 4, i < 30 ? '5:00' : `${3 - i / 40}:00`.replace('.', ''), 50 + i, 52 + i);
+    add(0.14, 4, '1:06', 104, 109, { scoring: true, team: 'det', text: 'Paul Reed makes tip shot' });
+    add(0.02, 4, '45.6', 104, 112, { scoring: true, team: 'lal', text: 'Austin Reaves makes 27-foot three pointer', who: 'A. Reaves' });
+    add(0.016, 4, '36.6', 104, 112, { team: 'det', text: 'Cade Cunningham offensive rebound' });
+    if (answer) add(0.053, 4, '32.4', 107, 112, { scoring: true, team: 'det', text: 'Kevin Huerter makes 27-foot three point jumper' });
+    else add(0.004, 4, '32.4', 104, 112, { team: 'det', text: 'Kevin Huerter misses 27-foot three point jumper' });
+    add(0.0, 4, '0.0', answer ? 116 : 113, 121, { type: 'End Game', text: 'End of Game' });
+    return playMoments(pts, 'basketball', side);
+  };
+  assert.ok(!line(true).some(m => m.clutch && /Reaves/.test(m.text)), 'answered: not key');
+  assert.ok(line(false).some(m => m.clutch && /Reaves/.test(m.text)), 'not answered: key');
+});
+
+// A game over said by what it meant, not the winner at 100% (Jay 2026-11-09).
+test("a finished game's line: each side's chance before it, an upset, the winner's lowest", async () => {
+  const { gameArc } = await import('../public/lib/wpline.mjs');
+  // Lakers (away) at Pistons, the book's 72% for Detroit: the Lakers won from 28%, as low as 8% on the way.
+  const pts = [{ home: 0.7 }, { home: 0.92 }, { home: 0.4 }, { home: 0.0, settled: true }];
+  const arc = gameArc(pts, { home: 0.718 }, 'L');
+  assert.equal(arc.side, 'away');
+  assert.ok(Math.abs(arc.pre - 0.282) < 1e-9 && arc.upset);
+  assert.ok(Math.abs(arc.low - 0.08) < 1e-9, 'the settled end is not a low');
+  // No book: the line's first point; a draw's own chance.
+  const draw = gameArc([{ home: 0.45, draw: 0.27 }, { home: 0.2, draw: 0.6 }], null, 'D');
+  assert.deepEqual([draw.side, draw.pre, draw.upset, draw.start.away.toFixed(2)], ['draw', 0.27, false, '0.28']);
+  assert.equal(gameArc([], null, 'W'), null);
+  assert.equal(gameArc(pts, null, ''), null);
+});

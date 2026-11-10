@@ -2580,8 +2580,15 @@ export function logSeasonLine(log, year) {
   if (!games.length) return null;
   const sum = k => games.reduce((n, g) => n + (Number(g.stats[at(k)]) || 0), 0);
   const pair = k => games.reduce(([m, a], g) => { const [x, y] = String(g.stats[at(k)] || '').split('-').map(Number); return [m + (x || 0), a + (y || 0)]; }, [0, 0]);
-  const per = k => (sum(k) / games.length).toFixed(1);
-  const pct = k => { const [m, a] = pair(k); return a ? ((m / a) * 100).toFixed(1) : '0.0'; };
+  const per = k => (at(k) < 0 ? '–' : (sum(k) / games.length).toFixed(1));
+  // A rate from the made and the tried (a log with 14-27 columns), never
+  // from columns that aren't there: ESPN's overview log has FG% alone, and
+  // its season read 0.0 for every rate (Jay 2026-11-09); none tried, a dash.
+  const pct = k => {
+    if (at(k) < 0) return '–';
+    const [m, a] = pair(k);
+    return a ? ((m / a) * 100).toFixed(1) : '–';
+  };
   const name = `${year - 1}-${String(year).slice(2)}`;
   const cells = [['GP', 'Games Played', String(games.length)], ['MIN', 'Minutes', per('MIN')], ['FG%', 'Field Goal Percentage', pct('FG')], ['3P%', '3-Point Field Goal Percentage', pct('3PT')], ['FT%', 'Free Throw Percentage', pct('FT')], ['REB', 'Rebounds', per('REB')], ['AST', 'Assists', per('AST')], ['BLK', 'Blocks', per('BLK')], ['STL', 'Steals', per('STL')], ['PF', 'Fouls', per('PF')], ['TO', 'Turnovers', per('TO')], ['PTS', 'Points', per('PTS')]];
   return {
@@ -2607,6 +2614,8 @@ export async function athleteOverview(league, id) {
     basketball && season ? getJson(`${SITE}/${LEAGUES[league].espn}/scoreboard`, { ttl: LIVE_TTL }).catch(() => null) : null
   ]);
   const ov = parseOverview(raw);
+  // (This season's own log, its 14-27 columns: the season's line is added up from it, never from the overview's rates.)
+  ov.seasonLog = seasonLog;
   const newest = l => Date.parse(l?.games?.[0]?.date || '') || 0;
   if (seasonLog && newest(seasonLog) > newest(ov.log)) ov.log = seasonLog;
   // A new regular season under way: his numbers so far from his own log

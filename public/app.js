@@ -4228,6 +4228,7 @@ function racesLeft(league) {
   const weeks = ahead.filter(e => e.sessions.some(x => x.abbr === 'Race' && left(x))).sort((a, b) => Date.parse(a.start || a.date || 0) - Date.parse(b.start || b.date || 0)).map(e => ({ name: e.name, sprint: e.sessions.some(x => x.abbr === 'SR' && left(x)) }));
   return { races: open('Race'), sprints: open('SR'), list: weeks };
 }
+ctx.racesLeft = racesLeft;
 // The title fight going into a race weekend (its sheet): each table as 排名
 // has it now (the finals in), with its race (title.mjs), or null before any.
 ctx.titleFight = async league => {
@@ -4392,7 +4393,8 @@ function tableOf(league) {
   // (F1: a sprint or race in the moment F1's feed calls it over, in its finishing order; ESPN's copy says so an hour or more later.)
   const recent = recentOf(league);
   if (sport === 'racing') askFinishes(recent, () => state.tab === 'matches' && state.scores.league === league && renderScores());
-  const now = tableNow(groups, league, recent);
+  // (The games on now in, as they stand, marked: Jay 2026-11-09. The races below stay on the finals.)
+  const now = tableNow(groups, league, recent, { live: true });
   // The race on the finals alone (the owner, 2026-10-18): a game on now
   // counted as it stands (納什維爾 0:0 in the first half, a draw) made the
   // "next game" the one after it, and a win tonight that settles it went

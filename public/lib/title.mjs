@@ -11,6 +11,14 @@
 //               says how many games it will have played once this one is
 //               in; a table that has that many already has it, and one
 //               short of it gets it added (games in time order).
+//               `live: true` (Jay 2026-11-09: "live standings for ongoing
+//               games, including other simultaneously played games"): the
+//               games on now in too, as their scores stand, each such row
+//               marked (`live`: its score and clock) with how far it moved
+//               from the table at kick-off (`moved`); said as provisional
+//               where it's drawn, never counted silently. Halftime counts,
+//               a game delayed or suspended doesn't. The races (clinches,
+//               magic numbers) stay on the finals alone.
 //   standingsRace  whether the top of each table is settled, the magic
 //               number, and the earliest it could be: points (soccer, F1)
 //               or wins (baseball, basketball).
@@ -52,7 +60,8 @@ const recordGames = rec => (/^\d+(-\d+)+$/.test(String(rec || '').trim()) ? Stri
 // league's recent games (any state). → the groups, the uncounted games in,
 // re-ordered, their rows marked `fresh` ('post': a final not yet in the
 // official table); `.fresh` on the array: how many games were added.
-export function liveTable(groups, events, sport, { teamOf = null, league = '' } = {}) {
+export const ON_NOW = e => e.status?.state === 'in' && !e.status.void && !e.status.delayed && !/suspend|postpone|delay/i.test(`${e.status.detail || ''} ${e.status.short || ''}`);
+export function liveTable(groups, events, sport, { teamOf = null, league = '', live = false } = {}) {
   if (sport === 'racing') return liveRacing(groups, events, teamOf);
   if (!groups?.length || !['soccer', 'baseball', 'basketball'].includes(sport)) return groups;
   // Only what the table counts: finals of the regular season (not pre-season,
@@ -83,19 +92,10 @@ export function liveTable(groups, events, sport, { teamOf = null, league = '' } 
     }
     return [];
   };
-  let fresh = 0;
-  const touched = new Set();
-  for (const e of games) {
-    const [gh, h] = rowOf(e.home.id);
-    const [ga, a] = rowOf(e.away.id);
-    if (!h || !a) continue;
-    const [dh, da] = [doneAfter(e, e.home), doneAfter(e, e.away)];
-    if (dh == null || da == null) continue;
-    // In the table already (both sides), or the record not caught up yet: as it is.
-    if (playedOf(h, sport) >= dh || playedOf(a, sport) >= da) continue;
-    if (playedOf(h, sport) !== dh - 1 || playedOf(a, sport) !== da - 1) continue;
+  // A result put into its two rows (a game on: as it stands): false where its score isn't a number.
+  const add = (h, a, e) => {
     const [hs, as] = [Number(e.home.score), Number(e.away.score)];
-    if (!Number.isFinite(hs) || !Number.isFinite(as) || !has(e.home.score) || !has(e.away.score)) continue;
+    if (!Number.isFinite(hs) || !Number.isFinite(as) || !has(e.home.score) || !has(e.away.score)) return false;
     if (sport === 'soccer') {
       for (const [r, f, ag] of [[h, hs, as], [a, as, hs]]) {
         r.stats.GP = String(num(r.stats.GP) + 1);
@@ -107,20 +107,32 @@ export function liveTable(groups, events, sport, { teamOf = null, league = '' } 
         const gd = num(r.stats.GD) + f - ag;
         r.stats.GD = gd > 0 ? `+${gd}` : String(gd);
       }
-    } else {
+    } else if (hs !== as) {
       // (A tie: no win or loss, only marked.)
-      if (hs !== as) {
-        const [w, l] = hs > as ? [h, a] : [a, h];
-        w.stats.W = String(num(w.stats.W) + 1);
-        l.stats.L = String(num(l.stats.L) + 1);
-        for (const r of [w, l]) r.stats.PCT = pctText(num(r.stats.W), num(r.stats.L));
-      }
+      const [w, l] = hs > as ? [h, a] : [a, h];
+      w.stats.W = String(num(w.stats.W) + 1);
+      l.stats.L = String(num(l.stats.L) + 1);
+      for (const r of [w, l]) r.stats.PCT = pctText(num(r.stats.W), num(r.stats.L));
     }
+    return true;
+  };
+  let fresh = 0;
+  const touched = new Set();
+  for (const e of games) {
+    const [gh, h] = rowOf(e.home.id);
+    const [ga, a] = rowOf(e.away.id);
+    if (!h || !a) continue;
+    const [dh, da] = [doneAfter(e, e.home), doneAfter(e, e.away)];
+    if (dh == null || da == null) continue;
+    // In the table already (both sides), or the record not caught up yet: as it is.
+    if (playedOf(h, sport) >= dh || playedOf(a, sport) >= da) continue;
+    if (playedOf(h, sport) !== dh - 1 || playedOf(a, sport) !== da - 1) continue;
+    if (!add(h, a, e)) continue;
     h.fresh = a.fresh = 'post';
     touched.add(gh).add(ga);
     fresh++;
   }
-  for (const g of touched) {
+  const order = g => {
     // The league's own tiebreaks as far as the table holds them (Serie A's head-to-head first: points alone, ESPN's order kept between those level).
     const key = tableKey(league, sport);
     // A zone (the Champions League's, the drop) is a place's, not a side's:
@@ -138,6 +150,27 @@ export function liveTable(groups, events, sport, { teamOf = null, league = '' } 
       if (sport === 'soccer') r.stats.GAP = i === 0 ? '-' : String(num(top.stats.P) - num(r.stats.P));
       else r.stats.GB = gbText({ w: num(top.stats.W), l: num(top.stats.L) }, { w: num(r.stats.W), l: num(r.stats.L) });
     }
+  };
+  for (const g of touched) order(g);
+  // The games on now, as they stand (`live`).
+  if (live) {
+    const on = (events || []).filter(e => e.kind === 'match' && ON_NOW(e) && e.home?.id && e.away?.id && COUNTS(e) && has(e.home.score) && has(e.away.score));
+    const moving = new Set();
+    for (const e of on) {
+      const [gh, h] = rowOf(e.home.id);
+      const [ga, a] = rowOf(e.away.id);
+      if (!h || !a || h.live || a.live) continue;
+      for (const g of [gh, ga]) if (!moving.has(g)) (moving.add(g), g.rows.forEach((r, i) => (r.was = i)));
+      if (!add(h, a, e)) continue;
+      const clock = e.status?.short || e.status?.detail || '';
+      h.live = { for: Number(e.home.score), against: Number(e.away.score), clock, id: e.id };
+      a.live = { for: Number(e.away.score), against: Number(e.home.score), clock, id: e.id };
+    }
+    for (const g of moving) {
+      order(g);
+      g.rows.forEach((r, i) => ((r.moved = r.was - i), delete r.was));
+    }
+    out.live = on.length;
   }
   out.fresh = fresh;
   // (The season's year with it, as the table it was made from.)

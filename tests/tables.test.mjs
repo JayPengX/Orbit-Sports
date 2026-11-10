@@ -131,3 +131,26 @@ test('a win percentage and games behind, written one way in every table', () => 
 test('勝差 shows one decimal so whole and half games line up', () => {
   assert.deepEqual(['-', '1.5', '3', '4', '+3', '+9.5', '', '4.0'].map(gbShown), ['-', '1.5', '3.0', '4.0', '+3.0', '+9.5', '', '4.0']);
 });
+
+// Jay 2026-11-09: "Add live standings for ongoing games, including other
+// simultaneously played games". Asked for (`live`), the games on now count as
+// they stand, each such row marked with its score and how far it moved;
+// never without being asked (the owner, 2026-10-18: a 0:0 at 34' went in as a draw).
+test('liveTable live: the games on now as they stand, marked, with how far each side moved', () => {
+  const t = () => [{ name: '', rows: [row('A', { GP: '5', W: '3', D: '1', L: '1', F: '9', A: '5', GD: '+4', P: '10' }), row('B', { GP: '5', W: '3', D: '0', L: '2', F: '8', A: '6', GD: '+2', P: '9' }), row('C', { GP: '5', W: '2', D: '1', L: '2', F: '6', A: '6', GD: '0', P: '7' }), row('D', { GP: '5', W: '0', D: '0', L: '5', F: '2', A: '8', GD: '-6', P: '0' })] }];
+  const games = [
+    match('ab', 'in', 'A', 'D', 0, 1, '3-1-1', '0-0-5', { status: { state: 'in', short: "63'" } }),
+    match('bc', 'in', 'C', 'B', 2, 0, '2-1-2', '3-0-2', { status: { state: 'in', short: 'HT' } }),
+    match('cd', 'in', 'C', 'D', 0, 0, '', '', { status: { state: 'in', delayed: true } })
+  ];
+  // Not asked: nothing on now counts.
+  assert.deepEqual(liveTable(t(), games, 'soccer')[0].rows.map(r => r.id), ['A', 'B', 'C', 'D']);
+  const out = liveTable(t(), games, 'soccer', { live: true });
+  assert.equal(out.live, 2);
+  const rows = out[0].rows;
+  assert.deepEqual(rows.map(r => [r.id, r.stats.P]), [['A', '10'], ['C', '10'], ['B', '9'], ['D', '3']]);
+  // (C's GD +2 against A's +3: A first.)
+  assert.deepEqual(rows.map(r => r.moved), [0, 1, -1, 0]);
+  assert.deepEqual(rows.find(r => r.id === 'D').live, { for: 1, against: 0, clock: "63'", id: 'ab' });
+  assert.equal(rows.find(r => r.id === 'C').live.clock, 'HT');
+});
