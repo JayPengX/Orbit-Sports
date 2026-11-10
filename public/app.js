@@ -1871,10 +1871,7 @@ function renderHome() {
   }
   // (A wide screen shows them as a grid, not a rail: six, then 全部.)
   const restShown = moreAll.filter(x => !seenKeys.has(keyOf(x.event))).slice(0, screenFit().wide ? 6 : 12);
-  // 我的聯賽: a short list, each league with how many games the open day has (Jay 2026-11-04: the big tiles never pleased).
-  const dayCount = k => dayAll(slot).filter(e => e.league === k && !practice(e)).length;
-  const leagueBody = el('div', { class: 'q-card list my-leagues-list' }, inSeasonFirst(state.prefs.leagues).map(k => el('button', { class: 'ml-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k), el('span', { class: 'ml-name', text: leagueName(k, locale).replace(/\s.*$/, '') }), el('span', { class: 'ml-sub', text: dayCount(k) ? L({ zh: `${dayCount(k)} 場`, en: `${dayCount(k)} games` }) : L({ zh: '休息', en: 'Off' }) }), el('span', { class: 'ml-chev', html: icon('chevron') })])));
-  const leaguesShelf = gone || h.picking || !hasFollows ? null : section(t('yourLeagues'), leagueBody);
+  // (我的聯賽 lives on 追蹤 now, Jay 2026-11-10: "Remove「我的聯賽」from Home and move followed-league content to「追蹤」": myLeaguesCard.)
   // (Each team once: a followed player's team is often followed too.)
   const placeSeen = new Set();
   const placeRows = gone || h.picking ? [] : followedTeams().filter(f => state.home.tables[f.league]?.[f.id]?.pos && !f.athlete && !placeSeen.has(`${f.league}:${f.id}`) && placeSeen.add(`${f.league}:${f.id}`)).slice(0, 6);
@@ -1951,7 +1948,6 @@ function renderHome() {
             : dayEmpty(gap ? null : h.filter === 'all' ? noTvTitle(h.date) : { title: t('noPicksMine') })
     ], [
       !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
-      leaguesShelf,
       teamsShelf || placesShelf,
       endedGames.length || endedFilled.length ? section(t('pastEvents'), endedBody(endedGames, endedFilled, g => (light ? recapList(g, endedRow) : kitRail(g, endedRow))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length + endedFilled.length }) }) }) : null
     ])
@@ -3923,6 +3919,14 @@ function whereTv(e) {
   return el('span', { class: 'tf-tv none', text: tvKnown(e) ? L({ zh: '沒有轉播', en: 'Not on TV' }) : L({ zh: '轉播待公布', en: 'TV to come' }) });
 }
 
+// 我的聯賽: a short list, each league with how many games today has, its
+// 賽事 a tap away (Jay 2026-11-04: the big tiles never pleased). On 追蹤
+// beside 設定 (Jay 2026-11-10: off 首頁, "fill the gap" beside 設定).
+function myLeaguesCard() {
+  const slot = state.days.get(today());
+  const dayCount = k => (slot ? dayAll(slot).filter(e => e.league === k && !practice(e)).length : 0);
+  return el('div', { class: 'q-card list my-leagues-list' }, inSeasonFirst(state.prefs.leagues).map(k => el('button', { class: 'ml-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k), el('span', { class: 'ml-name', text: leagueName(k, locale).replace(/\s.*$/, '') }), el('span', { class: 'ml-sub', text: !slot ? '' : dayCount(k) ? L({ zh: `今天 ${dayCount(k)} 場`, en: `${dayCount(k)} today` }) : L({ zh: '今天休息', en: 'Off today' }) }), el('span', { class: 'ml-chev', html: icon('chevron') })])));
+}
 function renderFollowing() {
   const box = $('panel-following');
   const p = state.prefs;
@@ -3951,6 +3955,8 @@ function renderFollowing() {
     ]),
     { cls: 'following-settings' }
   );
+  // 我的聯賽 and 設定 side by side where there's room (one under the other on a phone).
+  const leaguesAndSettings = p.leagues.length ? el('div', { class: 'q-cols following-foot' }, [section(t('yourLeagues'), myLeaguesCard(), { cls: 'following-leagues' }), settings]) : settings;
   if (!teams.length && !people.length) {
     put(box, pageHead(t('tab_following')), gamesBlock, section(L({ zh: '熱門球隊', en: 'Popular teams' }), el('div', { class: 'q-rowcard' }, SUGGEST.map(suggestCard)), { cls: 'suggest-teams' }), settings);
     return;
@@ -3961,7 +3967,7 @@ function renderFollowing() {
     gamesBlock,
     teams.length ? section(L({ zh: '球隊', en: 'Teams' }), el('div', { class: 'team-cards' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamCard(f))))) : null,
     people.length ? section(L({ zh: '選手', en: 'Players' }), el('div', { class: 'team-cards' }, people.map(personRow))) : null,
-    settings
+    leaguesAndSettings
   );
 }
 // A popular team, followed with a tap.

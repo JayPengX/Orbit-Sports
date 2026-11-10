@@ -1951,7 +1951,7 @@ function pitchView([away, home], d, e, nameOf) {
   const label = s => el('p', { class: 'pitch-team' }, [el('strong', {}, [tagOf(d, e)(s.team)]), el('span', { class: 'num', text: [s.formation, s.on.length < 11 ? (en ? `${s.on.length} men` : `${s.on.length} 人`) : ''].filter(Boolean).join(' · ') })]);
   const pitch = el('div', { class: 'pitch' }, [el('div', { class: 'pitch-lines', 'aria-hidden': 'true', html: PITCH_LINES }), ...spots]);
   fiveWatch?.observe(pitch);
-  return el('div', { class: 'pitch-wrap' }, [label(away), pitch, label(home)]);
+  return el('div', { class: 'pitch-wrap soccer-pitch' }, [label(away), pitch, label(home)]);
 }
 // Baseball's field as a broadcast draws it (MLB's own word on who's where,
 // espn.mjs summary's d.field): the side in the field, each of the nine a

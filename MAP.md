@@ -42,8 +42,8 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     2026-11-04 picked it over a grey row). In every other list (賽事, 轉播)
     a pick is ★ 推薦 on a grey-lit row when it's theirs (a followed league's
     chosen game), and an outlined ☆ 推薦 on an unlit row when only 填滿空檔
-    put it there (`lib/follows.mjs pickKind`, ui.js `eventRow`; Jay 2026-11-05). 我的聯賽 is a short list, each
-    league with the open day's count of games (`.my-leagues-list`). Every list on
+    put it there (`lib/follows.mjs pickKind`, ui.js `eventRow`; Jay 2026-11-05). 我的聯賽 lives on 追蹤 (Jay 2026-11-10: "Remove 我的聯賽 from Home"),
+    beside 設定 on a wide page, each league with today's count of games (app.js `myLeaguesCard`). Every list on
     首頁, 已結束 and a past day too, is only their own games and, with
     填滿空檔 on, the filled ones as the day stood (`lib/home-shown.mjs`
     `homeGames`): never the others' results; a filled game over is the same
@@ -106,8 +106,8 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   game, 正在進行 and 我的比賽 a track each in pairs as tall as each other (the
   lead game keeps its own height, never stretched fat beside a longer list:
   Jay 2026-11-06), the
-  lead game's card level with the cards under titles (`--hb-head`); 我的聯賽
-  and 我的球隊 the third track; 更多賽事 and 已結束 on the same tracks under
+  lead game's card level with the cards under titles (`--hb-head`); 我的球隊
+  the third track; 更多賽事 and 已結束 on the same tracks under
   the lead pieces or across all three (`.wide`), and 我的球隊 dropped under
   them as a tile a team when the side runs long, whichever leaves least
   empty, measured as drawn (`tests/home-board.test.mjs`). A swipe anywhere
@@ -118,7 +118,7 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
     場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊. 數據 holds both
     球隊 and 球員 (the box score; before the start, the season's). Every sport shares one
     先發陣容 card, one 陣容 card per side (先發 or 打序, 替補, then 未上場 or
-    傷兵 in the injury report's rows) and one 傷兵 list (three, then 全部). 過程 (`playsNav`): on a wide sheet (760px and up, the sheet's own width) its filter and period jumps are a column down the left, kept in view under the sheet's head, the plays the rest of the width (`.plays-wrap.with-nav`; a phone keeps the bar on top).
+    傷兵 in the injury report's rows) and one 傷兵 list (three, then 全部). Soccer's 場上球員 pitch is at most 600px wide and its faces, numbers and names grow with it (`.soccer-pitch`, container units; Jay 2026-11-10). Game cards in a grid on a wide page are rows of even height (`.game-grid`, `.team-cards`). 過程 (`playsNav`): on a wide sheet (760px and up, the sheet's own width) its filter and period jumps are a column down the left, kept in view under the sheet's head, the plays the rest of the width (`.plays-wrap.with-nav`; a phone keeps the bar on top).
   - **A race weekend:** a hero (flag, circuit, countdown to the next session),
     the sessions on one timeline (a tap picks whose order shows), then F1's
     冠軍之爭, 台灣轉播, 賽道 (outline, formula1.com's figures and lap record,

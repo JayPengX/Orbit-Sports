@@ -2022,6 +2022,16 @@ button.lp-person.tap:active { opacity: 0.6; }
 .pitch-team { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0; font-size: 13px; }
 .pitch-team span { color: var(--q-muted); font-weight: 600; font-size: 12px; white-space: nowrap; }
 .pitch { position: relative; aspect-ratio: 68 / 128; border-radius: 12px; overflow: hidden; background: repeating-linear-gradient(to bottom, var(--pitch) 0 7.81%, var(--pitch-band) 7.81% 15.62%); }
+/* The faces grow with the pitch (a phone's 30px; up to 56px on an iPad), and the pitch is never
+   wider than a tall phone's column's twice (Jay 2026-11-10: on an iPad the field filled the
+   page and the heads were dots: "shrinking the field or enlarging player heads"). */
+.soccer-pitch { max-width: 600px; width: 100%; margin-inline: auto; }
+.soccer-pitch .pitch { container-type: inline-size; }
+.soccer-pitch .pm { width: clamp(70px, 20cqw, 120px); gap: clamp(3px, 0.9cqw, 6px); }
+.soccer-pitch .pm-face, .soccer-pitch .pm-face .logo { width: clamp(34px, 10.5cqw, 56px); height: clamp(34px, 10.5cqw, 56px); }
+.soccer-pitch .pm-name { max-width: clamp(70px, 20cqw, 120px); font-size: clamp(10px, 2.6cqw, 14px); }
+.soccer-pitch .pm-num { min-width: clamp(17px, 4.6cqw, 24px); height: clamp(15px, 4cqw, 21px); font-size: clamp(9.5px, 2.5cqw, 12.5px); border-radius: 11px; }
+.soccer-pitch .pm-sub { width: clamp(15px, 4cqw, 21px); height: clamp(15px, 4cqw, 21px); font-size: clamp(10px, 2.6cqw, 13px); }
 .pitch-lines { position: absolute; inset: 0; color: var(--pitch-line); }
 .pitch-lines svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pm { position: absolute; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 3px; width: 70px; padding: 0; border: 0; background: none; color: var(--q-text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -2487,7 +2497,7 @@ table.career-seasons th:last-child, table.career-seasons td:last-child { padding
 .tab-flow-both { display: flow-root; }
 :root.q-wide .tab-flow { margin-top: 8px; }
 :root.q-wide .tab-flow > :first-child { margin-top: 0; }
-:root.q-wide .tab-flow.q-flow-laid .game-grid { columns: auto; }
+:root.q-wide .tab-flow.q-flow-laid .game-grid { grid-template-columns: minmax(0, 1fr); }
 /* A rail of cards in a column: a grid of whole cards (one or two across as
    the column has room), never a card cut at the column's edge. */
 :root.q-wide :is(.col, .q-flow-col, .q-flow-measure, .hb-main, .hb-low) .q-rail { margin-inline: 0; padding-inline: 0; scroll-padding-inline: 0; grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 240px), 1fr)); overflow: visible; scroll-snap-type: none; }
@@ -2534,12 +2544,13 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 :root.q-wide .q-card.list.game-grid { overflow: visible; border-radius: 0; background: none; }
 :root.q-wide .game-grid > :is(.event-row, .watch-row, .fg-row) { border-radius: 22px; background: var(--q-surface); overflow: hidden; }
 :root.q-wide .game-grid > * + *::before { display: none; }
-/* Cards side by side in two columns (three on a computer), filled down
-   each in turn like a newspaper's, so a day's games keep their order and no
-   card is left alone half a row wide. */
-:root.q-wide :is(.game-grid, .team-cards) { display: block; columns: 2; column-gap: 12px; }
-:root.q-w3 :is(.game-grid, .team-cards) { columns: 3; }
-:root.q-wide :is(.game-grid, .team-cards) > * { break-inside: avoid; margin: 0 0 12px; }
+/* Cards side by side, two a row (three on a computer and an iPad on its
+   side), read across in the day's order, each row's cards one height (Jay
+   2026-11-10, an iPad's day of NBA games filled down each column like a
+   newspaper's, cards of three heights staggered: "fix the unattractive layout"). */
+:root.q-wide :is(.game-grid, .team-cards) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+:root.q-w3 :is(.game-grid, .team-cards) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+:root.q-wide :is(.game-grid, .team-cards) > * { margin: 0; }
 /* A race series' weekends, alike in height: a grid in date order. */
 :root.q-wide .wk-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 :root.q-wide .wk-cards > * { margin: 0; }
@@ -2606,7 +2617,9 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 }
 .team-cards > * { align-content: start; }
 :root.q-wide .sport-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-:root.q-wide .following-settings { max-width: 560px; }
+/* 追蹤's foot: 我的聯賽 and 設定 side by side (.q-cols), each its column's width; 設定 alone, a phone's column. */
+:root.q-wide .following-settings:not(.following-foot > *) { max-width: 560px; }
+.following-foot { align-items: start; }
 /* A phone on its side is short: the hero no taller than half the screen,
    the sides tighter and 觀看 beside the foot line. */
 @media (max-height: 520px) {
