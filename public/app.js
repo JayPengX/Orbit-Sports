@@ -41,7 +41,7 @@ import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, 
 import { cols, homeBoard, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
 import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
-import { teamsByZh } from '#kit/names.mjs';
+import { teamsByZh, teamNameZh } from '#kit/names.mjs';
 import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
 // Orbit's own look (Jay 2026-11-03, RULEBOOK §3; index.html's data-look and look.css): the lead game's clubs on their own colours, 我的球隊.
 import * as look from './look.js';
@@ -186,6 +186,7 @@ function applyPrefs(payload) {
   // Leagues in: not a newcomer, whatever was shown before they came.
   if (state.prefs.leagues.length) state.home.picking = false;
   if (restored) savePrefs();
+  tellFollows();
 }
 // The follows from the pass when they couldn't be read at the start: the
 // start's reply when it has them, else a read of its own. Changes made in
@@ -237,6 +238,7 @@ function savePrefs() {
   saveTimer = setTimeout(() => {
     const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, ...(fill ? { fill: true } : {}), ...(quiet ? { quiet } : {}), t: Date.now() });
     keepLocalPrefs(payload);
+    tellFollows();
     // Not saved (another app live on the pass, offline): again when this one is live.
     savePending = true;
     q.write({ payload, wallet: followsPatch() })
@@ -245,6 +247,19 @@ function savePrefs() {
   }, 800);
 }
 let savePending = false;
+// The family's notebook (kit family.mjs): the teams and players followed,
+// in English and Chinese, for Orbit News' 你關心的先看. Names only.
+let toldFollows = '';
+function tellFollows() {
+  const follows = state.prefs.follows.slice(0, 60).map(f => {
+    const zh = f.athlete ? null : teamNameZh(f.league, f.name, LEAGUES[f.league]?.sport || '');
+    return { league: f.league, id: f.id, name: f.name, ...(zh ? { zh: zh.full, short: zh.short } : {}), ...(f.athlete ? { athlete: true } : {}) };
+  });
+  const key = JSON.stringify(follows);
+  if (key === toldFollows) return;
+  toldFollows = key;
+  import('#kit/family.mjs').then(f => f.tell?.('sports', 'follows', follows)).catch(() => {});
+}
 // What the person follows and opens, on the pass too (`follows:match`,
 // `aff:match`): apps on a phone's home screen don't share storage. Leagues in order; teams as [league, name].
 const followsValue = () => ({
