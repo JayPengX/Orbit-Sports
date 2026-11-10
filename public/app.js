@@ -2317,11 +2317,15 @@ function renderLive() {
     : null;
   const later = soon.filter(e => (e !== nextUp || live.length) && !mineKeys.has(key(e)));
   const wait = nextUp ? Math.max(0, Date.parse(nextUp.start) - now) : 0;
-  const waitText = wait < 60_000 ? L({ zh: '馬上', en: 'any minute' }) : wait < 3_600_000 ? L({ zh: `${Math.round(wait / 60_000)} 分鐘後`, en: `in ${Math.round(wait / 60_000)} min` }) : L({ zh: `${Math.floor(wait / 3_600_000)} 小時 ${Math.round((wait % 3_600_000) / 60_000)} 分後`, en: `in ${Math.floor(wait / 3_600_000)} h ${Math.round((wait % 3_600_000) / 60_000)} min` });
+  const waitText = wait < 60_000 ? L({ zh: '馬上', en: 'any minute' }) : wait < 3_600_000 ? L({ zh: `${Math.round(wait / 60_000)} 分鐘後`, en: `in ${Math.round(wait / 60_000)} min` }) : ((m = Math.round(wait / 60_000)) => L({ zh: `${Math.floor(m / 60)} 小時 ${m % 60} 分後`, en: `in ${Math.floor(m / 60)} h ${m % 60} min` }))();
   // The game to lead with: the first on now (首頁's), else the next to start.
   const heroEvent = live[0] || nextUp || null;
   const hero = heroEvent ? heroGame(heroEvent, { mine: isFollowedEvent(heroEvent), picked: pickedToday().has(`${heroEvent.league}:${heroEvent.id}`), eyebrow: live.length ? '' : L({ zh: `下一場 · ${waitText}`, en: `Next · ${waitText}` }), onOpen: openEvent }) : null;
   const guide = guideItems().some(p => p.end > now) ? guideLink(all) : null;
+  // (Nothing else on the right, a quiet day: ELTA's next showings there with the
+  // guide, beside the next game, not the guide under it and half the page empty.)
+  const rightEmpty = !mineBlock && !later.length;
+  const nextShows = rightEmpty && guide ? guideItems().filter(p => p.start > now && !(heroEvent && p.league === heroEvent.league && tvOf(heroEvent).some(b => b.at === p.start))).slice(0, 5) : [];
   put(
     box,
     liveBar(),
@@ -2330,10 +2334,10 @@ function renderLive() {
       [
         hero,
         !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })])) : null,
-        guide,
+        rightEmpty ? null : guide,
         live.length > 1 ? section(t('liveNow'), el('div', { class: 'q-card list' }, live.slice(1).map(liveRow)), { cls: 'live-now' }) : null
       ],
-      [mineBlock, later.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null]
+      [mineBlock, later.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null, rightEmpty && nextShows.length ? section(L({ zh: '接下來的轉播', en: 'Next on TV' }), el('div', { class: 'by-day' }, [...new Set(nextShows.map(p => localDate(p.start)))].flatMap(d => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list tv-guide' }, nextShows.filter(p => localDate(p.start) === d).map(p => guideRow(p, all, now)))]))) : null, rightEmpty ? guide : null]
     )
   );
 }
