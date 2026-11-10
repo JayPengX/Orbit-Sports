@@ -9,6 +9,7 @@ import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
 import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
+import { recapDays, recapPath, whyFrom } from './lib/why.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod, withNewest } from './lib/live.mjs';
@@ -964,12 +965,45 @@ export function storyRows(e, sm) {
     })
   );
 }
-// A game over: the same panel a game on has, without its situation.
+// A game over: the same panel a game on has, without its situation, its
+// why line at the top (賽後三句話, the family's AI) once it's read.
 function storyPanel(e, sm) {
   if (e.status.state !== 'post') return null;
   const sport = LEAGUES[e.league]?.sport;
-  const parts = [sport === 'basketball' ? topScorers(e, sm) : null, storyRows(e, sm)].filter(Boolean);
-  return parts.length ? el('div', { class: 'live-panel' }, parts) : null;
+  const why = whyLine(e);
+  const parts = [why, sport === 'basketball' ? topScorers(e, sm) : null, storyRows(e, sm)].filter(Boolean);
+  const panel = parts.length ? el('div', { class: 'live-panel' }, parts) : null;
+  // (The why line alone, not read yet: the panel waits hidden, shown when it lands.)
+  if (panel && parts.length === 1 && why?.hidden) panel.hidden = true;
+  return panel;
+}
+// 賽後三句話's why line: made once a game by the family's builder
+// (lib/why.mjs), its day's file read once (a day kept on the phone), the
+// line drawn into the panel when it lands, never moving what's under it
+// more than once. A game with no line yet shows nothing.
+const whyDocs = new Map();
+const whyDoc = day => {
+  if (!whyDocs.has(day)) whyDocs.set(day, packJson(recapPath(day), { ttl: 10 * 60_000 }).catch(() => (whyDocs.delete(day), null)));
+  return whyDocs.get(day);
+};
+const whyKnown = new Map();
+function whyLine(e) {
+  if (!LEAGUES[e.league]?.espn) return null;
+  const key = `${e.league}:${e.id}`;
+  const en = L() === 'en';
+  const make = text => el('p', { class: 'lp-why' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.spark || '' }), el('span', { text })]);
+  if (whyKnown.has(key)) return whyKnown.get(key) ? make(whyKnown.get(key)) : null;
+  const holder = el('p', { class: 'lp-why', hidden: true });
+  (async () => {
+    let text = '';
+    for (const day of recapDays(e)) if ((text = whyFrom(await whyDoc(day), e, en))) break;
+    whyKnown.set(key, text);
+    if (!text || !holder.isConnected) return;
+    const panel = holder.closest('.live-panel');
+    holder.replaceWith(make(text));
+    if (panel) panel.hidden = false;
+  })();
+  return holder;
 }
 // The closing stretch from two minutes left in the fourth (or an overtime),
 // when it came down to one possession (3 points or fewer at some point in
