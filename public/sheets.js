@@ -6660,12 +6660,13 @@ function hoopsShootingCard(h, en) {
   return card(
     W('投籃效率', 'Shooting'),
     el('div', { class: 'q-rows-full stat-grid' }, [
-      tile(W('真實命中率', 'True shooting'), pctOf(s.ts), W('三分、罰球都算進去', 'Threes and free throws in')),
+      tile(W('真實命中率', 'True shooting'), pctOf(s.ts), W('含三分、罰球', 'With FTs, threes')),
       tile(W('有效命中率', 'Effective FG'), pctOf(s.efg), W('三分算 1.5 球', 'A three as 1.5')),
       tile(W('兩分', '2-pointers'), pctOf(s.two), madeOf(s.twoMade)),
-      tile(W('三分', '3-pointers'), pctOf(rate(s.threeMade)), [madeOf(s.threeMade), s.threeRate != null ? W(`占出手 ${Math.round(s.threeRate)}%`, `${Math.round(s.threeRate)}% of shots`) : ''].filter(Boolean).join(W('，', ', '))),
+      tile(W('三分', '3-pointers'), pctOf(rate(s.threeMade)), madeOf(s.threeMade)),
       tile(W('罰球', 'Free throws'), pctOf(rate(s.ftMade)), madeOf(s.ftMade)),
-      tile(W('罰球率', 'FT rate'), s.ftRate == null ? '–' : (s.ftRate / 100).toFixed(2), W('每次出手的罰球', 'FTA per shot'))
+      tile(W('三分占比', '3PA share'), s.threeRate == null ? '–' : `${Math.round(s.threeRate)}%`, W('出手裡的三分', 'Of his shots')),
+      tile(W('罰球率', 'FT rate'), s.ftRate == null ? '–' : (s.ftRate / 100).toFixed(2), W('每次出手罰球', 'FTA per shot'))
     ]),
     { sub: W(`本季 ${h.games} 場`, `${h.games} games`) }
   );
