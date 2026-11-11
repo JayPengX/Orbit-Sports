@@ -30,10 +30,13 @@ export const whoFrom = (doc, e) => (doc?.v === 2 && doc.games?.[`${e?.league}:${
 export function whyPieces(line, { teams = [], who = {} } = {}) {
   const out = [];
   let last = 0;
+  // (Named again in the same line: plain words, never a second chip; Jay 11-11.)
+  const seen = new Set();
+  const once = (kind, id) => (seen.has(`${kind}:${id}`) ? { [kind]: id, again: true } : (seen.add(`${kind}:${id}`), { [kind]: id }));
   for (const m of String(line || '').matchAll(/\{([pt]):([^}]+)\}/g)) {
     if (m.index > last) out.push({ text: line.slice(last, m.index) });
-    if (m[1] === 'p' && who[m[2]]) out.push({ player: m[2] });
-    else if (m[1] === 't' && teams.includes(m[2])) out.push({ team: m[2] });
+    if (m[1] === 'p' && who[m[2]]) out.push(once('player', m[2]));
+    else if (m[1] === 't' && teams.includes(m[2])) out.push(once('team', m[2]));
     last = m.index + m[0].length;
   }
   if (last < line.length) out.push({ text: line.slice(last) });

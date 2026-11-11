@@ -22,6 +22,8 @@ test('the line’s teams and players as chips, in order; a token not known left 
   assert.deepEqual(whoFrom(doc, e), { 44: { short: 'T. Eason', team: '10' } });
   assert.deepEqual(whyPieces(whyFrom(doc, e), { teams: ['10', '7'], who: whoFrom(doc, e) }), [{ team: '10' }, { text: '第三節靠' }, { player: '44' }, { text: '打出 14-0 攻勢反超' }]);
   assert.deepEqual(whyPieces('{p:99} 拿下', { teams: [], who: {} }), [{ text: '拿下' }]);
+  // (A team named twice in one line: a chip once, then its name as words.)
+  assert.deepEqual(whyPieces('{t:10}領先後，{t:10}打出 17-0', { teams: ['10'], who: {} }), [{ team: '10' }, { text: '領先後，' }, { team: '10', again: true }, { text: '打出 17-0' }]);
 });
 
 test('an F1 race’s story: its year’s file, found by its start however it’s written', () => {

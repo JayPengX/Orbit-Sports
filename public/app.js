@@ -4899,8 +4899,19 @@ async function openGameFromHash() {
   $('loading').hidden = true;
   openEvent(freshGame(e));
 }
+// 問 Orbit's question (the Pass sheet, kit ask-orbit.mjs: #ask=<words>): 問比賽 with it.
+function askFromLink() {
+  if (!/(?:^#|&)ask=/.test(location.hash)) return;
+  import('#kit/ask-orbit.mjs')
+    .then(m => {
+      const text = m.takeAsk?.();
+      if (text) return import('./ask.js').then(x => x.openAsk(askSource(), { ask: text }));
+    })
+    .catch(() => {});
+}
 // A link or a notice's tap that points at a tab while the app is open.
 window.addEventListener('hashchange', () => {
+  if (booted && /(?:^#|&)ask=/.test(location.hash)) return void askFromLink();
   const hash = location.hash.slice(1);
   if (readGameHash(hash)) return void openGameFromHash();
   if (!TABS.includes(hash) && hash !== 'scores' && hash !== 'standings') return;
@@ -5017,6 +5028,7 @@ async function boot() {
   window.__bootStep?.(t('loadingPicks'), 0.94);
   await homeReady(until);
   $('loading').hidden = true;
+  askFromLink();
   // The followed leagues' tables, read once the day's games are in: 排名 opens at once.
   setTimeout(() => followedLeagues().filter(hasStandings).slice(0, 6).forEach(warmTable), 2000);
 }

@@ -939,7 +939,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .live-line .live-who { color: var(--q-muted); }
 .live-panel { display: grid; gap: 12px; margin: 12px 0 4px; padding: 14px 16px; border-radius: 14px; background: var(--q-fill, var(--q-surface-2)); border: 1px solid transparent; color: var(--q-text); }
 /* 賽後三句話's why line (lib/why.mjs): the panel's first line, the AI's spark beside it. */
-.live-panel .lp-why { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding-bottom: 12px; border-bottom: 0.5px solid var(--q-separator, var(--q-border)); font-size: 15px; line-height: 1.7; color: var(--q-text); }
+.live-panel .lp-why { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding-bottom: 12px; border-bottom: 0.5px solid var(--q-separator, var(--q-border)); font-size: 15px; line-height: 1.6; color: var(--q-text); }
 .live-panel .lp-why:last-child { padding-bottom: 0; border-bottom: 0; }
 .lp-why-text { flex: 1; min-width: 0; text-wrap: pretty; }
 /* A team or player the line names (Jay 11-10): a chip, a player's with his face; each opens its page. */

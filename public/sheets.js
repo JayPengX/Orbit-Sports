@@ -1084,10 +1084,12 @@ function whyNodes(e, line, who) {
     if (x.team) {
       const t = sides.find(s => String(s.id) === x.team);
       const name = t.short || t.name || '';
-      return hasTeamPage(e.league) ? el('button', { class: 'lp-chip', type: 'button', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, String(t.id), t)) }, [el('span', { text: name })]) : el('span', { class: 'lp-chip', text: name });
+      if (x.again) return document.createTextNode(name);
+      return hasTeamPage(e.league) ? el('button', { class: 'lp-chip q-ai-ref', type: 'button', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, String(t.id), t)) }, [el('span', { text: name })]) : el('span', { class: 'lp-chip q-ai-ref', text: name });
     }
     const p = who[x.player];
-    return el('button', { class: 'lp-chip lp-chip-who', type: 'button', 'aria-label': p.short, onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, x.player, { name: p.short })) }, [personPic({ id: x.player, name: p.short }, e.league, 'xs round'), el('span', { text: p.short })]);
+    if (x.again) return document.createTextNode(p.short);
+    return el('button', { class: 'lp-chip lp-chip-who q-ai-ref', type: 'button', 'aria-label': p.short, onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, x.player, { name: p.short })) }, [personPic({ id: x.player, name: p.short }, e.league, 'xs round'), el('span', { text: p.short })]);
   });
 }
 function whyLine(e) {
