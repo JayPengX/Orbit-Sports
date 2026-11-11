@@ -7,7 +7,7 @@ import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, w
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
+import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom, f1PointsFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
@@ -301,6 +301,7 @@ export async function openMatch(e) {
     // The game as the summary has it now: its status, and its last play (a timeout's countdown).
     const atNow = { ...e, status: st, live: sm?.lastPlay ? { ...e.live, lastType: sm.lastPlay.type, lastId: sm.lastPlay.id } : e.live };
     const guestGame = Boolean(e.home.guest || e.away.guest);
+    const starting = st.state === 'pre' && onAir({ ...e, status: st });
     const rec = (x, raw) => {
       const r = x.record || raw.record || '';
       if (st.state !== 'post') seenRecord[raw.id] = r;
@@ -362,7 +363,12 @@ export async function openMatch(e) {
         homeFirst(e) ? side(home, e.home) : side(away, e.away),
         el('div', { class: 'mh-mid' }, [
           st.state === 'pre' ? el('strong', { class: 'mh-time', text: timeText(e) }) : el('strong', { class: 'mh-score num', 'data-q-live': st.state === 'in' ? `mh:${e.league}:${e.id}` : null, text: (homeFirst(e) ? [home, away] : [away, home]).map(x => scoreText(x.score)).join(' - ') }),
-          el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText(atNow), ...breakTick(atNow) }),
+          // Past its hour, the broadcast on and the game not begun (ESPN's
+          // 'pre' until the tip): on air, about to start, as the home card and
+          // every row say it (onAir), never 今天 under the start time as if it
+          // were hours off (Jay 2026-11-11). The page reads on every beat and
+          // turns to the score and clock the moment ESPN starts the game.
+          starting ? el('span', { class: 'mh-status in starting', text: L() === 'en' ? 'Starting' : '即將開賽' }) : el('span', { class: `mh-status ${st.state}`, text: st.state === 'pre' ? dayLabel(localDate(Date.parse(e.start))) : statusText(atNow), ...breakTick(atNow) }),
           // A league's round alone (第 5 輪): under the status, in the room the
           // sides' records and follows leave there, not a row of its own
           // floating between the header and the line score (the owner, 2026-10-17).

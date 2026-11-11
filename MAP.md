@@ -121,7 +121,7 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   empty, measured as drawn (`tests/home-board.test.mjs`). A swipe anywhere
   on the page, its empty space too, goes a day either way (kit `daySwipe`).
 - **Sheets** (full height):
-  - **A match:** header (each side's crest sized to the sheet, the score level with the crests' middle and the biggest thing, the status under it, 追蹤 small; Jay 2026-11-10) and line score, a live panel, then sections drawn
+  - **A match:** header (each side's crest sized to the sheet, the score level with the crests' middle and the biggest thing, the status under it, 追蹤 small; Jay 2026-11-10; a game past its hour that ESPN hasn't started yet says 即將開賽 on the live colour, as the home card's 轉播中 does, `onAir`, until the tip turns it to the score and clock: Jay 2026-11-11, `tests/match-starting.test.mjs`) and line score, a live panel, then sections drawn
     once in an order set by the game's moment: 概況, 數據, 球員, 過程, 先發,
     場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊. 數據 holds both
     球隊 and 球員 (the box score; before the start, the season's). Every sport shares one
