@@ -1,4 +1,4 @@
-// Reads that fail (TRUTH §7: a failed read is never "nothing there"): ESPN
+// Reads that fail (RULEBOOK §1: a failed read is never "nothing there"): ESPN
 // and the proxy are stood in for by a fetch that answers ESPN's pages from
 // here, a page asked for in `down` failing (the device's read of it, then
 // the proxy's: kit DEVICE_FIRST).
