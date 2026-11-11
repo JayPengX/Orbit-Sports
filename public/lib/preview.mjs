@@ -6,6 +6,8 @@
 // filler). `places`: each side's place (sheets.js placeOf), `forms` each
 // side's last games ({ result: 'W' | 'L' | 'D' }), `names` their short names.
 
+import { twDay } from '#kit/format.mjs';
+
 const behind = (a, b) => {
   const [wa, la, wb, lb] = [a.W, a.L, b.W, b.L].map(Number);
   return [wa, la, wb, lb].every(Number.isFinite) ? Math.abs(wa - wb + (lb - la)) / 2 : null;
@@ -48,3 +50,28 @@ export function previewLine({ sport = '', places = [], forms = [], names = [], e
   return parts.length ? parts.slice(0, 3).join(' · ') : '';
 }
 const ord = n => (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+
+// 賽前看點 made by the family's AI (Jay 11-11: the code's line only said the
+// table): up to two points a game, made once by Orbit-Core's builder
+// (builders/previews.js) from a digest of ESPN's summary (AP's preview,
+// who's out, rest, what a win does in the table, a long run), never what the
+// card shows; kept at /data/sports/previews/<Taiwan's day it starts>.json:
+// { v: 1, games: { '<league>:<id>': { points: [{ k, zh, en }], who } | null } }.
+// Teams and players are tokens ({t:<id>}, {p:<id>}), drawn as chips.
+export const previewPath = day => `sports/previews/${day}.json`;
+export const previewDay = e => twDay(e?.start) || '';
+const KINDS = new Set(['out', 'table', 'star', 'rest', 'run', 'series']);
+// The points in the reader's language ([] when none or not made yet), and
+// `known`: the game was looked at (null: not yet, the code's line stands in).
+export function previewFrom(doc, e, en = false) {
+  if (!doc || doc.v !== 1) return { points: [], who: {}, known: false };
+  const key = `${e?.league}:${e?.id}`;
+  const r = doc.games?.[key];
+  const known = key in (doc.games || {});
+  if (!r || !Array.isArray(r.points)) return { points: [], who: {}, known };
+  const points = r.points
+    .map(p => ({ k: KINDS.has(p?.k) ? p.k : 'star', text: String((en ? p?.en : p?.zh) || p?.zh || p?.en || '').trim() }))
+    .filter(p => p.text.length > 3)
+    .slice(0, 2);
+  return { points, who: r.who && typeof r.who === 'object' ? r.who : {}, known };
+}

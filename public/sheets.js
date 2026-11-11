@@ -11,7 +11,7 @@ import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caugh
 import { stageTag, groupName } from './lib/stage.mjs';
 import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom, f1PointsFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
-import { previewLine } from './lib/preview.mjs';
+import { previewLine, previewPath, previewDay, previewFrom } from './lib/preview.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod, withNewest } from './lib/live.mjs';
@@ -995,6 +995,46 @@ const whyDoc = day => {
   return whyDocs.get(day);
 };
 const whyKnown = new Map();
+// 賽前看點 (Jay 11-11): the family's AI's points for a game to come (lib/
+// preview.mjs previewFrom, made by Orbit-Core's builders/previews.js), each
+// row a kind's icon and a sentence with its teams and players as chips; the
+// code's line (a race in the table) stands in until the file is read, and
+// where the AI found nothing. Nothing at all: no box.
+const previewDocs = new Map();
+const previewDoc = day => {
+  if (!previewDocs.has(day)) previewDocs.set(day, packJson(previewPath(day), { ttl: 10 * 60_000 }).catch(() => (previewDocs.delete(day), null)));
+  return previewDocs.get(day);
+};
+const previewKnown = new Map();
+const PREVIEW_ICON = { out: 'user', table: 'trophy', star: 'flame', rest: 'clock', run: 'chart', series: 'flag' };
+function previewBox(e, codeLine) {
+  const en = L() === 'en';
+  const key = `${e.league}:${e.id}:${en ? 'en' : 'zh'}`;
+  const draw = (points, who) => {
+    const rows = points.length ? points.map(p => el('li', { class: 'pv-row' }, [el('span', { class: 'pv-ic', 'aria-hidden': 'true', html: kitUI.icons?.[PREVIEW_ICON[p.k]] || kitUI.icons?.spark || '' }), el('span', { class: 'pv-text' }, whyNodes(e, p.text, who))])) : codeLine ? [el('li', { class: 'pv-row' }, [el('span', { class: 'pv-ic', 'aria-hidden': 'true', html: kitUI.icons?.trophy || '' }), el('span', { class: 'pv-text', text: codeLine })])] : [];
+    if (!rows.length) return null;
+    return el('section', { class: 'pv-box', 'aria-label': en ? 'Why watch' : '看點' }, [
+      el('p', { class: 'pv-head' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' }), el('span', { text: en ? 'Why watch' : '看點' })]),
+      el('ul', { class: 'pv-list' }, rows)
+    ]);
+  };
+  if (!LEAGUES[e.league]?.espn) return draw([], {});
+  if (previewKnown.has(key)) {
+    const k = previewKnown.get(key);
+    return draw(k.points, k.who);
+  }
+  // (Not read yet: the code's line, or a hidden holder, replaced when the file lands.)
+  const first = draw([], {});
+  const holder = first || el('section', { class: 'pv-box', hidden: true });
+  previewDoc(previewDay(e)).then(doc => {
+    const got = previewFrom(doc, e, en);
+    previewKnown.set(key, got);
+    if (!got.points.length || !holder.isConnected) return;
+    const box = draw(got.points, got.who);
+    if (box) holder.replaceWith(box);
+  });
+  return holder;
+}
 // 去球場: a chip under the park that opens Orbit Transit planning the trip
 // (from where the phone is, there by half an hour before the start). Only
 // where the park is known and the game is near; the family's link builder
@@ -1819,7 +1859,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   const why = (d?.status || e.status).state !== 'post' ? previewLine({ sport: LEAGUES[e.league]?.sport, places, forms, names: sides.map(s => s.short || s.name), en: L() === 'en' }) : '';
   const compare = el('div', { class: 'compare' }, [
     // (Framed by the Orbit AI mark, as every smart line is, made by code or AI (Jay 11-11).)
-    why ? el('p', { class: 'cmp-why' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' }), el('span', {}, [el('b', { text: L() === 'en' ? 'Why watch ' : '看點 ' }), why])]) : null,
+    (d?.status || e.status).state !== 'post' ? previewBox(e, why) : null,
     el('div', { class: 'cmp-head' }, sides.map((x, i) => cmpTeam(x, i ? 'home' : 'away', e.league)).flatMap((x, i) => (i ? [el('span', { class: 'cmp-vs', text: 'vs' }), x] : [x]))),
     ...compareRows.map(([label, a, h]) => el('div', { class: 'cmp-row' }, [cmpValue(a), el('span', { text: label }), cmpValue(h)])),
     // (名次 with its group under it, as a table of conferences or groups has it: all but football's leagues.)
