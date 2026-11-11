@@ -117,6 +117,8 @@ export function homeBoard(main, side, pairs = new Set(), low = []) {
 // under the lead pieces; 更多賽事/已結束 under the lead pieces (two tracks) or
 // across all three under everything (`wide`): whichever leaves least of the
 // screen empty.
+// (Room under a paired list's rows, in px, past which it keeps its own height.)
+export const SHORT_ROOM = 96;
 export function settleBoard(board) {
   if (!board?.isConnected) return;
   const sec = board.querySelector('.q-section > .q-section-head');
@@ -125,6 +127,18 @@ export function settleBoard(board) {
   const main = board.querySelector('.hb-main');
   const low = board.querySelector('.hb-low');
   const side = board.querySelector('.hb-side');
+  // A list paired with a taller lead piece: stretched level with it only
+  // while that's no more than a little room under its rows, never a tall
+  // empty box under one row (Jay 2026-11-11, 我的比賽 beside 下一場).
+  for (const sec of main ? main.querySelectorAll(':scope > .q-section:not(.hb-full)') : []) {
+    const card = sec.lastElementChild;
+    if (!card) continue;
+    sec.classList.remove('hb-short');
+    const level = card.getBoundingClientRect().height;
+    sec.classList.add('hb-short');
+    const own = card.getBoundingClientRect().height;
+    sec.classList.toggle('hb-short', level - own > Math.max(SHORT_ROOM, level * 0.4));
+  }
   if (!low || !side || board.classList.contains('solo')) return;
   const drops = [...board.querySelectorAll('.hb-drop')];
   const gap = parseFloat(getComputedStyle(board).rowGap) || 0;

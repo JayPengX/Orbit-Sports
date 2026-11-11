@@ -2578,7 +2578,12 @@ html[data-look] .home-board.wide .hb-low .tm-list { grid-template-columns: repea
 html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: var(--q-r-card); background: var(--nv-card, var(--q-surface)); box-shadow: inset 0 0 0 0.5px var(--nv-edge, transparent), var(--nv-lift, none); }
 .home-board .hb-low .tm-row::before { display: none; }
 /* (Alone on the board, no side: the day's lead pieces read as wide as a pair, never a stretched single card.) */
-.home-board.solo .hb-main > .hb-full:not(.q-section, .home-note, .q-empty) { max-width: 720px; margin-inline: auto; }
+/* (Its own width up to 720px: auto margins in a grid shrink a card to its
+   content, and the lone 下一場 stood a phone's width on an iPad's page, Jay 2026-11-11.) */
+.home-board.solo .hb-main > .hb-full:not(.q-section, .home-note, .q-empty) { width: 100%; max-width: 720px; margin-inline: auto; justify-self: center; }
+/* A list far shorter than the lead game beside it keeps its own height (one
+   row of 我的比賽 was a tall empty box beside 下一場, Jay 2026-11-11; settleBoard). */
+.home-board .hb-main > .q-section.hb-short > .q-card:last-child { flex: 0 0 auto; }
 /* A list of games as tiles side by side (賽事's day, a race series' weekends). */
 :root.q-wide .q-card.list.game-grid { overflow: visible; border-radius: 0; background: none; }
 :root.q-wide .game-grid > :is(.event-row, .watch-row, .fg-row) { border-radius: 22px; background: var(--q-surface); overflow: hidden; }

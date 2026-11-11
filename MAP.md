@@ -113,7 +113,8 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
   gap (ui.js `homeBoard`, `settleBoard`; app.js `homeLayout`): the lead
   game, 正在進行 and 我的比賽 a track each in pairs as tall as each other (the
   lead game keeps its own height, never stretched fat beside a longer list:
-  Jay 2026-11-06), the
+  Jay 2026-11-06; a list far shorter keeps its own height, `.hb-short`;
+  a lone lead game its own width up to 720px, centred: Jay 2026-11-11), the
   lead game's card level with the cards under titles (`--hb-head`); 我的球隊
   the third track; 更多賽事 and 已結束 on the same tracks under
   the lead pieces or across all three (`.wide`), and 我的球隊 dropped under

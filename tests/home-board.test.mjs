@@ -121,3 +121,28 @@ test('the board: three even tracks, every edge lined up, the lead game its own h
     await browser.close();
   }
 });
+
+// Jay's iPad on its side, 2026-11-11 ("Broke"): a day with only 下一場 and
+// nothing to the side drew the lone card a phone's width (auto margins in a
+// grid shrink it to its content), and one row of 我的比賽 beside 下一場 was
+// stretched into a tall empty box.
+test('a lone lead game is its own width (up to 720px), centred; a short list beside it keeps its own height', { skip: !chromium && 'no browser here' }, async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    await page.setContent(`<style>.q-rail{display:grid}${boardCss}</style><div id="wrap"></div>`);
+    await page.evaluate(() => document.documentElement.classList.add('q-wide'));
+    const lone = await layout(page, { width: 1040, lead: [380], side: [] });
+    assert.equal(lone.tracks[0].width, 720, 'the lone 下一場 720px wide, never shrunk to its content');
+    assert.equal(lone.tracks[0].left, (1040 - 720) / 2, 'centred');
+    // One row of 我的比賽 (60px) beside 下一場 (380px): its card its own height.
+    const short = await layout(page, { width: 1040, lead: [380, 60], side: [] });
+    assert.ok(short.cards[1].bottom - short.cards[1].top < 120, `one row, no tall empty box: ${JSON.stringify(short.cards)}`);
+    assert.equal(short.cards[0].top, short.cards[1].top, 'its card still level with the lead game');
+    // A list nearly as tall: level with the lead game at the foot, as before (Jay 2026-11-06).
+    const near = await layout(page, { width: 1040, lead: [380, 330], side: [] });
+    assert.equal(near.cards[0].bottom, near.cards[1].bottom, 'a list nearly as tall stretched level');
+  } finally {
+    await browser.close();
+  }
+});
