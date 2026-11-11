@@ -25,7 +25,8 @@ export function openAsk(src, { ask = '' } = {}) {
   const foot = h('div', { class: 'q-sheet-foot sp-ask-foot' }, [bar]);
   kitUI.sheet({ title: W(en, '問比賽', 'Ask about your teams'), detent: 'large', cls: 'sp-ask', body: [hint, starters, talk], foot, onClose: () => (open = false) });
   if (ask) requestAnimationFrame(() => go(String(ask).slice(0, 200)));
-  else requestAnimationFrame(() => bar.input?.focus());
+  // (In the tap that opened it: iOS raises its keys only then; the kit lands the sheet first.)
+  else bar.input?.focus();
 
   // A row's picture: the team's logo (a game: the home side's); its tap: the team or the game.
   const rowOf = (r, lit) => {

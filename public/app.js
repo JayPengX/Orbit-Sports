@@ -3495,7 +3495,7 @@ function openSearch() {
     clearSearch = () => {};
   });
   put(s.body, el('label', { class: 'q-search fx-search' }, [input, clear]), searchOut);
-  setTimeout(() => input.focus(), 50);
+  input.focus();
 }
 
 // Search: leagues by name, then ESPN's teams and players (a Chinese query is
