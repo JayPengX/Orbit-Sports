@@ -1085,7 +1085,9 @@ function whyNodes(e, line, who) {
       const t = sides.find(s => String(s.id) === x.team);
       const name = t.short || t.name || '';
       if (x.again) return document.createTextNode(name);
-      return hasTeamPage(e.league) ? el('button', { class: 'lp-chip q-ai-ref', type: 'button', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, String(t.id), t)) }, [el('span', { text: name })]) : el('span', { class: 'lp-chip q-ai-ref', text: name });
+      // (Its logo, as a player's face: Jay 11-11, 賽爾提克 had none.)
+      const kids = [sideLogo(t, e.league, 'xs'), el('span', { text: name })];
+      return hasTeamPage(e.league) ? el('button', { class: 'lp-chip q-ai-ref', type: 'button', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, String(t.id), t)) }, kids) : el('span', { class: 'lp-chip q-ai-ref' }, kids);
     }
     const p = who[x.player];
     if (x.again) return document.createTextNode(p.short);
