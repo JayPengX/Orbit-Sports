@@ -46,6 +46,21 @@ export function whyPieces(line, { teams = [], who = {} } = {}) {
 // result with grids, stops and tyres, who led which laps, climbs,
 // retirements, safety cars), kept at /data/sports/f1/stories/<year>.json:
 // { races: { '<session start>': { zh, en } | null } }.
+// The story as points (Jay 11-10: never a paragraph): [{ lap, no, name, text }],
+// each a moment that decided it, its driver by number; null for an older,
+// told-in-words story (f1StoryFrom).
+export function f1PointsFrom(doc, start, en = false) {
+  const t = Date.parse(start);
+  const key = Object.keys(doc?.races || {}).find(k => Date.parse(k) === t);
+  const r = key ? doc.races[key] : null;
+  if (!Array.isArray(r?.points)) return null;
+  const cars = r.cars && typeof r.cars === 'object' ? r.cars : {};
+  const out = r.points
+    .map(p => ({ lap: Number.isInteger(p?.lap) && p.lap >= 0 ? p.lap : null, no: p?.no != null && cars[p.no] ? String(p.no) : null, text: String((en ? p?.en : p?.zh) || p?.zh || p?.en || '').trim() }))
+    .filter(p => p.text.length > 3)
+    .map(p => ({ ...p, name: p.no ? String(cars[p.no].name || '') : '' }));
+  return out.length ? out : null;
+}
 export const f1StoryPath = start => `sports/f1/stories/${new Date(start).getUTCFullYear()}.json`;
 export function f1StoryFrom(doc, start, en = false) {
   const t = Date.parse(start);

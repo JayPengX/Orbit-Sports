@@ -9,7 +9,7 @@ import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
 import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
-import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom } from './lib/why.mjs';
+import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom, f1PointsFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
 import { previewLine } from './lib/preview.mjs';
 import { tableStarted } from './lib/picks.mjs';
@@ -1038,11 +1038,27 @@ function f1Story(e, ss) {
   if (e.league !== 'f1' || ss.status.state !== 'post' || !(ss.abbr === 'Race' || ss.abbr === 'SR')) return null;
   const path = f1StoryPath(ss.start);
   if (!storyDocs.has(path)) storyDocs.set(path, packJson(path, { ttl: 10 * 60_000 }).catch(() => (storyDocs.delete(path), null)));
-  const holder = el('p', { class: 'lp-why f1-story', hidden: true });
+  const holder = el('div', { class: 'f1-ai', hidden: true });
   storyDocs.get(path).then(doc => {
-    const text = f1StoryFrom(doc, ss.start, L() === 'en');
-    if (!text || !holder.isConnected) return;
-    holder.replaceChildren(el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' }), el('span', { text }));
+    if (!holder.isConnected) return;
+    const en = L() === 'en';
+    const mark = () => el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' });
+    // The moments that decided it, drawn as the 過程's rows: the lap, the driver's face, what happened (Jay 11-10).
+    const points = f1PointsFrom(doc, ss.start, en);
+    if (points) {
+      holder.replaceChildren(
+        el('p', { class: 'f1-ai-head' }, [mark(), el('span', { text: en ? 'What decided it' : '勝負關鍵' })]),
+        el('ol', { class: 'plays f1-ai-points' }, points.map(p => el('li', {}, [
+          el('span', { class: 'play-when num', text: p.lap == null ? '' : p.lap === 0 ? (en ? 'Grid' : '發車') : en ? `L${p.lap}` : `${p.lap} 圈` }),
+          el('span', { class: 'play-text has-face' }, [p.name ? personPic({ name: p.name }, 'f1', 'xs round') : el('span', { class: 'play-none', 'aria-hidden': 'true' }), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: p.text })])])
+        ])))
+      );
+      holder.hidden = false;
+      return;
+    }
+    const text = f1StoryFrom(doc, ss.start, en);
+    if (!text) return;
+    holder.replaceChildren(el('p', { class: 'lp-why f1-story' }, [mark(), el('span', { text })]));
     holder.hidden = false;
   });
   return holder;
