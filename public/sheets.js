@@ -1809,8 +1809,10 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   ].filter(Boolean);
   // (The table still being read: its rows held in their shape, 名次 and the sport's figures, BLANK.)
   const tableHeld = still('table') && !places.some(Boolean) ? [T('standing'), ...keyNames(e.league)] : [];
-  // 賽前看點: a game to come, why it matters (a close race in the table, a run), over the two sides.
-  const why = e.status.state === 'pre' ? previewLine({ sport: LEAGUES[e.league]?.sport, places, forms, names: sides.map(s => s.short || s.name), en: L() === 'en' }) : '';
+  // 賽前看點: why the game matters (a close race in the table, a run), over the
+  // two sides: before it and while it's on (Jay 2026-11-11: what's at stake
+  // stays while it's played), not once it's over.
+  const why = (d?.status || e.status).state !== 'post' ? previewLine({ sport: LEAGUES[e.league]?.sport, places, forms, names: sides.map(s => s.short || s.name), en: L() === 'en' }) : '';
   const compare = el('div', { class: 'compare' }, [
     // (Framed by the Orbit AI mark, as every smart line is, made by code or AI (Jay 11-11).)
     why ? el('p', { class: 'cmp-why' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' }), el('span', {}, [el('b', { text: L() === 'en' ? 'Why watch ' : '看點 ' }), why])]) : null,

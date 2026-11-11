@@ -18,6 +18,7 @@ import { mlbDate, mlbScheduleUrl, mlbBoxUrl, mlbLiveGames, mlbGameOf, mlbBoxTabl
 import { CORE_LINEUPS, coreRosterUrl, coreStarters, withRoster, mlbLineupsUrl, mlbLineups, byRosterName, rotowireUrl, rotowireGame } from './lineups.mjs';
 import { LEAGUES } from './leagues.mjs';
 import { courtStop } from './onfield.mjs';
+import { nbaTimeouts } from './plays.mjs';
 import { athleteAverages, boxSeasonPage, hasLeaders, leagueLeadersUrl, athletesUrls, parseLeagueLeaders, parseAthleteLeaders, parseTeamAthletes, teamFromLeague, f1ResultsUrl, f1PolesUrl, parseF1Leaders, fotmobLeagueUrl, fotmobTeamUrl, parseFotmobPage, parseFotmobStat, fotmobTeamOf, FOTMOB_LEAGUE, FOTMOB_HOME, fotmobLeagueLogo, fotmobTeamLogo, noteBadges } from './leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { teamStatsUrl, parseTeamStats, parseFotmobTeamStats, parseFotmobTeamList, teamRanks } from './teamstats.mjs';
@@ -1244,6 +1245,15 @@ export function parseSummary(data, league) {
   if (!rawStatus.period && lastP?.period?.number) Object.assign(rawStatus, { period: lastP.period.number, clock: rawStatus.clock || lastP.clock?.displayValue || '' });
   const status = overByRule(rawStatus, sides.find(s => s.homeAway === 'away') || sides[1], sides.find(s => s.homeAway === 'home') || sides[0], league);
   const endedAt = status.state === 'post' && !status.void && walls.length ? new Date(Math.max(...walls)).toISOString() : null;
+  // An NBA game on whose header has no timeouts (none left and none used, a
+  // count no game can have): each side's from its plays (plays.mjs nbaTimeouts).
+  // (No plays to count from: none, never a made-up seven.)
+  if (league === 'nba' && status.state === 'in' && feed.length)
+    for (const side of sides) {
+      if (side.timeouts > 0 || side.timeoutsUsed > 0) continue;
+      const { left, used } = nbaTimeouts(feed, side.id, status);
+      Object.assign(side, { timeouts: left, timeoutsUsed: used });
+    }
   // The last play's kind and id (a timeout on now: the kit's breakOf).
   const lp = (data?.plays || []).at(-1);
   const lastPlay = lp ? { type: lp.type?.text || '', id: String(lp.id ?? '') } : null;

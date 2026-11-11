@@ -195,3 +195,30 @@ export function liveState(feed, homeId, awayId) {
   }
   return { run, drought, changes };
 }
+
+// An NBA side's timeouts left, counted from the game's own plays where ESPN's
+// header says none (Celtics–76ers 2026-11-11: 0 left and 0 used for both at
+// halftime, two each taken in the plays; the header's line held no bars, Jay).
+// The NBA's rule: seven a game, at most four in the 4th and two after its
+// 3:00 mark; each overtime two of its own. `feed`: the summary's plays
+// ({ type, text, team, periodNum, clock }); `period`, `clock`: the game's now.
+// { left, used } with used + left the slots the line draws (7, an overtime 2).
+const TIMEOUT = /timeout/i;
+const NOT_THEIRS = /official|end of|tv timeout/i;
+export function nbaTimeouts(feed, teamId, { period = 0, clock = '' } = {}) {
+  const id = String(teamId ?? '');
+  const taken = (feed || []).filter(p => String(p.team ?? '') === id && TIMEOUT.test(p.type || '') && !NOT_THEIRS.test(`${p.type || ''} ${p.text || ''}`));
+  const now = Math.max(1, Number(period) || 0, ...taken.map(p => p.periodNum || 0));
+  if (now > 4) {
+    const left = Math.max(0, 2 - taken.filter(p => p.periodNum === now).length);
+    return { left, used: 2 - left };
+  }
+  const inFourth = taken.filter(p => p.periodNum === 4);
+  let left = 7 - taken.filter(p => (p.periodNum || 0) <= 4).length;
+  if (now === 4) {
+    left = Math.min(left, 4 - inFourth.length);
+    if (clock !== '' && clockSecs(clock) <= 180) left = Math.min(left, 2 - inFourth.filter(p => clockSecs(p.clock) <= 180).length);
+  }
+  left = Math.max(0, left);
+  return { left, used: 7 - left };
+}
