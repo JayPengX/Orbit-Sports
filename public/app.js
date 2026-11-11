@@ -4035,6 +4035,69 @@ function myLeaguesCard() {
   const dayCount = k => (slot ? dayAll(slot).filter(e => e.league === k && !practice(e)).length : 0);
   return el('div', { class: 'q-card list my-leagues-list' }, inSeasonFirst(state.prefs.leagues).map(k => el('button', { class: 'ml-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k), el('span', { class: 'ml-name', text: leagueName(k, locale).replace(/\s.*$/, '') }), el('span', { class: 'ml-sub', text: !slot ? '' : dayCount(k) ? L({ zh: `今天 ${dayCount(k)} 場`, en: `${dayCount(k)} today` }) : L({ zh: '今天休息', en: 'Off today' }) }), el('span', { class: 'ml-chev', html: icon('chevron') })])));
 }
+// 問比賽 (the family's AI plan): what the phone has read of the teams and
+// leagues followed, handed to ask.js; each row opens its team or game.
+function askSource() {
+  const en = locale === 'en';
+  const nameOf = (league, side) => (!side ? '' : en ? side.short || side.name || '' : localSide(league, { name: side.name }).name || side.short || side.name || '');
+  const mine = () => {
+    const seen = new Set();
+    return followedTeams().filter(f => !f.athlete && !seen.has(`${f.league}:${f.id}`) && seen.add(`${f.league}:${f.id}`));
+  };
+  const todays = () => {
+    const leagues = new Set(followedLeagues());
+    return dayAll(state.days.get(today())).filter(e => leagues.has(e.league)).map(freshGame);
+  };
+  return {
+    en,
+    nameOf,
+    teams: () =>
+      mine().slice(0, 8).map(f => {
+        const r = state.home.tables[f.league]?.[f.id];
+        return { league: f.league, id: String(f.id), name: shownName(f), logo: f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), pos: r?.pos || null, n: r?.n || null, group: r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : '', leagueName: leagueName(f.league, locale).replace(/\s.*$/, ''), games: teamGames(f) || [] };
+      }),
+    // Each followed league's table (a league of groups: the groups my teams are in, else its first).
+    standings: async () => {
+      const ids = new Set(mine().map(f => `${f.league}:${f.id}`));
+      const out = {};
+      const leagues = followedLeagues().filter(k => hasStandings(k) && LEAGUES[k]?.sport !== 'racing').slice(0, 4);
+      const got = await Promise.all(leagues.map(k => standings(k).then(g => [k, g]).catch(() => [k, null])));
+      for (const [k, groups] of got) {
+        const list = (groups || []).filter(g => g.rows?.length && tableStarted(g));
+        const pick = list.filter(g => g.rows.some(r => ids.has(`${k}:${r.id}`)));
+        (pick.length ? pick : list.slice(0, 1)).slice(0, 2).forEach((g, i) => {
+          const soccer = LEAGUES[k]?.sport === 'soccer';
+          const name = leagueName(k, locale).replace(/\s.*$/, '');
+          out[i ? `${k}${i}` : k] = {
+            league: k,
+            name,
+            title: list.length > 1 && g.name ? `${name} ${g.name}` : name,
+            rows: g.rows.map(r => ({ id: String(r.id), name: r.name, short: r.short, logo: r.logo, record: soccer ? (r.stats?.PTS != null ? (en ? `${r.stats.PTS} pts` : `${r.stats.PTS} 分`) : '') : r.stats?.W != null ? `${r.stats.W}-${r.stats.L}` : '' }))
+          };
+        });
+      }
+      return out;
+    },
+    today: todays,
+    openTeam: (league, id) => {
+      const f = mine().find(x => x.league === league && String(x.id) === String(id));
+      openTeam(league, id, f || { id });
+    },
+    openGame: (league, id) => {
+      const e = todays().find(x => x.league === league && String(x.id) === String(id));
+      if (e) openEvent(e);
+    }
+  };
+}
+// 問比賽's way in: the Orbit AI mark, a question to start from.
+// (ask.js and the kit's AI read on the tap, not with the first screen.)
+const askRow = () =>
+  el('div', { class: 'q-rowcard ask-card' }, [
+    el('button', { class: 'q-ritem chevron ask-row', type: 'button', onclick: () => import('./ask.js').then(m => m.openAsk(askSource())).catch(() => {}) }, [
+      el('span', { class: 'q-tile ask-tile', 'aria-hidden': 'true', html: kitUI.icons?.ai || icon('spark') }),
+      el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '問比賽', en: 'Ask about your teams' }) }), el('small', { text: L({ zh: '「我的球隊排第幾」「下一場什麼時候」', en: '“Where are my teams?” “When do they play next?”' }) })])
+    ])
+  ]);
 function renderFollowing() {
   const box = $('panel-following');
   const p = state.prefs;
@@ -4073,6 +4136,7 @@ function renderFollowing() {
   put(
     box,
     pageHead(t('tab_following')),
+    askRow(),
     leagues,
     gamesBlock,
     teams.length ? section(L({ zh: '球隊', en: 'Teams' }), el('div', { class: 'team-cards' }, teams.map(f => (f.f1team === true ? crewRow(f) : teamCard(f))))) : null,

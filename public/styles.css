@@ -3101,3 +3101,17 @@ table.hp-splits tbody tr.hp-split-new > * { border-top-color: var(--q-divider, v
 .f1-ai-wait .f1-ai-sk-line { flex: 1; height: 14px; margin-top: 7px; border-radius: 7px; }
 .f1-ai-wait li:nth-child(2) .f1-ai-sk-line { max-width: 72%; }
 .f1-ai-wait li:nth-child(3) .f1-ai-sk-line { max-width: 84%; }
+/* 問比賽 (ask.js): its way in on 追蹤, then the sheet: the starters, each question and its answer (the kit's aiAnswer). */
+.ask-card { margin: 0 0 16px; }
+.ask-tile { --t: var(--q-accent, var(--q-orange)); }
+.sp-ask-hint { margin: 0 0 12px; color: var(--q-label-2); font: var(--q-t-subhead); text-wrap: pretty; }
+.sp-ask-err { color: var(--q-red, #ff3b30); }
+.sp-ask-starters { margin: 0 0 12px; }
+.sp-ask-talk { display: grid; gap: 8px; }
+.sp-ask-talk:empty { display: none; }
+.sp-ask-you { margin: 0 0 8px auto; width: fit-content; max-width: 85%; padding: 8px 12px; border-radius: 18px 18px 6px 18px; background: var(--q-fill-3); font: 400 var(--q-t-body) / 1.35 var(--q-font); overflow-wrap: anywhere; }
+.sp-ask-a { display: grid; gap: 6px; }
+.sp-ask-line { margin: 0; font: 600 var(--q-t-headline) / 1.4 var(--q-font); }
+.sp-ask-row.on { color: var(--q-accent); }
+.sp-ask-foot { margin-top: 12px; padding-top: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); border-top: 0; }
+.sp-ask .sp-ask-foot .q-ai-bar { margin-top: 0; }
