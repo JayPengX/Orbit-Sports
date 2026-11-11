@@ -1806,7 +1806,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // 賽前看點: a game to come, why it matters (a close race in the table, a run), over the two sides.
   const why = e.status.state === 'pre' ? previewLine({ sport: LEAGUES[e.league]?.sport, places, forms, names: sides.map(s => s.short || s.name), en: L() === 'en' }) : '';
   const compare = el('div', { class: 'compare' }, [
-    why ? el('p', { class: 'cmp-why' }, [el('b', { text: L() === 'en' ? 'Why watch ' : '看點 ' }), why]) : null,
+    // (Framed by the Orbit AI mark, as every smart line is, made by code or AI (Jay 11-11).)
+    why ? el('p', { class: 'cmp-why' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' }), el('span', {}, [el('b', { text: L() === 'en' ? 'Why watch ' : '看點 ' }), why])]) : null,
     el('div', { class: 'cmp-head' }, sides.map((x, i) => cmpTeam(x, i ? 'home' : 'away', e.league)).flatMap((x, i) => (i ? [el('span', { class: 'cmp-vs', text: 'vs' }), x] : [x]))),
     ...compareRows.map(([label, a, h]) => el('div', { class: 'cmp-row' }, [cmpValue(a), el('span', { text: label }), cmpValue(h)])),
     // (名次 with its group under it, as a table of conferences or groups has it: all but football's leagues.)
