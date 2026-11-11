@@ -14,6 +14,8 @@ import { stripDays, chosenOf, sportBack, sportDay } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay, playsWithin } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
+// (A namespace: a phone on an older kit has no finalWords, its notice then the old words.)
+import * as kitEspn from '#kit/sports-espn.mjs';
 import { transition, pickFinals, gameHash, readGameHash } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
 import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
@@ -1203,6 +1205,15 @@ function resultLine(e) {
   const w = r === 'W' ? e.home : e.away;
   return locale === 'en' ? `${w.short || w.name} win` : `${w.short || w.name} 贏了`;
 }
+// A final's notice (Jay 2026-11-11: "塞爾提克 123 : 101 76 人" was hard to
+// read): who won in the title, the score alone in the body, as the Worker's
+// own final (kit finalWords): 塞爾提克 擊敗 76 人 / 123–101 · NBA.
+function finalNotice(e) {
+  if (e.status?.void) return null;
+  const r = outcome(e.home, e.away);
+  const side = x => ({ name: x.short || x.name, score: x.score });
+  return kitEspn.finalWords?.({ away: side(e.away), home: side(e.home), winner: r === 'W' ? 'home' : r === 'L' ? 'away' : null }, locale) || null;
+}
 const matchLine = (e, score = false) => {
   const [a, b] = sidesOf(e);
   return score ? `${a.short || a.name} ${scoreText(a.score)} : ${scoreText(b.score)} ${b.short || b.name}` : `${a.short || a.name} vs ${b.short || b.name}`;
@@ -1224,7 +1235,8 @@ function noticeChanges(events) {
     const league = leagueName(e.league, locale);
     if (followed && change === 'start' && (onTv(e) || isFollowedGame(e))) notify(q, { title: startTitle(e), body: startLine(e), tag: `start:${key}`, hash: noticeHash(e), kind: 'start' });
     if (change === 'end' && document.visibilityState === 'visible') bannered.add(key);
-    if (change === 'end') notify(q, { title: matchLine(e, true), body: [resultLine(e), league, followed ? '' : L(PICKED)].filter(Boolean).join(' · '), tag: `end:${key}`, hash: noticeHash(e), kind: followed ? 'end' : 'pickend' });
+    const fin = change === 'end' ? finalNotice(e) : null;
+    if (change === 'end') notify(q, { title: fin ? fin.title : matchLine(e, true), body: [fin ? fin.result : resultLine(e), league, followed ? '' : L(PICKED)].filter(Boolean).join(' · '), tag: `end:${key}`, hash: noticeHash(e), kind: followed ? 'end' : 'pickend' });
   }
 }
 
