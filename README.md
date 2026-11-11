@@ -17,14 +17,20 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 
 <p align="center">
   <img src="docs/screenshots/sports-1.webp" width="30%" alt="Your games, the moment you open it">
-  <img src="docs/screenshots/sports-2.webp" width="30%" alt="What's on now, one tap to watch">
-  <img src="docs/screenshots/sports-3.webp" width="30%" alt="How the game swung, and when">
+  <img src="docs/screenshots/sports-2.webp" width="30%" alt="Ask about your teams, answered from real data">
+  <img src="docs/screenshots/sports-3.webp" width="30%" alt="Three lines after the game, faces and logos">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/sports-4.webp" width="30%" alt="Every F1 weekend, counted down">
-  <img src="docs/screenshots/sports-5.webp" width="30%" alt="The table and the title race">
-  <img src="docs/screenshots/sports-6.webp" width="30%" alt="Every player's whole career">
+  <img src="docs/screenshots/sports-4.webp" width="30%" alt="What decided the F1 race">
+  <img src="docs/screenshots/sports-5.webp" width="30%" alt="What's on now, one tap to watch">
+  <img src="docs/screenshots/sports-6.webp" width="30%" alt="How the game swung, and when">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/sports-7.webp" width="30%" alt="Every F1 weekend, counted down">
+  <img src="docs/screenshots/sports-8.webp" width="30%" alt="The table and the title race">
+  <img src="docs/screenshots/sports-9.webp" width="30%" alt="Every player's whole career">
 </p>
 
 <details>
@@ -32,20 +38,28 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 
 <p align="center">
   <img src="docs/screenshots/sports-1.zh.webp" width="30%" alt="你的比賽，一打開就看到">
-  <img src="docs/screenshots/sports-2.zh.webp" width="30%" alt="正在轉播的比賽，一鍵觀看">
-  <img src="docs/screenshots/sports-3.zh.webp" width="30%" alt="勝率走勢與關鍵時刻">
+  <img src="docs/screenshots/sports-2.zh.webp" width="30%" alt="問你的球隊，AI 從真資料回答">
+  <img src="docs/screenshots/sports-3.zh.webp" width="30%" alt="賽後三句話，球員和球隊一眼認">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/sports-4.zh.webp" width="30%" alt="F1 每一站，倒數到起跑">
-  <img src="docs/screenshots/sports-5.zh.webp" width="30%" alt="積分榜與爭冠形勢">
-  <img src="docs/screenshots/sports-6.zh.webp" width="30%" alt="每位球員的完整生涯">
+  <img src="docs/screenshots/sports-4.zh.webp" width="30%" alt="F1 勝負關鍵，AI 讀完整場">
+  <img src="docs/screenshots/sports-5.zh.webp" width="30%" alt="正在轉播的比賽，一鍵觀看">
+  <img src="docs/screenshots/sports-6.zh.webp" width="30%" alt="勝率走勢與關鍵時刻">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/sports-7.zh.webp" width="30%" alt="F1 每一站，倒數到起跑">
+  <img src="docs/screenshots/sports-8.zh.webp" width="30%" alt="積分榜與爭冠形勢">
+  <img src="docs/screenshots/sports-9.zh.webp" width="30%" alt="每位球員的完整生涯">
 </p>
 
 </details>
 
 ## Features
 
+- **Orbit AI** (its mark on everything smart): 問比賽 asks about the teams you follow and answers as tables the app read (places, next and last games, today) with each team's logo and one AI line; a finished game's 賽後三句話 says only what the card doesn't (comebacks, runs, the period that broke it open), players as face chips and teams as logo chips; each F1 race's 勝負關鍵 as rows, a lap and a driver's face each; 看點 says why a game to come matters. Lines everyone reads are made once ahead, never per reader.
+- **With the family:** a CPBL game near at hand opens Orbit Transit's trip to the park with the park's weather (去球場); a live NBA game counts each side's timeouts left.
 - **Today:** a sticky date strip, what's on now, a no-clash plan of the day's best games, your own teams' games, and what already finished (推薦給你 apart from 其他比賽). Each hour's pick stays as it stood before its games.
 - **Only what you can watch here:** MLB and CPBL, the NBA, the Premier League, Serie A, Bundesliga, Ligue 1, the UEFA cups, MLS on Apple TV, and every F1 session. A league out of season hides itself.
 - **One shape for every page:** a game, a team, a player and a league open the same way, with the competitions as chips (a team's 英超, 聯賽盃 and 歐冠 apart, or 全部).
