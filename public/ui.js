@@ -606,7 +606,8 @@ const STAR = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .8l1.6 3.4
 // A game only 填滿空檔 put in: the same pill, outlined with a hollow star
 // and the row unlit, so a followed league's pick still reads first (Jay 2026-11-05).
 const STAR_OPEN = '<svg viewBox="0 0 12 12" aria-hidden="true"><path class="open" d="M6 .8l1.6 3.4 3.7.4-2.8 2.5.8 3.7L6 8.9l-3.3 1.9.8-3.7L.7 4.6l3.7-.4z"/></svg>';
-const rowMark = kind => (kind ? el('span', { class: `row-mark${kind === 'fill' ? ' fill' : ''}`, html: `${kind === 'fill' ? STAR_OPEN : STAR}<span>${ctx.locale === 'en' ? 'Pick' : '推薦'}</span>` }) : null);
+// (Its mark the Orbit AI one, as on every smart thing (Jay 11-11); a star on an older kit.)
+const rowMark = kind => (kind ? el('span', { class: `row-mark${kind === 'fill' ? ' fill' : ''}`, html: `${kitUI.icons?.ai || (kind === 'fill' ? STAR_OPEN : STAR)}<span>${ctx.locale === 'en' ? 'Pick' : '推薦'}</span>` }) : null);
 const rowTags = (e, { league, picked, tag }) => {
   const kids = [rowMark(picked), league ? compChip(e) : null, tag ? el('span', { class: 'q-tag', text: tag }) : null, tvLine(e)].filter(Boolean);
   return kids.length ? el('div', { class: 'ev-tags' }, kids) : null;

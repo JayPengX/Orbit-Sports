@@ -41,7 +41,7 @@ function heroFoot(e, { mine, picked }) {
   const cup = stageOf(e).key === 'cup' && stage ? stage.split(' · ') : null;
   const [name, sub] = cup ? [cup[0], cup.slice(1).join(' · ')] : [league, stage];
   const tv = channelNames(e);
-  const mark = mine ? ['star', en() ? 'Following' : '追蹤中'] : picked ? ['spark', en() ? 'Pick' : '推薦'] : null;
+  const mark = mine ? ['star', en() ? 'Following' : '追蹤中'] : picked ? [kitUI.icons?.ai ? 'ai' : 'spark', en() ? 'Pick' : '推薦'] : null;
   return el('div', { class: 'hc-foot' }, [
     el('span', { class: 'hc-comp' }, [el('b', { text: name }), sub ? el('span', { text: sub }) : null]),
     tv.length ? el('span', { class: 'hc-tv' }, [el('span', { class: 'hc-tv-ico', 'aria-hidden': 'true', html: icon('tv') }), el('span', { text: tv.join(en() ? ', ' : '、') })]) : null,
