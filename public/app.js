@@ -47,6 +47,7 @@ import { teamsByZh, teamNameZh } from '#kit/names.mjs';
 import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
 // Orbit's own look (Jay 2026-11-03, RULEBOOK §3; index.html's data-look and look.css): the lead game's clubs on their own colours, 我的球隊.
 import * as look from './look.js';
+import { testDay, dayTested } from './testing.mjs';
 
 // Shared-Data's pack of recent games (set as the app starts, below), and the
 // background look-ups of what it hasn't got, after it's in.
@@ -783,7 +784,7 @@ async function readDay(leagues, date, { current = false, night = false, pages = 
   // Results are the whole day's: a game in the small hours that's over (or
   // any of a past day's) counts for its day, it just wasn't one to wake up for.
   const past = date < today();
-  const out = raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(officialMs(e), date) || (inDay(Date.parse(e.start), date) && (night || nightWorthy(e))) || ((past || e.status.state === 'post') && inDay(Date.parse(e.start), date)) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`)));
+  const out = testDay(raw.filter(e => (isToday && e.status.state === 'in') || inPickDay(officialMs(e), date) || (inDay(Date.parse(e.start), date) && (night || nightWorthy(e))) || ((past || e.status.state === 'post') && inDay(Date.parse(e.start), date)) || (!e.sessionKey && e.kind !== 'match' && e.status.state !== 'post' && e.end && Date.parse(e.start) <= Date.parse(`${date}T23:59:59`) && Date.parse(e.end) >= Date.parse(`${date}T00:00:00`))), isToday);
   out.failed = failed;
   out.read = read;
   return out;
@@ -877,7 +878,7 @@ async function loadDay(date, { live = false } = {}) {
     // The other days held (the nightly copies of the days to come): today's results on top.
     if (isToday) for (const [d, other] of state.days) if (d !== date && other.events?.length) other.events = settleSeries(other.events);
     Object.assign(slot, { events: kept, at: Date.now(), stale: false, leagues: key, partial: events.failed || 0 }, live ? {} : { fullAt: Date.now() });
-    if (isToday && !events.failed) saveDay(date, slot);
+    if (isToday && !events.failed && !dayTested()) saveDay(date, slot);
     retry = events.failed > 0;
   } catch {
     // Nothing read: the last copy stays, and it's tried again shortly
@@ -1040,6 +1041,8 @@ async function loadFollowedTeams() {
 // Finals this app showed as a banner itself (open at the time): not sent again as a phone notice.
 const bannered = new Set();
 function syncPush() {
+  // (A 測試工具 switch turning today's games: nothing of them goes to the Worker.)
+  if (dayTested()) return;
   const now = Date.now();
   const items = [];
   const seen = new Set();

@@ -640,6 +640,9 @@ export function resumeAt(text, at, gmt) {
   return t - off * 60_000;
 }
 export function flagNow(feed) {
+  // (測試工具's f1Flag, testing.mjs: the feed of a session on now under the flag asked for.)
+  const tested = { red: '5', sc: '4', vsc: '6' }[globalThis.ORBIT_TEST?.flags?.f1Flag];
+  if (tested && feed) feed = { ...feed, track: { ...feed.track, status: tested } };
   const status = String(feed?.track?.status || '');
   const control = (feed?.control || []).map(m => ({ ...m, message: String(m.message || '').toUpperCase(), ms: feedMs(m.at) }));
   const aborted = /^Aborted$/i.test(feed?.session?.status || '');

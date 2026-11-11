@@ -82,6 +82,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 | `sheets.js` | Every sheet: match, race weekend, team, player, constructor, tables, series |
 | `ui.js`, `cards.js`, `styles.css` | DOM helpers, rows; the tabs' cards and tiles; the app's styles |
 | `look.js`, `look.css` | Orbit's own look: the lead game's club colours, 我的球隊, and the look's overrides of the old card |
+| `testing.mjs` | Sports' own switches in the kit's 測試工具 (flags change what's shown, never the Pass; the notice list isn't sent while one is on): `liveGame`, `startSoon` (in10/due), `gameOff` (void/delayed), `emptyDay` (app.js `readDay` → `testDay`), `f1Flag` (red/sc/vsc, `lib/f1.mjs flagNow`), `aiCap` (`ask.js`) |
 | `lib/espn.mjs` | Every read and parser (the scoreboard parser is the kit's `sports-espn.mjs`); `sessionStatus` |
 | `lib/f1.mjs`, `racecontrol.mjs` | F1 data and the board's maths; race control in Chinese |
 | `lib/title.mjs`, `playoffs.mjs`, `bracket.mjs`, `tiebreak.mjs` | Live tables and title race (`liveTable`'s `live`: the games on now as they stand, marked, on 排名 and a game's 排名 only; the races on finals); playoffs; tiebreaks |

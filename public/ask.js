@@ -61,7 +61,7 @@ export function openAsk(src, { ask = '' } = {}) {
       const now = Date.now();
       const standings = await src.standings().catch(() => ({}));
       const tables = askTables({ teams: src.teams(), standings, today: src.today(), now, en, nameOf: src.nameOf });
-      const r = Object.keys(tables).length ? await kitAI.aiCall('sports-ask', { question: q, facts: askFacts(tables, { en, now }), lang: en ? 'en' : 'zh' }) : { error: 'none' };
+      const r = globalThis.ORBIT_TEST?.flags?.aiCap ? { error: 'cap' } : Object.keys(tables).length ? await kitAI.aiCall('sports-ask', { question: q, facts: askFacts(tables, { en, now }), lang: en ? 'en' : 'zh' }) : { error: 'none' };
       if (!open) return;
       const line = r.out?.line;
       const shown = (r.out?.show || []).map(id => tables[id]).filter(Boolean);
