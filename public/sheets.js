@@ -11,7 +11,7 @@ import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caugh
 import { stageTag, groupName } from './lib/stage.mjs';
 import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom, f1PointsFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
-import { previewLine, previewPath, previewDay, previewFrom } from './lib/preview.mjs';
+import { previewLine, previewPath, previewDays, previewFrom } from './lib/preview.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod, withNewest } from './lib/live.mjs';
@@ -1026,13 +1026,17 @@ function previewBox(e, codeLine) {
   // (Not read yet: the code's line, or a hidden holder, replaced when the file lands.)
   const first = draw([], {});
   const holder = first || el('section', { class: 'pv-box', hidden: true });
-  previewDoc(previewDay(e)).then(doc => {
-    const got = previewFrom(doc, e, en);
+  (async () => {
+    let got = { points: [], who: {} };
+    for (const day of previewDays(e)) {
+      got = previewFrom(await previewDoc(day), e, en);
+      if (got.known) break;
+    }
     previewKnown.set(key, got);
     if (!got.points.length || !holder.isConnected) return;
     const box = draw(got.points, got.who);
     if (box) holder.replaceWith(box);
-  });
+  })();
   return holder;
 }
 // 去球場: a chip under the park that opens Orbit Transit planning the trip

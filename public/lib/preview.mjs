@@ -6,7 +6,7 @@
 // filler). `places`: each side's place (sheets.js placeOf), `forms` each
 // side's last games ({ result: 'W' | 'L' | 'D' }), `names` their short names.
 
-import { twDay } from '#kit/format.mjs';
+import { twDay, addDays } from '#kit/format.mjs';
 
 const behind = (a, b) => {
   const [wa, la, wb, lb] = [a.W, a.L, b.W, b.L].map(Number);
@@ -59,7 +59,13 @@ const ord = n => (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd
 // { v: 1, games: { '<league>:<id>': { points: [{ k, zh, en }], who } | null } }.
 // Teams and players are tokens ({t:<id>}, {p:<id>}), drawn as chips.
 export const previewPath = day => `sports/previews/${day}.json`;
-export const previewDay = e => twDay(e?.start) || '';
+// The days a game's points may be under: the builder files a game by the
+// scoreboard day that lists it (ESPN's, a US evening's game the Taiwan day
+// before it starts), so the Taiwan day before first, then its own.
+export function previewDays(e) {
+  const d = twDay(e?.start);
+  return d ? [addDays(d, -1), d] : [];
+}
 const KINDS = new Set(['out', 'table', 'star', 'rest', 'run', 'series']);
 // The points in the reader's language ([] when none or not made yet), and
 // `known`: the game was looked at (null: not yet, the code's line stands in).
