@@ -1038,11 +1038,16 @@ function f1Story(e, ss) {
   if (e.league !== 'f1' || ss.status.state !== 'post' || !(ss.abbr === 'Race' || ss.abbr === 'SR')) return null;
   const path = f1StoryPath(ss.start);
   if (!storyDocs.has(path)) storyDocs.set(path, packJson(path, { ttl: 10 * 60_000 }).catch(() => (storyDocs.delete(path), null)));
-  const holder = el('div', { class: 'f1-ai', hidden: true });
+  const en = L() === 'en';
+  const mark = () => el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' });
+  // (While it's read: the rows' shape, never nothing (Jay 11-11); a race without one, nothing.)
+  const holder = el('div', { class: 'f1-ai', 'aria-busy': 'true' }, [
+    el('p', { class: 'f1-ai-head' }, [mark(), el('span', { text: en ? 'What decided it' : '勝負關鍵' })]),
+    el('ol', { class: 'plays f1-ai-points f1-ai-wait', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('li', {}, [el('span', { class: 'q-skel f1-ai-sk-when' }), el('span', { class: 'play-text has-face' }, [el('span', { class: 'q-skel f1-ai-sk-face' }), el('span', { class: 'q-skel f1-ai-sk-line' })])])))
+  ]);
   storyDocs.get(path).then(doc => {
     if (!holder.isConnected) return;
-    const en = L() === 'en';
-    const mark = () => el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' });
+    holder.removeAttribute('aria-busy');
     // The moments that decided it, drawn as the 過程's rows: the lap, the driver's face, what happened (Jay 11-10).
     const points = f1PointsFrom(doc, ss.start, en);
     if (points) {
@@ -1057,7 +1062,7 @@ function f1Story(e, ss) {
       return;
     }
     const text = f1StoryFrom(doc, ss.start, en);
-    if (!text) return;
+    if (!text) return void (holder.hidden = true);
     holder.replaceChildren(el('p', { class: 'lp-why f1-story' }, [mark(), el('span', { text })]));
     holder.hidden = false;
   });

@@ -948,7 +948,7 @@ button.rc-chip { padding: 0; border: 0; background: none; color: inherit; font: 
 .lp-chip .logo { width: 18px; height: 18px; flex: none; border-radius: 50%; }
 button.lp-chip { cursor: pointer; }
 /* F1 賽後故事: the race's story over its order (sheets.js f1Story). */
-.f1-story { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 15px; line-height: 1.5; color: var(--q-text); }
+.lp-why.f1-story { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 15px; line-height: 1.5; color: var(--q-text); }
 .lp-why-mark { flex: none; display: inline-flex; width: 16px; height: 16px; margin-top: 3px; color: var(--q-accent, var(--q-orange)); }
 .lp-why-mark svg { width: 100%; height: 100%; fill: currentColor; }
 .lp-baseball { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 14px; color: var(--q-text-2); }
@@ -3095,3 +3095,9 @@ table.hp-splits tbody tr.hp-split-new > * { border-top-color: var(--q-divider, v
 .f1-ai { display: grid; gap: 8px; margin-bottom: 12px; }
 .f1-ai-head { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--q-label-2); font: 600 var(--q-t-footnote) / 1.3 var(--q-font); }
 .f1-ai-head .lp-why-mark { margin-top: 0; }
+/* (While the story is read: three rows of its shape.) */
+.f1-ai-wait .f1-ai-sk-when { width: 28px; height: 12px; margin-top: 8px; border-radius: 6px; }
+.f1-ai-wait .f1-ai-sk-face { flex: none; width: 28px; height: 28px; border-radius: 50%; }
+.f1-ai-wait .f1-ai-sk-line { flex: 1; height: 14px; margin-top: 7px; border-radius: 7px; }
+.f1-ai-wait li:nth-child(2) .f1-ai-sk-line { max-width: 72%; }
+.f1-ai-wait li:nth-child(3) .f1-ai-sk-line { max-width: 84%; }
