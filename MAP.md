@@ -1,11 +1,10 @@
 # Orbit Sports: the map
 
-What a viewer in Taiwan would watch: every league on ELTA.tv (愛爾達) or
-Apple TV, with scores, schedules, match details, standings, teams and
-players; a day planned around what you follow; one tap to watch. F1 has
-its own live board from F1's timing. Signs in with the Orbit Pass.
-
-Live: https://orbit.jaypengx.com/sports/
+What a viewer in Taiwan would watch: every league on ELTA.tv (愛爾達) or Apple
+TV, with scores, schedules, match details, standings, teams and players; a day
+planned around what you follow; one tap to watch. F1 has its own live board
+from F1's timing. Signs in with the Orbit Pass. Live: https://orbit.jaypengx.com/sports/
+`FEATURES.md` lists every feature with its code.
 
 ## Leagues
 
@@ -23,388 +22,57 @@ A league out of season is hidden (checked by its game days, the nightly
 `sports/<league>/days.json`, ESPN's pages only for a league without one;
 kept 12 h). A league that couldn't be read is shown, never hidden.
 
+## Rules
+
+Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RULEBOOK.md`.
+
+**What's shown.**
+- 11-04 Code and data only for the leagues Sports shows (the 15 on ELTA or Apple TV, kit `BROADCAST`); nothing kept, built or read for another league. What players' pages need stays (clubs' Chinese and old names, an NBA player's college, LaLiga's photos).
+- 10-20 Every break gets a countdown, timeouts too. 10-21 Two sports' games clash only within 30 minutes of each other.
+- 10-22 賽事 opens on 全部, never on the first followed league.
+- 10-22 NBA 先發 from RotoWire (not ESPN core); injury words from a fixed list, never machine-translated.
+- 10-23 One game page standard for every sport (lineups, 陣容, 傷兵). Cards show one channel row; the game page lists every channel and names whom a player cam follows.
+- 10-23 Following a league counts like following a team (its best game on TV each hour); games 00:00–05:00 TW are never "my game". A match followed alone is that game, never its league, and leaves 追蹤 once over and told.
+- 10-30 One word, one meaning, one order on every page: 概況 the glance, 賽程 every game, 數據 the numbers, 陣容 the people, 排名 the table, 資料 the facts; every tab row full width.
+- 11-03 Past ELTA's published list, TV is predicted: every game of a league ELTA has whole (英超, 義甲, 德甲, 歐冠) is on, the NBA's by NBA.com's list; the channel named only where plain, else 愛爾達; every guess says 預估 and gives way to ELTA's listing; a league ELTA has in part stays 轉播待公布 (kit `eltaGuess`, measured by `scripts/tv-guess.mjs`). An empty ELTA timetable means no sport, not a failure.
+- 11-06 A game's card is one game: only a player's face or name opens the player, any other spot the game, a press lights the whole card (`tests/home-recap-card.test.mjs`).
+- 11-10 我的聯賽 lives at the top of 追蹤, not on 首頁. 已結束 shows 推薦給你 then 其他比賽. A followed league's pick for an hour is kept as it stood before its games began (`keptChoices`), so 首頁 and 賽事 agree.
+- 11-11 A game past its hour that ESPN hasn't started says 即將開賽 (`tests/match-starting.test.mjs`); a basketball game on shows each side's timeouts left (`tests/live-head-timeouts.test.mjs`).
+
+**Numbers and tables.**
+- 10-21 Stats show the current season; last season only where this one is empty. A past page shows its own moment, not today's points on top.
+- 10-22 Soccer win chance from our own model (score, minute, reds), never a frozen market; 勝負未定 not 拉鋸; no "按住圖表" hints. 10-26 For a game to come, the betting market goes ahead of ESPN's predictor.
+- 10-23 Win-probability rows use team logos and shirt colours; the lead row lands on the right play.
+- 10-27 Standings card: once first is settled, the race moves to 2nd, then 3rd, down the table until every place is settled.
+- 11-01 Sides level on record or points are ordered by their league's official tiebreaks, never at random (`lib/tiebreak.mjs`); the NBA Cup's cards say why in one line. 11-06 No 同分 line under a league table.
+- 11-03 近期交手 is the last five meetings at most, each counted by its score (level is a draw, even on penalties, marked PK); one bar across the card, a piece a meeting; never padded.
+- 11-06 No green in the playoff bracket (a clinched seed in the text's own colour); where there's room the bracket shows every round at once.
+- Tables count finals at once (`liveTable`), never a game still on; table zones stay with their places as results reorder them. A game is over when the rules say so (`overByRule`), not when ESPN marks it.
+- A streak (連勝敗) counts every game the form chips are from; F1's 本季走勢 runs on across a retirement (a cross on the floor).
+
+**Notices and steadiness.**
+- 10-22 Result notices checked every 2 minutes, the first check at the sport's shortest length. CPBL closed-app result notices stay broken until next season; revisit sources before spring.
+- 11-03 A game's page draws once and holds every part read after it: each read past the game's own goes through `openMatch`'s `later(key, read)` and is drawn from the start in its shape (`tests/game-page.test.mjs`). 11-05 It holds still in Safari through live refreshes (`node ../Orbit-Core/tools/live-scroll.mjs sports --webkit`).
+- 10-27 Swipes: 賽事's tabs swipe where there's no date strip (F1's 賽程 too) and past the last or first tab to the next league; team and player tabs swipe; not a game page (its charts take the finger).
+- A followed league is never hidden by a failed read. A called-off game opens nothing (延期 in its place). The injury report is on team pages only. Players and drivers named in English in both languages; teams in Chinese.
+- 11-10 The family's AI only where it adds: 賽後三句話 and 賽前看點 say what the card doesn't (no line when nothing explains it); names as chips (a player's face, a team's logo).
+
 ## How it works
 
-- **Tabs, one question each:**
-  - **首頁:** what to watch. A date strip that sticks at the top (swipe
-    the page for the next or last day), the filters as text tabs, the lead
-    game (each club's row on its own colour, its logo on the solid logo
-    tile), 正在進行, 我的比賽 (one list, the day's plan: `dayPlan`'s `keep`
-    puts the games they follow in first, then the best others fill only the
-    hours left free, one game a slot; their teams' later games under it;
-    no separate 推薦, Jay 2026-11-03). Only their own games unless 我的設定's
-    填滿空檔 is on (`prefs.fill`, off by default): then every free waking
-    hour (their quiet hours stay quiet, as for their leagues: 我的設定 安靜時段,
-    `prefs.quiet` {from,to} by the hour, 00–05 unset; app.js `asleep`) takes the game of any
-    sport worth most then (`picks.mjs worth`: PRESTIGE by league, stakes, the
-    table, the odds, big clubs, stars, the hour; no quality cut), drawn as one quiet
-    line (`.filled`: time, the two sides, a small hollow star at the end; Jay
-    2026-11-04 picked it over a grey row). In every other list (賽事, 轉播)
-    a pick is ★ 推薦 on a grey-lit row when it's theirs (a followed league's
-    chosen game), and an outlined ☆ 推薦 on an unlit row when only 填滿空檔
-    put it there (`lib/follows.mjs pickKind`, ui.js `eventRow`; Jay 2026-11-05). 我的聯賽 lives at the top of 追蹤 (Jay 2026-11-10: "Remove 我的聯賽 from Home"),
-    its rows in two or three columns on a wide page, each league with today's count of games (app.js `myLeaguesCard`). Every list on
-    首頁, 已結束 and a past day too, is only their own games and, with
-    填滿空檔 on, the filled ones as the day stood (`lib/home-shown.mjs`
-    `homeGames`): never the others' results; 已結束 in two groups when it has
-    both, 推薦給你 (the day's plan: `isFollowedEvent`'s picks, and the filled
-    ones) then 其他比賽 (the rest of their leagues' games), rows unmarked
-    (Jay 2026-11-10, `endedBody`). A followed league's pick for each hour
-    (`leagueChoices`) is kept on the device as it stood before that hour's
-    games began (`keptChoices`, `fx.chosen.v1`, three weeks): worked out again
-    after a result it named another game (the table moved, the odds gone),
-    so 首頁 and 賽事 disagreed (Jay 2026-11-10); a filled game over is the same
-    quiet line with its score at the end. 完賽 is as big as a start time. 下一場 is always their own next game (a later
-    day's when the open day has none), never a filled one.
-    A day is drawn once: its first drawing waits in its shape (up to 6 s,
-    `dayWaits`) until every league of theirs is read (one unread is asked
-    again in 4 s) and, with 填滿空檔 on, the other leagues too; the loading
-    screen stays up until a day of theirs that's over has moved on to their
-    next day (`mayJump`). A light day's finished games' top players (`gameRecap`)
-    are read with the day (`readBox` → `finalBox`, the box score alone; the
-    days either side in `readAround`, once each is read) and, while the day's
-    shape is up anyway, the day waits for them (3 s at most; a day already in
-    is drawn at once, never its shape swapped in mid-swipe); one later than that has its room kept, empty, and fades in
-    (`.recap-in`, opacity only); both lines in the same words and size. Such a card is one game (`recapList`, `recapTap`): only a player's face (a button) or name (`.recap-hit`) opens the player, any other spot the game, a press lights the whole card; on a wide card (its list 600px and up, `@container`) who led each side stands beside that side's row (Jay 2026-11-06; `tests/home-recap-card.test.mjs`). A
-    game of theirs on TV is lit (`isPickEvent`) in every list at once, not once
-    首頁 has drawn its day (Jay 2026-11-04: "the games often jump in";
-    `tests/home-steady.test.mjs`, Orbit-Core `tools/live-scroll.mjs`).
-    更多賽事 (only their own leagues' other games, never the other sports'
-    filled or fallback ones), 我的球隊 (each
-    followed team's place in its table and its next game; without follows,
-    the places to watch), 已結束.
-- **Orbit's own look** (Jay 2026-11-03; Orbit-Core DESIGN.md §11; `<html
-  data-look="native">`, `look.css` after `styles.css`): today's dark page,
-  graphite cards, colour only on what it names (a club's row, a team's mark);
-  the app's orange for what's live and the one main action. `look.js` draws
-  the lead game's colours (`paintHero`, the clubs' colours by `sideColors`)
-  and 我的球隊 (`teams`).
-  - **賽事:** a league. Sport and league chips, game days, then 賽程, 排名,
-    季後賽, 數據 (球員's leaders, 球隊: every team by each of its own stats;
-    F1's 車手 and 車隊, its teams added up from the same results,
-    `leaders.mjs parseF1Leaders` `crews`).
-    Back on the tab it is changed in place (`quietScores`), never drawn anew;
-    a day's games come eight first and the rest a few at a time only on a
-    phone (one column): on a wide page, whose columns would deal them again,
-    all at once (Jay 2026-11-06; `tests/tab-return.test.mjs`).
-    A followed or picked game in a list is a ★ 追蹤 / ★ 推薦 pill on a softly
-    lit row. F1's 賽程 is a card a weekend (`weekendCard`): a panel with the
-    next session's running countdown (or the one on, or the podium) beside the
-    circuit's outline, then the sessions as even stops on one line, each
-    finished one showing who topped it on their team's colour.
-  - **轉播:** when and where. The same date strip (yesterday to two weeks
-    on). Today: on now with 觀看, yours in the next 7 days, the next 24 h,
-    ELTA's whole guide (a quiet day, nothing else coming: ELTA's next five
-    showings by day beside the next game, `nextShows`; ELTA listing nothing more, today's games already over with their replays, `doneToday`); another day: its best game, then all it has on TV.
-  - **追蹤:** how yours are doing. Teams, players, matches, drivers; 設定
-    at its foot (leagues and follows as rows, put in order by their grips,
-    kit `reorder`, each let go by its ✕ with 復原; commentary).
-- **Every screen** (Jay 2026-10-31; Orbit-Core DESIGN.md §10): on a tablet,
-  a computer or a phone on its side each tab is two columns (首頁's answer
-  left and what's next right, 轉播's on now and coming up, 賽事's leagues side
-  by side), games and team cards in columns, tables with every column and
-  conferences side by side, F1 weekends as a grid; the tabs a rail down the
-  left. A game's page on a phone on its side: its head one row (the stage
-  under the time, the follow star in the sheet's head), the score in the
-  title once scrolled; 概況's cards dealt into two even columns (kit
-  `flowColumns`), a game to come's 數據 both sides side by side.
-  首頁 on a tablet on its side or a computer (q-w3; Jay 2026-11-06, an iPad,
-  twice: "not aligned still ugly") is a board of three even tracks and one
-  gap (ui.js `homeBoard`, `settleBoard`; app.js `homeLayout`): the lead
-  game, 正在進行 and 我的比賽 a track each in pairs as tall as each other (the
-  lead game keeps its own height, never stretched fat beside a longer list:
-  Jay 2026-11-06; a list far shorter keeps its own height, `.hb-short`;
-  a lone lead game its own width up to 720px, centred: Jay 2026-11-11), the
-  lead game's card level with the cards under titles (`--hb-head`); 我的球隊
-  the third track; 更多賽事 and 已結束 on the same tracks under
-  the lead pieces or across all three (`.wide`), and 我的球隊 dropped under
-  them as a tile a team when the side runs long, whichever leaves least
-  empty, measured as drawn (`tests/home-board.test.mjs`). A swipe anywhere
-  on the page, its empty space too, goes a day either way (kit `daySwipe`).
-- **Sheets** (full height):
-  - **A match:** header (each side's crest sized to the sheet, the score level with the crests' middle and the biggest thing, the status under it, 追蹤 small; Jay 2026-11-10; a game past its hour that ESPN hasn't started yet says 即將開賽 on the live colour, as the home card's 轉播中 does, `onAir`, until the tip turns it to the score and clock: Jay 2026-11-11, `tests/match-starting.test.mjs`; a basketball game on: each side's timeouts left as bars, then its fouls or 加罰, and where ESPN's header says 0 left and 0 used, the NBA's counted from the plays, `plays.mjs nbaTimeouts`: Jay 2026-11-11, `tests/live-head-timeouts.test.mjs`) and line score, a live panel, then sections drawn
-    once in an order set by the game's moment: 概況, 數據, 球員, 過程, 先發,
-    場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊. 數據 holds both
-    球隊 and 球員 (the box score; before the start, the season's). Every sport shares one
-    先發陣容 card, one 陣容 card per side (先發 or 打序, 替補, then 未上場 or
-    傷兵 in the injury report's rows) and one 傷兵 list (three, then 全部). Every team logo on the page opens the team (`teamLogoTap`) and every face the player (`personTap`). 數據's group tiles on a wide sheet are two columns split where the rows come nearest (`dealSets`), a 0–0 row an empty line. Soccer's 場上球員 pitch is at most 600px wide and its faces, numbers and names grow with it (`.soccer-pitch`, container units; Jay 2026-11-10). Game cards in a grid on a wide page are rows of even height (`.game-grid`, `.team-cards`). 過程 (`playsNav`): on a wide sheet (760px and up, the sheet's own width) its filter and period jumps are a column down the left, kept in view under the sheet's head, the plays the rest of the width (`.plays-wrap.with-nav`; a phone keeps the bar on top).
-  - **A race weekend:** a hero (flag, circuit, countdown to the next session),
-    the sessions on one timeline (a tap picks whose order shows), then F1's
-    冠軍之爭, 台灣轉播, 賽道 (outline, formula1.com's figures and lap record,
-    Open-Meteo's weather there each day, through the proxy) and last year's podium there.
-  - **One word, one meaning, one order on every page** (Jay 2026-10-30):
-    概況 the glance, 賽程 every game (to come, then results), 數據 the
-    numbers and where they rank, 陣容 the people, 排名 the table, 資料 the
-    facts. Every tab row is one full-width row (never a few pills and a gap).
-    The league's name at a sheet's top opens that league in 賽事.
-  - **A team:** 概況 (next and last game, 傷兵, home/away/last 10 and
-    scored/let in from its games, 聯盟排名, 數據領先), 賽程, 數據 (its own
-    numbers ranked among the league's teams, then 隊內排行), 陣容, 排名.
-    The strip's 連勝敗 is counted from the games the form chips are from
-    (`streakOf`; the table's is the regular season's). 陣容 by position in the
-    sport's order (門將, 後衛, 中場, 前鋒); a footballer's role and age from
-    FotMob's squad where the name matches (`squadFacts`, `squadFixed`: ESPN's
-    MLS roster had keeper Joe Willis a 25-year-old midfielder).
-  - **A player:** 概況 (his team's next game, his last line, the season,
-    聯盟排名), 賽程 (next game, game log), 數據 (every league rank, then
-    歷年數據: each season's team and numbers), 資料 (profile with 選秀,
-    初登場, 年資, 大學; 生涯球隊: every team with its years, seasons and
-    games, loans and the national side; 榮譽); opened from a game, its 本場
-    line. The career (`lib/career.mjs`, read behind the page): NBA and MLB
-    from ESPN's athletes/<id>/stats (proxy trim espn-career; a franchise's
-    old name is a team of its own, 超音速 then 雷霆, unless one in Chinese,
-    with its old badge or today's logo, kit `formerLogo`), football from
-    FotMob's player page (found by name and club, checked by birthday;
-    trims fotmob-search, fotmob-player), F1 teams from Jolpica. Each team
-    row opens its team (a club in a European cup this season opens there; a
-    loan he was then bought from is one spell). A footballer's game log
-    shows each game's shots (ESPN's log says SHOT and SOG).
-  - **A team's or a player's page wide** (an iPad, a computer; Jay
-    2026-11-06): `tabLayout` sets each tab's body. 概況, 資料 and a team's
-    數據: the cards dealt into two even columns (kit `flowColumns`, never CSS
-    columns: Safari put them all on the left). The rest the sheet's whole
-    width (styles.css `.team-tab.tt-*`, by the sheet's own width): 本場 his
-    numbers in a row; 賽程 a team's 接下來 beside 已結束 (one alone: its rows
-    in two columns, `twoCols`), a player's log one game a line; 陣容 each
-    group across, its players in two or three columns; 排名 every column and
-    full names. A player's head has his numbers beside it, as a team's.
-  - **An F1 driver** (Jay 2026-11-06, an iPad: "legacy looking"): his
-    place, points, wins and podiums in the strip beside his head
-    (`f1Strip`); 概況: 本季走勢, every race a point with P1 at the top (a
-    retirement a cross on the floor), a finger picking one and a tap
-    opening it (`f1FormCard`), his next weekend as 賽事's own card
-    (`ctx.weekendCard`), 隊友對比 as bars for points and who finished and
-    qualified ahead (`f1MateCard`); 賽程 a row a race (`f1RunRows`, two
-    columns wide). The numbers: `lib/f1driver.mjs` (`seasonRuns`,
-    `seasonSums`, `mateDuel`).
-  - **An F1 race weekend wide** (Jay 2026-11-06, an iPad: "Big empty"): its
-    hero across, then two set columns by the sheet's width (`.wk-cols`): the
-    sessions and the chosen one's order on the left, its chances (勝率走勢)
-    and the weekend's cards on the right; never CSS columns (Safari kept it
-    all on the left). In 勝率走勢 a finger on a lap with two moments shows
-    both, each with its number (`lib/wpline.mjs momentsAt`).
-  - **An F1 practice stand-in** (a team's FP1 driver): his car, sessions and
-    who he is, his face from TheSportsDB (the proxy's about.json).
-  - **An F1 constructor.**
-- **Team numbers** (`lib/teamstats.mjs`): NBA and MLB from ESPN's
-  statistics/byteam (the proxy's `espn-teams` trim), football from FotMob's
-  club lists (its league page's `teamStats`, each list's file for the whole
-  order); ranked here (level on the number, level in the list).
-- **數據領先** (`lib/leaders.mjs`):
-  - Basketball's 12 stats and baseball's 23 come from ESPN's whole-league
-    list; rates only among qualified players.
-  - Football's 23 come from FotMob; F1's 9 are counted from the season's
-    results.
-  - A team page ranks its own players; a player page shows their league
-    ranks; a match shows each side's season leaders.
-  - 賽事's 數據 on a wide page (q-wide; Jay 2026-11-06, F1's on an iPad:
-    "Ugly"): the stats down the side, each with its leader (a tap shows its
-    ranking; sticky, its own scroll handing on to the page's at its end, its
-    place kept), the chosen one's ranking one column beside them, a size up,
-    a bar to each value on every stat of numbers, never some and not others
-    (`sheets.js statsSplit`, `lbBars`; styles `.lb-wide`).
-    A phone and a team's sheet keep the chips over the ranking
-    (`tests/stats-wide.test.mjs`).
-  - A team page (`sheets.js openTeam`) keeps each tab once drawn (`kept`:
-    back from 賽程 to 概況 is the same page), holds 聯盟排名 and 數據領先 in
-    their shape while they're read (`ranksHeld`, `leadersHeld`, kit
-    `waiting`), and 隊內排行's chips redraw only that list (`paintLb`), each
-    stat's whole list read from FotMob (everyone in it, `leaderList(…, { all
-    })`: the league's top hundred held 3 of Nashville's 14 scorers, Jay
-    2026-11-06) and kept to the team's players. A
-    player's 生涯車隊 / 生涯球隊 is held the same way (`careerKey`).
-  - Long names: `fitName` (full, short, surname; every name on a sheet measured
-    in one go, `fitNameList`: one by one froze an F1 session switch for a
-    second, `tests/sheet-speed.test.mjs`) and the layout gives the row: a
-    play's who on its own line (`PLAY_WHO`; on a 320 phone the score under the
-    clock), 關鍵時刻's time and score above who; the leaders' columns
-    (`leaderCols`, `leadWatch`) drop their faces, else go one column. Never an
-    ellipsis. A home club: `homeName` (ui.js), a small house after the name.
-  - 推薦 in every list: `isPickEvent` (app.js; 首頁's picks for that day, else
-    the same plan from the day's games) lights the row and puts ★ 推薦 first
-    on its tags (`rowMark`); never a 追蹤 mark (a followed league is all theirs).
-  - Tile grids (`.stat-grid`) carry the kit's `.q-rows-full`: never a part
-    row. A way on (全部球隊數據) is `ui.js goBar`, the kit's quiet bar.
-- **Win chance:** ESPN's line, else Polymarket's. A game to come: the
-  sportsbook's moneylines first with the book's margin taken off the long
-  shots (新英格蘭 v 邁阿密 35/23/42, as Polymarket), else Polymarket's, else ESPN's own model. Soccer on or over is
-  worked out here (`lib/soccerwp.mjs`): each side's goals a Poisson count
-  over the time left, its rate from the odds before the start (ESPN's or
-  the sportsbook's, else the market's first price), from the score, the
-  minute and red cards; every competition gets it, and a late level game
-  is a draw's (retuned 10-30 on 2,473 finished 2025–26 games: a side behind
-  pushes and scores more, 3 and 7 minutes added, red cards weigh more; a side
-  given 75% wins 76%). A chart with key moments (關鍵時刻 are the winner's;
-  the loser's only for a 25%+ swing before the last two minutes; the go-ahead
-  says 此後未再落後; an own goal, ESPN's `own-goal` filed under the side it
-  counts for with the defender named, is 烏龍球 everywhere (on the line the
-  same dot as any goal), the side's badge with the defender's small head
-  under it (a tap to him) and "T. Parker 烏龍球" in 關鍵時刻, the goal
-  list and 過程; `moments.mjs ownGoal`)
-  while on or over; a split bar before. Each side in its colour, its
-  chance written in it (`wpline.mjs sideColors`: two alike, or none, and
-  one takes a spare colour); a draw grey.
-- **F1 live board:** F1's own timing (`f1-live`), in tabs 排名 · 過程 · 賽道 · 輪胎 ·
-  圈速 · 積分. 過程 (a race or sprint, live and over) tells the race lap by
-  lap (`lib/f1story.mjs raceStory`, from each car's place at each lap's end,
-  its stops and race control): the whole race's turns (the lead, each
-  safety car or red flag with its cause and how long it stopped, who went
-  out and where, the stewards' penalties, the biggest climbs, the finish),
-  or one driver's own race picked above it (its stops and tyres, the places
-  others' stops gave it, who it passed and who passed it, the finish
-  against the grid); a tap on a row of the whole race picks its driver. Race control in Chinese by rule (`lib/racecontrol.mjs`; 賽會訊息,
-  no speaker before each). The flag now (`lib/f1.mjs flagNow`: a red flag is
-  the session Aborted, not the track status; an SC in this lap; the yellow
-  sectors) is a banner under the bar (`sheets.js flagBanner`): what it is,
-  its clock (a countdown to the set restart, else how long it has run) and
-  why (the car out or stopped, the turn, the medical car; the kit's
-  `causeOf`). Under a red flag the board holds still: no gaps, no 進站, the
-  map's cars hidden under 紅旗 · 賽車都在維修區等候, 進站窗口 gone. 賽道
-  is 車手比較 on the track: one pick of up to four drivers (their faces on
-  the map, a tap on a car adds it), every car always moving at its own pace
-  between reads and in race order by its gap to the leader, each by its
-  code, always on the track's line (a train where they run close), the
-  tags where they cover least (`lib/carpace.mjs`), then
-  the drivers side by side. 進站窗口 lists the top ten, those yet to stop
-  first, each with its tyre and its age. A qualifying or a practice compares their
-  timed laps (`lib/f1.mjs pushLaps`: no pit lap, no cool-down), the first
-  of each side by side, with a qualifying's Q1–Q3 and the gap where it was
-  decided; a race's lap times one line a car over its stops. The win chance goes by
-  lap while a race runs too (each lap's end counted from the feed and the
-  leader's lap times), with its leads, stops and the start's own swing;
-  each driver's climbs through the field (the kit's `placeClimbs`) and an
-  SC turned red flag told as one moment, numbered pins on the lines, the
-  bands' tags in two rows. 冠軍之爭 during a race or sprint is as it stands
-  (假如正賽現在結束: each row's points to come, 將封王 or still open),
-  redrawn every 30 s.
-- **勝負未定** (close finish): a live game in its last stretch and within reach (NBA 4th or OT, MLB 8th–9th, soccer from the 80th).
-- **Tables count results at once** (`lib/title.mjs liveTable`,
-  `liveRacing`, `freshStandings`), on every page with a table: finals
-  only, never a game still on. The title
-  line says when it can be won at the soonest and what it takes: one rule
-  for every sport (`title.mjs` margins: how much more than each rival who
-  could still stop it), said as results when one game or race does it
-  ("前 8 名，或 Russell、Hamilton 都沒贏"), baseball's and basketball's as a
-  magic number; the fullest wording that fits one line (`fitChoice`). F1's
-  title won, the runner-up's place is followed the same way.
-- **Playoffs** (`lib/playoffs.mjs`, `bracket.mjs`): real ties, predicted
-  from the table while the season runs, or last season's. Read to the end of
-  any round begun within 17 days (`postseason`, the league's `official` dates).
-  A round whose games carry no series (MLS's Round One, best of three:
-  `FORMATS.mls.bestOf`) is a series all the same (`bracket.mjs finish`: each
-  game's winner a win, penalties by the flag); its sheet lists every game,
-  the last 如需要 until it's won (Jay 2026-11-10). The NBA Cup
-  (`lib/nbacup.mjs`) beside the NBA's: its groups, found from who meets whom
-  in group play (no feed names them, so no letters), first and best second
-  marked, and its knockout; chips in 季後賽, an NBA 盃 tab on a cup game (a
-  group game's group, a knockout game's bracket); last season's until this
-  season's group play is on the schedule. Teams level on record settled by
-  the cup's own tiebreaks (head-to-head, point differential and total points
-  without overtime, last season's record, the draw; the wild card and seeds
-  the same without head-to-head), each one said under its card. The map
-  goes by its own width (`.playoffs`, a container): two rounds on a phone,
-  as many as fit at 180 px from 600 px (every round of MLS's on an iPad or
-  a computer); a seed clinched is filled in the text's colour, never green.
-- **Tiebreaks** (`lib/tiebreak.mjs`): each league's official order for sides
-  level on its table; fresh finals re-sort by those steps only, ESPN's order
-  kept past them. Never said under a table (Jay 2026-11-06: the 同分 line
-  made the cards uneven).
-- **Where to watch** (`lib/tv.mjs`): ELTA's own schedule (exact channel,
-  commentary, MAX first); NBA.com's ELTA list (`public/nba-elta.json`,
-  written every 6 h by the deploy); Apple TV's page per MLS game. Past
-  ELTA's list (Jay 2026-11-03), the kit's `eltaGuess`: every game of a league
-  ELTA has whole (英超, 義甲, 德甲, 歐冠) is on, the NBA's by NBA.com, the
-  channel guessed from the list's own pattern on the league's clock and
-  named only where it's plain (a game alone then), else 愛爾達; every guess
-  says 預估 (cards, hero, 台灣轉播) and gives way to ELTA's listing. A league
-  ELTA has in part stays 轉播待公布. `scripts/tv-guess.mjs` measures it on
-  ELTA's real lists (`tests/fixtures/elta-*.json`). Replays
-  and highlights from `watch.json` (R2, built hourly); a game over that
-  首頁 shows and the pack doesn't have yet is looked up ahead (`prefetchVideos`),
-  any other when its page opens (one YouTube search through the proxy each).
-- **A league followed as a league** (none of its teams or players
-  followed; `picks.mjs leagueChoices`): of its games starting within the
-  hour of one another, the best matchup on TV here (table, odds, stakes,
-  big clubs; the channel only breaks an even tie) counts as a followed
-  team's game: picks, the hero, 我的比賽, 你的轉播, start and final notices.
-  Never a game from midnight to 05:00 (those stay in 更多賽事).
-  F1 followed that way: its qualifying, sprint and race. A league with a
-  team or player of it followed goes by those.
-- **Today's picks** (`lib/picks.mjs`): followed leagues and teams, quality,
-  closeness, stakes, fame, stars, theirs, ELTA's featured game, live now.
-  In a season's last eighth each side's stake comes from the table
-  (`tableIndex(groups, league)` → `raceOf`, on title.mjs `standingsRace`:
-  a line it can still cross 1, a play-off seed 0.5; `idle` when nothing's
-  left, which also halves what even odds count); `STARS` (Messi's Miami,
-  Lewandowski's Chicago, Son's LAFC) adds per side. With 填滿空檔 on, the
-  filled games' leagues' tables are read too (`loadTables(also)`). The best
-  game, then the best that doesn't clash. Theirs is the kit's one engine
-  (`feedback.mjs`): the picks shown (the hero first), opened from them or
-  anywhere in the app, learnt as a weight per team, league and sport, kept
-  on the Pass (`fb:match`, `feedback.keep`), so a league never opened sinks
-  and a club opened rises; 常看 only for a team opened far more than the
-  usual pick over enough looks (`picks.mjs HABIT`, `whyOf`).
-- **Notices** (the kit's `match` kinds): a followed team's start and final,
-  each pick's start and final, F1 sessions and podiums. Sent by the Worker
-  while the app is closed. A tap opens that game's page (`#game=<league>/<id>/<day>`,
-  `notice.mjs gameHash`; `app.js openGameFromHash` reads the day if needed).
-- **Data:** ESPN through the sports proxy (`lib/espn.mjs getJson` → the
-  kit's `proxyJson`). Seasons and game days come from R2 packs; finished
-  games are kept in R2 on first read. MLB's API, CPBL's site, F1 timing,
-  Jolpica, formula1.com, FotMob and Polymarket are all read through the
-  proxy (Jolpica from the phone itself when it turns the proxy away: the
-  kit's `proxyJson`).
-- **Refresh** (owner-set speeds): lists 5 s, an open game 3 s, F1 4–15 s;
-  today whole every 2 minutes. Values change in place (`morph`), never a
-  redraw.
-- **Offline:** covered (`onlineOnly`); never old scores as now.
-- **Saved:** the Pass payload `{ v: 4, leagues, follows, games, audio, t }` (copied
-  to the wallet for Play's recommendations); on the phone `fx.day.v4`,
-  `fx.active.v2`, `fx.f1live.v2`, `fx.f1ended`.
-
-## Decisions in force
-
-- Picks are only games on TV here, 05:00 to midnight. In the small hours:
-  every game of your own leagues, plus one big game of any other.
-- A followed league is never hidden by a failed read.
-- A game is over the moment the rules say so (`overByRule`), not when
-  ESPN marks it. 比賽資訊 says when it ended.
-- A past page shows its own moment, not today's points on top.
-- Table zones stay with their places as results reorder them.
-- No news and no AI in Sports. The injury report is on team pages only.
-- Players and F1 drivers are named in English, in both languages (never 勒布朗·詹姆斯); teams in Chinese.
-- A called-off game opens nothing (延期 in its place).
-- A match followed on its own is that game, never its league: its league's other games are no one's, not even the fallback 正在進行's; once over (and its final told) it leaves 追蹤 by itself.
-- A player ESPN lists with an all-star side (MLS All-Stars) is shown with his club, the side of his newest games.
-- Live refreshes patch the page in place (`put` keeps nodes and drawn pictures,
-  a laid-out `.q-flow`'s cards too; a drawn picture is swapped into the new
-  drawing, `lib/pictures.mjs`, so a part kept to be put back, the team page's
-  概況, keeps logos of its own); the kit's `hold-place.mjs` keeps the
-  reader's place whatever redraws (`node ../Orbit-Core/tools/live-scroll.mjs sports`).
-- Nothing jumps (2026-11-03): a day is read as one (theirs and the other
-  leagues together; 首頁 reads the days either side ahead, `readAround`), its
-  shape drawn until it's in (`liveShape`, `holdDay`), never "none" first; a
-  day with nothing on is the kit's empty state in one line (`noTvTitle`); a
-  list still being read holds rows its size (`lbHeld`); a list's more is the
-  kit's `moreToggle`.
-- A game's page draws once and holds every part read after it (2026-11-03,
-  Jay: 預計先發 came in last and pushed the page down): each read past the
-  game's own page (who starts, the season's leaders, who's out, the table,
-  the season's games, the squads) goes through `openMatch`'s `later(key,
-  read)`, and overview draws its part while `still(key)` as the card itself
-  built on stand-ins (`lineupsHeld`, `leadHeld`, `blanks`) through the kit's
-  `waiting` (`holdShape`); the win chance card too. A new section with a
-  read of its own goes through `later()` (`tests/game-page.test.mjs`);
-  `live-scroll.mjs sports` watches three game pages load.
-- Football's 近期交手: the last five meetings at most (ESPN's list), each
-  counted by its score (`espn.mjs meetingResult`: level is a draw, even one
-  settled on penalties, marked PK on its row); each side's wins and the
-  draws over one bar across the card, a piece a meeting (`lib/meetings.mjs`:
-  team colours from each end, draws grey between; 上季對戰 and 本季對戰 the
-  same), then each meeting by year and month with its score, not tappable
-  (they span competitions).
-- The kit's `sports-*.mjs` (highlights, broadcast, win probability) are run
-  by the proxy's builders too, so they import nothing but each other.
+- **Tabs:** 首頁 (what to watch: the day strip, the lead game, 正在進行, 我的比賽 as the day's plan from `dayPlan`, with 填滿空檔 the free hours filled by `picks.mjs worth`; 更多賽事, 我的球隊, 已結束; on a wide screen a board of three even tracks, `homeBoard`) · 賽事 (a league: 賽程, 排名, 季後賽, 數據; F1's weekends as cards) · 轉播 (when and where, ELTA's whole guide) · 追蹤 (我的聯賽, teams, players, matches, drivers, 設定, 問比賽). Look: `look.js`, `look.css` (the lead game's club colours, `sideColors`).
+- **A day is drawn once:** its first drawing waits in its shape until every league of theirs is read (`dayWaits`, `holdDay`, `liveShape`), the days either side read ahead (`readAround`); finished games' top players (`gameRecap`) read with it.
+- **Sheets** (`sheets.js`): a match (header, live panel, then 概況, 數據, 球員, 過程, 先發, 場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊 in the moment's order), a race weekend, a team, a player (career from ESPN, FotMob, Jolpica: `lib/career.mjs`), an F1 driver (`lib/f1driver.mjs`), a constructor. Wide sheets deal cards with the kit's `flowColumns` (never CSS columns: Safari put them all on the left).
+- **Win chance:** ESPN's line, else Polymarket's; a game to come: the sportsbook's moneylines (margin removed), else Polymarket's, else ESPN's model. Soccer's own model (`lib/soccerwp.mjs`: Poisson over the time left from the pre-game odds, the score, the minute, reds). Key moments (`moments.mjs`).
+- **F1 live board** (the proxy's `f1-live.orbit`): 排名 · 過程 (`lib/f1story.mjs raceStory`) · 賽道 (`lib/carpace.mjs`) · 輪胎 · 圈速 · 積分; race control in Chinese (`lib/racecontrol.mjs`); the flag now (`flagNow`, `flagBanner`).
+- **Tables, playoffs, tiebreaks:** `lib/title.mjs` (`liveTable`, the title line's margins), `playoffs.mjs`, `bracket.mjs`, `nbacup.mjs`, `tiebreak.mjs`.
+- **Where to watch** (`lib/tv.mjs`): ELTA's own schedule, NBA.com's ELTA list (`public/nba-elta.json`, every 6 h by the deploy), Apple TV per MLS game; the kit's `eltaGuess` past the list. Replays and highlights from R2's `watch.json`.
+- **Picks** (`lib/picks.mjs`): followed leagues and teams, quality, closeness, stakes from the table in a season's last eighth (`raceOf`), fame, `STARS`, live now; learnt by the kit's `feedback.mjs` (`fb:match` on the Pass).
+- **Data:** ESPN through the kit's `proxyJson` (`lib/espn.mjs`; the scoreboard parser is the kit's `sports-espn.mjs`); seasons and game days from R2 packs; finished games kept in R2 on first read; MLB, CPBL, F1, Jolpica, formula1.com, FotMob, Polymarket through the proxy (some read by the phone first, Orbit-Core `MAP.md` §5.1).
+- **Refresh** at the owner's speeds (lists 5 s, an open game 3 s, F1 4–15 s, today whole every 2 minutes), patched in place (`put`, `morph`; drawn pictures kept, `lib/pictures.mjs`).
+- **Notices** (the kit's `match` kinds): a followed team's start and final, each pick's, F1 sessions and podiums; a tap opens `#game=<league>/<id>/<day>`.
+- **The family:** `tellFollows`, `tellNext` into the phone's notebook (News' 你關心的, the Pass's 今天, Class's calendar); 去球場 and 球場天氣 (`lib/parks.mjs`, Transit's planner).
+- **Saved:** the Pass payload `{ v: 4, leagues, follows, games, audio, t }`; on the phone `fx.day.v4`, `fx.active.v2`, `fx.f1live.v2`, `fx.f1ended`, `fx.chosen.v1`. **Offline:** covered (`onlineOnly`); never old scores as now.
+- The kit's `sports-*.mjs` run in the proxy's builders too, so they import nothing but each other.
 
 ## Files (`public/`)
 
@@ -419,7 +87,7 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
 | `lib/title.mjs`, `playoffs.mjs`, `bracket.mjs`, `tiebreak.mjs` | Live tables and title race (`liveTable`'s `live`: the games on now as they stand, marked, on 排名 and a game's 排名 only; the races on finals); playoffs; tiebreaks |
 | `lib/leaders.mjs` | 數據領先: stats, ranks, team and player |
 | `lib/teamstats.mjs` | Teams' own numbers ranked in their league (數據 球隊) |
-| `lib/picks.mjs`, `foryou.mjs` | Today's picks; affinity (shared with Play) |
+| `lib/picks.mjs`, `foryou.mjs` | Today's picks; affinity |
 | `lib/broadcast.mjs`, `tv.mjs`, `highlights.mjs` | Where to watch (the kit's, shared with the proxy); channels; videos |
 | `lib/winprob.mjs`, `soccerwp.mjs`, `wpline.mjs`, `moments.mjs` | Win chance line and key moments (a basket answered at once by as much isn't one: `answered`); soccer's line moves with each side's shots as rough xG (`shotsOf`, `shownRates`); a game over said by its odds before (`gameArc`: 賽前勝率, 爆冷, 最低曾剩) |
 | `lib/why.mjs` | 賽後三句話's why line (the family's AI, Jay 11-10): `/data/sports/recaps/<Taiwan day>.json`, made once a game by Orbit-Core's `builders/recaps.js`; read once a day file (kit `packJson`) and drawn first in a finished game's story panel. v2 (Jay 11-10: it said the leaders again): only what the card doesn't show (code's comebacks, runs, ahead for good, the period that broke it open; no line when nothing explains it), its teams and players as tokens drawn as chips (`whyPieces`: a player with his face, a team by its name, each opening its page; sheets.js `whyNodes`); a file from before v2 is never read; F1's race story: 勝負關鍵, 2–4 moments as rows (`f1PointsFrom`: each its lap, the driver's face, one line; Jay 11-10: never a paragraph), `/data/sports/f1/stories/<year>.json` v2 (Orbit-Core's `builders/f1story.js`), on the weekend sheet; an older file's text still drawn (`f1StoryFrom`) |
@@ -457,5 +125,5 @@ every 6 hours).
 | A league | `leagues.mjs`, picks, Orbit-Core's `builders/` |
 | `liveTable` / `title.mjs` | Every table and the title line |
 | A session's status | Home cards, 轉播, the weekend sheet, standings, notices |
-| `trimF1Live` (Orbit-Core) | The F1 board, 數據, Play's settling |
+| `trimF1Live` (Orbit-Core) | The F1 board, 數據 |
 | A saved key's meaning | Bump its version, remove the old key |
