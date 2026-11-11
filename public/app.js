@@ -1110,11 +1110,22 @@ function tellNext(items, now) {
     .sort((a, b) => a.at - b.at)
     .slice(0, 4)
     .map(x => ({ at: x.at, title: x.title.replace(/ (開賽|開始|is on)$/, ''), hash: x.hash }));
-  const key = JSON.stringify(next);
+  // (And sports.games: the next 8 days' for Class's 加到行事曆, one calendar.)
+  const games = items
+    .filter(x => x.kind === 'start' && x.at > now - 3 * 3_600_000 && x.at < now + 8 * 86_400_000)
+    .sort((a, b) => a.at - b.at)
+    .slice(0, 40)
+    .map(x => ({ id: x.tag.slice(6), at: x.at, mins: gameMins(x.tag.split(':')[1]), title: x.title.replace(/ (開賽|開始|is on)$/, ''), hash: x.hash }));
+  const key = JSON.stringify([next, games]);
   if (key === toldNext) return;
   toldNext = key;
-  import('#kit/family.mjs').then(f => f.tell?.('sports', 'next', next)).catch(() => {});
+  import('#kit/family.mjs')
+    .then(f => (f.tell?.('sports', 'next', next), f.tell?.('sports', 'games', games)))
+    .catch(() => {});
 }
+// About how long a game lasts, for a calendar: by its sport.
+const GAME_MINS = { baseball: 180, basketball: 150, soccer: 120, racing: 120 };
+const gameMins = league => GAME_MINS[LEAGUES[league]?.sport] || 150;
 // A game's or a sprint's or race's final, for the Worker to send the moment
 // it's over (it fills in the score or the podium, and who won: {result}); a
 // pick's says so (今日推薦賽果, its own switch). Asked from the soonest it can
