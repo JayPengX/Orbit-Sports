@@ -1950,7 +1950,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     // (球場天氣: ESPN says none for a CPBL game; a known park's forecast for the game's hours, read from the phone.)
     ['🌤', T('weather'), weatherText(d?.weather) || parkWeather(e, d)],
     ['👥', T('attendance'), d?.attendance ? Number(d.attendance).toLocaleString(L() === 'en' ? 'en-US' : 'zh-TW') : ''],
-    ['🧑‍⚖️', T('officials'), joinNodes((d?.officials || []).slice(0, 3).map(x => el('span', { class: 'nb', text: x })), '、')],
+    ['🧑‍⚖️', T('officials'), joinNodes((d?.officials || []).slice(0, 3).map(x => el('span', { class: 'nb', text: x })), L() === 'en' ? ', ' : '、')],
     // ESPN's note ("ALWC - Game 1") only where the stage tag doesn't already say it.
     ['🏆', T('competition'), joinNodes([leagueName(e.league, L()), stageTag(e, L()) && L() !== 'en' ? '' : zhLater(e.note)], ' · ')]
   ]
@@ -5338,7 +5338,7 @@ function f1LapCompare(b, ss) {
       const pitsAt = lap => {
         if (!race) return '';
         const who = series.filter(sr => pitsOf(sr.no).has(lap)).map(sr => sr.c.tla || f1Sur(sr.c));
-        return who.length ? ` · ${who.join('、')} ${en ? 'pit' : '進站'}` : '';
+        return who.length ? ` · ${who.join(en ? ', ' : '、')} ${en ? 'pit' : '進站'}` : '';
       };
       const plot = scrubPlot(xs, show, [el('div', { class: 'lc-box', html: `<svg viewBox="0 0 ${W} ${H}" class="lc-svg" aria-hidden="true">${shade}${grid}${xt}${lines}</svg>` }), rule, ...marks]);
       show();

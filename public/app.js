@@ -40,7 +40,7 @@ import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { cols, homeBoard, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
+import { shortLeague, cols, homeBoard, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
 import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh, teamNameZh } from '#kit/names.mjs';
@@ -2013,7 +2013,7 @@ function renderHome() {
           const r = state.home.tables[f.league][f.id];
           return el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [
             el('span', { class: 'suggest-tile' }, [logo(f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), f.name, 'sm')]),
-            el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: shownName(f) }), el('small', { text: [leagueName(f.league, locale).replace(/\s.*$/, ''), r.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : ''].filter(Boolean).join(' · ') })]),
+            el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: shownName(f) }), el('small', { text: [shortLeague(f.league), r.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : ''].filter(Boolean).join(' · ') })]),
             el('b', { class: 'q-ritem-value rank-pos num', text: L({ zh: `第 ${r.pos} 名`, en: `#${r.pos}` }) })
           ]);
         }))
@@ -2045,7 +2045,7 @@ function renderHome() {
             .slice(0, 6)
             .map(f => {
               const r = state.home.tables[f.league]?.[f.id];
-              const sub = [leagueName(f.league, locale).replace(/\s.*$/, ''), r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : ''].filter(Boolean).join(' · ');
+              const sub = [shortLeague(f.league), r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : ''].filter(Boolean).join(' · ');
               // (Its colour from a day's scoreboard: a team's own schedule carries none.)
               const side = [...state.days.values()].flatMap(dayAll).filter(e => LEAGUES[e.league]?.sport === LEAGUES[f.league]?.sport).flatMap(e => [e.home, e.away]).find(x => String(x?.id) === String(f.id) && x.color) || null;
               return { f: { ...f, logo: f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), shown: shownName(f) }, pos: r?.pos || null, sub, next: (isToday && onNowOf(f)) || nextOf(f) || null, side };
@@ -3822,7 +3822,7 @@ function leagueRail(rail) {
       node: el('div', { class: 'q-chips league-rail' }, [
         el('button', { class: 'q-chip search-chip', type: 'button', 'aria-label': L({ zh: '搜尋', en: 'Search' }), html: icon('search'), onclick: openSearch }),
         el('button', { class: 'q-chip all-chip', type: 'button', 'data-league': ALL, 'aria-pressed': 'false', text: t('f_all'), onclick: () => state.scores.league !== ALL && openAll(state.scores.chosen || today()) }),
-        ...rail.map(k => el('button', { class: 'q-chip', type: 'button', 'data-league': k, 'aria-pressed': 'false', onclick: () => pick(k) }, [leagueMark(k), locale === 'en' ? leagueName(k, locale) : leagueName(k, locale).replace(/\s.*$/, '')]))
+        ...rail.map(k => el('button', { class: 'q-chip', type: 'button', 'data-league': k, 'aria-pressed': 'false', onclick: () => pick(k) }, [leagueMark(k), locale === 'en' ? leagueName(k, locale) : shortLeague(k)]))
       ])
     };
   }
@@ -4085,7 +4085,7 @@ function whereTv(e) {
 function myLeaguesCard() {
   const slot = state.days.get(today());
   const dayCount = k => (slot ? dayAll(slot).filter(e => e.league === k && !practice(e)).length : 0);
-  return el('div', { class: 'q-card list my-leagues-list' }, inSeasonFirst(state.prefs.leagues).map(k => el('button', { class: 'ml-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k), el('span', { class: 'ml-name', text: leagueName(k, locale).replace(/\s.*$/, '') }), el('span', { class: 'ml-sub', text: !slot ? '' : dayCount(k) ? L({ zh: `今天 ${dayCount(k)} 場`, en: `${dayCount(k)} today` }) : L({ zh: '今天休息', en: 'Off today' }) }), el('span', { class: 'ml-chev', html: icon('chevron') })])));
+  return el('div', { class: 'q-card list my-leagues-list' }, inSeasonFirst(state.prefs.leagues).map(k => el('button', { class: 'ml-row', type: 'button', onclick: () => openScores(k) }, [leagueMark(k), el('span', { class: 'ml-name', text: shortLeague(k) }), el('span', { class: 'ml-sub', text: !slot ? '' : dayCount(k) ? L({ zh: `今天 ${dayCount(k)} 場`, en: `${dayCount(k)} today` }) : L({ zh: '今天休息', en: 'Off today' }) }), el('span', { class: 'ml-chev', html: icon('chevron') })])));
 }
 // 問比賽 (the family's AI plan): what the phone has read of the teams and
 // leagues followed, handed to ask.js; each row opens its team or game.
@@ -4106,7 +4106,7 @@ function askSource() {
     teams: () =>
       mine().slice(0, 8).map(f => {
         const r = state.home.tables[f.league]?.[f.id];
-        return { league: f.league, id: String(f.id), name: shownName(f), logo: f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), pos: r?.pos || null, n: r?.n || null, group: r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : '', leagueName: leagueName(f.league, locale).replace(/\s.*$/, ''), games: teamGames(f) || [] };
+        return { league: f.league, id: String(f.id), name: shownName(f), logo: f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), pos: r?.pos || null, n: r?.n || null, group: r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : '', leagueName: shortLeague(f.league), games: teamGames(f) || [] };
       }),
     // Each followed league's table (a league of groups: the groups my teams are in, else its first).
     standings: async () => {
@@ -4119,7 +4119,7 @@ function askSource() {
         const pick = list.filter(g => g.rows.some(r => ids.has(`${k}:${r.id}`)));
         (pick.length ? pick : list.slice(0, 1)).slice(0, 2).forEach((g, i) => {
           const soccer = LEAGUES[k]?.sport === 'soccer';
-          const name = leagueName(k, locale).replace(/\s.*$/, '');
+          const name = shortLeague(k);
           out[i ? `${k}${i}` : k] = {
             league: k,
             name,
@@ -4169,7 +4169,7 @@ function renderFollowing() {
     : null;
   // 我的設定 where it's seen (the owner, 2026-10-23: not a 管理 button in
   // the head): its rows at the foot of the tab, each saying what's set now.
-  const names = p.leagues.slice(0, 2).map(k => leagueName(k, locale)).join('、') + (p.leagues.length > 2 ? L({ zh: ` 等 ${p.leagues.length} 個`, en: ` and ${p.leagues.length - 2} more` }) : '');
+  const names = p.leagues.slice(0, 2).map(k => leagueName(k, locale)).join(locale === 'en' ? ', ' : '、') + (p.leagues.length > 2 ? L({ zh: ` 等 ${p.leagues.length} 個`, en: ` and ${p.leagues.length - 2} more` }) : '');
   const settings = section(
     L({ zh: '設定', en: 'Settings' }),
     el('div', { class: 'q-rowcard' }, [
@@ -4238,7 +4238,10 @@ function teamCard(f) {
       right
     ]);
   };
-  const sub = [locale === 'en' ? leagueName(f.league, locale) : /^([A-Za-z0-9]+) [^\x00-\x7f]/.exec(leagueName(f.league, locale))?.[1] || leagueName(f.league, locale), place?.pos ? L({ zh: `${place.group || ''}第 ${place.pos} 名`, en: `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]}${place.group ? ` in ${place.group}` : ''}` }) : ''].filter(Boolean).join(' · ');
+  // (The table's group only when it's a part of the league, 西區 or 國聯西區: never the league again,
+  // 「英超 · 英超第 1 名」, nor ESPN's season name, 「1st in 2026-27 English Premier League」, 11-12.)
+  const group = place?.group && !/\d{4}/.test(place.group) && place.group !== leagueName(f.league, locale) && place.group !== shortLeague(f.league) ? place.group : '';
+  const sub = [locale === 'en' ? leagueName(f.league, locale) : /^([A-Za-z0-9]+) [^\x00-\x7f]/.exec(leagueName(f.league, locale))?.[1] || leagueName(f.league, locale), place?.pos ? L({ zh: `${group}第 ${place.pos} 名`, en: `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]}${group ? ` in ${group}` : ''}` }) : ''].filter(Boolean).join(' · ');
   return el('div', { class: 'tf-row' }, [
     el('button', { class: 'tf-team', type: 'button', onclick: () => openTeam(f.league, f.id, f) }, [
       logo(f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), f.name, 'tf-logo'),

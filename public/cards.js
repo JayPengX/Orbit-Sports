@@ -3,7 +3,7 @@
 // hero game, a finished game's score card, a sport's tile. Markup only: what
 // a game is (onAir, sessionStatus, picks, standings) is decided elsewhere.
 import * as kitUI from '#kit/ui.mjs';
-import { el, ctx, sidesOf, homeName, logo, personPic, statusText, breakTick, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine, f1Brief } from './ui.js';
+import { el, ctx, sidesOf, homeName, logo, personPic, statusText, breakTick, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine, f1Brief, shortLeague } from './ui.js';
 import { channelsOf, watchOf } from './lib/tv.mjs';
 import { ALT_VIEW } from './lib/broadcast.mjs';
 import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
@@ -36,7 +36,7 @@ function channelNames(e, n = 2) {
 // mark (追蹤中 / 推薦) as a pill at the right edge.
 function heroFoot(e, { mine, picked }) {
   const stage = e.kind === 'match' ? stageTag(e, ctx.locale) : '';
-  const league = leagueName(e.league, ctx.locale).replace(/\s.*$/, '');
+  const league = shortLeague(e.league);
   // A cup's tag starts with the cup's own name ("NBA 盃 · 小組賽"): that is the competition.
   const cup = stageOf(e).key === 'cup' && stage ? stage.split(' · ') : null;
   const [name, sub] = cup ? [cup[0], cup.slice(1).join(' · ')] : [league, stage];
@@ -106,7 +106,7 @@ export function scoreCard(e, onOpen) {
   const side = (s, win) => el('span', { class: `sc-side${win ? ' win' : ''}` }, [s.athlete ? personPic(s, e.league, 'sm round') : logo(s.logo, s.name, 'sm'), homeName(el('span', { class: 'sc-name q-fit', text: s.short || s.name }), e, s), el('b', { class: 'num', text: e.status.void || e.status.state === 'pre' ? '' : scoreText(s.score) })]);
   const champ = e.kind !== 'match' ? (e.sessionKey ? e.sessions?.find(x => x.abbr === e.sessionKey) : e.sessions?.at(-1))?.field?.[0] : null;
   return el('button', { class: `score-card q-press${e.status?.state === 'in' && !e.status.void ? ' live' : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => onOpen(e) }, [
-    el('span', { class: 'sc-top' }, [leagueMark(e.league, 'lg-mark xs'), el('span', { text: leagueName(e.league, ctx.locale).replace(/\s.*$/, '') }), el('small', { text: statusText(e), ...breakTick(e) })]),
+    el('span', { class: 'sc-top' }, [leagueMark(e.league, 'lg-mark xs'), el('span', { text: shortLeague(e.league) }), el('small', { text: statusText(e), ...breakTick(e) })]),
     ...(e.kind === 'match'
       ? sidesOf(e).map(s => side(s, s === e.home ? w.home : w.away))
       : [el('span', { class: 'sc-event' }, [raceFlag(e), el('strong', { text: e.name })]), champ ? el('span', { class: 'sc-champ' }, [personPic(champ, e.league, 'sm round'), el('span', { text: champ.short || champ.name })]) : sessionTag(e)]),
@@ -124,7 +124,7 @@ export function sportTile({ key, name, marks, order, onclick }) {
 
 // 聯賽: a followed league as the kit's tile for a rail; a tap opens it in 賽事.
 export function leagueTile(key, onOpen) {
-  const name = leagueName(key, ctx.locale).replace(/\s.*$/, '');
+  const name = shortLeague(key);
   const tile = kitUI.leagueTile({ logo: leagueLogo(key), name, onOpen: () => onOpen(key) });
   // The tile turns dark grey in dark mode: the league's dark-screen logo there.
   const img = tile.querySelector('.q-logo img');
