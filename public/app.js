@@ -2562,7 +2562,7 @@ function guideRow(p, events, now) {
   return el('div', { class: `tvg-row${on ? ' on' : ''}` }, [
     el('b', { class: 'tvg-time num', text: on ? L({ zh: '播出中', en: 'Live' }) : clock(new Date(p.start).toISOString()) }),
     el('button', { class: 'tvg-body', type: 'button', disabled: e && !e.status?.void ? null : true, onclick: () => e && openEvent(e) }, [
-      el('span', { class: 'tvg-head' }, [leagueMark(p.league, 'lg-mark xs'), el('strong', { class: 'tvg-title', text: guideTitle(p) })]),
+      el('span', { class: 'tvg-head' }, [leagueMark(p.league, 'lg-mark xs'), el('strong', { class: 'tvg-title q-fit', text: guideTitle(p) })]),
       el('span', { class: 'tvg-chs' }, [
         detail ? el('small', { class: 'tvg-detail', text: detail }) : null,
         ...(p.channels.length
@@ -3108,7 +3108,7 @@ function playoffView(model, key) {
     const said = note(t, r);
     // A game on at a break (中場休息, 暫停): its countdown ticking in the note as everywhere else.
     const on = t?.live && t.games.find(g => g.status?.state === 'in');
-    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''}${t?.outcome ? ' q-fit' : ''}`, text: said, ...(on ? breakTick(on, said) : {}) }) : null, ...(t?.notes?.length ? tieLines(t.notes.slice(0, 1)) : [])];
+    const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''} q-fit`, text: said, ...(on ? breakTick(on, said) : {}) }) : null, ...(t?.notes?.length ? tieLines(t.notes.slice(0, 1)) : [])];
     if (!t || t.projected || t.pending) return el('div', { class: `br-tie ${t?.pending ? 'pending' : t?.sure ? 'sure' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
     // (Its sheet from the card as last drawn: patchPlayoffs moves __open over with the newer games.)
     const card = el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => card.__open() }, body);
