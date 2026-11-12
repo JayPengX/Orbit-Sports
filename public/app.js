@@ -1312,7 +1312,11 @@ function planRow(item, opts = {}) {
   // nothing and pushed its channel off the line (Jay 2026-11-03); a game of
   // their own team's needs no reason at all.
   const why = (ownGame(item.event) || item.filled ? [] : item.reasons).filter(r => !PLAIN_WHY.has(r)).slice(0, 1).map(r => el('span', { class: 'q-tag', text: REASON(r) }));
-  if (why.length) (row.querySelector('.ev-tags') || row.querySelector('.event-sides, .event-title')?.appendChild(el('div', { class: 'ev-tags' })))?.prepend(...why);
+  // (After the 推薦 pill, hidden in 我的比賽's list: put before it, the pill's
+  // no-dot rule took the dot off the league after the reason, 「關鍵戰美職足」.)
+  const tags = row.querySelector('.ev-tags') || row.querySelector('.event-sides, .event-title')?.appendChild(el('div', { class: 'ev-tags' }));
+  const pill = tags?.querySelector(':scope > .row-mark');
+  if (why.length && tags) pill ? pill.after(...why) : tags.prepend(...why);
   return row;
 }
 
