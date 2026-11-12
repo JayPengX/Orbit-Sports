@@ -1720,7 +1720,9 @@ function renderHome() {
   // Opened on a day with nothing of theirs, or with all of it over: the
   // next day they have games (only on a fresh read: a saved or half-read
   // day can't say there's none). 今天 on the strip still shows today's.
-  const nothingToday = !planList.length && !mine.some(e => e.status.state === 'in' || e.status.state === 'post');
+  // (A followed team playing now, on TV here or not, keeps 首頁 on today: it jumped to tomorrow
+  // while the Lakers were on, and their game showed nowhere on 首頁, 11-12.)
+  const nothingToday = !planList.length && !mine.some(e => e.status.state === 'in' || e.status.state === 'post') && !followedOnNow();
   // (Only their own leagues and ELTA's list need to be in for it: one of the
   // other leagues unread kept it waiting for a retry, 4 s and more.)
   if ((nothingToday || todayOver) && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length && !slot.stale && !slot.loading && !(slot.partial > 0) && !tvUnread()) {
@@ -1955,6 +1957,9 @@ function renderHome() {
   const seenKeys = new Set([heroKey, ...liveRest.map(x => keyOf(x.event))]);
   // (A followed team's next game from its own schedule, whatever day is open, and the open day's.)
   const nextOf = f => (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame).filter(e => e.status?.state === 'pre' && !e.status.void && Date.parse(e.start) > now).sort((x, y) => Date.parse(x.start) - Date.parse(y.start))[0];
+  // (A followed team's game on now, on TV here or not: 我的球隊 and the lead card said 下一場 11/16
+  // while the Lakers were playing, as 追蹤 already showed, 11-12.)
+  const onNowOf = f => (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame).find(e => e.status?.state === 'in' && !e.status.void) || null;
   const nextKeys = new Set();
   const mineNext = past || h.picking || !hasFollows
     ? []
@@ -1971,6 +1976,11 @@ function renderHome() {
   mineNext.forEach(e => seenKeys.add(keyOf(e)));
   // 下一場 is always theirs (Jay 2026-11-03): a day with only filled games
   // leads with their own next game, whatever day it is, never a filled one.
+  const mineOn = !hero && hasFollows && isToday && !h.picking && !liveBlock ? followedTeams().map(onNowOf).find(e => e && !seenKeys.has(keyOf(e))) : null;
+  if (mineOn) {
+    seenKeys.add(keyOf(mineOn));
+    hero = look.paintHero(heroGame(mineOn, { mine: true, onOpen: openEvent }), mineOn);
+  }
   if (!hero && hasFollows && !past && !h.picking && !liveBlock) {
     const next = followedTeams()
       .flatMap(f => (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame))
@@ -2027,7 +2037,7 @@ function renderHome() {
               const sub = [leagueName(f.league, locale).replace(/\s.*$/, ''), r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : ''].filter(Boolean).join(' · ');
               // (Its colour from a day's scoreboard: a team's own schedule carries none.)
               const side = [...state.days.values()].flatMap(dayAll).filter(e => LEAGUES[e.league]?.sport === LEAGUES[f.league]?.sport).flatMap(e => [e.home, e.away]).find(x => String(x?.id) === String(f.id) && x.color) || null;
-              return { f: { ...f, logo: f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), shown: shownName(f) }, pos: r?.pos || null, sub, next: nextOf(f) || null, side };
+              return { f: { ...f, logo: f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), shown: shownName(f) }, pos: r?.pos || null, sub, next: (isToday && onNowOf(f)) || nextOf(f) || null, side };
             });
           return rows.length ? section(L({ zh: '我的球隊', en: 'My teams' }), look.teams(rows, f => openTeam(f.league, f.id, f))) : null;
         })()
@@ -4958,6 +4968,17 @@ async function homeReady(until) {
 // Today's games all over, the app opens on the next day they play: that
 // day, kept for today, is read alongside today's at the next open (and the
 // days each sport plays with it), not one after the other.
+// A followed team's game on now (its own schedule, fresh from the day's reads), or null.
+// (Today's scoreboard too: the teams' own schedules come after the day's first drawing, and the jump was decided by then.)
+function followedOnNow() {
+  const day = state.days.get(today());
+  const live = (day ? dayAll(day) : []).filter(x => x.status?.state === 'in' && !x.status.void);
+  for (const f of followedTeams()) {
+    const e = (state.home.teams.get(`${f.league}:${f.id}`) || []).map(freshGame).find(x => x.status?.state === 'in' && !x.status.void) || live.find(x => x.league === f.league && [x.home, x.away].some(s => String(s?.id) === String(f.id)));
+    if (e) return e;
+  }
+  return null;
+}
 const JUMP_KEY = 'fx.jump.v1';
 function saveJump(to) {
   try {

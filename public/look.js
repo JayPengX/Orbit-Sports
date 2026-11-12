@@ -19,7 +19,7 @@ export function paintHero(card, e) {
 
 // ---- 我的球隊: each team's place and its next game --------------------------------------------
 
-// rows: [{ f (the followed team, with logo and shown name), pos, sub, next (its next game) }]
+// rows: [{ f (the followed team, with logo and shown name), pos, sub, next (its game on now, else its next) }]
 export function teams(rows, onOpen) {
   return el(
     'div',
@@ -30,8 +30,15 @@ export function teams(rows, onOpen) {
       const s = next ? sidesOf(next).find(x => String(x.id) === String(f.id)) : null;
       const other = next && s ? sidesOf(next).find(x => x !== s) : null;
       const day = next ? dayOf(next) : '';
+      // (Its game on now: the score as it stands, its side first, as 追蹤 says it.)
+      const on = next?.status?.state === 'in';
+      const shown = v => (v == null || String(v).trim() === '' ? '–' : String(v));
       const nextEl = next
-        ? el('span', { class: 'tm-next' }, [el('small', { text: L({ zh: '下一場', en: 'Next' }) }), el('b', { class: 'num', text: `${day === today() ? L({ zh: '今天', en: 'Today' }) : dayLabel(day)} ${timeText(next)}` }), other ? el('small', { class: 'q-fit', text: `${L({ zh: '對', en: 'vs' })} ${other.short || other.name}` }) : null])
+        ? el('span', { class: `tm-next${on ? ' is-live' : ''}` }, [
+            el('small', { text: on ? L({ zh: '進行中', en: 'Live' }) : L({ zh: '下一場', en: 'Next' }) }),
+            el('b', { class: 'num', text: on ? (next.status?.noScore ? '–' : `${shown(s?.score)}–${shown(other?.score)}`) : `${day === today() ? L({ zh: '今天', en: 'Today' }) : dayLabel(day)} ${timeText(next)}` }),
+            other ? el('small', { class: 'q-fit', text: `${L({ zh: '對', en: 'vs' })} ${other.short || other.name}` }) : null
+          ])
         : null;
       return el('button', { class: 'q-ritem tm-row', type: 'button', style: tc ? `--tc:${tc}` : null, onclick: () => onOpen(f) }, [
         el('span', { class: 'tm-logo' }, [logo(f.logo, f.name, 'sm')]),

@@ -149,6 +149,10 @@ html[data-look='native'][data-look='native'] .q-hero-card.hero-game .q-hc-btn sm
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* (Its game on now: 進行中 in the live colour, as every live score.) */
+.tm-next.is-live small:first-child {
+  color: var(--live);
+}
 
 
 /* ---------- Tables on a graphite card: one surface, no grey blocks ----------
