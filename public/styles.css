@@ -107,6 +107,8 @@ img { max-width: 100%; }
 .home-note strong { font: 600 17px/22px var(--q-font); }
 .home-note p { color: var(--q-label-2); font: var(--q-t-subhead); }
 .home-note .q-more { margin-top: 10px; }
+/* (Nothing of theirs: the note leads, the others' lead card under it at a section's distance, 11-12.) */
+.home-note + .q-hero-card { margin-top: var(--q-s-5, 24px); }
 
 /* ==== A game as a row (ui.js eventRow): every list, tab and sheet ====
    Its time (or state) down the left, the two sides with their scores, a

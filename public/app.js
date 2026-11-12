@@ -1678,12 +1678,13 @@ function renderHome() {
   let past = h.date < today();
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
-  const rank = (list, also = 999, ctx = pctx, before = past) => {
+  // (`any`: a day with nothing of theirs, the others ranked on their own: every game may be a pick.)
+  const rank = (list, also = 999, ctx = pctx, before = past, any = false) => {
     // (Only their own games are 我的比賽; with 填滿空檔 on, the free hours
     // take the game of any sport worth most then.)
     // (Filling keeps the quiet hours as their leagues do: never the small hours, Jay 2026-11-04.)
     const fill = state.prefs.fill;
-    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before, keep: ownGame, only: isFollowedEvent, fill: fill ? e => worth(e, ctx) : null });
+    const { plan, also: awake } = dayPlan(list.filter(e => !nightOnly(e)), ctx, { n: 6, also: 999, asStood: before, keep: ownGame, only: any ? null : isFollowedEvent, fill: fill ? e => worth(e, ctx) : null });
     // The small hours' big games: with the rest, by their score.
     const { also: night } = dayPlan(list.filter(nightOnly), ctx, { n: 0, also: 999, asStood: before });
     const rest = [...awake, ...night].sort((x, y) => y.score - x.score);
@@ -1779,7 +1780,9 @@ function renderHome() {
       // Worth watching on its own: the stakes and the sides, not the person's sport order
       // (their own small hours' big games kept first among the rest).
       const night = more;
-      [planList, more] = rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] });
+      // (Every one may be a pick: with `only` theirs, the plan of others came back empty and 首頁 said
+      // 這天沒有轉播 over the NBA on 愛爾達, 11-12.)
+      [planList, more] = rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] }, past, true);
       more = [...night, ...more];
       fallback = true;
     }
@@ -1792,7 +1795,7 @@ function renderHome() {
   // off (延期: still there, said so, not gone without a word).
   // (Theirs as it stood is also what their picks' finals are said for.)
   const ownWas = isToday ? rank(filtered(mine), 999, pctx, true) : [[], []];
-  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] }, true) : ownWas) : [[], []];
+  const [wasPlan, wasMore] = isToday ? (fallback && !filtered(mine).some(e => e.status.state === 'post') ? rank(slot.others.filter(shown), 12, { ...pctx, sports: [], leagues: [] }, true, true) : ownWas) : [[], []];
   // Today's that ended: the games of theirs over (or called off), by the
   // clock, never ranked again (the tables move with each result, and a
   // ranking redone put another game in a pick's place). Only their own, and
@@ -1854,7 +1857,7 @@ function renderHome() {
   const liveRest = liveShown.filter(x => x !== heroItem);
   planList = planList.filter(x => x !== heroItem);
   more = more.filter(x => keyOf(x.event) !== heroKey);
-  let hero = heroItem ? look.paintHero(heroGame(heroItem.event, { picked: isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }), heroItem.event) : null;
+  let hero = heroItem ? look.paintHero(heroGame(heroItem.event, { picked: fallback || isPick(heroItem), mine: isFollowedEvent(heroItem.event), onOpen: openEvent }), heroItem.event) : null;
   // The hero led with from the plan is today's first pick (its start notice, what the picks learn from).
   const heroPick = heroItem && !liveShown.includes(heroItem) ? [heroItem] : [];
   // The rest on now: a row each with 觀看; every game on is 轉播's.
@@ -2053,6 +2056,8 @@ function renderHome() {
           return rows.length ? section(L({ zh: '我的球隊', en: 'My teams' }), look.teams(rows, f => openTeam(f.league, f.id, f))) : null;
         })()
       : null;
+  // (Nothing of theirs: the line saying so leads, over the others' lead card it explains.)
+  const othersNote = !past && !h.picking && !finding && fallback && (planList.length || heroPick.length) && !endedGames.length ? note(noMine, t('othersSub'), false) : null;
   put(
     box,
     homeBar(),
@@ -2061,6 +2066,7 @@ function renderHome() {
     // (A wide screen: the day's answer on the left, what's next of theirs on
     // the right; a tablet on its side or a computer, the board, ui.js homeBoard.)
     (screenFit().w3 ? homeLayout : cols)([
+      othersNote,
       h.picking ? null : hero,
       h.picking ? null : liveBlock,
       // A day gone by: its games, every one, by the clock, as they ended (no
@@ -2068,10 +2074,11 @@ function renderHome() {
       // 2026-10-18). Theirs and the others on TV, under the sport chosen.
       past ? pastDay() : null,
       // (Nothing followed yet: the sport picker above already says so; no note under it.)
-      // Nothing of theirs: the others' picks under a line that says so;
+      // Nothing of theirs: the others' picks under a line that says so (the lead card one of them:
+  // with a single pick the line went with it, 11-12);
       // nothing on at all, the kit's empty state (one line and the way to
       // every game; Jay 2026-11-03: the two-line card read ugly).
-      past || h.picking ? null : finding ? note(noMine, t('findingOthers'), false) : fallback && planList.length && !endedGames.length ? note(noMine, t('othersSub'), false) : nothing ? dayEmpty(gap ? null : noTvTitle(h.date)) : null,
+      past || h.picking || othersNote ? null : finding ? note(noMine, t('findingOthers'), false) : nothing ? dayEmpty(gap ? null : noTvTitle(h.date)) : null,
       !past && finding ? spinner() : null,
       past
         ? null
