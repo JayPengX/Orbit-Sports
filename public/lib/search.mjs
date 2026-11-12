@@ -15,10 +15,12 @@ const BY_PATH = Object.fromEntries(Object.entries(LEAGUES).filter(([, l]) => l.e
 const norm = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
 
 // Leagues whose name (Chinese or English) or key has the words typed.
+// (Also the names people type for them: 「中職」 found nothing, 11-12.)
+const ALSO = { cpbl: ['中職'], mlb: ['美職', '大聯盟'], nba: ['美國職籃', '美職籃'], epl: ['英格蘭超級聯賽'], ucl: ['歐洲冠軍聯賽'], uel: ['歐洲聯賽'], mls: ['美國職業足球大聯盟'], f1: ['方程式賽車'] };
 export function findLeagues(query) {
   const q = norm(query);
   if (!q) return [];
-  return Object.keys(LEAGUES).filter(k => [k, LEAGUES[k].zh, LEAGUES[k].en].some(x => norm(x).includes(q)));
+  return Object.keys(LEAGUES).filter(k => [k, LEAGUES[k].zh, LEAGUES[k].en, ...(ALSO[k] || [])].some(x => norm(x).includes(q)));
 }
 
 // ESPN's answer: { teams: [{ league, id, name, logo }], players: [...] }, only

@@ -54,6 +54,9 @@ test('search: leagues by name, ESPN teams in the leagues Orbit Sports has', asyn
   const { readFileSync } = await import('node:fs');
   assert.ok(findLeagues('英超').includes('epl'));
   assert.ok(findLeagues('premier').includes('epl'));
+  // The names people type: 中職 (CPBL is 中華職棒), 大聯盟.
+  assert.deepEqual(findLeagues('中職'), ['cpbl']);
+  assert.ok(findLeagues('大聯盟').includes('mlb'));
   const found = parseSearch(JSON.parse(readFileSync(new URL('./fixtures/espn-search-yankees.json', import.meta.url))));
   assert.deepEqual(found.teams[0], { league: 'mlb', id: '10', name: 'New York Yankees', sub: 'MLB', logo: 'https://a.espncdn.com/i/teamlogos/mlb/500/nyy.png' });
 });
