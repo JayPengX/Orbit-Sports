@@ -7,7 +7,7 @@ import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, w
 import { teamNameZh } from '#kit/names.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
+import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, playedIds, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom, f1PointsFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
@@ -1007,10 +1007,14 @@ const previewDoc = day => {
 };
 const previewKnown = new Map();
 const PREVIEW_ICON = { out: 'user', table: 'trophy', star: 'flame', rest: 'clock', run: 'chart', series: 'flag' };
-function previewBox(e, codeLine) {
+// (`played`: who has played this game. A point saying one of them is out is
+// dropped: 「Herro 膝傷缺陣」 stood over Herro on the court, 11-12, as the
+// injury list had with Durant, 10-16.)
+function previewBox(e, codeLine, played = new Set()) {
   const en = L() === 'en';
   const key = `${e.league}:${e.id}:${en ? 'en' : 'zh'}`;
-  const draw = (points, who) => {
+  const draw = (all, who) => {
+    const points = all.filter(p => !(p.k === 'out' || /缺陣|因傷|傷停|不會上場|\bout\b|injur|sidelined/i.test(p.text)) || ![...String(p.text).matchAll(/\{p:(\w+)\}/g)].some(m => played.has(m[1])));
     const rows = points.length ? points.map(p => el('li', { class: 'pv-row' }, [el('span', { class: 'pv-ic', 'aria-hidden': 'true', html: kitUI.icons?.[PREVIEW_ICON[p.k]] || kitUI.icons?.spark || '' }), el('span', { class: 'pv-text' }, whyNodes(e, p.text, who))])) : codeLine ? [el('li', { class: 'pv-row' }, [el('span', { class: 'pv-ic', 'aria-hidden': 'true', html: kitUI.icons?.trophy || '' }), el('span', { class: 'pv-text', text: codeLine })])] : [];
     if (!rows.length) return null;
     return el('section', { class: 'pv-box', 'aria-label': en ? 'Why watch' : '看點' }, [
@@ -1863,7 +1867,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   const why = (d?.status || e.status).state !== 'post' ? previewLine({ sport: LEAGUES[e.league]?.sport, places, forms, names: sides.map(s => s.short || s.name), en: L() === 'en' }) : '';
   const compare = el('div', { class: 'compare' }, [
     // (Framed by the Orbit AI mark, as every smart line is, made by code or AI (Jay 11-11).)
-    (d?.status || e.status).state !== 'post' ? previewBox(e, why) : null,
+    (d?.status || e.status).state !== 'post' ? previewBox(e, why, playedIds(d)) : null,
     el('div', { class: 'cmp-head' }, sides.map((x, i) => cmpTeam(x, i ? 'home' : 'away', e.league)).flatMap((x, i) => (i ? [el('span', { class: 'cmp-vs', text: 'vs' }), x] : [x]))),
     ...compareRows.map(([label, a, h]) => el('div', { class: 'cmp-row' }, [cmpValue(a), el('span', { text: label }), cmpValue(h)])),
     // (名次 with its group under it, as a table of conferences or groups has it: all but football's leagues.)

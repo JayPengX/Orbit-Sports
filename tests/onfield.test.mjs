@@ -84,6 +84,16 @@ test('withoutPlayed: the injured who have played this game are left off; the res
   assert.equal(withoutPlayed(injuries, { players: [], rosters: [] }), injuries);
 });
 
+// 11-12: 看點's 「Herro 膝傷缺陣」 stood over Herro on the court: a point saying a player who has played is out is dropped.
+test('看點: a point saying someone out who has played this game is left off', async () => {
+  const { playedIds } = await import('../public/lib/espn.mjs');
+  const played = playedIds({ players: [{ team: '15', tables: [{ rows: [{ id: '4395725', stats: ['2', '1-3'] }] }] }], rosters: [] });
+  assert.deepEqual([...played], ['4395725']);
+  const src = readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
+  assert.match(src, /previewBox\(e, why, playedIds\(d\)\)/);
+  assert.match(src, /p\.k === 'out' \|\| \/缺陣\|/);
+});
+
 // Jay 2026-11-06: at a break 場上球員 read 即時 with a ↑ on all ten.
 const play = (type, clock, ids = [], period = 2) => ({ type: { text: type }, clock: { displayValue: clock }, period: { number: period }, participants: ids.map(id => ({ athlete: { id } })) });
 test('courtStop: the ball live is no stop, subs at a free throw neither', () => {

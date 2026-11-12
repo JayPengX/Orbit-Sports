@@ -1988,10 +1988,15 @@ export function mergeInjuries(injuries = [], byTeam = {}) {
 // only later. Played: a box score row with his numbers and no DNP, or a
 // soccer starter or sub who came on.
 export function withoutPlayed(injuries = [], data) {
+  const played = playedIds(data);
+  return played.size ? injuries.map(t => ({ ...t, list: t.list.filter(x => !played.has(x.id)) })) : injuries;
+}
+// The ids of everyone who has played this game (as above).
+export function playedIds(data) {
   const played = new Set();
   for (const t of data?.players || []) for (const tb of t.tables || []) for (const r of tb.rows || []) if (r.id && !r.dnp && (r.on || (r.stats || []).some(v => v && v !== '0' && v !== '--' && v !== '0-0'))) played.add(r.id);
   for (const r of data?.rosters || []) for (const p of r.players || []) if (p.id && p.played) played.add(p.id);
-  return played.size ? injuries.map(t => ({ ...t, list: t.list.filter(x => !played.has(x.id)) })) : injuries;
+  return played;
 }
 // A basketball side's players with their per-game averages (時間, 得分, 籃板,
 // 助攻), in the season ESPN names (last season's until the new one's regular
