@@ -655,6 +655,8 @@ export function eventRow(e, { league = true, day = true, picked = false, mark = 
   ]);
 }
 
+// A goal's ball on the scorer's face: drawn, never the ⚽ emoji (RULEBOOK 10-19: no emoji icons).
+const BALL = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 8.2l3.4 2.5-1.3 4h-4.2l-1.3-4z" fill="currentColor" stroke="none"/></svg>';
 // A game on now: its line (count, outs and runners; the latest goal), for
 // the row under the sides. Baseball: the bases and outs drawn, the count,
 // then who bats against whom by last name, quietly.
@@ -687,7 +689,7 @@ export function liveLine(e) {
     const p = goal.person || { name: goal.who };
     const pic = own && side ? logo(side.logo, side.name, 'sm') : personPic({ ...p, en: p.name }, e.league, 'sm round');
     return el('div', { class: 'live-line base goal' }, [
-      el('span', { class: 'live-scorer', 'aria-hidden': 'true' }, [pic, own ? null : el('span', { class: 'scorer-ball', text: '⚽' })]),
+      el('span', { class: 'live-scorer', 'aria-hidden': 'true' }, [pic, own ? null : el('span', { class: 'scorer-ball', html: BALL })]),
       el('span', { class: 'live-text' }, [
         el('span', { class: 'live-count' }, [...goalHead(e, ctx.locale).map(t => el('span', { text: t })), el('span', { class: 'num live-min', text: goal.minute })]),
         el('span', { class: 'live-who' }, [!own && side?.logo ? logo(side.logo, side.name, 'scorer-club') : null, el('span', { class: 'live-names', text: own ? `${goal.who} ${en ? 'own goal' : '烏龍球'}` : `${goal.who}${goal.kind === 'pen' ? (en ? ' (pen)' : '（點球）') : ''}` })])

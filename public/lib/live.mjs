@@ -6,7 +6,7 @@
 //
 // liveOf() reads ESPN's into one shape; liveLabel() is the short status a row
 // shows ("5局上", "第3節 5:32", "67'"); liveNote() the line under a game
-// ("1壞2好 2出局", "⚽ 67' Saka").
+// ("1壞2好 2出局", "67' Saka").
 
 import { closeGame } from './close.mjs';
 import { liveOf } from '#kit/sports-espn.mjs';
@@ -93,7 +93,7 @@ function plainNote(e, sport, en) {
   }
   if (lv.events?.length) {
     const last = lv.events.filter(x => x.kind !== 'red').at(-1);
-    if (last) return `⚽ ${last.minute} ${last.who}${last.kind === 'pen' ? (en ? ' (pen)' : '（PK）') : last.kind === 'own' ? (en ? ' (OG)' : '（烏龍）') : ''}`.trim();
+    if (last) return `${last.minute} ${last.who}${last.kind === 'pen' ? (en ? ' (pen)' : '（點球）') : last.kind === 'own' ? (en ? ' (OG)' : '（烏龍）') : ''}`.trim();
   }
   return '';
 }

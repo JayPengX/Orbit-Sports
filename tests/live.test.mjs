@@ -23,7 +23,7 @@ test('soccer: the minute, extra time, the latest goal', () => {
   ];
   const [e] = parseScoreboard(board('soccer', status('STATUS_SECOND_HALF', "67'", 2, "67'"), { details }), 'epl');
   assert.equal(liveLabel(e, 'soccer'), "67'");
-  assert.equal(liveNote(e, 'soccer'), "⚽ 67' Palmer（PK）");
+  assert.equal(liveNote(e, 'soccer'), "67' Palmer（點球）");
   assert.equal(e.live.events.length, 3);
   const [et] = parseScoreboard(board('soccer', status('STATUS_EXTRA_TIME', "105'", 3, "105'"), {}), 'ucl');
   assert.equal(liveLabel(et, 'soccer'), "延長 105'");

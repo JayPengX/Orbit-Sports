@@ -1363,7 +1363,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .lp-feed li strong { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--q-fill-3); color: var(--q-text); }
 /* Soccer's latest goal on a card: the scorer's face, a ball at its bottom right. */
 .live-scorer { position: relative; flex: none; display: inline-grid; padding: 0 4px 3px 0; }
-.live-scorer .scorer-ball { position: absolute; right: 0; bottom: 0; width: 17px; height: 17px; border-radius: 50%; background: var(--q-surface, #1c1c1e); font-size: 12px; line-height: 17px; text-align: center; overflow: hidden; }
+.live-scorer .scorer-ball { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: var(--q-surface, #1c1c1e); color: var(--q-label); overflow: hidden; }
+.live-scorer .scorer-ball svg { width: 14px; height: 14px; }
 .live-who .scorer-club { flex: none; width: 16px; height: 16px; object-fit: contain; }
 .live-line.base.goal .live-text > .live-count { display: flex; gap: 6px; align-items: baseline; }
 .live-line.goal .live-min { color: var(--q-text); font-weight: 600; }
