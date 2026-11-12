@@ -6231,7 +6231,7 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
           .catch(() => teamLists.set(st.url, st.list))
           .then(() => lbBox.isConnected && (teamPick || d.stats[0].key) === st.key && paintLb());
       }
-      put(lbBox, el('p', { class: 'mini-h lb-head', text: W('隊內排行', 'Within the team') }), leagueLeadersView(d, league, { pick: st.key, full: st.url ? teamLists.get(st.url) : st.list, onPick: k => ((teamPick = k), paintLb()) }));
+      put(lbBox, el('p', { class: 'mini-h lb-head', text: W('隊內排行', 'Within the team') }), leagueLeadersView(d, league, { oneTeam: true, pick: st.key, full: st.url ? teamLists.get(st.url) : st.list, onPick: k => ((teamPick = k), paintLb()) }));
       return lbBox;
     };
     // A game in a list as every list draws it: the result's row (its date, the other side, the score), a tap opens it.
@@ -6428,7 +6428,7 @@ export function teamLeadersCard(data, league) {
 }
 // (The first 25, then 25 more a tap, to the hundred.)
 const LB_STEP = 25;
-export function leagueLeadersView(data, league, { teamOf = () => null, pick = null, onPick = () => {}, full = null, wide = false } = {}) {
+export function leagueLeadersView(data, league, { teamOf = () => null, pick = null, onPick = () => {}, full = null, wide = false, oneTeam = false } = {}) {
   const sport = LEAGUES[league]?.sport;
   const en = L() === 'en';
   const chosen = data.stats.find(x => x.key === pick) || data.stats[0];
@@ -6441,11 +6441,12 @@ export function leagueLeadersView(data, league, { teamOf = () => null, pick = nu
   const rankOf = i => list.findIndex(y => y.value === list[i].value) + 1;
   const bars = side && lbBars(list);
   const row = (x, i) => {
-    const t = teamOf(x.team, x);
+    // (A team's own 隊內排行: its name under each player says nothing; football's read 「Manchester United」 under every one, 11-12.)
+    const t = oneTeam ? null : teamOf(x.team, x);
     return el('button', { class: 'lb-row', type: 'button', onclick: () => openLeader(league, x) }, [
       el('span', { class: 'lb-rank num', text: String(rankOf(i)) }),
       personPic({ ...x, name: x.full || x.name }, league, 'sm round'),
-      el('span', { class: 'lb-name' }, [fitName(el('strong', { class: 'one-line' }), x.full || x.name, x.full && x.name !== x.full ? x.name : shortWords(x.full || x.name)), t ? fitLine(el('small', { class: 'one-line' }, [teamTag(t, t.short || t.name, league, { tap: false })])) : x.teamName ? fitLine(el('small', { class: 'one-line', text: !en && x.teamZh ? x.teamZh : x.teamName })) : null]),
+      el('span', { class: 'lb-name' }, [fitName(el('strong', { class: 'one-line' }), x.full || x.name, x.full && x.name !== x.full ? x.name : shortWords(x.full || x.name)), t ? fitLine(el('small', { class: 'one-line' }, [teamTag(t, t.short || t.name, league, { tap: false })])) : x.teamName && !oneTeam ? fitLine(el('small', { class: 'one-line', text: !en && x.teamZh ? x.teamZh : x.teamName })) : null]),
       lbBar(x, list, chosen.low, bars),
       el('b', { class: 'lb-value num', text: x.value })
     ]);
