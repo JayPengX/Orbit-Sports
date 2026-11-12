@@ -31,6 +31,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 - 10-20 Every break gets a countdown, timeouts too. 10-21 Two sports' games clash only within 30 minutes of each other.
 - 10-22 賽事 opens on 全部, never on the first followed league.
 - 10-22 NBA 先發 from RotoWire (not ESPN core); injury words from a fixed list, never machine-translated.
+- 11-12 An injury report's note is never machine-translated either: code reads its facts (`lib/injurynote.mjs`); a sentence it can't read is left out. ESPN's return dates are America's days: here the next day.
 - 10-23 One game page standard for every sport (lineups, 陣容, 傷兵). Cards show one channel row; the game page lists every channel and names whom a player cam follows.
 - 10-23 Following a league counts like following a team (its best game on TV each hour); games 00:00–05:00 TW are never "my game". A match followed alone is that game, never its league, and leaves 追蹤 once over and told.
 - 10-30 One word, one meaning, one order on every page: 概況 the glance, 賽程 every game, 數據 the numbers, 陣容 the people, 排名 the table, 資料 the facts; every tab row full width.

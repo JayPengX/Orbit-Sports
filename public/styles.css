@@ -1023,13 +1023,19 @@ button.lp-chip { cursor: pointer; }
 .fact-flag { font-size: 16px; line-height: 1; }
 .q-btn.with-mark { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--q-label); }
 .injury-tag { margin-top: 6px; font-size: 12.5px; font-weight: 600; color: var(--loss); }
-.injury-note { margin-top: 8px; font-size: 13px; line-height: 1.45; }
-/* A player's injury under his hero: the status and what's wrong, when he's back under it, the report's word below a hairline. */
+/* A player's injury under his hero: what's wrong over when he's back, the status as a tag at the right;
+   the report's facts under a hairline, a game's day in its own column; the day the report changed last, quiet. */
 .player-injury { margin-bottom: 12px; }
-.player-inj { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-.player-inj strong { font-size: 17px; font-weight: 600; }
-.player-inj-back { margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--q-label-2); }
-.player-injury .injury-note { margin-top: 12px; padding-top: 12px; border-top: 0.5px solid var(--q-sep); font-size: 14px; line-height: 1.55; }
+.player-inj-head { display: flex; align-items: center; gap: 12px; }
+.player-inj-what { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.player-inj-what strong { display: block; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; }
+.player-inj-what small { font-size: 14px; color: var(--q-label-2); }
+.player-inj-head > .q-tag, .player-inj-head > .inj-status { flex: none; font-size: 15px; }
+.player-inj-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; margin: 12px 0 0; padding: 12px 0 0; border-top: 0.5px solid var(--q-sep); list-style: none; font-size: 14px; line-height: 1.4; }
+.player-inj-facts li { display: contents; }
+.player-inj-facts li > span:only-child { grid-column: 1 / -1; }
+.player-inj-facts li.dated > span:first-child { color: var(--q-label-2); }
+.player-inj-facts .player-inj-when > span { font-size: 12px; color: var(--q-muted); }
 table.game-log td, table.game-log th { white-space: nowrap; }
 /* A player's last games: a card each, big numbers, nothing to scroll sideways. */
 .glog { display: grid; gap: 10px; }

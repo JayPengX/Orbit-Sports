@@ -5,6 +5,8 @@ import { translate, proxyJson, packJson, everyDev, dev } from '#kit/orbit.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
+import * as kitNames from '#kit/names.mjs';
+import { injuryFacts, backDay } from './lib/injurynote.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
 import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, playedIds, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
@@ -1428,8 +1430,10 @@ const injTone = status => Object.entries(INJ_TONE).find(([k]) => String(status).
 function backText(at, comment = '') {
   const word = returnWord(comment);
   if (word) return L() === 'en' ? (word === 'season' ? 'out for the season' : 'return TBD') : word === 'season' ? '本季報銷' : '回歸待定';
-  if (!at || !(localDate(Date.parse(at)) >= localDate(Date.now()))) return '';
-  return L() === 'en' ? `back ${dayLabel(localDate(Date.parse(at)))}` : `${dayLabel(localDate(Date.parse(at)))} 回歸`;
+  if (!at) return '';
+  const day = backDay(at, localDate);
+  if (!(day >= today())) return '';
+  return L() === 'en' ? `back ${dayLabel(day)}` : `${dayLabel(day)} 回歸`;
 }
 // One player's line: status chip, what's wrong, when they're back.
 // (`lead`: a 陣容 card's, the number's column first, so its rows line up with the squad's above.)
@@ -1443,6 +1447,49 @@ function injuryLine(x, league, { lead = false } = {}) {
     personPic(x, league, 'xs round'),
     el('span', { class: 'inj-who' }, [fitName(el('strong'), playerName(x.full || x.name, 'full', x.name), shortWords(x.full || x.name)), sub.length ? fitLine(el('small', { class: 'one-line' }, joinNodes(sub, ' · '))) : null]),
     el('span', { class: `inj-status ${x.tone || injTone(x.status)}`, text: x.label || injuryText(x.status) })
+  ]);
+}
+// A player's injury, under his hero: what's wrong and when he's back, the
+// status as a tag; then what the report says, as facts code reads from it
+// (lib/injurynote.mjs: the game he's out of against whom, surgery, how long),
+// never Google's translation of the note (Jay 2026-11-12: "Bad translation
+// and card not so good looking"), and the day the report was last changed.
+const TAG_TONE = { bad: 'red', warn: 'orange', good: 'green' };
+function injuryCard(inj, league) {
+  const en = L() === 'en';
+  // What's wrong with its side ("Right" → 右腹部痠痛).
+  const side = inj.what && inj.side ? (en ? `${inj.side} ` : /^left$/i.test(inj.side) ? '左' : '右') : '';
+  let what = inj.what ? (en ? inj.what : injuryWhatZh(inj.what)) : '';
+  if (what) what = `${side}${what}`;
+  const back = backText(inj.back, inj.comment);
+  const status = injuryText(inj.status);
+  const teamZh = word => {
+    const name = kitNames.usTeamIn?.(league, word);
+    return name ? teamNameZh(league, name)?.short || null : null;
+  };
+  // (Out for the season once: the 回歸 line says it when it does.)
+  let facts = injuryFacts(inj.comment, { date: inj.date, lang: en ? 'en' : 'zh', today: today(), team: teamZh }).filter(f => !(/本季報銷|Out for the season/.test(f.text) && /本季報銷|out for the season/.test(back)));
+  // The diagnosis is the title when it says the same and more (右手骨折 over 手骨折), said once.
+  const bare = x => String(x || '').toLowerCase().replace(/^(left|right)\s+|^[左右]/, '');
+  const found = facts.find(f => f.what);
+  if (found && (!what || (!en && bare(found.what).includes(bare(what))))) {
+    what = found.what;
+    facts = facts.filter(f => f !== found);
+  } else if (found && (en || bare(what).includes(bare(found.what)))) facts = facts.filter(f => f !== found);
+  const tone = TAG_TONE[injTone(inj.status)] || 'orange';
+  const tagEl = what ? (kitUI.tag?.(status, tone) ?? el('span', { class: `inj-status ${injTone(inj.status)}`, text: status })) : null;
+  const updated = inj.date && Number.isFinite(Date.parse(inj.date)) ? dayLabel(localDate(Date.parse(inj.date))) : '';
+  return el('div', { class: 'q-card pad player-injury' }, [
+    el('div', { class: 'player-inj-head' }, [
+      el('div', { class: 'player-inj-what' }, [fitLine(el('strong', { class: 'one-line', text: what || status })), back ? el('small', { class: 'num', text: en ? back.replace(/^./, c => c.toUpperCase()) : back }) : null]),
+      tagEl
+    ]),
+    facts.length
+      ? el('ul', { class: 'player-inj-facts' }, [
+          ...facts.map(f => el('li', { class: f.day ? 'dated' : null }, [f.day ? el('span', { class: 'num', text: dayLabel(f.day) }) : null, el('span', { text: f.text })])),
+          updated ? el('li', { class: 'player-inj-when' }, [el('span', { class: 'num', text: en ? `Updated ${updated.replace(/^(Today|Yesterday)$/, w => w.toLowerCase())}` : `${updated} 更新` })]) : null
+        ])
+      : null
   ]);
 }
 // A team's card: the most serious first, three of them until 全部 is tapped
@@ -7650,7 +7697,8 @@ export async function openPlayer(league, id, fallback = {}) {
           teamChip,
           el('p', { class: 'muted' }, joinNodes(sub, ' · ')),
           // Why he's out and when he's back, as the team's page says it (Jay, 2026-10-22), the report's word under it.
-          a.injuries.length ? el('p', { class: 'injury-tag' }, joinNodes(['🩹', ...a.injuries.map(injuryText)], ' ')) : null,
+          // (Not when the card under the hero says it.)
+          a.injuries.length && !a.injury ? el('p', { class: 'injury-tag', text: a.injuries.map(injuryText).join(' ') }) : null,
         ]),
         followBtn
       ]),
@@ -7658,7 +7706,7 @@ export async function openPlayer(league, id, fallback = {}) {
       // team's page), the report's word under it: a card of its own under
       // the hero, whatever the tab.
       // (Three tiers, not one crowded line: the status and what's wrong, when he's back under it, the report's word below a hairline.)
-      a.injury ? el('div', { class: 'q-card pad player-injury' }, [el('div', { class: 'player-inj' }, [el('span', { class: `inj-status ${injTone(a.injury.status)}`, text: injuryText(a.injury.status) }), (en ? a.injury.what : injuryWhatZh(a.injury.what)) ? el('strong', { text: en ? a.injury.what : injuryWhatZh(a.injury.what) }) : null]), backText(a.injury.back, a.injury.comment) ? el('p', { class: 'player-inj-back num', text: backText(a.injury.back, a.injury.comment) }) : null, a.injury.comment ? el('p', { class: 'injury-note muted' }, [zhLater(a.injury.comment)]) : null]) : null,
+      a.injury ? injuryCard(a.injury, league) : null,
       strip,
       tabsBox,
       tabBody
