@@ -7737,7 +7737,10 @@ export async function openPlayer(league, id, fallback = {}) {
       leagueLeaders(league)
         .then(data => {
           // (Not those the season's card above already ranks.)
-          const above = new Set((a.stats?.list || []).filter(x => x.rank).map(x => statName(x.label, L(), { sport, long: x.name })));
+          const ranked = new Map((a.stats?.list || []).filter(x => x.rank).map(x => [statName(x.label, L(), { sport, long: x.name }), x.rank]));
+          const above = new Set(ranked.keys());
+          // (On 數據 the same place as the season's card: Kyshawn George's 17.9 read 第 51 there and 第 48 名 here, 11-12.)
+          const rankShown = r => (ranked.has(leaderLabel(r.stat, sport, en)) ? (en ? rankText(ranked.get(leaderLabel(r.stat, sport, en))) : `${rankText(ranked.get(leaderLabel(r.stat, sport, en)))} 名`) : W(`第 ${r.rank} 名`, `#${r.rank}`));
           const every = playerRanks(data, id, a.name);
           const ranks = every.filter(r => !above.has(leaderLabel(r.stat, sport, en))).slice(0, 6);
           // One place alone (a bench player's lone 第 74 名) says little and left a near-empty card: none then.
@@ -7753,7 +7756,7 @@ export async function openPlayer(league, id, fallback = {}) {
             { sub: W(`各項前 ${top} 名裡`, `Within each top ${top}`) }
           );
           // 數據: every list he's in, in the lists' own order (a team's 數據 ranks every stat too).
-          const all = card(W('聯盟排名', 'League ranks'), el('div', { class: 'q-rows-full stat-grid dense' }, every.map(r => tile(leaderLabel(r.stat, sport, en), r.value, W(`第 ${r.rank} 名`, `#${r.rank}`)))), { sub: W(`各項前 ${top} 名裡`, `Within each top ${top}`) });
+          const all = card(W('聯盟排名', 'League ranks'), el('div', { class: 'q-rows-full stat-grid dense' }, [...every].sort((x, y) => (String(rankShown(x)).match(/\d+/)?.[0] ?? x.rank) - (String(rankShown(y)).match(/\d+/)?.[0] ?? y.rank)).map(r => tile(leaderLabel(r.stat, sport, en), r.value, rankShown(r)))), { sub: W(`各項前 ${top} 名裡`, `Within each top ${top}`) });
           const rowsAt = numbers.indexOf(rowsCard);
           numbers.splice(rowsAt >= 0 ? rowsAt + 1 : numbers.length, 0, all);
           if (!views.some(v => v[0] === 'numbers')) views.splice(views.findIndex(v => v[0] === 'bio') >= 0 ? views.findIndex(v => v[0] === 'bio') : views.length, 0, ['numbers', W('數據', 'Stats'), numbers]);
