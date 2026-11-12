@@ -289,7 +289,8 @@ export function openWatch(ev, b) {
   }, 1800);
 }
 // A link that plays a channel (`b` from tvOf: url, app), or a plain label when it can't be watched online.
-export const watchLink = (b, attrs, children) => (b.url ? el('a', { ...attrs, href: b.url, target: '_blank', rel: 'noopener', onclick: ev => openWatch(ev, b) }, children) : el('div', attrs, children));
+// (The caller's own onclick kept, run first: the lead card's stops the tap there; dropped, 觀看 opened the game's page behind the app too, 11-12.)
+export const watchLink = (b, attrs, children) => (b.url ? el('a', { ...attrs, href: b.url, target: '_blank', rel: 'noopener', onclick: ev => (attrs?.onclick?.(ev), openWatch(ev, b)) }, children) : el('div', attrs, children));
 // One tap to watch a game on now (or starting within half an hour): ▶ 觀看 and where (MAX5台,
 // 愛爾達, Apple TV), straight into the app. Null when it can't be watched.
 export function watchButton(e, cls = '') {
