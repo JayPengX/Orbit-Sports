@@ -1637,12 +1637,14 @@ const dayWaits = slot => !slot?.drawn && (slot?.partial > 0 || (state.prefs.fill
 const ownGame = e => isFollowedEvent(e, { chosen: false });
 // 首頁's sections on the board (ui.js homeBoard): cols' two lists, in their
 // places: left [lead game, 正在進行, a day gone by, a note, the spinner,
-// 我的比賽], right [更多賽事, 我的聯賽, 我的球隊, 已結束]. The lead game,
-// 正在進行 and 我的比賽 pair up; my leagues and teams to the side.
-function homeLayout([hero, live, past, note, spin, mine], [more, leagues, teams, ended]) {
+// 我的比賽], right [their teams' later games when 推薦 leads, 更多賽事, 我的球隊, 已結束].
+// The lead game, 正在進行 and 我的比賽 pair up; their later games and teams to
+// the side. (我的聯賽 left for 追蹤 11-10: its slot had taken 我的球隊's,
+// and 已結束 went to the side, not under the board.)
+function homeLayout([hero, live, past, note, spin, mine], [later, more, teams, ended]) {
   const isList = x => x?.classList?.contains('q-section');
   const pairs = new Set([hero, live, isList(mine) ? mine : null].filter(Boolean));
-  return homeBoard([note, hero, live, isList(mine) ? mine : null, past, spin, isList(mine) ? null : mine], [leagues, teams], pairs, [more, ended]);
+  return homeBoard([note, hero, live, isList(mine) ? mine : null, past, spin, isList(mine) ? null : mine], [later, teams], pairs, [more, ended]);
 }
 function renderHome() {
   const box = $('panel-home');
@@ -2011,6 +2013,9 @@ function renderHome() {
         }))
       )
     : null;
+  // A day of others' picks: they're 推薦, their own teams' later games 我的比賽
+  // in a section of their own after them (the Lakers' 11/16 read under 推薦, 11-12).
+  const splitMine = !past && fallback && planShown.length > 0 && mineNext.length > 0;
   // A day with nothing on TV at all (theirs and the others', any hour): never
   // said while a game of the small hours is listed under 更多賽事.
   const nothing = !past && !h.picking && fallback && !planList.length && !restShown.length && !endedGames.length && !hero && !liveBlock;
@@ -2065,11 +2070,12 @@ function renderHome() {
       past
         ? null
         : planShown.length || mineNext.length
-          ? section(fallback ? t('picks') : t('myGames'), el('div', { class: 'q-card list pick-list' }, [...planShown.map(x => planRow(x, rowDay)), ...mineNext.map(e => eventRow(e))]), { action: !restShown.length && moreAll.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null })
+          ? section(fallback && planShown.length ? t('picks') : t('myGames'), el('div', { class: 'q-card list pick-list' }, [...planShown.map(x => planRow(x, rowDay)), ...(splitMine ? [] : mineNext.map(e => eventRow(e)))]), { action: !restShown.length && moreAll.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null })
           : finding || fallback || liveBlock || hero || h.picking || mineNext.length || restShown.length
             ? null
             : dayEmpty(gap ? null : h.filter === 'all' ? noTvTitle(h.date) : { title: t('noPicksMine') })
     ], [
+      splitMine ? section(t('myGames'), el('div', { class: 'q-card list pick-list' }, mineNext.map(e => eventRow(e)))) : null,
       !past && restShown.length ? section(t('moreGames'), kitRail(restShown.map(x => x.event)), { action: moreAll.length > restShown.length ? moreButton(t('allN', { n: moreAll.length }), () => openMore(moreAll, rowDay)) : null }) : null,
       teamsShelf || placesShelf,
       endedGames.length || endedFilled.length ? section(t('pastEvents'), endedBody(endedGames, endedFilled, g => (light ? recapList(g, endedRow) : kitRail(g, endedRow))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: endedGames.length + endedFilled.length }) }) }) : null
