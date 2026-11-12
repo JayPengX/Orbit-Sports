@@ -17,20 +17,18 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 
 <p align="center">
   <img src="docs/screenshots/sports-1.webp" width="30%" alt="Your games, the moment you open it">
-  <img src="docs/screenshots/sports-2.webp" width="30%" alt="Ask about your teams, answered from real data">
-  <img src="docs/screenshots/sports-3.webp" width="30%" alt="Three lines after the game, faces and logos">
+  <img src="docs/screenshots/sports-2.webp" width="30%" alt="All 15 competitions on TV in Taiwan">
+  <img src="docs/screenshots/sports-3.webp" width="30%" alt="Every game, and the channel it's on">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/sports-4.webp" width="30%" alt="What decided the F1 race">
-  <img src="docs/screenshots/sports-5.webp" width="30%" alt="What's on now, one tap to watch">
-  <img src="docs/screenshots/sports-6.webp" width="30%" alt="How the game swung, and when">
+  <img src="docs/screenshots/sports-4.webp" width="30%" alt="How the game swung, and when">
+  <img src="docs/screenshots/sports-5.webp" width="30%" alt="The table and the title race">
+  <img src="docs/screenshots/sports-6.webp" width="30%" alt="Every player's whole career">
 </p>
 
 <p align="center">
   <img src="docs/screenshots/sports-7.webp" width="30%" alt="Every F1 weekend, counted down">
-  <img src="docs/screenshots/sports-8.webp" width="30%" alt="The table and the title race">
-  <img src="docs/screenshots/sports-9.webp" width="30%" alt="Every player's whole career">
 </p>
 
 <details>
@@ -38,20 +36,18 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 
 <p align="center">
   <img src="docs/screenshots/sports-1.zh.webp" width="30%" alt="你的比賽，一打開就看到">
-  <img src="docs/screenshots/sports-2.zh.webp" width="30%" alt="問你的球隊，AI 從真資料回答">
-  <img src="docs/screenshots/sports-3.zh.webp" width="30%" alt="賽後三句話，球員和球隊一眼認">
+  <img src="docs/screenshots/sports-2.zh.webp" width="30%" alt="台灣轉播的 15 項賽事，全在這">
+  <img src="docs/screenshots/sports-3.zh.webp" width="30%" alt="每場比賽在哪一台播，一次看">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/sports-4.zh.webp" width="30%" alt="F1 勝負關鍵，AI 讀完整場">
-  <img src="docs/screenshots/sports-5.zh.webp" width="30%" alt="正在轉播的比賽，一鍵觀看">
-  <img src="docs/screenshots/sports-6.zh.webp" width="30%" alt="勝率走勢與關鍵時刻">
+  <img src="docs/screenshots/sports-4.zh.webp" width="30%" alt="勝率走勢與關鍵時刻">
+  <img src="docs/screenshots/sports-5.zh.webp" width="30%" alt="積分榜與爭冠形勢">
+  <img src="docs/screenshots/sports-6.zh.webp" width="30%" alt="每位球員的完整生涯">
 </p>
 
 <p align="center">
   <img src="docs/screenshots/sports-7.zh.webp" width="30%" alt="F1 每一站，倒數到起跑">
-  <img src="docs/screenshots/sports-8.zh.webp" width="30%" alt="積分榜與爭冠形勢">
-  <img src="docs/screenshots/sports-9.zh.webp" width="30%" alt="每位球員的完整生涯">
 </p>
 
 </details>
