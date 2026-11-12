@@ -13,3 +13,14 @@ test("home's strip: a fixed stretch around today, across a month's and a year's 
   const days = stripDays('2026-12-31', { range: { from: -1, to: 2 }, base: '2026-12-31' });
   assert.deepEqual(days, ['2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02']);
 });
+
+test("首頁 stays on today while a game of their sport on TV is still to come there (11-12: 06:00 went to tomorrow over today's 08:00 game on ELTA)", async () => {
+  const { tvDayHas } = await import('../public/lib/strip.mjs');
+  const g = (id, state, extra = {}) => ({ id, league: 'nba', status: { state }, ...extra });
+  const opts = { fits: e => e.league === 'nba', onTv: e => e.id !== 'off' };
+  assert.equal(tvDayHas([g('a', 'pre')], { ...opts, left: true }), true);
+  // Over, postponed, not on TV here, another sport: nothing to stay for.
+  assert.equal(tvDayHas([g('a', 'post'), g('v', 'pre', { status: { state: 'pre', void: true } }), g('off', 'pre'), { ...g('m', 'pre'), league: 'mlb' }], { ...opts, left: true }), false);
+  // A day ahead counts its games as they stand (a result kept).
+  assert.equal(tvDayHas([g('a', 'post')], opts), true);
+});

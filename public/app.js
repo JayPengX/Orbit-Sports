@@ -10,7 +10,7 @@
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
 import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, readJson, writeJson, writeStore, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
-import { stripDays, chosenOf, sportBack, sportDay } from './lib/strip.mjs';
+import { stripDays, chosenOf, sportBack, sportDay, tvDayHas } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay, playsWithin } from './lib/bounds.mjs';
 import * as kitUI from '#kit/ui.mjs';
@@ -1724,7 +1724,9 @@ function renderHome() {
   // day can't say there's none). 今天 on the strip still shows today's.
   // (A followed team playing now, on TV here or not, keeps 首頁 on today: it jumped to tomorrow
   // while the Lakers were on, and their game showed nowhere on 首頁, 11-12.)
-  const nothingToday = !planList.length && !mine.some(e => e.status.state === 'in' || e.status.state === 'post') && !followedOnNow();
+  // (Nor while today still has what that next day would be picked for, a game
+  // of their sport on TV here: lib/strip.mjs tvDayHas.)
+  const nothingToday = !planList.length && !mine.some(e => e.status.state === 'in' || e.status.state === 'post') && !followedOnNow() && !(h.date === today() && pickDayHas(h.date, { left: true }));
   // (Only their own leagues and ELTA's list need to be in for it: one of the
   // other leagues unread kept it waiting for a retry, 4 s and more.)
   if ((nothingToday || todayOver) && h.filter === 'all' && h.autoDay && h.date === today() && state.prefs.leagues.length && !slot.stale && !slot.loading && !(slot.partial > 0) && !tvUnread()) {
@@ -4999,10 +5001,11 @@ function savedJump() {
     return null;
   }
 }
-const pickDayHas = date => {
+const pickDayHas = (date, { left = false } = {}) => {
   const slot = state.days.get(date);
   const sports = new Set(followedSports());
-  return Boolean(slot?.at && !slot.partial && slot.leagues === leaguesKey() && slot.events.some(e => sports.has(LEAGUES[e.league]?.sport) && !e.status?.void && !practice(e) && onTv(e) && inPickDay(officialMs(e), date)));
+  const fits = e => sports.has(LEAGUES[e.league]?.sport) && !practice(e) && inPickDay(officialMs(e), date);
+  return Boolean(slot?.at && !slot.partial && slot.leagues === leaguesKey() && tvDayHas(slot.events, { fits, onTv, left }));
 };
 const nextLeagueDay = () =>
   pickLeagues()

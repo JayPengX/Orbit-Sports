@@ -40,3 +40,11 @@ export function sportDay(days, { from, today }) {
   const on = from > today ? from : today;
   return list.find(d => d >= on) || list.at(-1);
 }
+
+// A day 首頁's move to "their next day" may stop on: a game of a sport they
+// follow, on TV here, in their waking hours (`fits`: the sport, the hours,
+// not a practice). `left`: one not over yet, for today: a day with that
+// still to come isn't left for another day with only the same (11-12: at
+// 06:00 首頁 went to tomorrow's 勇士–馬刺 over today's 08:00 暴龍–76人 on ELTA).
+export const tvDayHas = (events, { fits, onTv, left = false }) =>
+  (events || []).some(e => !e.status?.void && !(left && e.status?.state === 'post') && fits(e) && onTv(e));
