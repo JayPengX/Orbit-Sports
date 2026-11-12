@@ -1253,6 +1253,8 @@ function weekendFollow(e) {
   return box;
 }
 export function followButton(isOn, toggle, label = T('follow')) {
+  // (The family's one follow button, the kit's (Orbit News follows the same way); drawn here on an older kit.)
+  if (kitUI.followButton) return kitUI.followButton(isOn, toggle, { label, on: T('following'), cls: 'follow-btn' });
   const b = el('button', { class: 'follow-btn', type: 'button' });
   const paint = () => {
     const on = isOn();
