@@ -1816,14 +1816,21 @@ function matchSection(view, d, e, table, lw = {}) {
       if (!people.length) return null;
       const hurt = new Map(hurtOf(t).map(x => [x.id || x.name, x]));
       const why = p => hurt.get(p.id) || hurt.get(p.name);
-      const out = people.filter(p => why(p) || p.injured);
       // (Nothing said yet: the five from its last game, named so: 上場先發, as on 概況.)
       const named = d.lineups?.kind === 'core' && !d.lineups.pending ? [d.lineups.away, d.lineups.home][k(t)] || [] : [];
-      const starters = people.filter(p => !out.includes(p) && named.some(x => x.id === p.id));
+      const isNamed = p => named.some(x => x.id === p.id);
+      // (A named starter only in doubt (每日觀察, 出賽存疑) stays with the five, as 概況
+      // draws them, his status by his position; one ruled out goes to 傷兵. 11-12: 76 人's
+      // 上場先發 was three, LeBron James and Joel Embiid day-to-day.)
+      const ruledOut = p => !why(p) || /缺陣|報銷|傷兵名單|禁賽|限制名單|^out\b|season|suspen|injured reserve|restricted/i.test(why(p).status || '');
+      const out = people.filter(p => (why(p) || p.injured) && !(isNamed(p) && !ruledOut(p)));
+      const starters = people.filter(p => !out.includes(p) && isNamed(p));
       const rest = people.filter(p => !out.includes(p) && !starters.includes(p));
       const startName = d.lineups?.last ? W('上場先發', 'Last game starters') : d.lineups?.projected ? W('預計先發', 'Expected starters') : W('先發', 'Starters');
-      const groups = starters.length ? [{ name: startName, list: starters, note: pos }, { name: T('bench'), list: rest, note: pos }] : byPosition([{ name: '', players: rest }], sport).map(g => ({ name: g.name, list: g.players }));
-      return sideSquad(tag(id), [...groups, { name: T('injuries'), list: out.map(p => ({ ...p, status: why(p)?.status || (en ? 'Injured' : '傷兵'), what: why(p)?.what || '', back: why(p)?.back || '' })), out: true }], e.league, sport);
+      const startNote = p => [pos(p), why(p) ? injuryText(why(p).status) : ''].filter(Boolean).join(' · ');
+      const groups = starters.length ? [{ name: startName, list: starters, note: startNote }, { name: T('bench'), list: rest, note: pos }] : byPosition([{ name: '', players: rest }], sport).map(g => ({ name: g.name, list: g.players }));
+      // (Its comment too: 本季報銷 or 回歸待定 said as on 概況, never a date next season.)
+      return sideSquad(tag(id), [...groups, { name: T('injuries'), list: out.map(p => ({ ...p, status: why(p)?.status || (en ? 'Injured' : '傷兵'), what: why(p)?.what || '', back: why(p)?.back || '', comment: why(p)?.comment || '' })), out: true }], e.league, sport);
     });
     if (cards.some(Boolean) || rostered) return el('div', { class: 'lineups q-sheet-pair' }, cards.filter(Boolean));
   }
