@@ -3693,7 +3693,13 @@ function circuitCard(e, sessions) {
     ].filter(Boolean);
     const map = c ? circuitDrawing(c, title, en) : null;
     const rec = facts?.['Fastest lap time'];
-    const day = date => new Date(`${date}T12:00:00`).toLocaleDateString(en ? 'en-US' : 'zh-TW', { weekday: 'short' });
+    // (Each day named by its biggest session, not a weekday: the circuit's
+    // Saturday night race is Sunday here, and the sessions above say so.)
+    const day = w => {
+      const at = sessions.filter(x => w.starts?.includes(x.start)).map(x => x.abbr);
+      const top = ['Race', 'Qual', 'SR', 'SQ', 'SS'].find(a => at.includes(a));
+      return top ? SESSION_NAMES[top].short[en ? 'en' : 'zh'] : at.length ? (en ? 'Practice' : '練習') : new Date(`${w.date}T12:00:00`).toLocaleDateString(en ? 'en-US' : 'zh-TW', { weekday: 'short' });
+    };
     return card(
       title,
       el('div', { class: 'cc' }, [
@@ -3709,7 +3715,7 @@ function circuitCard(e, sessions) {
             })()
           : null,
         wx.length
-          ? el('div', { class: 'cc-wx' }, wx.map(w => el('span', { class: 'cc-day' }, [el('small', { class: 'cc-day-k', text: day(w.date) }), el('span', { class: `cc-sky ${skyIcon(w.code)}`, html: kitUI.icons[skyIcon(w.code)] || '' }), el('span', { class: 'cc-t num' }, [el('strong', { text: `${w.hi}°` }), el('small', { text: ` ${w.lo}°` })]), w.rain != null ? el('small', { class: `cc-rain num${w.rain >= 40 ? ' wet' : ''}`, text: `${w.rain}%` }) : null])))
+          ? el('div', { class: 'cc-wx' }, wx.map(w => el('span', { class: 'cc-day' }, [el('small', { class: 'cc-day-k', text: day(w) }), el('span', { class: `cc-sky ${skyIcon(w.code)}`, html: kitUI.icons[skyIcon(w.code)] || '' }), el('span', { class: 'cc-t num' }, [el('strong', { text: `${w.hi}°` }), el('small', { text: ` ${w.lo}°` })]), w.rain != null ? el('small', { class: `cc-rain num${w.rain >= 40 ? ' wet' : ''}`, text: `${w.rain}%` }) : null])))
           : null
       ])
     );
@@ -7318,6 +7324,16 @@ export async function openPlayer(league, id, fallback = {}) {
       a.stats = ov.now.stats;
       ov.season = { title: `${ov.now.name} season stats`, rows: [ov.now.row, ...(ov.season?.rows || []).filter(r => /career/i.test(r.name))] };
       ov.rankings = [];
+    } else if (ov?.now?.row?.cells?.length) {
+      // ESPN's card this season's but a game behind his own log (Kyshawn
+      // George's 17.9 over 11 games over a log of 12 and 本季 18.5, 11-12):
+      // the log's numbers, ESPN's ranks beside them till it catches up.
+      const gp = r => Number(r?.cells?.find(c => c.label === 'GP')?.value);
+      const at = (ov.season?.rows || []).findIndex(r => /^regular season$/i.test(r.name));
+      if (at >= 0 && gp(ov.now.row) > gp(ov.season.rows[at])) {
+        a.stats = { ...a.stats, list: ov.now.stats.list.map(x => ({ ...x, rank: (a.stats?.list || []).find(y => y.label === x.label)?.rank || '' })) };
+        ov.season = { ...ov.season, rows: ov.season.rows.map((r, k) => (k === at ? ov.now.row : r)) };
+      }
     }
     const en = L() === 'en';
     const W = (zh, eng) => (en ? eng : zh);

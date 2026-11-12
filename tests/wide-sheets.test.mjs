@@ -70,5 +70,8 @@ test("a footballer's role and age from FotMob's squad where ESPN's is wrong (Nas
     ['Nobody Here', 'F', 20]
   ]);
   assert.equal(squadFixed(groups, null), groups);
+  // The accents ESPN left off as FotMob spells them, never taken off one ESPN has (Andy Nájar stays).
+  const [u] = squadFixed([{ name: '', players: [{ id: '9', name: 'Benjamin Sesko', jersey: '30', pos: 'F', age: 23 }, { id: '8', name: 'Kobbie Mainoo', jersey: '37', pos: 'M', age: 21 }] }], [{ name: 'Benjamin Šeško', shirt: 30, role: 'F', age: 23 }, { name: 'Kobbie Mainoo', shirt: 37 }]);
+  assert.deepEqual(u.players.map(p => p.name), ['Benjamin Šeško', 'Kobbie Mainoo']);
   assert.match(sheets, /squadFixed\(list, squad\)/);
 });

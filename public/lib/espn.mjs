@@ -2203,6 +2203,8 @@ export async function squadFacts(league, side = {}) {
 }
 // ESPN's roster groups with each footballer's role and age as FotMob has
 // them, matched by name (else by shirt and surname); the rest as ESPN's.
+// (A name the same but for the accents ESPN left off spelled as FotMob does: ESPN's roster
+// read 「Benjamin Sesko」 above 隊內排行's 「Benjamin Šeško」, 11-12.)
 export function squadFixed(groups, squad) {
   if (!squad?.length) return groups;
   const key = s => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '');
@@ -2213,7 +2215,8 @@ export function squadFixed(groups, squad) {
     ...g,
     players: g.players.map(p => {
       const x = find(p);
-      return x?.role ? { ...p, pos: x.role, age: x.age ?? p.age } : p;
+      const name = x?.name && /^[\x00-\x7f]*$/.test(p.name) && !/^[\x00-\x7f]*$/.test(x.name) && key(x.name) === key(p.name) ? x.name : p.name;
+      return x?.role ? { ...p, name, pos: x.role, age: x.age ?? p.age } : name === p.name ? p : { ...p, name };
     })
   }));
 }

@@ -214,19 +214,22 @@ export const driverAbout = name => getJson(`https://f1-live.orbit/about.json?nam
 export const cutoutFace = url => getJson(`https://f1-live.orbit/face.json?u=${encodeURIComponent(String(url).replace(/\/(small|medium|tiny)$/, ''))}`, { ttl: 30 * 24 * HOUR });
 // The weather at the circuit on the weekend's days there (Open-Meteo, no key,
 // through the proxy: one read a circuit for every phone): [{ date, code, hi,
-// lo, rain }] for the sessions' local dates within its 16 days, or [].
+// lo, rain, starts }] for the sessions' local dates within its 16 days, or []
+// (`starts` the sessions' on that local date: a day is named by them, never
+// by a weekday that isn't the one the sessions are listed under here).
 export async function circuitWeather(start, starts) {
   const race = await roundOf(start);
   const loc = race?.Circuit?.Location;
   if (!loc?.lat) return [];
   const w = await getJson(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.long}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=16`, { ttl: HOUR });
   const off = Number(w?.utc_offset_seconds) || 0;
-  const days = [...new Set(starts.map(s => new Date(Date.parse(s) + off * 1000).toISOString().slice(0, 10)))];
+  const local = s => new Date(Date.parse(s) + off * 1000).toISOString().slice(0, 10);
+  const days = [...new Set(starts.map(local))];
   const d = w?.daily || {};
   const out = days
     .map(date => {
       const i = (d.time || []).indexOf(date);
-      return i < 0 || d.temperature_2m_max?.[i] == null ? null : { date, code: d.weather_code[i], hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]), rain: d.precipitation_probability_max?.[i] ?? null };
+      return i < 0 || d.temperature_2m_max?.[i] == null ? null : { date, code: d.weather_code[i], hi: Math.round(d.temperature_2m_max[i]), lo: Math.round(d.temperature_2m_min[i]), rain: d.precipitation_probability_max?.[i] ?? null, starts: starts.filter(s => local(s) === date) };
     })
     .filter(Boolean);
   // (The circuit's height above the sea, Open-Meteo's for the spot: Mexico City's thin air at 2,240 m.)
