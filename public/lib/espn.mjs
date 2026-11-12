@@ -676,15 +676,24 @@ export function monthsBetween(fromMs, toMs) {
 // A league's season as its scoreboard says, on a day (today without one):
 // { season: { year, name, start, end, phase: 'pre' | 'regular' | 'post' | 'off' | '' },
 //   days: ['YYYYMMDD'…] (its game days), stages: [{ label, start, end }] (a cup's rounds) }.
+// A scoreboard's season phase: 'post', 'regular', 'pre', 'off' or ''.
+// The play-in (the NBA's season type 5) is the postseason's start: its bracket, not last season's.
+// ESPN can leave a season at its regular season once its playoffs are over, the
+// scoreboard's latest games all postseason ones (MLB, 11-12: the World Series
+// its latest game, the bracket drawn as a prediction from the table): the games say.
+export function seasonPhase(data) {
+  const t = data?.leagues?.[0]?.season?.type || {};
+  const name = `${t.name || ''} ${t.abbreviation || ''}`;
+  const types = (data?.events || []).map(e => Number(e?.season?.type)).filter(Boolean);
+  if (types.length && types.every(x => x === 3)) return 'post';
+  return t.type === 3 || t.type === 5 || /post|playoff|play-?in|final|knockout/i.test(name) ? 'post' : t.type === 2 || /regular|league phase|group/i.test(name) ? 'regular' : t.type === 1 || /^\s*pre/i.test(name) ? 'pre' : t.type === 4 || /off/i.test(name) ? 'off' : '';
+}
 export async function seasonInfo(league, date = null) {
   const l = LEAGUES[league];
   if (!l?.espn) return null;
   const data = await getJson(`${SITE}/${l.espn}/scoreboard${date ? `?dates=${date}` : ''}`, { ttl: date ? 6 * 3_600_000 : 10 * 60_000 });
   const L = data?.leagues?.[0] || {};
-  const t = L.season?.type || {};
-  const name = `${t.name || ''} ${t.abbreviation || ''}`;
-  // The play-in (the NBA's season type 5) is the postseason's start: its bracket, not last season's.
-  const phase = t.type === 3 || t.type === 5 || /post|playoff|play-?in|final|knockout/i.test(name) ? 'post' : t.type === 2 || /regular|league phase|group/i.test(name) ? 'regular' : t.type === 1 || /^\s*pre/i.test(name) ? 'pre' : t.type === 4 || /off/i.test(name) ? 'off' : '';
+  const phase = seasonPhase(data);
   const cal = parseCalendar(data);
   return {
     season: { year: L.season?.year || 0, name: L.season?.displayName || '', start: L.season?.startDate || '', end: L.season?.endDate || '', phase },
