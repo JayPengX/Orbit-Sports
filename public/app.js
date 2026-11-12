@@ -2583,11 +2583,14 @@ function openGuide(events, from = null) {
   const s = sheet(L({ zh: '愛爾達節目表', en: 'ELTA TV guide' }), { full: true });
   const items = guideItems();
   const days = [...new Set(items.map(p => localDate(p.start)))].filter(d => d >= today());
-  let day = days.includes(from) ? from : days[0];
+  // (Opened with nothing left today, the afternoon after the morning's games: on the next day
+  // with showings, not on 這天沒有節目。 under a guide full of them, 11-12.)
+  const showing = (d, now = Date.now()) => items.filter(p => localDate(p.start) === d && (d !== today() || p.end > now));
+  let day = days.includes(from) && showing(from).length ? from : days.find(d => d >= (from || today()) && showing(d).length) || days[0];
   const strip = {};
   const paint = () => {
     const now = Date.now();
-    const list = items.filter(p => localDate(p.start) === day && (day !== today() || p.end > now));
+    const list = showing(day, now);
     put(
       s.body,
       kitUI.dayBar(strip, { flat: true, days, current: day, today: today(), bounds: { from: days[0], to: days.at(-1) }, clamp: v => days.find(d => d >= v) ?? days.at(-1), onPick: d => ((day = d), paint()) }),
@@ -2608,7 +2611,7 @@ function openGuide(events, from = null) {
 // ---- 賽事: every sport, league and game day ------------------------------------------------------
 
 function openScores(league, date, view = 'games') {
-  state.scores = { ...state.scores, sport: LEAGUES[league].sport, league, date: date || null, picked: Boolean(date), chosen: date ? chosenOf(date, today()) : state.scores.chosen ?? null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(league) ? view : 'games', q: '' };
+  state.scores = { ...state.scores, sport: LEAGUES[league].sport, league, date: date || null, picked: Boolean(date), chosen: date ? chosenOf(date, today()) : state.scores.chosen ?? null, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: hasStandings(league) ? view : 'games', q: '', asked: league };
   // Opened from a search: the search is done (its box emptied), the league shows.
   clearSearch();
   if (state.tab === 'matches') loadScores();
@@ -3868,7 +3871,8 @@ function renderScores() {
   const sc = state.scores;
   if (sc.league === ALL) return renderAll();
   // A sport or league with nothing on now: the first one that has.
-  if (activeSet && !isActive(sc.league)) {
+  // (Not one opened on purpose, out of season or not: 搜尋's 中華職棒 opened MLB, 11-12.)
+  if (activeSet && !isActive(sc.league) && sc.asked !== sc.league) {
     const sport = isActiveSport(sc.sport) ? sc.sport : shownSports()[0];
     const league = shownLeaguesOf(sport).find(k => LEAGUES[k].top) || shownLeaguesOf(sport)[0];
     if (league) {
