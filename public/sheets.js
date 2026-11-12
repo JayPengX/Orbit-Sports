@@ -9,7 +9,7 @@ import * as kitNames from '#kit/names.mjs';
 import { injuryFacts, backDay } from './lib/injurynote.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, playedIds, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
+import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, playedIds, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, nationalGames, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom, f1PointsFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
@@ -7599,25 +7599,51 @@ export async function openPlayer(league, id, fallback = {}) {
     const lastOf = lg => { const done = (lg?.games || []).filter(g => !g.live); return done.length ? logCardOf({ ...lg, games: done.slice(0, 1) }, W('上一場', 'Last game')) : null; };
     let lastCard = racing ? null : lastOf(log);
     if (!racing) overview.unshift(...[nextBox, lastCard].filter(Boolean));
+    // His career, read once: 資料's and 數據's cards below, his country's games here.
+    const careerRead = (tries = 0) => playerCareer(league, id, a).catch(e => (tries < 2 && s.dialog.isConnected ? new Promise(r => setTimeout(r, 65_000)).then(() => (s.dialog.isConnected ? careerRead(tries + 1) : null)) : Promise.reject(e)));
+    let careerP = null;
+    const careerOnce = () => (careerP ??= careerRead());
+    // 下一場: his club's next game, and his country's before it (a capped
+    // footballer still in its side, FotMob's career: Haaland's Norway in the
+    // Nations League while City wait, Jay 11-12), each its competition said.
+    let box2 = null;
+    const paintNext = (list, country = []) => {
+      const soon = l => l.filter(x => x.status.state !== 'post' && !x.status.void && Date.parse(x.start) > Date.now() - 4 * 3_600_000);
+      const club = soon(list)[0];
+      const all = [...soon(country).filter(x => !club || Date.parse(x.start) < Date.parse(club.start)), club].filter(Boolean).sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
+      if (!all.length || !s.dialog.isConnected) return;
+      // (A game on now is 正在進行, not 下一場, alone.)
+      const rows = all[0].status.state === 'in' ? all.slice(0, 1) : all.slice(0, 3);
+      const nextTitle = rows[0].status.state === 'in' ? W('正在進行', 'On now') : rows.length > 1 ? W('接下來', 'Coming up') : W('下一場', 'Next game');
+      const mixed = all.some(x => country.includes(x));
+      const fill = box => put(box, el('p', { class: 'mini-h', text: nextTitle }), el('div', { class: 'q-card list' }, rows.map(x => eventRow(x, { league: mixed }))));
+      fill(nextBox);
+      nextBox.hidden = false;
+      if (!box2) {
+        box2 = nextBox.cloneNode(false);
+        games.unshift(box2);
+      }
+      fill(box2);
+      box2.hidden = false;
+      if (view === 'overview') paintTab();
+      if (!views.some(v => v[0] === 'games')) {
+        const at = views.findIndex(v => v[0] === 'numbers' || v[0] === 'bio');
+        views.splice(at >= 0 ? at : views.length, 0, ['games', W('賽程', 'Games'), games]);
+        paintTab();
+      }
+      if (view === 'games') paintTab();
+    };
     if (!racing && a.teamId)
       scheduleOf().then(list => {
-        const next = list.find(x => x.status.state !== 'post' && !x.status.void && Date.parse(x.start) > Date.now() - 4 * 3_600_000);
-        if (!next || !s.dialog.isConnected) return;
-        // (A game on now is 正在進行, not 下一場.)
-        const nextTitle = next.status.state === 'in' ? W('正在進行', 'On now') : W('下一場', 'Next game');
-        put(nextBox, el('p', { class: 'mini-h', text: nextTitle }), el('div', { class: 'q-card list' }, [eventRow(next, { league: false })]));
-        nextBox.hidden = false;
-        const box2 = nextBox.cloneNode(false);
-        put(box2, el('p', { class: 'mini-h', text: nextTitle }), el('div', { class: 'q-card list' }, [eventRow(next, { league: false })]));
-        box2.hidden = false;
-        games.unshift(box2);
-        if (view === 'overview') paintTab();
-        if (!views.some(v => v[0] === 'games')) {
-          const at = views.findIndex(v => v[0] === 'numbers' || v[0] === 'bio');
-          views.splice(at >= 0 ? at : views.length, 0, ['games', W('賽程', 'Games'), games]);
-          paintTab();
-        }
-        if (view === 'games') paintTab();
+        paintNext(list);
+        if (sport === 'soccer')
+          careerOnce()
+            .then(c => {
+              const side = c?.national?.[0];
+              return side && side.to == null ? nationalGames(side.team.name) : [];
+            })
+            .then(country => country.length && paintNext(list, country))
+            .catch(() => {});
       });
     const numbers = keep([
       og.gp ? card(W('正賽', 'Grand Prix'), f1Tiles(og.gp, en)) : summaryTiles.length ? card(W('本季表現', 'This season'), el('div', { class: 'q-rows-full stat-grid' }, summaryTiles)) : null,
@@ -7672,8 +7698,7 @@ export async function openPlayer(league, id, fallback = {}) {
     // His career, read behind the page (資料 and 數據 aren't what it opens
     // on): 資料's teams and honours, 數據's seasons, the draft's team.
     // (A read turned away, Jolpica's too-many: asked again a minute on, twice, while the page is open.)
-    const careerRead = (tries = 0) => playerCareer(league, id, a).catch(e => (tries < 2 && s.dialog.isConnected ? new Promise(r => setTimeout(r, 65_000)).then(() => (s.dialog.isConnected ? careerRead(tries + 1) : null)) : Promise.reject(e)));
-    careerRead()
+    careerOnce()
       .then(c => {
         if (!s.dialog.isConnected) return;
         if (!c) return Promise.reject(new Error('no career'));

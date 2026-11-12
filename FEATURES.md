@@ -25,6 +25,7 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - Live standings: the games on now counted as they stand, each side's score and move, said 即時排名 (排名 and a game's 排名) — `public/lib/title.mjs`, `public/sheets.js`, `public/app.js`: `live: true`, `即時排名`, `live-score`
 - A basketball player's season in depth (概況: 每場得分 bars, a tap on one reads that game, last five against the season; 數據: 投籃效率, 每 36 分鐘, 本季單場最高 opening each game, 分項數據 home/road, wins/losses, months) — `public/lib/hoops.mjs`, `public/lib/espn.mjs`, `public/sheets.js`: `hoopsSeason`, `parseSplits`, `athleteSplits`, `hoopsFormCard`, `hoopsShootingCard`, `hoopsMoreCard`, `hoopsHighsCard`, `hoopsSplitsCard`
 - Player careers — `public/sheets.js`, `public/lib/career.mjs`: `openPlayer`, `playerCareer`
+- A footballer's country's games before his club's next one in 下一場 / 接下來 (a senior side he's still in, FotMob's career; ESPN's fixtures: Nations League, qualifiers, friendlies, each named) — `public/lib/espn.mjs`, `public/sheets.js`: `nationalGames`, `nationalSideId`, `paintNext`
 - Team pages — `public/sheets.js`: `openTeam`
 - Follow a game from its page — `public/sheets.js`: `追蹤這場比賽`
 - A followed match brings only itself, never its league's other games — `public/lib/follows.mjs`, `public/app.js`: `matchOnly`

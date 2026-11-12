@@ -1954,6 +1954,26 @@ export async function teamSchedule(league, id) {
   const seen = new Set();
   return [...parseSchedule(done, league), ...parseSchedule(next, league)].filter(e => !seen.has(e.id) && seen.add(e.id)).map(freshGame).sort((a, b) => a.start.localeCompare(b.start));
 }
+// A national side's ESPN id by its name (FotMob's: 「Norway」, 「USA」,
+// 「Türkiye」), from ESPN's list of national sides, read once a week; null
+// when not found.
+const sideKey = s => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\band\b/g, '').replace(/[^a-z]/g, '');
+const SIDE_ALIAS = { usa: 'unitedstates', ireland: 'republicofireland', drcongo: 'congodr', korearepublic: 'southkorea', cotedivoire: 'ivorycoast', capeverdeislands: 'capeverde', kyrgyzstan: 'kyrgyzrepublic', turkey: 'turkiye', chinapr: 'china' };
+let nationalSides = null;
+export async function nationalSideId(name) {
+  nationalSides ??= getJson(`${SITE}/soccer/fifa.friendly/teams?limit=300`, { ttl: 7 * 86_400_000 })
+    .then(d => new Map((d?.sports?.[0]?.leagues?.[0]?.teams || []).map(x => [sideKey(x.team?.displayName), String(x.team?.id ?? '')])))
+    .catch(() => ((nationalSides = null), new Map()));
+  const k = sideKey(name);
+  return (await nationalSides).get(SIDE_ALIAS[k] || k) || null;
+}
+// A national side's games (Nations League, qualifiers, friendlies: ESPN's
+// across all its competitions, the Nations League's as ours, the rest
+// named), by its name; [] when it isn't found.
+export async function nationalGames(name) {
+  const id = await nationalSideId(name);
+  return id ? teamSchedule('nationsleague', id) : [];
+}
 export function parseRoster(data) {
   const groups = Array.isArray(data?.athletes?.[0]?.items) ? data.athletes : [{ position: '', items: data?.athletes || [] }];
   return groups.map(g => ({

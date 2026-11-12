@@ -18,8 +18,16 @@ const OTHER_ZH = [
   [/club world cup/i, '世俱盃'],
   [/world cup qualif/i, '世界盃資格賽'],
   [/world cup/i, '世界盃'],
+  // (A national side's games on a player's page, every confederation's: Jay 11-12.)
+  [/concacaf nations league/i, '中北美國家聯賽'],
   [/nations league/i, '歐國聯'],
+  [/gold cup/i, '金盃賽'],
+  [/(euro(pean championship)?) qualif/i, '歐洲盃資格賽'],
   [/euro(pean championship)?\b/i, '歐洲盃'],
+  [/asian cup qualif/i, '亞洲盃資格賽'],
+  [/asian cup/i, '亞洲盃'],
+  [/africa cup of nations qualif|afcon qualif/i, '非洲國家盃資格賽'],
+  [/africa cup of nations|afcon/i, '非洲國家盃'],
   [/copa am[eé]rica/i, '美洲盃'],
   [/friendly|friendlies/i, '友誼賽']
 ];

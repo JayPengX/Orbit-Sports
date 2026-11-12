@@ -25,3 +25,11 @@ test("a player's rows: short names, one line, the season only when they differ",
   assert.equal(splitName('Regular Season', nba, true), 'Regular Season');
   assert.equal(splitName('2026 Mystery Trophy', []), null);
 });
+
+test("a national side's competitions named for its confederation (CONCACAF's Nations League is no 歐國聯)", () => {
+  assert.equal(otherName('CONCACAF Nations League', false), '中北美國家聯賽');
+  assert.equal(otherName('UEFA Nations League', false), '歐國聯');
+  assert.equal(otherName('UEFA European Championship Qualifying', false), '歐洲盃資格賽');
+  assert.equal(otherName('AFC Asian Cup', false), '亞洲盃');
+  assert.equal(otherName('International Friendly', false), '友誼賽');
+});
