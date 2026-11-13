@@ -4905,7 +4905,25 @@ q.on('wallet', w => {
   state.wallet = w;
   if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
 });
-q.on('active', live => live && (readPrefs({ offline: true }), savePending && state.prefsLoaded && savePrefs(), loadDay(today())));
+q.on('active', live => live && (booted && state.prefsLoaded ? takeBackPrefs() : (readPrefs({ offline: true }), savePending && state.prefsLoaded && savePrefs()), loadDay(today())));
+// Live again here after Sports was used somewhere else (在這裡繼續; one
+// account, many places, Jay 11-13): the Pass's follows read first and the
+// newer kept, so what was followed there stays; only a newer edit here goes up.
+async function takeBackPrefs() {
+  const r = await q.read({ data: true }).catch(() => null);
+  let p = null;
+  try {
+    p = r?.payload ? JSON.parse(r.payload) : null;
+  } catch {}
+  if (p && (p.t || 0) > (localPrefs()?.t || 0)) {
+    const before = JSON.stringify(state.prefs);
+    applyPrefs(r.payload);
+    if (JSON.stringify(state.prefs) === before) return;
+    state.days.clear();
+    return showTab(state.tab);
+  }
+  if (r && savePending) savePrefs();
+}
 
 function firstTab() {
   const hash = location.hash.slice(1);
