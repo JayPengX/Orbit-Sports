@@ -11,6 +11,7 @@ import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
 import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, playedIds, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, nationalGames, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
+import { isGroupPlay } from './lib/nbacup.mjs';
 import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom, f1PointsFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
 import { previewLine, previewPath, previewDays, previewFrom } from './lib/preview.mjs';
@@ -41,7 +42,7 @@ import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broad
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
 import { newsNow, readNews, playerNews, teamNews, gameNews } from './lib/news.mjs';
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, gbShown, nextNeeds, standingsRace } from './lib/title.mjs';
-import { FORMATS } from './lib/playoffs.mjs';
+import { FORMATS, PICTURE_COLOR } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
 import { moreToggle, goBar, f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, homeName, today, sidesOf } from './ui.js';
 
@@ -567,7 +568,7 @@ export async function openMatch(e) {
     // (A game over a day and more ago: ESPN's injuries are today's, not that
     // night's, so none. Just over: who was out hurt stays, with who sat out, 未上場: Jay, 2026-10-28.)
     const shownView = view === 'stats' && part === 'players' ? 'players' : view === 'table' ? standPart : view;
-    const fresh = () => matchSection(shownView, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait, coming: past() ? heldPast(coming) : coming, plays: Object.assign(playsKeep, { shown: view === 'plays' ? content.firstElementChild : null }) });
+    const fresh = () => matchSection(shownView, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait, cup: cupGroup, coming: past() ? heldPast(coming) : coming, plays: Object.assign(playsKeep, { shown: view === 'plays' ? content.firstElementChild : null }) });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
     const next = shownView === 'playoffs' ? playoffsNode(e.league, shownView) : shownView === 'cup' ? playoffsNode('nbacup', shownView) : keep || fresh();
     // 概況: the line score and the game's moment are its flow's first card,
@@ -601,6 +602,9 @@ export async function openMatch(e) {
         .catch(() => null)
         .then(list => (seasonGames = list))
     );
+  // An NBA Cup group game: its group on 概況 (ctx.cupGroupOf), under 兩隊比較.
+  let cupGroup = null;
+  if (isGroupPlay(e) && ctx.cupGroupOf) later('cup', ctx.cupGroupOf(e).then(g => (cupGroup = g)));
   // The league's table: both sides' places, and the Table section.
   if (hasStandings(e.league))
     later(
@@ -1566,6 +1570,20 @@ function newsRows(list, { ai = false } = {}) {
   });
 }
 // (Its shape while News' stories are read: two rows.)
+// An NBA Cup group game's group (Jay 2026-11-13, 勇士 v 馬刺: "this game is
+// NBA cup", the page's 「NBA 盃 · 小組賽」 too quiet to see): its five as
+// the cup ranks them, each one's record and point difference in the cup,
+// the game's two sides marked, its first's bar green once a game's been
+// played (the conference's best second, the wild card, blue), as 排名's
+// NBA 盃 has them. `g` null: its shape, five rows, while it's read.
+function cupCard(g, e) {
+  const en = L() === 'en';
+  const signed = n => (n > 0 ? `+${n}` : String(n));
+  const rows = g ? g.rows.map(r => ({ id: r.id, name: r.name, short: r.short, logo: r.logo, color: r.zone ? PICTURE_COLOR[r.zone] : '', stats: { W: String(r.w), L: String(r.l), PD: signed(r.pd) } })) : Array.from({ length: 5 }, (_, i) => ({ id: `-${i}`, name: BLANK2, short: BLANK2, stats: { W: '0', L: '0', PD: '0' } }));
+  const table = standingsTables([{ rows }], 'nba', { cols: ['W', 'L', 'PD'], mark: [String(e.home.id), String(e.away.id)], open: Boolean(g) }).querySelector('.table-wrap');
+  const conf = g?.conf === 'East' ? (en ? 'East' : '東區') : g?.conf === 'West' ? (en ? 'West' : '西區') : '';
+  return card(en ? `NBA Cup${conf ? ` · ${conf}` : ''}` : `NBA 盃 · ${conf}小組賽`, table, { sub: en ? 'Winner to the quarters' : '分組第一晉級八強' });
+}
 const newsHeld = () =>
   el('div', { class: 'q-card pad fx-card news-card' }, [
     el('div', { class: 'card-h' }, [el('span', { class: 'q-h-ai' }, [kitUI.aiMark?.() || null, el('span', { text: L() === 'en' ? 'In the news' : '相關新聞' })])]),
@@ -1941,7 +1959,7 @@ function highlights(e, waited = false) {
 
 // The overview: the teams side by side, what the match is (where, when, TV),
 // the win probability, each side's leaders, the season series and injuries.
-function overview(d, e, table, nameOf, { line = null, wait = { summary: true, line: true }, coming = null } = {}) {
+function overview(d, e, table, nameOf, { line = null, wait = { summary: true, line: true }, coming = null, cup = null } = {}) {
   // (A read still coming: its part held in the shape that's coming, holdShape.
   // The game's own page still coming too, past the 3 s the first drawing
   // waits for it: what's drawn with it held, a read that's in or not.)
@@ -2060,6 +2078,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
       : still('injuries')
         ? holdShape(card(T('injuries'), el('div', { class: 'injuries' }, sides.map(t => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(String(t.id))]), injuryBox(blanks(INJ_SHOWN).map(x => ({ ...x, whatText: BLANK, label: BLANK2 })), e.league)])))))
         : null,
+    cup: cup ? cupCard(cup, e) : still('cup') ? holdShape(cupCard(null, e)) : null,
     // 相關新聞: Orbit News' stories naming both sides, either side's injuries first.
     news: newsNow() ? newsCard(gameNews(newsNow(), e)) : still('news') ? holdShape(newsHeld()) : null,
     tv: exactTv ? twCard(e.league, e) : null,
@@ -2069,7 +2088,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // before, during and after alike), only what's in it changing: the replay
   // and highlights once it's over, who's on (or starts), the chance, who
   // leads, the matchup, the season, the series, the rest.
-  const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'season', 'series', 'satOut', 'injuries', 'news', 'tv', 'info'];
+  const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'cup', 'season', 'series', 'satOut', 'injuries', 'news', 'tv', 'info'];
   // (A wide sheet: dealt into two columns, each card to the shorter one, the
   // tops level, kit flowColumns; Jay 2026-11-01, a phone on its side: CSS
   // columns left one side a card lower and ending far short of the other.)

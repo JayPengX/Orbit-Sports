@@ -2993,6 +2993,28 @@ ctx.playoffsOf = async league => {
   notePlayoffGames(model.rounds.flatMap(r => r.ties.flatMap(t => t?.games || [])).map(freshGame));
   return model?.rounds?.length ? playoffView(model, league) : null;
 };
+// An NBA Cup group game's group (Jay 2026-11-13, 勇士 v 馬刺: "this game is
+// NBA cup"): its five with their records in the cup, for the game's 概況.
+// The bracket's read when it's fresh; a first read waits 6 s at most, then
+// this phone's last whole read stands in (null: none).
+ctx.cupGroupOf = async e => {
+  if (!isGroupPlay(e)) return null;
+  const late = new Promise(r => setTimeout(r, 6_000)).then(() => {
+    const had = brackets.get(CUP)?.model;
+    if (had) return had;
+    const kept = keptCup();
+    try {
+      return kept ? bracketOf(CUP, kept) : null;
+    } catch {
+      return null;
+    }
+  });
+  const model = await Promise.race([bracketModel(CUP), late]).catch(() => late);
+  if (model?.mode === 'last') return null;
+  const ids = [e.home?.id, e.away?.id].map(String);
+  const g = (model?.groups || []).find(x => ids.every(id => x.rows.some(r => r.id === id)));
+  return g ? { conf: g.conf, rows: g.rows } : null;
+};
 const cupBanner = model => el('p', { class: 'po-banner' }, [el('strong', { text: locale === 'en' ? 'Last season' : '上季' }), document.createTextNode(`${model.season ? ` ${model.season}` : ''}${locale === 'en' ? ': this season’s NBA Cup hasn’t begun.' : '　本季 NBA 盃尚未開打。'}`)]);
 // The playoffs as a map you swipe across: a column a round (its name, and
 // done / on now / its dates under it), the later rounds between the ties

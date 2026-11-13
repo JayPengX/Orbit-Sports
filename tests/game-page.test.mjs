@@ -43,7 +43,7 @@ test('every read that draws the game page when it lands goes through later() (or
 
 test("each late read's part is held while it's coming", () => {
   const keys = [...new Set([...open.matchAll(/\blater\(\s*'([a-z]+)'/g)].map(m => m[1]))];
-  assert.deepEqual(keys.sort(), ['form', 'injuries', 'lineups', 'news', 'season', 'squads', 'table']);
+  assert.deepEqual(keys.sort(), ['cup', 'form', 'injuries', 'lineups', 'news', 'season', 'squads', 'table']);
   for (const k of keys) assert.ok(src.includes(`still('${k}')`) || src.includes(`coming.has('${k}')`), `${k}: held in its shape while it's read`);
 });
 
