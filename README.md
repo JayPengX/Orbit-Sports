@@ -24,7 +24,7 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 <p align="center">
   <img src="docs/screenshots/sports-4.webp" width="30%" alt="How the game swung, and when">
   <img src="docs/screenshots/sports-5.webp" width="30%" alt="The table and the title race">
-  <img src="docs/screenshots/sports-6.webp" width="30%" alt="Every player's whole career">
+  <img src="docs/screenshots/sports-6.webp" width="30%" alt="Every player's numbers on one page">
 </p>
 
 <p align="center">
@@ -43,7 +43,7 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 <p align="center">
   <img src="docs/screenshots/sports-4.zh.webp" width="30%" alt="勝率走勢與關鍵時刻">
   <img src="docs/screenshots/sports-5.zh.webp" width="30%" alt="積分榜與爭冠形勢">
-  <img src="docs/screenshots/sports-6.zh.webp" width="30%" alt="每位球員的完整生涯">
+  <img src="docs/screenshots/sports-6.zh.webp" width="30%" alt="每位球員的數據，一頁看完">
 </p>
 
 <p align="center">
