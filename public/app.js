@@ -2554,8 +2554,39 @@ function guideItems() {
   for (const p of shows.values()) p.channels.sort((a, b) => channelRank(a, state.prefs.audio || 'en') - channelRank(b, state.prefs.audio || 'en') || a.ch - b.ch);
   return [...shows.values(), ...nbaAfterList()].sort((a, b) => a.start - b.start);
 }
-const guideTitle = p => (p.teams.length === 2 ? `${p.teams[0]} vs ${p.teams[1]}` : p.title.replace(/[【（(][^】）)]*[】）)]/g, '').replace(STAGE_WORD, '').trim() || p.title);
-const guideDetail = p => STAGE_WORD.exec(p.title)?.[1] || '';
+// One language (Jay 11-13): the guide is ELTA's Chinese listing; in English a
+// team is its game's own (matched) or its English name (a club's from the
+// kit's names, a country's from the phone's own list of regions), a stage
+// its English word. What has none stays as listed, marked Chinese.
+const HAN = /[\u3400-\u9fff]/;
+let countriesEn = null;
+const countryEn = zh => {
+  if (!countriesEn) {
+    countriesEn = new Map([['蘇格蘭', 'Scotland'], ['英格蘭', 'England'], ['威爾斯', 'Wales'], ['北愛爾蘭', 'Northern Ireland'], ['中華台北', 'Chinese Taipei'], ['中華隊', 'Chinese Taipei'], ['南韓', 'South Korea'], ['韓國', 'South Korea'], ['北韓', 'North Korea'], ['美國', 'USA']]);
+    try {
+      const zhN = new Intl.DisplayNames(['zh-Hant-TW'], { type: 'region' });
+      const enN = new Intl.DisplayNames(['en'], { type: 'region' });
+      for (let a = 65; a < 91; a++) for (let b = 65; b < 91; b++) {
+        const code = String.fromCharCode(a, b);
+        const z = zhN.of(code);
+        if (z && z !== code && !countriesEn.has(z)) countriesEn.set(z, enN.of(code));
+      }
+    } catch {}
+  }
+  return countriesEn.get(zh) || '';
+};
+const teamEn = t => countryEn(t) || teamsByZh(t, 3).find(x => x.zh === t)?.name || t;
+const STAGE_EN = { 熱身賽: 'Preseason', 例行賽: 'Regular season', 季後賽: 'Playoffs', 外卡賽: 'Wild Card', 分區系列賽: 'Division Series', 聯盟冠軍賽: 'Championship Series', 世界大賽: 'World Series', 總冠軍賽: 'Finals', 準決賽: 'Semifinal', 決賽: 'Final', 排位賽: 'Qualifying', 衝刺排位賽: 'Sprint Qualifying', 衝刺賽: 'Sprint', 正賽: 'Race' };
+const stageEn = w => STAGE_EN[w] || (/^(\d+)強$/.exec(w) ? `Round of ${w.slice(0, -1)}` : /^第(\d+)輪$/.exec(w) ? `Round ${w.replace(/\D/g, '')}` : /^第(\d+)比賽日$/.exec(w) ? `Matchday ${w.replace(/\D/g, '')}` : /^第(\d)節自由練習$/.exec(w) ? `Practice ${w.replace(/\D/g, '')}` : w);
+const guideTitle = (p, e = null) => {
+  const zh = p.teams.length === 2 ? `${p.teams[0]} vs ${p.teams[1]}` : p.title.replace(/[【（(][^】）)]*[】）)]/g, '').replace(STAGE_WORD, '').trim() || p.title;
+  if (locale !== 'en' || !HAN.test(zh)) return zh;
+  const t = p.teams.length === 2 ? p.teams.map(teamEn) : [];
+  if (t.length && !t.some(x => HAN.test(x))) return `${t[0]} vs ${t[1]}`;
+  if (e?.away?.name && e?.home?.name && !HAN.test(e.away.name + e.home.name)) return `${e.away.name} vs ${e.home.name}`;
+  return t.length ? `${t[0]} vs ${t[1]}` : zh;
+};
+const guideDetail = p => (w => (w && locale === 'en' ? stageEn(w) : w))(STAGE_WORD.exec(p.title)?.[1] || '');
 function guideRow(p, events, now) {
   const on = p.start <= now && p.end > now;
   const e = events.find(x => x.league === p.league && tvOf(x).some(b => p.channels.some(c => c.ch === b.ch) && b.at === p.start));
@@ -2563,7 +2594,7 @@ function guideRow(p, events, now) {
   return el('div', { class: `tvg-row${on ? ' on' : ''}` }, [
     el('b', { class: 'tvg-time num', text: on ? L({ zh: '播出中', en: 'Live' }) : clock(new Date(p.start).toISOString()) }),
     el('button', { class: 'tvg-body', type: 'button', disabled: e && !e.status?.void ? null : true, onclick: () => e && openEvent(e) }, [
-      el('span', { class: 'tvg-head' }, [leagueMark(p.league, 'lg-mark xs'), el('strong', { class: 'tvg-title q-fit', text: guideTitle(p) })]),
+      el('span', { class: 'tvg-head' }, [leagueMark(p.league, 'lg-mark xs'), (t => el('strong', { class: 'tvg-title q-fit', text: t, ...(locale === 'en' && HAN.test(t) ? { lang: 'zh-Hant' } : {}) }))(guideTitle(p, e))]),
       el('span', { class: 'tvg-chs' }, [
         detail ? el('small', { class: 'tvg-detail', text: detail }) : null,
         ...(p.channels.length
