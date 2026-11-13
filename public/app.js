@@ -18,6 +18,7 @@ import * as kitUI from '#kit/ui.mjs';
 import * as kitEspn from '#kit/sports-espn.mjs';
 import { transition, pickFinals, gameHash, readGameHash } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
+import { readNews, NEWS_TTL } from './lib/news.mjs';
 import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
@@ -5086,6 +5087,9 @@ async function boot() {
   window.__bootStep?.(t('loadingGames'), 0.84);
   // Which leagues have games now (after the day's own reading, not before it).
   setTimeout(() => checkActive().catch(() => {}), 1500);
+  // 相關新聞: Orbit News' sports stories, read behind the day's games (a
+  // player's, a team's and a game's page draw theirs from it), every 10 minutes.
+  setTimeout(() => (readNews(), setInterval(() => document.visibilityState === 'visible' && readNews(), NEWS_TTL)), 2500);
   await (early && !prefsMoved ? early : loadDay(today()));
   window.__bootStep?.(t('loadingPicks'), 0.94);
   await homeReady(until);

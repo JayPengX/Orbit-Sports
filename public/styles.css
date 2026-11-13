@@ -3137,3 +3137,22 @@ table.hp-splits tbody tr.hp-split-new > * { border-top-color: var(--q-divider, v
 .sp-ask-row.on { color: var(--q-accent); }
 .sp-ask-foot { margin-top: 12px; padding-top: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); border-top: 0; }
 .sp-ask .sp-ask-foot .q-ai-bar { margin-top: 0; }
+/* 相關新聞 (Orbit News' stories about a player, a team, a game): the outlet's
+   mark, the headline on two lines at most, its kind, outlet and when under
+   it; a tap opens it in Orbit News. */
+.news-list { display: grid; }
+.news-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; column-gap: 10px; width: 100%; padding: 9px 0; border: 0; border-top: 0.5px solid var(--q-sep, var(--q-border)); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.news-row:first-child { border-top: 0; padding-top: 0; }
+.news-row:last-child { padding-bottom: 0; }
+.news-mark { width: 20px; height: 20px; margin-top: 1px; border-radius: 5px; background: var(--q-sunken); object-fit: cover; }
+.news-text { display: grid; gap: 3px; min-width: 0; }
+.news-text strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; font-weight: 600; line-height: 1.35; }
+.news-text small { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--q-muted); font-size: 12px; white-space: nowrap; overflow: hidden; }
+.news-text small > .num { overflow: hidden; text-overflow: ellipsis; }
+.news-text small .q-ai-mark { width: 12px; height: 12px; }
+.news-kind { flex: none; font-weight: 600; color: var(--q-label-2); }
+.news-kind.injury, .news-kind.ban { color: var(--q-bad, #ef4444); }
+.news-chev { align-self: center; color: var(--q-muted); font-size: 18px; line-height: 1; }
+/* On an injury's card: the story about it, under a hairline. */
+.news-in-card { margin-top: 12px; padding-top: 10px; border-top: 0.5px solid var(--q-sep); }
+.news-in-card .news-row { padding: 0; }

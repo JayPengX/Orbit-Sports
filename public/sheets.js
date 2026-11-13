@@ -39,6 +39,7 @@ import { parseSearch, placeTeams } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
+import { newsNow, readNews, playerNews, teamNews, gameNews } from './lib/news.mjs';
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, gbShown, nextNeeds, standingsRace } from './lib/title.mjs';
 import { FORMATS } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
@@ -656,6 +657,8 @@ export async function openMatch(e) {
       .catch(() => {});
   };
   if (asksLineups(e)) later('lineups', pregameLineups(e).then(l => (lineups = l)));
+  // 相關新聞 (Orbit News'), its place held while it's read (read at the app's start).
+  if (e.home?.name && e.away?.name && !newsNow()) later('news', readNews());
   lineupTimer = setInterval(loadLineups, 60_000);
   s.dialog.addEventListener('close', stopLineups);
   {
@@ -1457,7 +1460,7 @@ function injuryLine(x, league, { lead = false } = {}) {
 // never Google's translation of the note (Jay 2026-11-12: "Bad translation
 // and card not so good looking"), and the day the report was last changed.
 const TAG_TONE = { bad: 'red', warn: 'orange', good: 'green' };
-function injuryCard(inj, league) {
+function injuryCard(inj, league, news = null) {
   const en = L() === 'en';
   // What's wrong with its side ("Right" → 右腹部痠痛).
   const side = inj.what && inj.side ? (en ? `${inj.side} ` : /^left$/i.test(inj.side) ? '左' : '右') : '';
@@ -1491,7 +1494,9 @@ function injuryCard(inj, league) {
           ...facts.map(f => el('li', { class: f.day ? 'dated' : null }, [f.day ? el('span', { class: 'num', text: dayLabel(f.day) }) : null, el('span', { text: f.text })])),
           updated ? el('li', { class: 'player-inj-when' }, [el('span', { class: 'num', text: en ? `Updated ${updated.replace(/^(Today|Yesterday)$/, w => w.toLowerCase())}` : `${updated} 更新` })]) : null
         ])
-      : null
+      : null,
+    // (The news story about it, a row that opens it in Orbit News: 相關新聞's.)
+    news
   ]);
 }
 // A team's card: the most serious first, three of them until 全部 is tapped
@@ -1522,6 +1527,55 @@ function injuryBox(list, league) {
 function teamInjuryCard(list, league) {
   if (!list?.length) return null;
   return card(T('injuries'), injuryBox(list, league), { sub: dayLabel(localDate(Math.max(...list.map(x => Date.parse(x.date) || 0)) || Date.now())) });
+}
+
+// 相關新聞 (Jay 2026-11-13: "do that cross app thing for sports's that's news
+// related, for example injury"): Orbit News' stories about the player, the
+// team or the game (lib/news.mjs), its kind (傷病, 禁賽, 換帥, 轉隊), its outlet
+// and when. A row opens the story in Orbit News, in place inside Orbit
+// (the kit's go; the standalone app hands off, and may suggest Orbit).
+// Matched by code, the names of a Chinese story read by the family's AI: the
+// Orbit AI mark on its head.
+function newsWhen(at) {
+  const day = localDate(at);
+  return day === today() ? clock(new Date(at).toISOString()) : dayLabel(day);
+}
+function openNews(s) {
+  const hash = `s=${s.id}`;
+  if (ctx.q?.go) return ctx.q.go('news', hash);
+  location.assign(`/news/#${hash}`);
+}
+function newsRows(list, { ai = false } = {}) {
+  const n = newsNow();
+  if (!n || !list?.length) return [];
+  const en = L() === 'en';
+  return list.map(s => {
+    const [title, lang] = n.kit.storyTitle(s, en ? 'en' : 'zh');
+    const o = n.kit.outletOf?.(s.by);
+    const kind = n.kit.KIND_NAMES?.[s.k]?.[en ? 'en' : 'zh'];
+    const more = s.n > 1 ? (en ? `${s.n} outlets` : `${s.n} 家媒體`) : o ? (en ? o.en : o.zh) : '';
+    const icon = n.kit.outletIcon?.(s.by, 32);
+    return el('button', { class: 'news-row', type: 'button', onclick: () => openNews(s) }, [
+      icon ? el('img', { class: 'news-mark', src: icon, alt: '', loading: 'lazy', width: 20, height: 20 }) : el('span', { class: 'news-mark' }),
+      el('span', { class: 'news-text' }, [
+        el('strong', { lang, text: title }),
+        el('small', {}, [ai ? kitUI.aiMark?.() || null : null, kind ? el('span', { class: `news-kind ${s.k}`, text: kind }) : null, el('span', { class: 'num', text: [more, newsWhen(s.at)].filter(Boolean).join(' · ') })])
+      ]),
+      el('span', { class: 'news-chev', 'aria-hidden': 'true', text: '›' })
+    ]);
+  });
+}
+// (Its shape while News' stories are read: two rows.)
+const newsHeld = () =>
+  el('div', { class: 'q-card pad fx-card news-card' }, [
+    el('div', { class: 'card-h' }, [el('span', { class: 'q-h-ai' }, [kitUI.aiMark?.() || null, el('span', { text: L() === 'en' ? 'In the news' : '相關新聞' })])]),
+    el('div', { class: 'news-list' }, [0, 1].map(() => el('div', { class: 'news-row' }, [el('span', { class: 'news-mark' }), el('span', { class: 'news-text' }, [el('strong', { text: BLANK + BLANK + BLANK }), el('small', { text: BLANK })]), el('span')])))
+  ]);
+function newsCard(list) {
+  const rows = newsRows(list);
+  if (!rows.length) return null;
+  const head = el('span', { class: 'q-h-ai' }, [kitUI.aiMark?.() || null, el('span', { text: L() === 'en' ? 'In the news' : '相關新聞' })]);
+  return el('div', { class: 'q-card pad fx-card news-card' }, [el('div', { class: 'card-h' }, [head]), el('div', { class: 'news-list' }, rows)]);
 }
 
 // A side's row in the league's table: [place, row, group size]; none before the table's first game.
@@ -2006,6 +2060,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
       : still('injuries')
         ? holdShape(card(T('injuries'), el('div', { class: 'injuries' }, sides.map(t => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(String(t.id))]), injuryBox(blanks(INJ_SHOWN).map(x => ({ ...x, whatText: BLANK, label: BLANK2 })), e.league)])))))
         : null,
+    // 相關新聞: Orbit News' stories naming both sides, either side's injuries first.
+    news: newsNow() ? newsCard(gameNews(newsNow(), e)) : still('news') ? holdShape(newsHeld()) : null,
     tv: exactTv ? twCard(e.league, e) : null,
     info: card(T('matchInfo'), el('ul', { class: 'info-list' }, info.map(([, k, v]) => el('li', {}, [el('span', { class: 'info-k', text: k }), el('span', { class: 'info-v' }, [].concat(v))]))))
   };
@@ -2013,7 +2069,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // before, during and after alike), only what's in it changing: the replay
   // and highlights once it's over, who's on (or starts), the chance, who
   // leads, the matchup, the season, the series, the rest.
-  const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'season', 'series', 'satOut', 'injuries', 'tv', 'info'];
+  const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'season', 'series', 'satOut', 'injuries', 'news', 'tv', 'info'];
   // (A wide sheet: dealt into two columns, each card to the shorter one, the
   // tops level, kit flowColumns; Jay 2026-11-01, a phone on its side: CSS
   // columns left one side a card lower and ending far short of the other.)
@@ -6193,6 +6249,20 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
     // page (its logos, its place), drawn again only when what it shows came in.
     const kept = new Map();
     const fresh = () => kept.clear();
+    // 相關新聞: its stories (Orbit News'), its injuries, bans, coaches and
+    // moves first, under its injuries; added at 概況's end when they come
+    // after it was drawn (nothing above it moves).
+    let newsLate = null;
+    const newsHere = () => {
+      const n = newsNow();
+      return n ? newsCard(teamNews(n, league, { name: info.en || info.name, short: info.enShort || '' })) : null;
+    };
+    if (!newsNow())
+      readNews().then(n => {
+        if (!n || !s.dialog.isConnected || newsLate === false) return;
+        kept.delete('overview');
+        if (view === 'overview') paint();
+      });
     // (How many 數據領先 this league's teams had, for the card held in its shape before it comes.)
     const leadKey = `sports.teamLeadersN.v1:${league}`;
     const leadN = (() => {
@@ -6308,9 +6378,11 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
           next ? block(W('下一場', 'Next game'), el('div', { class: 'q-card list' }, [eventRow(next, { league: comps })])) : null,
           last ? block(W('上一場', 'Last game'), el('div', { class: 'q-card list results-list' }, [resultRow(last)])) : null,
           teamInjuryCard(hurt?.[id], league),
+          (newsLate ??= !newsNow()) ? null : newsHere(),
           splitCard(),
           ranksData === undefined ? ranksHeld() : ranksCard(),
-          leadersData === undefined ? leadersHeld() : leadersData?.stats.length ? teamLeadersCard(leadersData, league) : null
+          leadersData === undefined ? leadersHeld() : leadersData?.stats.length ? teamLeadersCard(leadersData, league) : null,
+          newsLate ? newsHere() : null
         ].filter(Boolean);
         keep(parts.length ? parts : [empty(W('本季還沒有比賽。', 'No games yet this season.'))]);
       }
@@ -7601,6 +7673,28 @@ export async function openPlayer(league, id, fallback = {}) {
     const lastOf = lg => { const done = (lg?.games || []).filter(g => !g.live); return done.length ? logCardOf({ ...lg, games: done.slice(0, 1) }, W('上一場', 'Last game')) : null; };
     let lastCard = racing ? null : lastOf(log);
     if (!racing) overview.unshift(...[nextBox, lastCard].filter(Boolean));
+    // 相關新聞: the stories about him (Orbit News'), after his games; his
+    // injury's story a row on its card under the hero. Read at the app's
+    // start: drawn with the page when it's in, else added to 概況's end.
+    const hanName = /\p{Script=Han}/u.test(a.name || '');
+    const newsOf = n => playerNews(n, league, { name: hanName ? '' : a.name || '', zh: hanName ? a.name : '', team: team ? { name: a.team } : null }, 5);
+    const hurtBox = el('div', { class: 'news-in-card', hidden: true });
+    const putNews = (list, late) => {
+      const hurt = a.injury ? list.find(x => x.k === 'injury') : null;
+      if (hurt) (put(hurtBox, ...newsRows([hurt], { ai: true })), (hurtBox.hidden = false));
+      const nc = newsCard(list.filter(x => x !== hurt).slice(0, 4));
+      if (!nc) return;
+      if (late) overview.push(nc);
+      else overview.splice(Math.max(overview.indexOf(lastCard), overview.indexOf(nextBox)) + 1, 0, nc);
+    };
+    const newsFirst = newsNow();
+    if (newsFirst) putNews(newsOf(newsFirst), false);
+    else
+      readNews().then(n => {
+        if (!n || !s.dialog.isConnected) return;
+        putNews(newsOf(n), true);
+        if (view === 'overview') paintTab();
+      });
     // His career, read once: 資料's and 數據's cards below, his country's games here.
     const careerRead = (tries = 0) => playerCareer(league, id, a).catch(e => (tries < 2 && s.dialog.isConnected ? new Promise(r => setTimeout(r, 65_000)).then(() => (s.dialog.isConnected ? careerRead(tries + 1) : null)) : Promise.reject(e)));
     let careerP = null;
@@ -7757,7 +7851,7 @@ export async function openPlayer(league, id, fallback = {}) {
       // team's page), the report's word under it: a card of its own under
       // the hero, whatever the tab.
       // (Three tiers, not one crowded line: the status and what's wrong, when he's back under it, the report's word below a hairline.)
-      a.injury ? injuryCard(a.injury, league) : null,
+      a.injury ? injuryCard(a.injury, league, hurtBox) : null,
       strip,
       tabsBox,
       tabBody
