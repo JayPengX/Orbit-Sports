@@ -1042,7 +1042,7 @@ function previewBox(e, codeLine, played = new Set()) {
   (async () => {
     let got = { points: [], who: {} };
     for (const day of previewDays(e)) {
-      got = previewFrom(await previewDoc(day), e, en);
+      got = previewFrom(await previewDoc(day), e, en, { sport: LEAGUES[e.league]?.sport });
       if (got.known) break;
     }
     previewKnown.set(key, got);
@@ -3417,7 +3417,7 @@ function playLine(league, p, side) {
   const helpers = (p.helpers || []).filter(h => h.pic?.id);
   const sub = whole(helpers.length ? String(parts.sub || '').split(' · ').filter(x => !helpers.some(h => h.name && x.includes(h.name.split(' ').at(-1)))).join(' · ') : parts.sub);
   // (An own goal: the team's badge, the defender's small head on it, a tap to his page.)
-  const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge', { onWhite: true }) : null])) : own && p.pic && side?.logo ? personTap(league, p.pic, el('span', { class: 'play-face og' }, [logo(side.logo, team, 'xs play-team'), personPic(p.pic, league, 'play-head round')])) : side?.logo ? teamLogoTap(league, side, logo(side.logo, team, 'xs play-team')) : null;
+  const face = p.pic && !own ? personTap(league, p.pic, el('span', { class: 'play-face' }, [personPic(p.pic, league, 'xs round'), badged ? logo(side.logo, team, 'play-badge') : null])) : own && p.pic && side?.logo ? personTap(league, p.pic, el('span', { class: 'play-face og' }, [logo(side.logo, team, 'xs play-team'), personPic(p.pic, league, 'play-head round')])) : side?.logo ? teamLogoTap(league, side, logo(side.logo, team, 'xs play-team')) : null;
   // A play with neither (本節結束, 比賽結束): the league's mark, so every row has its picture.
   // Who on a line of their own, what they did under it with the rest
   // (Jay 2026-11-03: "S. Gilgeous-Alexander 跳投不進" crammed on one line):

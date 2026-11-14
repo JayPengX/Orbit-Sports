@@ -47,6 +47,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 - 10-27 Standings card: once first is settled, the race moves to 2nd, then 3rd, down the table until every place is settled.
 - 11-01 Sides level on record or points are ordered by their league's official tiebreaks, never at random (`lib/tiebreak.mjs`); the NBA Cup's cards say why in one line. 11-06 No 同分 line under a league table.
 - 11-03 近期交手 is the last five meetings at most, each counted by its score (level is a draw, even on penalties, marked PK); one bar across the card, a piece a meeting; never padded.
+- 11-14 看點 says only what the page doesn't: never the places or the gap between them (兩隊比較 shows them), nothing at all rather than that (`restatesTable`). A face's team chip is small at its corner, on the card's colour, never a white disc over the face.
 - 11-14 The NBA Cup isn't the playoffs: it lives in the NBA's 排名 (聯盟 · NBA 盃), never under 季後賽. Its groups count the games on as they stand (▲▼); 晉級 / 淘汰 only when every way the games left can go agrees (a tie the margins would settle is never sure).
 - 11-06 No green in the playoff bracket (a clinched seed in the text's own colour); where there's room the bracket shows every round at once.
 - Tables count finals at once (`liveTable`), never a game still on; table zones stay with their places as results reorder them. A game is over when the rules say so (`overByRule`), not when ESPN marks it.
