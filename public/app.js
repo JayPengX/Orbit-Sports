@@ -19,7 +19,7 @@ import * as kitEspn from '#kit/sports-espn.mjs';
 import { transition, pickFinals, gameHash, readGameHash } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
 import { readNews, NEWS_TTL } from './lib/news.mjs';
-import { freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
+import { STANDINGS, freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
@@ -35,14 +35,14 @@ import { homeGames } from './lib/home-shown.mjs';
 import { dayPlan, worth, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, HABIT } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes, weekendCircuit } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
-import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote } from './lib/nbacup.mjs';
+import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote, cupLetters, cupOrder } from './lib/nbacup.mjs';
 import { stageOf } from './lib/stage.mjs';
 import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
 import { shortLeague, cols, homeBoard, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
-import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
+import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, liveTableNote, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh, teamNameZh } from '#kit/names.mjs';
 import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
@@ -2672,15 +2672,14 @@ function openScores(league, date, view = 'games') {
 const CUP = 'nbacup';
 const leagueOfBracket = k => (k === CUP ? 'nba' : k);
 const hasBracket = k => k === CUP || (LEAGUES[k]?.kind === 'match' && (!LEAGUES[k].asia || k === 'cpbl') && Boolean(FORMATS[k]));
-// The bracket 賽事 shows now: the open league's, or the NBA Cup's when it's picked.
-const shownBracket = () => (state.tab !== 'matches' ? '' : state.scores.league === 'nba' && cupPicked(state.scores) ? CUP : state.scores.league);
-// The NBA's 季後賽: the playoffs or the NBA Cup, a chip each (the cup's
-// groups and knockout one view: Jay, 2026-10-26); the cup's picked first
-// while it's played (November, December).
-const cupPicked = sc => {
-  if (sc.po == null) sc.po = [11, 12].includes(new Date(Date.now() + 8 * 3_600_000).getUTCMonth() + 1) ? 'cup' : 'po';
-  return sc.po !== 'po';
-};
+// The NBA Cup isn't the playoffs (Jay 2026-11-14: "not technically
+// playoffs"): it's in the NBA's 排名, a chip beside the league's table
+// (聯盟 · NBA 盃), its groups as live tables and its knockout under them;
+// 季後賽 is the playoffs alone.
+const cupShown = sc => sc.league === 'nba' && sc.view === 'table' && sc.stand === 'cup';
+// The bracket 賽事 shows now: the open league's 季後賽, or the NBA Cup's in 排名.
+const shownBracket = () => (state.tab !== 'matches' ? '' : cupShown(state.scores) ? CUP : state.scores.view === 'bracket' ? state.scores.league : '');
+const bracketOnScreen = league => shownBracket() === league;
 const played = r => Number(r.stats?.GP ?? r.stats?.gamesPlayed ?? 0) || Number(r.stats?.W || 0) + Number(r.stats?.L || 0);
 // Playoff games read back a week of game days at a time from the latest of
 // `days`, until a week with none (the regular season): one small batch after
@@ -2788,14 +2787,20 @@ async function nbaCupData() {
     standings('nba', { season: year })
       .then(gs => Object.fromEntries(gs.flatMap(g => g.rows).map(r => [r.id, { w: Number(r.stats.W), l: Number(r.stats.L) }]).filter(([, x]) => Number.isFinite(x.w) && Number.isFinite(x.l))))
       .catch(() => null);
-  const [now, prev] = await Promise.all([season(y), prevOf(y)]);
-  if (now) return { mode: 'live', ...now, prev, partial: missing.size > 0 };
+  // Each team's group letter (East Group A): ESPN's cup standings, by the year a season ends (none: drawn without).
+  const lettersOf = year =>
+    proxyJson(`${STANDINGS}/basketball/nba/standings?type=3&level=3&season=${year + 1}`, { ttl: 6 * 3_600_000 })
+      .then(d => (Object.keys(cupLetters(d)).length ? cupLetters(d) : null))
+      .catch(() => null);
+  const [now, prev, letters] = await Promise.all([season(y), prevOf(y), lettersOf(y)]);
+  if (now) return { mode: 'live', ...now, prev, letters, partial: missing.size > 0 };
   // Pages missing, none of the cup's in what came: unread, not "no cup this season".
   if (missing.size) throw new Error('nbacup: unread');
   const last = await season(y - 1, 30 * 86_400_000);
   // Every season here had its cup: none found is a read gone wrong.
   if (!last?.events.length) throw new Error('nbacup: last season unread');
-  return { mode: 'last', ...last, prev: await prevOf(y - 1), partial: missing.size > 0 };
+  const [lastPrev, lastLetters] = await Promise.all([prevOf(y - 1), lettersOf(y - 1)]);
+  return { mode: 'last', ...last, prev: lastPrev, letters: lastLetters, partial: missing.size > 0 };
 }
 // The cup as last read whole, kept on the phone: shown while a read fails
 // (or before the first is in), never "暫時無法取得資料" once it has been read.
@@ -2810,7 +2815,7 @@ function keptCup() {
 }
 function keepCup(d) {
   try {
-    localStorage.setItem(CUP_KEY, JSON.stringify({ at: Date.now(), d: { mode: d.mode, groupGames: d.groupGames, events: d.events, season: d.season, prev: d.prev || null } }));
+    localStorage.setItem(CUP_KEY, JSON.stringify({ at: Date.now(), d: { mode: d.mode, groupGames: d.groupGames, events: d.events, season: d.season, prev: d.prev || null, letters: d.letters || null } }));
   } catch {}
 }
 // A bracket's model from its data: the NBA Cup's with its groups too.
@@ -2818,7 +2823,9 @@ const bracketOf = (league, d) => {
   const model = playoffModel({ league, ...d });
   if (league === 'nationsleague') return withUnlGroups(model, d);
   if (league !== CUP) return model;
-  model.groups = nbaCupGroups(d.groupGames, { prev: d.prev });
+  model.groups = nbaCupGroups(d.groupGames, { prev: d.prev, letters: d.letters });
+  // (Its games and their ingredients kept: 排名's tables and a game's card count the games on now, as they stand.)
+  Object.assign(model, { groupGames: d.groupGames || [], prev: d.prev || null, letters: d.letters || null });
   // The quarterfinals not drawn yet: as the groups stand (this season's).
   const qf = model.rounds.find(r => r.key === 'QF');
   if (model.mode !== 'last' && qf?.ties.every(t => !t) && model.groups.length) qf.ties = cupQuarters(model.groups);
@@ -2913,7 +2920,7 @@ function loadBracket(league) {
       if (league === CUP && !d.partial) keepCup(d);
       // Days unread (d.partial): what came drawn, the rest asked again in a minute.
       brackets.set(league, { model, at: brackets.get(league)?.again ? 0 : d.partial ? Date.now() - 10 * 60_000 + 61_000 : Date.now() });
-      if (d.partial) setTimeout(() => shownBracket() === league && state.scores.view === 'bracket' && renderScores(), 61_500);
+      if (d.partial) setTimeout(() => bracketOnScreen(league) && renderScores(), 61_500);
       // A series' games from weeks back: their watch links ready for its sheet.
       watchMonthsOf(model.rounds.flatMap(r => r.ties.flatMap(t => t?.games || [])));
     })
@@ -2923,7 +2930,7 @@ function loadBracket(league) {
       const fails = (had?.fails || 0) + 1;
       const wait = fails === 1 && !had?.model ? 20_000 : 61_000;
       brackets.set(league, { model: had?.model || null, at: Date.now() - 61_000 + wait, failed: true, fails });
-      setTimeout(() => shownBracket() === league && state.scores.view === 'bracket' && renderScores(), wait + 500);
+      setTimeout(() => bracketOnScreen(league) && renderScores(), wait + 500);
     })
     .finally(() => state.tab === 'matches' && state.scores.league === leagueOfBracket(league) && renderScores());
 }
@@ -2954,7 +2961,7 @@ function staleBracket(league) {
   if (had.loading) had.again = true;
   else had.at = 0;
   // Open: read now (renderScores asks for it).
-  if (shownBracket() === league && state.scores.view === 'bracket') renderScores();
+  if (bracketOnScreen(league)) renderScores();
 }
 // A game's whole series (or two-legged tie), for its match page: from the
 // league's bracket, the one 季後賽 shows (read now when not held fresh).
@@ -2986,11 +2993,13 @@ ctx.seriesOf = seriesOf;
 // same map the league's 季後賽 shows; null when there's none to show.
 ctx.hasBracket = league => hasBracket(league);
 // (`league`: a bracket's key, 'nbacup' the NBA Cup's: its games' pages show it.)
-ctx.playoffsOf = async league => {
+ctx.playoffsOf = async (league, e = null) => {
   if (!hasBracket(league)) return null;
   const model = await bracketModel(league);
   // A game of it started or ended (the sheet's own reads, while 首頁's tick waits under it): read again next time.
   notePlayoffGames(model.rounds.flatMap(r => r.ties.flatMap(t => t?.games || [])).map(freshGame));
+  // The NBA Cup on a game's page: its standings as 排名 › NBA 盃 has them, the game's two marked.
+  if (league === CUP) return cupStandingsView(model, { mark: e ? [e.home?.id, e.away?.id] : [] });
   return model?.rounds?.length ? playoffView(model, league) : null;
 };
 // An NBA Cup group game's group (Jay 2026-11-13, 勇士 v 馬刺: "this game is
@@ -3013,8 +3022,80 @@ ctx.cupGroupOf = async e => {
   if (model?.mode === 'last') return null;
   const ids = [e.home?.id, e.away?.id].map(String);
   const g = (model?.groups || []).find(x => ids.every(id => x.rows.some(r => r.id === id)));
-  return g ? { conf: g.conf, rows: g.rows } : null;
+  // (Its games, not the group as read: the card counts the game on now, and any other, as they stand.)
+  return g ? { conf: g.conf, rows: g.rows, games: model.groupGames || [], prev: model.prev, letters: model.letters } : null;
 };
+// 排名 › NBA 盃 (Jay 2026-11-14, "inspired by live standing of the league
+// and F1"): each group a table (勝 敗 得失分 剩), its first and the
+// conference's best second barred, the games on now counted as they stand
+// (▲▼ by each row), who's sure of the quarterfinals locked and who can't
+// reach them grey (nbacup.mjs cupFates); each conference's wild card race
+// (its groups' seconds); then the knockout (the quarterfinals as the groups
+// stand, till they're played: then the knockout first). Last season's
+// bracket once this season's is over and before the next (the bracket's banner).
+function cupOf() {
+  const had = brackets.get(CUP);
+  if (!had?.model) return had?.failed && had.fails > 1 && !had.loading ? empty(t('failed')) : spinner();
+  return cupStandingsView(had.model);
+}
+const cupGroupName = (g, en, i) => {
+  const conf = g.conf === 'East' ? (en ? 'East' : '東區') : en ? 'West' : '西區';
+  return g.letter ? (en ? `${conf} · Group ${g.letter}` : `${conf} ${g.letter} 組`) : en ? `${conf} · Group ${i + 1}` : `${conf}第 ${i + 1} 組`;
+};
+function cupStandingsView(model, { mark = [] } = {}) {
+  const en = locale === 'en';
+  if (model.mode === 'last') return playoffView(model, CUP);
+  const games = (model.groupGames || []).map(freshGame);
+  const groups = nbaCupGroups(games, { prev: model.prev, letters: model.letters, live: true });
+  const signed = n => (n > 0 ? `+${n}` : String(n));
+  const NOTE = { lead: en ? 'Group winner' : '分組第一', card: en ? 'Wild card' : '外卡' };
+  const row = (r, { zone = r.zone, moved = r.moved } = {}) => ({
+    id: r.id,
+    name: r.name,
+    // (English on a phone, a side playing now: its three letters beside its score, CLE 114-120; Cavaliers with it pushed 剩 off a 320 screen.)
+    short: en && r.live && r.abbr ? r.abbr : r.short,
+    logo: r.logo,
+    color: zone ? PICTURE_COLOR[zone] : '',
+    note: zone ? NOTE[zone] : '',
+    fate: r.fate || '',
+    ...(r.live ? { live: r.live } : {}),
+    ...(moved ? { moved } : {}),
+    stats: { W: String(r.w), L: String(r.l), PD: signed(r.pd), Left: String(r.left) }
+  });
+  const tables = ['East', 'West'].flatMap(conf => {
+    const mine = groups.filter(g => g.conf === conf);
+    const out = mine.map((g, i) => ({ name: cupGroupName(g, en, i), rows: g.rows.map(r => row(r)) }));
+    // The wild card race: the groups' seconds by record, then point differential (no head-to-head).
+    const seconds = cupOrder(mine.map(g => g.rows[1]).filter(Boolean)).rows;
+    if (mine.some(g => g.rows.some(r => r.w + r.l > 0)) && seconds.length > 1)
+      out.push({ name: en ? `${conf} wild card · 2nds` : `${conf === 'East' ? '東區' : '西區'}外卡 · 各組第二`, rows: seconds.map(r => row(r, { zone: r.zone === 'card' ? 'card' : '', moved: 0 })) });
+    return out;
+  });
+  // On a game's page: its group first.
+  const ids = mark.map(String);
+  const own = ids.length ? tables.findIndex(t => ids.every(id => t.rows.some(r => r.id === id)) && !/外卡|wild card/i.test(t.name)) : -1;
+  if (own > 0) tables.unshift(...tables.splice(own, 1));
+  const tablesNode = standingsTables(tables, 'nba', { cols: ['W', 'L', 'PD', 'Left'], many: true, mark: mark.map(String), liveNote: false });
+  const on = groups.some(g => g.rows.some(r => r.live));
+  const rule = el('div', { class: 'cup-rule' }, [el('p', { class: 'muted small', text: en ? 'Group winners and each conference’s best 2nd go to the quarterfinals.' : '分組第一與各區最佳第二晉級八強淘汰賽。' }), on ? liveTableNote() : null]);
+  // The knockout: its rounds alone (the groups are the tables above); the
+  // quarterfinals not drawn yet as the groups stand now, live too.
+  const rounds = model.rounds.filter(r => r.key !== 'GROUPS').map(r => (r.key === 'QF' && r.ties.every(t => !t || (t.projected && !t.games?.length)) ? { ...r, ties: cupQuarters(groups) } : r));
+  const knock = rounds.length ? playoffView({ ...model, rounds }, CUP) : null;
+  const begun = rounds.some(r => r.ties.some(t => t?.games?.length));
+  const head = el('h3', { class: 'cup-h', text: en ? 'Knockout' : '淘汰賽' });
+  const parts = begun ? [head, knock, rule, tablesNode] : [rule, tablesNode, knock ? head : null, knock];
+  const root = el('div', { class: 'cup-stand' }, parts.filter(Boolean));
+  // A live refresh: changed in place (the knockout's swipe and lines kept), never put in anew.
+  root.__patch = neu => {
+    const [mine, theirs] = [root.__patch, neu.__patch];
+    root.__patch = neu.__patch = null;
+    morph(root, neu);
+    [root.__patch, neu.__patch] = [mine, theirs];
+    return root;
+  };
+  return root;
+}
 const cupBanner = model => el('p', { class: 'po-banner' }, [el('strong', { text: locale === 'en' ? 'Last season' : '上季' }), document.createTextNode(`${model.season ? ` ${model.season}` : ''}${locale === 'en' ? ': this season’s NBA Cup hasn’t begun.' : '　本季 NBA 盃尚未開打。'}`)]);
 // The playoffs as a map you swipe across: a column a round (its name, and
 // done / on now / its dates under it), the later rounds between the ties
@@ -3102,7 +3183,9 @@ function playoffView(model, key) {
     const ls = (t.labels || []).filter(Boolean);
     const same = ls.length === 2 && /^[東西]區/.test(ls[0]) && ls[0].slice(0, 2) === ls[1].slice(0, 2);
     const said = same ? ls.map(x => (en ? labelText(`東區${x.slice(2)}`).replace(/^East /, '') : x.slice(2))) : ls.map(labelText);
-    if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', said.length && t.sides.every(Boolean) ? said.join(' v ') : '', en && t.roundTitle ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
+    // (English at a phone's width: "Winner v wild card", the dashed card saying it's predicted; "group winner v wild card · Predicted" was cut at 320.)
+    const pair = said.length && t.sides.every(Boolean) ? (en && same ? said.map(x => x.replace(/^group winner$/, 'winner')).join(' v ').replace(/^./, c => c.toUpperCase()) : said.join(' v ')) : '';
+    if (t.projected) return [t.roundTitle ? (en ? t.roundTitle.en : t.roundTitle.zh) : '', pair, en && (t.roundTitle || (same && pair)) ? '' : en ? 'Predicted' : '預測'].filter(Boolean).join(' · ');
     const won = t.winner && t.sides.find(s => String(s.id) === t.winner);
     // The last round's winner takes the title (道奇 奪冠), never "晉級".
     if (won) return `${won.short || won.name} ${r === model.rounds.at(-1) ? (en ? 'champions' : '奪冠') : en ? 'through' : '晉級'}`;
@@ -3954,17 +4037,18 @@ function renderScores() {
   const rounds = po?.model?.rounds || [];
   const reading = hasBracket(sc.league) && !po?.model;
   const knockView = sc.view === 'bracket' && hasBracket(sc.league) && (rounds.length > 0 || reading);
-  // The NBA's 季後賽 holds the NBA Cup too (cupPicked), read once picked.
-  const poKey = sc.league === 'nba' && cupPicked(sc) ? CUP : sc.league;
-  if (knockView && poKey === CUP) loadBracket(CUP);
+  const poKey = sc.league;
   const shown = brackets.get(poKey);
   const shownRounds = shown?.model?.rounds || [];
   const poFailed = !shown?.model && shown?.failed && shown.fails > 1 && !shown.loading;
-  const cupChips = knockView && sc.league === 'nba' ? segmented([['po', L({ zh: '季後賽', en: 'Playoffs' })], ['cup', L({ zh: 'NBA 盃', en: 'NBA Cup' })]], poKey === CUP ? 'cup' : 'po', v => ((sc.po = v), renderScores()), '', { chips: true }) : null;
   const tableView = !knockView && sc.view === 'table' && hasStandings(sc.league);
+  // The NBA's 排名: the league's table or the NBA Cup's, a chip each.
+  const cupChips = tableView && sc.league === 'nba' ? segmented([['league', L({ zh: '聯盟', en: 'League' })], ['cup', L({ zh: 'NBA 盃', en: 'NBA Cup' })]], cupShown(sc) ? 'cup' : 'league', v => ((sc.stand = v), renderScores()), '', { chips: true }) : null;
+  if (cupShown(sc)) loadBracket(CUP);
   const leadersView = !knockView && !tableView && sc.view === 'leaders' && hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn);
   if (leadersView) list = leadersOf(sc.league);
-  else if (knockView) list = el('div', { class: 'po-wrap' }, [cupChips, shownRounds.length ? playoffView(shown.model, poKey) : poFailed ? empty(t('failed')) : bracketShape()]);
+  else if (knockView) list = el('div', { class: 'po-wrap' }, [shownRounds.length ? playoffView(shown.model, poKey) : poFailed ? empty(t('failed')) : bracketShape()]);
+  else if (tableView && cupChips) list = el('div', { class: 'po-wrap' }, [cupChips, cupShown(sc) ? cupOf() : tableOf(sc.league)]);
   else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));

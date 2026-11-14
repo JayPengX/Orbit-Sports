@@ -3161,3 +3161,12 @@ table.hp-splits tbody tr.hp-split-new > * { border-top-color: var(--q-divider, v
 /* On an injury's card: the story about it, under a hairline. */
 .news-in-card { margin-top: 12px; padding-top: 10px; border-top: 0.5px solid var(--q-sep); }
 .news-in-card .news-row { padding: 0; }
+
+/* 排名 › NBA 盃: the rule in one line, the groups' tables, then the knockout under its own head. */
+.cup-stand { display: flex; flex-direction: column; gap: 12px; }
+.cup-rule { margin: 0 4px; }
+.cup-h { margin: 6px 4px 0; font-size: 15px; font-weight: 700; }
+/* A group game's card: what it decides over the table. */
+.cup-stakes { margin: 0 0 8px; font-size: 13.5px; font-weight: 600; line-height: 1.4; color: var(--q-text); }
+.cup-rule p { margin: 0; }
+.cup-rule .live-table-note { margin: 6px 0 0; }

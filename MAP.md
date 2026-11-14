@@ -47,6 +47,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 - 10-27 Standings card: once first is settled, the race moves to 2nd, then 3rd, down the table until every place is settled.
 - 11-01 Sides level on record or points are ordered by their league's official tiebreaks, never at random (`lib/tiebreak.mjs`); the NBA Cup's cards say why in one line. 11-06 No 同分 line under a league table.
 - 11-03 近期交手 is the last five meetings at most, each counted by its score (level is a draw, even on penalties, marked PK); one bar across the card, a piece a meeting; never padded.
+- 11-14 The NBA Cup isn't the playoffs: it lives in the NBA's 排名 (聯盟 · NBA 盃), never under 季後賽. Its groups count the games on as they stand (▲▼); 晉級 / 淘汰 only when every way the games left can go agrees (a tie the margins would settle is never sure).
 - 11-06 No green in the playoff bracket (a clinched seed in the text's own colour); where there's room the bracket shows every round at once.
 - Tables count finals at once (`liveTable`), never a game still on; table zones stay with their places as results reorder them. A game is over when the rules say so (`overByRule`), not when ESPN marks it.
 - A streak (連勝敗) counts every game the form chips are from; F1's 本季走勢 runs on across a retirement (a cross on the floor).
@@ -60,7 +61,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 
 ## How it works
 
-- **Tabs:** 首頁 (what to watch: the day strip, the lead game, 正在進行, 我的比賽 as the day's plan from `dayPlan`, with 填滿空檔 the free hours filled by `picks.mjs worth`; 更多賽事, 我的球隊, 已結束; on a wide screen a board of three even tracks, `homeBoard`) · 賽事 (a league: 賽程, 排名, 季後賽, 數據; F1's weekends as cards) · 轉播 (when and where, ELTA's whole guide) · 追蹤 (我的聯賽, teams, players, matches, drivers, 設定, 問比賽). Look: `look.js`, `look.css` (the lead game's club colours, `sideColors`).
+- **Tabs:** 首頁 (what to watch: the day strip, the lead game, 正在進行, 我的比賽 as the day's plan from `dayPlan`, with 填滿空檔 the free hours filled by `picks.mjs worth`; 更多賽事, 我的球隊, 已結束; on a wide screen a board of three even tracks, `homeBoard`) · 賽事 (a league: 賽程, 排名, 季後賽, 數據; the NBA's 排名 also its cup, 聯盟 · NBA 盃; F1's weekends as cards) · 轉播 (when and where, ELTA's whole guide) · 追蹤 (我的聯賽, teams, players, matches, drivers, 設定, 問比賽). Look: `look.js`, `look.css` (the lead game's club colours, `sideColors`).
 - **A day is drawn once:** its first drawing waits in its shape until every league of theirs is read (`dayWaits`, `holdDay`, `liveShape`), the days either side read ahead (`readAround`); finished games' top players (`gameRecap`) read with it.
 - **Sheets** (`sheets.js`): a match (header, live panel, then 概況, 數據, 球員, 過程, 先發, 場上球員, 陣容, 傷兵, 本季數據領先, 排名, 比賽資訊 in the moment's order), a race weekend, a team, a player (career from ESPN, FotMob, Jolpica: `lib/career.mjs`), an F1 driver (`lib/f1driver.mjs`), a constructor. Wide sheets deal cards with the kit's `flowColumns` (never CSS columns: Safari put them all on the left).
 - **Win chance:** ESPN's line, else Polymarket's; a game to come: the sportsbook's moneylines (margin removed), else Polymarket's, else ESPN's model. Soccer's own model (`lib/soccerwp.mjs`: Poisson over the time left from the pre-game odds, the score, the minute, reds). Key moments (`moments.mjs`).

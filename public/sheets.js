@@ -9,9 +9,9 @@ import * as kitNames from '#kit/names.mjs';
 import { injuryFacts, backDay } from './lib/injurynote.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, playedIds, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, nationalGames, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
+import { freshGame, seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, playedIds, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, nationalGames, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
-import { isGroupPlay } from './lib/nbacup.mjs';
+import { isGroupPlay, nbaCupGroups, cupStakes } from './lib/nbacup.mjs';
 import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom, f1PointsFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
 import { previewLine, previewPath, previewDays, previewFrom } from './lib/preview.mjs';
@@ -570,7 +570,7 @@ export async function openMatch(e) {
     const shownView = view === 'stats' && part === 'players' ? 'players' : view === 'table' ? standPart : view;
     const fresh = () => matchSection(shownView, data && { ...data, players: data.players.map(p => ({ ...p, tables: p.tables.map(tb => ({ ...tb, rows: tb.rows.map(numbered) })) })), table: past() ? [] : data.table, injuries: past() ? [] : withoutPlayed(mergeInjuries(data.injuries, hurt), data).map(t => ({ ...t, list: t.list.map(numbered) })), lineups, seasonPlayers: season, courtSquads: before ? squads : null, seasonGames, seasonLead: past() ? null : seasonLead }, e, past() ? null : table, { line, wait, cup: cupGroup, coming: past() ? heldPast(coming) : coming, plays: Object.assign(playsKeep, { shown: view === 'plays' ? content.firstElementChild : null }) });
     const keep = view === 'plays' && playsKept?.data === data && playsKept.lang === L() && playsKept.over === over ? playsKept.node : null;
-    const next = shownView === 'playoffs' ? playoffsNode(e.league, shownView) : shownView === 'cup' ? playoffsNode('nbacup', shownView) : keep || fresh();
+    const next = shownView === 'playoffs' ? playoffsNode(e.league, shownView) : shownView === 'cup' ? playoffsNode('nbacup', shownView, () => ctx.playoffsOf('nbacup', e)) : keep || fresh();
     // 概況: the line score and the game's moment are its flow's first card,
     // dealt with the rest (Jay 2026-11-06, an iPad: beside 最新 the line
     // score left half the row empty above the cards); on a phone, one
@@ -1577,13 +1577,61 @@ function newsRows(list, { ai = false } = {}) {
 // the game's two sides marked, its first's bar green once a game's been
 // played (the conference's best second, the wild card, blue), as 排名's
 // NBA 盃 has them. `g` null: its shape, five rows, while it's read.
-function cupCard(g, e) {
+// (Jay 2026-11-14: a group is many games, "what it means": what this one
+// decides on top, each one's games left, the group counted live with the
+// game as it stands, ▲▼ and 晉級 / 淘汰 as 排名 › NBA 盃 has them.)
+function cupCard(cup, e) {
   const en = L() === 'en';
   const signed = n => (n > 0 ? `+${n}` : String(n));
-  const rows = g ? g.rows.map(r => ({ id: r.id, name: r.name, short: r.short, logo: r.logo, color: r.zone ? PICTURE_COLOR[r.zone] : '', stats: { W: String(r.w), L: String(r.l), PD: signed(r.pd) } })) : Array.from({ length: 5 }, (_, i) => ({ id: `-${i}`, name: BLANK2, short: BLANK2, stats: { W: '0', L: '0', PD: '0' } }));
-  const table = standingsTables([{ rows }], 'nba', { cols: ['W', 'L', 'PD'], mark: [String(e.home.id), String(e.away.id)], open: Boolean(g) }).querySelector('.table-wrap');
+  // The group now: its games as newest read, this one as the page has it.
+  let g = cup;
+  let stakes = null;
+  if (cup?.games?.length) {
+    const games = cup.games.map(x => (String(x.id) === String(e.id) ? { ...x, status: e.status, home: { ...x.home, score: e.home.score, lines: e.home.lines }, away: { ...x.away, score: e.away.score, lines: e.away.lines } } : freshGame(x)));
+    const ids = [String(e.home.id), String(e.away.id)];
+    g = nbaCupGroups(games, { prev: cup.prev, letters: cup.letters, live: true }).find(x => ids.every(id => x.rows.some(r => r.id === id))) || cup;
+    stakes = cupStakes(games, games.find(x => String(x.id) === String(e.id)) || e, { prev: cup.prev, letters: cup.letters });
+  }
+  const NOTE = { lead: en ? 'Group winner' : '分組第一', card: en ? 'Wild card' : '外卡' };
+  const rows = g ? g.rows.map(r => ({ id: r.id, name: r.name, short: en && r.live && r.abbr ? r.abbr : r.short, logo: r.logo, color: r.zone ? PICTURE_COLOR[r.zone] : '', note: r.zone ? NOTE[r.zone] : '', ...(r.fate != null ? { fate: r.fate } : {}), ...(r.live ? { live: r.live } : {}), ...(r.moved ? { moved: r.moved } : {}), stats: { W: String(r.w), L: String(r.l), PD: signed(r.pd), Left: String(r.left ?? '') } })) : Array.from({ length: 5 }, (_, i) => ({ id: `-${i}`, name: BLANK2, short: BLANK2, stats: { W: '0', L: '0', PD: '0', Left: '4' } }));
+  const tables = standingsTables([{ rows }], 'nba', { cols: ['W', 'L', 'PD', 'Left'], mark: [String(e.home.id), String(e.away.id)], open: Boolean(g) });
+  const wrap = tables.querySelector('.table-wrap');
+  const liveNote = tables.querySelector('.live-table-note');
+  const legend = tables.querySelector('.zone-legend');
   const conf = g?.conf === 'East' ? (en ? 'East' : '東區') : g?.conf === 'West' ? (en ? 'West' : '西區') : '';
-  return card(en ? `NBA Cup${conf ? ` · ${conf}` : ''}` : `NBA 盃 · ${conf}小組賽`, table, { sub: en ? 'Winner to the quarters' : '分組第一晉級八強' });
+  const group = g?.letter ? (en ? `${conf} Group ${g.letter}` : `${conf} ${g.letter} 組`) : en ? conf : `${conf}小組賽`;
+  const nameOf = id => g?.rows.find(r => r.id === String(id))?.short || '';
+  const line = stakes ? cupStakesText(stakes, nameOf, e.status?.state === 'post', en) : '';
+  return card(en ? `NBA Cup${group ? ` · ${group}` : ''}` : `NBA 盃 · ${group}`, el('div', { class: 'cup-card' }, [line ? el('p', { class: 'cup-stakes', text: line }) : null, liveNote, wrap, legend]), { sub: en ? 'Winners + best 2nd go through' : '分組第一、各區最佳第二晉級' });
+}
+// What a group game decides, one short line (nbacup.mjs cupStakes): 此戰：勝者晉級八強，敗者淘汰.
+function cupStakesText(st, nameOf, over, en) {
+  const one = ({ kind, side }) => {
+    const who = side === 'both' ? '' : nameOf(side);
+    if (en)
+      return {
+        in: who ? `a win puts ${who} through` : 'the winner goes through',
+        lead: who ? `a win clinches the group for ${who}` : 'the winner takes the group',
+        out: who ? `${who} are out with a loss` : 'the loser is out',
+        top: who ? `a win puts ${who} top` : 'the winner goes top',
+        'did-in': `${who} are through`,
+        'did-lead': `${who} won the group`,
+        'did-out': `${who} are out`
+      }[kind];
+    return {
+      in: who ? `${who}勝即晉級八強` : '勝者晉級八強',
+      lead: who ? `${who}勝即拿下分組第一` : '勝者拿下分組第一',
+      out: who ? `${who}敗即遭淘汰` : '敗者淘汰',
+      top: who ? `${who}勝則暫居分組第一` : '勝者暫居分組第一',
+      'did-in': `${who}晉級八強`,
+      'did-lead': `${who}拿下分組第一，晉級八強`,
+      'did-out': `${who}遭淘汰`
+    }[kind];
+  };
+  const said = [one(st), st.also ? one(st.also) : ''].filter(Boolean).join(en ? '; ' : '，');
+  if (!said) return '';
+  if (over) return en ? said.replace(/^./, c => c.toUpperCase()) : said;
+  return en ? `This game: ${said}` : `此戰：${said}`;
 }
 const newsHeld = () =>
   el('div', { class: 'q-card pad fx-card news-card' }, [
@@ -6774,7 +6822,7 @@ function byPosition(list, sport) {
   return groups.size > 1 ? [...groups].map(([name, ps]) => ({ name, players: ps })).sort((a, b) => rank(a.players) - rank(b.players)) : list;
 }
 // A table column's short name in the reader's language.
-const COL_ZH = { PD: '得失分', POD: '頒獎台', GP: '場', W: '勝', D: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', GAP: '落後' };
+const COL_ZH = { Left: '剩', PD: '得失分', POD: '頒獎台', GP: '場', W: '勝', D: '和', L: '敗', GD: '淨勝', P: '積分', PTS: '積分', PCT: '勝率', GB: '勝差', STRK: '連勝敗', GAP: '落後' };
 const colLabel = c => (L() === 'en' ? (c === 'GAP' ? T('col_GAP') : c) : COL_ZH[c] || c);
 // ESPN's rank under a number ("Tied-42nd", "3rd"), in Chinese: 並列第 42、第 3.
 const rankText = (sub, en = L() === 'en') => {
@@ -8456,7 +8504,9 @@ function raceBlock(race, g, league, many, asIs = false) {
 }
 // `open: false`: rows that open nothing (a club's own league from FotMob, its clubs not ESPN's).
 // (`cols`: a table's own columns, the NBA Cup's groups' 勝 敗 得失分.)
-export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false, open = true, cols: own = null } = {}) {
+// (`liveNote: false`: the tables' one note said over them all, not over each: the NBA Cup's eight.)
+export const liveTableNote = () => el('p', { class: 'live-table-note' }, [el('i', { class: 'live-dot', 'aria-hidden': 'true' }), document.createTextNode(L() === 'en' ? 'Live: games on count as they stand' : '即時排名：進行中的比賽依目前比分計算')]);
+export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false, open = true, cols: own = null, liveNote = true } = {}) {
   const sport = LEAGUES[league]?.sport;
   const want = own || STANDING_COLUMNS[sport] || ['W', 'L'];
   const small = own || COMPACT_COLUMNS[sport] || want;
@@ -8473,13 +8523,16 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
       const cls = c => `num${!small.includes(c) ? ' extra' : ''}${c === 'GAP' || c === 'GB' ? ' gap' : ''}${c === 'GP' && cols.includes('GAP') ? ' gp' : ''}`;
       const race = races[groups.indexOf(g)];
       // A lock on a settled place (not when the whole table is: the season's over).
-      const settled = new Set(race && race.rows.some(x => !x.settled) ? race.rows.filter(x => x.settled).map(x => x.id) : []);
-      const out = outOfIt(g, race, league);
+      // (A table whose rows know their own fate, the NBA Cup's groups: sure of the quarterfinals locked, out of them grey.)
+      const fated = g.rows.some(r => r.fate != null);
+      const W = (zh, eng) => (L() === 'en' ? eng : zh);
+      const settled = fated ? Object.assign(new Set(g.rows.filter(r => r.fate === 'lead' || r.fate === 'in').map(r => r.id)), { why: W('已晉級八強', 'Through to the quarterfinals') }) : new Set(race && race.rows.some(x => !x.settled) ? race.rows.filter(x => x.settled).map(x => x.id) : []);
+      const out = fated ? Object.assign(new Set(g.rows.filter(r => r.fate === 'out').map(r => r.id)), { why: W('已遭淘汰', 'out') }) : outOfIt(g, race, league);
       // Games on now counted as they stand (tableNow's live): said so over the table, each such row its score and its move.
       const onNow = g.rows.filter(r => r.live).length / 2;
       return el('div', { class: 'q-card pad fx-card' }, [
         g.name ? el('p', { class: 'mini-h', text: g.name }) : null,
-        onNow ? el('p', { class: 'live-table-note' }, [el('i', { class: 'live-dot', 'aria-hidden': 'true' }), document.createTextNode(L() === 'en' ? 'Live: games on count as they stand' : '即時排名：進行中的比賽依目前比分計算')]) : null,
+        onNow && liveNote ? liveTableNote() : null,
         raceBlock(race, g, league, many),
         el('div', { class: 'table-wrap' }, [
           el('table', { class: `data standings${compact ? ' compact' : ''}` }, [
@@ -8581,7 +8634,7 @@ function zoneLegend(rows, out = null, settled = null) {
   const bars = [...seen].map(([, color], i) => el('span', { class: 'zone-key' }, [el('i', { style: `background:${color}`, 'aria-hidden': 'true' }), document.createTextNode(lead ? names[i].slice(lead.length) : names[i])]));
   const marks = [];
   if (out?.size && out.why) marks.push(el('span', { class: 'zone-key out-key' }, [el('b', { text: W('灰色', 'Grey') }), document.createTextNode(W(`：${out.why}`, `: ${out.why.replace(/^[A-Z]/, c => c.toLowerCase())}`))]));
-  if (settled?.size) marks.push(el('span', { class: 'zone-key' }, [glyph('lock', 'rank-lock'), document.createTextNode(W('名次已確定', 'Place settled'))]));
+  if (settled?.size) marks.push(el('span', { class: 'zone-key' }, [glyph('lock', 'rank-lock'), document.createTextNode(settled.why || W('名次已確定', 'Place settled'))]));
   const rowsOut = [bars.length ? el('div', { class: 'zone-row' }, [lead ? el('span', { class: 'zone-lead', text: lead }) : null, ...bars].filter(Boolean)) : null, marks.length ? el('div', { class: 'zone-row' }, marks) : null].filter(Boolean);
   return rowsOut.length ? el('div', { class: 'zone-legend' }, rowsOut) : null;
 }

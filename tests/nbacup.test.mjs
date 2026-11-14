@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote } from '../public/lib/nbacup.mjs';
+import { nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote, cupLetters, cupStakes } from '../public/lib/nbacup.mjs';
 
 // Last season's (2025-26) group play as ESPN listed it: 60 games, the note alone saying which.
 const raw = JSON.parse(readFileSync(new URL('./fixtures/nbacup-2025.json', import.meta.url), 'utf8'));
@@ -123,4 +123,77 @@ test('only the same record is level: a 0-0 above a 0-1, no reason given', () => 
   const [grp] = nbaCupGroups(rest([g('a', '1', '4', 110, 100)]));
   assert.deepEqual(grp.rows.map(r => r.id), ['1', '2', '5', '8', '4']);
   assert.ok(!grp.notes.some(n => n.ahead === '8' && n.behind === '4'));
+});
+
+// Jay 2026-11-14: "a confirmed system, like the playoffs". Checked against
+// every night of last season's group play: whatever the games left do (any
+// winner, any margin), a team marked sure ends in the quarterfinals (lead:
+// as its group's first), and one marked out never does.
+test('晉級 / 淘汰: sure only when every way the games left can go agrees', () => {
+  const sorted = [...games].sort((a, b) => a.start.localeCompare(b.start));
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  let marked = 0;
+  for (let n = 10; n < sorted.length; n += 4) {
+    const now = sorted.map((e, i) => (i < n ? e : { ...e, status: { state: 'pre' }, home: { ...e.home, score: '' }, away: { ...e.away, score: '' } }));
+    const fates = new Map(nbaCupGroups(now).flatMap(g => g.rows.map(r => [r.id, r.fate])));
+    marked += [...fates.values()].filter(Boolean).length;
+    for (let k = 0; k < 40; k++) {
+      const end = now.map((e, i) => {
+        if (i < n) return e;
+        const [h, a] = [90 + Math.floor(rand() * 40), 90 + Math.floor(rand() * 40)];
+        return { ...e, status: { state: 'post' }, home: { ...e.home, score: h }, away: { ...e.away, score: h === a ? a + 1 : a } };
+      });
+      for (const g of nbaCupGroups(end))
+        for (const r of g.rows) {
+          const f = fates.get(r.id);
+          if (f === 'lead') assert.equal(r.zone, 'lead', `${r.abbr} after ${n}`);
+          if (f === 'in') assert.ok(r.zone, `${r.abbr} after ${n}`);
+          if (f === 'out') assert.equal(r.zone, '', `${r.abbr} after ${n}`);
+        }
+    }
+  }
+  assert.ok(marked > 40);
+  // All played: the zones are the fates.
+  const done = nbaCupGroups(games).flatMap(g => g.rows);
+  assert.deepEqual(done.filter(r => r.fate !== 'out').map(r => r.abbr).sort(), ['LAL', 'MIA', 'NY', 'OKC', 'ORL', 'PHX', 'SA', 'TOR']);
+  assert.equal(done.filter(r => r.fate === 'in').length, 2);
+});
+
+test('live: a game on counted as it stands, its sides marked with the score, each row moved from the table without it', () => {
+  const sorted = [...games].sort((a, b) => a.start.localeCompare(b.start));
+  const n = 54;
+  const pre = sorted.map((e, i) => (i < n ? e : { ...e, status: { state: 'pre' } }));
+  const on = pre.map((e, i) => (i === n ? { ...e, status: { state: 'in' }, home: { ...e.home, score: 50 }, away: { ...e.away, score: 70 } } : e));
+  const g = nbaCupGroups(on, { live: true }).find(x => x.rows.some(r => r.live));
+  const [home, away] = [on[n].home.abbr, on[n].away.abbr];
+  const row = abbr => g.rows.find(r => r.abbr === abbr);
+  assert.deepEqual(row(away).live, { for: 70, against: 50 });
+  assert.equal(row(away).w, nbaCupGroups(pre).flatMap(x => x.rows).find(r => r.abbr === away).w + 1);
+  // Counted as played: not left (its last).
+  assert.equal(row(away).left, 0);
+  assert.ok(row(away).moved > 0 && row(home).moved < 0);
+  // Not live: the game on not counted.
+  assert.ok(nbaCupGroups(on).every(x => x.rows.every(r => !r.live && !r.moved)));
+});
+
+test("the groups' letters from ESPN's cup standings", () => {
+  const d = { children: [{ abbreviation: 'East', children: [{ name: 'Group B', standings: { entries: [{ team: { id: '5' } }, { team: { id: '14' } }] } }] }] };
+  assert.deepEqual(cupLetters(d), { 5: 'B', 14: 'B' });
+  const letters = Object.fromEntries(nbaCupGroups(games)[0].rows.map(r => [r.id, 'C']));
+  assert.equal(nbaCupGroups(games, { letters })[0].letter, 'C');
+  assert.equal(nbaCupGroups(games)[0].letter, '');
+});
+
+test('what a group game decides: either side through or out, or who goes top; over, what it settled', () => {
+  const sorted = [...games].sort((a, b) => a.start.localeCompare(b.start));
+  const upTo = n => sorted.map((e, i) => (i < n ? e : { ...e, status: { state: 'pre' } }));
+  // Last season's last night in the East's third group: 尼克 v 公鹿, either through with a win (the group or the wild card), the loser out.
+  const n = 54;
+  const st = cupStakes(upTo(n), upTo(n)[n]);
+  assert.deepEqual([st.kind, st.side, st.also], ['in', 'both', { kind: 'out', side: 'both' }]);
+  const over = cupStakes(upTo(n + 1), upTo(n + 1)[n]);
+  assert.ok(['did-in', 'did-lead'].includes(over.kind) && over.also.kind === 'did-out');
+  // Not a group game: nothing.
+  assert.equal(cupStakes(games, { ...games[0], note: '' }), null);
 });

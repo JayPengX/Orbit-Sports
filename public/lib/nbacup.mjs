@@ -1,14 +1,19 @@
 // The NBA Cup: its group play and its knockout. ESPN keeps every cup game a
 // regular-season game and says which only in its note ("NBA Cup - Group
-// Play", "NBA Cup - Quarterfinals", "NBA Cup Championship"); no feed the app
-// reads names a team's group. The schedule says it: in group play each team
-// meets the other four of its group once, so the games' pairings are the
-// groups (five teams, three a conference). Their letters aren't in any feed,
-// so they're drawn without them.
+// Play", "NBA Cup - Quarterfinals", "NBA Cup Championship"). The schedule
+// says who's in which group: in group play each team meets the other four of
+// its group once, so the games' pairings are the groups (five teams, three a
+// conference). Their letters (East Group A) are ESPN's cup standings'
+// (cupLetters), read beside the games; without them, drawn without letters.
 //
 //   nbaCupRound(event) -> { key: 'QF' | 'SF' | 'F', title, leg, through } | null
-//   nbaCupGroups(games, { prev }) -> [{ conf: 'East' | 'West', rows: [{ id, name, short, abbr, logo, w, l, pd, pf, left, zone }], notes }]
+//   nbaCupGroups(games, { prev, letters, live }) -> [{ conf: 'East' | 'West', letter, rows: [{ id, name, short, abbr, logo, w, l, pd, pf, left, zone, fate, live, moved }], notes }]
 //     zone: 'lead' (first in its group: the quarterfinals) | 'card' (the conference's best second: its wild card) | ''
+//     fate: 'lead' (sure to win its group) | 'in' (sure of the quarterfinals, the wild card maybe) | 'out' (can't reach them) | ''
+//     live: the games on now counted as they stand (Jay 2026-11-14, as the league's and F1's live tables):
+//       a side playing its score ({ for, against }), `moved` its places up (+) or down (-) from the table without them
+//   cupLetters(espnCupStandings) -> { teamId: 'A' }
+//   cupStakes(games, e, opts) -> what a group game decides ({ kind, side, also }) | null
 //   cupQuarters(groups) -> the quarterfinals as the groups stand: [predicted tie] (East 1 v 4, 2 v 3, then West's; `notes`: a seed settled by a tiebreak)
 //   cupOrder(rows, steps), cupNote(note, nameOf, en): the tiebreak steps, and why one is ahead ({ a, b, why })
 //   cupGroupColumn(groups, quarters) -> the bracket's first column: a card a place in the quarterfinals,
@@ -43,7 +48,22 @@ export function nbaCupRound(e) {
 // by team id ({ w, l }), when read.
 //   Each group's `notes`: why a team is above one level with it,
 //   [{ ahead, behind, by: 'h2h' | 'pd' | 'pf' | 'prev' | 'draw', values: [a, b] }].
-export function nbaCupGroups(games, { prev = null } = {}) {
+export function nbaCupGroups(games, { prev = null, letters = null, live = false } = {}) {
+  const groups = cupGroupsAt(games, { prev, letters, live });
+  // Live: each row's move from the table without the games on now (▲▼).
+  if (live && groups.some(g => g.rows.some(r => r.live))) {
+    const before = cupGroupsAt(games, { prev, letters, live: false });
+    for (const g of groups) {
+      const was = before.find(b => b.rows.some(r => r.id === g.rows[0]?.id));
+      g.rows.forEach((r, i) => {
+        const at = was ? was.rows.findIndex(x => x.id === r.id) : -1;
+        if (at >= 0 && at !== i) r.moved = at - i;
+      });
+    }
+  }
+  return groups;
+}
+function cupGroupsAt(games, { prev, letters, live }) {
   const list = (games || []).filter(e => isGroupPlay(e) && e.home?.id && e.away?.id && Number(e.home.id) > 0 && Number(e.away.id) > 0 && !e.status?.void);
   const teams = new Map();
   const link = new Map();
@@ -56,13 +76,24 @@ export function nbaCupGroups(games, { prev = null } = {}) {
   const result = new Map();
   for (const e of list) {
     const [h, a] = [String(e.home.id), String(e.away.id)];
-    if (e.status?.state !== 'post') {
+    const state = e.status?.state;
+    const on = live && state === 'in';
+    // (Live: a game on counted as played, so not left; 2-0 with 2 left, never 2-0 with 3.)
+    if (state !== 'post' && !on) {
       teams.get(h).left++;
       teams.get(a).left++;
       continue;
     }
     const [hs, as] = [Number(e.home.score), Number(e.away.score)];
-    if (!Number.isFinite(hs) || !Number.isFinite(as) || hs === as) continue;
+    if (on && Number.isFinite(hs) && Number.isFinite(as)) {
+      teams.get(h).live = { for: hs, against: as };
+      teams.get(a).live = { for: as, against: hs };
+    }
+    // (A game on level just now: counted for neither, so still left.)
+    if (!Number.isFinite(hs) || !Number.isFinite(as) || hs === as) {
+      if (on) teams.get(h).left++, teams.get(a).left++;
+      continue;
+    }
     const win = hs > as ? h : a;
     // Overtime's points not counted: the four quarters' when the periods are known.
     const [hr, ar] = [regulation(e.home, hs), regulation(e.away, as)];
@@ -97,7 +128,10 @@ export function nbaCupGroups(games, { prev = null } = {}) {
     const rows = members.map(m => teams.get(m));
     const { rows: ranked, notes } = cupOrder(rows, groupSteps(result));
     // Said only where it decides who goes through: first v second (Jay, 2026-11-01: not every level pair).
-    groups.push({ conf: isEast(id) ? 'East' : 'West', rows: ranked, notes: played({ rows }) ? edge(notes, ranked) : [] });
+    // Its letter: ESPN's, when every one of the five has the same.
+    const named = new Set(members.map(m => letters?.[m] || ''));
+    const letter = named.size === 1 ? [...named][0] : '';
+    groups.push({ conf: isEast(id) ? 'East' : 'West', letter, rows: ranked, notes: played({ rows }) ? edge(notes, ranked) : [] });
   }
   // The wild card: each conference's best second. Neither marked before a
   // group's first game (the draw's order says nothing).
@@ -106,8 +140,123 @@ export function nbaCupGroups(games, { prev = null } = {}) {
     const best = cupOrder(seconds, CARD_STEPS).rows[0];
     for (const g of groups.filter(g => g.conf === conf)) g.rows.forEach((r, i) => (r.zone = i === 0 && played(g) ? 'lead' : r === best ? 'card' : ''));
   }
-  // East first; within a conference, the groups as ESPN numbers its teams (no letters to go by).
-  return groups.sort((a, b) => (a.conf === b.conf ? 0 : a.conf === 'East' ? -1 : 1));
+  cupFates(groups, list, live);
+  // East first; within a conference, by letter (without them, as ESPN numbers its teams).
+  return groups.sort((a, b) => (a.conf === b.conf ? (a.letter && b.letter ? a.letter.localeCompare(b.letter) : 0) : a.conf === 'East' ? -1 : 1));
+}
+
+// ESPN's cup standings (its type 3, by conference then group: "Group A")
+// -> each team's group letter, { '8': 'A' }.
+export function cupLetters(d) {
+  const out = {};
+  for (const conf of d?.children || [])
+    for (const g of conf.children || []) {
+      const letter = /group\s+([A-Z])\b/i.exec(g.name || '')?.[1]?.toUpperCase();
+      if (letter) for (const en of g.standings?.entries || []) if (en.team?.id) out[String(en.team.id)] = letter;
+    }
+  return out;
+}
+
+// Who's sure of what (Jay 2026-11-14: "a confirmed system, like the
+// playoffs"): every way the group games still to play can go, won or lost
+// (a margin can be anything, so a tie the margins would settle is taken
+// either way: never sure, never out on it). The order in each: record, then
+// the games between those level (again for those still level); level after
+// that, by point differential, points and last season once none of them has
+// a game left, else still open. The wild card: a conference's best second
+// by record, a level one open (its margins). Live: a game on as it stands
+// (level, still open). Once a conference's groups are all played, its zones
+// are the fates. Each row gets `fate`.
+function cupFates(groups, list, live) {
+  const winnerOf = e => {
+    const state = e.status?.state;
+    if (state !== 'post' && !(live && state === 'in')) return null;
+    const [hs, as] = [Number(e.home.score), Number(e.away.score)];
+    return Number.isFinite(hs) && Number.isFinite(as) && hs !== as ? String(hs > as ? e.home.id : e.away.id) : null;
+  };
+  const read = groups.map(g => {
+    const ids = g.rows.map(r => r.id);
+    const mine = list.filter(e => ids.includes(String(e.home.id)) && ids.includes(String(e.away.id)));
+    const fixed = [];
+    const open = [];
+    for (const e of mine) {
+      const pair = [String(e.home.id), String(e.away.id)];
+      const w = winnerOf(e);
+      if (w) fixed.push([...pair, w]);
+      else if (e.status?.state !== 'post') open.push(pair);
+    }
+    const busy = new Set(open.flat());
+    // Every way it can go: each team's place (its range, a tie still open) and wins.
+    const ways = [];
+    for (let m = 0; m < 2 ** open.length; m++) {
+      const res = [...fixed, ...open.map(([h, a], k) => [h, a, m & (1 << k) ? h : a])];
+      ways.push(placesOf(g.rows, res, busy));
+    }
+    return { g, ways, open: open.length };
+  });
+  for (const conf of ['East', 'West']) {
+    const mine = read.filter(x => x.g.conf === conf);
+    // All played: the zones as they are.
+    if (mine.every(x => !x.open)) {
+      for (const { g } of mine) for (const r of g.rows) r.fate = r.zone === 'lead' ? 'lead' : r.zone === 'card' ? 'in' : 'out';
+      continue;
+    }
+    // Each group's second: the fewest and the most wins it can have.
+    const seconds = mine.map(({ ways }) => {
+      let [lo, hi] = [Infinity, -Infinity];
+      for (const w of ways) for (const [id, p] of w.place) if (p.best <= 2 && p.worst >= 2) [lo, hi] = [Math.min(lo, w.wins.get(id)), Math.max(hi, w.wins.get(id))];
+      return { lo, hi };
+    });
+    mine.forEach(({ g, ways }, gi) => {
+      const others = seconds.filter((_, k) => k !== gi);
+      for (const r of g.rows) {
+        let [canFirst, sureFirst, can, sure] = [false, true, false, true];
+        for (const w of ways) {
+          const p = w.place.get(r.id);
+          const wins = w.wins.get(r.id);
+          if (p.best === 1) canFirst = true;
+          if (p.worst !== 1) sureFirst = false;
+          // In as the wild card: second, ahead of (or level with) every other group's second as it can end.
+          const second = p.best <= 2 && p.worst >= 2;
+          if (p.best === 1 || (second && others.every(o => o.lo <= wins))) can = true;
+          if (!(p.worst === 1 || (p.worst === 2 && others.every(o => wins > o.hi)))) sure = false;
+        }
+        r.fate = sureFirst ? 'lead' : sure ? 'in' : !can && !canFirst ? 'out' : '';
+      }
+    });
+  }
+}
+// One way the games go: each team's wins and its place (best, worst: a tie the margins settle, every place it could take).
+function placesOf(rows, res, busy) {
+  const wins = new Map(rows.map(r => [r.id, 0]));
+  const beat = new Map();
+  for (const [h, a, w] of res) {
+    wins.set(w, (wins.get(w) || 0) + 1);
+    beat.set(`${w}|${w === h ? a : h}`, true);
+  }
+  const place = new Map();
+  const byWins = [...rows].sort((a, b) => wins.get(b.id) - wins.get(a.id));
+  let at = 1;
+  const put = block => {
+    for (const r of block) place.set(r.id, { best: at, worst: at + block.length - 1 });
+    at += block.length;
+  };
+  // Those level: by their games against each other, again for any still level; then the margins (known once none has a game left).
+  const split = level => {
+    if (level.length < 2) return put(level);
+    const h2h = new Map(level.map(t => [t.id, level.reduce((n, o) => n + (beat.get(`${t.id}|${o.id}`) ? 1 : 0) - (beat.get(`${o.id}|${t.id}`) ? 1 : 0), 0)]));
+    const values = [...new Set(h2h.values())].sort((a, b) => b - a);
+    if (values.length > 1) return values.forEach(v => split(level.filter(t => h2h.get(t.id) === v)));
+    if (level.some(t => busy.has(t.id))) return put(level);
+    settle(level, CARD_STEPS, []).forEach(t => put([t]));
+  };
+  for (let i = 0; i < byWins.length; ) {
+    let j = i + 1;
+    while (j < byWins.length && wins.get(byWins[j].id) === wins.get(byWins[i].id)) j++;
+    split(byWins.slice(i, j));
+    i = j;
+  }
+  return { wins, place };
 }
 const played = g => g.rows.some(r => r.w + r.l > 0);
 // The note deciding first place, if a tiebreak did.
@@ -247,4 +396,52 @@ export function cupGroupColumn(groups, quarters) {
     }
   }
   return out.some(Boolean) ? out : [];
+}
+
+// What a group game decides (Jay 2026-11-14, a group being many games: "what
+// it means"), for its card: either side's win or loss as the fates have it
+// (晉級 / 淘汰 / 分組第一 sure), else who'd top the group with a win.
+// Over: what it settled. -> { kind, side, also } | null
+//   kind: 'in' | 'lead' (side's win puts it through / wins the group; side 'both': either's),
+//         'out' (side's loss puts it out), 'top' (side's win puts it top for now), 'did-in' | 'did-lead' | 'did-out' (over: what it settled)
+//   also: a second fact as { kind, side } (勝者晉級，敗者淘汰), or null
+export function cupStakes(games, e, opts = {}) {
+  if (!isGroupPlay(e)) return null;
+  const [h, a] = [String(e.home.id), String(e.away.id)];
+  const others = (games || []).filter(x => String(x.id) !== String(e.id));
+  const groupOf = list => nbaCupGroups(list, opts).find(g => g.rows.some(r => r.id === h) && g.rows.some(r => r.id === a));
+  const rowOf = (g, id) => g?.rows.find(r => r.id === id);
+  if (e.status?.state === 'post') {
+    const g = groupOf([...others, e]);
+    const was = groupOf([...others, { ...e, status: { state: 'pre' } }]);
+    const won = Number(e.home.score) > Number(e.away.score) ? h : a;
+    const lost = won === h ? a : h;
+    const did = id => {
+      const [now, then] = [rowOf(g, id)?.fate, rowOf(was, id)?.fate];
+      return now && now !== then ? now : '';
+    };
+    const facts = [[won, did(won)], [lost, did(lost)]].filter(([, f]) => f).map(([side, f]) => ({ kind: `did-${f}`, side }));
+    return facts.length ? { ...facts[0], also: facts[1] || null } : null;
+  }
+  // Either result as a game over (a point's margin: the order beyond it is the fates' to leave open).
+  const ending = winner => ({ ...e, status: { state: 'post' }, home: { ...e.home, score: winner === h ? 1 : 0, lines: [] }, away: { ...e.away, score: winner === a ? 1 : 0, lines: [] } });
+  const after = { [h]: groupOf([...others, ending(h)]), [a]: groupOf([...others, ending(a)]) };
+  const now = groupOf([...others, { ...e, status: { state: 'pre' } }]);
+  const gain = id => {
+    const f = rowOf(after[id], id)?.fate;
+    return (f === 'lead' || f === 'in') && rowOf(now, id)?.fate !== f && rowOf(now, id)?.fate !== 'lead' ? f : '';
+  };
+  const loss = id => (rowOf(after[id === h ? a : h], id)?.fate === 'out' && rowOf(now, id)?.fate !== 'out' ? 'out' : '');
+  const wins = [h, a].map(id => [id, gain(id)]).filter(([, f]) => f);
+  const outs = [h, a].filter(loss);
+  // (Both through with a win, one as its group's first and one as the wild card: 勝者晉級.)
+  const win = wins.length === 2 ? { kind: wins.every(([, f]) => f === 'lead') ? 'lead' : 'in', side: 'both' } : wins.length ? { kind: wins[0][1], side: wins[0][0] } : null;
+  const out = outs.length ? { kind: 'out', side: outs.length === 2 ? 'both' : outs[0] } : null;
+  if (win || out) return { ...(win || out), also: win && out ? out : null };
+  // Nothing settled either way: who'd top the group with a win (sure of the top, its tie not left to margins).
+  const top = [h, a].filter(id => {
+    const g = after[id];
+    return g?.rows[0]?.id === id && !(g.rows[1] && g.rows[1].w === g.rows[0].w && g.rows[1].l === g.rows[0].l && g.notes?.some(n => n.by !== 'h2h'));
+  });
+  return top.length ? { kind: 'top', side: top.length === 2 ? 'both' : top[0], also: null } : null;
 }
