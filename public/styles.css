@@ -3186,3 +3186,10 @@ table.hp-splits tbody tr.hp-split-new > * { border-top-color: var(--q-divider, v
 .cup-stand > .zone-legend { margin: -4px 4px 0; }
 /* A score on a table quiet beside a name: small, plain, no pill (the NBA Cup's). */
 .standings .live-score.quiet { padding: 0; margin-left: 5px; background: none; color: var(--q-muted); font-weight: 600; }
+/* A mouse over a followed team's head, its games and a league's row lights
+   them as every other row lights (Jay 11-14: "not consistent"); the light
+   reaches a little past the text, rounded, the row itself not moved. */
+@media (hover: hover) and (pointer: fine) {
+  :is(.tf-team, .tf-game):hover:not(:disabled) { background: var(--q-fill-4); box-shadow: 0 0 0 6px var(--q-fill-4); border-radius: 8px; }
+  .ml-row:hover { background: var(--q-fill-4); }
+}
