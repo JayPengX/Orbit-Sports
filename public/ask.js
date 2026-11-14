@@ -48,8 +48,47 @@ export function openAsk(src, { ask = '' } = {}) {
     return h('div', { class: 'sp-ask-a' }, [h('p', { class: 'sp-ask-line', text: line }), ...shown.flatMap(t => [h('h4', { text: t.title }), ...t.rows.map(r => h('p', { class: `sp-ask-row${lit.has(r.label) ? ' on' : ''}`, text: [r.label, r.sub, r.value].filter(Boolean).join(' · ') }))])]);
   };
 
+  // 「追蹤湖人」: a command, read by code (kit act.mjs), no AI call. The team
+  // found is shown with 追蹤 to tap; done, 復原 in the toast takes it back.
+  async function follow(name) {
+    const think = kitAI.aiAnswerWait?.({ text: W(en, '找這支球隊…', 'Finding the team…'), rows: 1 }) || kitAI.aiThinking(W(en, '找這支球隊…', 'Finding the team…'));
+    talk.append(think);
+    const side = await src.findTeam(name).catch(() => null);
+    if (!open) return;
+    if (!side) return void think.replaceWith(h('p', { class: 'sp-ask-hint sp-ask-err', text: W(en, `找不到「${name}」這支球隊，到 賽事 › 搜尋 試試。`, `Couldn’t find “${name}”. Try 賽事 › Search.`) }));
+    const btn = h('button', { class: 'q-btn small tinted sp-ask-follow', type: 'button' });
+    const paint = () => {
+      const on = src.isFollowed(side.league, side.id);
+      btn.textContent = on ? W(en, '已追蹤', 'Following') : W(en, '追蹤', 'Follow');
+      btn.classList.toggle('primary', !on);
+    };
+    btn.onclick = () => {
+      const was = src.isFollowed(side.league, side.id);
+      src.toggleFollow(side);
+      paint();
+      kitUI.toast?.(was ? W(en, `不再追蹤 ${side.name}`, `Unfollowed ${side.name}`) : W(en, `追蹤了 ${side.name}`, `Following ${side.name}`), { action: { label: W(en, '復原', 'Undo'), onTap: () => (src.toggleFollow(side), paint()) } });
+    };
+    paint();
+    const row = h('div', { class: 'q-rowcard sp-ask-team' }, [
+      h('div', { class: 'q-ritem' }, [
+        side.logo ? h('img', { class: 'sp-ask-logo', src: side.logo, alt: '', width: 32, height: 32, loading: 'lazy' }) : null,
+        h('span', { class: 'q-ritem-text' }, [h('span', { class: 'q-ritem-title', text: side.name }), h('small', { text: side.leagueName })]),
+        btn
+      ])
+    ]);
+    think.replaceWith(row);
+    row.scrollIntoView?.({ block: 'nearest' });
+  }
+
   async function go(q) {
     if (bar.classList.contains('busy')) return;
+    const act = src.findTeam ? await import('#kit/act.mjs').then(m => m.readAct?.(q)).catch(() => null) : null;
+    if (act?.act === 'follow') {
+      starters.hidden = true;
+      bar.clear();
+      talk.append(h('p', { class: 'sp-ask-you', text: q }));
+      return follow(act.name);
+    }
     starters.hidden = true;
     bar.busy(true);
     bar.clear();

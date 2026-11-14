@@ -4290,6 +4290,16 @@ function askSource() {
       return out;
     },
     today: todays,
+    // 「追蹤湖人」 (kit act.mjs, read by code): the team the name means, as 搜尋 finds it (a Chinese name by its English one).
+    findTeam: async name => {
+      const zh = /[\u3400-\u9fff]/.test(name);
+      const q = zh ? teamsByZh(name, 3)[0]?.name || (await translate(name, 'en', 'zh-TW').catch(() => name)) : name.replace(/^the\s+/i, '');
+      const x = (await searchEspn(q).catch(() => null))?.teams?.find(t => t.league && LEAGUES[t.league]);
+      return x ? { league: x.league, id: String(x.id), name: localSide(x.league, { name: x.name }).name, en: x.name, logo: x.logo || null, leagueName: shortLeague(x.league) } : null;
+    },
+    isFollowed: (league, id) => isFollowed(league, id),
+    // (追蹤 and its 復原: the team page's own toggle.)
+    toggleFollow: side => toggleFollow(side.league, { id: side.id, name: side.en, en: side.en, logo: side.logo }),
     openTeam: (league, id) => {
       const f = mine().find(x => x.league === league && String(x.id) === String(id));
       openTeam(league, id, f || { id });

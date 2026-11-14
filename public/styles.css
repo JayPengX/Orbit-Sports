@@ -3153,6 +3153,9 @@ table.hp-splits tbody tr.hp-split-new > * { border-top-color: var(--q-divider, v
 .sp-ask-line { margin: 0; font: 600 var(--q-t-headline) / 1.4 var(--q-font); }
 .sp-ask-row.on { color: var(--q-accent); }
 .sp-ask-foot { margin-top: 12px; padding-top: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); border-top: 0; }
+.sp-ask-team .q-ritem { gap: 12px; }
+.sp-ask-logo { width: 32px; height: 32px; object-fit: contain; flex: none; }
+.sp-ask-follow { flex: none; margin-left: auto; }
 .sp-ask .sp-ask-foot .q-ai-bar { margin-top: 0; }
 /* 相關新聞 (Orbit News' stories about a player, a team, a game): the outlet's
    mark, the headline on two lines at most, its kind, outlet and when under
