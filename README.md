@@ -6,14 +6,16 @@
 
 <p align="center">
   <b>Every game, live.</b><br>
-  <a href="https://orbit.jaypengx.com/sports/"><b>orbit.jaypengx.com/sports</b></a>
+  <a href="https://orbit.jaypengx.com/app/"><b>Use it in Orbit</b></a> · on its own at <a href="https://orbit.jaypengx.com/sports/">orbit.jaypengx.com/sports</a>
 </p>
 
 <p align="center">
   <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES_modules-F7DF1E?logo=javascript&logoColor=000"> <img alt="PWA" src="https://img.shields.io/badge/PWA-works_offline-5A0FC8?logo=pwa&logoColor=fff"> <img alt="Cloudflare" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=fff"> <img alt="Tests" src="https://img.shields.io/badge/Tests-node_--test-339933?logo=nodedotjs&logoColor=fff">
 </p>
 
-Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan for your day and one tap to watch. Part of **Orbit**, a family of apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
+Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan for your day and one tap to watch. Part of **Orbit**, a family of apps for life in Taiwan that share one sign-in, the Orbit Pass.
+
+> **Best in Orbit.** Add [Orbit](https://orbit.jaypengx.com/app/) to your home screen: every Orbit app in one, signed in once, switching between them without reloading. Orbit Sports also works on its own at [orbit.jaypengx.com/sports](https://orbit.jaypengx.com/sports/) if it's the only one you want.
 
 <p align="center">
   <img src="docs/screenshots/sports-1.webp" width="30%" alt="Your games, the moment you open it">
@@ -148,6 +150,8 @@ node ../Orbit-Core/tools/preview.mjs sports --live --serve --port 8123
 Push to `main`. GitHub Actions runs the tests, writes `nba-elta.json`, stamps every file with its content hash (so a phone downloads only what changed) and publishes `public/` to Cloudflare at its orbit.jaypengx.com address (Orbit-Core `deploy/cf-site.mjs`). It also runs every 6 hours. There are no pull requests or release branches.
 
 ## Part of Orbit
+
+Every app below is in **[Orbit](https://orbit.jaypengx.com/app/)**, one home-screen app for them all; each also works on its own.
 
 | App | What it is |
 | --- | --- |
