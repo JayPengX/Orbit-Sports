@@ -48,7 +48,7 @@ Scores, schedules and stats for the leagues you can watch in Taiwan, with a plan
 
 ## Features
 
-- **Orbit AI** (its mark on everything smart): 問比賽 asks about the teams you follow and answers as tables the app read (places, next and last games, today) with each team's logo and one AI line; a finished game's 賽後三句話 says only what the card doesn't (comebacks, runs, the period that broke it open), players as face chips and teams as logo chips; each F1 race's 勝負關鍵 as rows, a lap and a driver's face each; 看點 says why a game to come matters. Lines everyone reads are made once ahead, never per reader.
+- **Orbit AI** (its mark on everything smart): 問比賽 asks about the teams you follow and answers as tables the app read (places, next and last games, today) with each team's logo and one AI line; a finished game's 賽後三句話 says only what the card doesn't (comebacks, runs, the period that broke it open), players as face chips and teams as logo chips; each F1 race's 勝負關鍵 as rows, a lap and a driver's face each; 看點 says why a game to come matters. Lines everyone reads are made when someone taps for them, then kept for everyone.
 - **With the family:** a CPBL game near at hand opens Orbit Transit's trip to the park with the park's weather (去球場); a live NBA game counts each side's timeouts left.
 - **Today:** a sticky date strip, what's on now, a no-clash plan of the day's best games, your own teams' games, and what already finished (推薦給你 apart from 其他比賽). Each hour's pick stays as it stood before its games.
 - **Only what you can watch here:** MLB and CPBL, the NBA, the Premier League, Serie A, Bundesliga, Ligue 1, the UEFA cups, MLS on Apple TV, and every F1 session. A league out of season hides itself.
