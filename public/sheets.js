@@ -1758,9 +1758,7 @@ function matchSection(view, d, e, table, lw = {}) {
     if (pts.length && pts.every(p => p.n)) {
       const sides = { home: { id: e.home.id, name: sideShort(e.home.id) }, away: { id: e.away.id, name: sideShort(e.away.id) }, en };
       for (const m of playMoments(pts, sport, sides)) {
-        // (A run that took the lead: on the play that took it, not where the lagging price peaked.)
-        const at = m.lead ?? m.i;
-        const id = (m.periods || m.rally ? pts[at]?.play?.id : m.src?.id) || pts[at]?.play?.id;
+        const id = (m.periods || m.rally ? pts[m.i]?.play?.id : m.src?.id) || pts[m.i]?.play?.id;
         if (id) marks.set(id, m);
       }
     }
@@ -1789,7 +1787,7 @@ function matchSection(view, d, e, table, lw = {}) {
       const what = [p.id, p.clock, said(p), p.home, p.away, p.scoring, p.team, p.pic?.id, sport === 'soccer' ? period : '', m ? [m.side, delta, m.text, m.team, runs] : 0, clockless, L()];
       // A run: a line of its own after the play that ended it (its words, its swing).
       // (Its side's logo where a play has its face; the row tinted in the shirt that side wore, the chart's colour.)
-      // (The logo in the clock's column where there is one, so the words have the row: 76人 16-3 超前 on one line at 320 px.)
+      // (The logo in the clock's column where there is one, so the words have the row: 76人 16-3 攻勢 on one line at 320 px.)
       const run = runs
         ? {
             key: `r|${JSON.stringify(what)}`,
@@ -1797,7 +1795,8 @@ function matchSection(view, d, e, table, lw = {}) {
             make: () => {
               const runSide = side(m.team) || (m.side === 'home' ? e.home : e.away);
               const runLogo = () => (runSide?.logo ? teamLogoTap(e.league, runSide, logo(runSide.logo, sideShort(m.team), 'xs play-team')) : el('span', { class: 'play-none', 'aria-hidden': 'true' }, [leagueMark(e.league)]));
-              const runWords = () => el('span', { class: 'play-words' }, [el('span', { class: 'play-main q-fit-wrap', text: m.text })]);
+              // (The run on its line, what it did to the score small under it: 76人 19-1 攻勢 over 超前.)
+              const runWords = () => (([main, ...sub]) => el('span', { class: 'play-words' }, [el('span', { class: 'play-main q-fit-wrap', text: main }), sub.length ? el('small', { class: 'play-sub', text: sub.join(' · ') }) : null]))(String(m.text).split(' · '));
               return el('li', { class: 'run-mark', style: tint[m.side] ? `--side:${tint[m.side]}` : null }, [clockless ? null : el('span', { class: 'play-when run-logo' }, [runLogo()]), el('span', { class: `play-text${clockless ? ' has-face' : ''}` }, [clockless ? runLogo() : null, runWords()]), chip()]);
             }
           }
@@ -2640,16 +2639,18 @@ function winProbCard(line, e, timeline, events = []) {
   const sideC = s => (s === 'home' ? homeC : awayC);
   const side = { home: { id: e.home.id, name: sideName(e.home) }, away: { id: e.away.id, name: sideName(e.away) }, en };
   const moments = (pts.every(p => p.n) ? playMoments(pts, sport, side) : eventMoments(pts, events, sport, side, pts.map(p => p.t))).filter(m => !isQuiet(m.i));
+  // The score in the cards' order, each side's number in its colour (the
+  // labels' over the chart, the line's halves): whose is whose without a word.
+  const scoreWords = score => (score ? (([a, b], [ka, kb]) => [el('span', { class: ka, text: String(a) }), '–', el('span', { class: kb, text: String(b) })])(inOrder(e, score), inOrder(e, ['away', 'home'])) : []);
   // When it was: the one period of the point it's dotted at (a run over two
   // quarters said where it ended, never 第3–4節: Jay 2026-11-10, a point is
-  // in one quarter), the clock in the last two minutes, the score after it.
+  // in one quarter), the clock in the last two minutes, the score after it
+  // (a run's own end: its points inside it).
   const momentAt = m => {
-    // A run that took the lead (or tied it): the score on the play that did,
-    // not where the lagging price peaked (98–91 for a lead taken at 89–88).
-    const at = m.lead ?? m.i;
-    const when = pointStamp(timeline, sport, m.t != null && at === m.i ? { ...pts[m.i], t: m.t } : pts[at], en);
-    const score = scoreAt(pts, at, events, e.home.id);
-    return [when, lateClock(sport, pts[at]), score ? inOrder(e, score).join('–') : ''].filter(Boolean).join(' · ');
+    const when = pointStamp(timeline, sport, m.t != null ? { ...pts[m.i], t: m.t } : pts[m.i], en);
+    const score = scoreAt(pts, m.i, events, e.home.id);
+    const head = [when, lateClock(sport, pts[m.i])].filter(Boolean).join(' · ');
+    return score ? [head ? `${head} · ` : '', ...scoreWords(score)] : [head];
   };
   // Whose chance it lifted, and by how much.
   // (The moment's side, never the sign of its number: a score helps only the side that scored, Jay 2026-11-06.)
@@ -2663,7 +2664,6 @@ function winProbCard(line, e, timeline, events = []) {
   const draw = pts.some(p => p.draw != null) ? el('span', { class: 'draw' }) : null;
   const home = el('span', { class: 'home' });
   const at = el('small', { class: 'wp-at' });
-  const why = el('div', { class: 'wp-why', hidden: true });
   const rule = el('span', { class: 'wp-rule', hidden: true });
   const dot = el('span', { class: 'wp-dot', hidden: true });
   const live = e.status.state === 'in';
@@ -2686,20 +2686,17 @@ function winProbCard(line, e, timeline, events = []) {
   // (An own goal: the badge of the side it counted for, the defender's small head under it, a tap to his page: Jay 2026-11-06.)
   const sideOfTeam = id => (String(id) === String(e.home.id) ? e.home : e.away);
   const face = m => (m.own ? el('span', { class: 'wp-pair og' }, [teamTap(sideOfTeam(m.team)), m.by ? personTap(e.league, m.by, personPic(m.by, e.league, 'sm round')) : null].filter(Boolean)) : m.pics?.length > 1 ? el('span', { class: 'wp-pair' }, m.pics.map(p => personTap(e.league, p, personPic(p, e.league, 'sm round')))) : m.pic ? personTap(e.league, m.pic, personPic(m.pic, e.league, 'sm round')) : m.team ? teamTap(String(m.team) === String(e.home.id) ? e.home : e.away) : momentGlyph(m.icon));
-  const tell = (m, label) => {
-    why.hidden = !m;
-    // The words on one line, the chance's move under them (the owner,
-    // 2026-10-16: beside them it pushed the words onto two lines); a little
-    // smaller only where it's still too long.
-    if (m) put(why, el('span', { class: 'wp-why-icon' }, [face(m)]), el('span', { class: 'wp-why-text' }, [...momentWords(m.text, label), gainChip(m)]));
-    if (m) fitLine(why.querySelector('.mo-main'));
-  };
   // Dotted on the line: the big swings and a lead taken or tied, never two crowding each other (the bigger kept; a lead taken first).
   // (Baseball: a run scored over a pitch next to it.)
   const weight = m => (m.always ? 2 : 0) + (m.rally ? 1 : 0) + (m.turned ? 1 : 0) + Math.abs(m.delta);
   // A moment's dot on the edge of the band of the side it helped (the home
   // side's above, the away side's below the draw), not in the draw's middle.
   const pinY = m => (asLine ? 1 - pts[m.i].home : m.side === 'home' ? pts[m.i].home : pts[m.i].home + (pts[m.i].draw ?? 0));
+  // The side the cards put first (soccer's home side, the rest's away side) on
+  // top, as its label is on the left and its number first in the score
+  // (Jay 2026-11-14: 76人 on top of a chart under 暴龍 72% · 76人 28%).
+  const flip = !homeFirst(e);
+  const upY = y => (flip ? 1 - y : y);
   const dotted = [];
   // (A soccer game's goals and red cards always: Ipswich–Man City's five goals moved a favourite's price little, and none had a dot.)
   // (A goal always: Messi's 2–0 at 56' and 3–0 at 60' sat closer than the
@@ -2709,9 +2706,11 @@ function winProbCard(line, e, timeline, events = []) {
   // a moment listed with no dot read as one that didn't matter).
   const listed = [...dotted].sort((a, b) => a.i - b.i);
   const show = (j, picked) => {
-    // A moment picked from the list: that one; a finger close to one: on it.
+    // A moment picked from the list: that one; a finger close to one: on it,
+    // its row lit (its words said once, in the list: Jay 2026-11-14, a box
+    // under the chart said the row again).
     const m = picked || (j != null ? near(j) : null);
-    rows.forEach((r, k) => r.classList.toggle('on', listed[k] === picked));
+    rows.forEach((r, k) => r.classList.toggle('on', Boolean(m) && listed[k] === m));
     const i = m ? m.i : j;
     // (A game over, nothing picked: the chances before the start, said so under them.)
     const p = i == null && arc ? { ...pts[0], ...arc.start } : pts[i ?? pts.length - 1];
@@ -2722,13 +2721,11 @@ function winProbCard(line, e, timeline, events = []) {
     home.textContent = `${sideName(e.home)} ${pct(hh)}`;
     // Where the game was: the period and the score then (in the cards' order).
     const score = scoreAt(pts, i ?? pts.length - 1, events, e.home.id);
-    const tally = score ? ` · ${inOrder(e, score).join('–')}` : '';
+    const tally = score ? [' · ', ...scoreWords(score)] : [];
     const stamp = [pointStamp(timeline, sport, p, en) || `${i + 1} / ${pts.length}`, lateClock(sport, p)].filter(Boolean).join(' ');
     // (On a key moment: its own words, as its row in the list has them, so the two never differ: Jay, 2026-10-28.)
-    at.textContent = i == null ? (arc ? arcWords : `${rest}${tally}`) : m ? momentAt(m) : `${stamp}${tally}`;
+    put(at, ...(i == null ? (arc ? [arcWords] : [rest, ...tally]) : m ? momentAt(m) : [stamp, ...tally]));
     at.classList.toggle('on', i != null);
-    const latest = latestOf();
-    tell(i == null ? latest : m, i == null && latest ? (en ? 'Just now' : '剛剛') : '');
     // The rule wherever the finger is; the ring only round a moment it's on
     // (the owner, 2026-10-16: a dot anywhere else looked like a moment with
     // nothing in it).
@@ -2736,10 +2733,10 @@ function winProbCard(line, e, timeline, events = []) {
     dot.hidden = i == null || !dotted.includes(m);
     if (i == null) return;
     rule.style.left = dot.style.left = `${xs[i] * 100}%`;
-    dot.style.top = `${(dotted.includes(m) ? pinY(m) : asLine ? 1 - midAt(i) : midAt(i)) * 100}%`;
+    dot.style.top = `${upY(dotted.includes(m) ? pinY(m) : asLine ? 1 - midAt(i) : midAt(i)) * 100}%`;
   };
   // (An own goal the same dot as any goal: it counted all the same, Jay 2026-11-06; its row says 烏龍球.)
-  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${pinY(m) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
+  const pins = dotted.map(m => el('span', { class: `wp-moment ${m.side}`, style: `left:${xs[m.i] * 100}%;top:${upY(pinY(m)) * 100}%;background:${sideC(m.delta >= 0 ? 'home' : 'away')}` }));
   // Each band in its side's colour (a draw's grey), the even line dashed across.
   // A white or black side's band near solid, so it never reads as the draw's grey.
   const solid = c => (hasHue(c) ? '62%' : '92%');
@@ -2754,18 +2751,21 @@ function winProbCard(line, e, timeline, events = []) {
     const id = `wp${String(e.id).replace(/\W/g, '')}`;
     return `<defs><clipPath id="${id}t"><rect x="0" y="0" width="${w}" height="${h / 2}"/></clipPath><clipPath id="${id}b"><rect x="0" y="${h / 2}" width="${w}" height="${h / 2}"/></clipPath></defs><path d="${fill}" clip-path="url(#${id}t)" class="wp-shade" style="fill:${homeC}"/><path d="${fill}" clip-path="url(#${id}b)" class="wp-shade" style="fill:${awayC}"/>${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/><path d="M${pt.join(' L')}" class="wp-line"/>`;
   };
-  const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${asLine ? lineSvg() : `${band(homeArea, `color-mix(in srgb, ${homeC} ${solid(homeC)}, transparent)`)}${band(drawArea, 'color-mix(in srgb, var(--q-muted) 38%, transparent)', ' draw')}${band(awayArea, `color-mix(in srgb, ${awayC} ${solid(awayC)}, transparent)`)}${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/>`}${gaps}</svg>`;
+  const drawing = `${asLine ? lineSvg() : `${band(homeArea, `color-mix(in srgb, ${homeC} ${solid(homeC)}, transparent)`)}${band(drawArea, 'color-mix(in srgb, var(--q-muted) 38%, transparent)', ' draw')}${band(awayArea, `color-mix(in srgb, ${awayC} ${solid(awayC)}, transparent)`)}${grid}<line x1="0" x2="${w}" y1="${h / 2}" y2="${h / 2}" class="wp-mid"/>`}${gaps}`;
+  const svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" class="wp-chart" aria-hidden="true">${flip ? `<g transform="matrix(1 0 0 -1 0 ${h})">${drawing}</g>` : drawing}</svg>`;
   const plot = scrubPlot(xs, show, [el('div', { html: svg }), ...pins, rule, dot]);
   dot.classList.add('ring');
-  // Whose half is whose: each side's logo beside the chart (never over the line).
-  const frame = el('div', { class: 'wp-frame' }, [el('div', { class: 'wp-sides' }, [teamLogoTap(e.league, e.home, sideLogo(e.home, e.league, 'xs')), teamLogoTap(e.league, e.away, sideLogo(e.away, e.league, 'xs'))]), plot]);
+  // Whose half is whose: each side's logo beside the chart (never over the line), the first side's on top.
+  const frame = el('div', { class: 'wp-frame' }, [el('div', { class: 'wp-sides' }, inOrder(e, [e.away, e.home]).map(x => teamLogoTap(e.league, x, sideLogo(x, e.league, 'xs')))), plot]);
   // The key moments, in the game's order: a tap puts the chart on that one (brought into view).
+  // (A game on: its newest key moment said so, 剛剛, on its row.)
+  const latest = latestOf();
   const rows = listed.map(m =>
     // The face to the player's page, the rest to the chart.
     el('div', { class: 'wp-mo' }, [
       el('span', { class: 'wp-mo-face' }, [face(m)]),
       el('button', { type: 'button', class: 'wp-mo-go', onclick: () => ((state.picked = m.i), show(m.i, m), bringIn(plot)) }, [
-        el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at', text: momentAt(m) }), el('span', { class: 'wp-mo-text' }, oneLineWords(m.text))]),
+        el('span', { class: 'wp-mo-body' }, [el('small', { class: 'wp-mo-at' }, [m === latest ? el('b', { text: `${en ? 'Just now' : '剛剛'} · ` }) : null, ...momentAt(m)]), el('span', { class: 'wp-mo-text' }, oneLineWords(m.text))]),
         gainChip(m)
       ])
     ])
@@ -2776,9 +2776,10 @@ function winProbCard(line, e, timeline, events = []) {
   const again = kept.picked != null ? listed.find(m => m.i === kept.picked) : null;
   const state = { picked: again ? again.i : null };
   if (again) show(again.i, again);
+  // (The chips' column named once over them: what +47% is, Jay 2026-11-14.)
   const list = listed.length
     ? el('div', { class: 'wp-moments' }, [
-        el('p', { class: 'mini-h', text: en ? 'Key moments' : '關鍵時刻' }),
+        el('p', { class: 'mini-h wp-mo-h' }, [el('span', { text: en ? 'Key moments' : '關鍵時刻' }), listed.some(m => gainChip(m)) ? el('span', { text: en ? 'Win chance' : '勝率變化' }) : null]),
         ...rows
       ])
     : null;
@@ -2787,7 +2788,6 @@ function winProbCard(line, e, timeline, events = []) {
     at,
     frame,
     el('div', { class: 'wp-axis-in' }, [axisRow(marks)]),
-    why,
     list
   ]);
   // (A finger on the chart lets a picked moment go: it shows where the finger is, then the latest.)

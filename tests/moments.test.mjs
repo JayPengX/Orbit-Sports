@@ -2,15 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseSummary } from '../public/lib/espn.mjs';
-import { playMoments, eventMoments, swings, playParts } from '../public/lib/moments.mjs';
+import { playMoments, eventMoments, playParts, scoreAt } from '../public/lib/moments.mjs';
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 const sideOf = s => ({ home: { id: s.home.id, name: 'H' }, away: { id: s.away.id, name: 'A' } });
-
-test('swings: moves of 12 points or more, each told once', () => {
-  assert.deepEqual(swings([0.5, 0.52, 0.7, 0.68, 0.4, 0.45]), [{ from: 0, to: 2 }, { from: 2, to: 4 }]);
-  assert.deepEqual(swings([0.5, 0.55, 0.5]), []);
-});
 
 test("baseball: the plays that turned it (Yankees at Rays, 2026-10-05: Rice's home run)", () => {
   const s = parseSummary(fixture('mlb-summary-moments.json'), 'mlb');
@@ -31,7 +26,8 @@ test('basketball: the runs, by the points each side scored', () => {
   for (let i = 0; i < 6; i++) add(0.5 + (i + 1) * 0.04, 2, 0);
   for (let i = 0; i < 5; i++) add(0.74, 1, 1);
   const [m] = playMoments(pts, 'basketball', { home: { id: '1', name: '76人' }, away: { id: '2', name: '尼克' }, en: false });
-  assert.equal(m.text, '76人 12-0 攻勢');
+  // (From 10-10: it went ahead, said under it.)
+  assert.equal(m.text, '76人 12-0 攻勢 · 超前');
   assert.equal(m.side, 'home');
 });
 
@@ -45,7 +41,7 @@ test('basketball: a run ending on a play with no score (a timeout) counts from t
   pts.push({ home: 0.78, n: 1, play: { text: 'Spurs Full timeout' } });
   const [m] = playMoments(pts, 'basketball', { home: { id: '1', name: '火箭' }, away: { id: '2', name: '馬刺' }, en: false });
   assert.match(m.text, /^火箭 \d+-\d+ /);
-  assert.equal(m.text, '火箭 12-0 超前');
+  assert.equal(m.text, '火箭 12-0 攻勢 · 超前');
 });
 
 test("soccer on Polymarket's line: a goal always told, with the move around it", () => {
@@ -146,9 +142,13 @@ test('basketball: the stretch it drifted over and the possessions that decided i
   const { lateClock } = await import('../public/lib/moments.mjs');
   const s = parseSummary(fixture('nba-finals-g2.json'), 'nba');
   const list = playMoments(s.winProb, 'basketball', { home: { id: s.home.id, name: '馬刺' }, away: { id: s.away.id, name: '尼克' }, en: false });
-  // The slow slide: one stretch over two quarters, told by the points.
-  const stretch = list.find(m => m.periods && m.periods[1] > m.periods[0]);
-  assert.match(stretch.text, /^尼克 \d+-\d+ 超前$/, "from behind to ahead");
+  // The Knicks' run from behind, told as a run (never the slow slide's whole tally).
+  const runs = list.filter(m => m.periods);
+  assert.ok(runs.some(m => /^尼克 \d+-\d+ 攻勢 · 超前$/.test(m.text)), runs.map(m => m.text).join(' / '));
+  for (const m of runs) {
+    const [us, them] = m.text.match(/(\d+)-(\d+)/).slice(1).map(Number);
+    assert.ok(us - them >= 8 && them * 3 <= us, `${m.text}: a run is three in four of the points or more`);
+  }
   // The last possessions, who did what.
   const texts = list.map(m => m.text);
   assert.ok(texts.includes('V. Wembanyama 跳投不進'));
@@ -259,14 +259,15 @@ test('basketball: a run that did its work early ends there, not where the drift 
   for (let i = 0; i < 80; i++) add(0.89 + (i + 1) * 0.0011 + (i % 4 === 0 ? -0.01 : 0), i < 40 ? 1 : 2, 1, 1); // the drift: → 0.98
   const run = playMoments(pts, 'basketball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false }).find(m => m.periods);
   assert.ok(run && run.i <= 22, `the run ends with the run, not at ${run?.i}`);
-  assert.equal(run.text, 'H 30-0 攻勢');
+  // (From 5-5, ahead from its first basket to the end.)
+  assert.equal(run.text, 'H 30-0 攻勢 · 超前，此後未再落後');
 });
 
-// Cavaliers at 76ers, 2026-10-22: down 89-95, a 16-3 run; Embiid's jumper
-// at 6:54 made it 96-95, but the (lagging) price peaked two baskets on, at
-// 100-95, and 過程's 超前 row sat there. The row is on the play that took
-// the lead; the chart's dot stays on the peak.
-test('basketball: a run that takes the lead is placed on the play that took it, the dot on the price high', () => {
+// Cavaliers at 76ers, 2026-10-22: down 84-96, a 17-0 run, ahead at 97-96,
+// the price's high at 101-96. A run is one point: its dot, its row and the
+// score there are its last basket's, its points inside that score; the
+// basket that went ahead kept (took) for 此後未再落後.
+test("basketball: a run is told at its last basket, the one that went ahead kept for 此後未再落後", () => {
   const pts = [];
   let [h, a] = [0, 0];
   const add = (v, dh, da, id) => pts.push({ home: v, n: 4, play: { id, home: (h += dh), away: (a += da), clock: '' } });
@@ -284,9 +285,24 @@ test('basketball: a run that takes the lead is placed on the play that took it, 
   for (let i = 0; i < 4; i++) add(0.85, 1, 1, `t${i}`);
   const run = playMoments(pts, 'basketball', { home: { id: 'h', name: '76人' }, away: { id: 'a', name: '騎士' }, en: false }).find(m => m.periods && m.side === 'home');
   assert.ok(run, 'the run');
-  assert.match(run.text, /超前$/);
-  assert.equal(pts[run.i].play.id, 'peak', 'the dot on the price high');
-  assert.equal(pts[run.lead].play.id, 'flip', 'the row on the play that took the lead');
+  assert.match(run.text, /^76人 1\d-0 攻勢 · 超前$/);
+  assert.equal(pts[run.i].play.id, 'peak', 'told at its last basket');
+  assert.equal(pts[run.took].play.id, 'flip', 'the basket that went ahead');
+});
+
+// Raptors at 76ers, 2026-11-12 (Jay 2026-11-14, "making no sense"): the
+// 76ers' slow climb from 16-33 was one "run" of 76-52 over two and a half
+// quarters, told at 85–92 as 超前，此後未再落後 long after they went ahead.
+// The game's runs, each its own: the Raptors' 26-7, the 76ers' 19-1 back
+// ahead, a 10-2, and the 10-0 from 85-85 that put them ahead for good.
+test('basketball: a game told by its runs, never a slide over quarters (Raptors at 76ers)', () => {
+  const f = fixture('nba-raptors-76ers-winprob.json');
+  const list = playMoments(f.winProb, 'basketball', { home: { id: f.home.id, name: '76人' }, away: { id: f.away.id, name: '暴龍' }, en: false });
+  const at = m => scoreAt(f.winProb, m.i).join('-');
+  assert.deepEqual(list.map(m => `${at(m)} ${m.text}`), ['33-16 暴龍 26-7 攻勢 · 超前', '34-35 76人 19-1 攻勢 · 超前', '71-76 76人 10-2 攻勢 · 超前', '85-95 76人 10-0 攻勢 · 超前，此後未再落後']);
+  // Ahead for good from 85-87, the run's third basket: never behind after it.
+  const good = list.at(-1);
+  assert.equal(scoreAt(f.winProb, good.took).join('-'), '85-87');
 });
 
 // Brewers at Padres, 2026-10-06: three 9th-inning plays at +9% were kept
@@ -344,8 +360,9 @@ test('basketball: a single possession in mid-game is never a moment, only the ru
 });
 
 // Trail Blazers at Warriors, 2026-10-08: the Warriors' 19-10 from 22-31 to
-// 41-41 was told as 拉開 (a long stretch) when it levelled the game.
-test('basketball: a run says what it did to the score: levelled, went ahead, closed in, or built a lead', () => {
+// 41-41 was told as 拉開 (a long stretch) when it levelled the game. A run
+// says only what it did to who's ahead (the score beside it says the rest).
+test('basketball: a run says when it levelled the game or went ahead, and nothing else', () => {
   const run = (h0, a0, dh, da) => {
     const pts = [];
     let [h, a] = [h0, a0];
@@ -355,10 +372,10 @@ test('basketball: a run says what it did to the score: levelled, went ahead, clo
     for (let i = 0; i < 3; i++) add(0.6, 0, 0);
     return playMoments(pts, 'basketball', { home: { id: 'h', name: 'H' }, away: { id: 'a', name: 'A' }, en: false }).find(m => m.periods)?.text;
   };
-  assert.match(run(22, 31, 12, 3), /追平$/);
-  assert.match(run(22, 31, 15, 2), /超前$/);
-  assert.match(run(10, 30, 12, 2), /追近$/);
-  assert.match(run(30, 20, 12, 2), /攻勢$/);
+  assert.match(run(22, 31, 12, 3), /^H \d+-\d+ 攻勢 · 追平$/);
+  assert.match(run(22, 31, 15, 2), /^H \d+-\d+ 攻勢 · 超前$/);
+  assert.match(run(10, 30, 12, 2), /^H \d+-\d+ 攻勢$/);
+  assert.match(run(30, 20, 12, 2), /^H \d+-\d+ 攻勢$/);
 });
 
 import { lineupZh, playText } from '../public/lib/moments.mjs';
@@ -496,7 +513,7 @@ test('F1: a lead the market doubts (its chance down) is told by who gained over 
 // quarters, Warriors 47-29 超前, went ahead at 19-17 early in the 1st; the
 // chart's label and 關鍵時刻 read "第1–2節 · 19–17" under 47-29. A lead taken
 // in an earlier quarter than the stretch ended is no `lead`: told at its end.
-test('basketball: a stretch over two quarters that went ahead early is told at its end, not at the lead', () => {
+test('basketball: a run over two quarters that went ahead early is told at its end, its score there', () => {
   const pts = [];
   let [h, a] = [0, 0];
   const add = (v, dh, da, n, id) => pts.push({ home: v, n, play: { id, home: (h += dh), away: (a += da), clock: '' } });
@@ -508,9 +525,11 @@ test('basketball: a stretch over two quarters that went ahead early is told at i
   for (let i = 0; i < 4; i++) add(0.91, 1, 1, 2, `t${i}`);
   const run = playMoments(pts, 'basketball', { home: { id: 'h', name: '勇士' }, away: { id: 'a', name: '灰狼' }, en: false }).find(m => m.periods && m.side === 'home');
   assert.ok(run, 'the stretch');
-  assert.deepEqual(run.periods, [1, 2]);
-  assert.match(run.text, /超前$/);
-  assert.equal(run.lead, undefined, 'no lead from the 1st for a stretch that ended in the 2nd');
+  assert.equal(run.periods[1], 2);
+  assert.match(run.text, /攻勢 · 超前$/);
+  const [us, them] = run.text.match(/(\d+)-(\d+)/).slice(1).map(Number);
+  const end = pts[run.i].play;
+  assert.ok(us <= end.home && them <= end.away, `${run.text} told at ${end.away}-${end.home}`);
 });
 
 // Raptors at Lakers, 2026-11-02: the Lakers' 28-8 run went ahead at 9-6 and
@@ -530,14 +549,13 @@ test('basketball: a run never counts more points than the score its row shows', 
   assert.ok(runs.length, 'the run');
   for (const m of runs) {
     const [us, them] = m.text.match(/(\d+)-(\d+)/).slice(1).map(Number);
-    const at = pts[m.lead ?? m.i].play;
+    const at = pts[m.i].play;
     const [mine, theirs] = m.side === 'home' ? [at.home, at.away] : [at.away, at.home];
     assert.ok(us <= mine && them <= theirs, `${m.text} told at ${at.away}-${at.home}`);
   }
   // Told where it ended, whole.
   const run = runs.find(m => m.side === 'home');
-  assert.equal(run.lead, undefined);
-  assert.match(run.text, /^湖人 2\d-\d+ 超前/);
+  assert.match(run.text, /^湖人 2\d-\d+ 攻勢 · 超前/);
 });
 
 // Own goals (Nashville 3–2 Red Bulls, MLS 2026-11-01: Parker's at 45' and
@@ -657,4 +675,13 @@ test("a finished game's line: each side's chance before it, an upset, the winner
   assert.deepEqual([draw.side, draw.pre, draw.upset, draw.start.away.toFixed(2)], ['draw', 0.27, false, '0.28']);
   assert.equal(gameArc([], null, 'W'), null);
   assert.equal(gameArc(pts, null, ''), null);
+});
+
+// "F. Alvarez 失誤 · 1 分打點" beside his face read as his error and his RBI:
+// he reached on the fielders' error, and the run in on it isn't an RBI.
+test("baseball: a batter on base by an error says so, its runs runs, not RBIs", () => {
+  const play = { who: 'F. Alvarez', text: 'Benge scored on error, Alvarez safe at first on fielding error by right fielder Nimmo.', scoring: true, value: 1 };
+  assert.equal(playText('baseball', play, false), 'F. Alvarez 對手失誤上壘 · 得 1 分');
+  assert.equal(playText('baseball', { ...play, value: 2 }, true), 'F. Alvarez reaches on error · 2 runs');
+  assert.equal(playText('baseball', { who: 'D. Hamilton', text: 'Hamilton singled to left, Mitchell scored.', scoring: true, value: 1 }, false), 'D. Hamilton 一壘安打 · 1 分打點');
 });

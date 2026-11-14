@@ -8,7 +8,7 @@ import { LEAGUES, leaguesOf, hasStandings, hasTeams, hasTeamPage, leagueName } f
 import { leagueKey, familyOf, teamKey, eventKeys } from '../public/lib/foryou.mjs';
 import { metric, boxHead } from '../public/lib/statnames.mjs';
 import { contrast, readableOn, gameTime } from '../public/lib/wpline.mjs';
-import { bandName, basketEn, tighten } from '../public/lib/moments.mjs';
+import { bandName, basketEn } from '../public/lib/moments.mjs';
 import { clash, strength, tableStarted, tableIndex, bigGame, dayPlan } from '../public/lib/picks.mjs';
 import { STRINGS, makeT } from '../public/lib/i18n.mjs';
 import { openRound, stageKey } from '../public/lib/playoffs.mjs';
@@ -108,8 +108,6 @@ test('moments’ small words', () => {
   assert.equal(basketEn({ who: 'Curry', text: 'Stephen Curry makes 26-foot three point jumper' }), 'Curry three');
   assert.equal(basketEn({ who: 'Jokic', text: 'Nikola Jokic makes free throw 2 of 2' }), 'Jokic free throw 2/2');
   assert.equal(basketEn({ who: 'X', text: '' }), 'X jumper');
-  // No move: the stretch as given.
-  assert.deepEqual(tighten([0.5, 0.5, 0.5], { from: 0, to: 2 }), { from: 0, to: 2 });
 });
 
 test('picks: an unset hour clashes with nothing; a table says nothing before its first game', () => {

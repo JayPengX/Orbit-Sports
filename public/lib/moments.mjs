@@ -1,9 +1,9 @@
 import { foulEn, foulZh, subsEn, subsZh, tripEn, tripZh } from './plays.mjs';
 // A win probability line's key moments: where the game turned, and why.
-// A swing is a move of the home side's chance (a draw counting half) of 12
-// points or more without turning back as far; its cause, ESPN's play that
-// made most of it (a home run, a touchdown), else a run of points (an NBA
-// game turns on runs, not one shot). A line from Polymarket's market has no
+// Baseball: the plays and innings that moved the home side's chance most;
+// basketball: its scoring runs that moved it (runMoments: an NBA game turns
+// on runs, not one shot) and the stops of its last two minutes (clutchMoments).
+// A line from Polymarket's market has no
 // plays of its own: the game's scores, red cards and missed penalties, each
 // with how far the price moved around it. No imports: plain data in, plain
 // data out.
@@ -13,30 +13,8 @@ import { foulEn, foulZh, subsEn, subsZh, tripEn, tripZh } from './plays.mjs';
 //     side: { home: { id, name }, away: { id, name }, en }
 //     → [{ i, delta, side: 'home' | 'away', icon, text }] by time, the five biggest at most
 
-const SWING = 0.12;
 const KEEP = 5;
 const value = p => p.home + (p.draw ?? 0) / 2;
-
-// The line's swings: [{ from, to }] index pairs, each a move of `least` or more.
-export function swings(values, least = SWING) {
-  const segs = [];
-  let [lo, hi, dir, start, ext] = [0, 0, 0, 0, 0];
-  for (let i = 1; i < values.length; i++) {
-    const v = values[i];
-    if (!dir) {
-      // From the last point of a level start (what came before it moved nothing).
-      if (v >= values[hi]) hi = i;
-      if (v <= values[lo]) lo = i;
-      if (values[hi] - values[lo] >= least) [dir, start, ext] = hi > lo ? [1, lo, hi] : [-1, hi, lo];
-    } else if (dir * (v - values[ext]) > 0) ext = i;
-    else if (dir * (values[ext] - v) >= least) {
-      segs.push({ from: start, to: ext });
-      [start, ext, dir] = [ext, i, -dir];
-    }
-  }
-  if (dir && Math.abs(values[ext] - values[start]) >= least) segs.push({ from: start, to: ext });
-  return segs;
-}
 
 // ---- What a play was, in a few words ----
 const MLB_ZH = [
@@ -53,7 +31,8 @@ const MLB_ZH = [
   [/hit by pitch/i, '觸身球'],
   [/wild pitch/i, '暴投'],
   [/passed ball/i, '捕逸'],
-  [/error/i, '失誤'],
+  // (Reached on the fielders' error: said so, never "Alvarez 失誤" as if the batter made it.)
+  [/error/i, '對手失誤上壘'],
   [/fielder'?s choice/i, '野手選擇'],
   [/caught stealing/i, '盜壘失敗'],
   [/picked off|pickoff/i, '牽制出局'],
@@ -141,7 +120,8 @@ export function playText(sport, play, en, team) {
   // sentence ran on: "DeLauter singled to right, Kwan scored, DeLauter out…").
   if (en && sport === 'baseball' && !lineupZh(play)) {
     const what = firstOf(MLB_EN, play.alt, play.text);
-    if (what) return [who, what].filter(Boolean).join(' ') + (play.scoring && play.value ? ` · ${play.value} RBI` : '');
+    // (Runs in on an error aren't the batter's to drive in: runs, not RBIs.)
+    if (what) return [who, what].filter(Boolean).join(' ') + (play.scoring && play.value ? (what === 'reaches on error' ? ` · ${play.value} run${play.value > 1 ? 's' : ''}` : ` · ${play.value} RBI`) : '');
   }
   if (en && sport === 'basketball' && who && /\bmakes\b|\bmade\b/i.test(play.text || '')) return basketEn({ ...play, who });
   if (en && sport === 'soccer' && ownGoal(play) && who) return `${who} own goal`;
@@ -152,7 +132,7 @@ export function playText(sport, play, en, team) {
     const change = lineupZh(play);
     if (change) return change;
     const what = firstOf(MLB_ZH, play.alt, play.text) || '關鍵打擊';
-    return [who, what].filter(Boolean).join(' ') + (play.scoring && play.value ? ` · ${play.value} 分打點` : '');
+    return [who, what].filter(Boolean).join(' ') + (play.scoring && play.value ? (what === '對手失誤上壘' ? ` · 得 ${play.value} 分` : ` · ${play.value} 分打點`) : '');
   }
   // A team's own (a team rebound, a shot clock violation): the side's name, never ESPN's English.
   if (sport === 'basketball') return [play.who || team || who, basketballZh(play)].filter(Boolean).join(' ');
@@ -171,77 +151,82 @@ const toward = (s, d) => (s === 'home' ? Math.max(0, d) : Math.min(0, d));
 const homeAway = (id, side) => (id == null || id === '' ? null : String(id) === String(side.home.id) ? 'home' : String(id) === String(side.away.id) ? 'away' : null);
 const teamName = (id, side) => (String(id) === String(side.home.id) ? side.home.name : String(id) === String(side.away.id) ? side.away.name : '');
 
-// Basketball, a high-scoring game where one three is just a possession (and ESPN's line jumps on one, then jumps back): before the
-// last two minutes only the runs (told by the points each side scored);
-// a possession is a moment only at the end (clutchMoments), where one
-// can decide it.
-const RUN_PLAYS = 48;
-// Basketball: a drift of this much is a stretch (a run), RUNS at most.
-const STRETCH = 0.2;
+// Basketball, a high-scoring game where one three is just a possession (and
+// ESPN's line jumps on one, then jumps back): before the last two minutes
+// only the runs; a possession is a moment only at the end (clutchMoments),
+// where one can decide it.
+//
+// A run is what a broadcast calls one: a stretch where one side scored three
+// in four of the points or more (25-7, 19-1, 11-0), RUN_NET or more ahead of
+// the other, from its own basket to its own basket. It's key when the chance
+// moved RUN_SWING or more over it (from just before its first basket to its
+// last). Never a stretch the line drifted over: told by its points, a
+// two-quarter slide read "76人 76-52 超前" over an 85–92 score, a 3-2
+// "攻勢" moved it 39% (Jay 2026-11-14). The biggest few (RUNS), none sharing
+// a basket; each told where it ended, its points inside the score there.
+const RUN_NET = 8;
+const RUN_SWING = 0.15;
 const RUNS = 4;
-// A run's row at its go-ahead play only when less than this share of its points came after it.
-const LEAD_LAG = 1 / 3;
-// The first point after `from`, up to `to`, whose play has `mine` ahead
-// (`ahead`) or level with the other side; null if none says so.
-function leadAt(points, from, to, mine, ahead) {
-  const other = mine === 'home' ? 'away' : 'home';
-  for (let k = from + 1; k <= to; k++) {
-    const p = points[k]?.play;
-    if (p?.home == null || p?.away == null) continue;
-    const m = (Number(p[mine]) || 0) - (Number(p[other]) || 0);
-    if (ahead ? m > 0 : m === 0) return k;
-  }
-  return null;
-}
+const TIGHT = 0.9;
 // The score at point `k` as { home, away }: scoreAt's (its play's, else the
 // last before it with one: a timeout's play has none, read 0-0 it made a run "-5--12").
 const lastScore = (points, k) => {
   const [away, home] = scoreAt(points, k) || [0, 0];
   return { home, away };
 };
-function swingMoments(points, sport, side) {
+// Every change of the score: the point it's on, the score before and after it.
+function scoreChanges(points) {
+  const out = [];
+  let was = { home: 0, away: 0 };
+  points.forEach((p, k) => {
+    if (p.play?.home == null || p.play?.away == null) return;
+    const now = { home: Number(p.play.home) || 0, away: Number(p.play.away) || 0 };
+    if (now.home !== was.home || now.away !== was.away) out.push({ k, before: was, after: now });
+    was = now;
+  });
+  return out;
+}
+function runMoments(points, side) {
   const vals = points.map(value);
-  const home = d => (d >= 0 ? 'home' : 'away');
-  // The stretches it drifted over (a slow slide over a quarter or two): each told by the points each side scored over it.
-  const stretches = swings(vals, STRETCH)
-    .map(s => tighten(vals, s))
-    .map(({ from, to }) => {
-      const delta = vals[to] - vals[from];
-      const who = sideOf(delta, side);
-      const [pa, pb] = [lastScore(points, from), lastScore(points, to)];
-      const scored = k => (Number(pb?.[k]) || 0) - (Number(pa?.[k]) || 0);
-      const [mine, theirs] = delta >= 0 ? [scored('home'), scored('away')] : [scored('away'), scored('home')];
-      // What it did to the score: from behind to level (追平), to ahead
-      // (超前), still behind but closer (追近); else a lead made (攻勢), a
-      // long one stretched (拉開).
-      const side0 = k => Number((delta >= 0 ? pa : pa && { home: pa.away, away: pa.home })?.[k]) || 0;
-      const side1 = k => Number((delta >= 0 ? pb : pb && { home: pb.away, away: pb.home })?.[k]) || 0;
-      const [m0, m1] = [side0('home') - side0('away'), side1('home') - side1('away')];
-      const did = m0 < 0 && m1 === 0 ? ['追平', ' · ties it'] : m0 < 0 && m1 > 0 ? ['超前', ' · takes the lead'] : m1 < 0 ? ['追近', ''] : [to - from > RUN_PLAYS ? '拉開' : '攻勢', ''];
-      // A run that took the lead (or tied it): the play where the score did,
-      // by the play-by-play (`lead`), for 過程's row. The price lags the plays,
-      // so its peak (`i`, the chart's dot) can be a few plays on (the owner, 2026-10-23).
-      // Only in the quarter it ended: a stretch over two quarters that went
-      // ahead early (Warriors 47-29 over the 1st and 2nd, ahead at 19-17) is
-      // told at its end, never at a score from long before (Jay, 2026-10-29).
-      // And only when the run was mostly done by then, counted to there: a
-      // row says the score at its play, so its run is the points up to it
-      // (Lakers 28-8 told at 6-9, ahead early in a run that went on to
-      // 14-31: Jay 2026-11-03, "you can't have a 28-8 run in a 6-9 score").
-      // A run that went on is told whole, where it ended.
-      const took = did[0] === '超前' || did[0] === '追平' ? leadAt(points, from, to, delta >= 0 ? 'home' : 'away', did[0] === '超前') : null;
-      const pt = took != null ? lastScore(points, took) : null;
-      const pts = k => (Number(pb[k]) || 0) - (Number(pt[k]) || 0);
-      const flip = took != null && points[took].n === points[to].n && pts('home') + pts('away') < LEAD_LAG * (mine + theirs) ? took : null;
-      const [us, them] = flip == null ? [mine, theirs] : delta >= 0 ? [mine - pts('home'), theirs - pts('away')] : [mine - pts('away'), theirs - pts('home')];
-      const text = side.en ? `${who.name} ${us}-${them}${did[1]}` : `${who.name} ${us}-${them} ${did[0]}`;
-      return { i: to, from, delta, side: home(delta), icon: ICON.basketball, text, team: who.id, periods: [points[from].n, points[to].n], ...(flip != null ? { lead: flip } : {}) };
-    });
-  // The biggest few (RUNS), in the game's order.
-  return [...stretches]
-    .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta))
-    .slice(0, RUNS)
-    .sort((x, y) => x.i - y.i);
+  const scores = scoreChanges(points);
+  const found = [];
+  for (let a = 0; a < scores.length; a++)
+    for (let b = a; b < scores.length; b++) {
+      const [s0, s1] = [scores[a].before, scores[b].after];
+      const who = s1.home - s0.home > s1.away - s0.away ? 'home' : 'away';
+      const other = who === 'home' ? 'away' : 'home';
+      const [us, them] = [s1[who] - s0[who], s1[other] - s0[other]];
+      if (us - them < RUN_NET || them * 3 > us) continue;
+      if (!(scores[a].after[who] > s0[who]) || !(s1[who] > scores[b].before[who])) continue;
+      const delta = vals[scores[b].k] - vals[Math.max(0, scores[a].k - 1)];
+      if ((who === 'home' ? delta : -delta) < RUN_SWING) continue;
+      found.push({ a, b, who, us, them, delta });
+    }
+  // The biggest first; each the tightest run inside it that did nearly as
+  // much (TIGHT): never stretched over the baskets traded after it while a
+  // decided game's 2% drifted to 0% (Lakers at Kings, 2026-10-05).
+  const size = r => r.us + r.them;
+  const kept = [];
+  for (const r of found.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta))) {
+    if (kept.length >= RUNS) break;
+    const best = found.filter(x => x.who === r.who && x.a >= r.a && x.b <= r.b && Math.abs(x.delta) >= TIGHT * Math.abs(r.delta)).sort((x, y) => size(x) - size(y) || Math.abs(y.delta) - Math.abs(x.delta))[0];
+    if (kept.every(o => best.b < o.a || best.a > o.b)) kept.push(best);
+  }
+  return kept.map(({ a, b, who, us, them, delta }) => {
+    const other = who === 'home' ? 'away' : 'home';
+    const lead = s => s[who] - s[other];
+    // What it did to the score: from behind (or level, after the start) to ahead, 超前; from behind to level, 追平.
+    const [s0, s1] = [scores[a].before, scores[b].after];
+    const fresh = s0.home + s0.away === 0;
+    const turned = lead(s1) > 0 && (lead(s0) < 0 || (lead(s0) === 0 && !fresh)) ? 'lead' : lead(s1) === 0 && lead(s0) < 0 ? 'tie' : '';
+    // The basket that put them ahead (for 此後未再落後).
+    let took = null;
+    for (let j = a; j <= b; j++) if (lead(scores[j].after) > 0 && lead(scores[j].before) <= 0) took = scores[j].k;
+    const said = turned === 'lead' ? (side.en ? ' · takes the lead' : ' · 超前') : turned === 'tie' ? (side.en ? ' · ties it' : ' · 追平') : '';
+    const text = side.en ? `${side[who].name} ${us}-${them} run${said}` : `${side[who].name} ${us}-${them} 攻勢${said}`;
+    const [i, from] = [scores[b].k, Math.max(0, scores[a].k - 1)];
+    return { i, from, delta, side: who, icon: ICON.basketball, text, team: side[who].id, periods: [points[from].n, points[i].n], turned, ...(took != null ? { took } : {}) };
+  }).sort((x, y) => x.i - y.i);
 }
 
 // Who did an inning's scoring: its one big hit (3 of 4 runs: that hit, its
@@ -348,34 +333,10 @@ function baseballMoments(points, side) {
   return [...out, ...pitches].sort((x, y) => x.i - y.i);
 }
 
-// A stretch where it really moved: from the last point still near its start
-// to the first that got most of the way (80%), and on while each play still
-// moves it the same way at the run's pace (a run counted whole). A line's extreme can come long
-// after the game was decided: the Warriors at 83% midway through the first
-// quarter drifted to 98% by half time, and a dot at 98% puts the run at the
-// end of the half, long after it had done its work. (A 1% chance drifting to
-// 0% until the buzzer, the same.)
-const ARRIVED = 0.8;
-const STARTED = 0.05;
-export function tighten(values, { from, to }) {
-  const move = values[to] - values[from];
-  const dir = Math.sign(move);
-  if (!dir) return { from, to };
-  let end = from;
-  while (end < to && dir * (values[end] - values[from]) < ARRIVED * Math.abs(move)) end++;
-  // A run still going (each play still moving it the same way, at a quarter
-  // of its pace so far or more) is counted to its end; a slow drift isn't.
-  const pace = () => Math.abs(values[end] - values[from]) / Math.max(1, end - from);
-  while (end < to && dir * (values[end + 1] - values[end]) >= 0.25 * pace()) end++;
-  let start = end;
-  while (start > from && dir * (values[start] - values[from]) > STARTED * Math.abs(move)) start--;
-  return { from: start, to: end };
-}
-
 export function playMoments(points, sport, side) {
   if (!points.length || !points.every(p => p.n)) return [];
   if (sport === 'baseball') return baseballMoments(points, side);
-  const found = swingMoments(points, sport, side);
+  const found = runMoments(points, side);
   // The game's end, whole: every play there that moved it, tied it or put a side ahead.
   for (const m of clutchMoments(points, sport, side)) {
     // One play once (ESPN's score and the kickoff after it are the same play): its biggest swing, and whether it tied it or put a side ahead.
@@ -399,17 +360,17 @@ function decided(points, found, side) {
   const won = end >= 0.97 ? 'home' : end <= 0.03 ? 'away' : '';
   if (!won) return found;
   // (In the last two minutes, only the winner's: what the loser did there
-  // didn't hold. A late run whose lead is a shot listed on its own is that
-  // shot: "L. James 跳投命中" says who, "76人 7-1" doesn't.)
+  // didn't hold. A late run ending on a shot listed on its own is that
+  // shot: "L. James 跳投命中" says who, "76人 9-1 攻勢" doesn't.)
   const shots = new Set(found.filter(m => m.clutch).map(m => m.i));
-  const kept = found.filter(m => !(m.periods && shots.has(m.lead)) && (m.side === won || (Math.abs(m.delta) >= LOSER_KEEP && !lateClock('basketball', points[m.lead ?? m.i]))));
-  // The go-ahead: the winner's last moment that took the lead (a run's play that did, or the shot).
-  const k = (m => m?.lead ?? m?.i)([...kept].reverse().find(m => m.side === won && m.turned === 'lead' || (m.side === won && m.periods && /超前|takes the lead/.test(m.text))));
-  const last = k == null ? null : kept.filter(m => m.side === won && (m.i === k || m.lead === k)).at(-1);
+  const kept = found.filter(m => !(m.periods && (shots.has(m.i) || shots.has(m.took))) && (m.side === won || (Math.abs(m.delta) >= LOSER_KEEP && !lateClock('basketball', points[m.i]))));
+  // The go-ahead: the winner's last moment that took the lead (a run's basket that did, or the shot).
+  const last = [...kept].reverse().find(m => m.side === won && m.turned === 'lead');
+  const k = last ? (last.took ?? last.i) : null;
   // (Only if no one went ahead again after it: the score's sign stays the winner's.)
   const sign = won === 'home' ? 1 : -1;
   const held = k != null && points.slice(k).every(p => p.play?.home == null || sign * (Number(p.play.home) - Number(p.play.away)) > 0);
-  if (last && held) last.text = last.periods ? last.text.replace(/ 超前$/, ' 超前，此後未再落後').replace(/ · takes the lead$/, ' · ahead for good') : last.text.replace(/ · (超前|takes the lead)$/, '') + (side.en ? ' · ahead for good' : ' · 超前，此後未再落後');
+  if (last && held) last.text = last.text.replace(/ · (超前|takes the lead)$/, '') + (side.en ? ' · ahead for good' : ' · 超前，此後未再落後');
   return kept;
 }
 
@@ -431,8 +392,15 @@ function stops(points) {
   for (const g of out) {
     let key = g.from;
     for (let i = g.from; i <= g.to; i++) if (points[i].play && !/end (period|of|game)|timeout/i.test(`${points[i].play.type} ${points[i].play.text}`) && (!points[key].play || Math.abs(vals[i] - vals[i - 1]) > Math.abs(vals[key] - vals[key - 1]))) key = i;
-    // A score that changed who's ahead tells it (the dunk, not the foul before it).
-    for (let i = g.from; i <= g.to; i++) if (points[i].play?.scoring && lead(points[i].play) !== lead(points[g.from - 1]?.play)) key = i;
+    // A score that changed who's ahead tells it (the dunk, not the foul
+    // before it): the first that put it where the stop left it (the free
+    // throw that went ahead, not the one after it, nor the one that tied it on the way).
+    const was = lead(points[g.from - 1]?.play);
+    const plays = points.slice(g.from, g.to + 1);
+    const ended = lead(plays.findLast(q => lead(q.play) != null)?.play);
+    const turn = ended !== was ? plays.findIndex(q => q.play?.scoring && lead(q.play) === ended) : -1;
+    if (turn >= 0) key = g.from + turn;
+    else for (let i = g.from; i <= g.to; i++) if (points[i].play?.scoring && lead(points[i].play) !== was) key = i;
     g.key = key;
   }
   return out;
