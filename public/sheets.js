@@ -1,7 +1,7 @@
 // Orbit Sports' sheets: a match (header, then its data by section), a
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
-import { translate, proxyJson, packJson, everyDev, dev } from '#kit/orbit.mjs';
+import { translate, proxyJson, packJson, everyDev, dev, workerJson } from '#kit/orbit.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
@@ -1015,6 +1015,9 @@ const previewDoc = day => {
   return previewDocs.get(day);
 };
 const previewKnown = new Map();
+// (None in the day's files: made now, the first time anyone opens the game, and kept for everyone after:
+// Orbit-Core's /ai/open, Jay 11-14 "only spend it as I use it". null when it can't be.)
+const madeOnOpen = (f, key) => workerJson('/ai/open', `f=${f}&id=${encodeURIComponent(key)}`, { timeout: 30_000 }).then(j => j?.out || null);
 const PREVIEW_ICON = { out: 'user', table: 'trophy', star: 'flame', rest: 'clock', run: 'chart', series: 'flag' };
 // (`played`: who has played this game. A point saying one of them is out is
 // dropped: 「Herro 膝傷缺陣」 stood over Herro on the court, 11-12, as the
@@ -1044,6 +1047,10 @@ function previewBox(e, codeLine, played = new Set()) {
     for (const day of previewDays(e)) {
       got = previewFrom(await previewDoc(day), e, en, { sport: LEAGUES[e.league]?.sport });
       if (got.known) break;
+    }
+    if (!got.known) {
+      const out = await madeOnOpen('sports-preview', `${e.league}:${e.id}`);
+      if (out) got = previewFrom({ v: 1, games: { [`${e.league}:${e.id}`]: out } }, e, en);
     }
     previewKnown.set(key, got);
     if (!got.points.length || !holder.isConnected) return;
@@ -1167,6 +1174,10 @@ function whyLine(e) {
         who = whoFrom(doc, e);
         break;
       }
+    }
+    if (!text && e.status?.state === 'post') {
+      const doc = { v: 2, games: { [key]: await madeOnOpen('sports-recap', key) } };
+      if ((text = whyFrom(doc, e, en))) who = whoFrom(doc, e);
     }
     whyKnown.set(key, text ? { text, who } : '');
     if (!text || !holder.isConnected) return;

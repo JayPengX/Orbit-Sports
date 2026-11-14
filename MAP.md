@@ -49,6 +49,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 - 11-03 近期交手 is the last five meetings at most, each counted by its score (level is a draw, even on penalties, marked PK); one bar across the card, a piece a meeting; never padded.
 - 11-14 看點 says only what the page doesn't: never the places or the gap between them (兩隊比較 shows them), nothing at all rather than that (`restatesTable`). A face's team chip is small at its corner, on the card's colour, never a white disc over the face.
 - 11-14 The NBA Cup isn't the playoffs: it lives in the NBA's 排名 (聯盟 · NBA 盃), never under 季後賽. Its groups count the games on as they stand (▲▼); 晉級 / 淘汰 only when every way the games left can go agrees (a tie the margins would settle is never sure).
+- 11-14 AI only for what someone opens (Jay: "only spend it as I use it"): 賽後三句話's why line and 賽前看點 are made the first time anyone opens the game (Orbit-Core `/ai/open`), kept for everyone; never made ahead for every game. F1's 勝負關鍵 waits (stories made before stay).
 - 11-06 No green in the playoff bracket (a clinched seed in the text's own colour); where there's room the bracket shows every round at once.
 - Tables count finals at once (`liveTable`), never a game still on; table zones stay with their places as results reorder them. A game is over when the rules say so (`overByRule`), not when ESPN marks it.
 - A streak (連勝敗) counts every game the form chips are from; F1's 本季走勢 runs on across a retirement (a cross on the floor).
