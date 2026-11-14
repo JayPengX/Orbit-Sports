@@ -41,8 +41,8 @@ import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
-import { shortLeague, cols, homeBoard, balanced, ctx, sidesOf, el, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
-import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, liveTableNote, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
+import { shortLeague, cols, homeBoard, balanced, ctx, sidesOf, el, morph, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
+import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zoneLegend, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh, teamNameZh } from '#kit/names.mjs';
 import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
@@ -3075,16 +3075,20 @@ function cupStandingsView(model, { mark = [] } = {}) {
   const ids = mark.map(String);
   const own = ids.length ? tables.findIndex(t => ids.every(id => t.rows.some(r => r.id === id)) && !/外卡|wild card/i.test(t.name)) : -1;
   if (own > 0) tables.unshift(...tables.splice(own, 1));
-  const tablesNode = standingsTables(tables, 'nba', { cols: ['W', 'L', 'PD', 'Left'], many: true, mark: mark.map(String), liveNote: false });
+  // (Jay 2026-11-14, "too messy": a score small and plain, the key said once under the groups, the rule and 即時 one line over them.)
+  const tablesNode = standingsTables(tables, 'nba', { cols: ['W', 'L', 'PD', 'Left'], many: true, mark: mark.map(String), liveNote: false, legend: false, quiet: true });
   const on = groups.some(g => g.rows.some(r => r.live));
-  const rule = el('div', { class: 'cup-rule' }, [el('p', { class: 'muted small', text: en ? 'Group winners and each conference’s best 2nd go to the quarterfinals.' : '分組第一與各區最佳第二晉級八強淘汰賽。' }), on ? liveTableNote() : null]);
+  const all = tables.flatMap(t => t.rows);
+  const why = (ids, text) => Object.assign(new Set(ids), { why: text });
+  const key = zoneLegend(all, why(all.filter(r => r.fate === 'out').map(r => r.id), en ? 'out' : '已遭淘汰'), why(all.filter(r => r.fate === 'lead' || r.fate === 'in').map(r => r.id), en ? 'Through to the quarterfinals' : '已晉級八強'));
+  const rule = el('p', { class: 'muted small cup-rule' }, [on ? el('span', { class: 'cup-live' }, [el('i', { class: 'live-dot', 'aria-hidden': 'true' }), document.createTextNode(en ? 'Live · ' : '即時 · ')]) : null, document.createTextNode(en ? 'Group winners and each conference’s best 2nd reach the quarterfinals' : '分組第一與各區最佳第二晉級八強')]);
   // The knockout: its rounds alone (the groups are the tables above); the
   // quarterfinals not drawn yet as the groups stand now, live too.
   const rounds = model.rounds.filter(r => r.key !== 'GROUPS').map(r => (r.key === 'QF' && r.ties.every(t => !t || (t.projected && !t.games?.length)) ? { ...r, ties: cupQuarters(groups) } : r));
   const knock = rounds.length ? playoffView({ ...model, rounds }, CUP) : null;
   const begun = rounds.some(r => r.ties.some(t => t?.games?.length));
   const head = el('h3', { class: 'cup-h', text: en ? 'Knockout' : '淘汰賽' });
-  const parts = begun ? [head, knock, rule, tablesNode] : [rule, tablesNode, knock ? head : null, knock];
+  const parts = begun ? [head, knock, rule, tablesNode, key] : [rule, tablesNode, key, knock ? head : null, knock];
   const root = el('div', { class: 'cup-stand' }, parts.filter(Boolean));
   // A live refresh: changed in place (the knockout's swipe and lines kept), never put in anew.
   root.__patch = neu => {
@@ -3473,28 +3477,6 @@ function quietScores() {
   } finally {
     scoresQuiet = false;
   }
-}
-// The page as drawn, made like the new drawing with the least change: a
-// node the same kept (its scroll, its handlers), text changed in place, an
-// element whose tag, attributes or children's count differ replaced whole.
-function morph(old, neu) {
-  if (old === neu) return;
-  // A node kept across draws (the league rail): put in whole, never patched
-  // from (its chips moved into the old one, the kept rail lost them: a rail
-  // reordered with as many chips showed five of fifteen).
-  if (neu.__kept) return old.replaceWith(neu);
-  if (old.nodeType !== neu.nodeType || old.nodeName !== neu.nodeName) return old.replaceWith(neu);
-  // (The bracket: its own, keeping its swipe and lines.)
-  if (old.__patch && neu.__patch) return void old.__patch(neu);
-  if (old.nodeType === 3) {
-    if (old.nodeValue !== neu.nodeValue) old.nodeValue = neu.nodeValue;
-    return;
-  }
-  if (old.nodeType !== 1 || old.isEqualNode(neu)) return;
-  const attrs = n => [...n.attributes].map(a => `${a.name}=${a.value}`).join('\u0001');
-  if (attrs(old) !== attrs(neu) || old.childNodes.length !== neu.childNodes.length) return old.replaceWith(neu);
-  const [a, b] = [[...old.childNodes], [...neu.childNodes]];
-  a.forEach((n, i) => morph(n, b[i]));
 }
 // The games grouped by the viewer's day.
 function applyScores(sc, events) {

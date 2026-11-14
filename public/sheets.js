@@ -1604,16 +1604,19 @@ function cupCard(cup, e) {
     stakes = cupStakes(games, games.find(x => String(x.id) === String(e.id)) || e, { prev: cup.prev, letters: cup.letters });
   }
   const NOTE = { lead: en ? 'Group winner' : '分組第一', card: en ? 'Wild card' : '外卡' };
-  const rows = g ? g.rows.map(r => ({ id: r.id, name: r.name, short: en && r.live && r.abbr ? r.abbr : r.short, logo: r.logo, color: r.zone ? PICTURE_COLOR[r.zone] : '', note: r.zone ? NOTE[r.zone] : '', ...(r.fate != null ? { fate: r.fate } : {}), ...(r.live ? { live: r.live } : {}), ...(r.moved ? { moved: r.moved } : {}), stats: { W: String(r.w), L: String(r.l), PD: signed(r.pd), Left: String(r.left ?? '') } })) : Array.from({ length: 5 }, (_, i) => ({ id: `-${i}`, name: BLANK2, short: BLANK2, stats: { W: '0', L: '0', PD: '0', Left: '4' } }));
-  const tables = standingsTables([{ rows }], 'nba', { cols: ['W', 'L', 'PD', 'Left'], mark: [String(e.home.id), String(e.away.id)], open: Boolean(g) });
+  const rows = g ? g.rows.map(r => ({ id: r.id, name: r.name, short: en && r.live && r.abbr ? r.abbr : r.short, logo: r.logo, color: r.zone ? PICTURE_COLOR[r.zone] : '', note: r.zone ? NOTE[r.zone] : '', ...(r.fate != null ? { fate: r.fate } : {}), ...(r.live ? { live: r.live } : {}), ...(r.moved ? { moved: r.moved } : {}), stats: { W: String(r.w), L: String(r.l), PD: signed(r.pd) } })) : Array.from({ length: 5 }, (_, i) => ({ id: `-${i}`, name: BLANK2, short: BLANK2, stats: { W: '0', L: '0', PD: '0' } }));
+  // (Jay 2026-11-14, "too messy": the title and the one line on what this game decides; its own two's
+  // score is the page's, so only another game's on now, small; no key, no rule, no games left: 排名 has them.)
+  const mine = [String(e.home.id), String(e.away.id)];
+  const tables = standingsTables([{ rows }], 'nba', { cols: ['W', 'L', 'PD'], mark: mine, open: Boolean(g), liveNote: false, legend: false, quiet: true, scoreOf: r => !mine.includes(r.id) });
   const wrap = tables.querySelector('.table-wrap');
-  const liveNote = tables.querySelector('.live-table-note');
-  const legend = tables.querySelector('.zone-legend');
+  const on = rows.some(r => r.live);
   const conf = g?.conf === 'East' ? (en ? 'East' : '東區') : g?.conf === 'West' ? (en ? 'West' : '西區') : '';
   const group = g?.letter ? (en ? `${conf} Group ${g.letter}` : `${conf} ${g.letter} 組`) : en ? conf : `${conf}小組賽`;
   const nameOf = id => g?.rows.find(r => r.id === String(id))?.short || '';
   const line = stakes ? cupStakesText(stakes, nameOf, e.status?.state === 'post', en) : '';
-  return card(en ? `NBA Cup${group ? ` · ${group}` : ''}` : `NBA 盃 · ${group}`, el('div', { class: 'cup-card' }, [line ? el('p', { class: 'cup-stakes', text: line }) : null, liveNote, wrap, legend]), { sub: en ? 'Winners + best 2nd go through' : '分組第一、各區最佳第二晉級' });
+  const title = el('span', { class: 'cup-title' }, [en ? `NBA Cup${group ? ` · ${group}` : ''}` : `NBA 盃 · ${group}`, on ? el('i', { class: 'live-dot', 'aria-label': en ? 'Live' : '即時' }) : null]);
+  return card(title, el('div', { class: 'cup-card' }, [line ? el('p', { class: 'cup-stakes', text: line }) : null, wrap]));
 }
 // What a group game decides, one short line (nbacup.mjs cupStakes): 此戰：勝者晉級八強，敗者淘汰.
 function cupStakesText(st, nameOf, over, en) {
@@ -8515,9 +8518,11 @@ function raceBlock(race, g, league, many, asIs = false) {
 }
 // `open: false`: rows that open nothing (a club's own league from FotMob, its clubs not ESPN's).
 // (`cols`: a table's own columns, the NBA Cup's groups' 勝 敗 得失分.)
-// (`liveNote: false`: the tables' one note said over them all, not over each: the NBA Cup's eight.)
+// (`liveNote: false`: the tables' one note said over them all, not over each: the NBA Cup's eight;
+// `legend: false` its key said once too; `quiet`: a side playing now its score small and plain, no red
+// pill (Jay 2026-11-14, the cup card "too messy"); `scoreOf(row)`: false for a row whose score not to show.)
 export const liveTableNote = () => el('p', { class: 'live-table-note' }, [el('i', { class: 'live-dot', 'aria-hidden': 'true' }), document.createTextNode(L() === 'en' ? 'Live: games on count as they stand' : '即時排名：進行中的比賽依目前比分計算')]);
-export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false, open = true, cols: own = null, liveNote = true } = {}) {
+export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false, open = true, cols: own = null, liveNote = true, legend = true, quiet = false, scoreOf = null } = {}) {
   const sport = LEAGUES[league]?.sport;
   const want = own || STANDING_COLUMNS[sport] || ['W', 'L'];
   const small = own || COMPACT_COLUMNS[sport] || want;
@@ -8556,7 +8561,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
                 const name = [el('span', { class: 'nm-full' }, [playerName(r.full || r.name, 'full', r.name)]), el('span', { class: 'nm-short', text: r.short || r.name })];
                 const rowCls = [ctx.isFollowed(league, r.id) ? 'mine' : mark.includes(r.id) ? 'marked' : '', out.has(r.id) ? 'out' : '', r.live ? 'live' : ''].filter(Boolean).join(' ');
                 // A side playing now: its score as it stands beside its name; up or down from the table at kick-off by its place.
-                const now = r.live ? el('small', { class: `num live-score ${r.live.for > r.live.against ? 'ahead' : r.live.for < r.live.against ? 'behind' : 'level'}`, text: `${r.live.for}-${r.live.against}` }) : null;
+                const now = r.live && (!scoreOf || scoreOf(r)) ? el('small', { class: `num live-score${quiet ? ' quiet' : ''} ${r.live.for > r.live.against ? 'ahead' : r.live.for < r.live.against ? 'behind' : 'level'}`, text: `${r.live.for}-${r.live.against}` }) : null;
                 const move = r.moved ? el('small', { class: `moved ${r.moved > 0 ? 'up' : 'down'}`, 'aria-label': String(r.moved), text: r.moved > 0 ? '▲' : '▼' }) : null;
                 return el('tr', { class: rowCls }, [
                   el('td', { class: 'left num rank-cell', style: r.color ? `box-shadow: inset 3px 0 0 ${r.color}` : null }, [String(i + 1), move, settled.has(r.id) && !r.live ? glyph('lock', 'rank-lock') : null]),
@@ -8570,7 +8575,7 @@ export function standingsTables(groups, league, { mark = [], top = 0, compact = 
           ])
         ]),
         // (No 同分 line under a table: the order is the league's tiebreaks, never said; Jay 2026-11-06: it made the cards uneven.)
-        zoneLegend(g.rows, out, settled)
+        legend ? zoneLegend(g.rows, out, settled) : null
       ]);
     })
   );
@@ -8632,7 +8637,7 @@ export function goodZoneReach(rows) {
 // the order they come down the table.
 // Then the faded rows and the lock, when the table has them (Jay 2026-11-01:
 // "what even is the grey out rule"): 出局 drawn faded, 🔒 已確定.
-function zoneLegend(rows, out = null, settled = null) {
+export function zoneLegend(rows, out = null, settled = null) {
   const W = (zh, eng) => (L() === 'en' ? eng : zh);
   const seen = new Map();
   for (const r of rows) if (r.note && r.color && !seen.has(r.note)) seen.set(r.note, r.color);

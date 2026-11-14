@@ -33,8 +33,57 @@ export const el = kitUI.h;
 // to be put back keeps one): a new <img>, even of a file the phone
 // holds, is blank a frame or more while it decodes, and every live refresh
 // (the game sheet's every few seconds, the lists' scores) flashed every logo.
+// A table drawn again the same (its card and its columns), as a live game's
+// box score every few seconds: the card on screen kept, its cells changed in
+// place, so a table swiped sideways stays where it was and a finger on it
+// isn't cut off (Jay 2026-11-14: "scrolling this always redraw and reset my
+// scroll"; a table taken out and put back loses its scroll, so it never
+// moves). Matched by its card's class and title.
+const SCROLLERS = '.table-wrap';
+const cardSig = n => (n.nodeType === 1 ? `${n.className}|${n.querySelector('.card-h, .mini-h, .box-head, h3, h4')?.textContent || ''}` : '');
+function keepScrollers(node, list) {
+  const olds = [...node.children].flatMap(c => (c.classList.contains('q-flow-col') ? [...c.children] : [c]));
+  if (!olds.some(o => o.querySelector(SCROLLERS))) return;
+  const used = new Set(list);
+  list.forEach((k, i) => {
+    if (k.nodeType !== 1 || k.parentNode === node || !k.querySelector(SCROLLERS)) return;
+    const sig = cardSig(k);
+    const o = olds.find(x => !used.has(x) && cardSig(x) === sig);
+    if (!o || attrs(o) !== attrs(k) || o.childNodes.length !== k.childNodes.length) return;
+    used.add(o);
+    const [a, b] = [[...o.childNodes], [...k.childNodes]];
+    a.forEach((n, j) => morph(n, b[j]));
+    list[i] = o;
+  });
+}
+// (A class a scroll puts on a table, scrolls or more-right, isn't a difference.)
+const attrs = n => [...n.attributes].map(a => `${a.name}=${a.name === 'class' ? a.value.split(/\s+/).filter(c => !/^(scrolls|more-)/.test(c)).join(' ') : a.value}`).join('\u0001');
+// The page as drawn, made like the new drawing with the least change: a
+// node the same kept (its scroll, its handlers), text changed in place, an
+// element whose tag, attributes or children's count differ replaced whole.
+export function morph(old, neu) {
+  if (old === neu) return;
+  // A node kept across draws (the league rail): put in whole, never patched
+  // from (its chips moved into the old one, the kept rail lost them: a rail
+  // reordered with as many chips showed five of fifteen).
+  if (neu.__kept) return old.replaceWith(neu);
+  if (old.nodeType !== neu.nodeType || old.nodeName !== neu.nodeName) return old.replaceWith(neu);
+  // (The bracket: its own, keeping its swipe and lines.)
+  if (old.__patch && neu.__patch) return void old.__patch(neu);
+  if (old.nodeType === 3) {
+    if (old.nodeValue !== neu.nodeValue) old.nodeValue = neu.nodeValue;
+    return;
+  }
+  if (old.nodeType !== 1 || old.isEqualNode(neu)) return;
+  // (A table's scrolling box kept whatever comes in it: its rows anew when a player came on.)
+  if (old.matches(SCROLLERS) && attrs(old) === attrs(neu) && old.childNodes.length !== neu.childNodes.length) return void old.replaceChildren(...neu.childNodes);
+  if (attrs(old) !== attrs(neu) || old.childNodes.length !== neu.childNodes.length) return old.replaceWith(neu);
+  const [a, b] = [[...old.childNodes], [...neu.childNodes]];
+  a.forEach((n, i) => morph(n, b[i]));
+}
 export function put(node, ...kids) {
   const list = kids.flat().filter(k => k != null && k !== false).map(k => (typeof k === 'string' ? document.createTextNode(k) : k));
+  keepScrollers(node, list);
   // (Kept too: one already here inside a column of a laid-out .q-flow, as a live game's 概況 on a wide screen.)
   const keep = new Set(list.filter(k => k.parentNode === node || (k.parentNode?.parentNode === node && k.parentNode.classList?.contains('q-flow-col'))));
   keepPictures(node, list, keep);

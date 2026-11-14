@@ -3172,5 +3172,9 @@ table.hp-splits tbody tr.hp-split-new > * { border-top-color: var(--q-divider, v
 .cup-h { margin: 6px 4px 0; font-size: 15px; font-weight: 700; }
 /* A group game's card: what it decides over the table. */
 .cup-stakes { margin: 0 0 8px; font-size: 13.5px; font-weight: 600; line-height: 1.4; color: var(--q-text); }
-.cup-rule p { margin: 0; }
-.cup-rule .live-table-note { margin: 6px 0 0; }
+.cup-live { color: var(--q-live, #ff3b30); font-weight: 600; }
+.cup-live .live-dot, .cup-title .live-dot { display: inline-block; width: 7px; height: 7px; margin: 0 5px 1px 0; border-radius: 50%; background: var(--q-live, #ff3b30); vertical-align: middle; }
+.cup-title .live-dot { margin: 0 0 2px 7px; }
+.cup-stand > .zone-legend { margin: -4px 4px 0; }
+/* A score on a table quiet beside a name: small, plain, no pill (the NBA Cup's). */
+.standings .live-score.quiet { padding: 0; margin-left: 5px; background: none; color: var(--q-muted); font-weight: 600; }
