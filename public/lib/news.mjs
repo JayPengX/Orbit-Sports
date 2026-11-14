@@ -65,8 +65,9 @@ export function gameNews(n, e, most = 4) {
   const sides = [e.away, e.home].map(x => teamFor(e.league, { name: x.en || x.name, short: x.enShort || x.short || '' })).filter(Boolean);
   if (sides.length < 2) return [];
   const at = Date.parse(e.start) || Date.now();
-  const both = n.kit.newsAbout(n.pack, { teams: sides, both: true, from: at - GAME_BEFORE, to: at + GAME_AFTER, most });
-  const hurt = n.kit.newsAbout(n.pack, { teams: sides, kinds: ['injury', 'ban'], from: at - GAME_BEFORE, to: at, most });
+  // (`game`: never another game's report, Jay 11-14: "Rockets halt Warriors' streak" under Warriors v Spurs.)
+  const both = n.kit.newsAbout(n.pack, { teams: sides, both: true, game: true, from: at - GAME_BEFORE, to: at + GAME_AFTER, most });
+  const hurt = n.kit.newsAbout(n.pack, { teams: sides, game: true, kinds: ['injury', 'ban'], from: at - GAME_BEFORE, to: at, most });
   const seen = new Set();
   const all = [...hurt, ...both].filter(s => !seen.has(s.id) && seen.add(s.id));
   // The world's sports outlets first (ESPN, The Athletic, Yahoo Sports…),
