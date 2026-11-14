@@ -118,7 +118,7 @@ img { max-width: 100%; }
 .list > :is(.event-row, .watch-row, .fg-row, .tie-game) + :is(.event-row, .watch-row, .fg-row, .tie-game)::before { content: ''; position: absolute; z-index: 1; top: 0; left: 16px; right: 0; border-top: var(--q-hairline, 0.5px) solid var(--q-sep); }
 .event-row { position: relative; display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: 0; background: none; color: inherit; font: inherit; text-align: left; transition: background-color 0.25s; -webkit-tap-highlight-color: transparent; }
 .event-row:active:not(:disabled, .abroad) { background: var(--q-fill-4); transition-duration: 0s; }
-@media (hover: hover) { .event-row:hover:not(:disabled) { background: var(--q-fill-4); } }
+@media (hover: hover) and (pointer: fine) { .event-row:hover:not(:disabled, .abroad) { background: var(--q-fill-4); } }
 /* A game called off: not a button (openEvent), still read as the others. */
 :is(.event-row, .tf-game, .res-row, .wk-card, .tvg-body, .score-card):disabled { color: inherit; opacity: 1; cursor: default; }
 /* A followed team's game: the app's colour down its edge. */
@@ -2197,6 +2197,9 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .wk-cols { margin-top: 6px; }
 .wk-side:not(:has(> :not(:empty))), .wk-side > .race-chance:empty { display: none; }
 .wk-side > .q-card, .wk-side > .race-chance > .q-card { margin: 0; }
+.wk-more:empty { display: none; }
+.wk-more > .q-card, .wk-more > .race-chance > .q-card { margin: 0; }
+.wk-main { gap: 12px; }
 .race-box > .muted.small { margin: -4px 0 0; }
 /* An empty slot (no order yet, no race chance) takes no gap in the stack. */
 .race-box > :empty { display: none; }
@@ -2309,7 +2312,8 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 .q-card.recap > .event-row { position: static; }
 .q-card.recap > .event-row:is(:active, :hover) { background: none; opacity: 1; }
 .q-card.recap:active:not(:has(.recap-hit:active, .event-row:disabled)) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
-@media (hover: hover) { .q-card.recap:hover:not(:has(.recap-hit:hover, .event-row:disabled)) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); } }
+/* (A mouse over a player keeps the card lit, the name underlined: it went dark under the pointer, Jay 11-14 "not consistent".) */
+@media (hover: hover) and (pointer: fine) { .q-card.recap:hover:not(:has(.event-row:disabled)) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); } }
 /* A game over shown with its leaders (recapList): the whole card lit, never the top half. */
 .q-card.recap > .event-row.picked { background: none; }
 .q-card.recap:has(> .event-row.picked:not(.fill-pick)) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
@@ -2688,7 +2692,11 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 .team-cards > * { align-content: start; }
 :root.q-wide .sport-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 /* 追蹤's foot: 我的聯賽 and 設定 side by side (.q-cols), each its column's width; 設定 alone, a phone's column. */
-:root.q-wide .following-settings { max-width: 560px; }
+/* (設定's two rows side by side across the page on a computer, not half the
+   page wide with the rest empty: Jay 11-14.) */
+:root.q-wide .following-settings .q-rowcard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+:root.q-wide .following-settings .q-ritem + .q-ritem::before { display: none; }
+:root.q-wide .following-settings .q-ritem + .q-ritem { box-shadow: inset var(--q-hairline, 0.5px) 0 0 var(--q-sep); }
 /* 我的聯賽 at the top of 追蹤: on a wide page its rows side by side, not one long narrow list. */
 :root.q-wide .following-leagues .my-leagues-list { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0; }
 :root.q-w3 .following-leagues .my-leagues-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }

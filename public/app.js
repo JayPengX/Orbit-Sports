@@ -842,7 +842,7 @@ function repaintDay(date) {
   renderTabs();
   if (sheetOver()) return void heldDays.add(date);
   if (state.tab === 'home' && state.home.date === date) renderHome();
-  if (state.tab === 'live' && (date === today() || date === addDays(today(), 1) || date === state.live.date)) renderLive();
+  if (state.tab === 'live' && (date === today() || date === addDays(today(), 1) || date === state.live.date || (!state.live.date && date > today() && date < addDays(today(), TV_DAYS)))) renderLive();
   if (allShown(date)) renderScores();
 }
 // `live`: only the pages of the games on now or due to start (livePages),
@@ -2074,6 +2074,10 @@ function renderHome() {
       // picks: ranked again on today's tables, yesterday's changed; the owner,
       // 2026-10-18). Theirs and the others on TV, under the sport chosen.
       past ? pastDay() : null,
+      // Today's all over, on a computer: theirs on TV in the week ahead under
+      // it, not the page empty under one or two results (Jay 11-14: "fill
+      // empty space"). A phone has 我的球隊's next games right under it.
+      todayOver && screenFit().wide ? weekBlock(weekByDay(myTvGames().filter(e => e.status.state === 'pre' && localDate(Date.parse(e.start)) > h.date).slice(0, 8))) : null,
       // (Nothing followed yet: the sport picker above already says so; no note under it.)
       // Nothing of theirs: the others' picks under a line that says so (the lead card one of them:
   // with a single pick the line went with it, 11-12);
@@ -2445,6 +2449,10 @@ function renderLive() {
   // already up there; and they aren't listed again among the next hours'.
   const key = e => `${e.league}:${e.id}:${e.sessionKey || ''}`;
   const above = new Set([...live, ...(live.length ? [] : [nextUp].filter(Boolean))].map(key));
+  // (A followed league's chosen games come from the days read: the week's
+  // read too, or 我的比賽 jumped from tomorrow to the one day 首頁 had opened,
+  // 11/15 then 11/21 on a computer, Jay 2026-11-14.)
+  if (watched().length) for (let i = 2; i < TV_DAYS; i++) { const d = addDays(today(), i); const s = state.days.get(d); if (!s?.at && !s?.loading) loadDay(d); }
   const mine = myTvGames().filter(e => !above.has(key(e)) && e.status.state !== 'in');
   const mineKeys = new Set(mine.map(key));
   const byDay = new Map();
@@ -2453,11 +2461,7 @@ function renderLive() {
     if (!byDay.has(d)) byDay.set(d, []);
     byDay.get(d).push(e);
   }
-  const mineBlock = byDay.size
-    ? section(t('myGames'), el('div', { class: 'by-day mine-list' }, [...byDay].map(([d, list]) => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { day: false })))]).flat()), {
-        action: el('span', { class: 'q-tag tint', text: L({ zh: `${TV_DAYS} 天`, en: `${TV_DAYS} days` }) })
-      })
-    : null;
+  const mineBlock = weekBlock(byDay);
   const later = soon.filter(e => (e !== nextUp || live.length) && !mineKeys.has(key(e)));
   const wait = nextUp ? Math.max(0, Date.parse(nextUp.start) - now) : 0;
   const waitText = wait < 60_000 ? L({ zh: '馬上', en: 'any minute' }) : wait < 3_600_000 ? L({ zh: `${Math.round(wait / 60_000)} 分鐘後`, en: `in ${Math.round(wait / 60_000)} min` }) : ((m = Math.round(wait / 60_000)) => L({ zh: `${Math.floor(m / 60)} 小時 ${m % 60} 分後`, en: `in ${Math.floor(m / 60)} h ${m % 60} min` }))();
@@ -2489,9 +2493,37 @@ function renderLive() {
         beside ? null : guide,
         live.length > 1 ? section(t('liveNow'), el('div', { class: 'q-card list' }, live.slice(1).map(liveRow)), { cls: 'live-now' }) : null
       ],
-      [mineBlock, later.length ? section(t('upcomingEvents'), el('div', { class: 'q-card list' }, later.slice(0, 30).map(e => eventRow(e)))) : null, beside, beside ? guide : null]
+      [mineBlock, upcomingParts(later.slice(0, 30)), beside, beside ? guide : null]
     )
   );
+}
+// Theirs on TV this week, by day (轉播's 我的比賽; 首頁's too on a computer once today's are over).
+function weekBlock(byDay) {
+  return byDay.size
+    ? section(t('myGames'), el('div', { class: 'by-day mine-list' }, [...byDay].map(([d, list]) => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { day: false })))]).flat()), {
+        action: el('span', { class: 'q-tag tint', text: L({ zh: `${TV_DAYS} 天`, en: `${TV_DAYS} days` }) })
+      })
+    : null;
+}
+const weekByDay = list => {
+  const byDay = new Map();
+  for (const e of list) {
+    const d = localDate(Date.parse(e.start));
+    if (!byDay.has(d)) byDay.set(d, []);
+    byDay.get(d).push(e);
+  }
+  return byDay;
+};
+// 即將開始: one list; on a computer (three columns) in fours, each dealt to
+// the shortest column, so it fills under the lead game and 我的比賽 instead
+// of one long column beside two short ones (Jay 11-14: "empty space").
+function upcomingParts(list) {
+  if (!list.length) return null;
+  const rows = l => el('div', { class: 'q-card list' }, l.map(e => eventRow(e)));
+  if (!screenFit().w3 || list.length <= 5) return section(t('upcomingEvents'), rows(list));
+  const parts = [];
+  for (let i = 0; i < list.length; i += 4) parts.push(section(i ? L({ zh: '稍後', en: 'Later' }) : t('upcomingEvents'), rows(list.slice(i, i + 4))));
+  return parts;
 }
 // Another day on 轉播: everything on TV here that day by the clock (the
 // small hours too), its best game first: a followed team's, else the one

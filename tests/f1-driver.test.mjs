@@ -69,5 +69,5 @@ test('本季走勢: the line joins the races either side of a retirement, never 
 test("a race weekend on a wide sheet: two set columns, never CSS columns (Safari left the right half empty)", () => {
   assert.doesNotMatch(css, /\.sheet-body:has\(> \.wk-hero\)\s*\{\s*columns/);
   assert.match(css, /\.wk-cols:has\(> \.wk-side > :not\(:empty\)\)\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
-  assert.match(js, /el\('div', \{ class: 'stack wk-cols' \}, \[box, side\]\)/);
+  assert.match(js, /el\('div', \{ class: 'stack wk-cols' \}, \[el\('div', \{ class: 'stack wk-main' \}, \[box, more\]\), side\]\)/);
 });

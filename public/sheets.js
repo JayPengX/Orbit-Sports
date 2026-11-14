@@ -6170,8 +6170,49 @@ function fillField(s, e) {
     // chances and the weekend's cards on the right; a phone: one after the
     // other, as ever (styles.css .wk-cols).
     const side = el('div', { class: 'stack wk-side' }, [raceBox, ...[e.league === 'f1' ? titleFightCard(e) : null, twCard(e.league, e), e.league === 'f1' ? circuitCard(e, sessions) : null, e.league === 'f1' ? podiumCard(e, sessions) : null].filter(Boolean)]);
-    s.body.append(el('div', { class: 'stack wk-cols' }, [box, side]));
+    const more = el('div', { class: 'stack wk-more' });
+    s.body.append(el('div', { class: 'stack wk-cols' }, [el('div', { class: 'stack wk-main' }, [box, more]), side]));
+    balanceWeekend(box, more, side);
   } else s.body.append(twCard(e.league, e));
+}
+
+// Two columns (a computer, an iPad): the sessions on the left were often a
+// short card beside a long right column (Jay 11-14: "fill empty space"),
+// so the right's last cards (the circuit, last year's podium, where to
+// watch) move under the sessions while the left stays the shorter; dealt
+// again as cards come in or change. The right keeps its first two (the
+// chances and the title fight). One column: all in their own order.
+function balanceWeekend(box, more, side) {
+  if (typeof ResizeObserver === 'undefined') return;
+  const hOf = n => n.getBoundingClientRect().height;
+  let busy = false;
+  const deal = () => {
+    if (busy || !box.isConnected) return;
+    busy = true;
+    const two = getComputedStyle(box.closest('.wk-cols')).gridTemplateColumns.split(' ').length > 1;
+    // (In their order, the moved ones the tail: a card read late replaces its shape, lateCard.)
+    const all = [...side.children, ...more.children];
+    const gap = 12;
+    const hs = all.map(n => (n.childElementCount || n.textContent ? hOf(n) + gap : 0));
+    let right = hs.reduce((a, b) => a + b, 0);
+    let left = hOf(box);
+    let cut = all.length;
+    while (two && cut > 2 && left + hs[cut - 1] <= right - hs[cut - 1]) {
+      cut--;
+      left += hs[cut];
+      right -= hs[cut];
+    }
+    const want = all.slice(cut);
+    if (want.length !== more.childElementCount || want.some((n, i) => more.children[i] !== n)) {
+      side.append(...all.slice(0, cut));
+      more.append(...want);
+    }
+    requestAnimationFrame(() => (busy = false));
+  };
+  const seen = new ResizeObserver(() => deal());
+  [box, side, more].forEach(n => seen.observe(n));
+  seen.observe(box.closest('.wk-cols') || box);
+  requestAnimationFrame(deal);
 }
 
 // A finished session's official numbers, once read (they don't change).
