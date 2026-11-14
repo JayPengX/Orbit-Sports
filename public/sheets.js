@@ -3,6 +3,7 @@
 // standings tables they share with the Standings tab.
 import { translate, proxyJson, packJson, everyDev, dev, workerJson } from '#kit/orbit.mjs';
 import * as kitUI from '#kit/ui.mjs';
+import { aiTap, aiSays } from '#kit/ai.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import * as kitNames from '#kit/names.mjs';
@@ -1016,9 +1017,25 @@ const previewDoc = day => {
   return previewDocs.get(day);
 };
 const previewKnown = new Map();
-// (None in the day's files: made now, the first time anyone opens the game, and kept for everyone after:
-// Orbit-Core's /ai/open, Jay 11-14 "only spend it as I use it". null when it can't be.)
-const madeOnOpen = (f, key) => workerJson('/ai/open', `f=${f}&id=${encodeURIComponent(key)}`, { timeout: 30_000 }).then(j => j?.out || null);
+// (None in the day's files: made on a tap of its AI button, the first anyone makes, and kept for
+// everyone after: Orbit-Core's /ai/open, Jay 11-14 "make AI feature like this a button to click
+// like we do in orbit law, never spend a penny on AI on things user didn't interact with".
+// Opening the game never makes one. → { out } | { error }.)
+const madeOnTap = (f, key) => workerJson('/ai/open', `f=${f}&id=${encodeURIComponent(key)}`, { timeout: 30_000, errors: true }).then(j => (j?.out ? { out: j.out } : { error: j?.error || 'upstream' }));
+// The AI button in a part's place: a tap makes it (`make` → a node, or { error }), its
+// spark breathing meanwhile; a failure says why under the button.
+function aiAsk(label, make) {
+  const box = el('div', { class: 'ai-ask' });
+  const button = (note = '') => box.replaceChildren(...[aiTap(label, go), note ? el('small', { class: 'ai-ask-note', text: note }) : null].filter(Boolean));
+  async function go() {
+    box.replaceChildren(el('div', { class: 'q-ai-think', role: 'status' }, [el('span', { class: 'q-ai-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || '' }), el('span', { text: L() === 'en' ? 'Thinking…' : '想一下…' })]));
+    const r = await make();
+    if (r instanceof Node) box.replaceWith(r);
+    else button(r?.error ? aiSays(r.error) : L() === 'en' ? 'Nothing to say about this game yet.' : '這場還沒有可以說的。');
+  }
+  button();
+  return box;
+}
 const PREVIEW_ICON = { out: 'user', table: 'trophy', star: 'flame', rest: 'clock', run: 'chart', series: 'flag' };
 // (`played`: who has played this game. A point saying one of them is out is
 // dropped: 「Herro 膝傷缺陣」 stood over Herro on the court, 11-12, as the
@@ -1050,8 +1067,21 @@ function previewBox(e, codeLine, played = new Set()) {
       if (got.known) break;
     }
     if (!got.known) {
-      const out = await madeOnOpen('sports-preview', `${e.league}:${e.id}`);
-      if (out) got = previewFrom({ v: 1, games: { [`${e.league}:${e.id}`]: out } }, e, en);
+      // (None kept: 看點 on a tap, under the code's line where there is one.)
+      if (!holder.isConnected) return;
+      const ask = aiAsk(en ? 'Why watch' : '看點', async () => {
+        const r = await madeOnTap('sports-preview', `${e.league}:${e.id}`);
+        if (!r.out) return r;
+        const made = previewFrom({ v: 1, games: { [`${e.league}:${e.id}`]: r.out } }, e, en);
+        previewKnown.set(key, made);
+        const box = made.points.length ? draw(made.points, made.who) : null;
+        // (The AI's points take the code's line's place: it's among them or said better.)
+        if (box) first?.remove();
+        return box || {};
+      });
+      if (first) holder.after(ask);
+      else holder.replaceWith(ask);
+      return;
     }
     previewKnown.set(key, got);
     if (!got.points.length || !holder.isConnected) return;
@@ -1177,8 +1207,19 @@ function whyLine(e) {
       }
     }
     if (!text && e.status?.state === 'post') {
-      const doc = { v: 2, games: { [key]: await madeOnOpen('sports-recap', key) } };
-      if ((text = whyFrom(doc, e, en))) who = whoFrom(doc, e);
+      // (None kept: 賽後重點 on a tap, as Orbit Law's AI.)
+      if (!holder.isConnected) return;
+      const panel = holder.closest('.live-panel');
+      holder.replaceWith(aiAsk(en ? 'Why it went this way' : '賽後重點', async () => {
+        const r = await madeOnTap('sports-recap', key);
+        const doc = { v: 2, games: { [key]: r.out || null } };
+        const said = r.out && whyFrom(doc, e, en);
+        if (!said) return r.out ? {} : r;
+        whyKnown.set(key, { text: said, who: whoFrom(doc, e) });
+        return make(whyKnown.get(key));
+      }));
+      if (panel) panel.hidden = false;
+      return;
     }
     whyKnown.set(key, text ? { text, who } : '');
     if (!text || !holder.isConnected) return;
