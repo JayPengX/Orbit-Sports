@@ -61,7 +61,7 @@ export function parseEspnCareer(data, sport, key = '') {
   const logoOf = (t, id, name) => {
     const url = t.logo || t.logos?.[0]?.href || '';
     if (!padded(url)) return url;
-    return kitLogos.formerLogo?.(key, name) || Object.values(data.teams || {}).find(o => String(o?.id) === id && o.logo && !padded(o.logo))?.logo || url;
+    return kitLogos.formerLogo(key, name) || Object.values(data.teams || {}).find(o => String(o?.id) === id && o.logo && !padded(o.logo))?.logo || url;
   };
   const gp = c.labels.indexOf('GP');
   const rows = c.statistics

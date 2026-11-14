@@ -1182,7 +1182,7 @@ function rankOnNow(list, ctx, also = new Set()) {
 // and what was followed (the kit's feedback.mjs, the family's one engine,
 // kept on the Pass): a team or league passed over day after day sinks, one
 // opened rises, and a team opened far more than the rest is a 常看.
-// (Loaded on the side: an older kit without it ranks without them.)
+// (Loaded on the side.)
 let feedback = null;
 import('#kit/feedback.mjs')
   .then(m => {
@@ -2673,7 +2673,7 @@ function openGuide(events, from = null) {
   // A swipe across the guide: the day before or after, as on 轉播 under it
   // (Jay 2026-11-05, "愛爾達節目表 can't swipe": the page's swipe stops
   // under a sheet, and this one had none of its own).
-  kitUI.daySwipe?.(s.body, dir => {
+  kitUI.daySwipe(s.body, dir => {
     const d = days[days.indexOf(day) + dir];
     return Boolean(d && ((day = d), paint(), true));
   });
@@ -4873,7 +4873,7 @@ let screenWas = fitKey(screenFit());
 onScreen(fit => {
   if (fitKey(fit) === screenWas) return;
   screenWas = fitKey(fit);
-  kitUI.flowColumns?.(document);
+  kitUI.flowColumns(document);
   // (首頁: the board on q-w3, cols below it, drawn again for the new width.)
   if (state.home.drawnOnce) renderHome();
   if (state.tab === 'matches' && state.scores.league === ALL && state.prefsLoaded) renderAll();

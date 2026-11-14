@@ -800,7 +800,7 @@ export function liveRaceEvents(feed, names) {
   // Each drawn driver's climbs through the field ([lap reached, 'climb', k, from, to, first lap]).
   for (const [no, p] of places) {
     const k = kOf(no);
-    if (typeof k === 'number') for (const c of kitWp.placeClimbs?.(p) || []) ev.push([c.lap1, 'climb', k, c.from, c.to, c.lap0]);
+    if (typeof k === 'number') for (const c of kitWp.placeClimbs(p) || []) ev.push([c.lap1, 'climb', k, c.from, c.to, c.lap0]);
   }
   const laps = Math.max(0, ...places.map(([, p]) => p.length - 1));
   let leader = null;

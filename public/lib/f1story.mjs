@@ -264,7 +264,7 @@ export function raceStory({ cars = [], places = {}, stops = {}, laps = {}, contr
   // Verstappen's P5 to the lead after his, from P2, is. One to the
   // podium first, however short: Verstappen's P5 to the lead in Mexico; three at most.)
   const climbs = nos
-    .flatMap(no => (kitWp.placeClimbs?.(run[no].map((x, l) => (l ? x : 0)), 4) || []).map(c => ({ no, ...c })))
+    .flatMap(no => (kitWp.placeClimbs(run[no].map((x, l) => (l ? x : 0)), 4) || []).map(c => ({ no, ...c })))
     .filter(c => !pits[c.no]?.some(s => c.lap0 >= s && c.lap0 <= s + 2 && c.to >= at(c.no, s - 1)))
     .sort((x, y) => (y.to <= 3) - (x.to <= 3) || y.from - y.to - (x.from - x.to))
     .filter((c, i, all) => c.to > 3 || all.slice(0, i).filter(x => x.to <= 3).length < 2)

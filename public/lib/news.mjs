@@ -8,7 +8,6 @@
 //
 // news/sport.json (Orbit-Core builders/news.js): read once the app is up,
 // painted from the phone's own copy at once, again every 10 minutes.
-// An older kit without news-sport.mjs: no news, nothing else changes.
 import { packJson, peekPack } from '#kit/orbit.mjs';
 import { LEAGUES } from './leagues.mjs';
 

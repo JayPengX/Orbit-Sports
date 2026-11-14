@@ -66,7 +66,7 @@ export function openAsk(src, { ask = '' } = {}) {
       const was = src.isFollowed(side.league, side.id);
       src.toggleFollow(side);
       paint();
-      kitUI.toast?.(was ? W(en, `不再追蹤 ${side.name}`, `Unfollowed ${side.name}`) : W(en, `追蹤了 ${side.name}`, `Following ${side.name}`), { action: { label: W(en, '復原', 'Undo'), onTap: () => (src.toggleFollow(side), paint()) } });
+      kitUI.toast(was ? W(en, `不再追蹤 ${side.name}`, `Unfollowed ${side.name}`) : W(en, `追蹤了 ${side.name}`, `Following ${side.name}`), { action: { label: W(en, '復原', 'Undo'), onTap: () => (src.toggleFollow(side), paint()) } });
     };
     paint();
     const row = h('div', { class: 'q-rowcard sp-ask-team' }, [

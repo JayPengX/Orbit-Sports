@@ -95,8 +95,8 @@ export function put(node, ...kids) {
   }
   // (A tab's sections in columns: dealt once they're on the page, cols.)
   // (Or the columns themselves given new sections: a live game's 概況 refreshed in place.)
-  if (node.classList?.contains('q-flow')) kitUI.flowColumns?.(node);
-  else if (list.some(k => k.classList?.contains('q-flow'))) kitUI.flowColumns?.(node);
+  if (node.classList?.contains('q-flow')) kitUI.flowColumns(node);
+  else if (list.some(k => k.classList?.contains('q-flow'))) kitUI.flowColumns(node);
 }
 // Every screen (Orbit-Core DESIGN.md §10): on a wide screen a page's
 // sections stand in two columns, each a phone's width: what the tab answers
@@ -448,9 +448,9 @@ export function personPic(p, league, cls = '') {
   const stand = () => (league === 'f1' ? driverBadge(name, cls) : flag ? logoPicture(flag, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls));
   return personPhoto(name, league, { urls: [p?.headshot, isFlag(p?.logo) ? null : p?.logo].map(freshHeadshot), guess: freshHeadshot(espnHeadshot(league, p?.id)), later: [espnCollegeHeadshot(league, p?.id)], cls: `logo ${cls}${league === 'f1' ? ' f1-face' : ''}`, fallback: stand });
 }
-// No picture: a drawing of what it is (a shield, a person), never letters (an older kit without the icons: the letters).
+// No picture: a drawing of what it is (a shield, a person), never letters.
 function markPic(icon, name, cls) {
-  const svg = kitUI.icons?.[icon];
+  const svg = kitUI.icons[icon];
   if (!svg) return null;
   const span = el('span', { class: `logo logo-fallback mark ${cls}`, role: 'img', 'aria-label': String(name || '') });
   span.innerHTML = svg;
@@ -497,19 +497,14 @@ const compChip = e => (e.otherLogo ? el('span', { class: 'league-tag' }, [el('sp
 
 // A game at a break (half-time, a period or quarter over, between innings,
 // a timeout, a pitching change): its countdown's key, the break's end
-// looked up once (ESPN's summary; the kit's breakOf and watchBreak, a
-// phone's older kit only half-time's); null for any other moment.
+// looked up once (ESPN's summary; the kit's breakOf and watchBreak); null
+// for any other moment.
 export function breakKey(e) {
   if (e.kind !== 'match' || e.status?.state !== 'in' || e.status.delayed || !LEAGUES[e.league]?.espn) return null;
   e = withTimeout(e);
   const sport = LEAGUES[e.league].sport;
   const read = () => espnSummary(e.league, e.id);
   const base = `sports:${e.league}:${e.id}`;
-  if (!kitQ.breakOf) {
-    if (!/HALFTIME/.test(e.status.name || '')) return null;
-    kitQ.watchHalftime(base, { sport, league: e.league, read });
-    return base;
-  }
   const b = kitQ.breakOf({ sport, league: e.league, status: e.status, live: e.live || {}, post: Boolean(e.series) });
   if (!b) return null;
   const key = `${base}:${b.kind}:${e.status.period || 0}:${b.play || ''}`;
@@ -969,16 +964,7 @@ export const segmented = (options, current, onPick, cls = '', o = {}) => kitUI.p
 export const section = (title, content, { sub = '', action = null, cls = '' } = {}) => kitUI.section(title, content, { sub, action, cls, shd: true });
 export const moreButton = (label, onclick) => el('button', { class: 'section-more', type: 'button', text: label, onclick });
 // A way on to more at a card's foot (全部球隊數據, 看完整賽程): the kit's goBar
-// (.q-more, a › for where it goes; never accent text, Jay 2026-11-03), the same on an older kit.
-export const goBar = (label, onclick, cls = '') => kitUI.goBar?.(label, onclick, cls) ?? el('button', { class: `q-more q-more-go${cls ? ` ${cls}` : ''}`, type: 'button', onclick }, [el('span', { text: label }), el('span', { class: 'q-more-chev', 'aria-hidden': 'true', text: '›' })]);
-// A list's 再看 / 收起: the kit's bar (moreToggle); on an older kit still on the phone, the same as a plain button.
-export function moreToggle(o) {
-  if (kitUI.moreToggle) return kitUI.moreToggle(o);
-  let open = Boolean(o.open);
-  let { more, less } = o;
-  const b = el('button', { type: 'button', class: 'q-more' });
-  const paint = () => ((b.textContent = open && less != null ? less : more), b.setAttribute('aria-expanded', String(Boolean(open && less != null))));
-  b.onclick = () => (less != null && (open = !open), paint(), o.onToggle?.(less != null ? open : true));
-  paint();
-  return Object.assign(b, { set: (x, m = more, l = less) => ((open = x), (more = m), (less = l), paint()) });
-}
+// (.q-more, a › for where it goes; never accent text, Jay 2026-11-03).
+export const goBar = (label, onclick, cls = '') => kitUI.goBar(label, onclick, cls) ?? el('button', { class: `q-more q-more-go${cls ? ` ${cls}` : ''}`, type: 'button', onclick }, [el('span', { text: label }), el('span', { class: 'q-more-chev', 'aria-hidden': 'true', text: '›' })]);
+// A list's 再看 / 收起: the kit's bar.
+export const moreToggle = o => kitUI.moreToggle(o);

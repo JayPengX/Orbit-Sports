@@ -47,8 +47,8 @@ test("each late read's part is held while it's coming", () => {
   for (const k of keys) assert.ok(src.includes(`still('${k}')`) || src.includes(`coming.has('${k}')`), `${k}: held in its shape while it's read`);
 });
 
-test('the held shapes go through the kit (an older kit without it: nothing held, as before)', () => {
-  assert.match(src, /kitUI\.waiting \? kitUI\.waiting\(shape/);
+test('the held shapes go through the kit ', () => {
+  assert.match(src, /shape \? kitUI\.waiting\(shape/);
   assert.doesNotMatch(src, /import \{[^}]*\bwaiting\b[^}]*\} from '#kit\/ui\.mjs'/);
 });
 

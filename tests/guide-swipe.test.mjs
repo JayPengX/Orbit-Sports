@@ -11,7 +11,7 @@ const guide = app.slice(at, app.indexOf('\n}\n', at));
 
 test('the TV guide swipes a day either way', () => {
   assert.ok(at >= 0);
-  assert.match(guide, /daySwipe\?\.\(s\.body/);
+  assert.match(guide, /daySwipe\(s\.body/);
 });
 
 test('the TV guide never changes height between days', () => {

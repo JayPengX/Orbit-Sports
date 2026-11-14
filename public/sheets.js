@@ -169,7 +169,7 @@ export function recordNow(rec, side, other, { state, seasonType, before } = {}) 
 // beside (Jay 2026-10-27, swipes where they fit; not a game's page, whose
 // charts and pitch take a finger sideways).
 function swipeTabs(node, at) {
-  kitUI.daySwipe?.(node, dir => {
+  kitUI.daySwipe(node, dir => {
     const { list, now, go } = at();
     const k = list[list.indexOf(now) + dir];
     return Boolean(k && (go(k), true));
@@ -806,9 +806,8 @@ function livePanel(e, sm = null) {
   // Basketball before the box score is in: the panel itself in its shape (kit
   // waiting): each side's team as it is, a face, a name and its line, 最新 and
   // its four plays shimmering where they'll be, so nothing moves when it comes
-  // (Jay 2026-11-06: the grey bars looked bad). An older kit: the bars.
+  // (Jay 2026-11-06: the grey bars looked bad).
   if (sport === 'basketball' && !sm) {
-    if (!kitUI.waiting) return el('div', { class: 'live-panel waiting' }, [el('div', { class: 'lp-who lp-bb' }, [0, 1].map(() => el('div', { class: 'lp-person' }, [el('i', { class: 'skel skel-face' }), skeleton([55, 80, 65, 45])]))), skeleton([18, 92, 84, 88, 76])]);
     const shape = el('div', { class: 'live-panel lp-held' }, [
       el('div', { class: 'lp-who lp-bb' }, inOrder(e, [e.away, e.home]).map(t => el('div', { class: 'lp-person' }, [personPic({ stand: true }, e.league, 'md round'), el('p', {}, [el('small', { class: 'lp-team' }, [teamTag(t, `${t.short || t.name} · ${en ? 'top scorer' : '得分王'}`, e.league, { tap: false })]), el('strong', { class: 'lp-name', text: '口口口口口' }), el('small', { class: 'num lp-line', text: en ? '00 pts 0 reb 0 ast · fouls 0' : '00分 0籃板 0助攻 · 全隊犯規 0' })])]))),
       el('small', { class: 'lp-feed-h', text: en ? 'Latest' : '最新' }),
@@ -1499,7 +1498,7 @@ function injuryCard(inj, league, news = null) {
     facts = facts.filter(f => f !== found);
   } else if (found && (en || bare(what).includes(bare(found.what)))) facts = facts.filter(f => f !== found);
   const tone = TAG_TONE[injTone(inj.status)] || 'orange';
-  const tagEl = what ? (kitUI.tag?.(status, tone) ?? el('span', { class: `inj-status ${injTone(inj.status)}`, text: status })) : null;
+  const tagEl = what ? (kitUI.tag(status, tone) ?? el('span', { class: `inj-status ${injTone(inj.status)}`, text: status })) : null;
   const updated = inj.date && Number.isFinite(Date.parse(inj.date)) ? dayLabel(localDate(Date.parse(inj.date))) : '';
   return el('div', { class: 'q-card pad player-injury' }, [
     el('div', { class: 'player-inj-head' }, [
@@ -2176,8 +2175,8 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
 const heldParts = new WeakMap();
 // A part still being read, in the shape that's coming (kit waiting: its
 // words and faces a quiet shimmer; its title, the sides' names and the rows'
-// names as they are). An older kit: nothing there (as before).
-const holdShape = shape => (shape && kitUI.waiting ? kitUI.waiting(shape, { keep: '.card-h > span:first-child, .mini-h, .cmp-k' }) : null);
+// names as they are).
+const holdShape = shape => (shape ? kitUI.waiting(shape, { keep: '.card-h > span:first-child, .mini-h, .cmp-k' }) : null);
 // Stand-ins for a held part's rows: a name of four characters (never seen:
 // the kit draws them as a bar; not blank spaces, which hang past a line's end), an empty face.
 const BLANK = '口口口口';
@@ -2589,7 +2588,7 @@ function winCard(d, e, line, wait) {
   }
   if (coming) {
     waited.set(wait, true);
-    // (Before the start: the card itself held in its shape, kit waiting; an older kit, the skeleton.)
+    // (Before the start: the card itself held in its shape, kit waiting.)
     return state === 'pre'
       ? holdShape(winChanceCard({ home: 0.5, draw: sport === 'soccer' ? 0.25 : null }, e)) || card(T('winChance'), el('div', { class: 'wp waiting' }, [skeleton([22, 16, 22], 'wc-skel'), el('i', { class: 'skel wc-skel-bar' })]))
       : card(T('winProb'), el('div', { class: 'wp waiting' }, [skeleton([22, 22], 'wc-skel'), el('i', { class: 'skel wp-skel-chart' })]));
@@ -8470,7 +8469,7 @@ function raceBlock(race, g, league, many, asIs = false) {
   const pendingOf = t => Boolean(t?.leader?.id && t.soonest > 0 && clinchPending(league, t.leader.id, t.soonest));
   const drawn = (t, k) => {
     const l = chaseLine(t, k);
-    return l && pendingOf(t) && kitUI.waiting ? kitUI.waiting(l, { keep: '.race-g' }) : l;
+    return l && pendingOf(t) ? kitUI.waiting(l, { keep: '.race-g' }) : l;
   };
   const chase = (t, k = 0) => {
     let shown = drawn(t, k);

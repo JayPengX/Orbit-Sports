@@ -220,10 +220,10 @@ export function scoreMatch(e, { leagues = [], follows = [], games = [], tables =
     if (hours >= 0 && hours < 2) score += 0.08;
     // When it's on in Taiwan: an evening game is easy to watch, one in a
     // working day's hours isn't (a holiday or a typhoon day off where the
-    // person works is a day off: the kit's dayOffAt; an older kit, Mon–Fri).
+    // person works is a day off: the kit's dayOffAt).
     const tw = new Date(Date.parse(e.start) + 8 * 3_600_000);
     const hr = tw.getUTCHours();
-    const weekday = dayoff.dayOffAt ? !dayoff.dayOffAt(Date.parse(e.start), dayoff.myPlace?.('work'), 'work') : tw.getUTCDay() > 0 && tw.getUTCDay() < 6;
+    const weekday = !dayoff.dayOffAt(Date.parse(e.start), dayoff.myPlace('work'), 'work');
     if (hr >= 18 && hr <= 23) score += 0.08;
     else if (weekday && hr >= 9 && hr < 17) score -= 0.06;
   }
