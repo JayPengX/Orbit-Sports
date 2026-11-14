@@ -651,6 +651,8 @@ export async function openMatch(e) {
   const stopLineups = () => clearInterval(lineupTimer);
   const loadLineups = () => {
     if (!s.dialog.isConnected || (data?.status || e.status).state !== 'pre') return stopLineups();
+    // (Hidden, the phone's other app or Orbit's other tab: nothing asked till it's back.)
+    if (document.visibilityState === 'hidden') return;
     pregameLineups(e)
       .then(l => {
         if (JSON.stringify(l) === JSON.stringify(lineups)) return;
