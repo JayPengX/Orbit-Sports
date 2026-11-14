@@ -5,6 +5,7 @@
 import { proxyJson, packJson, taipeiDay } from '#kit/orbit.mjs';
 import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio, camPlayer, withEltaNames, roundOff } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
+import { localSide } from '#kit/sports-espn.mjs';
 import { watchOf as packOf, loadWatchMonth } from './highlights.mjs';
 import { NBA_ID } from '#kit/logos.mjs';
 import { LEAGUES } from './leagues.mjs';
@@ -126,11 +127,15 @@ const now = () => {
 const knownNow = () => (now().known ??= known());
 // A game's sides in Chinese, every way they're written (ELTA writes "海盜",
 // "統一", its own for some clubs: ELTA_AS): [home's names, away's names].
-function zhSides(e) {
+// (In Chinese whatever the reader's language: an English page's sides are in
+// English, and a national side has no club name, so 拉脫維亞 v 亞美尼亞 matched
+// ELTA's listing in Chinese only and English 首頁 showed other games, 11-14.)
+export function zhSides(e) {
   const l = LEAGUES[e.league];
   return [e.home, e.away].map(s => {
     const zh = teamNameZh(l?.play || e.league, s?.en || s?.name, l?.sport);
-    return withEltaNames([s?.name, s?.short, zh?.full, zh?.short].filter(Boolean));
+    const local = s ? localSide(e.league, s, 'zh') : null;
+    return withEltaNames([...new Set([s?.name, s?.short, zh?.full, zh?.short, local?.name, local?.short].filter(Boolean))]);
   });
 }
 // The commentary the person likes ('en' 原音, 'zh' 中文): their channels sort by it.
