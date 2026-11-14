@@ -69,5 +69,20 @@ export function gameNews(n, e, most = 4) {
   const both = n.kit.newsAbout(n.pack, { teams: sides, both: true, from: at - GAME_BEFORE, to: at + GAME_AFTER, most });
   const hurt = n.kit.newsAbout(n.pack, { teams: sides, kinds: ['injury', 'ban'], from: at - GAME_BEFORE, to: at, most });
   const seen = new Set();
-  return [...hurt, ...both].filter(s => !seen.has(s.id) && seen.add(s.id)).slice(0, most);
+  const all = [...hurt, ...both].filter(s => !seen.has(s.id) && seen.add(s.id));
+  // The world's sports outlets first (ESPN, The Athletic, Yahoo Sports…),
+  // Taiwan's only filling in: one at most where the world's have the game
+  // (Jay 11-14: "all Taiwan news … the worst you can find about sport").
+  const world = all.filter(s => s.region !== 'tw');
+  const local = all.filter(s => s.region === 'tw');
+  return [...world, ...local.slice(0, world.length ? 1 : most)].slice(0, most);
+}
+
+// The outlet a story's row is marked with: a sports outlet that carried it
+// (ESPN, The Athletic…) before the one it's filed under (USA Today's blue
+// dot over a game the sports desks all told: Jay 11-14).
+const DESKS = ['espn', 'athletic', 'skysports', 'cbssports', 'yahoosports', 'si'];
+export function markOf(s) {
+  const by = new Set((s?.items || []).map(it => it?.[0]));
+  return DESKS.find(o => o === s?.by || by.has(o)) || s?.by || '';
 }

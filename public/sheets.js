@@ -40,7 +40,7 @@ import { parseSearch, placeTeams } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
 import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mjs';
-import { newsNow, readNews, playerNews, teamNews, gameNews } from './lib/news.mjs';
+import { newsNow, readNews, playerNews, teamNews, gameNews, markOf } from './lib/news.mjs';
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, gbShown, nextNeeds, standingsRace } from './lib/title.mjs';
 import { FORMATS, PICTURE_COLOR } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
@@ -1555,10 +1555,11 @@ function newsRows(list, { ai = false } = {}) {
   const en = L() === 'en';
   return list.map(s => {
     const [title, lang] = n.kit.storyTitle(s, en ? 'en' : 'zh');
-    const o = n.kit.outletOf?.(s.by);
+    const by = markOf(s);
+    const o = n.kit.outletOf?.(by);
     const kind = n.kit.KIND_NAMES?.[s.k]?.[en ? 'en' : 'zh'];
     const more = s.n > 1 ? (en ? `${s.n} outlets` : `${s.n} 家媒體`) : o ? (en ? o.en : o.zh) : '';
-    const icon = n.kit.outletIcon?.(s.by, 32);
+    const icon = n.kit.outletIcon?.(by, 32);
     return el('button', { class: 'news-row', type: 'button', onclick: () => openNews(s) }, [
       icon ? el('img', { class: 'news-mark', src: icon, alt: '', loading: 'lazy', width: 20, height: 20 }) : el('span', { class: 'news-mark' }),
       el('span', { class: 'news-text' }, [

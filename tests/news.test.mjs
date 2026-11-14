@@ -37,16 +37,20 @@ test("a player's stories: his own, never his team's alone", () => {
   assert.deepEqual(playerNews(null, 'nba', { name: 'Stephen Curry' }), []);
 });
 
-test("a team's stories, its injuries first; 勇士 in baseball isn't Golden State", () => {
+test("a team's stories, the world's outlets first, then its injuries first; 勇士 in baseball isn't Golden State", () => {
   const ids = teamNews(n, 'nba', GSW, 6).map(s => s.id);
-  assert.equal(ids[0], 'hurt');
+  // (Jay 11-14: the world's sports outlets ahead of Taiwan's.)
+  assert.deepEqual(ids.slice(0, 2), ['rockets', 'hurt']);
   assert.ok(ids.includes('game') && ids.includes('rockets'));
   assert.ok(!ids.includes('braves'));
 });
 
-test("a game's: either side's injury before it, then those naming both", () => {
+test("a game's: the world's outlets first, then one of Taiwan's (either side's injury before it, then those naming both)", () => {
   const e = { league: 'nba', start: new Date(NOW + 3_600_000).toISOString(), away: { name: '金州勇士', en: 'Golden State Warriors', short: '勇士' }, home: { name: '休士頓火箭', en: 'Houston Rockets', short: '火箭' } };
-  assert.deepEqual(gameNews(n, e).map(s => s.id), ['hurt', 'rockets', 'game']);
+  assert.deepEqual(gameNews(n, e).map(s => s.id), ['rockets', 'hurt']);
+  // (None of the world's: Taiwan's fill it.)
+  const tw = { ...n, pack: { ...n.pack, list: n.pack.list.filter(s => s.region === 'tw') } };
+  assert.deepEqual(gameNews(tw, e).map(s => s.id), ['hurt', 'game']);
   assert.deepEqual(gameNews(n, { ...e, home: null }), []);
 });
 
@@ -55,4 +59,10 @@ test('the pages draw 相關新聞 with the Orbit AI mark, a tap opening the stor
   assert.match(src, /function newsCard\(list\)[\s\S]{0,300}kitUI\.aiMark\?\.\(\)/);
   assert.match(src, /ctx\.q\.go\('news', hash\)/);
   assert.match(src, /'injuries', 'news', 'tv'/);
+});
+
+test("a row is marked with a sports outlet that carried the story, before the one it's filed under (Jay 11-14)", async () => {
+  const { markOf } = await import('../public/lib/news.mjs');
+  assert.equal(markOf({ by: 'usatoday', items: [['usatoday', 'a'], ['athletic', 'b'], ['si', 'c']] }), 'athletic');
+  assert.equal(markOf({ by: 'ltn', items: [['ltn', 'a']] }), 'ltn');
 });
