@@ -1025,7 +1025,7 @@ const madeOnTap = (f, key) => workerJson('/ai/open', `f=${f}&id=${encodeURICompo
 // The AI button in a part's place: a tap makes it (`make` → a node, or { error }), its
 // spark breathing meanwhile; a failure says why under the button.
 function aiAsk(label, make) {
-  const box = el('div', { class: 'ai-ask' });
+  const box = el('div', { class: 'ai-ask', 'data-ai-only': '' });
   const button = (note = '') => box.replaceChildren(...[aiTap(label, go), note ? el('small', { class: 'ai-ask-note', text: note }) : null].filter(Boolean));
   async function go() {
     box.replaceChildren(el('div', { class: 'q-ai-think', role: 'status' }, [el('span', { class: 'q-ai-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || '' }), el('span', { text: L() === 'en' ? 'Thinking…' : '想一下…' })]));

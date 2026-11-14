@@ -4322,7 +4322,7 @@ function askSource() {
 // 問比賽's way in: the Orbit AI mark, a question to start from.
 // (ask.js and the kit's AI read on the tap, not with the first screen.)
 const askRow = () =>
-  el('div', { class: 'q-rowcard ask-card' }, [
+  el('div', { class: 'q-rowcard ask-card', 'data-ai-only': '' }, [
     el('button', { class: 'q-ritem chevron ask-row', type: 'button', 'data-ai-tap': '', onclick: () => import('./ask.js').then(m => m.openAsk(askSource())).catch(() => {}) }, [
       el('span', { class: 'q-tile ask-tile', 'aria-hidden': 'true', html: kitUI.icons?.ai || icon('spark') }),
       el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: L({ zh: '問比賽', en: 'Ask about your teams' }) }), el('small', { text: L({ zh: '例如「我的球隊排第幾」', en: '“When do my teams play next?”' }) })])
