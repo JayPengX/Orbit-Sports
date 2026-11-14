@@ -441,11 +441,12 @@ export function personPic(p, league, cls = '') {
   // (A stand-in, a part still being read held in its shape: an empty face, nothing looked up.)
   if (p?.stand) return el('span', { class: `logo ${cls} empty-face`, 'aria-hidden': 'true' });
   const name = p?.en || p?.name || '';
-  const flag = p?.flag || (isFlag(p?.logo) ? p.logo : '');
   // The feed's own pictures, then the kit's way (photos.mjs personPhoto):
   // one found before, ESPN's by id (a guess), then a search by name; the
-  // driver's badge, the flag or the initials meanwhile or when there's none.
-  const stand = () => (league === 'f1' ? driverBadge(name, cls) : flag ? logoPicture(flag, null, `logo ${cls} flag-pic`, () => initialsPic(name, cls)) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls));
+  // driver's badge or a person drawn meanwhile or when there's none, never
+  // his flag (Jay 2026-11-14: a Kosovo player's face was Switzerland's flag).
+  // (A national side named as one, a country's name: its flag.)
+  const stand = () => (league === 'f1' ? driverBadge(name, cls) : countryFlag(name) ? el('span', { class: `logo logo-flag ${cls}`, 'aria-hidden': 'true', text: countryFlag(name) }) : initialsPic(name, cls));
   return personPhoto(name, league, { urls: [p?.headshot, isFlag(p?.logo) ? null : p?.logo].map(freshHeadshot), guess: freshHeadshot(espnHeadshot(league, p?.id)), later: [espnCollegeHeadshot(league, p?.id)], cls: `logo ${cls}${league === 'f1' ? ' f1-face' : ''}`, fallback: stand });
 }
 // No picture: a drawing of what it is (a shield, a person), never letters.

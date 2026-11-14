@@ -1712,8 +1712,7 @@ function renderHome() {
   // Today with every one of its games over: shown as any day gone by (its
   // picks as they stood, the results in them, 今天 · 已結束的推薦 and how
   // many, 更多推薦), not as a day still going with an ended corner.
-  const todayOver = h.date === today() && mine.length > 0 && mine.every(e => e.status.state === 'post' || e.status.void) && !slot.stale && !slot.loading;
-  if (todayOver) past = true;
+  let todayOver = h.date === today() && mine.length > 0 && mine.every(e => e.status.state === 'post' || e.status.void) && !slot.stale && !slot.loading;
   // 填滿空檔: every sport's games can fill a free hour (the others read alongside).
   const fillPool = () => (state.prefs.fill && h.filter !== 'teams' ? filtered((slot.others || []).filter(shown)) : []);
   if (state.prefs.fill && !slot.othersAt && !slot.othersLoading) loadOthers(h.date);
@@ -1723,6 +1722,11 @@ function renderHome() {
   // unread is asked again in 4 s; the filled games stood alone till then),
   // and with 填滿空檔 on, the others' too (read alongside: they came after).
   if (dayWaits(slot) && !h.picking && !holdDay(box, 6_000)) return;
+  // A game 填滿空檔 put in today's plan is theirs like any other: while one is
+  // still to come or on, today isn't over (Jay 11-14: it opened on tomorrow
+  // while the filled-in games were still to play).
+  if (todayOver && state.prefs.fill && rank([...filtered(mine), ...fillPool()], 0, pctx, false)[0].length) todayOver = false;
+  if (todayOver) past = true;
   let [planList, more] = rank([...filtered(mine), ...fillPool()]);
   // Nothing of theirs on: the best of the rest.
   // Opened on a day with nothing of theirs, or with all of it over: the
@@ -3096,7 +3100,8 @@ function cupStandingsView(model, { mark = [] } = {}) {
   });
   const tables = ['East', 'West'].flatMap(conf => {
     const mine = groups.filter(g => g.conf === conf);
-    const out = mine.map((g, i) => ({ name: cupGroupName(g, en, i), rows: g.rows.map(r => row(r)) }));
+    // (The groups with a game on first in their conference, Jay 2026-11-14 "move live one up"; the wild card race after them.)
+    const out = mine.map((g, i) => ({ name: cupGroupName(g, en, i), rows: g.rows.map(r => row(r)), on: g.rows.some(r => r.live) })).sort((a, b) => b.on - a.on);
     // The wild card race: the groups' seconds by record, then point differential (no head-to-head).
     const seconds = cupOrder(mine.map(g => g.rows[1]).filter(Boolean)).rows;
     if (mine.some(g => g.rows.some(r => r.w + r.l > 0)) && seconds.length > 1)
@@ -3282,12 +3287,16 @@ function playoffView(model, key) {
     // A game on at a break (中場休息, 暫停): its countdown ticking in the note as everywhere else.
     const on = t?.live && t.games.find(g => g.status?.state === 'in');
     const body = [sideRow(t?.sides[0] || null, t || blank, 0), sideRow(t?.sides[1] || null, t || blank, 1), said ? el('small', { class: `br-note${t?.live ? ' live' : ''} q-fit`, text: said, ...(on ? breakTick(on, said) : {}) }) : null, ...(t?.notes?.length ? tieLines(t.notes.slice(0, 1)) : [])];
-    if (!t || t.projected || t.pending) return el('div', { class: `br-tie ${t?.pending ? 'pending' : t?.sure ? 'sure' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
+    // A tie still waiting on a side whose games are set (納什維爾 v 奧蘭多/辛辛那提勝者, 11/23): its
+    // sheet opens all the same, the sides as they stand and the games (Jay 2026-11-14).
+    const ahead = t?.pending ? [...(t.games || []), ...(t.next && !(t.games || []).some(g => String(g.id) === String(t.next.id)) ? [t.next] : [])] : [];
+    if (!t || t.projected || (t.pending && !ahead.length)) return el('div', { class: `br-tie ${t?.pending ? 'pending' : t?.sure ? 'sure' : t ? 'projected' : 'tbd'}${t?.roundTitle ? ' eighth' : ''}` }, body);
     // (Its sheet from the card as last drawn: patchPlayoffs moves __open over with the newer games.)
-    const card = el('button', { class: `br-tie${t.live ? ' live' : ''}`, type: 'button', onclick: () => card.__open() }, body);
+    const card = el('button', { class: `br-tie${t.pending ? ' pending' : ''}${t.live ? ' live' : ''}`, type: 'button', onclick: () => card.__open() }, body);
+    const title = en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh;
     // A tie that is one game (a cup's single match): straight to that game, never a sheet listing
     // it alone; a series or two legs keep their sheet (Jay 2026-11-09).
-    card.__open = () => (t.kind === 'single' && t.games?.length === 1 ? openEvent(t.games[0]) : openTie(t, league, en ? (t.roundTitle || r.title).en : (t.roundTitle || r.title).zh));
+    card.__open = () => (t.pending ? openTie({ ...t, games: ahead }, league, title) : t.kind === 'single' && t.games?.length === 1 ? openEvent(t.games[0]) : openTie(t, league, title));
     return card;
   };
   const entry = brackets.get(key);

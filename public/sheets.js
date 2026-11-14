@@ -1619,6 +1619,21 @@ function cupCard(cup, e) {
   const title = el('span', { class: 'cup-title' }, [en ? `NBA Cup${group ? ` · ${group}` : ''}` : `NBA 盃 · ${group}`, on ? el('i', { class: 'live-dot', 'aria-label': en ? 'Live' : '即時' }) : null]);
   return card(title, el('div', { class: 'cup-card' }, [line ? el('p', { class: 'cup-stakes', text: line }) : null, wrap]));
 }
+// A cup's group game (the Nations League's, any competition played in small
+// groups): its group on 概況 as the NBA Cup's card has it, the games on now
+// counted as they stand with ▲▼ (Jay 2026-11-14: "show them in 概況 as it's
+// similar format as NBA cup"). Read with the league's table (`table`), none once the game's day is past.
+function groupCard(d, e, table) {
+  if (!LEAGUES[e.league]?.cup || !(table?.length > 1) || LEAGUES[e.league]?.sport === 'racing') return null;
+  const ids = [String(e.home.id), String(e.away.id)];
+  const recent = [...(ctx.recentOf?.(e.league) || []).filter(x => x.id !== e.id), { ...e, status: d?.status || e.status, home: { ...e.home, ...(d?.home || {}) }, away: { ...e.away, ...(d?.away || {}) } }];
+  const g = tableNow(table, e.league, recent, { live: true }).find(x => ids.every(id => x.rows.some(r => r.id === id)));
+  if (!g || g.rows.length > 8) return null;
+  const tables = standingsTables([{ ...g, name: '' }], e.league, { mark: ids });
+  const parts = ['.live-table-note', '.table-wrap', '.zone-legend'].map(q => tables.querySelector(q));
+  // (Titled by the group alone: the sheet's head names the competition.)
+  return card(groupName(g.name, L()) || leagueName(e.league, L()), el('div', { class: 'cup-card' }, parts));
+}
 // What a group game decides, one short line (nbacup.mjs cupStakes): 此戰：勝者晉級八強，敗者淘汰.
 function cupStakesText(st, nameOf, over, en) {
   const one = ({ kind, side }) => {
@@ -2142,6 +2157,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
         ? holdShape(card(T('injuries'), el('div', { class: 'injuries' }, sides.map(t => el('div', {}, [el('p', { class: 'mini-h' }, [tagOf(d, e)(String(t.id))]), injuryBox(blanks(INJ_SHOWN).map(x => ({ ...x, whatText: BLANK, label: BLANK2 })), e.league)])))))
         : null,
     cup: cup ? cupCard(cup, e) : still('cup') ? holdShape(cupCard(null, e)) : null,
+    group: groupCard(d, e, table),
     // 相關新聞: Orbit News' stories naming both sides, either side's injuries first.
     news: newsNow() ? newsCard(gameNews(newsNow(), e)) : still('news') ? holdShape(newsHeld()) : null,
     tv: exactTv ? twCard(e.league, e) : null,
@@ -2151,7 +2167,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   // before, during and after alike), only what's in it changing: the replay
   // and highlights once it's over, who's on (or starts), the chance, who
   // leads, the matchup, the season, the series, the rest.
-  const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'cup', 'season', 'series', 'satOut', 'injuries', 'news', 'tv', 'info'];
+  const ORDER = ['replay', 'highlights', 'onField', 'win', 'leaders', 'matchup', 'cup', 'group', 'season', 'series', 'satOut', 'injuries', 'news', 'tv', 'info'];
   // (A wide sheet: dealt into two columns, each card to the shorter one, the
   // tops level, kit flowColumns; Jay 2026-11-01, a phone on its side: CSS
   // columns left one side a card lower and ending far short of the other.)
@@ -7692,21 +7708,29 @@ export async function openPlayer(league, id, fallback = {}) {
     // His games in more than one competition (a club's league, a European
     // cup, his country's): a chip each and 全部, the page's own first (a
     // team's page has the same, Jay 2026-10-30).
-    const logBox = lg => {
+    // (`page`: 賽程's whole season, ten at a time and 再看 10 場, as a team's 賽程 has its results.)
+    const logBox = (lg, { head = '', page = false } = {}) => {
       const comps = [...new Set(lg.games.map(g => g.league || g.leagueName).filter(Boolean))].sort((a, b) => (b === league) - (a === league) || Boolean(LEAGUES[b]) - Boolean(LEAGUES[a]));
-      if (comps.length < 2) return logCardOf(lg);
-      let pick = comps.includes(league) ? league : 'all';
+      if (comps.length < 2 && !page) return logCardOf(lg, head);
+      let pick = comps.length < 2 ? 'all' : comps.includes(league) ? league : 'all';
+      let shown = 10;
       const box = el('div', { class: 'log-box' });
-      const draw = () =>
+      const draw = () => {
+        const list = pick === 'all' ? lg.games : lg.games.filter(g => (g.league || g.leagueName) === pick);
+        const left = list.length - shown;
         put(
           box,
-          segmented([...comps.map(k => [k, LEAGUES[k] ? leagueName(k, L()) : k]), ['all', W('全部', 'All')]], pick, v => ((pick = v), draw()), 'scroll stage-filter', { chips: true }),
-          logCardOf(pick === 'all' ? lg : { ...lg, games: lg.games.filter(g => (g.league || g.leagueName) === pick) })
+          comps.length > 1 ? segmented([...comps.map(k => [k, LEAGUES[k] ? leagueName(k, L()) : k]), ['all', W('全部', 'All')]], pick, v => ((pick = v), (shown = 10), draw()), 'scroll stage-filter', { chips: true }) : null,
+          logCardOf({ ...lg, games: page ? list.slice(0, shown) : list }, head),
+          page && left > 0 ? moreToggle({ more: W(`再看 ${Math.min(10, left)} 場`, `Show ${Math.min(10, left)} more`), less: null, onToggle: () => ((shown += 10), draw()) }) : null
         );
+      };
       draw();
       return box;
     };
-    let logCard = log?.games.length ? logBox(log) : ov?.now?.none ? noGamesCard() : null;
+    // 賽程: his every game this season (ov.allLog: Jay 2026-11-14, 概況's last five said again was "so duplicated").
+    const allHead = W('已結束', 'Results');
+    let logCard = ov?.allLog?.games.length ? logBox(ov.allLog, { head: allHead, page: true }) : log?.games.length ? logBox(log) : ov?.now?.none ? noGamesCard() : null;
     // (ESPN's honours; a footballer's from his career, its competitions in our words.)
     // (A footballer's: each competition won said in full, 歐霸盃冠軍, with the club he won it with; Jay 2026-10-31: "what is 歐霸".)
     const trophyName = name => (en ? `${name} winner` : OLYMPIC.test(name) ? '奧運足球金牌' : trophyWord(name) ? `${trophyWord(name)}冠軍` : zhLater(name, 'en', x => `${x}冠軍`));
@@ -7737,6 +7761,9 @@ export async function openPlayer(league, id, fallback = {}) {
             return;
           }
           const tap = el('button', { class: 'hero-team', type: 'button', onclick: () => ctx.openTeam(key, team.id, { id: team.id, name: teamShown, logo: a.teamLogo }) }, [...teamChip.childNodes]);
+          // Opened from another competition (a national side's player from the Nations League): his club's league
+          // said too, one of ours or not (Jay 2026-11-14: Toklomati's 夏洛特 said no MLS).
+          if (key !== league) tap.querySelector('span').append(el('small', { class: 'hero-team-league', text: leagueName(key, L()) }));
           teamChip.replaceWith(tap);
         })
         .catch(() => {});
@@ -7836,14 +7863,16 @@ export async function openPlayer(league, id, fallback = {}) {
       const rows = all[0].status.state === 'in' ? all.slice(0, 1) : all.slice(0, 3);
       const nextTitle = rows[0].status.state === 'in' ? W('正在進行', 'On now') : rows.length > 1 ? W('接下來', 'Coming up') : W('下一場', 'Next game');
       const mixed = all.some(x => country.includes(x));
-      const fill = box => put(box, el('p', { class: 'mini-h', text: nextTitle }), el('div', { class: 'q-card list' }, rows.map(x => eventRow(x, { league: mixed }))));
+      const fill = (box, shown = rows, title = nextTitle) => put(box, el('p', { class: 'mini-h', text: title }), el('div', { class: 'q-card list' }, shown.map(x => eventRow(x, { league: mixed || ahead.some(y => country.includes(y)) }))));
+      // 賽程: what's ahead, his club's and his country's, up to 15 (概況 has the next one to three).
+      const ahead = [...soon(country), ...soon(list)].sort((x, y) => Date.parse(x.start) - Date.parse(y.start)).slice(0, 15);
       fill(nextBox);
       nextBox.hidden = false;
       if (!box2) {
         box2 = nextBox.cloneNode(false);
         games.unshift(box2);
       }
-      fill(box2);
+      fill(box2, ahead, ahead.length > 1 ? W('接下來', 'Coming up') : nextTitle);
       box2.hidden = false;
       if (view === 'overview') paintTab();
       if (!views.some(v => v[0] === 'games')) {
@@ -8044,7 +8073,8 @@ export async function openPlayer(league, id, fallback = {}) {
           if (old?.isConnected) old.replaceWith(fresh);
           return fresh;
         };
-        logCard = swap(games, logCard, logBox({ ...log, games: all.slice(0, Math.max(log.games.length, 5)) }));
+        const ids = new Set(newer.map(g => String(g.id)));
+        logCard = swap(games, logCard, ov?.allLog ? logBox({ ...ov.allLog, games: [...newer, ...ov.allLog.games.filter(g => !ids.has(String(g.id)))] }, { head: allHead, page: true }) : logBox({ ...log, games: all.slice(0, Math.max(log.games.length, 5)) }));
         if (lastCard) lastCard = swap(overview, lastCard, lastOf({ ...log, games: all }));
         if (!views.some(v => v[0] === 'games')) {
           const at = views.findIndex(v => v[0] === 'numbers' || v[0] === 'bio');
@@ -8564,16 +8594,22 @@ function raceBlock(race, g, league, many, asIs = false) {
 // `legend: false` its key said once too; `quiet`: a side playing now its score small and plain, no red
 // pill (Jay 2026-11-14, the cup card "too messy"); `scoreOf(row)`: false for a row whose score not to show.)
 export const liveTableNote = () => el('p', { class: 'live-table-note' }, [el('i', { class: 'live-dot', 'aria-hidden': 'true' }), document.createTextNode(L() === 'en' ? 'Live: games on count as they stand' : '即時排名：進行中的比賽依目前比分計算')]);
-export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false, open = true, cols: own = null, liveNote = true, legend = true, quiet = false, scoreOf = null } = {}) {
+// (`liveFirst`: a competition of many groups, the Nations League's or the NBA Cup's: the
+// groups with a game on go first, a game page's own group above them; Jay 2026-11-14 "move live one up".)
+export const liveGroupsFirst = (league, groups) => groups.length > 2 && Boolean(LEAGUES[league]?.cup);
+export function standingsTables(groups, league, { mark = [], top = 0, compact = false, races = [], many = false, open = true, cols: own = null, liveNote = true, legend = true, quiet = false, scoreOf = null, liveFirst = liveGroupsFirst(league, groups) } = {}) {
   const sport = LEAGUES[league]?.sport;
   const want = own || STANDING_COLUMNS[sport] || ['W', 'L'];
   const small = own || COMPACT_COLUMNS[sport] || want;
   // Short headers in the reader's language.
   const colName = colLabel;
+  const ids = mark.map(String);
+  const lead = g => (ids.length && ids.every(id => g.rows.some(r => r.id === id)) ? 0 : g.rows.some(r => r.live) ? 1 : 2);
+  const shown = liveFirst ? groups.map((g, i) => [g, i]).sort((a, b) => lead(a[0]) - lead(b[0]) || a[1] - b[1]).map(([g]) => g) : groups;
   return el(
     'div',
     { class: `stack tables${groups.length > 1 && many ? ' many q-sheet-pair' : ''}` },
-    groups.map(g => {
+    shown.map(g => {
       const cols = want.filter(c => g.rows.some(r => r.stats[c] != null && r.stats[c] !== ''));
       const rows = top ? g.rows.filter((r, i) => i < top || ctx.isFollowed(league, r.id)) : g.rows;
       // Columns beyond the essentials go on narrow screens (and in compact tables).
@@ -8750,12 +8786,20 @@ export function openTie(t, league, roundTitle = '') {
   const games = t.winner && need ? t.games.filter(g => g.status?.state !== 'pre') : t.games;
   const ifNeeded = (g, i) => need && !t.winner && i >= need && g.status?.state === 'pre';
   const label = (g, i) => [t.kind === 'series' ? (en ? `Game ${i + 1}` : `第 ${i + 1} 戰`) : t.kind === 'agg' ? (en ? `Leg ${i + 1}` : `第 ${i + 1} 回合`) : '', dayLabel(localDate(Date.parse(g.start))), ifNeeded(g, i) ? (en ? 'if needed' : '如需要') : ''].filter(Boolean).join(' · ');
+  // A place still being played for (a tie waiting on a side): both who could take it, 奧蘭多 / 辛辛那提 勝者.
+  const waitRow = opts =>
+    el('div', { class: 'tie-side maybe' }, [
+      el('span', { class: 'tie-who' }, [
+        ...(opts || []).flatMap((x, j) => [j ? el('span', { class: 'muted', text: '/' }) : null, sideLogo(x, league, 'sm'), el('strong', { class: 'tie-name', text: x.short || x.name })]).filter(Boolean),
+        el('span', { class: 'muted', text: opts?.length ? (en ? 'winner' : '勝者') : en ? 'TBD' : '待定' })
+      ])
+    ]);
   s.body.append(
-    el('div', { class: 'tie-head' }, [roundTitle ? el('p', { class: 'mini-h', text: roundTitle }) : null, ...t.sides.map(sideRow), said ? el('small', { class: `muted tie-said${t.live ? ' live' : ''}`, text: said }) : null]),
+    el('div', { class: 'tie-head' }, [roundTitle ? el('p', { class: 'mini-h', text: roundTitle }) : null, ...t.sides.map((x, i) => (x ? sideRow(x) : waitRow(t.options?.[i]))), said ? el('small', { class: `muted tie-said${t.live ? ' live' : ''}`, text: said }) : null]),
     el(
       'div',
       { class: 'q-card list tie-games' },
-      games.map((g, i) => el('div', { class: 'tie-game' }, [label(g, i) ? el('small', { class: 'tie-gn', text: label(g, i) }) : null, eventRow(g, { league: false })]))
+      games.length ? games.map((g, i) => el('div', { class: 'tie-game' }, [label(g, i) ? el('small', { class: 'tie-gn', text: label(g, i) }) : null, eventRow(g, { league: false })])) : [el('p', { class: 'muted pad', text: en ? 'Schedule to come' : '賽程待公布' })]
     )
   );
 }

@@ -2657,13 +2657,17 @@ export const athleteSplits = (league, id) => getJson(`${COMMON}/${LEAGUES[league
 export async function athleteOverview(league, id) {
   const season = logSeason(league);
   const basketball = LEAGUES[league].sport === 'basketball';
-  const [raw, seasonLog, board] = await Promise.all([
+  const soccer = LEAGUES[league].sport === 'soccer';
+  const [raw, seasonLog, board, leagueLog] = await Promise.all([
     getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }),
     // ESPN's overview keeps last season's games until a player's first of the
     // new regular season (no preseason): this season's own log, its preseason too.
     season ? getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/gamelog?season=${season}`, { ttl: 60 * 60_000 }).then(parseSeasonLog, () => null) : null,
     // (Whether this season's regular season has begun: the league's scoreboard says.)
-    basketball && season ? getJson(`${SITE}/${LEAGUES[league].espn}/scoreboard`, { ttl: LIVE_TTL }).catch(() => null) : null
+    basketball && season ? getJson(`${SITE}/${LEAGUES[league].espn}/scoreboard`, { ttl: LIVE_TTL }).catch(() => null) : null,
+    // A footballer's season in his club's league, every game of it (ESPN's gamelog has his main league only;
+    // the overview's five have his cups and his country's): 賽程's whole season.
+    soccer ? getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/gamelog`, { ttl: 60 * 60_000 }).then(parseSeasonLog, () => null) : null
   ]);
   const ov = parseOverview(raw);
   // (This season's own log, its 14-27 columns: the season's line is added up from it, never from the overview's rates.)
@@ -2685,10 +2689,27 @@ export async function athleteOverview(league, id) {
   // Only the competitions Orbit Sports has (a friendly, another country's
   // cup: nothing of theirs to open or name), the last five of them.
   if (ov.log) {
-    ov.log.games = ov.log.games.map(g => ({ ...g, league: g.league || (LEAGUES[league].espn.startsWith('soccer/') ? '' : league), opp: nbaLogo(league, g.opp) })).filter(g => LEAGUES[g.league]).slice(0, 5);
+    ov.log.games = ov.log.games.map(g => ({ ...g, league: g.league || (LEAGUES[league].espn.startsWith('soccer/') ? '' : league), opp: nbaLogo(league, g.opp) })).filter(g => LEAGUES[g.league]);
+    // 賽程: every game of his this season (Jay 2026-11-14: "not only the last five", as a team's 賽程), the five's columns.
+    ov.allLog = seasonGames(ov.log, seasonLog || leagueLog, league, { noPre: Boolean(begun || seasonLog?.games.some(g => !g.pre)) });
+    ov.log = { ...ov.log, games: ov.log.games.slice(0, 5) };
     if (!ov.log.games.length && !ov.now) ov.log = null;
   }
   return ov;
+}
+// A player's whole season as one log in `log`'s columns: `log`'s games (the
+// overview's, every competition) and the season's own (`season`: the NBA's
+// and MLB's season log, a footballer's league), newest first, each once,
+// only the competitions Orbit Sports has.
+export function seasonGames(log, season, league, { noPre = false } = {}) {
+  if (!log) return null;
+  const seen = new Set(log.games.map(g => String(g.id)));
+  const extra = (season?.games || [])
+    .filter(g => !seen.has(String(g.id)) && !(noPre && g.pre))
+    .map(g => ({ ...g, league: g.league || league, opp: nbaLogo(league, g.opp), stats: log.labels.map(l => (season.labels.includes(l) ? g.stats[season.labels.indexOf(l)] : '')) }))
+    .filter(g => LEAGUES[g.league]);
+  const games = [...log.games, ...extra].sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
+  return games.length ? { ...log, games } : null;
 }
 
 // ---- Names, compared ---------------------------------------------------------------------
