@@ -233,7 +233,9 @@ export function balanced(items, weight = () => 1, { most = 3, cls = '' } = {}) {
   }
   return el('div', { class: `q-cols balanced ${cls}`.trim(), style: `--n:${n}` }, columns.map(c => el('div', { class: 'col' }, c.kids)));
 }
-export const spinner = () => el('div', { class: 'center-spin' }, [el('div', { class: 'spinner' })]);
+// Something still being read: the family's grey shimmer in lines where it will be,
+// never a spinning wheel (Jay 11-14: one loading look across Orbit).
+export const spinner = () => el('div', { class: 'center-skel', role: 'status', 'aria-label': /^en/.test(document.documentElement.lang) ? 'Loading' : '載入中' }, [skeleton([92, 68, 84, 56])]);
 export const empty = text => kitUI.empty({ title: text });
 export const $ = id => document.getElementById(id);
 

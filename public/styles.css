@@ -70,6 +70,8 @@ img { max-width: 100%; }
 .num { font-variant-numeric: tabular-nums; }
 .empty { color: var(--q-muted); font-size: 14px; padding: 28px 8px; text-align: center; }
 .center-spin { display: grid; place-items: center; padding: 40px 0; }
+.center-skel { padding: 16px 4px; }
+.center-skel .skel-block { gap: 12px; }
 .spinner.small { width: 18px; height: 18px; border-width: 2px; }
 .link { border: 0; background: none; padding: 0; color: inherit; text-align: left; font-weight: 600; }
 @media (hover: hover) { .link:hover { color: var(--accent); text-decoration: underline; } }
@@ -1381,7 +1383,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .live-line.goal .live-min { color: var(--q-text); font-weight: 600; }
 /* ---- While live numbers are read: their shape in grey, then a soft fade in (nothing jumps) ---- */
 .skel-block { display: grid; gap: 7px; min-width: 0; }
-.skel { display: block; height: 11px; border-radius: 6px; background: linear-gradient(90deg, var(--q-sunken) 25%, color-mix(in srgb, var(--q-sunken) 45%, var(--q-surface)) 50%, var(--q-sunken) 75%); background-size: 200% 100%; animation: skel 1.3s ease-in-out infinite; }
+/* (The family's one shimmer, the kit's .q-skel: Jay 11-14, one loading look.) */
+.skel { display: block; height: 11px; border-radius: 6px; background: linear-gradient(100deg, var(--q-fill-3) 30%, var(--q-fill-4) 50%, var(--q-fill-3) 70%) 0 0 / 300% 100%; animation: q-shimmer 1.4s ease-in-out infinite; }
 .skel-face { width: 44px; height: 44px; border-radius: 50%; flex: none; }
 .skel-pic { width: 32px; height: 32px; border-radius: 50%; }
 .skel-row .skel-pos { width: 20px; }
