@@ -288,55 +288,73 @@ export function dayLabel(date, { long = false } = {}) {
 
 // ---- Watching: ELTA.tv, Apple TV ------------------------------------------------------
 //
-// On a phone an ELTA channel (or its schedule) opens in the ELTA.tv app
-// itself (eltatv://live/<ch>, eltatv://schedule/live: the links ELTA's own
-// site uses), so no Safari page is left behind when the app opens. If the app
-// didn't open (not installed), a tap away from the web page; once the web
-// page is taken that way, the next taps go straight to it for a month.
-// Elsewhere, the web page. Apple TV's link opens its app by itself.
-const APP_MISS = 'fx.eltaAppMiss';
+// On a phone a channel or game opens in its own app: ELTA.tv (eltatv://live/<ch>, eltatv://schedule/live: the
+// links ELTA's own site uses) and Apple TV (its tv.apple.com page as com.apple.tv://, which the TV app answers;
+// a home-screen app shows the https page in a quick view instead, never the app, Jay 11-15). Opened from Orbit's
+// window, never the app's frame: iOS ignores an app's address from inside a frame (Jay 11-15: "ELTA app link is
+// completely broken in our new Orbit"). If the app didn't open (not installed), a tap away from the web page,
+// and taking it keeps the next taps on the web for a day only (a month, with no way back, left Jay stuck there).
+// Elsewhere, the web page.
+const APP_MISS = 'fx.watchAppMiss';
 const phone = () => (/Android/i.test(navigator.userAgent) ? 'android' : /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'ios' : '');
-const appMissed = () => {
+const appOf = b => b.app || (/^https:\/\/tv\.apple\.com\//.test(b.url || '') ? b.url.replace(/^https:\/\//, 'com.apple.tv://') : null);
+const appMissed = b => {
   try {
-    return Date.now() - Number(localStorage.getItem(APP_MISS) || 0) < 30 * 86_400_000;
+    return Date.now() - Number(JSON.parse(localStorage.getItem(APP_MISS) || '{}')[b.svc || 'app'] || 0) < 86_400_000;
   } catch {
     return false;
   }
 };
+const missApp = b => {
+  try {
+    localStorage.setItem(APP_MISS, JSON.stringify({ ...JSON.parse(localStorage.getItem(APP_MISS) || '{}'), [b.svc || 'app']: Date.now() }));
+  } catch {}
+};
+// (Orbit's window when this app is held in it.)
+const outer = () => {
+  try {
+    return window.top !== window && window.top.location.origin === location.origin ? window.top : window;
+  } catch {
+    return window;
+  }
+};
 export function openWatch(ev, b) {
   const device = phone();
-  if (!b.app || !device || appMissed()) return; // the link's own web page
+  const app = appOf(b);
+  if (!app || !device || appMissed(b)) return; // the link's own web page
   ev.preventDefault();
   if (device === 'android') {
+    if (!b.app) return void open(b.url, '_blank', 'noopener');
     // Android's own fallback: the web page when the app isn't there.
-    location.href = `intent://${b.app.replace(/^eltatv:\/\//, '')}#Intent;scheme=eltatv;package=tv.eltaott.app;${b.url ? `S.browser_fallback_url=${encodeURIComponent(b.url)};` : ''}end`;
+    outer().location.href = `intent://${b.app.replace(/^eltatv:\/\//, '')}#Intent;scheme=eltatv;package=tv.eltaott.app;${b.url ? `S.browser_fallback_url=${encodeURIComponent(b.url)};` : ''}end`;
     return;
   }
   let left = false;
   let offer = null;
+  const docs = [...new Set([document, outer().document])];
   const away = () => {
-    if (document.visibilityState !== 'hidden') return;
+    if (docs.every(d => d.visibilityState !== 'hidden')) return;
     left = true;
     offer?.remove();
   };
-  document.addEventListener('visibilitychange', away);
+  for (const d of docs) d.addEventListener('visibilitychange', away);
   window.addEventListener('pagehide', away, { once: true });
-  location.href = b.app;
+  outer().location.href = app;
+  const name = b.svc === 'appletv' ? 'Apple TV' : 'ELTA.tv';
   setTimeout(() => {
-    if (left || !b.url) return document.removeEventListener('visibilitychange', away);
-    offer = kitUI.toast(ctx.t('eltaAppMiss'), {
+    const done = () => docs.forEach(d => d.removeEventListener('visibilitychange', away));
+    if (left || !b.url) return done();
+    offer = kitUI.toast(ctx.t('watchAppMiss').replace('{app}', name), {
       ms: 8000,
       action: {
         label: `${ctx.t('eltaWeb')} ›`,
         onTap: () => {
-          try {
-            localStorage.setItem(APP_MISS, String(Date.now()));
-          } catch {}
+          missApp(b);
           open(b.url, '_blank', 'noopener');
         }
       }
     });
-    setTimeout(() => document.removeEventListener('visibilitychange', away), 8000);
+    setTimeout(done, 8000);
   }, 1800);
 }
 // A link that plays a channel (`b` from tvOf: url, app), or a plain label when it can't be watched online.
