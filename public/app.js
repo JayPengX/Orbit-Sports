@@ -1646,10 +1646,14 @@ const ownGame = e => isFollowedEvent(e, { chosen: false });
 // The lead game, 正在進行 and 我的比賽 pair up; their later games and teams to
 // the side. (我的聯賽 left for 追蹤 11-10: its slot had taken 我的球隊's,
 // and 已結束 went to the side, not under the board.)
-function homeLayout([hero, live, past, note, spin, mine], [later, more, teams, ended]) {
+// (Its pieces in renderHome's order: two added there without here, the
+// week ahead and the empty day's line, 11-14, read 我的比賽 off the end and
+// paired the othersNote line as the lead game, so an iPad on its side and a
+// computer lost 我的比賽 and showed the line as a tall empty card; Jay 11-15.)
+function homeLayout([note, hero, live, past, week, empty, spin, mine], [later, more, teams, ended]) {
   const isList = x => x?.classList?.contains('q-section');
   const pairs = new Set([hero, live, isList(mine) ? mine : null].filter(Boolean));
-  return homeBoard([note, hero, live, isList(mine) ? mine : null, past, spin, isList(mine) ? null : mine], [later, teams], pairs, [more, ended]);
+  return homeBoard([note, hero, live, isList(mine) ? mine : null, past, week, empty, spin, isList(mine) ? null : mine], [later, teams], pairs, [more, ended]);
 }
 function renderHome() {
   const box = $('panel-home');
@@ -2611,7 +2615,9 @@ const countryEn = zh => {
   }
   return countriesEn.get(zh) || '';
 };
-const teamEn = t => countryEn(t) || teamsByZh(t, 3).find(x => x.zh === t)?.name || t;
+// (The names table keeps some clubs' search forms in lower case, "paris saint germain": written as names, Jay 11-15.)
+const asName = n => (n && !/[A-Z]/.test(n) ? n.replace(/(^|[\s-])([a-z])/g, (_, a, c) => a + c.toUpperCase()) : n);
+const teamEn = t => countryEn(t) || asName(teamsByZh(t, 3).find(x => x.zh === t)?.name) || t;
 const STAGE_EN = { 熱身賽: 'Preseason', 例行賽: 'Regular season', 季後賽: 'Playoffs', 外卡賽: 'Wild Card', 分區系列賽: 'Division Series', 聯盟冠軍賽: 'Championship Series', 世界大賽: 'World Series', 總冠軍賽: 'Finals', 準決賽: 'Semifinal', 決賽: 'Final', 排位賽: 'Qualifying', 衝刺排位賽: 'Sprint Qualifying', 衝刺賽: 'Sprint', 正賽: 'Race' };
 const stageEn = w => STAGE_EN[w] || (/^(\d+)強$/.exec(w) ? `Round of ${w.slice(0, -1)}` : /^第(\d+)輪$/.exec(w) ? `Round ${w.replace(/\D/g, '')}` : /^第(\d+)比賽日$/.exec(w) ? `Matchday ${w.replace(/\D/g, '')}` : /^第(\d)節自由練習$/.exec(w) ? `Practice ${w.replace(/\D/g, '')}` : w);
 const guideTitle = (p, e = null) => {
