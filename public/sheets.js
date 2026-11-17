@@ -1,21 +1,18 @@
 // Orbit Sports' sheets: a match (header, then its data by section), a
 // race weekend, a team, a player, and the
 // standings tables they share with the Standings tab.
-import { translate, proxyJson, packJson, everyDev, dev, workerJson } from '#kit/orbit.mjs';
+import { translate, proxyJson, packJson, everyDev, dev } from '#kit/orbit.mjs';
 import * as kitUI from '#kit/ui.mjs';
-import { aiTap, aiSays } from '#kit/ai.mjs';
 import { searchUrl, videoUrl, knownHighlights, findHighlights, highlightsKind, watchMonthWanted, loadWatchMonth } from './lib/highlights.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import * as kitNames from '#kit/names.mjs';
 import { injuryFacts, backDay } from './lib/injurynote.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { freshGame, seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, playedIds, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, nationalGames, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
+import { freshGame, seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, nationalGames, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { isGroupPlay, nbaCupGroups, cupStakes } from './lib/nbacup.mjs';
-import { recapDays, recapPath, whyFrom, whoFrom, whyPieces, f1StoryPath, f1StoryFrom, f1PointsFrom } from './lib/why.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
-import { previewLine, previewPath, previewDays, previewFrom } from './lib/preview.mjs';
 import { tableStarted } from './lib/picks.mjs';
 import { onCourt, onPitch, pitchSpots } from './lib/onfield.mjs';
 import { playPeriod, withNewest } from './lib/live.mjs';
@@ -984,111 +981,11 @@ export function storyRows(e, sm) {
     })
   );
 }
-// A game over: the same panel a game on has, without its situation, its
-// why line at the top (賽後三句話, the family's AI) once it's read.
+// A game over: the same panel a game on has, without its situation.
 function storyPanel(e, sm) {
   if (e.status.state !== 'post') return null;
-  const sport = LEAGUES[e.league]?.sport;
-  const why = whyLine(e);
-  const parts = [why, sport === 'basketball' ? topScorers(e, sm) : null, storyRows(e, sm)].filter(Boolean);
-  const panel = parts.length ? el('div', { class: 'live-panel' }, parts) : null;
-  // (The why line alone, not read yet: the panel waits hidden, shown when it lands.)
-  if (panel && parts.length === 1 && why?.hidden) panel.hidden = true;
-  return panel;
-}
-// 賽後三句話's why line: made once a game by the family's builder
-// (lib/why.mjs), its day's file read once (a day kept on the phone), the
-// line drawn into the panel when it lands, never moving what's under it
-// more than once. A game with no line yet shows nothing.
-const whyDocs = new Map();
-const whyDoc = day => {
-  if (!whyDocs.has(day)) whyDocs.set(day, packJson(recapPath(day), { ttl: 10 * 60_000 }).catch(() => (whyDocs.delete(day), null)));
-  return whyDocs.get(day);
-};
-const whyKnown = new Map();
-// 賽前看點 (Jay 11-11): the family's AI's points for a game to come (lib/
-// preview.mjs previewFrom, made by Orbit-Core's builders/previews.js), each
-// row a kind's icon and a sentence with its teams and players as chips; the
-// code's line (a race in the table) stands in until the file is read, and
-// where the AI found nothing. Nothing at all: no box.
-const previewDocs = new Map();
-const previewDoc = day => {
-  if (!previewDocs.has(day)) previewDocs.set(day, packJson(previewPath(day), { ttl: 10 * 60_000 }).catch(() => (previewDocs.delete(day), null)));
-  return previewDocs.get(day);
-};
-const previewKnown = new Map();
-// (None in the day's files: made on a tap of its AI button, the first anyone makes, and kept for
-// everyone after: Orbit-Core's /ai/open, Jay 11-14 "make AI feature like this a button to click
-// like we do in orbit law, never spend a penny on AI on things user didn't interact with".
-// Opening the game never makes one. → { out } | { error }.)
-const madeOnTap = (f, key) => workerJson('/ai/open', `f=${f}&id=${encodeURIComponent(key)}`, { timeout: 30_000, errors: true }).then(j => (j?.out ? { out: j.out } : { error: j?.error || 'upstream' }));
-// The AI button in a part's place: a tap makes it (`make` → a node, or { error }), its
-// spark breathing meanwhile; a failure says why under the button.
-function aiAsk(label, make) {
-  const box = el('div', { class: 'ai-ask', 'data-ai-only': '' });
-  const button = (note = '') => box.replaceChildren(...[aiTap(label, go), note ? el('small', { class: 'ai-ask-note', text: note }) : null].filter(Boolean));
-  async function go() {
-    box.replaceChildren(el('div', { class: 'q-ai-think', role: 'status' }, [el('span', { class: 'q-ai-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || '' }), el('span', { text: L() === 'en' ? 'Thinking…' : '想一下…' })]));
-    const r = await make();
-    if (r instanceof Node) box.replaceWith(r);
-    else button(r?.error ? aiSays(r.error) : L() === 'en' ? 'Nothing to say about this game yet.' : '這場還沒有可以說的。');
-  }
-  button();
-  return box;
-}
-const PREVIEW_ICON = { out: 'user', table: 'trophy', star: 'flame', rest: 'clock', run: 'chart', series: 'flag' };
-// (`played`: who has played this game. A point saying one of them is out is
-// dropped: 「Herro 膝傷缺陣」 stood over Herro on the court, 11-12, as the
-// injury list had with Durant, 10-16.)
-function previewBox(e, codeLine, played = new Set()) {
-  const en = L() === 'en';
-  const key = `${e.league}:${e.id}:${en ? 'en' : 'zh'}`;
-  const draw = (all, who) => {
-    const points = all.filter(p => !(p.k === 'out' || /缺陣|因傷|傷停|不會上場|\bout\b|injur|sidelined/i.test(p.text)) || ![...String(p.text).matchAll(/\{p:(\w+)\}/g)].some(m => played.has(m[1])));
-    const rows = points.length ? points.map(p => el('li', { class: 'pv-row' }, [el('span', { class: 'pv-ic', 'aria-hidden': 'true', html: kitUI.icons?.[PREVIEW_ICON[p.k]] || kitUI.icons?.spark || '' }), el('span', { class: 'pv-text' }, whyNodes(e, p.text, who))])) : codeLine ? [el('li', { class: 'pv-row' }, [el('span', { class: 'pv-ic', 'aria-hidden': 'true', html: kitUI.icons?.trophy || '' }), el('span', { class: 'pv-text', text: codeLine })])] : [];
-    if (!rows.length) return null;
-    return el('section', { class: 'pv-box', 'aria-label': en ? 'Why watch' : '看點' }, [
-      el('p', { class: 'pv-head' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' }), el('span', { text: en ? 'Why watch' : '看點' })]),
-      el('ul', { class: 'pv-list' }, rows)
-    ]);
-  };
-  if (!LEAGUES[e.league]?.espn) return draw([], {});
-  if (previewKnown.has(key)) {
-    const k = previewKnown.get(key);
-    return draw(k.points, k.who);
-  }
-  // (Not read yet: the code's line, or a hidden holder, replaced when the file lands.)
-  const first = draw([], {});
-  const holder = first || el('section', { class: 'pv-box', hidden: true });
-  (async () => {
-    let got = { points: [], who: {} };
-    for (const day of previewDays(e)) {
-      got = previewFrom(await previewDoc(day), e, en, { sport: LEAGUES[e.league]?.sport });
-      if (got.known) break;
-    }
-    if (!got.known) {
-      // (None kept: 看點 on a tap, under the code's line where there is one.)
-      if (!holder.isConnected) return;
-      const ask = aiAsk(en ? 'Why watch' : '看點', async () => {
-        const r = await madeOnTap('sports-preview', `${e.league}:${e.id}`);
-        if (!r.out) return r;
-        const made = previewFrom({ v: 1, games: { [`${e.league}:${e.id}`]: r.out } }, e, en);
-        previewKnown.set(key, made);
-        const box = made.points.length ? draw(made.points, made.who) : null;
-        // (The AI's points take the code's line's place: it's among them or said better.)
-        if (box) first?.remove();
-        return box || {};
-      });
-      if (first) holder.after(ask);
-      else holder.replaceWith(ask);
-      return;
-    }
-    previewKnown.set(key, got);
-    if (!got.points.length || !holder.isConnected) return;
-    const box = draw(got.points, got.who);
-    if (box) holder.replaceWith(box);
-  })();
-  return holder;
+  const parts = [LEAGUES[e.league]?.sport === 'basketball' ? topScorers(e, sm) : null, storyRows(e, sm)].filter(Boolean);
+  return parts.length ? el('div', { class: 'live-panel' }, parts) : null;
 }
 // 去球場: a chip under the park that opens Orbit Transit planning the trip
 // (from where the phone is, there by half an hour before the start). Only
@@ -1131,104 +1028,6 @@ function goPark(e, d) {
   return chip;
 }
 
-// F1 賽後故事: a race's or sprint's story over its order, once the
-// family's builder has told it (lib/why.mjs); hidden till it's read, and
-// nothing at all for a race it hasn't.
-const storyDocs = new Map();
-function f1Story(e, ss) {
-  if (e.league !== 'f1' || ss.status.state !== 'post' || !(ss.abbr === 'Race' || ss.abbr === 'SR')) return null;
-  const path = f1StoryPath(ss.start);
-  if (!storyDocs.has(path)) storyDocs.set(path, packJson(path, { ttl: 10 * 60_000 }).catch(() => (storyDocs.delete(path), null)));
-  const en = L() === 'en';
-  const mark = () => el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' });
-  // (While it's read: the rows' shape, never nothing (Jay 11-11); a race without one, nothing.)
-  const holder = el('div', { class: 'f1-ai', 'aria-busy': 'true' }, [
-    el('p', { class: 'f1-ai-head' }, [mark(), el('span', { text: en ? 'What decided it' : '勝負關鍵' })]),
-    el('ol', { class: 'plays f1-ai-points f1-ai-wait', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('li', {}, [el('span', { class: 'q-skel f1-ai-sk-when' }), el('span', { class: 'play-text has-face' }, [el('span', { class: 'q-skel f1-ai-sk-face' }), el('span', { class: 'q-skel f1-ai-sk-line' })])])))
-  ]);
-  storyDocs.get(path).then(doc => {
-    if (!holder.isConnected) return;
-    holder.removeAttribute('aria-busy');
-    // The moments that decided it, drawn as the 過程's rows: the lap, the driver's face, what happened (Jay 11-10).
-    const points = f1PointsFrom(doc, ss.start, en);
-    if (points) {
-      holder.replaceChildren(
-        el('p', { class: 'f1-ai-head' }, [mark(), el('span', { text: en ? 'What decided it' : '勝負關鍵' })]),
-        el('ol', { class: 'plays f1-ai-points' }, points.map(p => el('li', {}, [
-          el('span', { class: 'play-when num', text: p.lap == null ? '' : p.lap === 0 ? (en ? 'Grid' : '發車') : en ? `L${p.lap}` : `${p.lap} 圈` }),
-          el('span', { class: 'play-text has-face' }, [p.name ? personPic({ name: p.name }, 'f1', 'xs round') : el('span', { class: 'play-none', 'aria-hidden': 'true' }), el('span', { class: 'play-words' }, [el('span', { class: 'play-main', text: p.text })])])
-        ])))
-      );
-      holder.hidden = false;
-      return;
-    }
-    const text = f1StoryFrom(doc, ss.start, en);
-    if (!text) return void (holder.hidden = true);
-    holder.replaceChildren(el('p', { class: 'lp-why f1-story' }, [mark(), el('span', { text })]));
-    holder.hidden = false;
-  });
-  return holder;
-}
-
-// Its teams and players as chips (Jay 11-10): a player with his face, a
-// team by its name; each opens its page.
-function whyNodes(e, line, who) {
-  const sides = [e.home, e.away].filter(Boolean);
-  return whyPieces(line, { teams: sides.map(t => String(t.id)), who }).map(x => {
-    if (x.text != null) return document.createTextNode(x.text);
-    if (x.team) {
-      const t = sides.find(s => String(s.id) === x.team);
-      const name = t.short || t.name || '';
-      if (x.again) return document.createTextNode(name);
-      // (Its logo, as a player's face: Jay 11-11, 賽爾提克 had none.)
-      const kids = [sideLogo(t, e.league, 'xs'), el('span', { text: name })];
-      return hasTeamPage(e.league) ? el('button', { class: 'lp-chip q-ai-ref', type: 'button', onclick: ev => (ev.stopPropagation(), ctx.openTeam(e.league, String(t.id), t)) }, kids) : el('span', { class: 'lp-chip q-ai-ref' }, kids);
-    }
-    const p = who[x.player];
-    if (x.again) return document.createTextNode(p.short);
-    return el('button', { class: 'lp-chip lp-chip-who q-ai-ref', type: 'button', 'aria-label': p.short, onclick: ev => (ev.stopPropagation(), ctx.openPlayer(e.league, x.player, { name: p.short })) }, [personPic({ id: x.player, name: p.short }, e.league, 'xs round'), el('span', { text: p.short })]);
-  });
-}
-function whyLine(e) {
-  if (!LEAGUES[e.league]?.espn) return null;
-  const key = `${e.league}:${e.id}`;
-  const en = L() === 'en';
-  const make = ({ text, who }) => el('p', { class: 'lp-why' }, [el('span', { class: 'lp-why-mark', 'aria-hidden': 'true', html: kitUI.icons?.ai || kitUI.icons?.spark || '' }), el('span', { class: 'lp-why-text' }, whyNodes(e, text, who))]);
-  if (whyKnown.has(key)) return whyKnown.get(key) ? make(whyKnown.get(key)) : null;
-  const holder = el('p', { class: 'lp-why', hidden: true });
-  (async () => {
-    let text = '';
-    let who = {};
-    for (const day of recapDays(e)) {
-      const doc = await whyDoc(day);
-      if ((text = whyFrom(doc, e, en))) {
-        who = whoFrom(doc, e);
-        break;
-      }
-    }
-    if (!text && e.status?.state === 'post') {
-      // (None kept: 賽後重點 on a tap, as Orbit Law's AI.)
-      if (!holder.isConnected) return;
-      const panel = holder.closest('.live-panel');
-      holder.replaceWith(aiAsk(en ? 'Why it went this way' : '賽後重點', async () => {
-        const r = await madeOnTap('sports-recap', key);
-        const doc = { v: 2, games: { [key]: r.out || null } };
-        const said = r.out && whyFrom(doc, e, en);
-        if (!said) return r.out ? {} : r;
-        whyKnown.set(key, { text: said, who: whoFrom(doc, e) });
-        return make(whyKnown.get(key));
-      }));
-      if (panel) panel.hidden = false;
-      return;
-    }
-    whyKnown.set(key, text ? { text, who } : '');
-    if (!text || !holder.isConnected) return;
-    const panel = holder.closest('.live-panel');
-    holder.replaceWith(make({ text, who }));
-    if (panel) panel.hidden = false;
-  })();
-  return holder;
-}
 // The closing stretch from two minutes left in the fourth (or an overtime),
 // when it came down to one possession (3 points or fewer at some point in
 // it, or a tie); none in a game the leader saw out (Cavaliers–76ers,
@@ -2108,13 +1907,7 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
   ].filter(Boolean);
   // (The table still being read: its rows held in their shape, 名次 and the sport's figures, BLANK.)
   const tableHeld = still('table') && !places.some(Boolean) ? [T('standing'), ...keyNames(e.league)] : [];
-  // 賽前看點: why the game matters (a close race in the table, a run), over the
-  // two sides: before it and while it's on (Jay 2026-11-11: what's at stake
-  // stays while it's played), not once it's over.
-  const why = (d?.status || e.status).state !== 'post' ? previewLine({ sport: LEAGUES[e.league]?.sport, places, forms, names: sides.map(s => s.short || s.name), en: L() === 'en' }) : '';
   const compare = el('div', { class: 'compare' }, [
-    // (Framed by the Orbit AI mark, as every smart line is, made by code or AI (Jay 11-11).)
-    (d?.status || e.status).state !== 'post' ? previewBox(e, why, playedIds(d)) : null,
     el('div', { class: 'cmp-head' }, sides.map((x, i) => cmpTeam(x, i ? 'home' : 'away', e.league)).flatMap((x, i) => (i ? [el('span', { class: 'cmp-vs', text: 'vs' }), x] : [x]))),
     ...compareRows.map(([label, a, h]) => el('div', { class: 'cmp-row' }, [cmpValue(a), el('span', { text: label }), cmpValue(h)])),
     // (名次 with its group under it, as a table of conferences or groups has it: all but football's leagues.)
@@ -6135,7 +5928,6 @@ function fillField(s, e) {
           const one = { ...e, id: `${weekend}~${ss.abbr}`, weekend, sessionKey: ss.abbr, session: sessionName(ss, L()), start: ss.start, official: ss.start, status: ss.status };
           return ss.status.state === 'post' ? [replayLink(one), highlights(one)].filter(Boolean) : [];
         })(),
-        f1Story(e, ss),
         holder
       );
       // A race to come, its qualifying over: the starting grid with every drop in it (OpenF1's),

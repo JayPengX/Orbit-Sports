@@ -34,8 +34,3 @@ test("the NBA's rule: seven, at most four in the 4th and two after its 3:00 mark
   assert.deepEqual(nbaTimeouts([t(4, '1:00'), t(5, '3:00')], '2', { period: 5, clock: '2:00' }), { left: 1, used: 1 });
   assert.equal(nbaTimeouts([{ type: 'Official Timeout', text: 'Official timeout', team: '2', periodNum: 1, clock: '6:00' }], '2', { period: 1 }).left, 7, "an official timeout is no side's");
 });
-
-test('賽前看點 is drawn before the game and while it is on, not once it is over', () => {
-  const src = readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
-  assert.match(src, /const why = \(d\?\.status \|\| e\.status\)\.state !== 'post' \? previewLine\(/);
-});

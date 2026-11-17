@@ -2021,7 +2021,7 @@ export function withoutPlayed(injuries = [], data) {
   return played.size ? injuries.map(t => ({ ...t, list: t.list.filter(x => !played.has(x.id)) })) : injuries;
 }
 // The ids of everyone who has played this game (as above).
-export function playedIds(data) {
+function playedIds(data) {
   const played = new Set();
   for (const t of data?.players || []) for (const tb of t.tables || []) for (const r of tb.rows || []) if (r.id && !r.dnp && (r.on || (r.stats || []).some(v => v && v !== '0' && v !== '--' && v !== '0-0'))) played.add(r.id);
   for (const r of data?.rosters || []) for (const p of r.players || []) if (p.id && p.played) played.add(p.id);
