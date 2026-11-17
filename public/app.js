@@ -969,23 +969,41 @@ const dayWanted = date => date === today() || date === addDays(today(), 1) || (s
 let pushTimer = 0;
 // The followed leagues' tables, for the picks and 追蹤's places (they come in on their own).
 // `also`: more leagues' (填滿空檔's games: what each side still plays for, picks.mjs raceOf).
+// (Each read again once it's TABLES_MS old, the one held shown meanwhile: an
+// app kept open for hours said a team was 3rd all evening after it went top.
+// One that failed is read again at the next day's read, never held as an
+// empty table: a blip at the open left 追蹤 without places and the picks
+// without stakes for the session, 11-17.)
+const TABLES_MS = 10 * 60_000;
+const tablesAt = {};
+const tablesReading = new Set();
 function loadTables(also = []) {
   [...new Set([...followedLeagues(), ...also])]
     .filter(hasStandings)
-    .filter(k => !state.home.tables[k])
+    .filter(k => !tablesReading.has(k) && (!state.home.tables[k] || Date.now() - (tablesAt[k] || 0) > TABLES_MS))
     .slice(0, 8)
     .forEach(k => {
-      state.home.tables[k] = {};
-      state.home.tablesPending++;
+      const first = !state.home.tables[k];
+      tablesReading.add(k);
+      if (first) {
+        state.home.tables[k] = {};
+        state.home.tablesPending++;
+      }
       // (Counted in before the repaint: the last table's repaint is the one that settles the picks.)
       standings(k)
         .then(g => {
           state.home.tables[k] = tableIndex(g, k);
-          state.home.tablesPending--;
+          tablesAt[k] = Date.now();
+        })
+        .catch(() => {
+          if (first) delete state.home.tables[k];
+        })
+        .finally(() => {
+          tablesReading.delete(k);
+          if (first) state.home.tablesPending--;
           if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
           if (state.tab === 'following') renderFollowing();
-        })
-        .catch(() => state.home.tablesPending--);
+        });
     });
 }
 // Followed teams' schedules (their next and last games).
