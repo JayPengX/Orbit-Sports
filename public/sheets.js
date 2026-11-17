@@ -212,6 +212,9 @@ export async function openMatch(e) {
   let view = 'overview';
   // The tabs as last drawn, for a swipe to the one beside.
   let tabKeys = [];
+  // (Held at most 6 s from opening: a read that hangs never leaves the page without its tabs.)
+  let holdTabs = true;
+  setTimeout(() => ((holdTabs = false), paint()), 6_000);
   swipeTabs(s.body, () => ({ list: tabKeys, now: view, go: k => ((view = k), paint()) }));
   let statsPart = 'team';
   let standPart = '';
@@ -568,8 +571,13 @@ export async function openMatch(e) {
     put(subBox, view === 'stats' && teamNums && playerNums ? segmented([['team', en ? 'Teams' : '球隊'], ['players', en ? 'Players' : '球員']], statsPart, v => ((statsPart = v), paint()), 'match-part') : view === 'table' && stands.length > 1 ? segmented(stands, standPart, v => ((standPart = v), paint()), 'match-part') : null);
     // The same row of tabs before, during and after (two of them or six).
     // (One tab so far, with 數據 or 排名's read still coming: the row's place held, not the page pushed down when it comes.)
-    tabKeys = tabs.length > 1 ? tabs.map(([k]) => k) : [];
-    put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { seg: true }) : coming.has('squads') || coming.has('table') ? tabsWaiting() : null);
+    // (Nor a row of two with 數據 and 陣容 still coming in each side's
+    // squad, 排名 in the table: held in its shape till they land, then drawn
+    // once whole, never tabs filling in in front of you: Jay 2026-11-18.)
+    const has = k => tabs.some(([x]) => x === k);
+    const held = holdTabs && ((coming.has('squads') && !(has('stats') && has('lineups'))) || (coming.has('table') && !has('table')));
+    tabKeys = tabs.length > 1 && !held ? tabs.map(([k]) => k) : [];
+    put(sections, held ? tabsWaiting() : tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { seg: true }) : null);
     top.hidden = view !== 'overview';
     const over = (data?.status || e.status).state === 'post';
     // (A game over a day and more ago: ESPN's injuries are today's, not that

@@ -17,7 +17,7 @@ const body = name => {
 test("a game's page swipes between its tabs", () => {
   const open = body('export async function openMatch(');
   assert.match(open, /swipeTabs\(s\.body, \(\) => \(\{ list: tabKeys, now: view,/);
-  assert.match(open, /tabKeys = tabs\.length > 1 \? tabs\.map/);
+  assert.match(open, /tabKeys = tabs\.length > 1 && !held \? tabs\.map/);
   assert.match(open, /header\.classList\.add\('q-day-still'\)/);
   assert.match(open, /sections\.classList\.add\('q-day-still'\)/);
 });
@@ -37,4 +37,14 @@ test('charts a finger scrubs sideways keep the finger', () => {
     assert.match(src.slice(at, at + 200), /'data-noswipe': ''/, cls);
   }
   assert.match(src, /svg\.toggleAttribute\('data-noswipe', m\.z > 1\.01\)/);
+});
+
+// Jay 2026-11-18: "it only load 概況 and 排名 then other fill in in front of
+// you". A game to come draws its row of tabs once, whole: while each side's
+// squad (數據, 陣容) or the table (排名) is still read, the row is held in its shape.
+test("a game's tabs are drawn once, whole, never filling in", () => {
+  const open = body('export async function openMatch(');
+  assert.match(open, /setTimeout\(\(\) => \(\(holdTabs = false\), paint\(\)\), 6_000\)/);
+  assert.match(open, /const held = holdTabs && \(\(coming\.has\('squads'\) && !\(has\('stats'\) && has\('lineups'\)\)\) \|\| \(coming\.has\('table'\) && !has\('table'\)\)\)/);
+  assert.match(open, /put\(sections, held \? tabsWaiting\(\) :/);
 });
