@@ -33,7 +33,7 @@ import { lapRate, readCar, stepCar, spread, behindLeader, placeTags } from './li
 import { fold, surname, esc } from './lib/text.mjs';
 import { hoopsSeason, fig } from './lib/hoops.mjs';
 import { driverAbout, startingGrid, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, teamsAt, settleScoring, liveLapEnds, liveRaceEvents, flagNow, birthPlaceOf, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
-import { tvOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
+import { tvOf, watchLinkOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch, placeTeams } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
 import { broadcastsOf, twSource, ELTA_VOD_LEAGUES, guideWhen } from './lib/broadcast.mjs';
@@ -3372,7 +3372,7 @@ function twCard(league, e = null) {
                 'div',
                 { class: 'tw-exact' },
                 exact.map(b =>
-                  watchLink(b, { class: 'tw-watch' }, [
+                  watchLink(watchLinkOf(e, b), { class: 'tw-watch' }, [
                     // The service's own mark (ELTA's, Apple TV's), else a TV's.
                     b.svc === 'elta' ? eltaLogo() : b.svc === 'appletv' ? el('span', { class: 'replay-icon apple', 'aria-hidden': 'true', text: '\uF8FFtv' }) : kitUI.tile(kitUI.icons.tv, 'var(--accent)'),
                     el('span', { class: 'tw-watch-name' }, [

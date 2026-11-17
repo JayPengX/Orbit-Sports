@@ -3,7 +3,7 @@
 // (kept six hours), matched to the game (lib/broadcast.mjs). The page is told
 // to draw again when a schedule comes in (`onTvChange`).
 import { proxyJson, packJson, taipeiDay } from '#kit/orbit.mjs';
-import { ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio, camPlayer, withEltaNames, roundOff } from './broadcast.mjs';
+import { broadcastsOf, ELTA_LIST, parseElta, eltaDays, eltaListed, nbaEltaGames, broadcastsFor, eltaStart, inReplay, replayState, eltaVodsOf, useEltaPages, eltaVodUrl, eltaVodApp, eltaEpisode, eltaSessionEpisode, episodeLabel, episodeEnglish, hasAudio, camPlayer, withEltaNames, roundOff } from './broadcast.mjs';
 import { teamNameZh } from '#kit/names.mjs';
 import { localSide } from '#kit/sports-espn.mjs';
 import { watchOf as packOf, loadWatchMonth } from './highlights.mjs';
@@ -178,6 +178,16 @@ export const channelsOf = e => tvOf(e).filter(b => b.exact);
 export const onTv = e => channelsOf(e).length > 0;
 // The way to watch a game now: its best channel with a link, or null.
 export const watchOf = e => tvOf(e).find(b => b.url && b.exact) || null;
+// Where a link to one of a game's ELTA channels goes: a game to come opens
+// ELTA's timetable (節目表, ELTA.tv's sports schedule, in its app too), never
+// the channel, which plays another program till then (Jay 11-17: "upcoming
+// game's ELTA link should go to timetable instead of the channel"); the
+// channel once the game is on, or its program there has begun.
+export function watchLinkOf(e, b) {
+  if (b?.svc !== 'elta' || !b.ch || !b.url || e?.status?.state !== 'pre' || (b.at && b.at <= Date.now())) return b;
+  const timetable = broadcastsOf(e.league).find(x => x.svc === 'elta' && x.url && !x.ch);
+  return timetable ? { ...b, url: timetable.url, app: timetable.app } : b;
+}
 // Whether the lists that say what's on are in (ELTA's, NBA.com's): before
 // that no game can be said to be on, so nothing is recommended yet. Both
 // asked for at the first ask (NBA.com's was asked only once ELTA's was in,

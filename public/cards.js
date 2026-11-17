@@ -4,7 +4,7 @@
 // a game is (onAir, sessionStatus, picks, standings) is decided elsewhere.
 import * as kitUI from '#kit/ui.mjs';
 import { el, ctx, sidesOf, homeName, logo, personPic, statusText, breakTick, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine, f1Brief, shortLeague } from './ui.js';
-import { channelsOf, watchOf } from './lib/tv.mjs';
+import { channelsOf, watchOf, watchLinkOf } from './lib/tv.mjs';
 import { ALT_VIEW } from './lib/broadcast.mjs';
 import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
 import { onAir } from './lib/espn.mjs';
@@ -89,7 +89,7 @@ export function heroGame(e, { eyebrow = '', picked = false, mine = false, onOpen
   }
   card.append(heroFoot(e, { mine, picked }));
   // 觀看 while it's on (or within half an hour of its start), straight into ELTA.tv's or Apple TV's app.
-  const b = !e.status?.void && (live || (e.status?.state === 'pre' && Date.parse(e.start) - Date.now() < 30 * 60_000)) ? watchOf(e) : null;
+  const b = !e.status?.void && (live || (e.status?.state === 'pre' && Date.parse(e.start) - Date.now() < 30 * 60_000)) ? watchLinkOf(e, watchOf(e)) : null;
   if (b)
     card.append(
       el('div', { class: 'q-hc-row' }, [

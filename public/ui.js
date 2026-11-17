@@ -16,7 +16,7 @@ import { freshHeadshot, SESSION_NAMES, espnSummary, onAir } from './lib/espn.mjs
 import * as kitQ from '#kit/orbit.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import { addDays } from '#kit/format.mjs';
-import { channelsOf, watchOf, replayHint } from './lib/tv.mjs';
+import { channelsOf, watchOf, watchLinkOf, replayHint } from './lib/tv.mjs';
 import { seriesLineZh } from './lib/statnames.mjs';
 import { fold } from './lib/text.mjs';
 import { keepPictures } from './lib/pictures.mjs';
@@ -364,7 +364,7 @@ export const watchLink = (b, attrs, children) => (b.url ? el('a', { ...attrs, hr
 // 愛爾達, Apple TV), straight into the app. Null when it can't be watched.
 export function watchButton(e, cls = '') {
   const on = !e.status?.void && (e.status?.state === 'in' || (e.status?.state === 'pre' && Date.parse(e.start) - Date.now() < 30 * 60_000));
-  const b = on ? watchOf(e) : null;
+  const b = on ? watchLinkOf(e, watchOf(e)) : null;
   if (!b) return null;
   return watchLink(b, { class: `watch-btn ${cls}`.trim(), 'aria-label': `${ctx.locale === 'en' ? 'Watch on' : '觀看'} ${b[ctx.locale === 'en' ? 'en' : 'zh']}` }, [
     el('span', { class: 'watch-play', 'aria-hidden': 'true' }),
