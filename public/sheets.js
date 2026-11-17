@@ -7224,8 +7224,10 @@ async function sessionsDriven(events, id, name) {
 // session, the car, where he finished it; a tap opens that session.
 function outingsCard(list, en) {
   const rows = [...list].reverse();
+  // (The year they were driven in: the page opened in January says last season's, never the new year's.)
+  const year = new Date(Date.parse(rows[0]?.start) || Date.now()).getFullYear();
   return card(
-    en ? `${new Date().getFullYear()} sessions driven` : `${new Date().getFullYear()} 出賽紀錄`,
+    en ? `${year} sessions driven` : `${year} 出賽紀錄`,
     el(
       'div',
       { class: 'fp-outs' },
@@ -7535,7 +7537,6 @@ export async function openPlayer(league, id, fallback = {}) {
         .catch(() => {});
     // (A stand-in: his number in that car, and what he is: one who drives a practice, not the races.)
     const sub = guest ? [lastCar?.number ? `#${lastCar.number}` : '', outings.some(o => ['Race', 'SR', 'Qual', 'SQ', 'SS'].includes(o.abbr)) ? W('代打車手', 'Stand-in') : W('試車手', 'Test driver')].filter(Boolean) : [a.jersey ? `#${a.jersey}` : '', zhLater(position), teamChip ? '' : teamShown || countryName(a.country, L())].filter(Boolean);
-    const year = new Date().getFullYear();
     const heroColor = driver?.team ? driver.color : guestTeam ? lastCar.colour || f1Constructor(guestTeam).color : a.teamColor;
     // Their headshot (ESPN's; none, every footballer: TheSportsDB's cut-out, personPic finds it).
     const pic = el('span', { class: 'pic-slot' }, [personPic({ id, name: a.name, headshot: a.headshot || guest?.about?.photo || null, logo: fallback.logo, flag: a.flag }, league, 'xxl round')]);

@@ -1666,6 +1666,8 @@ function renderHome() {
   const h = state.home;
   const slot = state.days.get(h.date);
   h.settled = false;
+  // (On today: the day it was, so a day turned under it moves on to the new one, turnHomeDay.)
+  if (h.date === today()) h.todayWas = h.date;
   // The picks are only games on TV here: none until the lists saying which
   // are in (onTvChange repaints then). The day is read again only when it
   // needs it: never for the TV lists alone, or loadDay's repaint calls
@@ -4844,8 +4846,33 @@ function freshenHeld(slot) {
   }
   return changed;
 }
+// The day turned while 首頁 sat on today (an iPhone keeps the app open for
+// hours, overnight): the new today, as a fresh open has it, once none of the
+// evening's games is still on (a 23:00 kick-off watched to its end first).
+// Only 首頁 kept its own day: 賽事's and 轉播's are "today, whichever day
+// that is now". (11-17: left on a day whose last game ended after midnight,
+// 首頁 still showed that day's results the next morning, its move to their
+// next day never made: that waits on the day shown being today.)
+function turnHomeDay() {
+  const h = state.home;
+  const was = h.todayWas;
+  if (!was || h.date !== was || was === today() || h.picking) return false;
+  if (dayAll(state.days.get(was)).some(e => e.status.state === 'in' || dueToStart(e))) return false;
+  h.todayWas = null;
+  h.date = today();
+  h.shown = 20;
+  h.autoDay = true;
+  h.kept = null;
+  stripRange.recenter = true;
+  if (state.tab !== 'home') return true;
+  toPageTop();
+  if (SPORTS[h.filter]) pickFilter(h.filter);
+  else renderHome();
+  return true;
+}
 function liveTick() {
   if (document.visibilityState !== 'visible' || !q.active || sheetOver()) return;
+  turnHomeDay();
   // Reads that failed, waiting while nobody looked: tried now they're on screen.
   retries.kick();
   const day = state.days.get(today());
