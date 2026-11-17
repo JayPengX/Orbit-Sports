@@ -46,6 +46,20 @@ test('a day with one of its pages unread says so (`unread`): never kept as the w
   await assert.rejects(scoreboard('nba', ['20261005']));
 });
 
+test('a scoreboard answered as an empty object or an error is unread (這天的賽程還讀不到), never a day without games', async () => {
+  pages.set('dates=20261011', { events: [game('11', '2026-10-11T23:00Z', '10', '20')] });
+  pages.set('dates=20261012', {});
+  pages.set('dates=20261013', { error: 'upstream' });
+  const got = await scoreboard('nba', ['20261011', '20261012', '20261013']);
+  assert.deepEqual(got.map(e => e.id), ['11']);
+  assert.deepEqual(got.unread, ['20261012', '20261013']);
+  // Nothing but garbage: a failure, as if ESPN were down.
+  await assert.rejects(scoreboard('nba', ['20261012']));
+  // A quiet day (its list empty) is ESPN's own answer: no games, no failure.
+  pages.set('dates=20261014', { events: [] });
+  assert.deepEqual(await scoreboard('nba', ['20261014']), []);
+});
+
 test('a season’s rounds unread are asked again later, never kept as "no rounds"', async () => {
   down.add('sports/epl/2026.json');
   down.add('sports/epl/2027.json');

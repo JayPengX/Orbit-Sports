@@ -42,7 +42,12 @@ export const COMMON = 'https://site.api.espn.com/apis/common/v3/sports';
 // The kit's proxyJson: requests made together go as one batch, answers are
 // remembered in memory and on the device (a list younger than `ttl` is
 // never asked for again, even after the app was closed).
-export const getJson = (url, { ttl = 60_000, trim = '', mirror = true, alone = false } = {}) => proxyJson(url, { ttl, trim, mirror, alone });
+// `valid`: the answer's shape (kit proxyJson): one without it is a failed read, never "no games".
+export const getJson = (url, { ttl = 60_000, trim = '', mirror = true, alone = false, valid = null } = {}) => proxyJson(url, { ttl, trim, mirror, alone, valid });
+// A scoreboard has its list of events, an empty one on a quiet day: an empty
+// object or an error's JSON is a page unread (這天的賽程還讀不到), never a day
+// without games, and never kept over the day's last good copy.
+export const scoreboardShaped = j => Array.isArray(j?.events);
 // How long a live answer (scores, a game's summary) is kept before asking again.
 // A live read kept on the phone only to share one read between the parts that want it: the refresh speed is the admin panel's (kit dev), the proxy's cache the rest.
 export const LIVE_TTL = 2_000;
@@ -329,7 +334,7 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000, ahead = LI
   // Scores on now: read again after 10 seconds (the proxy's live copy).
   // A day or month over: kept on the phone 6 hours, not asked again every few seconds.
   const urlOf = d => `${SITE}/${l.espn}/scoreboard?dates=${d}&limit=200`;
-  const pages = list.length ? await Promise.all(list.map(d => getJson(urlOf(d), { ttl: pastPage(String(d)) ? keep : farPage(String(d)) ? ahead : LIVE_TTL }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL })];
+  const pages = list.length ? await Promise.all(list.map(d => getJson(urlOf(d), { ttl: pastPage(String(d)) ? keep : farPage(String(d)) ? ahead : LIVE_TTL, valid: scoreboardShaped }).catch(() => null))) : [await getJson(`${SITE}/${l.espn}/scoreboard`, { ttl: LIVE_TTL, valid: scoreboardShaped })];
   // Not one page read: a failure, never "no games" (a day saved without the
   // league, or the league taken for out of season).
   if (!pages.some(Boolean)) throw new Error(`${league}: unread`);
