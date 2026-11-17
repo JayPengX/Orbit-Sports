@@ -3974,7 +3974,7 @@ function renderScores() {
   const leadersView = !knockView && !tableView && sc.view === 'leaders' && hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn);
   if (leadersView) list = leadersOf(sc.league);
   else if (knockView) list = el('div', { class: 'po-wrap' }, [shownRounds.length ? playoffView(shown.model, poKey) : poFailed ? empty(t('failed')) : bracketShape()]);
-  else if (tableView && cupChips) list = el('div', { class: 'po-wrap' }, [cupChips, cupShown(sc) ? cupOf() : tableOf(sc.league)]);
+  else if (tableView && cupChips) list = [cupChips, cupShown(sc) ? cupOf() : tableOf(sc.league)];
   else if (tableView) list = tableOf(sc.league);
   else if (sc.byDay == null || sc.loading) list = spinner();
   else if (sc.byDay === 'failed') list = empty(t('failed'));
@@ -4003,7 +4003,8 @@ function renderScores() {
             // list put the finished ones a long scroll down); the one on, in both.
             const part = sc.racePart === 'past' && wkPast.length ? 'past' : wkNext.length ? 'next' : 'past';
             const pick = wkNext.length && wkPast.length ? segmented([['next', t('upcomingEvents')], ['past', t('pastEvents')]], part, v => ((sc.racePart = v), renderScores()), 'views race-part') : null;
-            return el('div', {}, [wkNow.length ? wkBlock(t('liveNow'), wkNow) : null, pick, pick ? el('div', { class: 'wk-cards' }, (part === 'next' ? wkNext : wkPast).map(weekendCard)) : part === 'next' ? wkBlock(t('upcomingEvents'), wkNext) : wkBlock(t('pastEvents'), wkPast)]);
+            // (Each its own part of the page: a swipe slides the weekends, never the switch.)
+            return [wkNow.length ? wkBlock(t('liveNow'), wkNow) : null, pick, pick ? el('div', { class: 'wk-cards' }, (part === 'next' ? wkNext : wkPast).map(weekendCard)) : part === 'next' ? wkBlock(t('upcomingEvents'), wkNext) : wkBlock(t('pastEvents'), wkPast)].filter(Boolean);
           })()
         : el('div', {}, [
             current.length ? block(t('liveNow'), current) : null,
@@ -4059,7 +4060,7 @@ function renderScores() {
   const other = tableView || knockView || leadersView;
   // (A league of games has a date strip on 賽程, a race series none.)
   sc.views = { list: viewList.map(([k]) => k), now: viewNow, strip: !other && LEAGUES[sc.league].kind === 'match' };
-  const parts = [head, leagueChips, views, other ? null : strip, other ? null : stages, list].filter(Boolean);
+  const parts = [head, leagueChips, views, other ? null : strip, other ? null : stages, ...[list].flat()].filter(Boolean);
   if (scoresQuiet && box.childNodes.length === parts.length) return parts.forEach((n, i) => morph(box.childNodes[i], n));
   put(box, ...parts);
   centerChosen(box);
@@ -4621,7 +4622,8 @@ function leadersOf(league) {
   const teams = sport === 'racing' ? (lead && typeof lead === 'object' ? lead.crews : null) : teamNums.get(league);
   const part = teams && state.scores.statPart === 'teams' ? 'teams' : 'players';
   const pick = teams ? segmented([['players', sport === 'racing' ? L({ zh: '車手', en: 'Drivers' }) : L({ zh: '球員', en: 'Players' })], ['teams', sport === 'racing' ? L({ zh: '車隊', en: 'Teams' }) : L({ zh: '球隊', en: 'Teams' })]], part, v => ((state.scores.statPart = v), renderScores()), 'views stat-part') : null;
-  return el('div', {}, [pick, part === 'teams' ? teamsOf(league, teams) : playersOf(league)]);
+  // (Each its own part of the page: a swipe slides the list, never the switch.)
+  return [pick, part === 'teams' ? teamsOf(league, teams) : playersOf(league)].filter(Boolean);
 }
 function teamsOf(league, d) {
   if (d.racing) return teamStatsView(d, league, { pick: teamPick.get(league), onPick: k => (teamPick.set(league, k), renderScores()), wide: true });

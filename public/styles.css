@@ -1592,6 +1592,8 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 .rc-name .logo { width: 24px; height: 24px; flex: none; vertical-align: 0; font-size: 9.5px; }
 .views.race-part { margin: 4px 0 12px; }
 .q-seg.views.stat-part { width: min(240px, 100%); margin: 4px auto 12px; }
+/* (Right under the tabs, 車手/車隊 and 接下來/已結束 keep the tabs' 12 px.) */
+.q-seg.views + .q-seg.views { margin-top: 12px; }
 /* The one follow button (sheets.js followButton): a small pill, the app's
    colour until followed, then quiet with a tick; the same on every page. */
 .follow-btn { display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center; min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--q-fill-3); color: var(--q-label, var(--q-text)); font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
