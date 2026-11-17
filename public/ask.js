@@ -12,8 +12,7 @@ import { askTables, askFacts } from './lib/ask.mjs';
 const W = (en, zh, e) => (en ? e : zh);
 
 // src: { en, teams(), standings() → Promise<{ league: { name, rows } }>, today(), nameOf(league, side), openTeam(league, id), openGame(league, id) }
-// `ask`: a question already said (問 Orbit's, #ask=…), asked at once.
-export function openAsk(src, { ask = '' } = {}) {
+export function openAsk(src) {
   const en = src.en;
   const h = kitUI.h;
   const STARTERS = [W(en, '我的球隊排第幾？', 'Where are my teams in the table?'), W(en, '我的球隊下一場什麼時候？', 'When do my teams play next?'), W(en, '最近打得怎麼樣？', 'How did my teams do last time?'), W(en, '今天有什麼比賽？', 'What’s on today?')];
@@ -24,9 +23,8 @@ export function openAsk(src, { ask = '' } = {}) {
   const hint = h('p', { class: 'sp-ask-hint', text: W(en, '名次、賽程、比分都是 App 讀到的，AI 只挑出回答的表、說一句話。', 'Places, games and scores are what the app read; AI only picks the tables that answer and says one line.') });
   const foot = h('div', { class: 'q-sheet-foot sp-ask-foot' }, [bar]);
   kitUI.sheet({ title: W(en, '問比賽', 'Ask about your teams'), detent: 'large', cls: 'sp-ask', body: [hint, starters, talk], foot, onClose: () => (open = false) });
-  if (ask) requestAnimationFrame(() => go(String(ask).slice(0, 200)));
   // (In the tap that opened it: iOS raises its keys only then; the kit lands the sheet first.)
-  else bar.input?.focus();
+  bar.input?.focus();
 
   // A row's picture: the team's logo (a game: the home side's); its tap: the team or the game.
   const rowOf = (r, lit) => {

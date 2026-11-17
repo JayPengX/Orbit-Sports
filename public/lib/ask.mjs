@@ -6,7 +6,6 @@
 // picks the tables that answer and writes one line, each number one of
 // theirs. The app draws them with each team's logo (the kit's aiAnswer).
 
-const DAY = 86_400_000;
 const tw = t => new Date(t + 8 * 3_600_000);
 const md = t => `${tw(t).getUTCMonth() + 1}/${tw(t).getUTCDate()}`;
 const hm = t => tw(t).toISOString().slice(11, 16);

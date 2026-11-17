@@ -9,7 +9,7 @@
 // What the person follows lives on the pass (this app's payload): leagues in
 // their order of priority, teams and F1's drivers and teams. Nothing of it goes to the other
 // apps; their activity doesn't steer the picks here either.
-import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, readJson, writeJson, writeStore, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
+import { onScreen, screenFit, orbitSession, tabBar, topActions, installGate, watchUpdates, recordAffinity, affinityPatch, settingPatch, setting, watchFit, notify, cachedPayload, cachedWallet, readJson, writeJson, restorePlace, schedulePush, translate, proxyJson, packJson, dev, everyDev, keepOffline, onlineOnly, netState } from '#kit/orbit.mjs';
 import { stripDays, chosenOf, sportBack, sportDay, tvDayHas } from './lib/strip.mjs';
 import { fold } from './lib/text.mjs';
 import { boundsOf, unionBounds, within, clampDay, playsWithin } from './lib/bounds.mjs';
@@ -36,7 +36,6 @@ import { liveTiming, settleScoring, askFinishes, weekendCircuit } from './lib/f1
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
 import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote, cupLetters, cupOrder } from './lib/nbacup.mjs';
 import { stageOf } from './lib/stage.mjs';
-import { undecided } from './lib/bracket.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
@@ -5022,19 +5021,8 @@ async function openGameFromHash() {
   $('loading').hidden = true;
   openEvent(freshGame(e));
 }
-// 問 Orbit's question (the Pass sheet, kit ask-orbit.mjs: #ask=<words>): 問比賽 with it.
-function askFromLink() {
-  if (!/(?:^#|&)ask=/.test(location.hash)) return;
-  import('#kit/ask-orbit.mjs')
-    .then(m => {
-      const text = m.takeAsk?.();
-      if (text) return import('./ask.js').then(x => x.openAsk(askSource(), { ask: text }));
-    })
-    .catch(() => {});
-}
 // A link or a notice's tap that points at a tab while the app is open.
 window.addEventListener('hashchange', () => {
-  if (booted && /(?:^#|&)ask=/.test(location.hash)) return void askFromLink();
   const hash = location.hash.slice(1);
   if (readGameHash(hash)) return void openGameFromHash();
   if (!TABS.includes(hash) && hash !== 'scores' && hash !== 'standings') return;
@@ -5163,7 +5151,6 @@ async function boot() {
   window.__bootStep?.(t('loadingPicks'), 0.94);
   await homeReady(until);
   $('loading').hidden = true;
-  askFromLink();
   // The followed leagues' tables, read once the day's games are in: 排名 opens at once.
   setTimeout(() => followedLeagues().filter(hasStandings).slice(0, 6).forEach(warmTable), 2000);
 }

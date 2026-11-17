@@ -6,7 +6,7 @@ import * as kitUI from '#kit/ui.mjs';
 import { el, ctx, sidesOf, homeName, logo, personPic, statusText, breakTick, timeText, seriesText, scoreText, raceFlag, sessionTag, watchLink, leagueMark, winners, tvLine, f1Brief, shortLeague } from './ui.js';
 import { channelsOf, watchOf, watchLinkOf } from './lib/tv.mjs';
 import { ALT_VIEW } from './lib/broadcast.mjs';
-import { leagueName, leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
+import { leagueLogo, leagueLogoDark } from './lib/leagues.mjs';
 import { onAir } from './lib/espn.mjs';
 import { stageTag, stageOf } from './lib/stage.mjs';
 

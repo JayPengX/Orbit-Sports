@@ -9,7 +9,7 @@ import * as kitNames from '#kit/names.mjs';
 import { injuryFacts, backDay } from './lib/injurynote.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
-import { freshGame, seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, nationalGames, streakOf, leagueTeamStats, fotmobTeamList, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs , leaderList } from './lib/espn.mjs';
+import { freshGame, seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, nationalGames, streakOf, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs, leaderList } from './lib/espn.mjs';
 import { stageTag, groupName } from './lib/stage.mjs';
 import { isGroupPlay, nbaCupGroups, cupStakes } from './lib/nbacup.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
@@ -41,7 +41,7 @@ import { LEAGUES, leagueName, hasTeamPage, hasStandings } from './lib/leagues.mj
 import { SEASON_GAMES, liveTable, roundCounted, roundOf, pctText, gbText, gbShown, nextNeeds, standingsRace } from './lib/title.mjs';
 import { FORMATS, PICTURE_COLOR } from './lib/playoffs.mjs';
 import { teamKey, leagueKey } from './lib/foryou.mjs';
-import { moreToggle, goBar, f1Shown, leagueChip, ctx, el, shownStart, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, homeName, today, sidesOf } from './ui.js';
+import { moreToggle, goBar, f1Shown, leagueChip, ctx, el, timeText, leagueMark, put, spinner, empty, skeleton, logo, diamond, clock, dayLabel, localDate, statusText, breakTick, whenOf, eventRow, sheet, segmented, seriesText, tvName, watchLink, watchButton, scoreText, mmss, audioName, sessionTag, raceFlag, personPic, sideLogo, homeName, today, sidesOf } from './ui.js';
 
 const L = () => ctx.locale;
 const T = (k, v) => ctx.t(k, v);
@@ -7191,10 +7191,6 @@ function momentGlyph(icon) {
 // A league's table with what's over that it hasn't counted yet (title.mjs
 // liveTable; F1: a race at F1's flag): every page with a table on it (a
 // team's, a driver's, a constructor's) as 賽事's table has it.
-// formula1.com's season place and points, as the table has them now (its
-// page is updated a day after a race: 196 points, 5th, beside a table with
-// the race in).
-const freshSeason = (grid, champ) => (champ ? grid.map(([k, v]) => (k === 'Season Position' ? [k, String(champ.pos)] : k === 'Season Points' ? [k, String(champ.points)] : [k, v])) : grid);
 // The one rule for every table shown (賽事's 排名 too, app.js tableOf).
 // `live`: the games on now in too, as they stand (marked on their rows, said
 // over the table: 即時排名); only where the table is looked at, never for a race.
