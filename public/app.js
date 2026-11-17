@@ -3918,17 +3918,6 @@ function pickLeague(k, view = null) {
   state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, season: null, date: sc.chosen || null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: view || (hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games') };
   loadScores();
 }
-// A swipe past a league's first or last tab: the league beside it on the
-// rail (全部 first), on its first tab going on, its last coming back (Jay 2026-10-27).
-function stepLeague(dir) {
-  const rail = [ALL, ...scoresRail()];
-  const k = rail[rail.indexOf(state.scores.league) + dir];
-  if (!k) return false;
-  if (k === ALL) return openAll(state.scores.chosen || today()), true;
-  const sport = LEAGUES[k].sport;
-  pickLeague(k, dir > 0 ? 'games' : hasLeaders(sport, LEAGUES[k].espn) ? 'leaders' : hasBracket(k) ? 'bracket' : hasStandings(k) ? 'table' : 'games');
-  return true;
-}
 function scoresRail() {
   const mine = new Set(state.prefs.leagues);
   // Every league on one rail, theirs first (in their order), then by what's
@@ -4056,9 +4045,8 @@ function renderScores() {
   const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : []), ...(hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn) ? [['leaders', L({ zh: '數據', en: 'Stats' })]] : [])];
   const viewNow = knockView ? 'bracket' : tableView ? 'table' : leadersView ? 'leaders' : 'games';
   const views = viewList.length > 1 ? segmented(viewList, viewNow, v => ((sc.view = v), renderScores()), 'views') : null;
-  // (For the page's swipe: the tab beside this one.)
   const other = tableView || knockView || leadersView;
-  // (A league of games has a date strip on 賽程, a race series none.)
+  // (For the page's swipe: days only, on 賽程 with its date strip; a race series has none.)
   sc.views = { list: viewList.map(([k]) => k), now: viewNow, strip: !other && LEAGUES[sc.league].kind === 'match' };
   const parts = [head, leagueChips, views, other ? null : strip, other ? null : stages, ...[list].flat()].filter(Boolean);
   if (scoresQuiet && box.childNodes.length === parts.length) return parts.forEach((n, i) => morph(box.childNodes[i], n));
@@ -4805,25 +4793,24 @@ kitUI.daySwipe($('panel-live'), dir => {
   const d = stripStep(liveRange, liveDay(), dir);
   return Boolean(d && (pickLiveDay(d), true));
 });
-// 賽事's too: 全部's days, a league's on its 賽程 (its date strip on top: a
-// swipe under one is a day everywhere, Jay 2026-10-27), and its other tabs
-// one swipe apart where there's no strip (排名, 季後賽, 數據領先: 2026-10-26;
-// F1's 賽程 too, a season's weekends with no strip), then past the last
-// (or first) tab the next league on the rail (Jay 2026-10-27).
-kitUI.daySwipe($('panel-matches'), dir => {
-  const sc = state.scores;
-  if (sc.league === ALL) {
-    const d = stripStep(allRange, allDay(), dir);
-    return Boolean(d && (pickAllDay(d), true));
-  }
-  if (sc.views?.now === 'games' && sc.views.strip) {
+// 賽事's too: 全部's days, and a league's on its 賽程 (its date strip on top: a swipe under one is a day everywhere,
+// Jay 2026-10-27). Only days: never from one tab to the next (排名, 季後賽, 數據) nor on to the next league past the
+// last (Jay 2026-11-17: "disable the swipe between this"); where there's no strip, the page doesn't follow the finger.
+const scoresStrip = () => state.scores.league === ALL || (state.scores.views?.now === 'games' && state.scores.views.strip);
+kitUI.daySwipe(
+  $('panel-matches'),
+  dir => {
+    const sc = state.scores;
+    if (sc.league === ALL) {
+      const d = stripStep(allRange, allDay(), dir);
+      return Boolean(d && (pickAllDay(d), true));
+    }
+    if (!scoresStrip()) return false;
     const d = sc.range && stripStep(sc.range, sc.date, dir);
     return Boolean(d && (pickScoresDay(d), true));
-  }
-  const v = sc.views?.list[sc.views.list.indexOf(sc.views.now) + dir];
-  if (v) return (sc.view = v), renderScores(), true;
-  return stepLeague(dir);
-});
+  },
+  { can: scoresStrip }
+);
 // The refresh button: today (or the day on screen) and the open league again.
 async function reloadNow() {
   actions.refresh.disabled = true;

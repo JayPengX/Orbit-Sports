@@ -20,10 +20,9 @@ test('a chosen day is kept; today is null (today, whichever day that is now)', (
 });
 
 test("賽事 keeps the chosen day across 全部 and a league", () => {
-  // Back to 全部 (its chip, a swipe past the first league): on the chosen day, never today by force.
+  // Back to 全部 (its chip): on the chosen day, never today by force.
   assert.doesNotMatch(app, /openAll\(today\(\)\)/);
   assert.match(fn('leagueRail'), /openAll\(state\.scores\.chosen \|\| today\(\)\)/);
-  assert.match(fn('stepLeague'), /openAll\(state\.scores\.chosen \|\| today\(\)\)/);
   // Each way a day is chosen notes it.
   for (const name of ['openAll', 'pickAllDay', 'openScores', 'pickScoresDay']) assert.match(fn(name), /chosen/, name);
   // Another league opens on the chosen day when it plays then (loadScores falls back to its own day when not).
