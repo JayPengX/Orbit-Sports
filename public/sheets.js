@@ -162,9 +162,12 @@ export function recordNow(rec, side, other, { state, seasonType, before } = {}) 
   if (!Number.isFinite(a) || !Number.isFinite(b) || a === b || !(w + l === 0 || before === rec)) return rec;
   return a > b ? `${w + 1}-${l}` : `${w}-${l + 1}`;
 }
-// A team's or player's tabs: a swipe across what's under them is the tab
-// beside (Jay 2026-10-27, swipes where they fit; not a game's page, whose
-// charts and pitch take a finger sideways).
+// A team's, player's or game's tabs: a swipe across what's under them is
+// the tab beside (Jay 2026-10-27, swipes where they fit; a game's page too,
+// 2026-11-17: "allow swipe between section in sheet", as iOS's). A chart
+// scrubbed or a pitch panned by a finger sideways keeps it (data-noswipe),
+// a row or bracket that scrolls sideways keeps it until its edge, and a
+// finger going up or down is the sheet's scroll or its swipe down to close.
 function swipeTabs(node, at) {
   kitUI.daySwipe(node, dir => {
     const { list, now, go } = at();
@@ -193,6 +196,9 @@ export async function openMatch(e) {
   // (數據's switch, 球隊 or 球員, under the tabs.)
   const subBox = el('div', { class: 'match-sub' });
   s.body.append(header, sections, subBox, top, content);
+  // (The head and the tabs stay put while what's under them slides: kit .q-day-still.)
+  header.classList.add('q-day-still');
+  sections.classList.add('q-day-still');
   // A phone on its side is short (Jay 2026-11-01, "looks bad": the head and
   // its two rows took half the screen). There the game's star stands in the
   // sheet's head, in the corner across from ✕, and once the head has scrolled
@@ -204,6 +210,9 @@ export async function openMatch(e) {
   const away = () => s.dialog.classList.toggle('mh-away', header.getBoundingClientRect().bottom < (s.head?.getBoundingClientRect().bottom ?? 0));
   s.dialog.addEventListener('scroll', away, { capture: true, passive: true });
   let view = 'overview';
+  // The tabs as last drawn, for a swipe to the one beside.
+  let tabKeys = [];
+  swipeTabs(s.body, () => ({ list: tabKeys, now: view, go: k => ((view = k), paint()) }));
   let statsPart = 'team';
   let standPart = '';
   let data = null;
@@ -559,6 +568,7 @@ export async function openMatch(e) {
     put(subBox, view === 'stats' && teamNums && playerNums ? segmented([['team', en ? 'Teams' : '球隊'], ['players', en ? 'Players' : '球員']], statsPart, v => ((statsPart = v), paint()), 'match-part') : view === 'table' && stands.length > 1 ? segmented(stands, standPart, v => ((standPart = v), paint()), 'match-part') : null);
     // The same row of tabs before, during and after (two of them or six).
     // (One tab so far, with 數據 or 排名's read still coming: the row's place held, not the page pushed down when it comes.)
+    tabKeys = tabs.length > 1 ? tabs.map(([k]) => k) : [];
     put(sections, tabs.length > 1 ? segmented(tabs, view, v => ((view = v), paint()), '', { seg: true }) : coming.has('squads') || coming.has('table') ? tabsWaiting() : null);
     top.hidden = view !== 'overview';
     const over = (data?.status || e.status).state === 'post';
@@ -2981,6 +2991,7 @@ function scrubPlot(xs, show, kids) {
     'div',
     {
       class: 'wp-plot',
+      'data-noswipe': '',
       onpointerdown: ev => {
         held = true;
         impl().down?.();
@@ -4568,6 +4579,8 @@ function tmZoom(m) {
     m.z = W / view.w;
     svg.style.setProperty('--z', m.z.toFixed(3));
     svg.classList.toggle('zoomed', m.z > 1.01);
+    // (Zoomed in, a finger sideways pans the map, never a tab beside.)
+    svg.toggleAttribute('data-noswipe', m.z > 1.01);
     const t = performance.now();
     tmDraw(m, t, 0);
   };
@@ -6891,6 +6904,7 @@ function hoopsFormCard(h, color, en, open) {
     'div',
     {
       class: `hp-plot${pts.length > 40 ? ' many' : ''}`,
+      'data-noswipe': '',
       onpointerdown: ev => ((held = true), plot.setPointerCapture?.(ev.pointerId), pick(ev)),
       onpointermove: ev => (held || ev.pointerType === 'mouse') && pick(ev),
       onpointerup: () => (held = false),
@@ -7105,6 +7119,7 @@ function f1FormCard(runs, color, en, { gap = '', sums } = {}) {
     'div',
     {
       class: 'wp-plot f1f-plot',
+      'data-noswipe': '',
       onpointerdown: ev => ((held = true), plot.setPointerCapture?.(ev.pointerId), pick(ev)),
       onpointermove: ev => (held || ev.pointerType === 'mouse') && pick(ev),
       onpointerup: () => (held = false),

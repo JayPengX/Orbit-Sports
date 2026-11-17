@@ -50,6 +50,7 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - Past ELTA's list: every Premier League, Serie A, Bundesliga and Champions League game taken as on ELTA, the NBA's by NBA.com, the channel guessed from ELTA's usual line-up, said 預估 — `public/ui.js`, `public/sheets.js`, `.kit/sports-broadcast.mjs`: `guessTag`, `節目表公布後更新`, `eltaGuess`
 - A game to come on ELTA: its 觀看 opens ELTA.tv's timetable (節目表, in its app too), the channel once the game or its program is on — `public/lib/tv.mjs`, `public/sheets.js`, `public/ui.js`, `public/cards.js`: `watchLinkOf`
 - 轉播 a day at a time, today as any day: that day's games on TV, those over with their results, one on now first with 觀看 — `public/app.js`: `function renderLive`, `今天的轉播`, `withWatch(eventRow(e, { day: false }), e)`
+- A game's, team's or player's sheet: a swipe across it is the tab beside (概況 數據 陣容 排名), the tabs following; charts scrubbed sideways keep the finger — `public/sheets.js`: `swipeTabs`
 - 愛爾達節目表: every channel's showings a day at a time, full height, a swipe across it the next or the day before — `public/app.js`: `openGuide`, `daySwipe`
 - Playoff brackets and series — `public/sheets.js`: `openTie`
 - F1 weekends — `public/sheets.js`: `openFieldEvent`

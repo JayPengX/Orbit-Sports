@@ -60,7 +60,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 **Notices and steadiness.**
 - 10-22 Result notices checked every 2 minutes, the first check at the sport's shortest length. CPBL closed-app result notices stay broken until next season; revisit sources before spring.
 - 11-03 A game's page draws once and holds every part read after it: each read past the game's own goes through `openMatch`'s `later(key, read)` and is drawn from the start in its shape (`tests/game-page.test.mjs`). 11-05 It holds still in Safari through live refreshes (`node ../Orbit-Core/tools/live-scroll.mjs sports --webkit`).
-- 11-17 On the pages, swipes are for days only (首頁, 轉播, 賽事's 全部 and a league's 賽程 with its strip, the 愛爾達 guide): never from one of 賽事's tabs to the next (賽程/排名/季後賽/數據) nor on to the next league. A team's or player's sheet: a swipe is the tab beside; not a game page (its charts take the finger).
+- 11-17 On the pages, swipes are for days only (首頁, 轉播, 賽事's 全部 and a league's 賽程 with its strip, the 愛爾達 guide): never from one of 賽事's tabs to the next (賽程/排名/季後賽/數據) nor on to the next league. A team's, player's or game's sheet: a swipe is the tab beside (a game's too since 11-17, Jay: "allow swipe between section in sheet"); a chart scrubbed sideways is marked `data-noswipe` and keeps the finger.
 - A followed league is never hidden by a failed read. A called-off game opens nothing (延期 in its place). The injury report is on team pages only. Players and drivers named in English in both languages; teams in Chinese.
 
 ## How it works
