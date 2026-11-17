@@ -7,7 +7,10 @@ import { LEAGUES, leagueName } from './leagues.mjs';
 
 // The cups Orbit Sports doesn't follow, in Chinese.
 const OTHER_ZH = [
-  [/carabao|efl cup|league cup/i, '英格蘭聯賽盃'],
+  // (Scotland's own cups first: its League Cup was called England's.)
+  [/scottish league cup/i, '蘇格蘭聯賽盃'],
+  [/scottish cup/i, '蘇格蘭盃'],
+  [/carabao|efl cup|english league cup|^league cup/i, '英格蘭聯賽盃'],
   [/community shield/i, '社區盾'],
   [/efl trophy/i, 'EFL 錦標'],
   [/copa del rey/i, '國王盃'],

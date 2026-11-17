@@ -248,13 +248,15 @@ export function seriesLineZh(text, name = x => x) {
   if (m) return `總比分 ${m[1].replace(/\s/g, '')} 平手`;
   return null;
 }
-// ESPN's weather ("65°", Fahrenheit, sometimes with words) in Celsius.
+// ESPN's weather ("65°", Fahrenheit, sometimes with words) in Celsius, in
+// English too (its "72° Partly Cloudy" read as 72 °C in Taiwan).
 export function weatherZh(text, lang = 'zh') {
   const t = String(text || '').trim();
-  if (!t || lang === 'en') return t;
+  if (!t) return t;
   const f = /(-?\d+)\s*°\s*F?/.exec(t);
   const c = f ? `${Math.round(((Number(f[1]) - 32) * 5) / 9)}°C` : '';
   const words = t.replace(/(-?\d+)\s*°\s*F?/, '').replace(/[,·]/g, ' ').trim();
+  if (lang === 'en') return [c, words].filter(Boolean).join(' ');
   const W = { sunny: '晴', clear: '晴朗', 'mostly sunny': '大致晴朗', 'partly sunny': '晴時多雲', 'partly cloudy': '多雲時晴', 'mostly cloudy': '多雲', cloudy: '陰', overcast: '陰', rain: '雨', showers: '陣雨', 'light rain': '小雨', thunderstorms: '雷雨', fog: '霧', windy: '有風', snow: '雪', dome: '室內', indoor: '室內' };
   return [W[words.toLowerCase()] ?? words, c].filter(Boolean).join(' ');
 }

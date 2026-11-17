@@ -162,7 +162,10 @@ const keepLocalPrefs = payload => {
     if (q.pass) localStorage.setItem(LOCAL_PREFS, JSON.stringify({ a: q.pass, p: payload }));
   } catch {}
 };
-function applyPrefs(payload) {
+// `save`: a copy here newer than `payload` sent up (only against the Pass's
+// own reply: against the device's cached copy of it, a follow made since on
+// another device was written over a moment after it showed).
+function applyPrefs(payload, { save = true } = {}) {
   if (payload === undefined) return;
   let p = null;
   try {
@@ -187,7 +190,7 @@ function applyPrefs(payload) {
   state.prefsLoaded = true;
   // Leagues in: not a newcomer, whatever was shown before they came.
   if (state.prefs.leagues.length) state.home.picking = false;
-  if (restored) savePrefs();
+  if (restored && save) savePrefs();
   tellFollows();
 }
 // The follows from the pass when they couldn't be read at the start: the
@@ -236,8 +239,10 @@ function savePrefs() {
     return;
   }
   clearTimeout(saveTimer);
-  const { leagues, follows, games, audio, fill, quiet } = state.prefs;
   saveTimer = setTimeout(() => {
+    // (What's here when it's written, not when it was asked: the Pass's copy
+    // taken in between is never written over with the one before it.)
+    const { leagues, follows, games, audio, fill, quiet } = state.prefs;
     const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, ...(fill ? { fill: true } : {}), ...(quiet ? { quiet } : {}), t: Date.now() });
     keepLocalPrefs(payload);
     tellFollows();
@@ -376,7 +381,9 @@ function loadFollowedGames() {
 // A game that's on again (live, or about to be): its day read again next time.
 setInterval(() => {
   for (const g of followedGames()) if (g.status.state === 'in' || (g.status.state === 'pre' && Date.parse(g.start) < Date.now())) gameDaysRead.clear();
-  dropEnded();
+  // (Paused, Sports taken over on another device: nothing saved from here,
+  // or this copy, stamped newer, beat what was followed there.)
+  if (q.active) dropEnded();
 }, 60_000);
 // A followed match over is let go once its final's been told (follows.mjs
 // endedFollows), saved without reading the day again: its league's other
@@ -4895,8 +4902,11 @@ function liveTick() {
     else if (on && since > dev('sportsList') * 1000 - 2_000) loadDay(state.home.date, { live: true });
     else if (!on && since > 10 * 60_000) loadDay(state.home.date);
   }
-  // 比分 too: a game on, or one due to start (it had waited for another game on to be read again).
-  if (state.tab === 'matches' && state.scores.byDay instanceof Map && [...state.scores.byDay.values()].flat().some(e => e.status.state === 'in' || dueToStart(e))) loadScores({ quiet: true });
+  // 比分 too: a game on, or one due to start (it had waited for another game on to be read again);
+  // and a game held as still to come whose start has passed, read 10 minutes ago or more (back in
+  // the morning, last night's games stayed to come, unscored, over 3 hours past their start).
+  const held = state.scores.byDay instanceof Map ? [...state.scores.byDay.values()].flat() : [];
+  if (state.tab === 'matches' && (held.some(e => e.status.state === 'in' || dueToStart(e)) || (Date.now() - (state.scores.fullAt || 0) > 10 * 60_000 && held.some(e => e.status.state === 'pre' && Date.parse(e.start) < Date.now())))) loadScores({ quiet: true });
   renderTabs();
 }
 everyDev('sportsList', liveTick);
@@ -5149,7 +5159,7 @@ async function boot() {
   tvReady();
   if (quick != null) {
     state.wallet = cachedWallet();
-    applyPrefs(quick);
+    applyPrefs(quick, { save: false });
     restoreDay();
     if (firstTab() !== 'home') $('loading').hidden = true;
     showTab(firstTab());

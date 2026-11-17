@@ -78,6 +78,7 @@ export const STRINGS = {
     noGamesSeason: "這個聯賽近期沒有比賽。",
     noEvents: "目前沒有賽事。",
     gamesN: "{n} 場",
+    gamesNOne: "{n} 場",
     loading: "載入中…",
     failed: "暫時無法取得資料。",
     boxUnread: "這場的逐局比分和數據暫時讀不到。",
@@ -216,6 +217,7 @@ export const STRINGS = {
     noGamesSeason: "No games coming up in this league.",
     noEvents: "Nothing on right now.",
     gamesN: "{n} games",
+    gamesNOne: "{n} game",
     loading: "Loading…",
     failed: "Couldn’t load this right now.",
     boxUnread: "This game’s box score can’t be read right now.",
@@ -283,4 +285,8 @@ export const STRINGS = {
 // The reader's language is the kit's (orbit.mjs detectLang).
 export { detectLang as detectLocale } from '#kit/orbit.mjs';
 // t(key, vars) in a language: the kit's makeT over Sports' words.
-export const makeT = locale => kitMakeT(STRINGS, locale);
+// (A count of one by its own words where there are any: "1 game", not "1 games".)
+export const makeT = locale => {
+  const t = kitMakeT(STRINGS, locale);
+  return (key, vars = {}) => t(Number(vars.n) === 1 && STRINGS[locale]?.[`${key}One`] ? `${key}One` : key, vars);
+};

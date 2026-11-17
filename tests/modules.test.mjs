@@ -142,8 +142,9 @@ test('the text: every key in both languages, every {placeholder} in both, every 
   const holes = s => (String(s).match(/\{\w+\}/g) || []).sort().join();
   for (const k of Object.keys(STRINGS.zh)) assert.equal(holes(STRINGS.en[k]), holes(STRINGS.zh[k]), k);
   const src = ['app.js', 'sheets.js', 'ui.js'].map(f => readFileSync(new URL(`../public/${f}`, import.meta.url), 'utf8')).join('\n');
-  // (Keys built from a prefix, `why_${r}`, `tab_${id}`, count as used by it.)
-  const unused = Object.keys(STRINGS.zh).filter(k => !src.includes(`'${k}'`) && !src.includes(`\`${k.split('_')[0]}_`));
+  // (Keys built from a prefix, `why_${r}`, `tab_${id}`, count as used by it;
+  // a count of one, `gamesNOne`, by its key's: makeT picks it for n = 1.)
+  const unused = Object.keys(STRINGS.zh).filter(k => !src.includes(`'${k}'`) && !src.includes(`\`${k.split('_')[0]}_`) && !(k.endsWith('One') && src.includes(`'${k.slice(0, -3)}'`)));
   assert.deepEqual(unused, []);
   const used = [...src.matchAll(/\b(?:t|T|ctx\.t)\(\s*'([A-Za-z_0-9]+)'/g)].map(m => m[1]);
   for (const k of used) assert.ok(k in STRINGS.zh, `t('${k}') has no text`);
