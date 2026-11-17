@@ -4230,7 +4230,9 @@ function renderFollowing() {
     : null;
   // 我的設定 where it's seen (the owner, 2026-10-23: not a 管理 button in
   // the head): its rows at the foot of the tab, each saying what's set now.
-  const names = p.leagues.slice(0, 2).map(k => leagueName(k, locale)).join(locale === 'en' ? ', ' : '、') + (p.leagues.length > 2 ? L({ zh: ` 等 ${p.leagues.length} 個`, en: ` and ${p.leagues.length - 2} more` }) : '');
+  // (English's names are longer: one, then the count; "Premier League, Champions League and 4 m…" ran past the row at 390.)
+  const two = locale === 'en' && p.leagues.length > 2 ? 1 : 2;
+  const names = p.leagues.slice(0, two).map(k => leagueName(k, locale)).join(locale === 'en' ? ', ' : '、') + (p.leagues.length > 2 ? L({ zh: ` 等 ${p.leagues.length} 個`, en: ` and ${p.leagues.length - two} more` }) : '');
   const settings = section(
     L({ zh: '設定', en: 'Settings' }),
     el('div', { class: 'q-rowcard' }, [

@@ -3263,6 +3263,9 @@ function guideText(b, en = L() === 'en') {
   if (en) return b.at ? `${b.short.en} · ${guideWhen(b.at, true)}` : `${b.short.en}: tap the game in its guide`;
   return b.at ? `${b.short.zh}・${guideWhen(b.at)}` : `${b.short.zh}・在節目表點這場`;
 }
+// A conference or league's name for a narrow tile ("Western Conference" ran
+// past the team page's first tile in English: West).
+const shortGroup = n => String(n || '').replace(/^(East|West)ern Conference$/, '$1').replace(/^American League$/, 'AL').replace(/^National League$/, 'NL').replace(/ (Conference|Division)$/, '');
 function replayRows(e, r, logo = eltaLogo()) {
   const en = L() === 'en';
   const row = (b, title, sub, go, cls, icon) => watchLink(b, { class: `replay-link${cls}` }, [icon, el('span', { class: 'yt-text' }, [el('strong', { text: title }), el('small', { class: 'one-line', text: sub })]), el('span', { class: 'replay-go', text: go })]);
@@ -3273,7 +3276,8 @@ function replayRows(e, r, logo = eltaLogo()) {
   // Its video not found (not up yet, or not shown): said so, with nothing to tap.
   if (!r.episode)
     return [el('div', { class: 'replay-link none' }, [logo, el('span', { class: 'yt-text' }, [el('strong', { text: en ? 'Full game replay' : '全場重播' }), el('small', { class: 'one-line', text: en ? 'Not on ELTA.tv yet' : '愛爾達還沒上架這場' })])])];
-  const sub = `${r.episode.label}${r.alsoChannels ? (en ? ' (Chinese)' : '（中文）') : ''}`;
+  // (In English, what's in it, never ELTA's own Chinese title: 巴西站 正賽（中文）; One language, Jay 11-13.)
+  const sub = en ? (r.episode.english ? 'ELTA.tv · original audio' : 'ELTA.tv · Chinese commentary') : `${r.episode.label}${r.alsoChannels ? '（中文）' : ''}`;
   const alt = r.alsoChannels?.[0];
   return [
     row(r.video, en ? 'Full game replay' : '全場重播', sub, en ? 'Watch' : '觀看', '', logo),
@@ -6115,7 +6119,7 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
     const statOf = k => (k === 'STRK' && streak ? streak : place.row.stats[k]);
     const strip = place
       ? el('div', { class: 'team-strip' }, [
-          el('div', { class: 'ts-cell lead' }, [el('strong', { class: 'num', text: String(place.pos) }), el('small', { text: (groups || []).length > 1 && place.group && !/20\d\d/.test(place.group) ? groupName(place.group, L()) : W('排名', 'Place') })]),
+          el('div', { class: 'ts-cell lead' }, [el('strong', { class: 'num', text: String(place.pos) }), el('small', { class: 'q-fit', text: (groups || []).length > 1 && place.group && !/20\d\d/.test(place.group) ? shortGroup(groupName(place.group, L())) : W('排名', 'Place') })]),
           ...stats.map(k => el('div', { class: 'ts-cell' }, [el('strong', { class: 'num', text: statOf(k) }), el('small', { text: colLabel(k) })]))
         ])
       : null;
