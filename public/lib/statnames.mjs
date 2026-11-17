@@ -52,6 +52,8 @@ const LONG = {
 // English as ESPN writes it, but short where its name runs past a leader's
 // column on a phone ("Defensive Interventions" took two lines).
 const EN_SHORT = { 'defensive interventions': 'Def. actions', 'effective clearances': 'Clearances', 'accurate long balls': 'Long balls', 'accurate crosses': 'Crosses' };
+import { compName } from './compname.mjs';
+
 export function statName(label, lang = 'zh', { sport = '', long = '', pitching = false } = {}) {
   if (lang === 'en' || !label) return (label && EN_SHORT[String(label).toLowerCase().trim()]) || label;
   if (sport === 'baseball' && pitching && GAVE_UP[label]) return GAVE_UP[label];
@@ -64,6 +66,10 @@ const GAVE_UP = { H: '被安打', R: '失分', HR: '被全壘打' };
 // A stats card's title: "2026 season stats" → "2026 球季數據", "2026 Pitching" → "2026 投球數據".
 export function statsTitle(title, lang = 'zh') {
   if (lang === 'en' || !title) return title;
+  // A competition's numbers (2026 UEFA Conference League Qualifying Stats): its name in Taiwan's words (compname.mjs).
+  const m = /^(\d{4}(?:-\d{2,4})?\s+)?(.+?)\s+stats$/i.exec(String(title).trim());
+  const comp = m && compName(m[2], false);
+  if (comp) return `${m[1] || ''}${comp}數據`;
   return String(title)
     .replace(/\bregular season stats\b/i, '例行賽數據')
     .replace(/\bpostseason stats\b/i, '季後賽數據')

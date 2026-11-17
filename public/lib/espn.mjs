@@ -1869,7 +1869,7 @@ export async function homeLeague(league, id) {
   const sport = (LEAGUES[league].espn || '').split('/')[0];
   const data = await getJson(`${SITE}/${clubPath(league)}/teams/${encodeURIComponent(id)}`, { ttl: 24 * 3_600_000 }).catch(() => null);
   const home = data?.team?.defaultLeague;
-  return { key: home?.slug ? BY_PATH[`${sport}/${home.slug}`] || null : null, name: home?.name || '' };
+  return { key: home?.slug ? BY_PATH[`${sport}/${home.slug}`] || null : null, name: home?.name || '', short: home?.shortName || '' };
 }
 // A footballer's own league: ESPN's search places a player by the last
 // competition they played in (a Nations League in an international break,
@@ -2462,6 +2462,7 @@ export function parseAthlete(data) {
     jersey: a.jersey || '',
     position: a.position?.displayName || '',
     team: a.team?.displayName || '',
+    teamShort: a.team?.shortDisplayName || '',
     teamId: String(a.team?.id ?? ''),
     // ESPN can name an all-star side as his team (Carles Gil: MLS All-Stars,
     // a New England player; Jay 2026-11-03): athlete() puts his club in.
@@ -2498,7 +2499,7 @@ export async function athlete(league, id) {
   const ov = await getJson(`${COMMON}/${LEAGUES[league].espn}/athletes/${encodeURIComponent(id)}/overview`, { ttl: 60 * 60_000 }).catch(() => null);
   const clubId = clubOfOverview(ov);
   const t = clubId ? (await getJson(`${SITE}/${clubPath(league)}/teams/${encodeURIComponent(clubId)}`, { ttl: 24 * 3_600_000 }).catch(() => null))?.team : null;
-  return Object.assign(a, { allStar: false, team: t?.displayName || '', teamId: t ? String(clubId) : '', teamColor: t?.color ? `#${t.color}` : '', teamLogo: t?.logos?.[0]?.href || t?.logo || '' });
+  return Object.assign(a, { allStar: false, team: t?.displayName || '', teamShort: t?.shortDisplayName || '', teamId: t ? String(clubId) : '', teamColor: t?.color ? `#${t.color}` : '', teamLogo: t?.logos?.[0]?.href || t?.logo || '' });
 }
 // The club a player's overview has him playing for: the side of his newest
 // game that isn't an all-star game's.

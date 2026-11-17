@@ -6356,7 +6356,7 @@ export async function openTeam(league, id, fallback = {}, { into = null, scope =
         el('div', { class: 'team-hero-text' }, [
           el('h3', { text: info.name }),
           info.en && info.en !== info.name ? el('small', { class: 'muted', text: info.en }) : null,
-          outside && !away ? el('small', { class: 'muted team-home' }, [zhLater(home.name, 'en')]) : null,
+          outside && !away ? el('small', { class: 'muted team-home' }, [compWord(home.name, en) || zhLater(home.name, 'en')]) : null,
           el('p', { class: 'team-hero-sub' }, joinNodes([record, place ? el('span', { class: 'nowrap', text: W(`${leagueName(league, L())}${groups.length > 1 && place.group ? ` ${groupName(place.group, 'zh')} · ` : ''}第 ${place.pos} 名`, `${place.pos}${['th', 'st', 'nd', 'rd'][place.pos % 10 < 4 && Math.floor(place.pos / 10) !== 1 ? place.pos % 10 : 0]} in ${groups.length > 1 && place.group ? groupName(place.group, 'en') : `the ${leagueName(league, L())}`}`) }) : !groups || groups.some(tableStarted) ? standingZh(info.standing, L()) : ''].filter(Boolean), ' · ')),
           domBox,
           awayBox,
@@ -7385,7 +7385,7 @@ export async function openPlayer(league, id, fallback = {}) {
     // among a club's; one competition for all: once, at the top), and one of
     // ours opens its match.
     const log = ov?.log;
-    const compOf = g => (g.league ? leagueName(g.league, L()) : zhLater(g.leagueName, 'en'));
+    const compOf = g => (g.league ? leagueName(g.league, L()) : compWord(g.leagueName, en) || zhLater(g.leagueName, 'en'));
     const matchOf = g => {
       const us = { id: g.team.id, name: g.team.abbr, short: g.team.abbr, abbr: g.team.abbr, logo: g.team.logo };
       const them = { id: g.opp.id, name: g.opp.name, short: g.opp.abbr || g.opp.name, abbr: g.opp.abbr, logo: g.opp.logo };
@@ -7510,21 +7510,29 @@ export async function openPlayer(league, id, fallback = {}) {
     const teamChip = driver?.team || guestTeam
       ? el('button', { class: 'hero-team', type: 'button', onclick: () => openConstructor({ id: '', name: driver?.team || guestTeam, en: driver?.team || guestTeam }) }, [constructorBadge(driver?.team || guestTeam, 'xs'), el('span', { text: driver?.team ? teamShown : en ? guestTeam : f1Constructor(guestTeam).zh })])
       : team && teamShown
-        ? el('span', { class: 'hero-team' }, [a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null, fitLine(el('span', { text: teamShown }))])
+        ? el('span', { class: 'hero-team' }, [
+            a.teamLogo ? logo(a.teamLogo, teamShown, 'xs') : null,
+            // (Its name on one line: a club with no Chinese name as ESPN writes it, its short name where the whole one doesn't fit, CSKA 1948 for CSKA 1948 Sofia; Jay 11-17.)
+            el('span', { class: 'hero-team-text' }, [fitChoice(el('span'), [teamShown, ...(teamShown === a.team && a.teamShort && a.teamShort !== a.team ? [a.teamShort] : [])])])
+          ])
         : null;
+    // Its league under it, on one line too: never a pill of three lines (Jay 11-17).
+    // (ESPN's short name where the whole one doesn't fit, in English: UECL Qualifying.)
+    const leagueLine = (text, short = '') => (en && short && short !== text ? fitChoice(el('small', { class: 'hero-team-league' }), [text, short]) : fitLine(el('small', { class: 'hero-team-league' }, [text])));
     // A club from a league we don't cover says which league it is (few know Omonia Aradippou).
     if (teamChip && team)
       homeLeague(league, team.id)
-        .then(({ key, name }) => {
+        .then(({ key, name, short }) => {
           if (!teamChip.isConnected) return;
           if (!key || !hasTeamPage(key)) {
-            if (name) teamChip.querySelector('span').append(el('small', { class: 'hero-team-league' }, [zhLater(name, 'en')]));
+            // (In Taiwan's words where it's a competition we name, 歐協聯資格賽 for ESPN's "UEFA Conference League Qualifying", never a machine's.)
+            if (name) teamChip.querySelector('.hero-team-text').append(leagueLine(compWord(name, en) || zhLater(name, 'en'), short));
             return;
           }
           const tap = el('button', { class: 'hero-team', type: 'button', onclick: () => ctx.openTeam(key, team.id, { id: team.id, name: teamShown, logo: a.teamLogo }) }, [...teamChip.childNodes]);
           // Opened from another competition (a national side's player from the Nations League): his club's league
           // said too, one of ours or not (Jay 2026-11-14: Toklomati's 夏洛特 said no MLS).
-          if (key !== league) tap.querySelector('span').append(el('small', { class: 'hero-team-league', text: leagueName(key, L()) }));
+          if (key !== league) tap.querySelector('.hero-team-text').append(leagueLine(leagueName(key, L())));
           teamChip.replaceWith(tap);
         })
         .catch(() => {});

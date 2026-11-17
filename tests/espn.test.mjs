@@ -418,6 +418,9 @@ test("statName: a pitcher's H, R and HR are the ones he gave up; ESPN's \"2026 P
   assert.equal(statsTitle('2026 Pitching'), '2026 投球數據');
   assert.equal(statsTitle('2026 Batting'), '2026 打擊數據');
   assert.equal(statsTitle('2026 Pitching', 'en'), '2026 Pitching');
+  // (A competition's numbers in Taiwan's words, never a machine's: Jay 11-17.)
+  assert.equal(statsTitle('2026 UEFA Conference League Qualifying Stats'), '2026 歐協聯資格賽數據');
+  assert.equal(statsTitle('2026-27 English Premier League Stats'), '2026-27 英超數據');
 });
 
 test('近況 is the five in the competition it is opened from: a cup game left out (Hull, Fulham 2026-10-17)', async () => {

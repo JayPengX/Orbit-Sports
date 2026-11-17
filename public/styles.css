@@ -1651,10 +1651,11 @@ table.game-log { border-collapse: separate; border-spacing: 0; }
 /* A player's team in their head: its logo and name, a tap to its page. */
 .hero-team { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin: 4px 0 2px; padding: 3px 10px 3px 4px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--hero, var(--q-text)) 16%, var(--q-sunken)); color: var(--q-text); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
 .hero-team:disabled { cursor: default; }
-/* Its name on one line, a little smaller where long (fitLine), never two. */
-.hero-team > span.one-line { min-width: 0; overflow: hidden; white-space: nowrap; }
+/* Its name, and a club's league under it (歐協聯資格賽), each on one line: the short name where the whole one doesn't fit, never a pill of three lines (Jay 11-17). */
+.hero-team-text { display: grid; min-width: 0; line-height: 1.25; }
+.hero-team-text > .one-line { min-width: 0; overflow: hidden; white-space: nowrap; }
 .hero-team .logo, .hero-team .logo-wrap { width: 20px; height: 20px; flex: none; object-fit: contain; }
-/* A long club name takes two lines ("Omonia Aradippou"), never cut. */
+/* A driver's long team name takes two lines, never cut. */
 .hero-team { border-radius: 14px; text-align: left; }
 .hero-team span { white-space: normal; overflow-wrap: anywhere; min-width: 0; line-height: 1.25; }
 .series-text .nb { white-space: nowrap; }

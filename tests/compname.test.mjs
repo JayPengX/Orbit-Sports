@@ -33,3 +33,28 @@ test("a national side's competitions named for its confederation (CONCACAF's Nat
   assert.equal(otherName('AFC Asian Cup', false), '亞洲盃');
   assert.equal(otherName('International Friendly', false), '友誼賽');
 });
+
+// Jay 11-17: a CSKA 1948 Sofia defender's club line read 歐洲足總會議聯賽預選賽 (ESPN's "UEFA Conference League Qualifying" machine-translated).
+test("a competition's qualifying in Taiwan's words, every confederation's: the competition's name and 資格賽", () => {
+  assert.equal(compName('UEFA Conference League Qualifying'), '歐協聯資格賽');
+  assert.equal(compName('UECL Qualifying'), '歐協聯資格賽');
+  assert.equal(compName('UEFA Champions League Qualifying'), '歐冠資格賽');
+  assert.equal(compName('UEFA Europa League Qualifying'), '歐霸資格賽');
+  assert.equal(compName('FIFA World Cup Qualifying - UEFA'), '世界盃資格賽');
+  assert.equal(compName('UEFA European Championship Qualifying'), '歐洲盃資格賽');
+  assert.equal(compName('Africa Cup of Nations Qualifying'), '非洲國家盃資格賽');
+  assert.equal(compName('UEFA Conference League Qualifying', true), 'Conference League qualifying');
+  assert.equal(otherName('UEFA Champions League Qualifying', false), '歐冠資格賽');
+  assert.equal(compName('Some Cup Qualifying'), null);
+});
+
+test("a league's name inside another's is never it (Austrian Bundesliga is no 德甲, CONCACAF's Nations League no 歐國聯)", () => {
+  assert.equal(compName('German Bundesliga'), '德甲');
+  assert.equal(compName('Austrian Bundesliga'), null);
+  assert.equal(compName('2. Bundesliga'), null);
+  assert.equal(compName('Brazilian Serie A'), null);
+  assert.equal(compName('CONCACAF Nations League'), '中北美國家聯賽');
+  assert.equal(compName('AFC Champions League'), '亞冠');
+  assert.equal(compName('UEFA Europa Conference League'), '歐協聯');
+  assert.equal(compName('UEFA Super Cup'), '歐洲超級盃');
+});
