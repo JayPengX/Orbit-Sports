@@ -971,20 +971,25 @@ let pushTimer = 0;
 // `also`: more leagues' (填滿空檔's games: what each side still plays for, picks.mjs raceOf).
 // (Each read again once it's TABLES_MS old, the one held shown meanwhile: an
 // app kept open for hours said a team was 3rd all evening after it went top.
-// One that failed is read again at the next day's read, never held as an
-// empty table: a blip at the open left 追蹤 without places and the picks
-// without stakes for the session, 11-17.)
+// One that failed is read again TABLES_RETRY_MS on, never held as an empty
+// table: a blip at the open left 追蹤 without places and the picks without
+// stakes for the session, 11-17. Each ask is timed, a failed one too: 追蹤
+// asks for the tables each time it's drawn and draws again when one comes,
+// so a read failing at once (offline, a source's error page) asked again at
+// once froze the page.)
 const TABLES_MS = 10 * 60_000;
+const TABLES_RETRY_MS = 30_000;
 const tablesAt = {};
 const tablesReading = new Set();
 function loadTables(also = []) {
   [...new Set([...followedLeagues(), ...also])]
     .filter(hasStandings)
-    .filter(k => !tablesReading.has(k) && (!state.home.tables[k] || Date.now() - (tablesAt[k] || 0) > TABLES_MS))
+    .filter(k => !tablesReading.has(k) && Date.now() - (tablesAt[k] || 0) > (state.home.tables[k] ? TABLES_MS : TABLES_RETRY_MS))
     .slice(0, 8)
     .forEach(k => {
       const first = !state.home.tables[k];
       tablesReading.add(k);
+      tablesAt[k] = Date.now();
       if (first) {
         state.home.tables[k] = {};
         state.home.tablesPending++;
@@ -993,7 +998,6 @@ function loadTables(also = []) {
       standings(k)
         .then(g => {
           state.home.tables[k] = tableIndex(g, k);
-          tablesAt[k] = Date.now();
         })
         .catch(() => {
           if (first) delete state.home.tables[k];
