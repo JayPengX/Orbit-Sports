@@ -35,7 +35,7 @@ import { dayPlan, worth, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted
 import { liveTiming, settleScoring, askFinishes, weekendCircuit } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
 import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote, cupLetters, cupOrder } from './lib/nbacup.mjs';
-import { stageOf } from './lib/stage.mjs';
+import { stageOf, shortGroup } from './lib/stage.mjs';
 import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
@@ -2054,7 +2054,7 @@ function renderHome() {
             .slice(0, 6)
             .map(f => {
               const r = state.home.tables[f.league]?.[f.id];
-              const sub = [shortLeague(f.league), r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : ''].filter(Boolean).join(' · ');
+              const sub = [shortLeague(f.league), r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? shortGroup(r.group) : ''].filter(Boolean).join(' · ');
               // (Its colour from a day's scoreboard: a team's own schedule carries none.)
               const side = [...state.days.values()].flatMap(dayAll).filter(e => LEAGUES[e.league]?.sport === LEAGUES[f.league]?.sport).flatMap(e => [e.home, e.away]).find(x => String(x?.id) === String(f.id) && x.color) || null;
               return { f: { ...f, logo: f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), shown: shownName(f) }, pos: r?.pos || null, sub, next: (isToday && onNowOf(f)) || nextOf(f) || null, side };

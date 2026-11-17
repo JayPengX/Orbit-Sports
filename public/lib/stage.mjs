@@ -22,6 +22,9 @@ export function groupName(name, lang = 'zh') {
   // Already in the reader's words (the table's names are said as they're read).
   return n;
 }
+// A conference or league's name for a narrow line ("Western Conference" ran
+// past the team page's first tile and 我的球隊's line in English: West).
+export const shortGroup = n => String(n || '').replace(/^(East|West)ern Conference$/, '$1').replace(/^American League$/, 'AL').replace(/^National League$/, 'NL').replace(/ (Conference|Division)$/, '');
 export function stageTag(e, lang = 'zh') {
   const s = stageOf(e);
   // An ordinary game of a cup with groups: its group.

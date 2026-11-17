@@ -10,7 +10,7 @@ import { injuryFacts, backDay } from './lib/injurynote.mjs';
 import { splitName, otherName, compName as compWord } from './lib/compname.mjs';
 import { playerCareer, draftOf, seasonsIn } from './lib/career.mjs';
 import { freshGame, seasonBreak, SESSION_NAMES, returnWord, mlbGameLog, regularTally, caughtUp, weekOf, onAir, winLine, winNow, raceWinLine, scoreboard, gameNow, splitWeekend, settleField, summary, cpblGame, teamInjuries, mergeInjuries, withoutPlayed, standings, team, teamSchedule, roster, athlete, athleteOverview, STANDING_COLUMNS, COMPACT_COLUMNS, sessionName, seasonEvents, leagueForm, resultFor, outcome, sideScore, sidesFor, driverSeason, leagueInjuries, homeLeague, roundLabel, roundKind, feedStatus, sessionStatus, dueToStart, pregameLineups, asksLineups, seasonAverages, rosterAverages, leagueAverages, teamLeaders, leagueLeaders, teamStatRanks, squadFacts, squadFixed, nationalGames, streakOf, logSeasonLine, logSeason, athleteSplits, clubAbroad, europeanClubs, leaderList } from './lib/espn.mjs';
-import { stageTag, groupName } from './lib/stage.mjs';
+import { stageTag, groupName, shortGroup } from './lib/stage.mjs';
 import { isGroupPlay, nbaCupGroups, cupStakes } from './lib/nbacup.mjs';
 import { parkOf, arriveBy, parkForecastUrl, gameWeather, gameWeatherText } from './lib/parks.mjs';
 import { tableStarted } from './lib/picks.mjs';
@@ -3263,9 +3263,6 @@ function guideText(b, en = L() === 'en') {
   if (en) return b.at ? `${b.short.en} · ${guideWhen(b.at, true)}` : `${b.short.en}: tap the game in its guide`;
   return b.at ? `${b.short.zh}・${guideWhen(b.at)}` : `${b.short.zh}・在節目表點這場`;
 }
-// A conference or league's name for a narrow tile ("Western Conference" ran
-// past the team page's first tile in English: West).
-const shortGroup = n => String(n || '').replace(/^(East|West)ern Conference$/, '$1').replace(/^American League$/, 'AL').replace(/^National League$/, 'NL').replace(/ (Conference|Division)$/, '');
 function replayRows(e, r, logo = eltaLogo()) {
   const en = L() === 'en';
   const row = (b, title, sub, go, cls, icon) => watchLink(b, { class: `replay-link${cls}` }, [icon, el('span', { class: 'yt-text' }, [el('strong', { text: title }), el('small', { class: 'one-line', text: sub })]), el('span', { class: 'replay-go', text: go })]);
