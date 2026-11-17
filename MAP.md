@@ -39,6 +39,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 - 11-06 A game's card is one game: only a player's face or name opens the player, any other spot the game, a press lights the whole card (`tests/home-recap-card.test.mjs`).
 - 11-10 我的聯賽 lives at the top of 追蹤, not on 首頁. 已結束 shows 推薦給你 then 其他比賽. A followed league's pick for an hour is kept as it stood before its games began (`keptChoices`), so 首頁 and 賽事 agree.
 - 11-11 A game past its hour that ESPN hasn't started says 即將開賽 (`tests/match-starting.test.mjs`); a basketball game on shows each side's timeouts left (`tests/live-head-timeouts.test.mjs`).
+- 11-17 轉播's today is a day like any other (Jay: "the list is full of 轉播 games from the coming days, that's not good arrangement"): that day's games on TV, those over shown as over, one on now first with 觀看; never the coming days' games.
 
 **Numbers and tables.**
 - 10-21 Stats show the current season; last season only where this one is empty. A past page shows its own moment, not today's points on top.

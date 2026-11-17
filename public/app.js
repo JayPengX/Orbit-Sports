@@ -841,7 +841,7 @@ function repaintDay(date) {
   renderTabs();
   if (sheetOver()) return void heldDays.add(date);
   if (state.tab === 'home' && state.home.date === date) renderHome();
-  if (state.tab === 'live' && (date === today() || date === addDays(today(), 1) || date === state.live.date || (!state.live.date && date > today() && date < addDays(today(), TV_DAYS)))) renderLive();
+  if (state.tab === 'live' && date === liveDay()) renderLive();
   if (allShown(date)) renderScores();
 }
 // `live`: only the pages of the games on now or due to start (livePages),
@@ -1021,7 +1021,6 @@ async function loadFollowedTeams() {
         state.home.teams.set(key, list.filter(e => !e.other && LEAGUES[e.league]));
         if (state.tab === 'home') renderHome();
         if (state.tab === 'following') renderFollowing();
-        if (state.tab === 'live') renderLive();
         clearTimeout(pushTimer);
         pushTimer = setTimeout(syncPush, 1500);
       })
@@ -2359,20 +2358,17 @@ function sportPicker() {
   ]);
 }
 
-// ---- 轉播: what's on TV in Taiwan, now and next ----------------------------------------------
+// ---- 轉播: what's on TV in Taiwan, a day at a time ---------------------------------------------
 //
-// The one place for when and where: what's on now (觀看), your teams',
-// players' and matches' games on TV this week (one list, by day), what
-// starts in the next hours, what just ended, and ELTA's whole guide a tap
-// away. (首頁 recommends, 賽事 browses a league, 追蹤 is how your teams
-// and players are doing.)
+// The one place for when and where: a day's games on TV here (觀看 on one
+// on now), and ELTA's whole guide a tap away. (首頁 recommends, 賽事
+// browses a league, 追蹤 is how your teams and players are doing.)
 
 // A day's events: the followed leagues' and, once read, the others' and the rest's.
 function dayAll(slot) {
   const seen = new Set();
   return [...(slot?.events || []), ...(slot?.others || []), ...(slot?.rest || [])].filter(e => !seen.has(`${e.league}:${e.id}`) && seen.add(`${e.league}:${e.id}`));
 }
-const liveGate = { drawn: false, since: 0, timer: 0 };
 const liveShape = () =>
   el('div', { class: 'live-shape', 'aria-hidden': 'true' }, [
     el('div', { class: 'skel-hero' }),
@@ -2394,117 +2390,7 @@ function liveBar() {
   put(liveBarEl, dateStrip(d, pickLiveDay, { range: liveRange, bounds: homeBounds(), follow: true }));
   return liveBarEl;
 }
-function renderLive() {
-  const box = $('panel-live');
-  if (liveDay() !== today()) return renderLiveDay(liveDay());
-  const slot = state.days.get(today());
-  if (!slot?.at || !tvReady()) {
-    if (!slot?.loading && !slot?.at) loadDay(today());
-    // (The other leagues read alongside, not after.)
-    const now = state.days.get(today());
-    if (now && !now.othersAt && !now.othersLoading) loadOthers(today());
-    put(box, liveBar(), box.querySelector('.live-shape') || liveShape());
-    return;
-  }
-  loadFollowedTeams();
-  if (!slot.othersAt && !slot.othersLoading) loadOthers(today());
-  else if (slot.othersAt && !slot.restAt && !slot.restLoading) loadRest(today());
-  const now = Date.now();
-  // Today's and (once read) tomorrow's games by the clock, the small hours included.
-  const byKey = new Map();
-  for (const d of [today(), addDays(today(), 1)]) for (const [k, e] of rawDays.get(d) || []) if (!byKey.has(k) || e.status.state === 'in') byKey.set(k, e);
-  const keys = new Set();
-  // Only what's on TV in Taiwan (賽事 has every game).
-  const all = [...dayAll(slot), ...byKey.values()].filter(e => !keys.has(`${e.league}:${e.id}:${e.sessionKey || ''}`) && keys.add(`${e.league}:${e.id}:${e.sessionKey || ''}`)).filter(onTv);
-  // Every game on now, in 首頁's order (rankOnNow).
-  const live = rankOnNow(all.filter(e => onAir(e)), pickContext(slot, now)).map(x => x.event);
-  // Nothing on: the next 24 hours, so tomorrow's too.
-  const tomorrow = addDays(today(), 1);
-  const next = state.days.get(tomorrow);
-  if (!next?.at && !next?.loading) loadDay(tomorrow);
-  else if (next?.at && !next.othersAt && !next.othersLoading) loadOthers(tomorrow);
-  const reading = !next?.at || !slot.othersAt || !next.othersAt;
-  // A league's games or ELTA's list unread: never "nothing on" (dayUnknown).
-  const gap = dayUnknown([slot, next], tvUnread(), { rest: true });
-  // Drawn once everything's in (the other leagues, tomorrow's, every league
-  // on now, the followed teams' schedules), or after 3 s with what there is:
-  // drawn on each arrival, the rows reshuffled under the finger as games
-  // slotted in among them. Meanwhile, its shape.
-  if (!liveGate.drawn) {
-    const ready = !reading && slot.restAt && ![...teamsAt.values()].includes('loading');
-    liveGate.since ||= now;
-    if (!ready && now - liveGate.since < 3_000) {
-      clearTimeout(liveGate.timer);
-      liveGate.timer = setTimeout(() => state.tab === 'live' && renderLive(), liveGate.since + 3_000 - now);
-      if (!box.querySelector('.live-shape')) put(box, liveBar(), liveShape());
-      return;
-    }
-    liveGate.drawn = true;
-    clearTimeout(liveGate.timer);
-  }
-  const ahead = all;
-  // What starts next: within 3 hours while games are on, else (or with nothing that soon) the next 24.
-  const startsWithin = hours => ahead.filter(e => e.status.state === 'pre' && !e.status.void && !onAir(e, now) && Date.parse(e.start) - now < hours * 3_600_000 && Date.parse(e.start) > now - 15 * 60_000).sort((a, b) => a.start.localeCompare(b.start));
-  const soonShort = live.length ? startsWithin(3) : [];
-  const soon = soonShort.length ? soonShort : startsWithin(24);
-  // A game on now: its row, and 觀看 beside it (straight into ELTA.tv's or Apple TV's app).
-  const liveRow = e => withWatch(eventRow(e), e);
-  // The next to start (a followed team's if one is within the hour of the first).
-  const first = soon[0];
-  const nextUp = first && (soon.find(e => isFollowedEvent(e) && Date.parse(e.start) - Date.parse(first.start) < 3_600_000) || first);
-  // Yours on TV this week, by day (once their schedules are in), not the ones
-  // already up there; and they aren't listed again among the next hours'.
-  const key = e => `${e.league}:${e.id}:${e.sessionKey || ''}`;
-  const above = new Set([...live, ...(live.length ? [] : [nextUp].filter(Boolean))].map(key));
-  // (A followed league's chosen games come from the days read: the week's
-  // read too, or 我的比賽 jumped from tomorrow to the one day 首頁 had opened,
-  // 11/15 then 11/21 on a computer, Jay 2026-11-14.)
-  if (watched().length) for (let i = 2; i < TV_DAYS; i++) { const d = addDays(today(), i); const s = state.days.get(d); if (!s?.at && !s?.loading) loadDay(d); }
-  const mine = myTvGames().filter(e => !above.has(key(e)) && e.status.state !== 'in');
-  const mineKeys = new Set(mine.map(key));
-  const byDay = new Map();
-  for (const e of mine) {
-    const d = localDate(Date.parse(e.start));
-    if (!byDay.has(d)) byDay.set(d, []);
-    byDay.get(d).push(e);
-  }
-  const mineBlock = weekBlock(byDay);
-  const later = soon.filter(e => (e !== nextUp || live.length) && !mineKeys.has(key(e)));
-  const wait = nextUp ? Math.max(0, Date.parse(nextUp.start) - now) : 0;
-  const waitText = wait < 60_000 ? L({ zh: '馬上', en: 'any minute' }) : wait < 3_600_000 ? L({ zh: `${Math.round(wait / 60_000)} 分鐘後`, en: `in ${Math.round(wait / 60_000)} min` }) : ((m = Math.round(wait / 60_000)) => L({ zh: `${Math.floor(m / 60)} 小時 ${m % 60} 分後`, en: `in ${Math.floor(m / 60)} h ${m % 60} min` }))();
-  // The game to lead with: the first on now (首頁's), else the next to start.
-  const heroEvent = live[0] || nextUp || null;
-  const hero = heroEvent ? heroGame(heroEvent, { mine: isFollowedEvent(heroEvent), picked: pickedToday().has(`${heroEvent.league}:${heroEvent.id}`), eyebrow: live.length ? '' : L({ zh: `下一場 · ${waitText}`, en: `Next · ${waitText}` }), onOpen: openEvent }) : null;
-  const guide = guideItems().some(p => p.end > now) ? guideLink(all) : null;
-  // (Nothing else on the right, a quiet day: ELTA's next showings there with the
-  // guide, beside the next game, not the guide under it and half the page empty.)
-  const rightEmpty = !mineBlock && !later.length;
-  const nextShows = rightEmpty && guide ? guideItems().filter(p => p.start > now && !(heroEvent && p.league === heroEvent.league && tvOf(heroEvent).some(b => b.at === p.start))).slice(0, 5) : [];
-  // (ELTA lists nothing more: today's games already over, their replays, there instead.)
-  const doneToday = rightEmpty && !nextShows.length ? all.filter(e => e.status.state === 'post' && !e.status.void && inDay(Date.parse(e.start), today())).sort((a, b) => b.start.localeCompare(a.start)).slice(0, 8) : [];
-  const beside = !rightEmpty
-    ? null
-    : nextShows.length
-      ? section(L({ zh: '接下來的轉播', en: 'Next on TV' }), el('div', { class: 'by-day' }, [...new Set(nextShows.map(p => localDate(p.start)))].flatMap(d => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list tv-guide' }, nextShows.filter(p => localDate(p.start) === d).map(p => guideRow(p, all, now)))])))
-      : doneToday.length
-        ? section(L({ zh: '今天稍早', en: 'Earlier today' }), el('div', { class: 'q-card list' }, doneToday.map(e => eventRow(e, { day: false }))))
-        : null;
-  put(
-    box,
-    liveBar(),
-    // (A wide screen: what's on now on the left, what's next on the right.)
-    cols(
-      [
-        hero,
-        !hero ? (reading && !gap ? spinner() : el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '接下來一天沒有比賽', en: 'Nothing in the next day' }) })])) : null,
-        beside ? null : guide,
-        live.length > 1 ? section(t('liveNow'), el('div', { class: 'q-card list' }, live.slice(1).map(liveRow)), { cls: 'live-now' }) : null
-      ],
-      [mineBlock, upcomingParts(later.slice(0, 30)), beside, beside ? guide : null]
-    )
-  );
-}
-// Theirs on TV this week, by day (轉播's 我的比賽; 首頁's too on a computer once today's are over).
+// Theirs on TV this week, by day (首頁's on a computer once today's are over).
 function weekBlock(byDay) {
   return byDay.size
     ? section(t('myGames'), el('div', { class: 'by-day mine-list' }, [...byDay].map(([d, list]) => [el('p', { class: 'day-head', text: dayLabel(d, { long: true }) }), el('div', { class: 'q-card list' }, list.map(e => eventRow(e, { day: false })))]).flat()), {
@@ -2521,21 +2407,13 @@ const weekByDay = list => {
   }
   return byDay;
 };
-// 即將開始: one list; on a computer (three columns) in fours, each dealt to
-// the shortest column, so it fills under the lead game and 我的比賽 instead
-// of one long column beside two short ones (Jay 11-14: "empty space").
-function upcomingParts(list) {
-  if (!list.length) return null;
-  const rows = l => el('div', { class: 'q-card list' }, l.map(e => eventRow(e)));
-  if (!screenFit().w3 || list.length <= 5) return section(t('upcomingEvents'), rows(list));
-  const parts = [];
-  for (let i = 0; i < list.length; i += 4) parts.push(section(i ? L({ zh: '稍後', en: 'Later' }) : t('upcomingEvents'), rows(list.slice(i, i + 4))));
-  return parts;
-}
-// Another day on 轉播: everything on TV here that day by the clock (the
-// small hours too), its best game first: a followed team's, else the one
-// the picks rank highest. A day gone by shows its results and replays.
-function renderLiveDay(d) {
+// A day on 轉播, today as any other (Jay 11-17: today's was the coming days'
+// games, not today's own with those over): everything on TV here that day
+// by the clock (the small hours too), its best game first: one on now, else
+// a followed team's, else the one the picks rank highest. Games over show
+// their results and replays.
+function renderLive() {
+  const d = liveDay();
   const box = $('panel-live');
   const slot = state.days.get(d);
   // Drawn once the day's leagues, the others' and ELTA's list are in (never filled in under the finger).
@@ -2557,7 +2435,7 @@ function renderLiveDay(d) {
     .filter(e => onTv(e) || isFollowedGame(e) || ((e.status.state === 'post' || past) && !tvKnown(e)))
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   const c = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, now, featured: featuredIn(list), chosen: chosenGames(), ...theirs(now) };
-  const ranked = list.filter(e => !e.status.void).map(e => ({ e, mine: isFollowedEvent(e), score: scoreMatch(e, c).score })).sort((x, y) => y.mine - x.mine || y.score - x.score);
+  const ranked = list.filter(e => !e.status.void).map(e => ({ e, on: onAir(e, now), mine: isFollowedEvent(e), score: scoreMatch(e, c).score })).sort((x, y) => y.on - x.on || y.mine - x.mine || y.score - x.score);
   const top = ranked[0]?.e || null;
   const hero = top ? heroGame(top, { mine: isFollowedEvent(top), eyebrow: top.status.state === 'pre' ? dayLabel(d, { long: true }) : '', onOpen: openEvent }) : null;
   const rest = list.filter(e => e !== top);
@@ -2567,8 +2445,9 @@ function renderLiveDay(d) {
     box,
     liveBar(),
     cols(
-      [hero, !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null, guide],
-      [rest.length ? section(L({ zh: '當天轉播', en: 'On TV that day' }), el('div', { class: 'q-card list' }, rest.map(e => eventRow(e, { day: false }))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null]
+      [hero, !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : d === today() ? L({ zh: '今天沒有轉播', en: 'Nothing on TV today' }) : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null, guide],
+      // (A game on now: 觀看 beside it, straight into ELTA.tv's or Apple TV's app.)
+      [rest.length ? section(d === today() ? L({ zh: '今天的轉播', en: 'On TV today' }) : L({ zh: '當天轉播', en: 'On TV that day' }), el('div', { class: 'q-card list' }, rest.map(e => withWatch(eventRow(e, { day: false }), e))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null]
     )
   );
 }
@@ -4205,7 +4084,7 @@ function f1Races() {
     seasonEvents('f1')
       .then(list => (f1Season = list || []))
       .catch(() => (f1Season = []))
-      .then(() => (state.tab === 'following' ? renderFollowing() : state.tab === 'live' ? renderLive() : null));
+      .then(() => state.tab === 'following' && renderFollowing());
   }
   return f1Season || [];
 }

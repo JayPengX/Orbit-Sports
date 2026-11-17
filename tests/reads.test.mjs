@@ -100,8 +100,7 @@ test('a day whose reads failed is never said to have nothing on', async () => {
   assert.equal(dayUnknown([{ partial: 2 }], false), 'leagues');
   // Everything read: only now can a day have nothing on.
   assert.equal(dayUnknown([{ partial: 0, othersFailed: 0, restFailed: 3 }], false), null);
-  // 轉播 counts the rest's (every league on now) and tomorrow's too; a day not held yet is still reading, not a gap.
-  assert.equal(dayUnknown([{ partial: 0, othersFailed: 0, restFailed: 3 }], false, { rest: true }), 'leagues');
+  // Several days: any one unread is a gap; a day not held yet is still reading, not a gap.
   assert.equal(dayUnknown([{ partial: 0 }, { partial: 1 }], false), 'leagues');
   assert.equal(dayUnknown([{ partial: 0 }, undefined], false), null);
 });

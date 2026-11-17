@@ -20,11 +20,11 @@ export function dayReads(keys, lists) {
 // What a day's reads leave unknown, before it's said to have nothing on
 // (a failed read is never "nothing there"): 'leagues' when a league's games
 // couldn't be read (the followed ones', `partial`; the others',
-// `othersFailed`; with `rest`, every other league's, `restFailed`), 'tv'
-// when ELTA's list couldn't (which games are on isn't known), else null:
-// only then can a day have nothing on. (A day not held yet is still reading.)
-export function dayUnknown(slots, tvFailed = false, { rest = false } = {}) {
-  const missed = s => s && (s.partial > 0 || s.othersFailed > 0 || (rest && s.restFailed > 0));
+// `othersFailed`), 'tv' when ELTA's list couldn't (which games are on isn't
+// known), else null: only then can a day have nothing on. (A day not held
+// yet is still reading.)
+export function dayUnknown(slots, tvFailed = false) {
+  const missed = s => s && (s.partial > 0 || s.othersFailed > 0);
   if (slots.some(missed)) return 'leagues';
   return tvFailed ? 'tv' : null;
 }
