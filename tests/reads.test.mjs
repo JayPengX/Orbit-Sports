@@ -127,3 +127,14 @@ test('a league’s table unread is said so, never "this league has no table"', a
   assert.equal(tableSays([]), 'none');
   assert.equal(tableSays([{ rows: [] }]), 'table');
 });
+
+// 11-17: 賽事's 全部 with no league read said "今天 · 11/17（週二）· 0 場"
+// and "有些聯賽暫時讀不到" as a title cut over two lines: a day unread is
+// said as one, with no count.
+test('賽事 全部: a day none of whose leagues was read says so, with no "0 場"', async () => {
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const all = app.slice(app.indexOf('function renderAll() {'), app.indexOf('\n}\n', app.indexOf('function renderAll() {')));
+  assert.match(all, /games\.length \|\| !unread \? t\('gamesN'/, 'the count only when something was read');
+  assert.match(all, /: unread\s*\? kitUI\.empty\(\{ title: L\(\{ zh: '這天的賽程還讀不到'/);
+});

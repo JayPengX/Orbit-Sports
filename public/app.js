@@ -1546,9 +1546,14 @@ function renderAll() {
       return el('section', { class: 'q-section all-league', 'data-league': k }, [sh, el('div', { class: 'q-card list' }, rows.slice(0, ALL_ROWS).map(e => eventRow(e, { league: false, day: false }))), rows.length > ALL_ROWS ? goBar(L({ zh: `還有 ${rows.length - ALL_ROWS} 場`, en: `${rows.length - ALL_ROWS} more` }), () => openScores(k, date), 'show-more') : null]);
     };
     list = el('div', { class: 'all-day' }, [
-      el('p', { class: 'day-head', text: [dayLabel(date, { long: true }), t('gamesN', { n: games.length })].join(' · ') }),
+      // (Nothing read: no count, "0 場" said of a day unread, 11-17.)
+      el('p', { class: 'day-head', text: [dayLabel(date, { long: true }), games.length || !unread ? t('gamesN', { n: games.length }) : ''].filter(Boolean).join(' · ') }),
       // (A wide screen: the leagues side by side, each a card of its games.)
-      games.length ? balanced(groups.map(group), g => 1.6 + g.querySelectorAll('.event-row').length + (g.querySelector('.show-more') ? 0.5 : 0)) : empty(unread ? t('someUnread') : t('noGames'))
+      games.length
+        ? balanced(groups.map(group), g => 1.6 + g.querySelectorAll('.event-row').length + (g.querySelector('.show-more') ? 0.5 : 0))
+        : unread
+          ? kitUI.empty({ title: L({ zh: '這天的賽程還讀不到', en: "Couldn't read this day yet" }), body: t('retrySoon') })
+          : empty(t('noGames'))
     ]);
   }
   const parts = [head, leagueRail(scoresRail()), strip, list];
