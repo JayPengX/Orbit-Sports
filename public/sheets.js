@@ -1037,7 +1037,9 @@ function goPark(e, d) {
   return chip;
 }
 
-// The closing stretch from two minutes left in the fourth (or an overtime),
+// The closing stretch: the fourth's last two minutes and, a game gone to
+// overtime, the last overtime's last two (Jay 11-18, 黃蜂–湖人: all five
+// minutes of 延長 listed, the fourth's end gone), each at most seven rows;
 // when it came down to one possession (3 points or fewer at some point in
 // it, or a tie); none in a game the leader saw out (Cavaliers–76ers,
 // 2026-10-22: 6 down at 2:00, never closer than 4, and ten free throws
@@ -1050,7 +1052,8 @@ const MISS = /\bmisses\b|\bblocks\b/i;
 const LOST = /turnover|bad pass|traveling|lost ball|offensive foul|shot clock/i;
 function clutchPlays(feed, secs) {
   const scored = feed.filter(p => p.scoring && p.team && p.home != null && p.away != null);
-  const late = p => p.periodNum > 4 || (p.periodNum === 4 && secs(p.clock) <= 120);
+  const end = Math.max(4, ...feed.map(p => p.periodNum || 0));
+  const late = p => (p.periodNum === 4 || p.periodNum === end) && secs(p.clock) <= 120;
   const first = scored.findIndex(late);
   if (first < 0) return [];
   const gap = p => Math.abs(Number(p.home) - Number(p.away));
@@ -1067,7 +1070,7 @@ function clutchPlays(feed, secs) {
     const reb = MISS.test(p.text) ? rest.slice(k + 1, k + 3).find(q => /rebound/i.test(`${q.type} ${q.text}`) && q.clock === p.clock) : null;
     out.push({ ...p, empty: true, ...(reb ? { reb } : {}) });
   });
-  return out.slice(-14);
+  return end === 4 ? out.slice(-14) : [...out.filter(p => p.periodNum === 4).slice(-7), ...out.filter(p => p.periodNum === end).slice(-7)];
 }
 // A count as dots: balls of 4, strikes and outs of 3.
 const dots = (n, of, cls) => el('span', { class: `lp-dots ${cls}` }, Array.from({ length: of }, (_, i) => el('i', { class: i < n ? 'on' : '' })));
