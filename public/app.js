@@ -238,6 +238,7 @@ function gotPrefs(payload) {
   showTab(state.tab);
 }
 let booted = false;
+let passStarting = false;
 let prefsEdited = false;
 // The sports of the person's leagues, in the leagues' order.
 const followedSports = () => [...new Set(state.prefs.leagues.map(k => LEAGUES[k].sport))];
@@ -293,7 +294,10 @@ const followsPatch = () => ({ settings: { ...settingPatch('follows:match', follo
 function syncFollows() {
   if (!state.prefsLoaded) return;
   const had = setting(state.wallet, 'follows:match', null);
-  if (JSON.stringify(had) === JSON.stringify(followsValue()) && sessionStorage.getItem('fx.followsSynced')) return;
+  // (The same follows and nothing learned on this phone yet: nothing to send,
+  // and an empty map never written over the one another phone synced.)
+  const same = JSON.stringify(had) === JSON.stringify(followsValue());
+  if (same && (sessionStorage.getItem('fx.followsSynced') || !Object.keys(affinityPatch('match').settings['aff:match'].value).length)) return;
   q.write({ wallet: followsPatch() })
     .then(() => sessionStorage.setItem('fx.followsSynced', '1'))
     .catch(() => {});
@@ -1689,7 +1693,27 @@ function homeLayout([note, hero, live, past, week, empty, spin, mine], [later, m
   const pairs = new Set([hero, live, isList(mine) ? mine : null].filter(Boolean));
   return homeBoard([note, hero, live, isList(mine) ? mine : null, past, week, empty, spin, isList(mine) ? null : mine], [later, teams], pairs, [more, ended]);
 }
+// Behind the loading screen, the day's reads landing close together draw
+// 首頁 once, not once each (13 drawings before it was up, ~80 ms each on a
+// slow phone, 11-18): the first at once, the rest at most every 200 ms.
+// (Not drawn yet is not settled: the opening waits for the drawing.)
+const HOME_GAP = 200;
+let homeDrawnAt = 0;
+let homeLater = 0;
+function homeHeld() {
+  clearTimeout(homeLater);
+  homeLater = 0;
+  const wait = $('loading').hidden ? 0 : homeDrawnAt + HOME_GAP - performance.now();
+  if (wait > 0) {
+    state.home.settled = false;
+    homeLater = setTimeout(() => ((homeLater = 0), state.tab === 'home' && renderHome()), wait);
+    return true;
+  }
+  homeDrawnAt = performance.now();
+  return false;
+}
 function renderHome() {
+  if (homeHeld()) return;
   const box = $('panel-home');
   const h = state.home;
   const slot = state.days.get(h.date);
@@ -5031,7 +5055,9 @@ q.on('wallet', w => {
   state.wallet = w;
   if (state.tab === 'home' && state.days.get(state.home.date)?.at) renderHome();
 });
-q.on('active', live => live && (booted && state.prefsLoaded ? takeBackPrefs() : (readPrefs({ offline: true }), savePending && state.prefsLoaded && savePrefs()), loadDay(today())));
+// (The Pass turning live as Sports opens is that opening: its copy is the
+// start's own reply, never read a second time while it's on its way.)
+q.on('active', live => live && !passStarting && (booted && state.prefsLoaded ? takeBackPrefs() : (readPrefs({ offline: true }), savePending && state.prefsLoaded && savePrefs()), loadDay(today())));
 // Live again here after Sports was used somewhere else (在這裡繼續; one
 // account, many places, Jay 11-13): the Pass's follows read first and the
 // newer kept, so what was followed there stays; only a newer edit here goes up.
@@ -5200,7 +5226,8 @@ async function boot() {
     showTab(firstTab());
     restorePlace();
   }
-  const starting = q.start();
+  passStarting = true;
+  const starting = q.start().finally(() => (passStarting = false));
   // Kept on the device: today's read while the sign-in is on its way (the
   // nightly copies need none; a read through the proxy waits for that
   // sign-in, not a second one), not a round trip after it.
