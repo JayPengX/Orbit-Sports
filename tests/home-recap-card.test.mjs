@@ -11,7 +11,8 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
-const sheets = readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
+// (首頁's recap is recap.js', apart from the sheets since 11-18.)
+const recapJs = readFileSync(new URL('../public/recap.js', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
 let chromium = null;
 try {
@@ -23,7 +24,7 @@ const slice = (src, from, to) => {
   assert.ok(a >= 0, `${from} is there`);
   return src.slice(a, src.indexOf(to, a + from.length));
 };
-const recap = slice(sheets, 'export function gameRecap(e, d) {', '\nfunction fitLine(');
+const recap = recapJs.slice(recapJs.indexOf('export function gameRecap(e, d) {'));
 const tapSrc = slice(app, 'function recapTap(ev, row) {', '\n}\n') + '\n}';
 const recapCss = slice(css, "/* A light day's games over on 首頁", '/* F1 timing tower');
 

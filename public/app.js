@@ -40,7 +40,7 @@ import { nearestDay, dayReads, dayUnknown, tableSays } from './lib/days.mjs';
 import { retrier } from './lib/retry.mjs';
 import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, tvUntil, tvKnown, tvUnread, channelsOf, nbaAfterList, replayHint, eltaTime } from './lib/tv.mjs';
 import { shortLeague, cols, homeBoard, balanced, ctx, sidesOf, el, morph, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
-import { followButton, gameRecap, openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor, constructorBadge, standingsTables, zoneLegend, zhLater, leagueLeadersView, teamStatsView, tableNow } from './sheets.js';
+import { gameRecap } from './recap.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh, teamNameZh } from '#kit/names.mjs';
 import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
@@ -133,6 +133,17 @@ const state = {
 };
 
 const q = orbitSession('match', { lang: locale });
+// The game, team and player sheets and the tables (sheets.js and what only
+// it uses, 240 KB of the 560 KB of code a first opening waited for on a slow
+// link, 11-18): read when first wanted, and once 首頁 is up (boot), so a
+// first opening asks for its games without waiting for them. `S`: the module
+// once it's in; 賽事 and 追蹤 wait for it before drawing (renderScores,
+// renderFollowing), a tap that opens a sheet for its read.
+let S = null;
+let sheetsRead = null;
+const sheets = () => (sheetsRead ||= import('./sheets.js').then(m => (S = m), error => ((sheetsRead = null), Promise.reject(error))));
+const lazily = name => (...args) => sheets().then(m => m[name](...args), () => {});
+const [openMatch, openFieldEvent, openTie, openTeam, openPlayer, openConstructor] = ['openMatch', 'openFieldEvent', 'openTie', 'openTeam', 'openPlayer', 'openConstructor'].map(lazily);
 Object.assign(ctx, { t, locale, state, q, openEvent, openTeam, openPlayer, openLeague, isFollowed, toggleFollow, track, isFollowedEvent, isFollowedGame, toggleFollowGame, weekendCard });
 
 // ---- What the person follows (on the pass) ---------------------------------------------
@@ -553,6 +564,7 @@ const followedLeagues = () => [...state.prefs.leagues];
 // sport, a tap to add; the teams and players followed as rows the same way
 // (a tap opens the page); the commentary they like.
 function openFollowEditor() {
+  if (!S) return void sheets().then(openFollowEditor, () => {});
   const s = sheet(L({ zh: '我的設定', en: 'My settings' }));
   // A one-tap let-go, with 復原 (kit toast) putting it back where it was.
   const letGo = (name, undo) => kitUI.toast(L({ zh: `已取消追蹤${name}`, en: `Unfollowed ${name}` }), { action: { label: L({ zh: '復原', en: 'Undo' }), onTap: () => (undo(), changed(), paint()) } });
@@ -596,7 +608,7 @@ function openFollowEditor() {
       const name = shownName(f);
       return el('div', { class: 'q-cell set-row', 'data-q-key': followKey(f) }, [
         el('button', { class: 'q-row-open', type: 'button', onclick: () => openOne(f) }, [
-          el('span', { class: 'suggest-tile' }, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm')]),
+          el('span', { class: 'suggest-tile' }, [f.athlete ? personPic(f, f.league, 'sm round') : f.f1team === true ? S.constructorBadge(f.name, 'sm') : logo(f.logo, f.name, 'sm')]),
           el('span', { class: 'q-cell-text' }, [el('span', { text: name }), el('small', { text: leagueName(f.league, locale) })])
         ]),
         remove(L({ zh: `取消追蹤${name}`, en: `Unfollow ${name}` }), () => {
@@ -3035,11 +3047,11 @@ function cupStandingsView(model, { mark = [] } = {}) {
   const own = ids.length ? tables.findIndex(t => ids.every(id => t.rows.some(r => r.id === id)) && !/外卡|wild card/i.test(t.name)) : -1;
   if (own > 0) tables.unshift(...tables.splice(own, 1));
   // (Jay 2026-11-14, "too messy": a score small and plain, the key said once under the groups, the rule and 即時 one line over them.)
-  const tablesNode = standingsTables(tables, 'nba', { cols: ['W', 'L', 'PD', 'Left'], many: true, mark: mark.map(String), liveNote: false, legend: false, quiet: true });
+  const tablesNode = S.standingsTables(tables, 'nba', { cols: ['W', 'L', 'PD', 'Left'], many: true, mark: mark.map(String), liveNote: false, legend: false, quiet: true });
   const on = groups.some(g => g.rows.some(r => r.live));
   const all = tables.flatMap(t => t.rows);
   const why = (ids, text) => Object.assign(new Set(ids), { why: text });
-  const key = zoneLegend(all, why(all.filter(r => r.fate === 'out').map(r => r.id), en ? 'out' : '已遭淘汰'), why(all.filter(r => r.fate === 'lead' || r.fate === 'in').map(r => r.id), en ? 'Through to the quarterfinals' : '已晉級八強'));
+  const key = S.zoneLegend(all, why(all.filter(r => r.fate === 'out').map(r => r.id), en ? 'out' : '已遭淘汰'), why(all.filter(r => r.fate === 'lead' || r.fate === 'in').map(r => r.id), en ? 'Through to the quarterfinals' : '已晉級八強'));
   const rule = el('p', { class: 'muted small cup-rule' }, [on ? el('span', { class: 'cup-live' }, [el('i', { class: 'live-dot', 'aria-hidden': 'true' }), document.createTextNode(en ? 'Live · ' : '即時 · ')]) : null, document.createTextNode(en ? 'Group winners and each conference’s best 2nd reach the quarterfinals' : '分組第一與各區最佳第二晉級八強')]);
   // The knockout: its rounds alone (the groups are the tables above); the
   // quarterfinals not drawn yet as the groups stand now, live too.
@@ -3946,6 +3958,7 @@ function scoresRail() {
   return inSeasonFirst([...state.prefs.leagues.filter(isActive), ...byStakes(rest, leagueBounds, today())]);
 }
 function renderScores() {
+  if (!S) return void sheets().then(() => state.tab === 'matches' && renderScores(), () => {});
   const sc = state.scores;
   if (sc.league === ALL) return renderAll();
   // A sport or league with nothing on now: the first one that has.
@@ -4059,7 +4072,7 @@ function renderScores() {
   }
   // The league as the page's head: its name, following it at the right.
   const name = leagueName(sc.league, locale);
-  const head = pageHead(name, followButton(() => mine.has(sc.league), () => (toggleLeague(sc.league), renderScores()), t('followLeague')));
+  const head = pageHead(name, S.followButton(() => mine.has(sc.league), () => (toggleLeague(sc.league), renderScores()), t('followLeague')));
   if (name.length > (locale === 'en' ? 14 : 7)) head.classList.add('long');
   const viewList = [['games', t('schedule')], ...(hasStandings(sc.league) ? [['table', t('table')]] : []), ...(rounds.length || reading ? [['bracket', LEAGUES[sc.league].cup ? L({ zh: '淘汰賽', en: 'Knockouts' }) : L({ zh: '季後賽', en: 'Playoffs' })]] : []), ...(hasLeaders(LEAGUES[sc.league]?.sport, LEAGUES[sc.league]?.espn) ? [['leaders', L({ zh: '數據', en: 'Stats' })]] : [])];
   const viewNow = knockView ? 'bracket' : tableView ? 'table' : leadersView ? 'leaders' : 'games';
@@ -4240,6 +4253,7 @@ const askRow = () =>
     ])
   ]);
 function renderFollowing() {
+  if (!S) return void sheets().then(() => state.tab === 'following' && renderFollowing(), () => {});
   const box = $('panel-following');
   const p = state.prefs;
   loadFollowedTeams();
@@ -4373,7 +4387,7 @@ function crewRow(f) {
       ])
     : null;
   return el('div', { class: 'tf-row' }, [
-    el('button', { class: 'tf-team', type: 'button', onclick: () => openConstructor({ id: f.id, name: f.name, en: f.name }) }, [constructorBadge(f.name, 'tf-logo'), el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: leagueName(f.league, locale) })])]),
+    el('button', { class: 'tf-team', type: 'button', onclick: () => openConstructor({ id: f.id, name: f.name, en: f.name }) }, [S.constructorBadge(f.name, 'tf-logo'), el('span', { class: 'tf-name' }, [el('strong', { text: shownName(f) }), el('small', { class: 'muted', text: leagueName(f.league, locale) })])]),
     f1Season === undefined ? el('small', { class: 'muted tf-wait', text: '…' }) : el('div', { class: 'tf-games' }, [nextLine, lastLine])
   ]);
 }
@@ -4420,7 +4434,7 @@ function personRow(f) {
   const a = got?.a;
   if (f.league === 'f1') return driverRow(f, a);
   const injured = a?.injuries?.[0];
-  const head = personHead(f, [a?.team ? localSide(f.league, { name: a.team }).name : f.team ? localSide(f.league, { name: f.team.name }).name : leagueName(f.league, locale), a?.position ? zhLater(a.position) : ''].filter(Boolean).join(' · '), injured ? el('span', { class: 'tf-injury', text: locale === 'en' ? injured : injuryZh(injured) }) : null);
+  const head = personHead(f, [a?.team ? localSide(f.league, { name: a.team }).name : f.team ? localSide(f.league, { name: f.team.name }).name : leagueName(f.league, locale), a?.position ? S.zhLater(a.position) : ''].filter(Boolean).join(' · '), injured ? el('span', { class: 'tf-injury', text: locale === 'en' ? injured : injuryZh(injured) }) : null);
   if (!got) return el('div', { class: 'tf-row' }, [head, el('small', { class: 'muted tf-wait', text: '…' })]);
   // Numbers as tiles: the season's, and the last game's under its result.
   // A tile's name: the Chinese when it's short, else the abbreviation (OPS, not 整體攻擊指數).
@@ -4569,13 +4583,14 @@ ctx.racesLeft = racesLeft;
 // The title fight going into a race weekend (its sheet): each table as 排名
 // has it now (the finals in), with its race (title.mjs), or null before any.
 ctx.titleFight = async league => {
+  await sheets();
   const groups = tables.get(league) || (await standings(league).catch(() => null));
   if (!Array.isArray(groups) || !groups.some(tableStarted)) return null;
   if (league === 'f1' && !f1Rounds?.length) f1Rounds = ((await seasonEvents(league).catch(() => [])) || []).filter(e => e.sessions?.length);
   const sport = LEAGUES[league].sport;
   // (`left`: the races and sprints still to run, for the title fight as it stands while one runs.)
   const left = racesLeft(league);
-  return tableNow(groups, league, recentOf(league)).map(g => ({ g, left, race: standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left, team: sport === 'racing' && !g.rows.some(r => r.athlete) }) }));
+  return S.tableNow(groups, league, recentOf(league)).map(g => ({ g, left, race: standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left, team: sport === 'racing' && !g.rows.some(r => r.athlete) }) }));
 };
 // Last seasons' final tables ('<league>:<year>'), read once.
 const lastTables = new Map();
@@ -4633,7 +4648,7 @@ function leadersOf(league) {
   return [pick, part === 'teams' ? teamsOf(league, teams) : playersOf(league)].filter(Boolean);
 }
 function teamsOf(league, d) {
-  if (d.racing) return teamStatsView(d, league, { pick: teamPick.get(league), onPick: k => (teamPick.set(league, k), renderScores()), wide: true });
+  if (d.racing) return S.teamStatsView(d, league, { pick: teamPick.get(league), onPick: k => (teamPick.set(league, k), renderScores()), wide: true });
   warmTable(league);
   const all = (tables.get(league) || []).flatMap(g => g.rows || []);
   const rows = new Map(all.map(r => [String(r.id), r]));
@@ -4656,7 +4671,7 @@ function teamsOf(league, d) {
     const club = x.fotmob ? d.teams?.find(t => String(t.id) === x.fotmob) : null;
     return club ? { id: '', name: club.shortName || club.name, short: club.shortName || club.name, logo: x.logo } : null;
   };
-  return teamStatsView(d, league, { teamOf, pick: st.key, full: st.url ? teamLists.get(st.url) : null, onPick: k => (teamPick.set(league, k), renderScores()), wide: true });
+  return S.teamStatsView(d, league, { teamOf, pick: st.key, full: st.url ? teamLists.get(st.url) : null, onPick: k => (teamPick.set(league, k), renderScores()), wide: true });
 }
 function playersOf(league) {
   const key = `leaders:${league}`;
@@ -4692,7 +4707,7 @@ function playersOf(league) {
       .catch(() => leaderLists.set(st.url, []))
       .then(() => state.tab === 'matches' && state.scores.league === league && renderScores());
   }
-  return leagueLeadersView(d, league, { teamOf: (id, x) => rows.get(String(id)) || clubs.get(String(x?.fotmobTeam ?? '')) || (x?.teamName ? byName(x.teamName) : null), pick: st.key, full: st.url ? leaderLists.get(st.url) : null, onPick: k => (leaderPick.set(league, k), renderScores()), wide: true });
+  return S.leagueLeadersView(d, league, { teamOf: (id, x) => rows.get(String(id)) || clubs.get(String(x?.fotmobTeam ?? '')) || (x?.teamName ? byName(x.teamName) : null), pick: st.key, full: st.url ? leaderLists.get(st.url) : null, onPick: k => (leaderPick.set(league, k), renderScores()), wide: true });
 }
 const leaderLists = new Map();
 function tableOf(league) {
@@ -4722,7 +4737,7 @@ function tableOf(league) {
       const en = locale === 'en';
       return el('div', {}, [
         el('p', { class: 'po-banner' }, [el('strong', { text: en ? 'Last season' : '上季' }), document.createTextNode(en ? ': the final table. This season’s starts with its first game.' : '　最終排名。本季開賽後換成本季的。')]),
-        standingsTables(last, league, { many: LEAGUES[league].sport !== 'racing' && last.length > 1 })
+        S.standingsTables(last, league, { many: LEAGUES[league].sport !== 'racing' && last.length > 1 })
       ]);
     }
   }
@@ -4732,17 +4747,17 @@ function tableOf(league) {
   const recent = recentOf(league);
   if (sport === 'racing') askFinishes(recent, () => state.tab === 'matches' && state.scores.league === league && renderScores());
   // (The games on now in, as they stand, marked: Jay 2026-11-09. The races below stay on the finals.)
-  const now = tableNow(groups, league, recent, { live: true });
+  const now = S.tableNow(groups, league, recent, { live: true });
   // The race on the finals alone (the owner, 2026-10-18): a game on now
   // counted as it stands (納什維爾 0:0 in the first half, a draw) made the
   // "next game" the one after it, and a win tonight that settles it went
   // unsaid. The game on is the next one, said as this one (raceBlock).
-  const settledNow = sport === 'racing' ? now : tableNow(groups, league, recent.filter(e => e.status?.state !== 'in'));
+  const settledNow = sport === 'racing' ? now : S.tableNow(groups, league, recent.filter(e => e.status?.state !== 'in'));
   const races = settledNow.map(g => standingsRace(g, sport, { total: SEASON_GAMES[league] || null, left: racesLeft(league), team: sport === 'racing' && !g.rows.some(r => r.athlete) }));
   // A league by division (MLB's): its playoff seeds first, the divisions' rows marked by them.
   const { picture, divisions } = seedPicture(now, league, locale);
   return el('div', {}, [
-    standingsTables([...picture, ...divisions], league, { races: [...picture.map(() => null), ...races], many: sport !== 'racing' && now.length > 1 }),
+    S.standingsTables([...picture, ...divisions], league, { races: [...picture.map(() => null), ...races], many: sport !== 'racing' && now.length > 1 }),
     el('p', { class: 'muted small table-note', text: t('gapHint') })
   ]);
 }
@@ -5170,6 +5185,9 @@ async function boot() {
   // day it last read, while the Worker is asked for the fresh ones (the
   // picks wait behind the loading screen for their fresh day).
   const quick = cachedPayload('match');
+  // (Opening on 賽事 or 追蹤: their code in before the loading screen lifts
+  // onto them, never an empty tab first. 首頁's needs none of it.)
+  const sheetsFirst = () => (firstTab() !== 'home' ? sheets().catch(() => {}) : null);
   // The TV lists (ELTA's, NBA.com's), early: the picks and rows read each
   // game's channels from them.
   tvReady();
@@ -5177,6 +5195,7 @@ async function boot() {
     state.wallet = cachedWallet();
     applyPrefs(quick, { save: false });
     restoreDay();
+    await sheetsFirst();
     if (firstTab() !== 'home') $('loading').hidden = true;
     showTab(firstTab());
     restorePlace();
@@ -5193,6 +5212,7 @@ async function boot() {
   const before = JSON.stringify(state.prefs);
   if (typeof first?.payload === 'string') applyPrefs(first.payload);
   else if (quick == null) await readPrefs(first);
+  if (quick == null) await sheetsFirst();
   if (firstTab() !== 'home') $('loading').hidden = true;
   if (quick == null) {
     restoreDay();
@@ -5213,6 +5233,9 @@ async function boot() {
   window.__bootStep?.(t('loadingPicks'), 0.94);
   await homeReady(until);
   $('loading').hidden = true;
+  // The sheets' code once 首頁 is up (a tap on a game opens at once), not
+  // ahead of the day's games on a slow link.
+  sheets().catch(() => {});
   // The followed leagues' tables, read once the day's games are in: 排名 opens at once.
   setTimeout(() => followedLeagues().filter(hasStandings).slice(0, 6).forEach(warmTable), 2000);
 }

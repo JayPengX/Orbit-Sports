@@ -11,7 +11,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
-const sheets = readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
+// (首頁's recap and its fitting are recap.js', apart from the sheets since 11-18.)
+const sheets = ['sheets.js', 'recap.js'].map(f => readFileSync(new URL(`../public/${f}`, import.meta.url), 'utf8')).join('\n');
 const body = (src, head) => {
   const at = src.indexOf(head);
   assert.ok(at >= 0, `${head} is there`);

@@ -85,7 +85,8 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 | File | What |
 | --- | --- |
 | `app.js` | The tabs, follows, days, picks, notices, live ticks |
-| `sheets.js` | Every sheet: match, race weekend, team, player, constructor, tables, series |
+| `sheets.js` | Every sheet: match, race weekend, team, player, constructor, tables, series. Never imported by `app.js`'s code: read when first wanted (`app.js` `sheets()`, `S`) and once 首頁 is up, so a first opening doesn't wait for it (`tests/first-code.test.mjs`) |
+| `recap.js` | 首頁's finished-game card (`gameRecap`) and the name-fitting both it and the sheets use |
 | `ui.js`, `cards.js`, `styles.css` | DOM helpers, rows; the tabs' cards and tiles; the app's styles |
 | `look.js`, `look.css` | Orbit's own look: the lead game's club colours, 我的球隊, and the look's overrides of the old card |
 | `testing.mjs` | Sports' own switches in the kit's 測試工具 (flags change what's shown, never the Pass; the notice list isn't sent while one is on): `liveGame`, `startSoon` (in10/due), `gameOff` (void/delayed), `emptyDay` (app.js `readDay` → `testDay`), `f1Flag` (red/sc/vsc, `lib/f1.mjs flagNow`), `aiCap` (`ask.js`) |
