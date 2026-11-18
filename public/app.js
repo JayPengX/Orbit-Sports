@@ -2566,6 +2566,8 @@ function openGuide(events, from = null) {
   // Full height from the start: a day of two showings and a day of twenty
   // the same sheet, never growing or shrinking as the days go by (Jay 2026-11-05).
   const s = sheet(L({ zh: '愛爾達節目表', en: 'ELTA TV guide' }), { full: true });
+  // (Its body fills the sheet: a swipe on the empty space under a short day goes a day too, Jay 2026-11-18.)
+  s.dialog.classList.add('tv-guide-sheet');
   const items = guideItems();
   const days = [...new Set(items.map(p => localDate(p.start)))].filter(d => d >= today());
   // (Opened with nothing left today, the afternoon after the morning's games: on the next day
@@ -2573,13 +2575,23 @@ function openGuide(events, from = null) {
   const showing = (d, now = Date.now()) => items.filter(p => localDate(p.start) === d && (d !== today() || p.end > now));
   let day = days.includes(from) && showing(from).length ? from : days.find(d => d >= (from || today()) && showing(d).length) || days[0];
   const strip = {};
+  // A day of one or two showings (often a single NBA game) goes on into the
+  // next days, each under its name, till the sheet holds about a screen's
+  // worth (Jay 2026-11-18: "a lot of blank space"); a swipe still goes a day.
+  const FILL = 8;
   const paint = () => {
     const now = Date.now();
     const list = showing(day, now);
+    const more = [];
+    for (let i = days.indexOf(day) + 1, n = list.length; n < FILL && i < days.length && more.length < 3; i++) {
+      const rows = showing(days[i], now);
+      if (rows.length) more.push([days[i], rows]), (n += rows.length);
+    }
     put(
       s.body,
       kitUI.dayBar(strip, { flat: true, days, current: day, today: today(), bounds: { from: days[0], to: days.at(-1) }, clamp: v => days.find(d => d >= v) ?? days.at(-1), onPick: d => ((day = d), paint()) }),
       list.length ? el('div', { class: 'q-card list tv-guide' }, list.map(p => guideRow(p, events, now))) : empty(L({ zh: '這天沒有節目。', en: 'Nothing that day.' })),
+      ...more.flatMap(([d, rows]) => [el('h3', { class: 'q-list-head tv-guide-day', text: `${kitUI.dayTop(d, { today: today() })} ${kitUI.dayNum(d, { today: today() })}` }), el('div', { class: 'q-card list tv-guide' }, rows.map(p => guideRow(p, events, now)))]),
       el('p', { class: 'section-sub', text: L({ zh: '需訂閱 ELTA.tv', en: 'Needs ELTA.tv' }) })
     );
   };

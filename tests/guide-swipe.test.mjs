@@ -17,3 +17,13 @@ test('the TV guide swipes a day either way', () => {
 test('the TV guide never changes height between days', () => {
   assert.match(guide, /sheet\([^)]*\), \{ full: true \}\)/);
 });
+
+// Jay 2026-11-18: its blank area didn't swipe, and a day of one NBA game left the sheet mostly empty.
+const css = readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
+test('the guide body fills the sheet, so its empty space swipes', () => {
+  assert.match(guide, /classList\.add\('tv-guide-sheet'\)/);
+  assert.match(css, /dialog\.tv-guide-sheet\[open\] > \.sheet-body \{ flex-grow: 1; \}/);
+});
+test('a short day goes on into the next days', () => {
+  assert.match(guide, /n < FILL/);
+});

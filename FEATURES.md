@@ -51,7 +51,7 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - A game to come on ELTA: its 觀看 opens ELTA.tv's timetable (節目表, in its app too), the channel once the game or its program is on — `public/lib/tv.mjs`, `public/sheets.js`, `public/ui.js`, `public/cards.js`: `watchLinkOf`
 - 轉播 a day at a time, today as any day: that day's games on TV, those over with their results, one on now first with 觀看 — `public/app.js`: `function renderLive`, `今天的轉播`, `withWatch(eventRow(e, { day: false }), e)`
 - A game's, team's or player's sheet: a swipe across it is the tab beside (概況 數據 陣容 排名), the tabs following; charts scrubbed sideways keep the finger — `public/sheets.js`: `swipeTabs`
-- 愛爾達節目表: every channel's showings a day at a time, full height, a swipe across it the next or the day before — `public/app.js`: `openGuide`, `daySwipe`
+- 愛爾達節目表: every channel's showings a day at a time, full height, a swipe across it (its empty space too) the next or the day before; a short day goes on into the next days — `public/app.js`: `openGuide`, `daySwipe`, `tv-guide-sheet`, `FILL`
 - Playoff brackets and series — `public/sheets.js`: `openTie`
 - F1 weekends — `public/sheets.js`: `openFieldEvent`
 - F1 賽程 cards: a weekend as a panel (the next session's running countdown, the one on, or the podium) beside the circuit's outline (kept on the phone, `sports.wkTrack.v1`), then its sessions as stops on one line, each finished one showing who topped it on their team's colour — `public/app.js`: `weekendCard`
