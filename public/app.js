@@ -5141,6 +5141,10 @@ const nextLeagueDay = () =>
 function readJumpEarly() {
   // (Each league's game days, small, for nextLeagueDay.)
   pickLeagues().filter(k => LEAGUES[k].espn).forEach(k => leagueDays(k));
+  // (The followed teams' own schedules beside the day's reads, not after
+  // them: 首頁 waits for both before it lifts, and one after the other was
+  // a whole extra round of reads, 2.5 s of a reopening on a slow link, 11-18.)
+  loadFollowedTeams();
   const to = savedJump();
   if (!to) return;
   loadDay(to);
