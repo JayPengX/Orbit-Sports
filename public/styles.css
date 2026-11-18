@@ -485,6 +485,8 @@ dialog.tv-guide-sheet[open] > .sheet-body { flex-grow: 1; }
 .match-top[hidden] { display: none; }
 /* In 概況's flow (sheets.js): one card of the stack, its two parts one over the other. */
 .stack .match-top:not(:empty) { margin: 0; }
+/* (Empty before and after a game: no place in the stack, or its gap set the first card 12px under the one beside it, Jay 11-18.) */
+.stack .match-top:empty { display: none; }
 .match-tabs:empty + .match-sub:empty + .match-content:has(> .stack > .match-top:not(:empty), > .stack > .q-flow-col > .match-top:not(:empty)) { margin-top: 18px; }
 .match-top > .live-panel { margin: 0; }
 .match-content .replay-group { gap: 10px; }
