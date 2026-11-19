@@ -1734,7 +1734,10 @@ function renderHome() {
     const read = state.days.get(h.date);
     if (read && !read.othersAt && !read.othersLoading && h.filter === 'all') loadOthers(h.date);
     // The day's shape while it's read (never the page dropped to a spinner and grown back).
-    put(box, homeBar(), homeFilters(), box.querySelector(':scope > .live-shape') || liveShape());
+    // (The first run's picker stays over it: a sport picked had read its day and the picker
+    // vanished under the finger for half a second, 11-19.)
+    const picking = h.picking || (state.prefsLoaded && !state.prefs.leagues.length);
+    put(box, homeBar(), homeFilters(), picking ? sportPicker() : null, box.querySelector(':scope > .live-shape') || liveShape());
     centerChosen(box);
     return;
   }
