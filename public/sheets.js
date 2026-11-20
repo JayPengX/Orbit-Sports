@@ -7040,6 +7040,9 @@ export function tableNow(groups, league, recent = [], { live = false } = {}) {
 function freshStandings(league) {
   return standings(league).then(g => (g?.length ? tableNow(g, league, ctx.recentOf?.(league) || []) : g));
 }
+// A page's extra never holds it on its spinner (Jolpica rate-limiting on a
+// race weekend held a stand-in's page there, Jay 2026-11-20): null after 8 s.
+const inTime = (p, ms = 8000) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]).catch(() => null);
 // Each session of the season a stand-in drove (in its entry list, ESPN's),
 // as F1's own timing has his car: [{ e, abbr, start, team, colour, number,
 // pos }], oldest first (a session not over yet: no place).
@@ -7050,7 +7053,7 @@ async function sessionsDriven(events, id, name) {
   const out = await Promise.all(
     runs.map(async ({ e, x }) => {
       // (One session's timing slow to come never holds his page on its spinner: 8 s at most, Jay 2026-11-09.)
-      const timing = await Promise.race([sessionTiming(x.start), new Promise(r => setTimeout(() => r(null), 8000))]).catch(() => null);
+      const timing = await inTime(sessionTiming(x.start));
       const car = (timing?.cars || []).find(c => fold(c.name) === want) || (timing?.cars || []).find(c => fold(c.name).endsWith(last));
       const at = x.field.findIndex(c => c.id === String(id));
       return { e, abbr: x.abbr, start: x.start, team: car?.team || '', colour: car?.colour || '', number: car?.no || '', pos: x.status.state === 'post' ? car?.pos < 99 ? car.pos : at + 1 : 0 };
@@ -7105,13 +7108,13 @@ export async function openPlayer(league, id, fallback = {}) {
       sport === 'racing' && LEAGUES[league].standings ? freshStandings(league).catch(() => null) : null,
       sport === 'racing' ? seasonEvents(league).then(settleScoring).catch(() => []) : null,
       // F1: formula1.com's figures and each weekend's grid, finish and sprint.
-      league === 'f1' ? athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })).catch(() => null) : null,
+      league === 'f1' ? inTime(athlete(league, id).then(x => f1Official('drivers', { page: f1Driver(x.name).page, name: x.name })), 12_000) : null,
       // A driver who isn't one of the season's twenty-two (a practice's
       // stand-in, a reserve): the sessions he drove (OpenF1) and who he is
       // (Wikipedia, f1-people.js), since ESPN and formula1.com have neither.
       league === 'f1'
         ? athlete(league, id)
-            .then(x => (f1Driver(x.name).team ? null : Promise.all([seasonEvents(league).then(evs => sessionsDriven(evs, id, x.name)).catch(() => []), Promise.race([driverAbout(x.name), new Promise(r => setTimeout(() => r(null), 8000))]).catch(() => null)])))
+            .then(x => (f1Driver(x.name).team ? null : Promise.all([seasonEvents(league).then(evs => sessionsDriven(evs, id, x.name)).catch(() => []), inTime(driverAbout(x.name))])))
             .then(g => (g ? { outings: g[0], about: g[1] } : null))
             .catch(() => null)
         : null
@@ -7717,7 +7720,7 @@ export async function openConstructor(row) {
   const content = el('div', {}, [spinner()]);
   s.body.append(content);
   try {
-    const [table, races, official] = await Promise.all([freshStandings(league).catch(() => null), seasonEvents(league).then(settleScoring).catch(() => []), f1Official('constructors', { page: c.page, name: c.name }).catch(() => null)]);
+    const [table, races, official] = await Promise.all([freshStandings(league).catch(() => null), seasonEvents(league).then(settleScoring).catch(() => []), inTime(f1Official('constructors', { page: c.page, name: c.name }), 12_000)]);
     const og = official?.grids || {};
     const jw = (official?.weekends || []).map(w => ({ ...w, e: eventOfRace(races, w.date) }));
     const groups = table || [];
