@@ -136,6 +136,8 @@ img { max-width: 100%; }
 /* (首頁's 我的比賽 is all picks: no mark, no light.) */
 .pick-list .row-mark { display: none; }
 .pick-list .event-row.picked { background: none; }
+/* (首頁's 正在進行 is all theirs too: its 推薦 pill, no light; Jay 2026-11-20: one live pick "grey out alone".) */
+.live-now .event-row.picked { background: none; }
 /* (轉播's 我的比賽 is only their own games: no grey light either, Jay 2026-11-05.) */
 .mine-list .event-row.picked { background: none; }
 /* A game 填滿空檔 put in: one quiet line in the list's own grid (the time in
