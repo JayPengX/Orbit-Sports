@@ -1226,6 +1226,37 @@ import('#kit/feedback.mjs')
 const pickItem = e => ({ id: `${e.league}:${e.id}`, keys: eventKeys(e) });
 const theirs = now => ({ personal: feedback?.scorer?.('match', now) || null, why: feedback?.whyOf?.('match', now, HABIT) || null });
 const pickContext = (slot, now = Date.now()) => ({ leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, now, featured: featuredIn(dayAll(slot)), chosen: chosenGames(), ...theirs(now) });
+// A day gone by, worked out when no picks of it were kept: as it stood, never by what's
+// known since (Jay 2026-11-20: "when standing changes you start recommending different
+// game"): no table (today's isn't that day's), none of the taste learnt since, its own day's clock.
+const stoodContext = (slot, date) => ({ ...pickContext(slot, Date.parse(`${date}T00:00:00+08:00`)), tables: {}, personal: null, why: null });
+// Each day's picks as they were (推薦, every one shown that day), kept three weeks:
+// a day gone by shows these, never picks worked out again (pickContext moves on).
+const PICK_DAYS_KEY = 'fx.pickdays.v1';
+const pickDays = (() => {
+  let map = null;
+  let timer = 0;
+  const load = () => {
+    if (map) return map;
+    const old = addDays(today(), -21);
+    map = Object.fromEntries(Object.entries(readJson(PICK_DAYS_KEY, {}) || {}).filter(([d, keys]) => d >= old && Array.isArray(keys)));
+    return map;
+  };
+  return {
+    get: d => (load()[d] ? new Set(map[d]) : null),
+    // (Only today's: a day is written while it's on, never after.)
+    add: (d, keys) => {
+      if (d !== today()) return;
+      const had = new Set(load()[d] || []);
+      const n = had.size;
+      for (const k of keys) had.add(k);
+      if (had.size === n && map[d]) return;
+      map[d] = [...had];
+      clearTimeout(timer);
+      timer = setTimeout(() => writeJson(PICK_DAYS_KEY, map), 500);
+    }
+  };
+})();
 function notePicked(events) {
   const keys = pickedToday();
   const had = keys.size;
@@ -1639,6 +1670,9 @@ const pickAsked = new Set();
 function isPickEvent(e) {
   const d = localDate(e.start);
   const key = `${e.league}:${e.id}`;
+  // (A day gone by: its picks as they were, when kept.)
+  const was = d < today() ? pickDays.get(d) : null;
+  if (was) return was.has(key);
   if (homePicks.has(d)) return homePicks.get(d).has(key);
   const slot = state.days.get(d);
   // (A day not read yet, 賽事 opened first: read as 首頁 would, then the list drawn again with its picks.)
@@ -1662,8 +1696,9 @@ function isPickEvent(e) {
     const mine = filtered(slot.events.filter(x => !practice(x) && (own.has(x.league) || isFollowedGame(x)) && (isFollowedGame(x) || onTv(x))));
     const past = d < today();
     const pool = state.prefs.fill ? [...mine, ...(slot.others || []).filter(x => !practice(x) && onTv(x))] : mine;
-    const pctx = pickContext(slot);
+    const pctx = past ? stoodContext(slot, d) : pickContext(slot);
     pickMemo.set(memo, new Set(dayPlan(pool.filter(e => !nightOnly(e)), pctx, { n: 6, also: 0, asStood: past, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, pctx) : null }).plan.map(x => `${x.event.league}:${x.event.id}`)));
+    pickDays.add(d, pickMemo.get(memo));
   }
   return pickMemo.get(memo).has(key);
 }
@@ -1743,8 +1778,10 @@ function renderHome() {
     return;
   }
   const now = Date.now();
-  const pctx = pickContext(slot, now);
   let past = h.date < today();
+  const pctx = past ? stoodContext(slot, h.date) : pickContext(slot, now);
+  // (A day gone by with its picks kept: those, as they were.)
+  const keptPicks = past ? pickDays.get(h.date) : null;
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
   // (`any`: a day with nothing of theirs, the others ranked on their own: every game may be a pick.)
@@ -1757,6 +1794,11 @@ function renderHome() {
     // The small hours' big games: with the rest, by their score.
     const { also: night } = dayPlan(list.filter(nightOnly), ctx, { n: 0, also: 999, asStood: before });
     const rest = [...awake, ...night].sort((x, y) => y.score - x.score);
+    if (keptPicks && before === past && past) {
+      const all = [...plan, ...rest];
+      const k = x => `${x.event.league}:${x.event.id}`;
+      return [all.filter(x => keptPicks.has(k(x))).sort((x, y) => Date.parse(x.event.start) - Date.parse(y.event.start)), all.filter(x => !keptPicks.has(k(x))).slice(0, also)];
+    }
     return [plan, rest.slice(0, also)];
   };
   // Only what's on TV in Taiwan is recommended (賽事 has every game), a game
@@ -1901,6 +1943,7 @@ function renderHome() {
   const planKeys = new Set(isToday ? (fallback ? wasPlan : ownWas[0]).map(x => keyOf(x.event)) : []);
   const isPick = x => planKeys.has(keyOf(x.event));
   homePicks.set(h.date, new Set([...planKeys, ...planList.map(x => keyOf(x.event))]));
+  pickDays.add(h.date, homePicks.get(h.date));
   let liveItems = isToday ? rankOnNow(onNow(filtered(mine)), pctx, planKeys) : [];
   const liveMine = liveItems.length > 0;
   // (Never a game of a league read only for a followed match in it: one New
