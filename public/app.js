@@ -860,6 +860,7 @@ document.addEventListener(
   true
 );
 function repaintDay(date) {
+  noteDay(date);
   renderTabs();
   if (sheetOver()) return void heldDays.add(date);
   if (state.tab === 'home' && state.home.date === date) renderHome();
@@ -1226,34 +1227,82 @@ import('#kit/feedback.mjs')
 const pickItem = e => ({ id: `${e.league}:${e.id}`, keys: eventKeys(e) });
 const theirs = now => ({ personal: feedback?.scorer?.('match', now) || null, why: feedback?.whyOf?.('match', now, HABIT) || null });
 const pickContext = (slot, now = Date.now()) => ({ leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, now, featured: featuredIn(dayAll(slot)), chosen: chosenGames(), ...theirs(now) });
-// Each day's picks as they were (推薦, every one shown that day), kept two weeks: a day
-// gone by shows these and nothing else, never worked out again (Jay 2026-11-20: "when standing
-// changes you start recommending different game"; a saved record, no calculation).
-const PICK_DAYS_KEY = 'fx.pickdays.v1';
-const pickDays = (() => {
+// Every league's 推薦 of each day, as they stood that day (Jay 2026-11-20: "when standing
+// changes you start recommending different game"; "save every single league so when user
+// follow or not follow anything it won't just lack that past data"): for each league its
+// chosen games (as a followed league's, leagueChoices) and its games on TV here, by id.
+// Written while the day is today (the phone has every league's day then), never after;
+// a league's days kept until its season starts again (about 1 KB a day). A day gone by
+// shows these alone: the chosen games of the leagues followed now, and the followed
+// teams' games that were on TV. Nothing is worked out again.
+const PICK_DAYS_KEY = 'fx.pickdays.v2';
+const pickRecord = (() => {
   let map = null;
   let timer = 0;
   const load = () => {
     if (map) return map;
-    const old = addDays(today(), -14);
-    map = Object.fromEntries(Object.entries(readJson(PICK_DAYS_KEY, {}) || {}).filter(([d, keys]) => d >= old && Array.isArray(keys)));
+    const old = addDays(today(), -400);
+    map = {};
+    for (const [d, day] of Object.entries(readJson(PICK_DAYS_KEY, {}) || {})) {
+      if (d < old || !day || typeof day !== 'object') continue;
+      // (A league's days before its season began: gone, the new season starts clean.)
+      const keep = Object.entries(day).filter(([k, r]) => Array.isArray(r?.c) && Array.isArray(r?.t) && !(leagueBounds(k)?.from > d));
+      if (keep.length) map[d] = Object.fromEntries(keep);
+    }
     return map;
   };
   return {
-    get: d => (load()[d] ? new Set(map[d]) : null),
-    // (Only today's: a day is written while it's on, never after.)
-    add: (d, keys) => {
+    get: (d, league) => load()[d]?.[league] || null,
+    add: (d, rec) => {
       if (d !== today()) return;
-      const had = new Set(load()[d] || []);
-      const n = had.size;
-      for (const k of keys) had.add(k);
-      if (had.size === n && map[d]) return;
-      map[d] = [...had];
+      const day = (load()[d] ||= {});
+      let moved = false;
+      for (const [k, r] of Object.entries(rec)) {
+        const had = day[k] || { c: [], t: [] };
+        const c = [...new Set([...had.c, ...r.c])];
+        const t = [...new Set([...had.t, ...r.t])];
+        if (day[k] && c.length === had.c.length && t.length === had.t.length) continue;
+        day[k] = { c, t };
+        moved = true;
+      }
+      if (!moved) return;
       clearTimeout(timer);
       timer = setTimeout(() => writeJson(PICK_DAYS_KEY, map), 500);
     }
   };
 })();
+// Today's every league, into the record (each time the day's games or what's on TV move).
+let notedDay = '';
+function noteDay(date) {
+  if (date !== today() || !tvReady()) return;
+  const slot = state.days.get(date);
+  const all = dayAll(slot).filter(e => e.kind === 'match' && !e.other && !e.status?.void);
+  const key = `${date}|${slot?.at}|${all.length}|${tvGen}`;
+  if (!all.length || key === notedDay) return;
+  notedDay = key;
+  const leagues = [...new Set(all.map(e => e.league))];
+  const byKey = new Map(all.map(e => [`${e.league}:${e.id}`, e]));
+  const kept = { get: keptChoices.get, set: (k, chosen) => keptChoices.set(k, chosen, Date.parse(byKey.get(k)?.start) || Date.now()) };
+  const ctx = { leagues: state.prefs.leagues, follows: state.prefs.follows, tables: state.home.tables, featured: featuredIn(all), ...theirs(Date.now()) };
+  const chosen = leagueChoices(all, { watched: leagues, onTv, tvKnown, awake: e => !asleep(officialMs(e)), ctx, kept });
+  const rec = {};
+  for (const e of all) {
+    const c = chosen.has(`${e.league}:${e.id}`);
+    const t = onTv(e);
+    if (!c && !t) continue;
+    const r = (rec[e.league] ||= { c: [], t: [] });
+    if (c) r.c.push(String(e.id));
+    if (t) r.t.push(String(e.id));
+  }
+  pickRecord.add(date, rec);
+}
+// A game of a day gone by: a pick when the record says so (above).
+function pastPick(e) {
+  const r = pickRecord.get(localDate(e.start), e.league);
+  if (!r) return false;
+  const id = String(e.id);
+  return (watched().includes(e.league) && r.c.includes(id)) || (ownGame(e) && (isFollowedGame(e) || r.t.includes(id)));
+}
 function notePicked(events) {
   const keys = pickedToday();
   const had = keys.size;
@@ -1668,7 +1717,7 @@ function isPickEvent(e) {
   const d = localDate(e.start);
   const key = `${e.league}:${e.id}`;
   // A day gone by: its picks as they were, or none.
-  if (d < today()) return Boolean(pickDays.get(d)?.has(key));
+  if (d < today()) return pastPick(e);
   if (homePicks.has(d)) return homePicks.get(d).has(key);
   const slot = state.days.get(d);
   // (A day not read yet, 賽事 opened first: read as 首頁 would, then the list drawn again with its picks.)
@@ -1692,7 +1741,6 @@ function isPickEvent(e) {
     const pool = state.prefs.fill ? [...mine, ...(slot.others || []).filter(x => !practice(x) && onTv(x))] : mine;
     const pctx = pickContext(slot);
     pickMemo.set(memo, new Set(dayPlan(pool.filter(e => !nightOnly(e)), pctx, { n: 6, also: 0, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, pctx) : null }).plan.map(x => `${x.event.league}:${x.event.id}`)));
-    pickDays.add(d, pickMemo.get(memo));
   }
   return pickMemo.get(memo).has(key);
 }
@@ -1774,8 +1822,7 @@ function renderHome() {
   const now = Date.now();
   let past = h.date < today();
   const pctx = pickContext(slot, now);
-  // (A day gone by: its picks as they were, or none.)
-  const keptPicks = past ? pickDays.get(h.date) || new Set() : null;
+
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
   // (`any`: a day with nothing of theirs, the others ranked on their own: every game may be a pick.)
@@ -1788,10 +1835,10 @@ function renderHome() {
     // The small hours' big games: with the rest, by their score.
     const { also: night } = dayPlan(list.filter(nightOnly), ctx, { n: 0, also: 999, asStood: before });
     const rest = [...awake, ...night].sort((x, y) => y.score - x.score);
-    if (keptPicks && before === past && past) {
+    // (A day gone by: its picks as the record has them, nothing worked out again.)
+    if (past && before) {
       const all = [...plan, ...rest];
-      const k = x => `${x.event.league}:${x.event.id}`;
-      return [all.filter(x => keptPicks.has(k(x))).sort((x, y) => Date.parse(x.event.start) - Date.parse(y.event.start)), all.filter(x => !keptPicks.has(k(x))).slice(0, also)];
+      return [all.filter(x => pastPick(x.event)).sort((x, y) => Date.parse(x.event.start) - Date.parse(y.event.start)), all.filter(x => !pastPick(x.event)).slice(0, also)];
     }
     return [plan, rest.slice(0, also)];
   };
@@ -1937,7 +1984,6 @@ function renderHome() {
   const planKeys = new Set(isToday ? (fallback ? wasPlan : ownWas[0]).map(x => keyOf(x.event)) : []);
   const isPick = x => planKeys.has(keyOf(x.event));
   homePicks.set(h.date, new Set([...planKeys, ...planList.map(x => keyOf(x.event))]));
-  pickDays.add(h.date, homePicks.get(h.date));
   let liveItems = isToday ? rankOnNow(onNow(filtered(mine)), pctx, planKeys) : [];
   const liveMine = liveItems.length > 0;
   // (Never a game of a league read only for a followed match in it: one New
