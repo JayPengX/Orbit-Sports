@@ -168,9 +168,12 @@ const localPrefs = () => {
     return null;
   }
 };
+// (Without the picks: they're kept on their own, fx.pickdays.)
 const keepLocalPrefs = payload => {
   try {
-    if (q.pass) localStorage.setItem(LOCAL_PREFS, JSON.stringify({ a: q.pass, p: payload }));
+    if (!q.pass) return;
+    const { picks, ...rest } = JSON.parse(payload);
+    localStorage.setItem(LOCAL_PREFS, JSON.stringify({ a: q.pass, p: JSON.stringify(rest) }));
   } catch {}
 };
 // `save`: a copy here newer than `payload` sent up (only against the Pass's
@@ -184,6 +187,8 @@ function applyPrefs(payload, { save = true } = {}) {
   } catch {
     return;
   }
+  // The Pass's record of each day's 推薦 laid in (whichever follows stand); this phone's days it lacks sent up.
+  if (pickRecord.merge(p?.picks)) picksMoved();
   const local = localPrefs();
   const passed = setting(state.wallet, 'follows:match', null)?.leagues?.filter(k => LEAGUES[k]) || [];
   let restored = false;
@@ -255,7 +260,7 @@ function savePrefs() {
     // (What's here when it's written, not when it was asked: the Pass's copy
     // taken in between is never written over with the one before it.)
     const { leagues, follows, games, audio, fill, quiet } = state.prefs;
-    const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, ...(fill ? { fill: true } : {}), ...(quiet ? { quiet } : {}), t: Date.now() });
+    const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, ...(fill ? { fill: true } : {}), ...(quiet ? { quiet } : {}), picks: pickRecord.all(), t: Date.now() });
     keepLocalPrefs(payload);
     tellFollows();
     // Not saved (another app live on the pass, offline): again when this one is live.
@@ -1230,47 +1235,79 @@ const pickContext = (slot, now = Date.now()) => ({ leagues: state.prefs.leagues,
 // Every league's 推薦 of each day, as they stood that day (Jay 2026-11-20: "when standing
 // changes you start recommending different game"; "save every single league so when user
 // follow or not follow anything it won't just lack that past data"): for each league its
-// chosen games (as a followed league's, leagueChoices) and its games on TV here, by id.
+// games on TV here by id, a chosen one (as a followed league's, leagueChoices) marked '*'.
 // Written while the day is today (the phone has every league's day then), never after;
-// a league's days kept until its season starts again (about 1 KB a day). A day gone by
-// shows these alone: the chosen games of the leagues followed now, and the followed
-// teams' games that were on TV. Nothing is worked out again.
-const PICK_DAYS_KEY = 'fx.pickdays.v2';
+// a league's days kept until its season starts again. Synced on the Pass (the payload's
+// `picks`, Jay: "sync should pass"), merged both ways: a record only grows, so two copies
+// are one with every id of either. A day gone by shows these alone: the chosen games of
+// the leagues followed now, and the followed teams' games that were on TV.
+const PICK_DAYS_KEY = 'fx.pickdays.v3';
 const pickRecord = (() => {
   let map = null;
   let timer = 0;
-  const load = () => {
-    if (map) return map;
+  const clean = all => {
     const old = addDays(today(), -400);
-    map = {};
-    for (const [d, day] of Object.entries(readJson(PICK_DAYS_KEY, {}) || {})) {
-      if (d < old || !day || typeof day !== 'object') continue;
+    const out = {};
+    for (const [d, day] of Object.entries(all && typeof all === 'object' ? all : {})) {
+      if (!/^\d{4}-\d\d-\d\d$/.test(d) || d < old || d > today() || !day || typeof day !== 'object') continue;
       // (A league's days before its season began: gone, the new season starts clean.)
-      const keep = Object.entries(day).filter(([k, r]) => Array.isArray(r?.c) && Array.isArray(r?.t) && !(leagueBounds(k)?.from > d));
-      if (keep.length) map[d] = Object.fromEntries(keep);
+      const keep = Object.entries(day).filter(([k, ids]) => LEAGUES[k] && Array.isArray(ids) && !(leagueBounds(k)?.from > d));
+      if (keep.length) out[d] = Object.fromEntries(keep.map(([k, ids]) => [k, ids.filter(x => typeof x === 'string').slice(0, 200)]));
     }
-    return map;
+    return out;
+  };
+  const load = () => (map ||= clean(readJson(PICK_DAYS_KEY, {})));
+  const save = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => writeJson(PICK_DAYS_KEY, map), 500);
+  };
+  // One league's day, two lists made one: every id, chosen when either has it chosen.
+  const join = (a = [], b = []) => {
+    const ids = new Map();
+    for (const x of [...a, ...b]) {
+      const id = x.replace(/^\*/, '');
+      ids.set(id, ids.get(id) || x.startsWith('*'));
+    }
+    return [...ids].map(([id, c]) => (c ? `*${id}` : id));
+  };
+  const put = (d, k, ids) => {
+    const day = (load()[d] ||= {});
+    const next = join(day[k], ids);
+    if (day[k] && next.length === day[k].length && next.every((x, i) => x === day[k][i])) return false;
+    day[k] = next;
+    return true;
   };
   return {
-    get: (d, league) => load()[d]?.[league] || null,
+    get: (d, league) => {
+      const ids = load()[d]?.[league];
+      return ids ? { c: ids.filter(x => x.startsWith('*')).map(x => x.slice(1)), t: ids.map(x => x.replace(/^\*/, '')) } : null;
+    },
+    all: () => clean(load()),
+    // Today's, from this phone: true when anything moved.
     add: (d, rec) => {
-      if (d !== today()) return;
-      const day = (load()[d] ||= {});
+      if (d !== today()) return false;
       let moved = false;
-      for (const [k, r] of Object.entries(rec)) {
-        const had = day[k] || { c: [], t: [] };
-        const c = [...new Set([...had.c, ...r.c])];
-        const t = [...new Set([...had.t, ...r.t])];
-        if (day[k] && c.length === had.c.length && t.length === had.t.length) continue;
-        day[k] = { c, t };
-        moved = true;
-      }
-      if (!moved) return;
-      clearTimeout(timer);
-      timer = setTimeout(() => writeJson(PICK_DAYS_KEY, map), 500);
+      for (const [k, ids] of Object.entries(rec)) moved = put(d, k, ids) || moved;
+      if (moved) save();
+      return moved;
+    },
+    // The Pass's copy laid in: true when this phone has something the Pass's lacks (sent up).
+    merge: other => {
+      const got = clean(other);
+      let moved = false;
+      for (const [d, day] of Object.entries(got)) for (const [k, ids] of Object.entries(day)) moved = put(d, k, ids) || moved;
+      if (moved) save();
+      const mine = load();
+      return Object.entries(mine).some(([d, day]) => Object.entries(day).some(([k, ids]) => (got[d]?.[k]?.length || 0) < ids.length));
     }
   };
 })();
+// Today's record moved: on the Pass a minute on (a day's few changes, one write).
+let picksTimer = 0;
+const picksMoved = () => {
+  clearTimeout(picksTimer);
+  picksTimer = setTimeout(() => state.prefsLoaded && savePrefs(), 60_000);
+};
 // Today's every league, into the record (each time the day's games or what's on TV move).
 let notedDay = '';
 function noteDay(date) {
@@ -1288,13 +1325,10 @@ function noteDay(date) {
   const rec = {};
   for (const e of all) {
     const c = chosen.has(`${e.league}:${e.id}`);
-    const t = onTv(e);
-    if (!c && !t) continue;
-    const r = (rec[e.league] ||= { c: [], t: [] });
-    if (c) r.c.push(String(e.id));
-    if (t) r.t.push(String(e.id));
+    if (!c && !onTv(e)) continue;
+    (rec[e.league] ||= []).push(`${c ? '*' : ''}${e.id}`);
   }
-  pickRecord.add(date, rec);
+  if (pickRecord.add(date, rec)) picksMoved();
 }
 // A game of a day gone by: a pick when the record says so (above).
 function pastPick(e) {

@@ -31,7 +31,9 @@ export function device(name, pass, { account = 'acct1' } = {}) {
     localStorage, LEAGUES, q,
     state: { tab: 'home', prefs: { leagues: [], follows: [], games: [], audio: 'en', fill: false, quiet: null }, prefsLoaded: false, wallet: null, days: new Map(), home: {} },
     setting: () => null, teamNameZh: () => null, settingPatch: () => ({ settings: {} }), affinityPatch: () => ({ settings: {} }),
-    teamLogo: () => 'logo', showTab: () => {}, sessionStorage: { getItem: () => null, setItem() {} }
+    teamLogo: () => 'logo', showTab: () => {}, sessionStorage: { getItem: () => null, setItem() {} },
+    // (Each day's 推薦 on the Pass: its own record, tested apart.)
+    pickRecord: { merge: () => false, all: () => ({}) }, picksMoved: () => {}
   };
   const names = Object.keys(env);
   const fn = new Function(...names, `${code}
