@@ -2701,10 +2701,7 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 /* A phone on its side is short: the hero no taller than half the screen,
    the sides tighter and 觀看 beside the foot line. */
 @media (max-height: 520px) {
-  .q-hero-card.hero-game { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 12px 14px; }
-  .hero-game > * { grid-column: 1 / -1; }
-  .hero-game > .hc-foot:not(:last-child) { grid-column: 1; align-self: center; }
-  .hero-game > .q-hc-row { grid-column: 2; align-self: center; }
+  .q-hero-card.hero-game { gap: 6px 10px; padding: 12px 14px; }
   .hero-game .q-hc-btn { min-height: 36px; }
   .hc-logo { width: 38px; height: 38px; border-radius: 12px; }
   .hc-logo .logo { width: 27px; height: 27px; }
@@ -2712,10 +2709,20 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
   .hc-name { font-size: 18px; line-height: 22px; }
   .hc-score { font-size: 30px; line-height: 34px; }
   .hc-status { padding: 4px 9px; }
-  /* (Jay 2026-11-01: 下一場 stood a whole column's height beside 我的比賽.)
-     Two sides of a game side by side, a row the shorter. */
-  .hero-game:has(> .hc-side + .hc-side) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hero-game > .hc-side { grid-column: auto; }
+  /* Side by side only where the card is wide enough (Jay 2026-11-20, a phone on
+     its side in Orbit: the hero in a 350px column, "a lot of wrap"); in a narrow
+     column it stays as on a phone held upright. (Its column, else the page, measured.) */
+  .tab-flow, .tab-flow > .q-flow-col { container: hero-room / inline-size; }
+  @container hero-room (min-width: 520px) {
+    .q-hero-card.hero-game { grid-template-columns: minmax(0, 1fr) auto; }
+    .hero-game > * { grid-column: 1 / -1; }
+    .hero-game > .hc-foot:not(:last-child) { grid-column: 1; align-self: center; }
+    .hero-game > .q-hc-row { grid-column: 2; align-self: center; }
+    /* (Jay 2026-11-01: 下一場 stood a whole column's height beside 我的比賽.)
+       Two sides of a game side by side, a row the shorter. */
+    .hero-game:has(> .hc-side + .hc-side) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hero-game > .hc-side { grid-column: auto; }
+  }
 }
 @media (max-height: 520px) {
   /* A game's head in a sheet: the sides smaller, so the tabs show on the first screen. */
