@@ -1226,19 +1226,16 @@ import('#kit/feedback.mjs')
 const pickItem = e => ({ id: `${e.league}:${e.id}`, keys: eventKeys(e) });
 const theirs = now => ({ personal: feedback?.scorer?.('match', now) || null, why: feedback?.whyOf?.('match', now, HABIT) || null });
 const pickContext = (slot, now = Date.now()) => ({ leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, now, featured: featuredIn(dayAll(slot)), chosen: chosenGames(), ...theirs(now) });
-// A day gone by, worked out when no picks of it were kept: as it stood, never by what's
-// known since (Jay 2026-11-20: "when standing changes you start recommending different
-// game"): no table (today's isn't that day's), none of the taste learnt since, its own day's clock.
-const stoodContext = (slot, date) => ({ ...pickContext(slot, Date.parse(`${date}T00:00:00+08:00`)), tables: {}, personal: null, why: null });
-// Each day's picks as they were (推薦, every one shown that day), kept three weeks:
-// a day gone by shows these, never picks worked out again (pickContext moves on).
+// Each day's picks as they were (推薦, every one shown that day), kept two weeks: a day
+// gone by shows these and nothing else, never worked out again (Jay 2026-11-20: "when standing
+// changes you start recommending different game"; a saved record, no calculation).
 const PICK_DAYS_KEY = 'fx.pickdays.v1';
 const pickDays = (() => {
   let map = null;
   let timer = 0;
   const load = () => {
     if (map) return map;
-    const old = addDays(today(), -21);
+    const old = addDays(today(), -14);
     map = Object.fromEntries(Object.entries(readJson(PICK_DAYS_KEY, {}) || {}).filter(([d, keys]) => d >= old && Array.isArray(keys)));
     return map;
   };
@@ -1670,14 +1667,12 @@ const pickAsked = new Set();
 function isPickEvent(e) {
   const d = localDate(e.start);
   const key = `${e.league}:${e.id}`;
-  // (A day gone by: its picks as they were, when kept.)
-  const was = d < today() ? pickDays.get(d) : null;
-  if (was) return was.has(key);
+  // A day gone by: its picks as they were, or none.
+  if (d < today()) return Boolean(pickDays.get(d)?.has(key));
   if (homePicks.has(d)) return homePicks.get(d).has(key);
   const slot = state.days.get(d);
   // (A day not read yet, 賽事 opened first: read as 首頁 would, then the list drawn again with its picks.)
-  // (Days gone by too, two weeks back: 美職足 followed by league showed no 推薦 on 11/8, NBA did, Jay 2026-11-20.)
-  if (!slot?.at && !pickAsked.has(d) && d >= addDays(today(), -14) && d <= addDays(today(), 14)) {
+  if (!slot?.at && !pickAsked.has(d) && d >= today() && d <= addDays(today(), 14)) {
     pickAsked.add(d);
     Promise.resolve(loadDay(d))
       .then(() => state.tab === 'matches' && state.days.get(d)?.events?.length && renderScores())
@@ -1694,10 +1689,9 @@ function isPickEvent(e) {
   if (!pickMemo.has(memo)) {
     const own = new Set([...followedLeagues(), ...state.prefs.follows.map(f => f.league)]);
     const mine = filtered(slot.events.filter(x => !practice(x) && (own.has(x.league) || isFollowedGame(x)) && (isFollowedGame(x) || onTv(x))));
-    const past = d < today();
     const pool = state.prefs.fill ? [...mine, ...(slot.others || []).filter(x => !practice(x) && onTv(x))] : mine;
-    const pctx = past ? stoodContext(slot, d) : pickContext(slot);
-    pickMemo.set(memo, new Set(dayPlan(pool.filter(e => !nightOnly(e)), pctx, { n: 6, also: 0, asStood: past, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, pctx) : null }).plan.map(x => `${x.event.league}:${x.event.id}`)));
+    const pctx = pickContext(slot);
+    pickMemo.set(memo, new Set(dayPlan(pool.filter(e => !nightOnly(e)), pctx, { n: 6, also: 0, keep: ownGame, only: isFollowedEvent, fill: state.prefs.fill ? e => worth(e, pctx) : null }).plan.map(x => `${x.event.league}:${x.event.id}`)));
     pickDays.add(d, pickMemo.get(memo));
   }
   return pickMemo.get(memo).has(key);
@@ -1779,9 +1773,9 @@ function renderHome() {
   }
   const now = Date.now();
   let past = h.date < today();
-  const pctx = past ? stoodContext(slot, h.date) : pickContext(slot, now);
-  // (A day gone by with its picks kept: those, as they were.)
-  const keptPicks = past ? pickDays.get(h.date) : null;
+  const pctx = pickContext(slot, now);
+  // (A day gone by: its picks as they were, or none.)
+  const keptPicks = past ? pickDays.get(h.date) || new Set() : null;
   // The picks of a list: the plan and the rest (a past day ranked as it
   // stood before, shown with the real results).
   // (`any`: a day with nothing of theirs, the others ranked on their own: every game may be a pick.)
