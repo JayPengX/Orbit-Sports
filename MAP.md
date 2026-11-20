@@ -77,7 +77,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 - **Refresh** at the owner's speeds (lists 5 s, an open game 3 s, F1 4–15 s, today whole every 2 minutes), patched in place (`put`, `morph`; drawn pictures kept, `lib/pictures.mjs`).
 - **Notices** (the kit's `match` kinds): a followed team's start and final, each pick's, F1 sessions and podiums; a tap opens `#game=<league>/<id>/<day>`.
 - **The family:** `tellFollows`, `tellNext` into the phone's notebook (News' 你關心的, the Pass's 今天, Class's calendar); 去球場 and 球場天氣 (`lib/parks.mjs`, Transit's planner).
-- **Saved:** the Pass payload `{ v: 4, leagues, follows, games, audio, t }`; on the phone `fx.day.v4`, `fx.active.v2`, `fx.f1live.v2`, `fx.f1ended`, `fx.chosen.v1`. **Offline:** covered (`onlineOnly`); never old scores as now.
+- **Saved:** the Pass payload `{ v: 4, leagues, follows, games, audio, t }`; on the phone `fx.day.v4`, `fx.active.v2`, `fx.f1live.v2`, `fx.f1ended`, `fx.chosen.v1`, `fx.pickdays.v1` (each day's 推薦 as shown, three weeks: a day gone by shows these, never worked out again). **Offline:** covered (`onlineOnly`); never old scores as now.
 - The kit's `sports-*.mjs` run in the proxy's builders too, so they import nothing but each other.
 
 ## Files (`public/`)
