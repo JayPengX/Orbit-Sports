@@ -128,6 +128,9 @@ img { max-width: 100%; }
 .row-mark { display: inline-flex; align-items: center; gap: 4px; height: 20px; margin-right: 8px; padding: 0 8px 0 6px; border-radius: 999px; background: var(--q-fill-2); color: var(--q-label, var(--q-text)); font: 600 12px/20px var(--q-font); white-space: nowrap; }
 .row-mark svg { width: 12px; height: 12px; fill: currentColor; }
 .event-row.picked { background: var(--q-fill-4); }
+/* (A card whose every game is theirs: none lit, the 推薦 pill says it; Jay 2026-11-20, 美職足's two
+   picks of the day: "full grey".) */
+.list:not(:has(.event-row:not(.picked))) .event-row.picked { background: none; }
 /* A game only 填滿空檔 put in: unlit, its pill outlined with a hollow star, so a
    followed league's pick reads as theirs and this one as filling a gap (Jay 2026-11-05). */
 .event-row.picked.fill-pick { background: none; }

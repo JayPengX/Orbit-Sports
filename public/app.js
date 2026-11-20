@@ -1642,7 +1642,8 @@ function isPickEvent(e) {
   if (homePicks.has(d)) return homePicks.get(d).has(key);
   const slot = state.days.get(d);
   // (A day not read yet, 賽事 opened first: read as 首頁 would, then the list drawn again with its picks.)
-  if (!slot?.at && !pickAsked.has(d) && d >= today() && d <= addDays(today(), 14)) {
+  // (Days gone by too, two weeks back: 美職足 followed by league showed no 推薦 on 11/8, NBA did, Jay 2026-11-20.)
+  if (!slot?.at && !pickAsked.has(d) && d >= addDays(today(), -14) && d <= addDays(today(), 14)) {
     pickAsked.add(d);
     Promise.resolve(loadDay(d))
       .then(() => state.tab === 'matches' && state.days.get(d)?.events?.length && renderScores())
