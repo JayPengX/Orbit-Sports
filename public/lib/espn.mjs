@@ -144,7 +144,8 @@ const MAIN_SESSIONS = ['FP1', 'FP2', 'FP3', 'SS', 'SQ', 'SR', 'Qual', 'Race'];
 // F1 on TV here (ELTA, from Sky's coverage of F1's international feed)
 // opens with the title sequence, F1's theme, a few minutes before the
 // session's official time. Schedules show the official time (what every
-// schedule says, 16:30 not 16:26); reminders use the titles' time (`at`),
+// schedule says, 16:30 not 16:26); 轉播 and the picks use the titles' time (`at`;
+// a start notice goes 5 minutes before the official start, app.js noticeAt),
 // so they're never missed, without a second time on screen. The race's
 // titles follow the anthem about 5 minutes before (the owner's watching). Minutes before; estimates (F1 publishes none: the race's come after
 // the anthem, the others just before the session), tuned here.

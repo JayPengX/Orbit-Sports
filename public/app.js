@@ -1087,6 +1087,11 @@ async function loadFollowedTeams() {
 // Followed teams' coming games, for notices while the app is closed: the
 // start, and the final score (the Worker asks ESPN each 2 minutes from the
 // soonest the game can end, and tells it the moment it's over).
+// When a start notice goes: at the start; an F1 session's 5 minutes before
+// its official start, whatever its titles' estimate (Jay 11-21: qualifying's
+// came at :56, its titles 4 minutes before; "at 55").
+const F1_NOTICE_MIN = 5;
+const noticeAt = e => (e.league === 'f1' && e.official ? Date.parse(e.official) - F1_NOTICE_MIN * 60_000 : Date.parse(e.start));
 // Finals this app showed as a banner itself (open at the time): not sent again as a phone notice.
 const bannered = new Set();
 function syncPush() {
@@ -1117,7 +1122,7 @@ function syncPush() {
   // Today's picks, each starting (its own kind of notice, 今日推薦開賽): one
   // a followed team's start notice already covers isn't said twice.
   for (const e of (state.todayPicks || []).map(freshGame)) {
-    const start = Date.parse(e.start); // (an F1 session's: its title time, the owner's call, 2026-10-18)
+    const start = noticeAt(e);
     if (e.status?.state === 'post' || e.status?.void || e.timeTbd || !(start > now - GRACE) || start > now + 86_400_000) continue;
     const key = `${e.league}:${e.id}`;
     if (items.some(x => x.tag === `start:${key}`)) continue;
@@ -1142,8 +1147,7 @@ function syncPush() {
   // (And a league followed as a league: its weekends' sessions today.)
   for (const e of [...followedGames(), ...(state.days.get(today())?.events || []).filter(e => e.kind === 'field' && isFollowedEvent(e))]) {
     if (e.kind !== 'field' || !['Qual', 'SR', 'Race'].includes(e.sessionKey) || e.status.state === 'post' || items.some(x => x.tag === `start:${e.league}:${e.id}`)) continue;
-    // (The start notice at the title time, a few minutes before the official start: the owner's call, 2026-10-18.)
-    const start = Date.parse(e.start);
+    const start = noticeAt(e);
     if (!(start > now - 4 * 3_600_000 && start < now + 8 * 86_400_000)) continue;
     if (start > now - GRACE) items.push({ at: start, title: startTitle(e), body: startLine(e), tag: `start:${e.league}:${e.id}`, hash: noticeHash(e), kind: 'start' });
     const end = resultItem(e, now);
