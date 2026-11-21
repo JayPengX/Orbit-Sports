@@ -41,6 +41,7 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - Official tiebreaks order level sides — `public/lib/tiebreak.mjs`: `TIEBREAKS`, `tableKey`
 - Picks for you on 首頁, learning from what's opened and passed over (the kit's one engine, kept on the Pass) — `public/lib/picks.mjs`, `public/app.js`: `scoreMatch`, `feedback.keep`, `whyOf`
 - 首頁's lead game with each club on its own colour, its logo on the solid tile — `public/look.js`, `public/look.css`: `paintHero`, `hc-logo`
+- Two of theirs on at once: the league put higher in 設定 leads (首頁's and 轉播's top card), then the one ending sooner — `public/lib/picks.mjs`, `public/app.js`: `export const liveOrder`, `liveOrder(state.prefs.leagues)`
 - 我的球隊 on 首頁: each followed team's place and its next game — `public/look.js`, `public/app.js`: `function teams`, `teamsShelf`
 - 首頁 reads the days either side ahead, so a swipe lands on a day already in — `public/app.js`: `function readAround`
 - 首頁's sport chips move to a day that sport plays; 全部 or 我的比賽 goes back to the day and place left (unless a day was picked meanwhile) — `public/lib/strip.mjs`, `public/app.js`: `sportBack`, `pickFilter`

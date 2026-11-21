@@ -339,6 +339,17 @@ const GAME = { soccer: { late: 2, tight: 1, rout: 3 }, baseball: { late: 7, tigh
 // A race weekend's session by its own length (qualifying an hour, not a race's two).
 export const SESSION_MINUTES = { FP1: 60, FP2: 60, FP3: 60, Qual: 60, SS: 45, SQ: 45, SR: 35, Race: 120 };
 const minutes = e => SESSION_MINUTES[e.sessionKey] || DURATION[LEAGUES[e.league]?.sport] || 150;
+// When a game or session on now should be over: its official start and its
+// usual length (qualifying an hour, an NBA game about two and a half).
+export const endsBy = e => Date.parse(e.official || e.start) + minutes(e) * 60_000;
+// Two of theirs on at once, which leads (首頁's top card, 轉播's): the league
+// they put higher in 設定 first (Jay 11-21: F1 above the NBA, qualifying over
+// the Rockets), then, in the same league, the one ending sooner (it won't be
+// on for long; the other still will be after).
+export const liveOrder = (leagues = []) => {
+  const rank = e => (leagues.includes(e.league) ? leagues.indexOf(e.league) : leagues.length);
+  return (a, b) => rank(a) - rank(b) || endsBy(a) - endsBy(b);
+};
 const window = e => {
   const start = Date.parse(e.start);
   return [start, start + minutes(e) * 60_000];

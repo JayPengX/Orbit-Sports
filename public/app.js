@@ -31,7 +31,7 @@ import { detectLocale, makeT } from './lib/i18n.mjs';
 import { eventKeys, teamKey, leagueKey } from './lib/foryou.mjs';
 import { standingsRace, SEASON_GAMES, COUNTS } from './lib/title.mjs';
 import { homeGames } from './lib/home-shown.mjs';
-import { dayPlan, worth, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, HABIT } from './lib/picks.mjs';
+import { dayPlan, worth, tableIndex, SHORTEST, scoreMatch, bigGame, tableStarted, watchedLeagues, leagueChoices, HABIT, liveOrder } from './lib/picks.mjs';
 import { liveTiming, settleScoring, askFinishes, weekendCircuit } from './lib/f1.mjs';
 import { playoffModel, openRound, FORMATS, seedPicture, PICTURE_COLOR, unlGroupColumn } from './lib/playoffs.mjs';
 import { nbaCupRound, nbaCupGroups, isGroupPlay, cupQuarters, cupGroupColumn, cupNote, cupLetters, cupOrder } from './lib/nbacup.mjs';
@@ -1218,7 +1218,11 @@ function pickedToday() {
 function rankOnNow(list, ctx, also = new Set()) {
   const picked = new Set([...pickedToday(), ...also]);
   const k = x => `${x.event.league}:${x.event.id}`;
-  return list.map(e => ({ event: e, ...scoreMatch(e, ctx) })).sort((x, y) => isFollowedEvent(y.event) - isFollowedEvent(x.event) || picked.has(k(y)) - picked.has(k(x)) || y.score - x.score);
+  // (Theirs first; among theirs the league put higher, then the one ending sooner: liveOrder.)
+  const order = liveOrder(state.prefs.leagues);
+  return list
+    .map(e => ({ event: e, ...scoreMatch(e, ctx), mine: isFollowedEvent(e) }))
+    .sort((x, y) => y.mine - x.mine || (x.mine && order(x.event, y.event)) || picked.has(k(y)) - picked.has(k(x)) || y.score - x.score);
 }
 // The picks' context for a day held (what rankOnNow and the plan weigh).
 // What the picks showed, what was opened from them and anywhere in the app,
@@ -2644,7 +2648,8 @@ function renderLive() {
   const past = d < today();
   const list = tvDay(d);
   const c = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, now, featured: featuredIn(list), chosen: chosenGames(), ...theirs(now) };
-  const ranked = list.filter(e => !e.status.void).map(e => ({ e, on: onAir(e, now), mine: isFollowedEvent(e), score: scoreMatch(e, c).score })).sort((x, y) => y.on - x.on || y.mine - x.mine || y.score - x.score);
+  const order = liveOrder(state.prefs.leagues);
+  const ranked = list.filter(e => !e.status.void).map(e => ({ e, on: onAir(e, now), mine: isFollowedEvent(e), score: scoreMatch(e, c).score })).sort((x, y) => y.on - x.on || y.mine - x.mine || (x.on && x.mine && order(x.e, y.e)) || y.score - x.score);
   const top = ranked[0]?.e || null;
   const hero = top ? heroGame(top, { mine: isFollowedEvent(top), eyebrow: top.status.state === 'pre' ? dayLabel(d, { long: true }) : '', onOpen: openEvent }) : null;
   const rest = list.filter(e => e !== top);
