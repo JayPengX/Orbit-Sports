@@ -2629,56 +2629,72 @@ function renderLive() {
   const ranked = list.filter(e => !e.status.void).map(e => ({ e, on: onAir(e, now), mine: isFollowedEvent(e), score: scoreMatch(e, c).score })).sort((x, y) => y.on - x.on || y.mine - x.mine || y.score - x.score);
   const top = ranked[0]?.e || null;
   const hero = top ? heroGame(top, { mine: isFollowedEvent(top), eyebrow: top.status.state === 'pre' ? dayLabel(d, { long: true }) : '', onOpen: openEvent }) : null;
-  const rest = list.filter(e => e !== top);
+  // (One on now that isn't theirs leads: their own game to come stays a lead
+  // game under it, never lost among the day's rows, Jay 11-21: the NBA game
+  // he follows "no where to be found" once FP3 took its place.)
+  const theirsNext = top && !isFollowedEvent(top) ? ranked.find(x => x.mine && x.e !== top && x.e.status.state !== 'post')?.e : null;
+  const hero2 = theirsNext ? heroGame(theirsNext, { mine: true, eyebrow: theirsNext.status.state === 'pre' ? dayLabel(d, { long: true }) : '', onOpen: openEvent }) : null;
+  const rest = list.filter(e => e !== top && e !== theirsNext);
   const gap = dayUnknown([slot], tvUnread());
   const guide = !past && guideItems().some(p => p.end > now && localDate(p.start) === d) ? guideLink(list, d) : null;
-  put(
-    box,
-    liveBar(),
-    // (A phone: the lead game, the guide, then the day's list. Wide (Jay
-    // 11-21, an iPad: a third of the page empty beside one long list): the
-    // day's title across the top, the lead game and the guide in the first
-    // column, the rest as tiles beside and under them in time order, as
-    // 賽事's day; styles.css .tv-day.)
-    cols(
-      [
-        el('div', { class: `tv-day${rest.length ? '' : ' solo'}` }, [
-          el('div', { class: 'tv-lead' }, [hero, !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : d === today() ? L({ zh: '今天沒有轉播', en: 'Nothing on TV today' }) : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null, guide]),
-          // (A game on now: 觀看 beside it, straight into ELTA.tv's or Apple TV's app.)
-          rest.length ? section(d === today() ? L({ zh: '今天的轉播', en: 'On TV today' }) : L({ zh: '當天轉播', en: 'On TV that day' }), el('div', { class: 'q-card list game-grid tv-grid' }, rest.map(e => withWatch(eventRow(e, { day: false }), e))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null
-        ])
-      ],
-      []
-    )
-  );
-  fitLead(box.querySelector('.tv-day'));
+  const lead = el('div', { class: 'tv-lead' }, [hero, hero2, !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : d === today() ? L({ zh: '今天沒有轉播', en: 'Nothing on TV today' }) : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null, guide]);
+  // (A game on now: 觀看 beside it, straight into ELTA.tv's or Apple TV's app.)
+  const rows = rest.map(e => withWatch(eventRow(e, { day: false }), e));
+  const card = el('div', { class: 'q-card list tv-list' }, rows);
+  const sec = rows.length ? section(d === today() ? L({ zh: '今天的轉播', en: 'On TV today' }) : L({ zh: '當天轉播', en: 'On TV that day' }), card, { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null;
+  const day = el('div', { class: 'tv-day' }, [lead, sec]);
+  day.__tv = { lead, sec, head: sec?.firstElementChild || null, card, rows };
+  put(box, liveBar(), cols([day], []));
+  tvColumns(day);
   // An F1 session on: its live timing read now, as 首頁's, not at the next tick.
   if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
 }
-// 轉播's lead column on a wide page spans as many rows of tiles as it is
-// tall, each tile at its own height (two rows beside an F1 board stretched
-// the tiles hollow). Measured again as the board fills or the page turns.
-const leadSeen = typeof ResizeObserver === 'function' ? new ResizeObserver(es => es.forEach(x => fitLead(x.target.closest('.tv-day')))) : null;
-function fitLead(day) {
-  const lead = day?.querySelector(':scope > .tv-lead');
-  if (!lead) return;
-  if (!lead.__seen) (lead.__seen = true), leadSeen?.observe(lead), leadSeen?.observe(day);
-  const css = getComputedStyle(day);
-  if (css.display !== 'grid') return void (lead.style.gridRow = '');
-  const n = css.gridTemplateColumns.split(' ').length;
-  const tiles = [...day.querySelectorAll('.tv-grid > *')];
-  day.classList.add('tv-measure');
-  const need = [...lead.children].reduce((h, c) => h + c.getBoundingClientRect().height, 0) + 16 * (lead.children.length - 1);
-  const hs = tiles.map(t => t.getBoundingClientRect().height);
-  day.classList.remove('tv-measure');
-  // (The rows beside it, n - 1 tiles each: the count whose height comes closest to its own.)
-  let best = 1, miss = Infinity;
-  for (let k = 1, h = -12; (k - 1) * (n - 1) < tiles.length; k++) {
-    h += 12 + Math.max(...hs.slice((k - 1) * (n - 1), k * (n - 1)));
-    if (Math.abs(h - need) < miss) (miss = Math.abs(h - need)), (best = k);
+// 轉播 on a wide page (Jay 11-21, an iPad: one long list beside the lead left
+// a third of the page empty; tiles of three heights then read "messy"): the
+// day's title across the top, the lead games and the guide at the head of
+// the first column, and the day's list as on a phone, in time order, run on
+// down the first column under them and on into the next, the columns
+// ending level. Laid again when the page's width or the lead's height
+// changes (a turn, an F1 board filling in).
+const tvSeen = typeof ResizeObserver === 'function' ? new ResizeObserver(es => es.forEach(x => tvColumns(x.target.closest('.tv-day')))) : null;
+function tvColumns(day) {
+  const p = day?.__tv;
+  if (!p || !day.isConnected) return;
+  if (!day.__seen) (day.__seen = true), tvSeen?.observe(day), tvSeen?.observe(p.lead);
+  const w = day.clientWidth;
+  const n = !p.sec || !w ? 1 : w >= 900 ? 3 : w >= 600 ? 2 : 1;
+  const key = `${n}|${w}|${Math.round(p.lead.offsetHeight)}|${p.rows.length}`;
+  if (day.__key === key) return;
+  if (n < 2) {
+    day.classList.remove('tv-split');
+    p.card.replaceChildren(...p.rows);
+    if (p.sec) p.sec.replaceChildren(p.head, p.card);
+    day.replaceChildren(p.lead, p.sec || '');
+    day.__key = `${n}|${w}|${Math.round(p.lead.offsetHeight)}|${p.rows.length}`;
+    return;
   }
-  const span = `span ${best}`;
-  if (lead.style.gridRow !== span) lead.style.gridRow = span;
+  // (Measured at a column's width: the lead, then each row.)
+  const measure = el('div', { class: 'q-card list tv-part' }, p.rows);
+  day.classList.add('tv-split');
+  day.style.setProperty('--tv-n', n);
+  day.replaceChildren(p.head, el('div', { class: 'tv-cols' }, [el('div', { class: 'tv-col' }, [p.lead]), el('div', { class: 'tv-col' }, [measure])]));
+  const leadH = p.lead.getBoundingClientRect().height + 16;
+  const hs = p.rows.map(r => r.getBoundingClientRect().height);
+  // (The cut that leaves the tallest column shortest; the rows stay in order.)
+  const sum = (a, b) => hs.slice(a, b).reduce((x, y) => x + y, 0);
+  const R = hs.length;
+  let cut = null;
+  let best = Infinity;
+  for (let i = 0; i <= R; i++) {
+    for (let j = n === 3 ? i : R; j <= R; j++) {
+      const tall = Math.max(leadH + sum(0, i), sum(i, j), n === 3 ? sum(j, R) : 0);
+      if (tall < best - 0.5) (best = tall), (cut = [i, j]);
+    }
+  }
+  const parts = [p.rows.slice(0, cut[0]), p.rows.slice(cut[0], cut[1]), p.rows.slice(cut[1])].slice(0, n);
+  const part = rows => (rows.length ? el('div', { class: 'q-card list tv-part' }, rows) : null);
+  day.replaceChildren(p.head, el('div', { class: 'tv-cols' }, parts.map((r, i) => el('div', { class: 'tv-col' }, [i === 0 ? p.lead : null, part(r)]))));
+  day.__key = `${n}|${w}|${Math.round(p.lead.offsetHeight)}|${p.rows.length}`;
 }
 // ---- 愛爾達's guide -------------------------------------------------------------------------
 //

@@ -2623,23 +2623,16 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 :root.q-wide :is(.game-grid, .team-cards) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
 :root.q-w3 :is(.game-grid, .team-cards) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 :root.q-wide :is(.game-grid, .team-cards) > * { margin: 0; }
-/* 轉播's day, wide (Jay 2026-11-21, an iPad: the lead game and one long list
-   left a third of the page empty): its title across the top, the lead game
-   and the guide in the first column, the day's games as tiles beside and
-   under them in time order, two or three a row as 賽事's day. */
-:root.q-wide .tv-day { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
-:root.q-w3 .tv-day { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-:root.q-wide .tv-day > .q-section, :root.q-wide .tv-day .tv-grid { display: contents; }
-:root.q-wide .tv-day > .q-section > .q-section-head { grid-column: 1 / -1; order: -1; margin: 0; }
-:root.q-wide .tv-lead { grid-column: 1; grid-row: span 2; display: flex; flex-direction: column; gap: 16px; }
-:root.q-wide .tv-lead > * { margin: 0; }
-:root.q-wide .tv-lead > .guide-link { margin-top: auto; }
-/* (While app.js fitLead measures: each piece at its own height.) */
-:root.q-wide .tv-day.tv-measure { align-items: start; }
-:root.q-wide .tv-day.tv-measure > .tv-lead { grid-row: auto; align-self: start; }
-/* (One tile beside it: the lead game a row tall. Nothing beside it: a phone's width, centred.) */
-:root.q-wide .tv-day:not(:has(.tv-grid > :nth-child(2))) .tv-lead { grid-row: auto; }
-:root.q-wide .tv-day.solo { display: block; max-width: 720px; margin-inline: auto; }
+/* 轉播's day, wide (app.js tvColumns): the title across the top, then
+   columns: the lead games and the guide heading the first, the day's list
+   run on down it and into the next. */
+.tv-day.tv-split > .q-section-head { margin-bottom: 8px; }
+.tv-split > .tv-cols { display: grid; grid-template-columns: repeat(var(--tv-n, 2), minmax(0, 1fr)); gap: var(--q-s-5, 24px); align-items: start; }
+.tv-split .tv-col { display: grid; gap: 16px; min-width: 0; }
+.tv-lead { display: grid; gap: 16px; }
+.tv-lead > *, .tv-lead > .q-rowcard.guide-link, .tv-split .tv-col > * { margin: 0; }
+/* (On TV, the channel is what matters: a row's stage is the tag that gives way.) */
+.tv-day .ev-tags > .q-tag { order: 1; }
 /* A race series' weekends, alike in height: a grid in date order. */
 :root.q-wide .wk-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 :root.q-wide .wk-cards > * { margin: 0; }
@@ -2896,7 +2889,7 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
   .event-row { padding-block: 10px; }
 }
 /* A tab with one section alone: as wide as reads well (a list of games keeps its columns). */
-:root.q-wide .tab-flow:not(.q-flow-laid) > :only-child:not(:has(.game-grid, .team-cards)) { max-width: 720px; margin-inline: auto; }
+:root.q-wide .tab-flow:not(.q-flow-laid) > :only-child:not(:has(.game-grid, .team-cards, .tv-list, .tv-part)) { max-width: 720px; margin-inline: auto; }
 
 /* Where a team's games to come cross into the next season: a quiet line with the season's name. */
 .season-break { display: flex; align-items: baseline; gap: 8px; padding: 10px 16px 8px; border-top: 1px solid var(--q-sep); background: color-mix(in srgb, var(--q-text) 4%, transparent); font-size: 13px; }
