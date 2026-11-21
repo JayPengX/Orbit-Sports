@@ -32,7 +32,7 @@ import { h2hPieces, PIECE_EACH } from './lib/meetings.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
 import { hoopsSeason, fig } from './lib/hoops.mjs';
-import { driverAbout, startingGrid, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, teamsAt, settleScoring, liveLapEnds, liveRaceEvents, flagNow, birthPlaceOf, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
+import { driverAbout, startingGrid, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, nextStartAt, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, teamsAt, settleScoring, liveLapEnds, liveRaceEvents, flagNow, birthPlaceOf, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
 import { tvOf, watchLinkOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch, placeTeams } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
@@ -4156,13 +4156,23 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
   const left = el('span', { class: 'num lb-clock' });
   const fill = el('i');
   const total = (PART_S[ss.abbr] || [])[Math.max(0, (b.part || 1) - 1)] || 0;
+  // A break with the next part's start announced: counted down to it, each
+  // second (the next part named: Q3 開始 4:32).
+  const resume = !over && pause ? nextStartAt(b) : 0;
+  const nextPart = begun ? `${prefix}${Math.min(3, (b.part || 0) + 1)}` : `${prefix}${b.part || 1}`;
   const tickClock = () => {
     const n = Math.max(0, b.clock.left);
-    left.textContent = over ? (en ? 'Final' : '最終成績') : pause ? (begun ? (en ? 'Over · break' : '結束 · 休息中') : en ? 'Starting soon' : '即將開始') : race && b.lap ? '' : `${en ? '' : '剩 '}${mmss(n)}${en ? ' left' : ''}`;
+    const wait = resume ? Math.max(0, Math.round((resume - Date.now()) / 1000)) : 0;
+    left.textContent = over ? (en ? 'Final' : '最終成績') : pause ? (wait ? (en ? `${nextPart} in ${mmss(wait)}` : `${nextPart} ${mmss(wait)} 後開始`) : begun ? (en ? 'Over · break' : '結束 · 休息中') : en ? 'Starting soon' : '即將開始') : race && b.lap ? '' : `${en ? '' : '剩 '}${mmss(n)}${en ? ' left' : ''}`;
     const done = over ? 1 : race && b.lap?.of ? b.lap.now / b.lap.of : total ? 1 - n / total : 0;
     fill.style.width = `${Math.round(Math.min(1, Math.max(0, done)) * 100)}%`;
   };
   tickClock();
+  // (Counted down each second while it's on the page.)
+  // (Stopped once this head is off the page: the next read draws its own.)
+  if (resume) {
+    const timer = setInterval(() => (left.isConnected ? tickClock() : clearInterval(timer)), 1000);
+  }
   // The head, one card: on top the session with a live dot and the flag;
   // under it the lap (or the part) large, its total beside it, and what's
   // left on the right (laps, or the clock); the bar with the safety car's

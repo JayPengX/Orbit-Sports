@@ -335,6 +335,28 @@ export const feedBreak = feed => {
   const full = [0, 1080, 900, 720][feed?.part || 0] || 0;
   return /^(Finished|Inactive)$/i.test(status) || /CHEQUERED FLAG/i.test(feed?.message?.text || '') || (full > 0 && feed?.clock?.left >= full - 2);
 };
+// When the next part starts or the session resumes, as race control
+// announced it ("Q3 WILL START AT 20:52", the circuit's own clock; the
+// feed's GmtOffset "-08:00:00" puts it in UTC): ms, or 0 when none is said
+// or it has passed. A break's countdown (Jay 2026-11-21: "F1 should have the
+// countdown between sessions like other sport").
+export function nextStartAt(feed, now = Date.now()) {
+  const gmt = /^(-?)(\d{1,2}):(\d{2})/.exec(feed?.session?.gmt || '');
+  if (!gmt) return 0;
+  const off = (gmt[1] ? -1 : 1) * (Number(gmt[2]) * 60 + Number(gmt[3])) * 60_000;
+  for (const m of feed?.messages || []) {
+    const x = /\b(?:Q[123]|SQ[123]|SESSION|QUALIFYING|SPRINT QUALIFYING)\b.*\bWILL (?:START|RESUME) AT ?(\d{1,2}):(\d{2})/i.exec(m?.text || '');
+    if (!x) continue;
+    const said = Date.parse(/Z|[+-]\d\d:?\d\d$/.test(m.at || '') ? m.at : `${m.at}Z`);
+    if (!Number.isFinite(said)) continue;
+    // (Its day the circuit's on the day it was said; past midnight there, the next.)
+    const local = new Date(said + off);
+    let at = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), Number(x[1]), Number(x[2])) - off;
+    if (at < said - 3_600_000) at += 86_400_000;
+    return at > now - 5_000 ? at : 0;
+  }
+  return 0;
+}
 export async function liveTiming(abbr, start) {
   const feed = await getJson(LIVE, { ttl: 4_000 });
   if (!feed?.cars?.length) return null;
