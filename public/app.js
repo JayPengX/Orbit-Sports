@@ -2599,6 +2599,10 @@ function tvDay(d) {
   const seen = new Set();
   return [...dayAll(state.days.get(d)), ...(rawDays.get(d)?.values() || [])]
     .map(freshGame)
+    // (An F1 session's state again by the one rule, F1's feed first: a copy
+    // split from its weekend before the feed called it over said 正在進行
+    // with an empty board, and the badge 1, long after FP3 ended, 11-21.)
+    .map(e => (e.sessionKey ? (st => (st === e.status ? e : { ...e, status: st }))(sessionStatus({ abbr: e.sessionKey, start: e.official || e.start, status: e.status })) : e))
     .filter(e => inDay(Date.parse(e.start), d) && !seen.has(dayKey(e)) && seen.add(dayKey(e)))
     .filter(e => onTv(e) || isFollowedGame(e) || ((e.status.state === 'post' || past) && !tvKnown(e)))
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
@@ -2636,11 +2640,16 @@ function renderLive() {
   // (A game on now: 觀看 beside it, straight into ELTA.tv's or Apple TV's app.
   // Their own game marked ★ 追蹤中 on a lit row, the one thing in the list
   // that stands out: Jay 11-21, his NBA game lost among the day's rows.)
-  const rows = rest.map(e => withWatch(eventRow(e, { day: false, mine: isFollowedEvent(e, { chosen: false }) }), e));
-  const card = el('div', { class: 'q-card list tv-list' }, rows);
-  const sec = rows.length ? section(d === today() ? L({ zh: '今天的轉播', en: 'On TV today' }) : L({ zh: '當天轉播', en: 'On TV that day' }), card, { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null;
+  const row = e => withWatch(eventRow(e, { day: false, mine: isFollowedEvent(e, { chosen: false }) }), e);
+  // (What's to come or on first; those over under 已結束 at the foot, Jay
+  // 11-21: "finished … in other section or below, not top". A day all over
+  // or all to come is one list.)
+  const up = rest.filter(e => e.status.state !== 'post');
+  const done = rest.filter(e => e.status.state === 'post');
+  const items = up.length && done.length ? [...up.map(row), el('p', { class: 'day-head tv-ended', text: L({ zh: '已結束', en: 'Over' }) }), ...done.map(row)] : rest.map(row);
+  const sec = items.length ? section(d === today() ? L({ zh: '今天的轉播', en: 'On TV today' }) : L({ zh: '當天轉播', en: 'On TV that day' }), tvRuns(items), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null;
   const day = el('div', { class: 'tv-day' }, [lead, sec]);
-  day.__tv = { lead, sec, head: sec?.firstElementChild || null, card, rows };
+  day.__tv = { lead, sec, head: sec?.firstElementChild || null, items };
   put(box, liveBar(), cols([day], []));
   tvColumns(day);
   // An F1 session on: its live timing read now, as 首頁's, not at the next tick.
@@ -2654,44 +2663,54 @@ function renderLive() {
 // ending level. Laid again when the page's width or the lead's height
 // changes (a turn, an F1 board filling in).
 const tvSeen = typeof ResizeObserver === 'function' ? new ResizeObserver(es => es.forEach(x => tvColumns(x.target.closest('.tv-day')))) : null;
+// The list's rows, each run of them a card, a heading (已結束) between.
+const tvRuns = items => {
+  const out = [];
+  for (const x of items) {
+    if (x.classList.contains('day-head')) out.push(x);
+    else if (out.at(-1)?.classList.contains('tv-part')) out.at(-1).append(x);
+    else out.push(el('div', { class: 'q-card list tv-part' }, [x]));
+  }
+  return out;
+};
 function tvColumns(day) {
   const p = day?.__tv;
   if (!p || !day.isConnected) return;
   if (!day.__seen) (day.__seen = true), tvSeen?.observe(day), tvSeen?.observe(p.lead);
   const w = day.clientWidth;
   const n = !p.sec || !w ? 1 : w >= 900 ? 3 : w >= 600 ? 2 : 1;
-  const key = `${n}|${w}|${Math.round(p.lead.offsetHeight)}|${p.rows.length}`;
-  if (day.__key === key) return;
+  const key = () => `${n}|${w}|${Math.round(p.lead.offsetHeight)}|${p.items.length}`;
+  if (day.__key === key()) return;
   if (n < 2) {
     day.classList.remove('tv-split');
-    p.card.replaceChildren(...p.rows);
-    if (p.sec) p.sec.replaceChildren(p.head, p.card);
+    if (p.sec) p.sec.replaceChildren(p.head, ...tvRuns(p.items));
     day.replaceChildren(p.lead, p.sec || '');
-    day.__key = `${n}|${w}|${Math.round(p.lead.offsetHeight)}|${p.rows.length}`;
+    day.__key = key();
     return;
   }
-  // (Measured at a column's width: the lead, then each row.)
-  const measure = el('div', { class: 'q-card list tv-part' }, p.rows);
+  // (Measured at a column's width: the lead, then each row and heading.)
   day.classList.add('tv-split');
   day.style.setProperty('--tv-n', n);
-  day.replaceChildren(p.head, el('div', { class: 'tv-cols' }, [el('div', { class: 'tv-col' }, [p.lead]), el('div', { class: 'tv-col' }, [measure])]));
+  day.replaceChildren(p.head, el('div', { class: 'tv-cols' }, [el('div', { class: 'tv-col' }, [p.lead]), el('div', { class: 'tv-col' }, tvRuns(p.items))]));
   const leadH = p.lead.getBoundingClientRect().height + 16;
-  const hs = p.rows.map(r => r.getBoundingClientRect().height);
-  // (The cut that leaves the tallest column shortest; the rows stay in order.)
+  const hs = p.items.map(r => r.getBoundingClientRect().height + (r.classList.contains('day-head') ? 24 : 0));
+  // (The cut that leaves the tallest column shortest; the rows stay in order,
+  // and a column never ends on a heading parted from its rows.)
   const sum = (a, b) => hs.slice(a, b).reduce((x, y) => x + y, 0);
   const R = hs.length;
-  let cut = null;
+  const ok = i => i === 0 || i === R || !p.items[i - 1].classList.contains('day-head');
+  let cut = [R, R];
   let best = Infinity;
   for (let i = 0; i <= R; i++) {
     for (let j = n === 3 ? i : R; j <= R; j++) {
+      if (!ok(i) || !ok(j)) continue;
       const tall = Math.max(leadH + sum(0, i), sum(i, j), n === 3 ? sum(j, R) : 0);
       if (tall < best - 0.5) (best = tall), (cut = [i, j]);
     }
   }
-  const parts = [p.rows.slice(0, cut[0]), p.rows.slice(cut[0], cut[1]), p.rows.slice(cut[1])].slice(0, n);
-  const part = rows => (rows.length ? el('div', { class: 'q-card list tv-part' }, rows) : null);
-  day.replaceChildren(p.head, el('div', { class: 'tv-cols' }, parts.map((r, i) => el('div', { class: 'tv-col' }, [i === 0 ? p.lead : null, part(r)]))));
-  day.__key = `${n}|${w}|${Math.round(p.lead.offsetHeight)}|${p.rows.length}`;
+  const parts = [p.items.slice(0, cut[0]), p.items.slice(cut[0], cut[1]), p.items.slice(cut[1])].slice(0, n);
+  day.replaceChildren(p.head, el('div', { class: 'tv-cols' }, parts.map((r, i) => el('div', { class: 'tv-col' }, [i === 0 ? p.lead : null, ...tvRuns(r)]))));
+  day.__key = key();
 }
 // ---- 愛爾達's guide -------------------------------------------------------------------------
 //
@@ -5182,7 +5201,10 @@ let f1Polling = false;
 async function pollF1Live() {
   if (document.visibilityState !== 'visible' || f1Polling) return;
   // On, or due to start: F1's feed says it has started minutes before ESPN does.
-  const all = dayAll(state.days.get(today())).filter(e => e.league === 'f1' && e.sessionKey);
+  // (轉播's day too: a practice it lists, kept only in the day's raw copy, was
+  // never read here, its board empty and its 正在進行 never ended, 11-21.)
+  const seen = new Set();
+  const all = [...dayAll(state.days.get(today())), ...tvDay(today())].filter(e => e.league === 'f1' && e.sessionKey && !seen.has(e.id) && seen.add(e.id));
   const on = all.find(e => e.status.state === 'in') || all.find(e => dueToStart(e));
   if (!on) return void (f1Live.key = '');
   f1Polling = true;
