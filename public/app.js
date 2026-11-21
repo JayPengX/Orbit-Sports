@@ -2629,17 +2629,14 @@ function renderLive() {
   const ranked = list.filter(e => !e.status.void).map(e => ({ e, on: onAir(e, now), mine: isFollowedEvent(e), score: scoreMatch(e, c).score })).sort((x, y) => y.on - x.on || y.mine - x.mine || y.score - x.score);
   const top = ranked[0]?.e || null;
   const hero = top ? heroGame(top, { mine: isFollowedEvent(top), eyebrow: top.status.state === 'pre' ? dayLabel(d, { long: true }) : '', onOpen: openEvent }) : null;
-  // (One on now that isn't theirs leads: their own game to come stays a lead
-  // game under it, never lost among the day's rows, Jay 11-21: the NBA game
-  // he follows "no where to be found" once FP3 took its place.)
-  const theirsNext = top && !isFollowedEvent(top) ? ranked.find(x => x.mine && x.e !== top && x.e.status.state !== 'post')?.e : null;
-  const hero2 = theirsNext ? heroGame(theirsNext, { mine: true, eyebrow: theirsNext.status.state === 'pre' ? dayLabel(d, { long: true }) : '', onOpen: openEvent }) : null;
-  const rest = list.filter(e => e !== top && e !== theirsNext);
+  const rest = list.filter(e => e !== top);
   const gap = dayUnknown([slot], tvUnread());
   const guide = !past && guideItems().some(p => p.end > now && localDate(p.start) === d) ? guideLink(list, d) : null;
-  const lead = el('div', { class: 'tv-lead' }, [hero, hero2, !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : d === today() ? L({ zh: '今天沒有轉播', en: 'Nothing on TV today' }) : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null, guide]);
-  // (A game on now: 觀看 beside it, straight into ELTA.tv's or Apple TV's app.)
-  const rows = rest.map(e => withWatch(eventRow(e, { day: false }), e));
+  const lead = el('div', { class: 'tv-lead' }, [hero, !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : d === today() ? L({ zh: '今天沒有轉播', en: 'Nothing on TV today' }) : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null, guide]);
+  // (A game on now: 觀看 beside it, straight into ELTA.tv's or Apple TV's app.
+  // Their own game marked ★ 追蹤中 on a lit row, the one thing in the list
+  // that stands out: Jay 11-21, his NBA game lost among the day's rows.)
+  const rows = rest.map(e => withWatch(eventRow(e, { day: false, mine: isFollowedEvent(e, { chosen: false }) }), e));
   const card = el('div', { class: 'q-card list tv-list' }, rows);
   const sec = rows.length ? section(d === today() ? L({ zh: '今天的轉播', en: 'On TV today' }) : L({ zh: '當天轉播', en: 'On TV that day' }), card, { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null;
   const day = el('div', { class: 'tv-day' }, [lead, sec]);

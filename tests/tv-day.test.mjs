@@ -23,8 +23,9 @@ test('the list and the tab badge read the same day', () => {
   assert.match(body('renderTabs'), /tabNav\.badge\('live', tvDay\(today\(\)\)\.filter\(/);
 });
 
-test('their own game to come stays a lead game when one on now that is not theirs leads (Jay 2026-11-21: the followed NBA game lost among the rows)', () => {
-  const live = body('renderLive');
-  assert.match(live, /const theirsNext = top && !isFollowedEvent\(top\) \? ranked\.find\(x => x\.mine && x\.e !== top && x\.e\.status\.state !== 'post'\)\?\.e : null;/);
-  assert.match(live, /const rest = list\.filter\(e => e !== top && e !== theirsNext\);/);
+test("their own game is the one row that stands out on 轉播 (Jay 2026-11-21: the followed NBA game lost among the rows)", () => {
+  assert.match(body('renderLive'), /eventRow\(e, \{ day: false, mine: isFollowedEvent\(e, \{ chosen: false \}\) \}\)/);
+  const ui = readFileSync(new URL('../public/ui.js', import.meta.url), 'utf8');
+  assert.match(ui, /const markCls = mine \? ' mine'/, 'the row lit');
+  assert.match(ui, /mine \? mineMark\(\) : rowMark\(picked\)/, 'its ★ 追蹤中 pill in the 推薦 pill\'s place');
 });

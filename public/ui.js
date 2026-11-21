@@ -688,16 +688,18 @@ const STAR = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .8l1.6 3.4
 const STAR_OPEN = '<svg viewBox="0 0 12 12" aria-hidden="true"><path class="open" d="M6 .8l1.6 3.4 3.7.4-2.8 2.5.8 3.7L6 8.9l-3.3 1.9.8-3.7L.7 4.6l3.7-.4z"/></svg>';
 // (Its mark the Orbit AI one, as on every smart thing (Jay 11-11); a star on an older kit.)
 const rowMark = kind => (kind ? el('span', { class: `row-mark${kind === 'fill' ? ' fill' : ''}`, html: `${kitUI.icons?.ai || (kind === 'fill' ? STAR_OPEN : STAR)}<span>${ctx.locale === 'en' ? 'Pick' : '推薦'}</span>` }) : null);
-const rowTags = (e, { league, picked, tag }) => {
-  const kids = [rowMark(picked), league ? compChip(e) : null, tag ? el('span', { class: 'q-tag', text: tag }) : null, tvLine(e)].filter(Boolean);
+// Their own game (轉播, `mine`): ★ 追蹤中, a solid pill, in the 推薦 pill's place.
+const mineMark = () => el('span', { class: 'row-mark mine', html: `${STAR}<span>${ctx.locale === 'en' ? 'Following' : '追蹤中'}</span>` });
+const rowTags = (e, { league, picked, tag, mine = false }) => {
+  const kids = [mine ? mineMark() : rowMark(picked), league ? compChip(e) : null, tag ? el('span', { class: 'q-tag', text: tag }) : null, tvLine(e)].filter(Boolean);
   return kids.length ? el('div', { class: 'ev-tags' }, kids) : null;
 };
-export function eventRow(e, { league = true, day = true, picked = false, mark = true } = {}) {
+export function eventRow(e, { league = true, day = true, picked = false, mark = true, mine = false } = {}) {
   // (The row's light and pill say 推薦 only: a followed league's games are all theirs, Jay 2026-11-03.
   // `mark: false`: a list that is all theirs, 首頁's 已結束, never lit or marked; Jay 2026-11-05.)
   const kind = pickKind(mark && (picked || Boolean(ctx.isPickEvent?.(e))), Boolean(ctx.isFollowedEvent?.(e) ?? true));
   picked = kind === 'pick';
-  const markCls = kind ? ` picked${kind === 'fill' ? ' fill-pick' : ''}` : '';
+  const markCls = mine ? ' mine' : kind ? ` picked${kind === 'fill' ? ' fill-pick' : ''}` : '';
   const live = e.status.state === 'in';
   if (e.kind === 'match') {
     const w = winners(e);
@@ -706,7 +708,7 @@ export function eventRow(e, { league = true, day = true, picked = false, mark = 
     const attrs = e.abroad ? { class: `event-row abroad${live ? ' live' : ''}` } : { class: `event-row${live ? ' live' : ''}${markCls}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) };
     return el(e.abroad ? 'div' : 'button', attrs, [
       el('div', { class: 'event-meta' }, [statusEl(e, day)]),
-      el('div', { class: 'event-sides' }, [...sidesOf(e).map(s => sideLine(s, e, s === e.home ? w.home : w.away)), series ? el('small', { class: 'series-line', text: series }) : null, liveLine(e), rowTags(e, { league, picked: kind, tag: stageTag(e, ctx.locale) })])
+      el('div', { class: 'event-sides' }, [...sidesOf(e).map(s => sideLine(s, e, s === e.home ? w.home : w.away)), series ? el('small', { class: 'series-line', text: series }) : null, liveLine(e), rowTags(e, { league, picked: kind, tag: stageTag(e, ctx.locale), mine })])
     ]);
   }
   // A race weekend (or one of its sessions): one row.
@@ -717,7 +719,7 @@ export function eventRow(e, { league = true, day = true, picked = false, mark = 
   const sub = live && fieldNow(e) ? fieldNow(e).replace(sess && e.session ? `${e.session} · ` : '', '') : e.kind === 'field' ? (e.status.state === 'post' && ended?.field?.[0]?.name ? [said, (ctx.locale === 'en' ? `Won by ${ended.field[0].name}` : `冠軍 ${ended.field[0].name}`)].filter(Boolean).join(' · ') : [said, e.venue].filter(Boolean).join(' · ')) : e.venue;
   return el('button', { class: `event-row wide${live ? ' live' : ''}${markCls}${sess ? ` sess-${e.sessionKey === 'Race' ? 'race' : 'other'}` : ''}`, type: 'button', disabled: e.status?.void ? true : null, onclick: () => ctx.openEvent(e) }, [
     el('div', { class: 'event-meta' }, [statusEl(e, day)]),
-    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, fitForms(el('strong'), [e.name])]), e.league === 'f1' && live ? f1Brief(e) : podium(e) || (sub ? el('small', { text: sub }) : null), rowTags(e, { league, picked: kind })])
+    el('div', { class: 'event-title' }, [el('div', { class: 'sess-head' }, [raceFlag(e), sess, fitForms(el('strong'), [e.name])]), e.league === 'f1' && live ? f1Brief(e) : podium(e) || (sub ? el('small', { text: sub }) : null), rowTags(e, { league, picked: kind, mine })])
   ]);
 }
 
