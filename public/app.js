@@ -1746,7 +1746,23 @@ function readAround(date) {
 // theirs on TV). Not "followed": every game of a followed league is theirs.
 const homePicks = new Map();
 const pickMemo = new Map();
-const pickAsked = new Set();
+// A day's read for its picks: 'asking', then 'done' (read or failed: never waited on again).
+const pickAsked = new Map();
+// A day's 推薦 known (its day read as 首頁 reads it), or no picks to wait
+// for (a day gone by, or past the two weeks picked). Not yet: read now, and
+// 賽事 drawn again once it is. 賽事 shows a day's games only once this
+// holds, never the rows first and their 推薦 popping in after (Jay 11-21:
+// "everything should be ready when you show it").
+function picksReady(d) {
+  if (d < today() || d > addDays(today(), 14) || homePicks.has(d) || state.days.get(d)?.at || pickAsked.get(d) === 'done') return true;
+  if (!pickAsked.has(d)) {
+    pickAsked.set(d, 'asking');
+    Promise.resolve(loadDay(d))
+      .catch(() => {})
+      .then(() => (pickAsked.set(d, 'done'), state.tab === 'matches' && renderScores()));
+  }
+  return false;
+}
 function isPickEvent(e) {
   const d = localDate(e.start);
   const key = `${e.league}:${e.id}`;
@@ -1754,13 +1770,7 @@ function isPickEvent(e) {
   if (d < today()) return pastPick(e);
   if (homePicks.has(d)) return homePicks.get(d).has(key);
   const slot = state.days.get(d);
-  // (A day not read yet, 賽事 opened first: read as 首頁 would, then the list drawn again with its picks.)
-  if (!slot?.at && !pickAsked.has(d) && d >= today() && d <= addDays(today(), 14)) {
-    pickAsked.add(d);
-    Promise.resolve(loadDay(d))
-      .then(() => state.tab === 'matches' && state.days.get(d)?.events?.length && renderScores())
-      .catch(() => {});
-  }
+  picksReady(d);
   // A game of theirs (a team, a player, the game itself) on TV here is
   // always in the day's plan (dayPlan's keep): lit at once, before that day
   // is read or 首頁 has drawn it (Jay 2026-11-04: 勇士 v 火箭 in 賽事 went
@@ -4288,7 +4298,9 @@ function renderScores() {
     // again and the cards hopped from one to another: Jay 2026-11-06, an iPad.)
     const whole = scoresQuiet || document.documentElement.classList.contains('q-wide');
     const card = shown.length ? el('div', { class: 'q-card list game-grid' }, (whole ? shown : shown.slice(0, FIRST_ROWS)).map(row)) : null;
-    if (card && !whole) moreRows(card, shown.slice(FIRST_ROWS), row);
+    // (Its 推薦 not known yet: the rows in their shape, drawn whole with their pills once read.)
+    if (card && !picksReady(sc.date)) kitUI.waiting(card);
+    else if (card && !whole) moreRows(card, shown.slice(FIRST_ROWS), row);
     list = el('div', {}, [el('p', { class: 'day-head', text: [dayLabel(sc.date, { long: true }), wk, t('gamesN', { n: shown.length })].filter(Boolean).join(' · ') }), card || empty(t('noGames'))]);
   }
   // The league as the page's head: its name, following it at the right.
