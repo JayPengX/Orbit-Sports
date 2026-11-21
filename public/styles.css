@@ -1911,6 +1911,10 @@ button.lp-person.tap:active { opacity: 0.6; }
 .pp-val strong { font-size: 15px; font-weight: 600; }
 .pp-val small { font-size: 11.5px; color: var(--q-muted); white-space: nowrap; }
 .pp-best th .tyre { width: 18px; height: 18px; vertical-align: middle; }
+/* (Each tyre's column its time's width, the tyre centred over it; the name takes the rest.) */
+.pp-best th.n { width: auto; }
+.pp-best .pp-k { width: 66px; text-align: center; padding-right: 0; }
+.pp-best td.none { color: var(--q-label-3, var(--q-muted)); }
 /* A live game with 觀看 (withWatch): the time and league down the left from
    the top, level with the first side, 觀看 at the column's foot (room kept
    for it under them); the scorer's face in the logos' column. */

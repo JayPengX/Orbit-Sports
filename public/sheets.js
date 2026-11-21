@@ -5297,13 +5297,18 @@ function f1PracticePace(b, ss) {
     if (kinds.length) {
       const fastest = Object.fromEntries(kinds.map(k => [k, Math.min(...paced.map(x => x.p.best[k]?.ms || Infinity))]));
       const rows = paced.filter(x => kinds.some(k => x.p.best[k])).sort((x, y) => Math.min(...kinds.map(k => x.p.best[k]?.ms || Infinity)) - Math.min(...kinds.map(k => y.p.best[k]?.ms || Infinity)));
+      // (A row as the long runs': the place, the face and name; each tyre's
+      // time in a column of its own width under its tyre, a dash where the
+      // car didn't run it. Jay 11-21: the names and times spread over the
+      // card with holes between, the tyres not over their columns, "messy".)
       cards.push(card(en ? 'Best lap on each tyre' : '各配方最快圈', el('table', { class: 'fs-table pp-best' }, [
-        el('thead', {}, [el('tr', {}, [el('th', { class: 'n' }), ...kinds.map(k => el('th', {}, [tyreIcon(k)]))])]),
-        el('tbody', {}, rows.map(({ c, p }) => el('tr', { style: c.colour ? `--team:${c.colour}` : null }, [
-          el('th', { class: 'n' }, [f1NameTap(ss, c, f1Sur(c))]),
-          ...kinds.map(k => el('td', { class: `num${p.best[k] && p.best[k].ms === fastest[k] ? ' best' : ''}`, text: p.best[k] ? fmtLap(p.best[k].ms) : '' }))
+        el('thead', {}, [el('tr', {}, [el('th', { class: 'pos' }), el('th', { class: 'n' }), ...kinds.map(k => el('th', { class: 'pp-k' }, [tyreIcon(k)]))])]),
+        el('tbody', {}, rows.map(({ c, p }, i) => el('tr', { style: c.colour ? `--team:${c.colour}` : null }, [
+          el('td', { class: 'pos num', text: String(i + 1) }),
+          el('th', { class: 'n' }, [el('span', { class: 'fs-who' }, [f1Face(ss, c.name), fitName(f1NameTap(ss, c, '', 'fs-name'), f1Whole(c.name), f1Sur(c))])]),
+          ...kinds.map(k => (p.best[k] ? el('td', { class: `pp-k num${p.best[k].ms === fastest[k] ? ' best' : ''}`, text: fmtLap(p.best[k].ms) }) : el('td', { class: 'pp-k none', text: '–' })))
         ])))
-      ])));
+      ]), { sub: en ? 'Purple: fastest on the tyre' : '紫色：該配方最快' }));
     }
     put(box, ...cards);
   };
