@@ -3479,8 +3479,6 @@ function playoffView(model, key) {
   if (at > 0) requestAnimationFrame(() => map.isConnected && (map.scrollLeft = map.querySelectorAll(':scope > .br-col')[at]?.offsetLeft - map.offsetLeft - 16));
   const root = el('div', { class: `playoffs${fade ? ' fade-in' : ''}` }, [banner, legend, map]);
   root.__patch = neu => patchPlayoffs(root, neu);
-  // Faded in once: never again if it's put back on the page (a tab tapped back to it).
-  if (fade) root.addEventListener('animationend', () => root.classList.remove('fade-in'), { once: true });
   return root;
 }
 // A live refresh's drawing put into the bracket on screen: the same ties
@@ -5161,6 +5159,12 @@ function liveTick() {
 }
 everyDev('sportsList', liveTick);
 document.addEventListener('visibilitychange', liveTick);
+// Anything faded in fades once: the class goes when it has played, so a node
+// moved on the page again (a column dealt anew, a tab tapped back to) never
+// replays it. A live game's panel blinked three or four times as its page
+// opened, its top moved each time the sections were laid out (Jay 11-21).
+// (Moved mid-fade, it's cut short and shown whole: never started again.)
+for (const k of ['animationend', 'animationcancel']) document.addEventListener(k, e => e.animationName === 'fade-in' && e.target.classList?.remove('fade-in'), true);
 
 // ELTA's schedule came in: its 📺 channels appear (or go) on the open tab.
 let repaintTimer = 0;

@@ -1975,7 +1975,6 @@ function overview(d, e, table, nameOf, { line = null, wait = { summary: true, li
     if (n.classList?.contains('q-wait')) was.add(k);
     else if (was.delete(k)) {
       n.classList.add('fade-in');
-      n.addEventListener('animationend', () => n.classList.remove('fade-in'), { once: true });
     }
   }
   return el('div', { class: 'stack q-flow q-flow-2' }, ORDER.map(k => part[k] || (k === 'onField' ? part.lineups : null)));
@@ -2404,8 +2403,6 @@ function winCard(d, e, line, wait) {
   }
   if (real && waited.get(wait)) {
     real.classList.add('fade-in');
-    // Once: the same card is kept from one refresh to the next, and moved in again would fade again.
-    real.addEventListener('animationend', () => real.classList.remove('fade-in'), { once: true });
     waited.delete(wait);
   }
   return real;
