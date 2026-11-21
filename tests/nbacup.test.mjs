@@ -197,3 +197,10 @@ test('what a group game decides: either side through or out, or who goes top; ov
   // Not a group game: nothing.
   assert.equal(cupStakes(games, { ...games[0], note: '' }), null);
 });
+
+test("排名's NBA 盃 table shows a game on now as the league table does: the red score pill, not the quiet one (Jay 11-21)", () => {
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const call = app.split('\n').find(l => l.includes("S.standingsTables(tables, 'nba', { cols: ['W', 'L', 'PD', 'Left']"));
+  assert.ok(call, 'the Cup tab draws its groups with standingsTables');
+  assert.doesNotMatch(call, /quiet:\s*true/);
+});

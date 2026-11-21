@@ -3270,7 +3270,7 @@ function cupStandingsView(model, { mark = [] } = {}) {
   const own = ids.length ? tables.findIndex(t => ids.every(id => t.rows.some(r => r.id === id)) && !/外卡|wild card/i.test(t.name)) : -1;
   if (own > 0) tables.unshift(...tables.splice(own, 1));
   // (Jay 2026-11-14, "too messy": a score small and plain, the key said once under the groups, the rule and 即時 one line over them.)
-  const tablesNode = S.standingsTables(tables, 'nba', { cols: ['W', 'L', 'PD', 'Left'], many: true, mark: mark.map(String), liveNote: false, legend: false, quiet: true });
+  const tablesNode = S.standingsTables(tables, 'nba', { cols: ['W', 'L', 'PD', 'Left'], many: true, mark: mark.map(String), liveNote: false, legend: false });
   const on = groups.some(g => g.rows.some(r => r.live));
   const all = tables.flatMap(t => t.rows);
   const why = (ids, text) => Object.assign(new Set(ids), { why: text });
