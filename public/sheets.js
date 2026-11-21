@@ -4613,7 +4613,8 @@ function f1TrackMap(b, ss) {
     const v = lapRate({ lastMs: lapMs(car.last), bestMs: lapMs(car.pb?.v) || lapMs(car.best), inPit: car.inPit || car.pitOut }, Number.isFinite(fieldMs) ? fieldMs : undefined, held ? '5' : b.track?.status);
     const ls = lead && car !== lead ? m.run.get(lead.no) : null;
     const gap = ls ? gapNum(car) : null;
-    m.run.set(car.no, gap != null ? readCar(m.run.get(car.no), behindLeader(ls.frac, gap, ls.v), v, now, 1 / car.seg[1], ls.at) : readCar(m.run.get(car.no), fracOf(car.seg[0], car.seg[1]), v, now, 1 / car.seg[1]));
+    // (Its mini-sector as a stretch of the lap: a race's others, the leader's stretch their gap back.)
+    m.run.set(car.no, gap != null ? readCar(m.run.get(car.no), behindLeader(ls.lo, gap, ls.v), behindLeader(ls.hi, gap, ls.v), v, now, ls.at) : readCar(m.run.get(car.no), fracOf(car.seg[0], car.seg[1]), fracOf(car.seg[0] + 1, car.seg[1]), v, now));
   }
   for (const no of m.run.keys()) if (!order.some(x => x.no === no)) m.run.delete(no);
 

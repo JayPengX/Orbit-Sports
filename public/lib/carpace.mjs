@@ -21,21 +21,27 @@ export function lapRate({ lastMs = 0, bestMs = 0, inPit = false } = {}, fieldMs 
 // it, or a little behind (the feed's lag), never most of a lap back.
 export const unwrap = (frac, near) => frac + Math.ceil(near - 0.15 - frac);
 
-// A new reading for a car: `frac` the share of the lap it was at, at the
-// time `at` (now, unless it was placed from where the leader was read),
-// `seg` the share one mini-sector is (it won't be drawn more than two and a
-// half past where it was read: a car that stopped stops there). The same
-// place read again keeps the time it was first read (the car goes on from
-// there, not back to it). A car more than a twentieth of a lap (about five
-// seconds) from where it's drawn is put there: the page opened on the
-// phone's older reading, a car back from the garage.
-export function readCar(s, frac, v, now, seg = 0.05, at = now) {
-  if (!s || s.d == null) return { d: frac + v * (now - at), t: frac, frac, at, v, cap: frac + seg * 2.5 };
-  if (s.frac === frac && (at === now || s.at === at)) return { ...s, v };
-  const t = unwrap(frac, s.d - v * (now - at));
-  const p = t + v * (now - at);
-  const d = Math.abs(p - s.d) > 0.05 ? p : s.d;
-  return { d, t, frac, at, v, cap: t + seg * 2.5 };
+// A new reading for a car: F1's feed says only which mini-sector it is in,
+// so a reading is a stretch of the lap, [lo, hi) (shares of a lap), true at
+// the time `at` (now, unless it was placed from where the leader was read).
+// The car is drawn running at its own pace and left alone while it's in
+// that stretch; outside it, it's eased back over a few seconds (stepCar).
+// (It was put at the stretch's start as if just crossed: read late, every
+// car slowed to a fifth of its pace, then raced at 1.8 times it, and one
+// more than five seconds off was snapped back: Jay 2026-11-21, "driver
+// going forward then back … sometimes super fast and sometimes super slow".)
+// The same stretch read again is the car still in it now; a car more than a
+// tenth of a lap from it (the page opened on an old reading, a car back
+// from the garage) is put in it at once.
+export function readCar(s, lo, hi, v, now, at = now) {
+  const w = (((hi - lo) % 1) + 1) % 1 || 0.04;
+  if (!s || s.d == null) return { d: lo + w / 2 + v * (now - at), lo, hi: lo + w, at, v, read: lo };
+  if (s.read === lo && s.at === at) return { ...s, v };
+  const L = unwrap(lo, s.d - v * (now - at));
+  const H = L + w;
+  const off = s.d - Math.min(Math.max(s.d, L + v * (now - at)), H + v * (now - at));
+  const d = Math.abs(off) > 0.1 ? L + w / 2 + v * (now - at) : s.d;
+  return { d, lo: L, hi: H, at, v, read: lo, sp: s.sp };
 }
 
 // A race: each car's place from the leader's, its gap to the leader (in
@@ -44,14 +50,24 @@ export function readCar(s, frac, v, now, seg = 0.05, at = now) {
 // leader drawn behind the second, 1.8 s back). A share of a lap.
 export const behindLeader = (leaderFrac, gapS, leaderRate) => ((((leaderFrac - gapS * 1000 * leaderRate) % 1) + 1) % 1);
 
-// The car a frame on (`dt` ms, at `now`): toward where its pace says it is
-// since it was read, by its own speed plus what it's behind or ahead (made
-// up over a second and a half), never under a fifth of its speed nor over
-// 1.8 times it, and never past its cap.
+// The car a frame on (`dt` ms, at `now`): at its own pace while it's where
+// its last reading and pace since say it can be; behind or ahead of that, a
+// little faster or slower till it's back (the gap made up over 2.5 s, its
+// speed kept between 0.6 and 1.4 times its pace, as a real car's swings
+// round a lap), the speed itself eased over half a second (never a lurch);
+// never backwards; slowing to a stop three mini-sectors past its reading
+// if no other comes (about fifteen seconds: a car that stopped stops there).
+// Moves `s.sp` (the speed drawn) on; returns the new place.
 export function stepCar(s, now, dt) {
-  const p = Math.min(s.cap, s.t + s.v * (now - s.at));
-  const speed = Math.min(s.v * 1.8, Math.max(s.v * 0.2, s.v + (p - s.d) / 1500));
-  return Math.max(s.d, Math.min(s.cap, s.d + speed * dt));
+  const w = s.hi - s.lo;
+  const run = s.v * Math.max(0, now - s.at);
+  const end = s.hi + w * 3;
+  const hi = Math.min(s.hi + run, end);
+  const lo = Math.min(s.lo + run, hi);
+  const off = Math.min(Math.max(s.d, lo), hi) - s.d;
+  const want = Math.min(s.v * 1.4, Math.max(s.v * 0.6, s.v + off / 2500), Math.max(0, (end - s.d) / 3000));
+  s.sp = s.sp == null ? want : s.sp + (want - s.sp) * Math.min(1, dt / 500);
+  return Math.max(s.d, s.d + Math.max(0, s.sp) * dt);
 }
 
 // Cars drawn as a train where one would sit on another: by place round the
