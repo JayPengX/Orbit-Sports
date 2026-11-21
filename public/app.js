@@ -2590,6 +2590,19 @@ const weekByDay = list => {
   }
   return byDay;
 };
+// What 轉播 lists of a day, in time order: every showing on TV here (an F1
+// practice too: ELTA airs every session, and 轉播's badge counted FP3 live
+// while the list left it out, Jay 11-21), a followed game, and a result
+// whose TV isn't known. The tab's badge counts from this same list.
+function tvDay(d) {
+  const past = d < today();
+  const seen = new Set();
+  return [...dayAll(state.days.get(d)), ...(rawDays.get(d)?.values() || [])]
+    .map(freshGame)
+    .filter(e => inDay(Date.parse(e.start), d) && !seen.has(dayKey(e)) && seen.add(dayKey(e)))
+    .filter(e => onTv(e) || isFollowedGame(e) || ((e.status.state === 'post' || past) && !tvKnown(e)))
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+}
 // A day on 轉播, today as any other (Jay 11-17: today's was the coming days'
 // games, not today's own with those over): everything on TV here that day
 // by the clock (the small hours too), its best game first: one on now, else
@@ -2611,12 +2624,7 @@ function renderLive() {
   }
   const now = Date.now();
   const past = d < today();
-  const seen = new Set();
-  const list = [...dayAll(slot), ...(rawDays.get(d)?.values() || [])]
-    .map(freshGame)
-    .filter(e => inDay(Date.parse(e.start), d) && !practice(e) && !seen.has(dayKey(e)) && seen.add(dayKey(e)))
-    .filter(e => onTv(e) || isFollowedGame(e) || ((e.status.state === 'post' || past) && !tvKnown(e)))
-    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const list = tvDay(d);
   const c = { leagues: state.prefs.leagues, follows: state.prefs.follows, games: state.prefs.games.map(gameKey), tables: state.home.tables, now, featured: featuredIn(list), chosen: chosenGames(), ...theirs(now) };
   const ranked = list.filter(e => !e.status.void).map(e => ({ e, on: onAir(e, now), mine: isFollowedEvent(e), score: scoreMatch(e, c).score })).sort((x, y) => y.on - x.on || y.mine - x.mine || y.score - x.score);
   const top = ranked[0]?.e || null;
@@ -2627,12 +2635,50 @@ function renderLive() {
   put(
     box,
     liveBar(),
+    // (A phone: the lead game, the guide, then the day's list. Wide (Jay
+    // 11-21, an iPad: a third of the page empty beside one long list): the
+    // day's title across the top, the lead game and the guide in the first
+    // column, the rest as tiles beside and under them in time order, as
+    // 賽事's day; styles.css .tv-day.)
     cols(
-      [hero, !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : d === today() ? L({ zh: '今天沒有轉播', en: 'Nothing on TV today' }) : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null, guide],
-      // (A game on now: 觀看 beside it, straight into ELTA.tv's or Apple TV's app.)
-      [rest.length ? section(d === today() ? L({ zh: '今天的轉播', en: 'On TV today' }) : L({ zh: '當天轉播', en: 'On TV that day' }), el('div', { class: 'q-card list' }, rest.map(e => withWatch(eventRow(e, { day: false }), e))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null]
+      [
+        el('div', { class: `tv-day${rest.length ? '' : ' solo'}` }, [
+          el('div', { class: 'tv-lead' }, [hero, !hero ? el('div', { class: 'home-note' }, [el('strong', { text: gap ? t('liveUnread') : d === today() ? L({ zh: '今天沒有轉播', en: 'Nothing on TV today' }) : L({ zh: '這天沒有轉播', en: 'Nothing on TV that day' }) }), d > (tvUntil() || d) ? el('p', { text: noTvText(d) }) : null]) : null, guide]),
+          // (A game on now: 觀看 beside it, straight into ELTA.tv's or Apple TV's app.)
+          rest.length ? section(d === today() ? L({ zh: '今天的轉播', en: 'On TV today' }) : L({ zh: '當天轉播', en: 'On TV that day' }), el('div', { class: 'q-card list game-grid tv-grid' }, rest.map(e => withWatch(eventRow(e, { day: false }), e))), { action: el('span', { class: 'q-tag', text: t('gamesN', { n: list.length }) }) }) : null
+        ])
+      ],
+      []
     )
   );
+  fitLead(box.querySelector('.tv-day'));
+  // An F1 session on: its live timing read now, as 首頁's, not at the next tick.
+  if (!f1Live.feed && box.querySelector('[data-f1-brief]')) pollF1Live();
+}
+// 轉播's lead column on a wide page spans as many rows of tiles as it is
+// tall, each tile at its own height (two rows beside an F1 board stretched
+// the tiles hollow). Measured again as the board fills or the page turns.
+const leadSeen = typeof ResizeObserver === 'function' ? new ResizeObserver(es => es.forEach(x => fitLead(x.target.closest('.tv-day')))) : null;
+function fitLead(day) {
+  const lead = day?.querySelector(':scope > .tv-lead');
+  if (!lead) return;
+  if (!lead.__seen) (lead.__seen = true), leadSeen?.observe(lead), leadSeen?.observe(day);
+  const css = getComputedStyle(day);
+  if (css.display !== 'grid') return void (lead.style.gridRow = '');
+  const n = css.gridTemplateColumns.split(' ').length;
+  const tiles = [...day.querySelectorAll('.tv-grid > *')];
+  day.classList.add('tv-measure');
+  const need = [...lead.children].reduce((h, c) => h + c.getBoundingClientRect().height, 0) + 16 * (lead.children.length - 1);
+  const hs = tiles.map(t => t.getBoundingClientRect().height);
+  day.classList.remove('tv-measure');
+  // (The rows beside it, n - 1 tiles each: the count whose height comes closest to its own.)
+  let best = 1, miss = Infinity;
+  for (let k = 1, h = -12; (k - 1) * (n - 1) < tiles.length; k++) {
+    h += 12 + Math.max(...hs.slice((k - 1) * (n - 1), k * (n - 1)));
+    if (Math.abs(h - need) < miss) (miss = Math.abs(h - need)), (best = k);
+  }
+  const span = `span ${best}`;
+  if (lead.style.gridRow !== span) lead.style.gridRow = span;
 }
 // ---- 愛爾達's guide -------------------------------------------------------------------------
 //
@@ -4913,7 +4959,7 @@ const TAB_ICONS = { home: 'home', matches: 'calendar', live: 'live', following: 
 const tabNav = tabBar({ tabs: TABS.map(id => ({ id, label: t(`tab_${id}`), icon: TAB_ICONS[id] })), onSelect: (tab, { again }) => (again ? tabAgain(tab) : showTab(tab)) });
 function renderTabs() {
   tabNav.select(state.tab);
-  tabNav.badge('live', dayAll(state.days.get(today())).filter(e => e.status.state === 'in' && onTv(e)).length);
+  tabNav.badge('live', tvDay(today()).filter(e => e.status.state === 'in' && onTv(e)).length);
 }
 // Each tab keeps its place (the kit's tab bar); a tap on the open tab
 // scrolls it up, and at the top, home goes back to today.

@@ -2623,6 +2623,23 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
 :root.q-wide :is(.game-grid, .team-cards) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
 :root.q-w3 :is(.game-grid, .team-cards) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 :root.q-wide :is(.game-grid, .team-cards) > * { margin: 0; }
+/* 轉播's day, wide (Jay 2026-11-21, an iPad: the lead game and one long list
+   left a third of the page empty): its title across the top, the lead game
+   and the guide in the first column, the day's games as tiles beside and
+   under them in time order, two or three a row as 賽事's day. */
+:root.q-wide .tv-day { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+:root.q-w3 .tv-day { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+:root.q-wide .tv-day > .q-section, :root.q-wide .tv-day .tv-grid { display: contents; }
+:root.q-wide .tv-day > .q-section > .q-section-head { grid-column: 1 / -1; order: -1; margin: 0; }
+:root.q-wide .tv-lead { grid-column: 1; grid-row: span 2; display: flex; flex-direction: column; gap: 16px; }
+:root.q-wide .tv-lead > * { margin: 0; }
+:root.q-wide .tv-lead > .guide-link { margin-top: auto; }
+/* (While app.js fitLead measures: each piece at its own height.) */
+:root.q-wide .tv-day.tv-measure { align-items: start; }
+:root.q-wide .tv-day.tv-measure > .tv-lead { grid-row: auto; align-self: start; }
+/* (One tile beside it: the lead game a row tall. Nothing beside it: a phone's width, centred.) */
+:root.q-wide .tv-day:not(:has(.tv-grid > :nth-child(2))) .tv-lead { grid-row: auto; }
+:root.q-wide .tv-day.solo { display: block; max-width: 720px; margin-inline: auto; }
 /* A race series' weekends, alike in height: a grid in date order. */
 :root.q-wide .wk-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 :root.q-wide .wk-cards > * { margin: 0; }
@@ -2715,7 +2732,7 @@ html[data-look] .home-board .hb-low .tm-row { overflow: hidden; border-radius: v
   /* Side by side only where the card is wide enough (Jay 2026-11-20, a phone on
      its side in Orbit: the hero in a 350px column, "a lot of wrap"); in a narrow
      column it stays as on a phone held upright. (Its column, else the page, measured.) */
-  .tab-flow, .tab-flow > .q-flow-col { container: hero-room / inline-size; }
+  .tab-flow, .tab-flow > .q-flow-col, .tv-lead { container: hero-room / inline-size; }
   @container hero-room (min-width: 520px) {
     .q-hero-card.hero-game { grid-template-columns: minmax(0, 1fr) auto; }
     .hero-game > * { grid-column: 1 / -1; }
