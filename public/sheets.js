@@ -4430,6 +4430,8 @@ function tmZoom(m) {
   let pinch = null;
   let pan = null;
   let tapAt = 0;
+  let tapXY = [0, 0];
+  let touch = null;
   svg.addEventListener('touchstart', ev => {
     clearTimeout(back);
     cancelAnimationFrame(easing);
@@ -4438,16 +4440,7 @@ function tmZoom(m) {
       pinch = { d: Math.hypot(a.clientX - b2.clientX, a.clientY - b2.clientY), w: view.w, mid: at((a.clientX + b2.clientX) / 2, (a.clientY + b2.clientY) / 2) };
       pan = null;
     } else if (m.z > 1.01) pan = { x: a.clientX, y: a.clientY, v: { ...view } };
-    // Twice tapped off the cars: in, or back out.
-    if (!b2 && !ev.target.closest('.tm-car')) {
-      const now = Date.now();
-      if (now - tapAt < 300) {
-        ev.preventDefault();
-        m.z > 1.01 ? show(whole) : zoomAt(at(a.clientX, a.clientY), W / 2.5);
-        tapAt = 0;
-        later();
-      } else tapAt = now;
-    }
+    touch = !b2 && !ev.target.closest('.tm-car') ? { x: a.clientX, y: a.clientY, t: Date.now() } : null;
   }, { passive: false });
   svg.addEventListener('touchmove', ev => {
     const [a, b2] = ev.touches;
@@ -4461,6 +4454,22 @@ function tmZoom(m) {
     }
   }, { passive: false });
   svg.addEventListener('touchend', ev => {
+    // Twice tapped off the cars: in, or back out. A tap is a touch let go
+    // where it began, quickly: two swipes scrolling the page over the map
+    // were taken for it, the map zoomed and the scroll stopped under the
+    // finger (Jay 2026-11-21: "jump the UI").
+    const a = ev.changedTouches?.[0];
+    const tap = touch && a && !ev.touches.length && Date.now() - touch.t < 250 && Math.hypot(a.clientX - touch.x, a.clientY - touch.y) < 10;
+    touch = null;
+    if (tap) {
+      const now = Date.now();
+      if (now - tapAt < 300 && Math.hypot(a.clientX - tapXY[0], a.clientY - tapXY[1]) < 30) {
+        ev.preventDefault();
+        m.z > 1.01 ? show(whole) : zoomAt(at(a.clientX, a.clientY), W / 2.5);
+        tapAt = 0;
+        later();
+      } else (tapAt = now), (tapXY = [a.clientX, a.clientY]);
+    } else tapAt = 0;
     if (ev.touches.length < 2) pinch = null;
     if (!ev.touches.length) {
       pan = null;
@@ -4813,13 +4822,27 @@ const gapNum = c => (c.pos === 1 ? 0 : /^\+?\d+(\.\d+)?$/.test(c.gap || '') ? Nu
 // drivers to pick from fold away under a button (22 faces in four rows
 // before, nothing said whose).
 const f1PickerOpen = new Set();
+// Each session's 車手比較, kept while the app is open (f1LapCompare).
+const f1CompareBoxes = new Map();
 function f1LapCompare(b, ss) {
   const en = L() === 'en';
   const race = ss.abbr === 'Race' || ss.abbr === 'SR';
   const over = feedOver(b);
-  const box = el('div', { 'data-laps': ss.start });
+  // (One box and one card a session, kept from read to read, only what's in
+  // them changed: a new card at every read, the map moved into it, threw
+  // the reader's place on an iPhone: Jay 2026-11-21, "the track map reset
+  // my scroll and jump the UI".)
+  const box = f1CompareBoxes.get(ss.start) || el('div', { 'data-laps': ss.start });
+  f1CompareBoxes.set(ss.start, box);
+  const keptCard = (title, body, sub) => {
+    const c = box.__card || (box.__card = el('div', { class: 'q-card pad fx-card' }, [el('div', { class: 'card-h row' }), el('div', { class: 'lc' })]));
+    const [h, lc] = c.children;
+    put(h, el('span', { text: title }), sub ? el('small', {}, [sub]) : null);
+    put(lc, ...body);
+    put(box, c);
+  };
   const draw = () => {
-    const { laps, places, stops, live } = lapsFor(b, ss, over, () => box.isConnected && draw());
+    const { laps, places, stops, live } = lapsFor(b, ss, over, () => box.isConnected && box.__redraw());
     const cars = b.cars.filter(c => c.name);
     if (!f1Picks.has(ss.start)) f1Picks.set(ss.start, cars.slice(0, 2).map(c => c.no));
     const car = no => cars.find(c => c.no === no);
@@ -4855,7 +4878,7 @@ function f1LapCompare(b, ss) {
     ]);
     // The track with the cars on it, live (the picked ones named; a tap on a car picks it).
     const map = over ? null : f1TrackMap(b, ss);
-    if (!picks.length) return put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [picker, map, el('p', { class: 'muted small fs-empty', text: en ? 'Pick up to four drivers.' : '選最多 4 位車手來比較' })]), { sub: toggle }));
+    if (!picks.length) return keptCard(en ? 'Compare' : '車手比較', [picker, map, el('p', { class: 'muted small fs-empty', text: en ? 'Pick up to four drivers.' : '選最多 4 位車手來比較' })], toggle);
 
     // The table.
     const [a, ...rest] = picks.map(car);
@@ -5154,7 +5177,7 @@ function f1LapCompare(b, ss) {
         ])
       : null;
     const more = over && allNos.length > lapNos.length ? moreToggle({ more: race ? (en ? `All ${allNos.length} laps` : `顯示全部 ${allNos.length} 圈`) : en ? `All ${allNos.length}` : `顯示全部 ${allNos.length} 個`, less: null, onToggle: () => (f1AllLaps.add(ss.start), draw()) }) : null;
-    put(box, card(en ? 'Compare' : '車手比較', el('div', { class: 'lc' }, [picker, map, table, pick, chart, lapTable ? el('p', { class: 'dc-sub', text: !race ? (en ? 'Timed laps' : '計時圈') : over ? (en ? 'Lap by lap' : '每圈圈速') : en ? 'Last 5 laps' : '最近 5 圈' }) : null, lapTable, more]), { sub: toggle }));
+    keptCard(en ? 'Compare' : '車手比較', [picker, map, table, pick, chart, lapTable ? el('p', { class: 'dc-sub', text: !race ? (en ? 'Timed laps' : '計時圈') : over ? (en ? 'Lap by lap' : '每圈圈速') : en ? 'Last 5 laps' : '最近 5 圈' }) : null, lapTable, more], toggle);
   };
   // (Drawn again when 數據 is shown: built behind 成績, its laps came while it wasn't on the page.)
   box.__redraw = draw;
