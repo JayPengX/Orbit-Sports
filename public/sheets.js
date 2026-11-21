@@ -4191,7 +4191,7 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
           ? [gainOf(c), c.no === fastestNo ? el('small', { class: 'f1-pill fl', text: en ? 'Fastest' : '最快圈' }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
           : [c.laps ? el('small', { class: 'num f1-laps', text: `${c.laps}${en ? ' laps' : ' 圈'}` }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
         : [tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? ' laps' : ' 圈'}` }) : null]) : null, gainOf(c), state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])],
-      tower: over ? null : { alt: timed ? (i > 0 && c.gap ? c.gap : '') : i === 0 ? (en ? 'Leader' : '領先') : race && (c.retired || c.stopped) ? (c.laps ? (en ? `${c.laps} laps` : `${c.laps} 圈`) : en ? 'DNS' : '未起跑') : held ? '' : c.interval || c.gap, tyre: [gainOf(c), tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: String(c.tyreLaps) }) : null]) : null], pills: [state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])] },
+      tower: over ? null : { alt: timed ? (i > 0 && c.gap ? c.gap : '') : i === 0 ? (en ? 'Leader' : '領先') : race && (c.retired || c.stopped) ? (c.laps ? (en ? `${c.laps} laps` : `${c.laps} 圈`) : en ? 'DNS' : '未起跑') : held ? '' : c.interval || c.gap, tyre: [gainOf(c), tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), el('small', { class: 'num', text: c.tyreLaps ? String(c.tyreLaps) : '' })]) : null], pills: [state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])] },
       aside: over
         ? race ? (pointsFor(ss.abbr, c.pos, c.retired || c.stopped) ? (en ? `${pointsFor(ss.abbr, c.pos)} pts` : `${pointsFor(ss.abbr, c.pos)} 分`) : null) : timed && i > 0 && c.gap ? c.gap : null
         : timed ? (i > 0 && c.gap ? c.gap : null) : !held && i > 0 && c.interval && c.interval !== c.gap ? `${en ? 'int ' : '前車 '}${c.interval}` : null
@@ -4243,7 +4243,7 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
         el('small', { class: 'tw-h-tyre', text: en ? 'Tyre' : '輪胎' }),
         el('button', { type: 'button', class: 'tw-h-gap', onclick: ev => { f1GapAlt = !f1GapAlt; ev.currentTarget.closest('ol').classList.toggle('alt', f1GapAlt); ev.currentTarget.querySelector('b').textContent = f1GapAlt ? colB : colA; ev.currentTarget.querySelector('i').textContent = f1GapAlt ? colA : colB; } }, [el('b', { text: f1GapAlt ? colB : colA }), el('span', { text: ' ⇄ ' }), el('i', { text: f1GapAlt ? colA : colB })])
       ]);
-  const order = el('ol', { class: `field f1-field lb-rows${f1GapAlt ? ' alt' : ''}` }, [towerHead, ...rows].filter(Boolean));
+  const order = el('ol', { class: `field f1-field lb-rows${race ? ' race' : ''}${f1GapAlt ? ' alt' : ''}` }, [towerHead, ...rows].filter(Boolean));
   if (orderOnly) return order;
   // Over: no head (its part, clock and flag are gone; "最終成績" over the
   // results said nothing), the order and its 數據 as every finished session.
