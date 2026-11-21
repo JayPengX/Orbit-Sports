@@ -3961,6 +3961,32 @@ function stewardPills(x) {
 // Each car's team as any session has named it (a stand-in the season's list doesn't know:
 // Rafael Câmara in Haas's car, Jay 2026-11-09, read a grey dot and no team under ESPN's list).
 const carTeams = new Map();
+// Race control's message by its kind, for its icon and colour.
+const RC_ICON = {
+  flag: '<path d="M5 21V4"/><path d="M5 4h11l-2.2 3.5L16 11H5" fill="currentColor"/>',
+  limits: '<circle cx="12" cy="13" r="7.5"/><path d="M12 5.5V3M10 3h4M9.5 10.5l5 5M14.5 10.5l-5 5"/>',
+  stewards: '<path d="M12 3v18M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z"/>',
+  sc: '<rect x="3" y="7" width="18" height="10" rx="3"/><path d="M8 12h8"/>',
+  pit: '<rect x="8" y="3" width="8" height="18" rx="2.5"/><circle cx="12" cy="8" r="1.6" fill="currentColor"/><circle cx="12" cy="13" r="1.6"/>',
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>'
+};
+export function rcKind(m) {
+  const t = String(m?.text || '').toUpperCase();
+  const flag = String(m?.flag || '').toUpperCase();
+  if (/SAFETY CAR|\bVSC\b/.test(t) || m?.category === 'SafetyCar') return { k: 'sc', tone: '#f59e0b' };
+  if (/TRACK LIMITS|DELETED|REINSTATED/.test(t)) return { k: 'limits', tone: '#f87171' };
+  if (/STEWARDS|INVESTIGAT|PENALTY|NOTED|REPRIMAND|NO FURTHER/.test(t)) return { k: 'stewards', tone: '#a78bfa' };
+  if (/PIT EXIT|PIT ENTRY/.test(t)) return { k: 'pit', tone: /CLOSED/.test(t) ? '#f87171' : '#4ade80' };
+  // (Chequered first: "CHEQUERED" has "RED" in it, and was a red flag.)
+  const tone = /CHEQUERED/.test(flag) ? 'var(--q-text)' : /\bRED\b/.test(flag) ? '#ef4444' : /YELLOW/.test(flag) ? '#facc15' : /GREEN|CLEAR/.test(flag) ? '#4ade80' : /BLUE/.test(flag) ? '#60a5fa' : '';
+  if (tone || flag) return { k: 'flag', tone: tone || 'var(--q-muted)' };
+  return { k: 'info', tone: 'var(--q-muted)' };
+}
+// "2026-11-21T04:12:30" (race control's UTC, no zone) → 12:12, here.
+const hhmm = utc => {
+  const ms = Date.parse(/Z|[+-]\d\d:?\d\d$/.test(utc) ? utc : `${utc}Z`);
+  return Number.isFinite(ms) ? new Date(ms).toLocaleTimeString(L() === 'en' ? 'en-GB' : 'zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+};
 function f1Row({ pos, posText = '', posOut = false, full, team, field, main = '', aside = null, notes = [], cls = '', colour = '', tower = null }) {
   const en = L() === 'en';
   const c = fieldDriver(field, full) || { name: full };
@@ -4213,10 +4239,32 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
     const c = b.cars.find(x => x.no === no);
     return c ? driverShort(c.name) : `#${no}`;
   };
+  // Each word from race control a row (Jay 2026-11-21: one line of text
+  // after another, a car's pill in the middle of it, "ugly and simple"): its
+  // kind an icon in its colour (a flag, a lap taken away, the stewards, the
+  // safety car, the pit exit), the driver it's about over it (a tap opens
+  // them), when it was said at the right, then what it said.
   const msgRow = m => {
     const parts = raceControlParts(m.text, !en);
-    const many = parts.filter(x => typeof x !== 'string').length > 3;
-    return el('li', {}, [el('small', { class: 'num lb-msg-lap', text: m.lap ? (en ? `L${m.lap}` : `${m.lap} 圈`) : '' }), el('span', {}, parts.map(x => (typeof x === 'string' ? document.createTextNode(x) : many ? document.createTextNode(carName(x.no)) : carChip(x.no))))]);
+    const cars = parts.filter(x => typeof x !== 'string');
+    const many = cars.length > 3;
+    // (The cars it opens with, the row's head, its words after them: "Lindblad、Verstappen Q1 …"
+    // read as one sentence with the pills in it. One named in the middle stays in its sentence.)
+    const lead = [];
+    let i = 0;
+    for (; i < parts.length && !many; i++) {
+      if (typeof parts[i] !== 'string') lead.push(parts[i]);
+      else if (!/^[\s、，,與和&]*$/.test(parts[i])) break;
+    }
+    const one = lead.length > 0 && lead.length <= 3 && lead;
+    const words = one ? parts.slice(i).map(x => (typeof x === 'string' ? x : carName(x.no))).join('').replace(/^[\s：:，,、]+/, '') : null;
+    const kind = rcKind(m);
+    const when = m.lap ? (en ? `Lap ${m.lap}` : `第 ${m.lap} 圈`) : m.at ? hhmm(m.at) : '';
+    const text = one ? el('span', { class: 'rc-text', text: words }) : el('span', { class: 'rc-text' }, parts.map(x => (typeof x === 'string' ? document.createTextNode(x) : many ? document.createTextNode(carName(x.no)) : carChip(x.no))));
+    return el('li', { class: `rc-row rc-${kind.k}` }, [
+      el('span', { class: 'rc-icon', style: `--rc:${kind.tone}`, html: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RC_ICON[kind.k]}</svg>` }),
+      el('span', { class: 'rc-body' }, one ? [el('span', { class: 'rc-head' }, [...one.map(x => carChip(x.no)), when ? el('small', { class: 'num rc-when', text: when }) : null]), text] : [el('span', { class: 'rc-head plain' }, [text, when ? el('small', { class: 'num rc-when', text: when }) : null])])
+    ]);
   };
   // (Opened or folded in place: the list's rows change, the kit's 再看/收起 bar stays under the finger.)
   const makeMsg = () => {
