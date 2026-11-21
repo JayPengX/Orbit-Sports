@@ -4348,7 +4348,10 @@ function tmDraw(m, t, dt) {
   moving.forEach(([s, g, f], i) => {
     // (How far it's set back eased, not jumped: two close cars trade places in the train often.)
     const back = at[i] - f;
-    s.back = s.back == null || !dt ? back : s.back + (back - s.back) * Math.min(1, dt / 350);
+    // (Not snapped at a read either, the map drawn again with no time passed:
+    // a pack drawn as a train jumped at every one of the feed's reads, Jay
+    // 2026-11-21; snapped only where nothing moves, reduced motion.)
+    s.back = s.back == null || (!dt && !m.loop) ? back : s.back + (back - s.back) * Math.min(1, dt / 350);
     cars.push([s, g, m.fit(...m.pointAt(f + s.back))]);
   });
   for (const [s, g, [x, y]] of cars) {
@@ -4587,7 +4590,10 @@ function f1TrackMap(b, ss) {
   // Each car's reading: where it is and how fast it goes (its own pace, the
   // flag's, the pit lane's) until the next.
   const picked = new Set(f1Picks.get(ss.start) || []);
-  const placed = x => !x.retired && !x.stopped && (x.at || x.seg?.[1]);
+  // (Not a car knocked out of qualifying: parked in its garage, its session
+  // over, the feed's reading of it stale, it jumped round the map at every
+  // read: Jay 2026-11-21.)
+  const placed = x => !x.retired && !x.stopped && !x.out && (x.at || x.seg?.[1]);
   const order = [...b.cars].filter(placed).sort((x, y) => (picked.has(x.no) ? 1 : 0) - (picked.has(y.no) ? 1 : 0) || y.pos - x.pos);
   const fieldMs = Math.min(...b.cars.map(x => lapMs(x.best) || Infinity));
   const now = performance.now();

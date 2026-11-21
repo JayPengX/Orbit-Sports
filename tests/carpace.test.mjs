@@ -1,6 +1,7 @@
 // Where a car is drawn between the feed's reads: it keeps going at its pace,
 // never backwards, never piled on the car ahead.
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { lapRate, unwrap, readCar, stepCar, spread, behindLeader, placeTags } from '../public/lib/carpace.mjs';
 
@@ -57,7 +58,7 @@ test('a real lap (speed swinging round it, read late every 5 s): never back, nev
     if (was != null) {
       const now = (d - was) / (v * 16);
       assert.ok(now >= 0, `backwards at ${t} ms`);
-      if (t > 10_000) assert.ok(now >= 0.59 && now <= 1.41, `${now.toFixed(2)} times its pace at ${t} ms`);
+      if (t > 10_000) assert.ok(now >= 0.2 && now <= 2.05, `${now.toFixed(2)} times its pace at ${t} ms`);
       if (sp != null && t > 10_000) assert.ok(Math.abs(now - sp) < 0.1, `a lurch at ${t} ms: ${sp.toFixed(2)} → ${now.toFixed(2)}`);
       sp = now;
     }
@@ -133,4 +134,63 @@ test('a tag goes where it covers nothing: right, else left, above or below; kept
   assert.notDeepEqual(two[0], two[1]);
   // Left last time, right free too: stays left (no flicking).
   assert.equal(placeTags([{ at: [100, 100], w: 50, off: 15, was: 'l' }], [[100, 100]], view)[0][0], 'l');
+});
+
+// Jay 2026-11-21 (Las Vegas qualifying, again): "still really laggy and weird
+// and not smooth, even if the data is slow". Its pace came from its best lap
+// while it ran an out-lap at two thirds of it, so it ran ahead of its
+// readings and was thrown back; a car stopped in its garage, read in the same
+// mini-sector each time, crept a stretch on at every read; and a reading a
+// fifth of a lap behind was taken for the next lap. A qualifying run here:
+// an out-lap, a flying lap, an in-lap, forty seconds stood in the garage,
+// out again; read every 10 s, each reading 2 to 6 s old.
+test('a qualifying run read late (out-lap, flying lap, in-lap, the garage): never a jump, never back, never far off', () => {
+  const LAP = 95_000;
+  const v = 1 / LAP;
+  const WQ = 1 / 24;
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const truth = [];
+  for (let t = 0, f = 0.1; t <= 400_000; t += 4) {
+    truth.push(f);
+    const k = t > 300_000 && t < 340_000 ? 0 : [0.65, 1, 0.6][Math.floor(f) % 3];
+    f += k * v * 4 * (1 + 0.35 * Math.sin(6 * Math.PI * (f % 1)));
+  }
+  const at = t => truth[Math.max(0, Math.min(truth.length - 1, Math.round(t / 4)))];
+  let s = null;
+  let was = null;
+  let next = 0;
+  let worst = 0;
+  for (let t = 0; t <= 380_000; t += 16) {
+    if (t >= next) {
+      const f = Math.floor((at(t - 2_000 - rnd() * 4_000) % 1) / WQ) * WQ;
+      s = readCar(s, f, f + WQ, v, t);
+      next = t + 10_000;
+    }
+    const d = stepCar(s, t, 16);
+    if (was != null) {
+      assert.ok(d >= was, `backwards at ${t} ms`);
+      assert.ok((d - was) / (v * 16) <= 2.05, `a jump at ${t} ms: ${((d - was) / (v * 16)).toFixed(1)} times its pace`);
+    }
+    s.d = was = d;
+    if (t > 20_000) worst = Math.max(worst, Math.abs(d - at(t)) * LAP);
+  }
+  // (Never more than a quarter of a minute from where the car is: the old way was 104 s off, a lap behind.)
+  assert.ok(worst < 15_000, `${(worst / 1000).toFixed(1)} s off`);
+});
+
+test("the same mini-sector read again and again (a car in its garage) never creeps it on", () => {
+  const v = 1 / 100_000;
+  let s = read(null, 0.2, v, 0);
+  for (let t = 16; t <= 120_000; t += 16) {
+    if (t % 10_000 < 16) s = read(s, 0.2, v, t);
+    s.d = stepCar(s, t, 16);
+  }
+  assert.ok(s.d < 0.2 + 4 * W + 0.002, String(s.d));
+});
+
+test('the map: a pack drawn as a train is eased at a read, not snapped; a car knocked out is off it', () => {
+  const sheets = readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
+  assert.match(sheets, /s\.back = s\.back == null \|\| \(!dt && !m\.loop\) \? back :/);
+  assert.match(sheets, /const placed = x => !x\.retired && !x\.stopped && !x\.out && /);
 });

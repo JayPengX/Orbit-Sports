@@ -18,31 +18,46 @@ export function lapRate({ lastMs = 0, bestMs = 0, inPit = false } = {}, fieldMs 
 }
 
 // The read share of a lap (0–1) as a place by the car's drawn one: ahead of
-// it, or a little behind (the feed's lag), never most of a lap back.
-export const unwrap = (frac, near) => frac + Math.ceil(near - 0.15 - frac);
+// it or behind it, whichever is nearer (never most of a lap off).
+// (The nearest: a car drawn a fifth of a lap ahead of a late reading had it
+// taken for the next lap, and was thrown most of a lap on.)
+export const unwrap = (frac, near) => frac + Math.round(near - frac);
 
 // A new reading for a car: F1's feed says only which mini-sector it is in,
 // so a reading is a stretch of the lap, [lo, hi) (shares of a lap), true at
 // the time `at` (now, unless it was placed from where the leader was read).
-// The car is drawn running at its own pace and left alone while it's in
-// that stretch; outside it, it's eased back over a few seconds (stepCar).
-// (It was put at the stretch's start as if just crossed: read late, every
-// car slowed to a fifth of its pace, then raced at 1.8 times it, and one
-// more than five seconds off was snapped back: Jay 2026-11-21, "driver
-// going forward then back … sometimes super fast and sometimes super slow".)
-// The same stretch read again is the car still in it now; a car more than a
-// tenth of a lap from it (the page opened on an old reading, a car back
-// from the garage) is put in it at once.
+// The car's own speed is learned from its readings (the stretch moved on
+// since the last, over the time between): an out-lap or an in-lap in
+// qualifying runs at two thirds of the pace its best lap gives, and drawn at
+// that pace every car ran ahead of its readings and was thrown back a tenth
+// of a lap at a time (Jay 2026-11-21: "still really laggy and weird", every
+// car jumping once or more in 40 s). Its place is never moved here: stepCar
+// eases it onto the stretch. Only a car read far from where it's drawn
+// (the page opened on an old reading, a car out of the garage) is put there.
+export const FAR = 0.25;
 export function readCar(s, lo, hi, v, now, at = now) {
   const w = (((hi - lo) % 1) + 1) % 1 || 0.04;
-  if (!s || s.d == null) return { d: lo + w / 2 + v * (now - at), lo, hi: lo + w, at, v, read: lo };
-  if (s.read === lo && s.at === at) return { ...s, v };
-  const L = unwrap(lo, s.d - v * (now - at));
+  if (!s || s.d == null) return { d: lo + w / 2 + v * (now - at), lo, hi: lo + w, at, v, pace: v, read: lo };
+  // The same stretch read again: the car still in it since it was first read
+  // there (a car in the garage read there for minutes crept a stretch on at
+  // each read, then was thrown back).
+  if (s.read === lo) return { ...s, pace: v, v: blendPace(s.v, v) };
+  const L = unwrap(lo, s.d - (s.v || v) * (now - at));
   const H = L + w;
-  const off = s.d - Math.min(Math.max(s.d, L + v * (now - at)), H + v * (now - at));
-  const d = Math.abs(off) > 0.1 ? L + w / 2 + v * (now - at) : s.d;
-  return { d, lo: L, hi: H, at, v, read: lo, sp: s.sp };
+  // (Its speed from its last stretch to this one: kept to what a car does, a
+  // third to one and a half times its pace, and blended with what it was.)
+  const dt = at - s.at;
+  const seen = dt > 1_500 && s.lo != null ? (L - s.lo) / dt : null;
+  const fit = seen != null && seen > 0 ? Math.min(v * 1.5, Math.max(v / 3, seen)) : null;
+  const sv = fit != null ? (s.v || v) * 0.5 + fit * 0.5 : blendPace(s.v, v);
+  const mid = L + w / 2 + sv * (now - at);
+  if (Math.abs(mid - s.d) <= FAR) return { d: s.d, lo: L, hi: H, at, v: sv, pace: v, read: lo, sp: s.sp };
+  // (Far: put there, on ahead of where it was drawn, never a lap back.)
+  const F = lo + Math.ceil(s.d - lo);
+  return { d: F + w / 2 + sv * (now - at), lo: F, hi: F + w, at, v: sv, pace: v, read: lo, sp: sv };
 }
+// (The flag's or the pit lane's change of pace felt at once; otherwise the learned speed kept.)
+const blendPace = (was, pace) => (was ? was * 0.7 + pace * 0.3 : pace);
 
 // A race: each car's place from the leader's, its gap to the leader (in
 // seconds) taken off at the leader's pace, so the order on the map is the
@@ -50,13 +65,14 @@ export function readCar(s, lo, hi, v, now, at = now) {
 // leader drawn behind the second, 1.8 s back). A share of a lap.
 export const behindLeader = (leaderFrac, gapS, leaderRate) => ((((leaderFrac - gapS * 1000 * leaderRate) % 1) + 1) % 1);
 
-// The car a frame on (`dt` ms, at `now`): at its own pace while it's where
-// its last reading and pace since say it can be; behind or ahead of that, a
-// little faster or slower till it's back (the gap made up over 2.5 s, its
-// speed kept between 0.6 and 1.4 times its pace, as a real car's swings
-// round a lap), the speed itself eased over half a second (never a lurch);
-// never backwards; slowing to a stop three mini-sectors past its reading
-// if no other comes (about fifteen seconds: a car that stopped stops there).
+// The car a frame on (`dt` ms, at `now`): at its own speed while it's in
+// the stretch its last reading and speed since say it can be; behind or
+// ahead of it, a little faster or slower till it's back (the gap made up
+// over four seconds), from a third to twice its speed (a car read well
+// ahead is caught up smoothly, never thrown there), the speed itself eased
+// over most of a second (never a lurch); never backwards; slowing to a stop
+// three mini-sectors past its reading if no other comes (about fifteen
+// seconds: a car that stopped stops there).
 // Moves `s.sp` (the speed drawn) on; returns the new place.
 export function stepCar(s, now, dt) {
   const w = s.hi - s.lo;
@@ -65,8 +81,8 @@ export function stepCar(s, now, dt) {
   const hi = Math.min(s.hi + run, end);
   const lo = Math.min(s.lo + run, hi);
   const off = Math.min(Math.max(s.d, lo), hi) - s.d;
-  const want = Math.min(s.v * 1.4, Math.max(s.v * 0.6, s.v + off / 2500), Math.max(0, (end - s.d) / 3000));
-  s.sp = s.sp == null ? want : s.sp + (want - s.sp) * Math.min(1, dt / 500);
+  const want = Math.min(s.v * 2, Math.max(s.v / 3, s.v + off / 4000), Math.max(0, (end - s.d) / 3000));
+  s.sp = s.sp == null ? want : s.sp + (want - s.sp) * Math.min(1, dt / 900);
   return Math.max(s.d, s.d + Math.max(0, s.sp) * dt);
 }
 
