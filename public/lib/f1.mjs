@@ -341,19 +341,10 @@ export const feedBreak = feed => {
 // or it has passed. A break's countdown (Jay 2026-11-21: "F1 should have the
 // countdown between sessions like other sport").
 export function nextStartAt(feed, now = Date.now()) {
-  const gmt = /^(-?)(\d{1,2}):(\d{2})/.exec(feed?.session?.gmt || '');
-  if (!gmt) return 0;
-  const off = (gmt[1] ? -1 : 1) * (Number(gmt[2]) * 60 + Number(gmt[3])) * 60_000;
   for (const m of feed?.messages || []) {
-    const x = /\b(?:Q[123]|SQ[123]|SESSION|QUALIFYING|SPRINT QUALIFYING)\b.*\bWILL (?:START|RESUME) AT ?(\d{1,2}):(\d{2})/i.exec(m?.text || '');
-    if (!x) continue;
-    const said = Date.parse(/Z|[+-]\d\d:?\d\d$/.test(m.at || '') ? m.at : `${m.at}Z`);
-    if (!Number.isFinite(said)) continue;
-    // (Its day the circuit's on the day it was said; past midnight there, the next.)
-    const local = new Date(said + off);
-    let at = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), Number(x[1]), Number(x[2])) - off;
-    if (at < said - 3_600_000) at += 86_400_000;
-    return at > now - 5_000 ? at : 0;
+    if (!/\b(?:Q[123]|SQ[123]|SESSION|QUALIFYING)\b.*\bWILL (?:START|RESUME) AT/i.test(m?.text || '')) continue;
+    const at = resumeAt(String(m.text).toUpperCase(), feedMs(m.at), feed?.session?.gmt);
+    return at && at > now - 5_000 ? at : 0;
   }
   return 0;
 }
@@ -415,11 +406,11 @@ export function askFinishes(events = [], then = () => {}) {
 // A session that's over, from F1's archive (f1-live.js /session.json): each
 // car's best lap and gap (a practice: ESPN keeps only the order), in the live
 // board's shape. Null when it isn't there (yet).
-// (v=4: the copies kept before had a retired car with no place ("99" on the
+// (v=5: each session's grid drops said (drops). v=4: the copies kept before had a retired car with no place ("99" on the
 // board), a practice's best a lap deleted for track limits (P2 quicker than
 // P1), no deleted laps said; asked no more. Orbit-Core builders/f1kept.js
 // keeps the same addresses.)
-const ARCHIVE = start => `https://f1-live.orbit/session.json?start=${encodeURIComponent(new Date(start).toISOString())}&v=4`;
+const ARCHIVE = start => `https://f1-live.orbit/session.json?start=${encodeURIComponent(new Date(start).toISOString())}&v=5`;
 // Every car's laps in a session ({ cars: { no: [[lap, ms, gap, place, pit]…] } },
 // f1-live.js /laps.json): again each 15 seconds while it runs, kept once over.
 // Over but not in F1's archive yet (it comes an hour or more after the
@@ -455,6 +446,41 @@ export async function startingGrid(qualStart) {
     .map(r => ({ pos: Number(r.position), no: String(r.driver_number), name: car(r.driver_number)?.name || '', team: car(r.driver_number)?.team || '', quali: Number(car(r.driver_number)?.pos) || 0 }))
     .filter(r => r.name);
 }
+// A race's grid drops known before it starts (Jay 2026-11-21: "a lot of
+// grid penalty is known well before the race start"): every one race control
+// said this weekend, in each session over (F1's archive of it) and the one
+// on now (`feed`), each car's once (the same said twice in two sessions).
+// [{ no, kind: 'places'|'back'|'pitlane', n, at }]
+export async function weekendDrops(sessions = [], feed = null) {
+  const done = sessions.filter(x => x.abbr !== 'Race' && x.start && Date.parse(x.start) < Date.now() && x.status?.state === 'post');
+  // (Each read 20 s at most: one archive slow to answer held every drop back; nothing waits on them, the sheet drawn again when they come.)
+  const lists = await Promise.all(done.map(x => Promise.race([sessionTiming(x.start).then(t => t?.drops || []).catch(() => []), new Promise(r => setTimeout(() => r([]), 20_000))])));
+  const all = [...lists.flat(), ...(feed?.drops || [])];
+  const seen = new Set();
+  return all.filter(d => d?.no && !seen.has(`${d.no}|${d.kind}|${d.n}|${d.at}`) && seen.add(`${d.no}|${d.kind}|${d.n}|${d.at}`));
+}
+// The grid those drops make of a qualifying order (car numbers, first
+// first): a car N places back starts behind the car that qualified N places
+// behind it (two drops, their sum); one sent to the back of the grid after
+// every other, then the pit lane's, each in qualifying order. Projected: the
+// stewards' own order can differ where drops cross.
+// → [{ no, pos, quali, drop }] (drop: what moved it, or null)
+export function projectGrid(order = [], drops = []) {
+  const by = new Map();
+  for (const d of drops) {
+    const x = by.get(d.no) || { places: 0, back: false, pitlane: false };
+    if (d.kind === 'places') x.places += d.n || 0;
+    else x[d.kind] = true;
+    by.set(d.no, x);
+  }
+  const rows = order.map((no, i) => ({ no: String(no), quali: i + 1, drop: by.get(String(no)) || null }));
+  const tier = r => (r.drop?.pitlane ? 2 : r.drop?.back ? 1 : 0);
+  const key = r => (r.drop?.places && !tier(r) ? r.quali + r.drop.places + 0.5 : r.quali);
+  return rows.sort((a, b) => tier(a) - tier(b) || key(a) - key(b)).map((r, i) => ({ ...r, pos: i + 1 }));
+}
+// What a drop says, short: 罰退 5 位, 末位發車, 維修區起步.
+export const dropLabel = (d, en = false) => (!d ? '' : d.pitlane ? (en ? 'Pit lane start' : '維修區起步') : d.back ? (en ? 'Back of grid' : '末位發車') : d.places ? (en ? `${d.places}-place drop` : `罰退 ${d.places} 位`) : '');
+
 // The last reading of this session if it's recent (10 minutes), or its last
 // word (the session over: it stands until the official numbers come), else null.
 export const keptTiming = (abbr, start) => (last && sameSession(last, abbr, start) && (Date.now() - last.at < 10 * 60_000 || (feedOver(last) && Date.now() - last.at < 2 * 86_400_000)) ? last : null);
@@ -654,7 +680,7 @@ const gmtMin = gmt => {
 };
 // "RACE WILL RESUME AT 15:45" (said at `at`, ms) → the moment, by the track's clock (`gmt`).
 export function resumeAt(text, at, gmt) {
-  const m = String(text || '').match(/WILL RESUME AT ?(\d{1,2}):(\d{2})\b|ESTIMATED TIME OF .*RESUMPTION.*?\b(\d{1,2}):(\d{2})\b/);
+  const m = String(text || '').match(/WILL (?:RESUME|START) AT ?(\d{1,2}):(\d{2})\b|ESTIMATED TIME OF .*RESUMPTION.*?\b(\d{1,2}):(\d{2})\b/);
   const off = gmtMin(gmt);
   if (!m || off == null || !Number.isFinite(at)) return null;
   const [h, min] = [Number(m[1] ?? m[3]), Number(m[2] ?? m[4])];

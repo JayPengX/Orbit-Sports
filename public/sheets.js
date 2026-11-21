@@ -32,7 +32,7 @@ import { h2hPieces, PIECE_EACH } from './lib/meetings.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, placeTags } from './lib/carpace.mjs';
 import { fold, surname, esc } from './lib/text.mjs';
 import { hoopsSeason, fig } from './lib/hoops.mjs';
-import { driverAbout, startingGrid, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, nextStartAt, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, teamsAt, settleScoring, liveLapEnds, liveRaceEvents, flagNow, birthPlaceOf, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
+import { driverAbout, startingGrid, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, nextStartAt, weekendDrops, projectGrid, dropLabel, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, teamsAt, settleScoring, liveLapEnds, liveRaceEvents, flagNow, birthPlaceOf, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
 import { tvOf, watchLinkOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
 import { parseSearch, placeTeams } from './lib/search.mjs';
 import { hasLeaders, playerRanks } from './lib/leaders.mjs';
@@ -4202,6 +4202,12 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
     const n = race && c.grid && !c.retired && !c.stopped ? c.grid - c.pos : 0;
     return n ? el('small', { class: `num gain ${n > 0 ? 'up' : 'down'}`, title: en ? `From P${c.grid}` : `起跑第 ${c.grid}`, text: `${n > 0 ? '▲' : '▼'}${Math.abs(n)}` }) : null;
   };
+  // The weekend's grid drops (those said before this session, `ss.drops`,
+  // and in it): a car with one says so on its row; a qualifying's order
+  // also as the grid it makes (Jay 2026-11-21).
+  const drops = [...(ss.drops || []), ...(b.drops || [])].filter((d, i, all) => all.findIndex(x => x.no === d.no && x.kind === d.kind && x.n === d.n && x.at === d.at) === i);
+  const dropOf = no => projectGrid([String(no)], drops)[0]?.drop || null;
+  const dropPill = no => (dropOf(no) ? el('small', { class: 'f1-pill bad', text: dropLabel(dropOf(no), en) }) : null);
   const rows = b.cars.flatMap((c, i) => {
     const tyre = TYRE[c.tyre];
     // (A red flag: every car in the pit lane, waiting, none of them pitting: no 進站 on all twenty.)
@@ -4225,9 +4231,9 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
       notes: over
         ? race
           ? [gainOf(c), c.no === fastestNo ? el('small', { class: 'f1-pill fl', text: en ? 'Fastest' : '最快圈' }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
-          : [c.laps ? el('small', { class: 'num f1-laps', text: `${c.laps}${en ? ' laps' : ' 圈'}` }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null]
+          : [c.laps ? el('small', { class: 'num f1-laps', text: `${c.laps}${en ? ' laps' : ' 圈'}` }) : null, c.retired || c.stopped ? el('small', { class: 'f1-pill bad', text: en ? 'Out' : '退賽' }) : null, ss.abbr === 'Race' ? null : dropPill(c.no)]
         : [tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), c.tyreLaps ? el('small', { class: 'num', text: `${c.tyreLaps}${en ? ' laps' : ' 圈'}` }) : null]) : null, gainOf(c), state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])],
-      tower: over ? null : { alt: timed ? (i > 0 && c.gap ? c.gap : '') : i === 0 ? (en ? 'Leader' : '領先') : race && (c.retired || c.stopped) ? (c.laps ? (en ? `${c.laps} laps` : `${c.laps} 圈`) : en ? 'DNS' : '未起跑') : held ? '' : c.interval || c.gap, tyre: [gainOf(c), tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), el('small', { class: 'num', text: c.tyreLaps ? String(c.tyreLaps) : '' })]) : null], pills: [state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, ...stewardPills(b.stewards?.[c.no])] },
+      tower: over ? null : { alt: timed ? (i > 0 && c.gap ? c.gap : '') : i === 0 ? (en ? 'Leader' : '領先') : race && (c.retired || c.stopped) ? (c.laps ? (en ? `${c.laps} laps` : `${c.laps} 圈`) : en ? 'DNS' : '未起跑') : held ? '' : c.interval || c.gap, tyre: [gainOf(c), tyre ? el('span', { class: 'f1-tyre' }, [tyreIcon(c.tyre), el('small', { class: 'num', text: c.tyreLaps ? String(c.tyreLaps) : '' })]) : null], pills: [state ? el('small', { class: `f1-pill${c.inPit || c.pitOut ? '' : ' bad'}`, text: state }) : null, race ? null : dropPill(c.no), ...stewardPills(b.stewards?.[c.no])] },
       aside: over
         ? race ? (pointsFor(ss.abbr, c.pos, c.retired || c.stopped) ? (en ? `${pointsFor(ss.abbr, c.pos)} pts` : `${pointsFor(ss.abbr, c.pos)} 分`) : null) : timed && i > 0 && c.gap ? c.gap : null
         : timed ? (i > 0 && c.gap ? c.gap : null) : !held && i > 0 && c.interval && c.interval !== c.gap ? `${en ? 'int ' : '前車 '}${c.interval}` : null
@@ -4301,7 +4307,12 @@ function f1LiveBoard(b, ss, { order: orderOnly = false } = {}) {
         el('small', { class: 'tw-h-tyre', text: en ? 'Tyre' : '輪胎' }),
         el('button', { type: 'button', class: 'tw-h-gap', onclick: ev => { f1GapAlt = !f1GapAlt; ev.currentTarget.closest('ol').classList.toggle('alt', f1GapAlt); ev.currentTarget.querySelector('b').textContent = f1GapAlt ? colB : colA; ev.currentTarget.querySelector('i').textContent = f1GapAlt ? colA : colB; } }, [el('b', { text: f1GapAlt ? colB : colA }), el('span', { text: ' ⇄ ' }), el('i', { text: f1GapAlt ? colA : colB })])
       ]);
-  const order = el('ol', { class: `field f1-field lb-rows${race ? ' race' : ''}${f1GapAlt ? ' alt' : ''}` }, [towerHead, ...rows].filter(Boolean));
+  const list = el('ol', { class: `field f1-field lb-rows${race ? ' race' : ''}${f1GapAlt ? ' alt' : ''}` }, [towerHead, ...rows].filter(Boolean));
+  // A qualifying with drops said: the grid its order makes, as it stands
+  // (live, it moves with the order; over, the grid before the stewards'
+  // own sheet), each car moved saying from where.
+  const gridCard = projectedGrid(b.cars, drops, ss);
+  const order = gridCard ? el('div', { class: 'stack' }, [list, gridCard]) : list;
   if (orderOnly) return order;
   // Over: no head (its part, clock and flag are gone; "最終成績" over the
   // results said nothing), the order and its 數據 as every finished session.
@@ -5673,8 +5684,25 @@ function f1Views(order, named) {
 // A session that's over: the official order (a race's points and grid, a
 // qualifying's parts) where it's in, else F1's archive's order, and F1's
 // archive's 數據; the same for every session, practice to race.
+// A qualifying with grid drops said: the grid its order makes (live, it
+// moves with the order; over, the grid before the stewards' own sheet), each
+// car moved saying from where and why (Jay 2026-11-21: "in theory give our
+// grid result immediately"). Null when nothing moves.
+function projectedGrid(cars = [], drops = [], ss) {
+  if (ss.abbr !== 'Qual' || !drops.length || !cars.length) return null;
+  const en = L() === 'en';
+  const grid = projectGrid([...cars].sort((x, y) => x.pos - y.pos).map(c => c.no), drops);
+  if (!grid.some(r => r.pos !== r.quali)) return null;
+  return card(en ? 'Projected grid' : '預計發車', el('ol', { class: 'field f1-field grid-proj' }, grid.map(r => {
+    const c = cars.find(x => x.no === r.no);
+    return f1Row({ pos: r.pos, full: c?.name || `#${r.no}`, team: c?.team, field: ss.field, colour: c?.colour, notes: [r.pos !== r.quali ? el('small', { class: `f1-pill num${r.drop ? ' bad' : ''}`, text: en ? `Qualified P${r.quali}` : `排位第 ${r.quali}` }) : null, r.drop ? el('small', { class: 'f1-pill bad', text: dropLabel(r.drop, en) }) : null] });
+  })), { sub: en ? "by race control's penalties" : '依賽會罰則' });
+}
 function f1Final(rows, board, ss) {
-  const order = rows?.length ? f1Field(rows, ss.field) : board ? f1LiveBoard({ ...board, final: true }, ss, { order: true }) : null;
+  // (The official order with the weekend's drops: the grid they make under it.)
+  const grid = rows?.length && board ? projectedGrid(board.cars, [...(ss.drops || []), ...(board.drops || [])], ss) : null;
+  const list = rows?.length ? f1Field(rows, ss.field) : board ? f1LiveBoard({ ...board, final: true }, ss, { order: true }) : null;
+  const order = grid && list ? el('div', { class: 'stack' }, [list, grid]) : list;
   return order ? el('div', { class: 'f1-final' }, [f1Views(order, board ? f1Stats(board, ss) : null)]) : null;
 }
 function fillField(s, e) {
@@ -5806,13 +5834,24 @@ function fillField(s, e) {
       // Brazil's grid drops were missed, ESPN's field being the qualifying order).
       if (qualiOf && e.league === 'f1' && ss.field.length) {
         const seen = pick;
+        // (No grid from OpenF1 yet, ESPN's field still the qualifying order and
+        // drops said this weekend: the grid they make of it, said projected.)
+        const espnAsQualified = ss.field.every((c, i) => qualified(c) === i + 1);
         startingGrid(qualiOf.start)
+          .then(async official => {
+            if (official.length || !espnAsQualified || !ss.drops?.length) return official;
+            const t = await sessionTiming(qualiOf.start).catch(() => null);
+            const cars = [...(t?.cars || keptTiming('Qual', qualiOf.start)?.cars || [])].sort((x, y) => x.pos - y.pos);
+            const projected = projectGrid(cars.map(c => c.no), ss.drops);
+            if (!projected.some(r => r.pos !== r.quali)) return [];
+            return Object.assign(projected.map(r => ({ ...r, name: cars.find(c => c.no === r.no)?.name || '', team: cars.find(c => c.no === r.no)?.team || '' })).filter(r => r.name), { projected: true });
+          })
           .then(grid => {
             if (!grid.length || pick !== seen || !holder.isConnected || !holder.querySelector(':scope > ol.f1-field:not(.waiting)')) return;
             const en = L() === 'en';
             const moved = grid.filter(r => r.quali && r.quali < r.pos);
             const pill = r => (r.quali && r.quali !== r.pos ? el('small', { class: `f1-pill num${r.quali < r.pos ? ' bad' : ''}`, title: en ? `Qualified P${r.quali}, starts P${r.pos}` : `排位第 ${r.quali}，起跑第 ${r.pos}`, text: en ? `Qualified P${r.quali}` : `排位第 ${r.quali}` }) : null);
-            const drops = moved.length ? el('p', { class: 'grid-drops' }, [el('strong', { text: en ? 'Grid drops' : '罰退' }), el('span', { text: moved.map(r => `${f1Sur({ name: r.name })} ${r.quali}→${r.pos}`).join(en ? ', ' : '、') })]) : null;
+            const drops = moved.length ? el('p', { class: 'grid-drops' }, [el('strong', { text: grid.projected ? (en ? 'Projected · drops' : '預計 · 罰退') : en ? 'Grid drops' : '罰退' }), el('span', { text: moved.map(r => `${f1Sur({ name: r.name })} ${r.quali}→${r.pos}`).join(en ? ', ' : '、') })]) : null;
             put(holder, drops, el('ol', { class: 'field f1-field' }, grid.map(r => f1Row({ pos: r.pos, full: r.name, team: r.team, field: ss.field, notes: [pill(r)] }))));
           })
           .catch(() => {});
@@ -5895,6 +5934,18 @@ function fillField(s, e) {
       }
     };
     paint();
+    // F1: the weekend's grid drops race control has said (each session over,
+    // F1's archive of it), on every session (its board's rows, a qualifying's
+    // projected grid, the race's grid to come); drawn again when they come.
+    if (e.league === 'f1' && sessions.some(x => x.abbr === 'Race' && x.status.state !== 'post')) {
+      weekendDrops(sessions)
+        .then(list => {
+          if (!list.length || !box.isConnected) return;
+          for (const x of sessions) x.drops = list;
+          paint();
+        })
+        .catch(() => {});
+    }
     // A race weekend (the owner, 2026-10-27: before its sessions the sheet
     // stood nearly empty): the title fight, where to watch, the circuit and
     // its weather, last year's podium there. On a wide sheet (Jay
