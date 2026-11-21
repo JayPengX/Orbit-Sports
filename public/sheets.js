@@ -5756,7 +5756,7 @@ function fillField(s, e) {
       // Both at once: the official order and the archive, drawn together (never the list then its 數據 jumping in).
       const numbers = official && Promise.all([official.catch(() => []), archive()]);
       // Over and its numbers still coming: its last live reading meanwhile (never an empty list or rows in their shape).
-      const lastWord = numbers && keptTiming(ss.abbr, ss.start);
+      let lastWord = numbers && keptTiming(ss.abbr, ss.start);
       // A race or sprint to come: ESPN's field is the grid, the stewards'
       // drops already in it (Mexico 2026: Verstappen 4th in qualifying, one
       // place back for a collision in practice). A car not where it qualified
@@ -5804,6 +5804,21 @@ function fillField(s, e) {
             const pill = r => (r.quali && r.quali !== r.pos ? el('small', { class: `f1-pill num${r.quali < r.pos ? ' bad' : ''}`, title: en ? `Qualified P${r.quali}, starts P${r.pos}` : `排位第 ${r.quali}，起跑第 ${r.pos}`, text: en ? `Qualified P${r.quali}` : `排位第 ${r.quali}` }) : null);
             const drops = moved.length ? el('p', { class: 'grid-drops' }, [el('strong', { text: en ? 'Grid drops' : '罰退' }), el('span', { text: moved.map(r => `${f1Sur({ name: r.name })} ${r.quali}→${r.pos}`).join(en ? ', ' : '、') })]) : null;
             put(holder, drops, el('ol', { class: 'field f1-field' }, grid.map(r => f1Row({ pos: r.pos, full: r.name, team: r.team, field: ss.field, notes: [pill(r)] }))));
+          })
+          .catch(() => {});
+      }
+      // Over, nothing of it kept here (the sheet opened after the flag): F1's
+      // feed read now, its last word standing until the official order comes
+      // (Jay 2026-11-21: a qualifying over, 排名 left empty, its Q3 nowhere,
+      // OpenF1 closed for the weekend and the other archive refusing).
+      if (numbers && !lastWord && e.league === 'f1' && Date.now() - Date.parse(ss.start) < 86_400_000) {
+        const seen = pick;
+        liveTiming(ss.abbr, ss.start)
+          .then(feed => {
+            if (!feed || !feedOver(feed) || pick !== seen || !holder.isConnected) return;
+            lastWord = feed;
+            // (Only over the shape: the official order already drawn stays.)
+            if (holder.querySelector(':scope > ol.waiting')) put(holder, f1Final(null, { ...feed, final: true }, ss));
           })
           .catch(() => {});
       }
