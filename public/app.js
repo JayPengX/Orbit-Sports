@@ -1120,12 +1120,12 @@ function syncPush() {
     if (end) items.push(end);
   }
   // Today's picks, each starting (its own kind of notice, 今日推薦開賽): one
-  // a followed team's start notice already covers isn't said twice.
+  // a followed team's or race weekend's start notice covers isn't said twice
+  // (oneStart, after every start is on the list).
   for (const e of (state.todayPicks || []).map(freshGame)) {
     const start = noticeAt(e);
     if (e.status?.state === 'post' || e.status?.void || e.timeTbd || !(start > now - GRACE) || start > now + 86_400_000) continue;
     const key = `${e.league}:${e.id}`;
-    if (items.some(x => x.tag === `start:${key}`)) continue;
     items.push({ at: start, title: startTitle(e), body: startLine(e, true), tag: `pick:${key}`, hash: noticeHash(e), kind: 'pick' });
   }
   // Today's picks, each ending (今日推薦賽果): every pick of the day, the ones
@@ -1153,9 +1153,18 @@ function syncPush() {
     const end = resultItem(e, now);
     if (end) items.push(end);
   }
-  schedulePush(q, items);
-  tellNext(items, now);
+  const list = oneStart(items);
+  schedulePush(q, list);
+  tellNext(list, now);
 }
+// One start notice a game or session: a pick (pick:) that a followed team's or
+// race weekend's start (start:) also says is dropped, whichever loop put it on
+// first. (Jay 11-22: the 拉斯維加斯站 race came twice, the race weekend's and
+// 今日推薦's, the picks put on before the followed sessions were.)
+const oneStart = items => {
+  const starts = new Set(items.filter(x => x.kind === 'start').map(x => x.tag.slice('start:'.length)));
+  return items.filter(x => !(x.kind === 'pick' && starts.has(x.tag.slice('pick:'.length))));
+};
 // The family's notebook (kit family.mjs sports.next): the followed games and
 // sessions starting within a day, as their start notices say them, for the
 // Orbit Pass's 今天 (a tap opens the game here: `hash`).
