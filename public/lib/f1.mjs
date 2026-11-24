@@ -455,9 +455,32 @@ export async function weekendDrops(sessions = [], feed = null) {
   const done = sessions.filter(x => x.abbr !== 'Race' && x.start && Date.parse(x.start) < Date.now() && x.status?.state === 'post');
   // (Each read 20 s at most: one archive slow to answer held every drop back; nothing waits on them, the sheet drawn again when they come.)
   const lists = await Promise.all(done.map(x => Promise.race([sessionTiming(x.start).then(t => t?.drops || []).catch(() => []), new Promise(r => setTimeout(() => r([]), 20_000))])));
-  const all = [...lists.flat(), ...(feed?.drops || [])];
+  // The stewards' own documents (the FIA's, f1-fia.js: an engine part over
+  // the allowance is decided days before, and race control never says it):
+  // a car with one, those; race control's word only for a car with none yet
+  // (said on track minutes before its document is up).
+  // (The race's and the last race's names from Jolpica's schedule, read here:
+  // it turns the Workers away and answers a phone.)
+  const race = sessions.find(x => x.abbr === 'Race');
+  const at = Date.parse(race?.start || '');
+  const fia = Number.isFinite(at)
+    ? await Promise.race([
+        getJson(`${JOLPICA}/${new Date(at).getUTCFullYear()}.json?limit=100`, { ttl: 12 * HOUR })
+          .then(sch => {
+            const races = (sch?.MRData?.RaceTable?.Races || []).map(r => ({ name: r.raceName, at: Date.parse(`${r.date}T${r.time || '12:00:00Z'}`) })).sort((a, b) => a.at - b.at);
+            const i = races.findIndex(r => Math.abs(r.at - at) < 86_400_000);
+            if (i < 0) return [];
+            const q = new URLSearchParams({ start: new Date(at).toISOString(), name: races[i].name, prev: races[i - 1]?.name || '' });
+            return getJson(`https://f1-live.orbit/drops.json?${q}`, { ttl: 10 * 60_000 }).then(r => r?.drops || []);
+          })
+          .catch(() => []),
+        new Promise(r => setTimeout(() => r([]), 30_000))
+      ])
+    : [];
+  const told = new Set(fia.map(d => String(d.no)));
+  const all = [...fia.map(d => ({ ...d, no: String(d.no) })), ...[...lists.flat(), ...(feed?.drops || [])].filter(d => !told.has(String(d.no)))];
   const seen = new Set();
-  return all.filter(d => d?.no && !seen.has(`${d.no}|${d.kind}|${d.n}|${d.at}`) && seen.add(`${d.no}|${d.kind}|${d.n}|${d.at}`));
+  return all.filter(d => d?.no && !seen.has(`${d.no}|${d.kind}|${d.n}|${d.at || d.session}`) && seen.add(`${d.no}|${d.kind}|${d.n}|${d.at || d.session}`));
 }
 // The grid those drops make of a qualifying order (car numbers, first
 // first): a car N places back starts behind the car that qualified N places

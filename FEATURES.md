@@ -58,7 +58,7 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - F1 weekends — `public/sheets.js`: `openFieldEvent`
 - F1 賽程 cards: a weekend as a panel (the next session's running countdown, the one on, or the podium) beside the circuit's outline (kept on the phone, `sports.wkTrack.v1`), then its sessions as stops on one line, each finished one showing who topped it on their team's colour — `public/app.js`: `weekendCard`
 - F1 flags as they stand: red flag, safety car, VSC, yellows, with the clock and the cause — `public/sheets.js`, `public/lib/f1.mjs`: `flagBanner`, `flagNow`, `resumeAt`
-- F1 grid drops race control said this weekend: on each driver's row, a qualifying's projected grid (live and over), the race's grid until the stewards' own — `public/lib/f1.mjs`, `public/sheets.js`: `weekendDrops`, `projectGrid`, `function projectedGrid`
+- F1 grid drops (the FIA's stewards' documents, race control's word): a card before qualifying, on each driver's row, a qualifying's projected grid (live and over), the race's grid until the stewards' own — `public/lib/f1.mjs`, `public/sheets.js`: `weekendDrops`, `projectGrid`, `function projectedGrid`, `function dropsCard`
 - F1 qualifying break counted down to the next part's start; a session just over shows the feed's final order at once — `public/lib/f1.mjs`, `public/sheets.js`: `nextStartAt`, `liveTiming(ss.abbr, ss.start)`
 - F1 race chart: climbs through the field and numbered moments — `public/lib/f1.mjs`, `public/lib/moments.mjs`, `public/sheets.js`: `placeClimbs`, `'climb'`, `rc-pin`
 - F1 title fight live during a race — `public/sheets.js`: `fight-live`, `現在結束`

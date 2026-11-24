@@ -35,3 +35,17 @@ test('drops on every session of the weekend: each board row, a qualifying\'s pro
   assert.match(sheets, /const grid = rows\?\.length && board \? projectedGrid\(board\.cars/);
   assert.match(sheets, /if \(official\.length \|\| !espnAsQualified \|\| !ss\.drops\?\.length\) return official;/);
 });
+
+// The stewards' own documents (the FIA's), read days before the race: a car
+// with one, those; race control's word only for a car with none yet. The
+// race's and the last race's names from the phone's schedule (Jolpica turns
+// the Workers away).
+test("the weekend's drops: the FIA's documents first, race control for the rest; a card before the grid is set", () => {
+  const f1 = readFileSync(new URL('../public/lib/f1.mjs', import.meta.url), 'utf8');
+  assert.match(f1, /getJson\(`https:\/\/f1-live\.orbit\/drops\.json\?\$\{q\}`/);
+  assert.match(f1, /new URLSearchParams\(\{ start: new Date\(at\)\.toISOString\(\), name: races\[i\]\.name, prev: races\[i - 1\]\?\.name \|\| '' \}\)/);
+  assert.match(f1, /\.filter\(d => !told\.has\(String\(d\.no\)\)\)/);
+  const sheets = readFileSync(new URL('../public/sheets.js', import.meta.url), 'utf8');
+  assert.match(sheets, /function dropsCard\(drops, sessions\)/);
+  assert.match(sheets, /put\(dropsBox, dropsCard\(list, sessions\)\);/);
+});

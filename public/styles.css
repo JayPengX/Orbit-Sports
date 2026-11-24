@@ -3220,3 +3220,5 @@ table.hp-splits tbody tr.hp-split-new > * { border-top-color: var(--q-divider, v
   .f1-field li.tower .f1-who { gap: 4px; }
   .f1-field li.tower .f1-who > .f1-sub .f1-pill { padding: 0 4px; font-size: 10px !important; }
 }
+/* (The race's grid drops, before its grid: no place yet, the drop a link to its decision.) */
+.drops-list a.f1-pill { text-decoration: none; }

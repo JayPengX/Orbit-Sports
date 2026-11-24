@@ -5698,6 +5698,31 @@ function projectedGrid(cars = [], drops = [], ss) {
     return f1Row({ pos: r.pos, full: c?.name || `#${r.no}`, team: c?.team, field: ss.field, colour: c?.colour, notes: [r.pos !== r.quali ? el('small', { class: `f1-pill num${r.drop ? ' bad' : ''}`, text: en ? `Qualified P${r.quali}` : `排位第 ${r.quali}` }) : null, r.drop ? el('small', { class: 'f1-pill bad', text: dropLabel(r.drop, en) }) : null] });
   })), { sub: en ? "by race control's penalties" : '依賽會罰則' });
 }
+// Why a drop, from its document's name (the FIA's: "…_-_car_12_-_changes_to_pu_element.pdf").
+const DROP_WHY = [[/pu_element|power_unit/, ['更換動力單元', 'Power unit parts']], [/gearbox/, ['更換變速箱', 'Gearbox']], [/collision/, ['造成碰撞', 'Causing a collision']], [/impeding/, ['阻擋', 'Impeding']], [/unsafe_release/, ['不安全放行', 'Unsafe release']], [/yellow|red_flag/, ['旗號違規', 'Flags']], [/parc_ferme|parc-ferme/, ['封閉車房違規', 'Parc fermé']]];
+const dropWhy = d => {
+  const hit = DROP_WHY.find(([re]) => re.test(String(d.doc || '').toLowerCase()));
+  return hit ? hit[1][L() === 'en' ? 1 : 0] : '';
+};
+// The race's grid drops known so far, before its grid is set (Jay
+// 2026-11-21: "a lot of grid penalty is known well before the race start"):
+// each driver, the drop and why, the stewards' document a tap away.
+function dropsCard(drops, sessions) {
+  const race = sessions.find(x => x.abbr === 'Race');
+  if (!drops.length || !race || race.status.state !== 'pre') return null;
+  const en = L() === 'en';
+  const cars = keptTiming('Qual', sessions.find(x => x.abbr === 'Qual')?.start)?.cars || [];
+  const by = new Map();
+  for (const d of drops) by.set(d.no, [...(by.get(d.no) || []), d]);
+  const rows = [...by.values()].map(list => {
+    const d = list[0];
+    const drop = projectGrid([d.no], list)[0].drop;
+    const name = d.name || cars.find(c => c.no === d.no)?.name || `#${d.no}`;
+    const why = [...new Set(list.map(dropWhy).filter(Boolean))].join('、');
+    return { d, drop, name, why, size: drop.pitlane ? 99 : drop.back ? 98 : drop.places };
+  }).sort((a, b) => b.size - a.size);
+  return card(en ? 'Grid drops' : '發車罰退', el('ol', { class: 'field f1-field drops-list' }, rows.map(({ d, drop, name, why }) => f1Row({ pos: '', full: name, field: race.field, notes: [d.doc ? el('a', { href: d.doc, target: '_blank', rel: 'noopener', class: 'f1-pill bad', title: en ? "The stewards' decision" : '賽會判決書', text: `${dropLabel(drop, en)} ›` }) : el('small', { class: 'f1-pill bad', text: dropLabel(drop, en) })], main: '', aside: why || null }))), { sub: en ? 'the stewards, before qualifying sets the grid' : '賽會判決 · 排位後依此調整發車' });
+}
 function f1Final(rows, board, ss) {
   // (The official order with the weekend's drops: the grid they make under it.)
   const grid = rows?.length && board ? projectedGrid(board.cars, [...(ss.drops || []), ...(board.drops || [])], ss) : null;
@@ -5733,6 +5758,8 @@ function fillField(s, e) {
     // F1's race: each driver's chance to win (to come, on, over), read again each minute while it runs.
     // (Beside the order on a wide sheet, at the top of the weekend's other cards; under it on a phone.)
     const raceBox = el('div', { class: 'race-chance' });
+    // The race's grid drops known so far (the stewards' documents, race control), before its grid is set.
+    const dropsBox = el('div', { class: 'grid-drops-box' });
     let raceAt = 0;
     const loadRace = () => {
       const ss = sessions[pick];
@@ -5942,6 +5969,7 @@ function fillField(s, e) {
         .then(list => {
           if (!list.length || !box.isConnected) return;
           for (const x of sessions) x.drops = list;
+          put(dropsBox, dropsCard(list, sessions));
           paint();
         })
         .catch(() => {});
@@ -5954,7 +5982,7 @@ function fillField(s, e) {
     // width, the sessions and the chosen one's order on the left, its
     // chances and the weekend's cards on the right; a phone: one after the
     // other, as ever (styles.css .wk-cols).
-    const side = el('div', { class: 'stack wk-side' }, [raceBox, ...[e.league === 'f1' ? titleFightCard(e) : null, twCard(e.league, e), e.league === 'f1' ? circuitCard(e, sessions) : null, e.league === 'f1' ? podiumCard(e, sessions) : null].filter(Boolean)]);
+    const side = el('div', { class: 'stack wk-side' }, [raceBox, dropsBox, ...[e.league === 'f1' ? titleFightCard(e) : null, twCard(e.league, e), e.league === 'f1' ? circuitCard(e, sessions) : null, e.league === 'f1' ? podiumCard(e, sessions) : null].filter(Boolean)]);
     const more = el('div', { class: 'stack wk-more' });
     s.body.append(el('div', { class: 'stack wk-cols' }, [el('div', { class: 'stack wk-main' }, [box, more]), side]));
     balanceWeekend(box, more, side);
