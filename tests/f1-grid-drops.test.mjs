@@ -49,3 +49,15 @@ test("the weekend's drops: the FIA's documents first, race control for the rest;
   assert.match(sheets, /function dropsCard\(drops, sessions\)/);
   assert.match(sheets, /put\(dropsBox, dropsCard\(list, sessions\)\);/);
 });
+
+// Las Vegas 2026, as it was: qualifying, the five drops the stewards'
+// documents decided days before (Antonelli 5, Piastri, Sainz and Stroll 10,
+// Bearman 35), and the official grid. A dropped car takes its qualifying
+// place plus N as a slot (Piastri 7th, 17th: never moved up by the others
+// dropped around him); those sent past the end, at the back by how far.
+test('the projected grid is the official one: Las Vegas 2026', () => {
+  const quali = ['12', '3', '63', '1', '6', '41', '81', '30', '10', '43', '16', '44', '27', '55', '5', '23', '51', '11', '14', '18', '77', '87'];
+  const drops = [['87', 35], ['18', 10], ['55', 10], ['12', 5], ['81', 10]].map(([no, n]) => ({ no, kind: 'places', n }));
+  const official = ['3', '63', '1', '6', '41', '12', '30', '10', '43', '16', '44', '27', '5', '23', '51', '11', '81', '14', '77', '55', '18', '87'];
+  assert.deepEqual(projectGrid(quali, drops).map(r => r.no), official);
+});

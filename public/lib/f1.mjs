@@ -483,23 +483,44 @@ export async function weekendDrops(sessions = [], feed = null) {
   return all.filter(d => d?.no && !seen.has(`${d.no}|${d.kind}|${d.n}|${d.at || d.session}`) && seen.add(`${d.no}|${d.kind}|${d.n}|${d.at || d.session}`));
 }
 // The grid those drops make of a qualifying order (car numbers, first
-// first): a car N places back starts behind the car that qualified N places
-// behind it (two drops, their sum); one sent to the back of the grid after
-// every other, then the pit lane's, each in qualifying order. Projected: the
-// stewards' own order can differ where drops cross.
+// first), as the stewards set it: a car N places back takes the slot its
+// qualifying place plus N (two drops, their sum), never moved up by others
+// dropped from around it (Las Vegas 2026: Piastri 7th, ten back, 17th);
+// two after one slot, the better qualifier first; every other car in the
+// slots left, in qualifying order; one sent to the back of the grid after
+// all of them, then the pit lane's, each in qualifying order. Projected: the
+// stewards' own order can differ where the offences' order decides.
 // → [{ no, pos, quali, drop }] (drop: what moved it, or null)
 export function projectGrid(order = [], drops = []) {
   const by = new Map();
   for (const d of drops) {
-    const x = by.get(d.no) || { places: 0, back: false, pitlane: false };
+    const x = by.get(String(d.no)) || { places: 0, back: false, pitlane: false };
     if (d.kind === 'places') x.places += d.n || 0;
     else x[d.kind] = true;
-    by.set(d.no, x);
+    by.set(String(d.no), x);
   }
   const rows = order.map((no, i) => ({ no: String(no), quali: i + 1, drop: by.get(String(no)) || null }));
-  const tier = r => (r.drop?.pitlane ? 2 : r.drop?.back ? 1 : 0);
-  const key = r => (r.drop?.places && !tier(r) ? r.quali + r.drop.places + 0.5 : r.quali);
-  return rows.sort((a, b) => tier(a) - tier(b) || key(a) - key(b)).map((r, i) => ({ ...r, pos: i + 1 }));
+  const tail = rows.filter(r => r.drop?.back || r.drop?.pitlane).sort((a, b) => Number(Boolean(a.drop.pitlane)) - Number(Boolean(b.drop.pitlane)) || a.quali - b.quali);
+  const field = rows.filter(r => !tail.includes(r));
+  const slots = new Array(field.length).fill(null);
+  // (The dropped first, each to its slot or the next free behind it; past the end, the last ones free.)
+  const dropped = field.filter(r => r.drop?.places).sort((a, b) => a.quali + a.drop.places - (b.quali + b.drop.places) || a.quali - b.quali);
+  const late = [];
+  for (const r of dropped) {
+    let i = r.quali + r.drop.places - 1;
+    while (i < slots.length && slots[i]) i++;
+    if (i < slots.length) slots[i] = r;
+    else late.push(r);
+  }
+  // (Past the end: the last slots free, from the back forward, the latest target last.)
+  for (const r of late.reverse()) {
+    let i = slots.length - 1;
+    while (i >= 0 && slots[i]) i--;
+    slots[i] = r;
+  }
+  const rest = field.filter(r => !slots.includes(r));
+  for (let i = 0, k = 0; i < slots.length; i++) if (!slots[i]) slots[i] = rest[k++];
+  return [...slots, ...tail].map((r, i) => ({ ...r, pos: i + 1 }));
 }
 // What a drop says, short: 罰退 5 位, 末位發車, 維修區起步.
 export const dropLabel = (d, en = false) => (!d ? '' : d.pitlane ? (en ? 'Pit lane start' : '維修區起步') : d.back ? (en ? 'Back of grid' : '末位發車') : d.places ? (en ? `${d.places}-place drop` : `罰退 ${d.places} 位`) : '');
