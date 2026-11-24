@@ -2161,7 +2161,7 @@ function pitchView([away, home], d, e, nameOf) {
   const surname = surnameOf;
   // His face in a ring of his team's colour, his number on it; a sub on with a green ↑. A tap: his page.
   const marker = (p, x, y, shirt) =>
-    el('button', { class: 'pm', type: 'button', style: `left:${(x * 100).toFixed(1)}%;top:${(y * 100).toFixed(1)}%;--shirt:${shirt}`, 'aria-label': `${p.name}${p.subbedIn ? (en ? ', came on' : '，替補上場') : ''}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [
+    el('button', { class: 'pm', type: 'button', style: `left:${(x * 100).toFixed(1)}%;top:calc(var(--pm-pad) + ${y.toFixed(4)} * (100% - 2 * var(--pm-pad)));--shirt:${shirt}`, 'aria-label': `${p.name}${p.subbedIn ? (en ? ', came on' : '，替補上場') : ''}`, onclick: () => p.id && ctx.openPlayer(e.league, p.id, { name: p.name, logo: p.headshot }) }, [
       el('span', { class: 'pm-face' }, [personPic(p, e.league, 'pm-pic'), p.jersey ? el('span', { class: 'pm-num num', style: `color:${inkOn(shirt)}`, text: p.jersey }) : null, p.subbedIn ? el('span', { class: 'pm-sub on', 'aria-hidden': 'true', text: '↑' }) : null]),
       // One line, a long surname smaller (fitted to the marker below), never broken at its hyphen.
       el('span', { class: oneLineName(surname(p)) }, [playerName(p.full || p.name, 'short', surname(p))])

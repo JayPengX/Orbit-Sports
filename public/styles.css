@@ -2104,12 +2104,14 @@ button.lp-person.tap:active { opacity: 0.6; }
 .pitch-wrap { display: grid; gap: 6px; }
 .pitch-team { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0; font-size: 13px; }
 .pitch-team span { color: var(--q-muted); font-weight: 600; font-size: 12px; white-space: nowrap; }
-.pitch { position: relative; aspect-ratio: 68 / 128; border-radius: 12px; overflow: hidden; background: repeating-linear-gradient(to bottom, var(--pitch) 0 7.81%, var(--pitch-band) 7.81% 15.62%); }
+/* (--pm-pad: the spots kept that far in from each goal line, a marker's top half and its number: a keeper's number went over the pitch's edge, Jay 11-24.) */
+.pitch { --pm-pad: 26px; position: relative; aspect-ratio: 68 / 128; border-radius: 12px; overflow: hidden; background: repeating-linear-gradient(to bottom, var(--pitch) 0 7.81%, var(--pitch-band) 7.81% 15.62%); }
 /* The faces grow with the pitch (a phone's 30px; up to 56px on an iPad), and the pitch is never
    wider than a tall phone's column's twice (Jay 2026-11-10: on an iPad the field filled the
    page and the heads were dots: "shrinking the field or enlarging player heads"). */
 .soccer-pitch { max-width: 600px; width: 100%; margin-inline: auto; }
 .soccer-pitch .pitch { container-type: inline-size; }
+.soccer-pitch .pm { --pm-pad: calc(8cqw + 14px); }
 .soccer-pitch .pm { width: clamp(70px, 20cqw, 120px); gap: clamp(3px, 0.9cqw, 6px); }
 .soccer-pitch .pm-face, .soccer-pitch .pm-face .logo { width: clamp(34px, 10.5cqw, 56px); height: clamp(34px, 10.5cqw, 56px); }
 .soccer-pitch .pm-name { max-width: clamp(70px, 20cqw, 120px); font-size: clamp(10px, 2.6cqw, 14px); }
