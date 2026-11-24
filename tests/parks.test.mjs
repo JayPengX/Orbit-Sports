@@ -1,22 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parkOf, arriveBy } from '../public/lib/parks.mjs';
+import { parkOf } from '../public/lib/parks.mjs';
 
-test('a CPBL park by its Chinese or English name; an unknown one gets no link', () => {
+test('a CPBL park by its Chinese or English name; an unknown one gets none', () => {
   assert.equal(parkOf('天母棒球場').name, '天母棒球場');
   assert.equal(parkOf('Taichung Intercontinental Baseball Stadium').name, '臺中洲際棒球場');
   assert.equal(parkOf('臺北大巨蛋').name, '臺北大巨蛋');
   assert.equal(parkOf('Rakuten Taoyuan Baseball Stadium').name, '樂天桃園棒球場');
   assert.equal(parkOf('Dodger Stadium'), null);
   assert.equal(parkOf(''), null);
-});
-
-test('there half an hour early, only for a game within two days that has not begun', () => {
-  const now = Date.parse('2026-11-10T08:00:00Z');
-  assert.equal(arriveBy('2026-11-10T10:35:00Z', now), Date.parse('2026-11-10T10:05:00Z'));
-  assert.equal(arriveBy('2026-11-10T08:20:00Z', now), null);
-  assert.equal(arriveBy('2026-11-14T10:35:00Z', now), null);
-  assert.equal(arriveBy('nope', now), null);
 });
 
 test('the park\'s weather for the game\'s three hours; the dome is indoors', async () => {

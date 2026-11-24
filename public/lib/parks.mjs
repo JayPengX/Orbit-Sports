@@ -1,4 +1,4 @@
-// 去球場 and 球場天氣 (Jay 11-10, the family working together): a CPBL
+// 球場天氣 (Jay 11-10; its 去球場 link to Transit cut 11-24): a CPBL
 // game's park, where it is, so the game's sheet can hand the trip to Orbit
 // Transit's planner (there before the first pitch) and say the weather at
 // the park for the game's hours. Places from OpenStreetMap (11-10); a park
@@ -22,15 +22,6 @@ export function parkOf(venue) {
   if (!v) return null;
   const p = PARKS.find(([re]) => re.test(v));
   return p ? { lat: p[1], lon: p[2], name: p[3], dome: !!p[4] } : null;
-}
-
-// When to be there: half an hour before the start; null once that's past
-// (or the game started, or it's more than two days off: plan nearer the day).
-export function arriveBy(start, now = Date.now()) {
-  const t = Date.parse(start);
-  if (!Number.isFinite(t)) return null;
-  const by = t - 30 * 60_000;
-  return by > now && by - now < 2 * 86_400_000 ? by : null;
 }
 
 // The hours a game is played (from its start, three of them), from
