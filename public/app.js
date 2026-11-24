@@ -42,7 +42,7 @@ import { onTvChange, tvOf, knownEvents, eltaSchedule, audioPref, onTv, tvReady, 
 import { shortLeague, cols, homeBoard, balanced, ctx, sidesOf, el, morph, shownStart, timeText, bestOf, put, spinner, skeleton, empty, $, localDate, today, addDays, clock, dayLabel, whenOf, eventRow, sheet, section, moreButton, goBar, moreToggle, logo, leagueMark, segmented, sideLogo, fillF1Brief, f1Live, watchLink, withWatch, watchButton, scoreText, statusText, breakTick, raceFlag, audioName, guessTag, personPic, refreshBadges } from './ui.js';
 import { gameRecap } from './recap.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
-import { teamsByZh, teamNameZh } from '#kit/names.mjs';
+import { teamsByZh } from '#kit/names.mjs';
 import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
 // Orbit's own look (Jay 2026-11-03, RULEBOOK §3; index.html's data-look and look.css): the lead game's clubs on their own colours, 我的球隊.
 import * as look from './look.js';
@@ -207,7 +207,6 @@ function applyPrefs(payload, { save = true } = {}) {
   // Leagues in: not a newcomer, whatever was shown before they came.
   if (state.prefs.leagues.length) state.home.picking = false;
   if (restored && save) savePrefs();
-  tellFollows();
 }
 // The follows from the pass when they couldn't be read at the start: the
 // start's reply when it has them, else a read of its own. Changes made in
@@ -262,7 +261,6 @@ function savePrefs() {
     const { leagues, follows, games, audio, fill, quiet } = state.prefs;
     const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, ...(fill ? { fill: true } : {}), ...(quiet ? { quiet } : {}), picks: pickRecord.all(), t: Date.now() });
     keepLocalPrefs(payload);
-    tellFollows();
     // Not saved (another app live on the pass, offline): again when this one is live.
     savePending = true;
     q.write({ payload, wallet: followsPatch() })
@@ -271,19 +269,6 @@ function savePrefs() {
   }, 800);
 }
 let savePending = false;
-// The family's notebook (kit family.mjs): the teams and players followed,
-// in English and Chinese, for Orbit News' 你關心的先看. Names only.
-let toldFollows = '';
-function tellFollows() {
-  const follows = state.prefs.follows.slice(0, 60).map(f => {
-    const zh = f.athlete ? null : teamNameZh(f.league, f.name, LEAGUES[f.league]?.sport || '');
-    return { league: f.league, id: f.id, name: f.name, ...(zh ? { zh: zh.full, short: zh.short } : {}), ...(f.athlete ? { athlete: true } : {}) };
-  });
-  const key = JSON.stringify(follows);
-  if (key === toldFollows) return;
-  toldFollows = key;
-  import('#kit/family.mjs').then(f => f.tell?.('sports', 'follows', follows)).catch(() => {});
-}
 // What the person follows and opens, on the pass too (`follows:match`,
 // `aff:match`): apps on a phone's home screen don't share storage. Leagues in order; teams as [league, name].
 const followsValue = () => ({
@@ -1155,7 +1140,6 @@ function syncPush() {
   }
   const list = oneStart(items);
   schedulePush(q, list);
-  tellNext(list, now);
 }
 // One start notice a game or session: a pick (pick:) that a followed team's or
 // race weekend's start (start:) also says is dropped, whichever loop put it on
@@ -1165,23 +1149,6 @@ const oneStart = items => {
   const starts = new Set(items.filter(x => x.kind === 'start').map(x => x.tag.slice('start:'.length)));
   return items.filter(x => !(x.kind === 'pick' && starts.has(x.tag.slice('pick:'.length))));
 };
-// The family's notebook (kit family.mjs sports.next): the followed games and
-// sessions starting within a day, as their start notices say them, for the
-// Orbit Pass's 今天 (a tap opens the game here: `hash`).
-let toldNext = '';
-function tellNext(items, now) {
-  const next = items
-    .filter(x => x.kind === 'start' && x.at > now - 3 * 3_600_000 && x.at < now + 86_400_000)
-    .sort((a, b) => a.at - b.at)
-    .slice(0, 4)
-    .map(x => ({ at: x.at, title: x.title.replace(/ (開賽|開始|is on)$/, ''), hash: x.hash }));
-  const key = JSON.stringify(next);
-  if (key === toldNext) return;
-  toldNext = key;
-  import('#kit/family.mjs')
-    .then(f => f.tell?.('sports', 'next', next))
-    .catch(() => {});
-}
 // A game's or a sprint's or race's final, for the Worker to send the moment
 // it's over (it fills in the score or the podium, and who won: {result}); a
 // pick's says so (今日推薦賽果, its own switch). Asked from the soonest it can
