@@ -127,28 +127,15 @@ img { max-width: 100%; }
 /* A game of the person's own, in a list of all: a small star by its time, quiet (no orange strip down its edge, Jay 2026-11-03). */
 .row-mark { display: inline-flex; align-items: center; gap: 4px; height: 20px; margin-right: 8px; padding: 0 8px 0 6px; border-radius: 999px; background: var(--q-fill-2); color: var(--q-label, var(--q-text)); font: 600 12px/20px var(--q-font); white-space: nowrap; }
 .row-mark svg { width: 12px; height: 12px; fill: currentColor; }
-.event-row.picked { background: var(--q-fill-4); }
-/* (A card whose every game is theirs: none lit, the 推薦 pill says it; Jay 2026-11-20, 美職足's two
-   picks of the day: "full grey".) */
-.list:not(:has(.event-row:not(.picked))) .event-row.picked { background: none; }
-/* A game only 填滿空檔 put in: unlit, its pill outlined with a hollow star, so a
-   followed league's pick reads as theirs and this one as filling a gap (Jay 2026-11-05). */
-.event-row.picked.fill-pick { background: none; }
+/* A pick is its 推薦 pill alone, on every list: never a grey row (Jay 2026-11-26, a series' three picks:
+   "sometimes it greys it out, sometimes it doesn't, be consistent"). */
 /* Their own game (轉播): the pill solid in the text's colour (Jay 2026-11-21: "make sure that one is obvious enough"). */
 .row-mark.mine { background: var(--q-label, var(--q-text)); color: var(--q-bg, var(--q-surface)); }
-/* (轉播 and 賽事: no row lit, every 推薦 one pill: a lit row read as greyed out, and a
-   followed league's pick lit beside another's unlit meant nothing there, Jay 2026-11-21.) */
-:is(.tv-day, #panel-matches) .event-row.picked { background: none; }
 :is(.tv-day, #panel-matches) .row-mark.fill { background: var(--q-fill-2); box-shadow: none; color: var(--q-label, var(--q-text)); font-weight: 600; }
 .row-mark.fill { background: none; box-shadow: inset 0 0 0 1px var(--q-sep); color: var(--q-label-2); font-weight: 500; }
 .row-mark.fill svg path.open { fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linejoin: round; }
 /* (首頁's 我的比賽 is all picks: no mark, no light.) */
 .pick-list .row-mark { display: none; }
-.pick-list .event-row.picked { background: none; }
-/* (首頁's 正在進行 is all theirs too: its 推薦 pill, no light; Jay 2026-11-20: one live pick "grey out alone".) */
-.live-now .event-row.picked { background: none; }
-/* (轉播's 我的比賽 is only their own games: no grey light either, Jay 2026-11-05.) */
-.mine-list .event-row.picked { background: none; }
 /* A game 填滿空檔 put in: one quiet line in the list's own grid (the time in
    its column, the two sides, a small star at the end), so their own games
    stand out and it still reads as the list's (Jay 2026-11-04). */
@@ -347,6 +334,16 @@ img { max-width: 100%; }
 dialog.tv-guide-sheet[open] { display: flex; flex-direction: column; }
 dialog.tv-guide-sheet[open] > * { flex-shrink: 0; }
 dialog.tv-guide-sheet[open] > .sheet-body { flex-grow: 1; }
+/* A team's or player's page: its tab's part reaches the sheet's foot, so a swipe on the empty space under a short tab
+   is the tab beside too (Jay 11-26: "match sheet can swipe … but team and player can't"). */
+dialog[open]:has(> .sheet-body > .tabbed-page) { display: flex; flex-direction: column; }
+dialog[open]:has(> .sheet-body > .tabbed-page) > * { flex-shrink: 0; }
+dialog[open] > .sheet-body:has(> .tabbed-page) { flex-grow: 1; display: flex; flex-direction: column; }
+.tabbed-page { flex-grow: 1; display: flex; flex-direction: column; }
+.tabbed-page > .team-tab:last-child { flex-grow: 1; align-content: start; }
+/* (A column's margins don't meet as a page's do: the tabs' 12 above and below kept as they were.) */
+.tabbed-page > div:not([class]) > .q-seg { margin-block: 0; }
+.tabbed-page > div:not([class]):has(> .q-seg) + .team-tab { margin-top: 12px; }
 .tv-guide-day { margin: 18px 0 8px; }
 .tvg-row { display: grid; grid-template-columns: 3.4em minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 16px; }
 .tvg-row + .tvg-row { border-top: var(--q-hairline, 0.5px) solid var(--q-sep); }
@@ -2331,8 +2328,6 @@ button.team-tag:active, button.team-tap:active { opacity: 0.6; }
 /* (A mouse over a player keeps the card lit, the name underlined: it went dark under the pointer, Jay 11-14 "not consistent".) */
 @media (hover: hover) and (pointer: fine) { .q-card.recap:hover:not(:has(.event-row:disabled)) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); } }
 /* A game over shown with its leaders (recapList): the whole card lit, never the top half. */
-.q-card.recap > .event-row.picked { background: none; }
-.q-card.recap:has(> .event-row.picked:not(.fill-pick)) { background-image: linear-gradient(var(--q-fill-4), var(--q-fill-4)); }
 .recap-best { display: grid; gap: 4px; margin-top: -6px; padding: 0 16px 14px 92px; }
 /* While a game's top players are read their room is kept and nothing is drawn in it:
    no sweeping bars, no stand-in swapped for the real lines (Jay 2026-11-05: "a small

@@ -6033,7 +6033,7 @@ const raceLines = new Map();
 export async function openTeam(league, id, fallback = {}, { into = null, scope = league, tab = '' } = {}) {
   if (!id || !hasTeamPage(league) || fallback.guest) return;
   const s = into || sheet(leagueName(league, L()), { league });
-  const content = el('div', {}, [spinner()]);
+  const content = el('div', { class: 'tabbed-page' }, [spinner()]);
   if (into) {
     s.body.replaceChildren(content);
     // (The sheet's head names the competition shown, a tap to it.)
@@ -7262,7 +7262,7 @@ export async function openPlayer(league, id, fallback = {}) {
   // Opened from a game's page: that game, if he's in its box score.
   const game = openGame?.dialog.isConnected && openGame.e.league === league && gameLine(openGame.data, id) ? openGame : null;
   const s = sheet(leagueName(league, L()), { league });
-  const content = el('div', {}, [spinner()]);
+  const content = el('div', { class: 'tabbed-page' }, [spinner()]);
   s.body.append(content);
   try {
     const sport = LEAGUES[league]?.sport;
