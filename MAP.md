@@ -17,6 +17,8 @@ Only what's on TV here (`lib/broadcast.mjs`; leagues from
   Scotland, FA Cup, the three UEFA cups, Nations League.
 - **Soccer on Apple TV:** MLS (every game).
 - **Racing:** F1 (every session).
+- **On YouTube:** TPBL (Taiwan's league, every game live; its own site through the proxy, `asia-baseball.js tpbl`).
+- **No TV here** (kit `NO_TV`, 11-26): LaLiga, the NFL. Followed, like any; not followed, out of 首頁, behind 更多聯賽 on 賽事's rail and one row a league at the end of 全部 (`quietLeague`).
 
 A league out of season is hidden (checked by its game days, the nightly
 `sports/<league>/days.json`, ESPN's pages only for a league without one;
@@ -27,7 +29,7 @@ kept 12 h). A league that couldn't be read is shown, never hidden.
 Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RULEBOOK.md`.
 
 **What's shown.**
-- 11-04 Code and data only for the leagues Sports shows (the 15 on ELTA or Apple TV, kit `BROADCAST`); nothing kept, built or read for another league. What players' pages need stays (clubs' Chinese and old names, an NBA player's college, LaLiga's photos).
+- 11-26 More leagues, the big ones never buried: Taiwan's own on their YouTube, others with no TV here shown without a service (no other streaming service yet), kept out of the way unless followed. Code and data only for the leagues Sports shows (kit `BROADCAST`); nothing kept, built or read for another league (replaces 11-04's ELTA and Apple TV only). What players' pages need stays (clubs' Chinese and old names, an NBA player's college, LaLiga's photos).
 - 10-20 Every break gets a countdown, timeouts too. 10-21 Two sports' games clash only within 30 minutes of each other.
 - 10-22 賽事 opens on 全部, never on the first followed league.
 - 10-22 NBA 先發 from RotoWire (not ESPN core); injury words from a fixed list, never machine-translated.

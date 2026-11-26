@@ -23,6 +23,7 @@ import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
 import { eltaChannel, hasAudio, channelRank } from './lib/broadcast.mjs';
+import * as broadcast from './lib/broadcast.mjs';
 import { findLeagues, parseSearch, placeTeams, placePlayers } from './lib/search.mjs';
 import { setWatchPack, prefetchHighlights, watchMonthWanted, watchMonthPath, loadWatchMonth } from './lib/highlights.mjs';
 import { LEAGUES, SPORTS, leagueName, leaguesOf, hasStandings, hasTeams, byStakes, bySeason, seasonState } from './lib/leagues.mjs';
@@ -486,7 +487,7 @@ function isFollowedEvent(e, { chosen = true } = {}) {
 // A club followed under a national sides' competition: moved to its own (clubHome), the league it was
 // found in left as the person had it before (never followed for it).
 async function rehome(f, hadLeague = true) {
-  if (f.athlete || !['nationsleague', 'worldcup'].includes(f.league)) return;
+  if (f.athlete || !['nationsleague', 'worldcup', 'ucl', 'uel', 'uecl'].includes(f.league)) return;
   const home = await clubHome(f.league, f.id);
   if (home === f.league || !LEAGUES[home]) return;
   const p = state.prefs;
@@ -730,10 +731,15 @@ function pickLeagues() {
 // Which leagues a day was read for: a day read before the follows came in
 // (the pass answers after the first read) is read again, never taken for "nothing on".
 const leaguesKey = () => pickLeagues().join();
+// A league on no TV here and not followed (LaLiga, the NFL; Jay 11-26): shown
+// in 賽事 only, behind 更多聯賽 there, never filling 首頁 or burying the big ones.
+// (The kit's NO_TV, new 11-26: a phone's older kit has none for its first week.)
+const NO_TV = broadcast.NO_TV || new Set(['laliga', 'nfl']);
+const quietLeague = k => NO_TV.has(k) && !state.prefs.leagues.includes(k);
 function otherLeagues() {
   const mine = new Set(pickLeagues());
   return Object.keys(LEAGUES)
-    .filter(k => !mine.has(k))
+    .filter(k => !mine.has(k) && !quietLeague(k))
     .sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top));
 }
 const espnDaysOf = date => {
@@ -1688,7 +1694,15 @@ function renderAll() {
     const byLeague = new Map();
     for (const e of games) byLeague.set(e.league, [...(byLeague.get(e.league) || []), e]);
     const order = { in: 0, pre: 1, post: 2 };
-    const groups = [...byLeague].sort(([a], [b]) => (place.get(a) ?? 999) - (place.get(b) ?? 999));
+    const groups = [...byLeague].filter(([k]) => !quietLeague(k)).sort(([a], [b]) => (place.get(a) ?? 999) - (place.get(b) ?? 999));
+    // (The quiet leagues' games: one card at the end, a row a league with its count, a tap to its day.)
+    const quietRows = [...byLeague].filter(([k]) => quietLeague(k)).sort(([a], [b]) => (place.get(a) ?? 999) - (place.get(b) ?? 999));
+    const quietCard = quietRows.length
+      ? el('section', { class: 'q-section all-league all-quiet' }, [
+          kitUI.sectionHead(L({ zh: '更多聯賽', en: 'More leagues' })),
+          el('div', { class: 'q-card list' }, quietRows.map(([k, rows]) => el('button', { class: 'q-ritem chevron', type: 'button', onclick: () => openScores(k, date) }, [leagueMark(k), el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: leagueName(k, locale) })]), el('span', { class: 'q-ritem-value', text: t('gamesN', { n: rows.length }) })])))
+        ])
+      : null;
     const group = ([k, rows]) => {
       rows.sort((a, b) => order[a.status.state] - order[b.status.state] || a.start.localeCompare(b.start));
       // The league's head: its mark and name, and how many, a tap to its page that day.
@@ -1704,7 +1718,8 @@ function renderAll() {
         ? balanced(groups.map(group), g => 1.6 + g.querySelectorAll('.event-row').length + (g.querySelector('.show-more') ? 0.5 : 0))
         : unread
           ? kitUI.empty({ title: L({ zh: '這天的賽程還讀不到', en: "Couldn't read this day yet" }), body: t('retrySoon') })
-          : empty(t('noGames'))
+          : empty(t('noGames')),
+      games.length ? quietCard : null
     ]);
   }
   const parts = [head, leagueRail(scoresRail()), strip, list];
@@ -4175,7 +4190,11 @@ const roundsIn = () => {
 // keeps its scroll).
 let railKept = null;
 function leagueRail(rail) {
-  const key = `${locale}|${rail.join()}`;
+  // 更多聯賽: the quiet leagues folded into one chip at the rail's end, opened in place (or one of them open).
+  const quiet = rail.filter(quietLeague);
+  const open = state.scores.moreRail || quiet.includes(state.scores.league);
+  if (!open) rail = rail.filter(k => !quietLeague(k));
+  const key = `${locale}|${rail.join()}|${open ? '' : quiet.length}`;
   if (railKept?.key !== key) {
     const pick = k => pickLeague(k);
     railKept = {
@@ -4183,7 +4202,8 @@ function leagueRail(rail) {
       node: el('div', { class: 'q-chips league-rail' }, [
         el('button', { class: 'q-chip search-chip', type: 'button', 'aria-label': L({ zh: '搜尋', en: 'Search' }), html: icon('search'), onclick: openSearch }),
         el('button', { class: 'q-chip all-chip', type: 'button', 'data-league': ALL, 'aria-pressed': 'false', text: t('f_all'), onclick: () => state.scores.league !== ALL && openAll(state.scores.chosen || today()) }),
-        ...rail.map(k => el('button', { class: 'q-chip', type: 'button', 'data-league': k, 'aria-pressed': 'false', onclick: () => pick(k) }, [leagueMark(k), locale === 'en' ? leagueName(k, locale) : shortLeague(k)]))
+        ...rail.map(k => el('button', { class: 'q-chip', type: 'button', 'data-league': k, 'aria-pressed': 'false', onclick: () => pick(k) }, [leagueMark(k), locale === 'en' ? leagueName(k, locale) : shortLeague(k)])),
+        !open && quiet.length ? el('button', { class: 'q-chip more-leagues', type: 'button', onclick: () => ((state.scores.moreRail = true), renderScores()) }, [L({ zh: `更多聯賽 ${quiet.length}`, en: `${quiet.length} more` })]) : null
       ])
     };
   }
@@ -4215,10 +4235,12 @@ function scoresRail() {
   // Every league on one rail, theirs first (in their order), then by what's
   // at stake and how watchable in Taiwan (leagues.mjs byStakes); the search
   // first of all, then 全部.
-  const rest = shownSports().flatMap(sp => shownLeaguesOf(sp)).filter(k => !mine.has(k));
+  const rest = shownSports().flatMap(sp => shownLeaguesOf(sp)).filter(k => !mine.has(k) && !quietLeague(k));
+  // (The quiet ones last, behind 更多聯賽 till it's opened or one of them is: leagueRail.)
+  const quiet = shownSports().flatMap(sp => shownLeaguesOf(sp)).filter(k => !mine.has(k) && quietLeague(k));
   // (Their own leagues always, out of season too, at the rail's end: MLB followed in November could be
   // found nowhere in 賽事, Jay 11-26. Another's off season stays off it: 搜尋 finds it.)
-  return inSeasonFirst([...state.prefs.leagues.filter(k => LEAGUES[k]), ...byStakes(rest, leagueBounds, today())]);
+  return [...inSeasonFirst([...state.prefs.leagues.filter(k => LEAGUES[k]), ...byStakes(rest, leagueBounds, today())]), ...inSeasonFirst(quiet)];
 }
 function renderScores() {
   if (!S) return void sheets().then(() => state.tab === 'matches' && renderScores(), () => {});

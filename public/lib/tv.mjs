@@ -161,7 +161,8 @@ const tvOfNow = e => {
   // TV app opens at the game, live and after (the channel's page left the
   // person to find it).
   const apple = packOf(e)?.apple;
-  return apple ? list.map(b => (b.svc === 'appletv' ? { ...b, url: apple, game: true } : b)) : list;
+  // (A game's own YouTube live, its league's list's: TPBL.)
+  return list.map(b => (b.svc === 'appletv' && apple ? { ...b, url: apple, game: true } : b.svc === 'youtube' && e.watch ? { ...b, url: e.watch, game: true } : b));
 };
 // A game whose hour isn't set yet, placed at ELTA's (its program of the game,
 // once listed): ELTA's slot is its own booking, not the league's time, so

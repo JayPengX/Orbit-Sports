@@ -785,10 +785,11 @@ export function parseAsia(games, league, lang = detectLocale()) {
     const side = (x, key, score, other) => ({
       id: x.en,
       name: lang === 'en' ? x.en : x.zh,
-      short: lang === 'en' ? x.en : teamNameZh(play, x.en)?.short || x.zh,
+      short: lang === 'en' ? x.en : teamNameZh(play, x.en)?.short || x.short || x.zh,
       en: x.en,
       abbr: x.en.slice(0, 3).toUpperCase(),
-      logo: teamBadge(play, x.en),
+      // (A league's own list may carry the logo: TPBL's.)
+      logo: x.logo || teamBadge(play, x.en),
       color: null,
       score: score ?? '',
       winner: done && score != null && other != null && score > other,
@@ -816,6 +817,8 @@ export function parseAsia(games, league, lang = detectLocale()) {
       away: side(g.away, 'away', g.awayScore, g.homeScore),
       live: null,
       asia: true,
+      // (Its own live, TPBL's YouTube: tv.mjs tvOf.)
+      ...(g.watch ? { watch: g.watch } : {}),
       ...(g.playoff ? { playoff: g.playoff } : {})
     };
   });
@@ -1959,7 +1962,15 @@ export async function playerHome(league, id) {
 // a friend's 追蹤 11-26: "歐國聯" on its card and the 歐國聯 followed with it): its own league when it's one
 // of ours, else the European cup it plays in; a national side (its home league that same competition) stays.
 const NATIONAL = new Set(['nationsleague', 'worldcup']);
+// And a club followed under a European cup only because its own league wasn't ours then (Barcelona,
+// Real Madrid in 歐冠 before LaLiga was added, 11-26): its league now.
+const EURO = new Set(['ucl', 'uel', 'uecl']);
+export const LATE_HOMES = new Set(['laliga']);
 export async function clubHome(league, id, { home = homeLeague, cups = europeanClubs } = {}) {
+  if (EURO.has(league)) {
+    const { key } = await home(league, id).catch(() => ({ key: null }));
+    return key && LATE_HOMES.has(key) ? key : league;
+  }
   if (!NATIONAL.has(league)) return league;
   const { key, name } = await home(league, id).catch(() => ({ key: null, name: '' }));
   if (key && key !== league) return key;

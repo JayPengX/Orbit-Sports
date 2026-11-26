@@ -82,7 +82,8 @@ test("a season counted from when ESPN says it began: MLS's from January (back fr
 
 test('search "madrid": Real Madrid placed at once, whatever its many footballers of other leagues take', async () => {
   const found = parseSearch({ results: [{ type: 'team', contents: [{ uid: 's:600~t:86', displayName: 'Real Madrid', sport: 'soccer', defaultLeagueSlug: 'esp.1' }, { uid: 's:600~t:21128', displayName: 'Real Madrid', sport: 'soccer', defaultLeagueSlug: 'esp.w.1' }] }] });
-  assert.deepEqual(placeTeams(found.teams, new Map([['86', 'ucl']])).map(x => [x.id, x.league]), [['86', 'ucl']]);
+  // (LaLiga's own since 11-26: its home league, not the cup it was found in.)
+  assert.deepEqual(placeTeams(found.teams, new Map([['86', 'ucl']])).map(x => [x.id, x.league]), [['86', 'laliga']]);
   // Only the first few unplaced players are looked up.
   let asked = 0;
   const players = Array.from({ length: 9 }, (_, i) => ({ league: null, slug: 'col.copa', id: String(i), name: `P${i}` }));

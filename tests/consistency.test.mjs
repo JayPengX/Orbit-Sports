@@ -15,12 +15,14 @@ test('a delayed or suspended game is still on; a postponed one is called off', (
   assert.equal(parseStatus({ type: { name: 'STATUS_IN_PROGRESS', state: 'in', shortDetail: 'Top 5th' } }).delayed, false);
 });
 
-test('only the leagues on ELTA.tv or Apple TV in Taiwan, nothing else, and only those two services', () => {
-  assert.deepEqual(Object.keys(LEAGUES).sort(), ['bundesliga', 'cpbl', 'epl', 'f1', 'facup', 'ligue1', 'mlb', 'mls', 'nationsleague', 'nba', 'scotland', 'seriea', 'ucl', 'uecl', 'uel']);
+test("the leagues on ELTA.tv, Apple TV or (Taiwan's own) YouTube, and those Jay added with no TV here (11-26)", () => {
+  assert.deepEqual(Object.keys(LEAGUES).sort(), ['bundesliga', 'cpbl', 'epl', 'f1', 'facup', 'laliga', 'ligue1', 'mlb', 'mls', 'nationsleague', 'nba', 'nfl', 'scotland', 'seriea', 'tpbl', 'ucl', 'uecl', 'uel']);
   assert.deepEqual(Object.keys(BROADCAST).sort(), Object.keys(LEAGUES).sort());
-  for (const [k, list] of Object.entries(BROADCAST)) for (const b of list) assert.ok(['elta', 'appletv'].includes(b.svc), `${k} ${b.svc}`);
+  for (const [k, list] of Object.entries(BROADCAST)) for (const b of list) assert.ok(['elta', 'appletv', 'youtube'].includes(b.svc), `${k} ${b.svc}`);
   assert.deepEqual(BROADCAST.mls.map(b => b.svc), ['appletv']);
-  // Gone, not hidden: not on either service in Taiwan.
-  for (const key of ['npb', 'kbo', 'wnba', 'euroleague', 'nfl', 'nhl', 'laliga', 'jleague', 'kleague', 'formulae', 'worldcup', 'atp', 'motogp', 'badminton']) assert.equal(LEAGUES[key], undefined, key);
-  assert.deepEqual(Object.keys(SPORTS).sort(), ['baseball', 'basketball', 'racing', 'soccer']);
+  assert.deepEqual(BROADCAST.tpbl.map(b => b.svc), ['youtube']);
+  // (No other streaming service yet: no TV here is none listed.)
+  assert.deepEqual([BROADCAST.laliga, BROADCAST.nfl], [[], []]);
+  for (const key of ['npb', 'kbo', 'wnba', 'euroleague', 'nhl', 'jleague', 'kleague', 'formulae', 'worldcup', 'atp', 'motogp', 'badminton']) assert.equal(LEAGUES[key], undefined, key);
+  assert.deepEqual(Object.keys(SPORTS).sort(), ['baseball', 'basketball', 'football', 'racing', 'soccer']);
 });
