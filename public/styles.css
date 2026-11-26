@@ -421,7 +421,8 @@ dialog[open] > .sheet-body:has(> .tabbed-page) { flex-grow: 1; display: flex; fl
 /* Nothing followed: popular teams, colour-washed tiles, a tap each. */
 .suggest-tile { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px var(--q-sep, rgba(0,0,0,.08)); }
 .suggest-tile .logo, .suggest-tile .logo.sm { width: 32px; height: 32px; border-radius: 0; background: none; object-fit: contain; }
-.suggest-add { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--q-fill-3); color: var(--q-text); font: var(--q-t-headline); font-weight: 600; }
+.suggest-add { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: var(--q-fill-3); color: var(--q-text); font: var(--q-t-headline); font-weight: 600; cursor: pointer; }
+.q-ritem.suggest { cursor: pointer; }
 .suggest.on .suggest-add { background: var(--q-label, #fff); color: var(--q-bg, #000); }
 
 /* Narrow phones: the time column and a followed card's rows give way first. */

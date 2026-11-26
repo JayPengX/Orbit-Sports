@@ -28,5 +28,5 @@ test('a pick that a followed start already says is never a second notice', () =>
   ];
   assert.deepEqual(oneStart(items).map(x => x.tag), ['start:f1:600060990~Race', 'pick:nba:401', 'end:f1:600060990~Race']);
   const sync = app.slice(app.indexOf('\nfunction syncPush('), app.indexOf('\n}\n', app.indexOf('\nfunction syncPush(')));
-  assert.match(sync, /schedulePush\(q, oneStart\(items\)\)|const list = oneStart\(items\);\n  schedulePush\(q, list\);/);
+  assert.match(sync, /schedulePush\(q, (quieted\()?oneStart\(items\)/);
 });

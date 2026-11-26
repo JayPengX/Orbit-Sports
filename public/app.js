@@ -16,7 +16,7 @@ import { boundsOf, unionBounds, within, clampDay, playsWithin } from './lib/boun
 import * as kitUI from '#kit/ui.mjs';
 // (A namespace: a phone on an older kit has no finalWords, its notice then the old words.)
 import * as kitEspn from '#kit/sports-espn.mjs';
-import { transition, pickFinals, gameHash, readGameHash } from './lib/notice.mjs';
+import { transition, pickFinals, gameHash, readGameHash, quieted } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
 import { STANDINGS, freshGame, sessionStatus, settleSeries, noteSeriesGames, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
@@ -121,7 +121,7 @@ const TABS = ['home', 'matches', 'live', 'following'];
 
 const state = {
   tab: 'home',
-  prefs: { leagues: [], follows: [], games: [], audio: 'en', fill: false, quiet: null },
+  prefs: { leagues: [], follows: [], games: [], audio: 'en', fill: false, quiet: null, loud: false },
   prefsLoaded: false,
   wallet: null,
   // The days read so far: date -> { events, at, loading }.
@@ -199,7 +199,7 @@ function applyPrefs(payload, { save = true } = {}) {
     p = { ...(p || {}), leagues: passed };
     restored = true;
   } else if (payload) keepLocalPrefs(payload);
-  if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], games: p.games || [], audio: p.audio === 'zh' ? 'zh' : 'en', fill: p.fill === true, quiet: quietOf(p.quiet) };
+  if (p) state.prefs = { leagues: (p.leagues || []).filter(k => LEAGUES[k]), follows: p.follows || [], games: p.games || [], audio: p.audio === 'zh' ? 'zh' : 'en', fill: p.fill === true, quiet: quietOf(p.quiet), loud: p.loud === true };
   // Only the leagues Orbit Sports has; an NBA team with NBA.com's logo, as everywhere.
   state.prefs.games = keptGames(state.prefs.games);
   state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
@@ -258,8 +258,8 @@ function savePrefs() {
   saveTimer = setTimeout(() => {
     // (What's here when it's written, not when it was asked: the Pass's copy
     // taken in between is never written over with the one before it.)
-    const { leagues, follows, games, audio, fill, quiet } = state.prefs;
-    const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, ...(fill ? { fill: true } : {}), ...(quiet ? { quiet } : {}), picks: pickRecord.all(), t: Date.now() });
+    const { leagues, follows, games, audio, fill, quiet, loud } = state.prefs;
+    const payload = JSON.stringify({ v: 4, leagues, follows, games: keptGames(games), audio, ...(fill ? { fill: true } : {}), ...(quiet ? { quiet } : {}), ...(loud ? { loud: true } : {}), picks: pickRecord.all(), t: Date.now() });
     keepLocalPrefs(payload);
     // Not saved (another app live on the pass, offline): again when this one is live.
     savePending = true;
@@ -661,6 +661,13 @@ function openFollowEditor() {
           title: L({ zh: '安靜時段', en: 'Quiet hours' }),
           sub: L({ zh: '只排追蹤', en: 'Follows only' }),
           trailing: el('span', { class: 'quiet-pick num' }, [quietHour('from'), el('span', { class: 'quiet-dash', text: '–' }), quietHour('to')])
+        }),
+        // (Jay 11-26: off by default, a followed team's notices wait out the quiet hours too: a start in them
+        // isn't said, a final found in them comes as they end.)
+        kitUI.cell({
+          title: L({ zh: '追蹤的通知不受安靜時段限制', en: 'Follows notify in quiet hours' }),
+          sub: L({ zh: '關閉時，安靜時段的賽果早上才通知', en: 'Off: results there wait for the morning' }),
+          trailing: kitUI.toggle({ checked: state.prefs.loud === true, label: L({ zh: '追蹤的通知不受安靜時段限制', en: 'Follows notify in quiet hours' }), onChange: on => ((state.prefs.loud = on), savePrefs(), syncPush()) })
         })
       ])
     );
@@ -1146,8 +1153,7 @@ function syncPush() {
     const end = resultItem(e, now);
     if (end) items.push(end);
   }
-  const list = oneStart(items);
-  schedulePush(q, list);
+  schedulePush(q, quieted(oneStart(items), { loud: state.prefs.loud === true, hours: quietHours() }));
 }
 // One start notice a game or session: a pick (pick:) that a followed team's or
 // race weekend's start (start:) also says is dropped, whichever loop put it on
@@ -4543,11 +4549,15 @@ function suggestCard(s) {
   const on = isFollowed(s.league, s.id);
   const logoUrl = fallbackLogo(s.league, { id: s.id, name: s.name });
   // A row of the kit's list: the team's logo at 40px as the tile (white in every theme: the Dodgers' and Yankees' marks are white), name and league, + / ✓ trailing.
-  return el('button', { class: `q-ritem suggest${on ? ' on' : ''}`, type: 'button', onclick: () => toggleFollow(s.league, { id: s.id, name: s.name, en: s.name, logo: logoUrl }) }, [
+  // (A tap on the row opens the team; only + follows it, Jay 11-26.)
+  const side = { id: s.id, name: s.name, en: s.name, logo: logoUrl };
+  const row = el('div', { class: `q-ritem suggest${on ? ' on' : ''}`, role: 'button', tabindex: '0', onclick: () => openTeam(s.league, s.id, side) }, [
     el('span', { class: 'suggest-tile' }, [logo(logoUrl, s.name, 'sm')]),
     el('span', { class: 'q-ritem-text' }, [el('span', { class: 'q-ritem-title', text: locale === 'en' && s.short ? s.short : localSide(s.league, { name: s.name }).name }), el('small', { text: leagueName(s.league, locale) })]),
-    el('b', { class: 'suggest-add', text: on ? '✓' : '+' })
+    el('button', { class: 'suggest-add', type: 'button', 'aria-pressed': String(on), 'aria-label': L(on ? { zh: '已追蹤', en: 'Following' } : { zh: '追蹤', en: 'Follow' }), text: on ? '✓' : '+', onclick: ev => (ev.stopPropagation(), toggleFollow(s.league, side)) })
   ]);
+  row.addEventListener('keydown', ev => (ev.key === 'Enter' || ev.key === ' ') && ev.target === row && (ev.preventDefault(), openTeam(s.league, s.id, side)));
+  return row;
 }
 // A followed team at a glance: its place and form, its next game (when, where
 // it's on, 觀看 while it's on) and last result; its page on a tap.

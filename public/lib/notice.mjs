@@ -53,3 +53,15 @@ export function readGameHash(hash) {
     return null;
   }
 }
+
+// The notices in the person's quiet hours (我的設定 安靜時段, `hours` { from, to } by their clock), unless
+// they let a follow's through (`loud`): a start in them isn't said (a game begun while they sleep is
+// nothing to be woken for), the rest go with the hours, for the Worker to hold till they end (push.js).
+export function quieted(items, { loud = false, hours = null, tz = -new Date().getTimezoneOffset() } = {}) {
+  if (loud || !hours || hours.from === hours.to) return items;
+  const inHours = at => {
+    const h = new Date(at + tz * 60_000).getUTCHours();
+    return hours.from < hours.to ? h >= hours.from && h < hours.to : h >= hours.from || h < hours.to;
+  };
+  return items.filter(x => !(x.kind === 'start' && inHours(x.at))).map(x => ({ ...x, quiet: { from: hours.from, to: hours.to, tz } }));
+}

@@ -70,3 +70,4 @@ To remove a feature on purpose, delete its line here in the same commit, and say
 - An F1 driver's birthplace from formula1.com — `public/lib/f1.mjs`: `birthPlaceOf`
 - Wide screens: sections dealt into columns — `public/ui.js`: `flowColumns`
 - A day gone by shows its 推薦 as they stood that day, never worked out again: every league's of each day recorded while it's today (its games on TV, the chosen marked), kept till that league's season starts again, synced on the Pass (the payload's `picks`, merged both ways) — `public/app.js`: `pickRecord`, `noteDay`, `pastPick`, `picks: pickRecord.all()`, `pickRecord.merge(p?.picks)`
+- 我的設定 追蹤的通知不受安靜時段限制 (off by default): off, a followed team's start in the quiet hours isn't said and its final comes as they end — `public/app.js`: `state.prefs.loud`; `public/lib/notice.mjs`: `quieted`
