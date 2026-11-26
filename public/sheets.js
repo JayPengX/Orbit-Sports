@@ -8538,7 +8538,10 @@ export function openTie(t, league, roundTitle = '') {
   // it's won, never listed (Jay 2026-11-10: a best of three lists its games, not only the first).
   const need = t.bestOf ? Math.ceil(t.bestOf / 2) : 0;
   const games = t.winner && need ? t.games.filter(g => g.status?.state !== 'pre') : t.games;
-  const ifNeeded = (g, i) => need && !t.winner && i >= need && g.status?.state === 'pre';
+  // (Not once it's sure to be played: 1-1 before a game 3, as a row's tag drops its （如需）.)
+  const played = Object.values(t.score || {}).reduce((n, w) => n + (Number(w) || 0), 0);
+  const lead = Math.max(0, ...Object.values(t.score || {}).map(Number));
+  const ifNeeded = (g, i) => need && !t.winner && i >= need && g.status?.state === 'pre' && !(lead + (i - played) < need);
   const label = (g, i) => [t.kind === 'series' ? (en ? `Game ${i + 1}` : `第 ${i + 1} 戰`) : t.kind === 'agg' ? (en ? `Leg ${i + 1}` : `第 ${i + 1} 回合`) : '', dayLabel(localDate(Date.parse(g.start))), ifNeeded(g, i) ? (en ? 'if needed' : '如需要') : ''].filter(Boolean).join(' · ');
   // A place still being played for (a tie waiting on a side): both who could take it, 奧蘭多 / 辛辛那提 勝者.
   const waitRow = opts =>

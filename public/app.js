@@ -18,7 +18,7 @@ import * as kitUI from '#kit/ui.mjs';
 import * as kitEspn from '#kit/sports-espn.mjs';
 import { transition, pickFinals, gameHash, readGameHash } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
-import { STANDINGS, freshGame, sessionStatus, settleSeries, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
+import { STANDINGS, freshGame, sessionStatus, settleSeries, noteSeriesGames, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
@@ -2886,6 +2886,8 @@ async function playoffWeeks(league, days, ttl) {
     out.push(...games);
     if (!games.length && week[0] < today) break;
   }
+  // (Every game of each series read: their numbers, G1 G2 G3, for the rows: lib/espn.mjs noteSeriesGames.)
+  noteSeriesGames(out);
   return out;
 }
 // The playoffs so far: from the next two and a half weeks back (MLS's first

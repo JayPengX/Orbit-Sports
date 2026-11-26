@@ -285,6 +285,30 @@ export function decidedSide(league, side) {
   const w = seriesWon.get(pairKey(league, String(side.abbr).split('/')));
   return w ? { ...w, score: '', winner: false, lines: [], homeAway: side.homeAway, order: side.order } : side;
 }
+// A series' games by number where ESPN's notes don't say it (MLS's best of three: "NE leads series 1-0" on
+// all of them, no "Game 3"), from a list that holds every one (the season's pack, the playoffs read):
+// G1, G2, G3 by their days, and the last （如需） while the series could end before it, as MLB's are
+// (Jay 2026-11-26: "no 如需"). Never from one day's list: game 3 alone there would read G1.
+const seriesOrder = new Map();
+export function noteSeriesGames(list) {
+  const by = new Map();
+  for (const e of list || []) if (e?.kind === 'match' && e.series?.games > 1 && e.round && !/\bgame \d/i.test(e.note || '')) by.set(seriesKey(e), [...(by.get(seriesKey(e)) || []), e]);
+  for (const [k, games] of by) seriesOrder.set(k, games.sort((a, b) => Date.parse(a.start) - Date.parse(b.start)).map(e => String(e.id)));
+}
+export function seriesGameNo(e) {
+  if (!e?.series?.games || !e.round) return 0;
+  return (seriesOrder.get(seriesKey(e))?.indexOf(String(e.id)) ?? -1) + 1;
+}
+function numbered(e) {
+  const n = seriesGameNo(e);
+  const r = e.stage?.round;
+  if (!n || !r || /\bG\d|（如需）/.test(r.zh) || /\bgame \d/i.test(e.note || '')) return e;
+  const need = Math.ceil(e.series.games / 2);
+  const lead = Math.max(0, ...Object.values(e.series.wins || {}).map(Number));
+  // Sure to be played: no side can have won it before, whatever happens until then.
+  const maybe = e.status?.state === 'pre' && n > need && !(lead + (n - 1 - playedOf(e.series)) < need);
+  return { ...e, stage: { ...e.stage, round: { zh: `${r.zh} G${n}${maybe ? '（如需）' : ''}`, en: `${r.en} - Game ${n}${maybe ? ' If Necessary' : ''}` } } };
+}
 export function settleSeries(list) {
   for (const e of list) {
     if (e?.kind !== 'match' || !e.series || !e.round || e.status?.state !== 'post') continue;
@@ -315,7 +339,7 @@ export function settleSeries(list) {
     const note = sure ? e.note.replace(/\s*-?\s*if necessary/i, '') : e.note;
     out.push({ ...e, series: s, note, ...(sure && e.stage?.round ? { stage: { ...e.stage, round: { zh: roundName(note, 'zh'), en: note } } } : {}) });
   }
-  return out;
+  return out.map(numbered);
 }
 
 // A page over for good (a day two or more back, or a month before the one
@@ -449,6 +473,7 @@ export async function seasonEvents(league, now = Date.now()) {
     .flatMap(p => parseScoreboard(p, league))
     .filter(e => !seen.has(e.id) && seen.add(e.id))
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  noteSeriesGames(events);
   return events.length ? events : scoreboard(league);
 }
 

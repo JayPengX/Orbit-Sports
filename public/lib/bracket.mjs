@@ -35,6 +35,8 @@ function finish(t, bestOf = 0) {
   t.next = games.find(g => g.status?.state === 'pre' && !g.status?.void) || null;
   if (last) {
     t.kind = 'series';
+    // (Its length too, for the sheet's 如需要: MLS's series carry one since 11-26.)
+    if (Number(last.series.games) > 1) t.bestOf = Number(last.series.games);
     // Wins once a game's been played (a series not begun shows none, not 0-0).
     t.score = played.length ? Object.fromEntries(ids.map(id => [id, Number(last.series.wins[id]) || 0])) : {};
     const wins = id => Number(last.series.wins[id]) || 0;
