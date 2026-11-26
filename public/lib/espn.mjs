@@ -31,7 +31,7 @@ import { groupZh } from './statnames.mjs';
 import { fold } from './text.mjs';
 import { parseSplits } from './hoops.mjs';
 import { pctText, gbText } from './title.mjs';
-import { SITE, yyyymmdd, parseStatus, overByRule, freshHeadshot, fallbackLogo, parseSeries, knockoutRound, favChance, usDayOf, startOf, localSide as kitLocalSide, withLogo as kitWithLogo, parseScoreboard as kitParseScoreboard } from '#kit/sports-espn.mjs';
+import { SITE, yyyymmdd, parseStatus, overByRule, freshHeadshot, fallbackLogo, parseSeries, knockoutRound, stageFrom, favChance, usDayOf, startOf, localSide as kitLocalSide, withLogo as kitWithLogo, parseScoreboard as kitParseScoreboard } from '#kit/sports-espn.mjs';
 export { SITE, yyyymmdd, parseStatus, overByRule, freshHeadshot, fallbackLogo, parseSeries, knockoutRound, favChance, startOf, usDayOf };
 
 export const STANDINGS = 'https://site.api.espn.com/apis/v2/sports';
@@ -1951,7 +1951,13 @@ export function parseSchedule(data, league) {
     const lg = own || league;
     const home = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'home')));
     const away = withLogo(lg, parseSide(comp?.competitors?.find(c => c.homeAway === 'away')));
-    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, ...startOf(e.date, comp), status: overByRule(parseStatus(comp?.status), away, home, lg), home, away, venue: comp?.venue?.fullName || '', note: comp?.notes?.[0]?.headline || '', ...(e.season?.year ? { seasonYear: Number(e.season.year), seasonName: e.season.displayName || '' } : {}), ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
+    return { id: String(e.id), league: lg, kind: 'match', name: e.name, short: e.shortName, ...startOf(e.date, comp), status: overByRule(parseStatus(comp?.status), away, home, lg), home, away, venue: comp?.venue?.fullName || '', note: comp?.notes?.[0]?.headline || '',
+      // Its stage, round and series as a day's board has them (kit sports-espn.mjs): an NBA Cup game marked
+      // in a team's 賽程 and on the game opened from it, as from 賽事 (Jay 11-26: "unify it").
+      stage: stageFrom({ seasonType: Number(e.seasonType?.type ?? e.season?.type) || 0, seasonSlug: e.season?.slug || '', typeAbbr: comp?.type?.abbreviation, note: comp?.notes?.[0]?.headline || '', name: e.name, cup: LEAGUES[lg]?.cup }),
+      series: parseSeries(comp?.series, comp),
+      round: knockoutRound(e, comp, lg),
+      ...(e.season?.year ? { seasonYear: Number(e.season.year), seasonName: e.season.displayName || '' } : {}), ...(own ? {} : { other: e.league?.name || e.league?.abbreviation || '' }) };
   });
 }
 // Where a team's games to come cross into its league's next season (Jay

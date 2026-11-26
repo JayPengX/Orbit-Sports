@@ -673,6 +673,14 @@ function openFollowEditor() {
 // A game called off (延期, 取消) opens nothing: its page has only a 0-0 and
 // the numbers from before (the owner, 2026-10-17: block it); its card and row
 // say 延期 and aren't buttons.
+// A game opened from a list that knows only its sides and score (a player's last games, the past
+// meetings): its stage, round and series from the copy a day's board has, so its page says NBA 盃 or
+// 季後賽 as it does opened from 賽事 (Jay 11-26: "unify it").
+export const withStage = (e, known = knownGame) => {
+  if (e?.kind !== 'match' || e.stage?.key) return e;
+  const k = known(e.league, e.id);
+  return k?.stage ? { ...e, stage: k.stage, round: e.round || k.round, series: e.series || k.series, note: e.note || k.note } : e;
+};
 function openEvent(e) {
   if (e?.status?.void) return;
   // Counted once a day: one game opened again and again is one game.
@@ -680,7 +688,7 @@ function openEvent(e) {
   // What the picks learn from (kit feedback.mjs): opened from 今日推薦, or anywhere else.
   const fromPicks = state.todayPicks?.some(p => p.league === e.league && p.id === e.id);
   feedback?.picked('match', pickItem(e), Date.now(), { from: fromPicks ? 'list' : 'elsewhere' });
-  if (e.kind === 'match') return openMatch(e);
+  if (e.kind === 'match') return openMatch(withStage(e));
   return openFieldEvent(e);
 }
 
