@@ -43,7 +43,7 @@ import { shortLeague, cols, homeBoard, balanced, ctx, sidesOf, el, morph, shownS
 import { gameRecap } from './recap.js';
 import { f1Driver, f1Constructor, teamLogo } from '#kit/logos.mjs';
 import { teamsByZh } from '#kit/names.mjs';
-import { icon, pageHead, heroGame, scoreCard, sportTile, leagueTile } from './cards.js';
+import { icon, pageHead, heroGame, scoreCard, sportRow, leagueTile } from './cards.js';
 // Orbit's own look (Jay 2026-11-03, RULEBOOK §3; index.html's data-look and look.css): the lead game's clubs on their own colours, 我的球隊.
 import * as look from './look.js';
 import { testDay, dayTested } from './testing.mjs';
@@ -2513,24 +2513,33 @@ async function sportDays(sport) {
   return days;
 }
 
-// First run: the sports, tapped in order of priority, drawn like 追蹤's
-// suggestions: each a card with its leagues' marks and names, + turning into
-// its place in the order once tapped; 完成 when there's one.
+// First run: the sports as one list (Jay 2026-11-26: three big colour cards and an empty
+// screen "badly looking"). A row a sport: its leagues' marks, its name, its leagues by name
+// (英超、歐冠、德甲…), a tap picks it (its place in the order where + was); once picked, its
+// leagues as chips under it, the headline ones on, each a tap; 完成 when there's one.
 function sportPicker() {
   const mine = followedSports();
+  const chosen = new Set(state.prefs.leagues);
+  const rows = Object.entries(SPORTS)
+    .filter(([k]) => isActiveSport(k))
+    .map(([k, sp]) => {
+      const i = mine.indexOf(k);
+      const all = shownLeaguesOf(k).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top));
+      const names = all.map(x => shortLeague(x));
+      const line = names.length > 4 ? L({ zh: `${names.slice(0, 4).join('、')} 等 ${names.length} 個`, en: `${names.slice(0, 3).join(', ')} and ${names.length - 3} more` }) : names.join(L({ zh: '、', en: ', ' }));
+      return sportRow({
+        key: k,
+        name: L(sp),
+        line,
+        marks: all.slice(0, 3).map(x => leagueMark(x)),
+        order: i >= 0 ? i + 1 : 0,
+        onclick: () => toggleSport(k),
+        leagues: i >= 0 && all.length > 1 ? all.map(x => el('button', { class: 'q-chip', type: 'button', 'aria-pressed': String(chosen.has(x)), onclick: () => toggleLeague(x) }, [leagueMark(x), el('span', { text: shortLeague(x) })])) : null
+      });
+    });
   return el('section', { class: 'q-section sport-picker' }, [
     el('div', { class: 'q-section-head' }, [el('h2', { text: L({ zh: '選擇你的運動', en: 'Pick your sports' }) }), mine.length ? el('span', { class: 'sp-count num', text: L({ zh: `已選 ${mine.length}`, en: `${mine.length} picked` }) }) : null]),
-    el(
-      'div',
-      { class: 'sport-grid' },
-      Object.entries(SPORTS)
-        .filter(([k]) => isActiveSport(k))
-        .map(([k, sp]) => {
-          const i = mine.indexOf(k);
-          const all = leaguesOf(k).sort((a, b) => Boolean(LEAGUES[b].top) - Boolean(LEAGUES[a].top));
-          return sportTile({ key: k, name: L(sp), marks: all.slice(0, 3).map(x => leagueMark(x)), order: i >= 0 ? i + 1 : 0, onclick: () => toggleSport(k) });
-        })
-    ),
+    el('div', { class: 'q-card list sport-list' }, rows),
     mine.length ? el('button', { class: 'q-btn primary block sp-done', type: 'button', text: L({ zh: '完成', en: 'Done' }), onclick: () => ((state.home.picking = false), renderHome()) }) : null
   ]);
 }

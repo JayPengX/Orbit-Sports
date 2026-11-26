@@ -19,7 +19,6 @@ export function pageHead(title, action = null) {
   return el('header', { class: 'q-page-head sp-head' }, [el('div', { class: 'sp-head-text' }, [kitUI.navTitle(title)]), action]);
 }
 // A sport's colour: tiles and the hero's ground.
-const SPORT_COLOR = { soccer: '#16a34a', baseball: '#dc2626', basketball: '#ea580c', racing: '#4f46e5' };
 
 // A game's TV channels on the hero (the first two real broadcasts: no 球員視角 or 數據視角; a guess past ELTA's list says so).
 function channelNames(e, n = 2) {
@@ -116,10 +115,15 @@ export function scoreCard(e, onOpen) {
 
 // First run: a sport as a colour tile, its leagues' marks inside, + or its
 // place in the order once tapped.
-export function sportTile({ key, name, marks, order, onclick }) {
-  const b = el('button', { class: `sport-card q-press${order ? ' on' : ''}`, type: 'button', 'aria-pressed': String(Boolean(order)), onclick }, [el('span', { class: 'sc-marks' }, marks), el('strong', { class: 'sc-label', text: name }), el('b', { class: 'sc-badge num', text: order ? String(order) : '+' })]);
-  b.style.setProperty('--t', SPORT_COLOR[key] || 'var(--q-accent)');
-  return b;
+// First run's sport, a row of one list (app.js sportPicker): its leagues' marks, its name over its
+// leagues' names, and + (its place in the order once picked); picked, its leagues' chips under it.
+export function sportRow({ key, name, line, marks, order, onclick, leagues }) {
+  const head = el('button', { class: `sp-row q-press${order ? ' on' : ''}`, type: 'button', 'aria-pressed': String(Boolean(order)), onclick }, [
+    el('span', { class: 'sc-marks' }, marks),
+    el('span', { class: 'sp-text' }, [el('strong', { text: name }), el('small', { text: line })]),
+    el('b', { class: 'sc-badge num', 'aria-hidden': 'true', text: order ? String(order) : '+' })
+  ]);
+  return el('div', { class: `sp-item${order ? ' on' : ''}`, 'data-sport': key }, [head, leagues ? el('div', { class: 'q-chips wrap sp-leagues', 'data-noswipe': '' }, leagues) : null]);
 }
 
 // 聯賽: a followed league as the kit's tile for a rail; a tap opens it in 賽事.
