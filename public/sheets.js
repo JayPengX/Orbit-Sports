@@ -8542,7 +8542,7 @@ export function openTie(t, league, roundTitle = '') {
   const played = Object.values(t.score || {}).reduce((n, w) => n + (Number(w) || 0), 0);
   const lead = Math.max(0, ...Object.values(t.score || {}).map(Number));
   const ifNeeded = (g, i) => need && !t.winner && i >= need && g.status?.state === 'pre' && !(lead + (i - played) < need);
-  const label = (g, i) => [t.kind === 'series' ? (en ? `Game ${i + 1}` : `第 ${i + 1} 戰`) : t.kind === 'agg' ? (en ? `Leg ${i + 1}` : `第 ${i + 1} 回合`) : '', dayLabel(localDate(Date.parse(g.start))), ifNeeded(g, i) ? (en ? 'if needed' : '如需要') : ''].filter(Boolean).join(' · ');
+  const label = (g, i) => [t.kind === 'series' ? (en ? `Game ${i + 1}` : `第 ${i + 1} 戰`) : t.kind === 'agg' ? (en ? `Leg ${i + 1}` : `第 ${i + 1} 回合`) : '', dayLabel(localDate(Date.parse(g.start))), ifNeeded(g, i) ? (en ? 'if necessary' : '如需') : ''].filter(Boolean).join(' · ');
   // A place still being played for (a tie waiting on a side): both who could take it, 奧蘭多 / 辛辛那提 勝者.
   const waitRow = opts =>
     el('div', { class: 'tie-side maybe' }, [

@@ -290,14 +290,19 @@ export function decidedSide(league, side) {
 // G1, G2, G3 by their days, and the last （如需） while the series could end before it, as MLB's are
 // (Jay 2026-11-26: "no 如需"). Never from one day's list: game 3 alone there would read G1.
 const seriesOrder = new Map();
+// (Every list's games added to what's known, never put in its place: one missing a game can't renumber the rest.)
 export function noteSeriesGames(list) {
-  const by = new Map();
-  for (const e of list || []) if (e?.kind === 'match' && e.series?.games > 1 && e.round && !/\bgame \d/i.test(e.note || '')) by.set(seriesKey(e), [...(by.get(seriesKey(e)) || []), e]);
-  for (const [k, games] of by) seriesOrder.set(k, games.sort((a, b) => Date.parse(a.start) - Date.parse(b.start)).map(e => String(e.id)));
+  for (const e of list || []) {
+    if (e?.kind !== 'match' || !(e.series?.games > 1) || !e.round || /\bgame \d/i.test(e.note || '')) continue;
+    const k = seriesKey(e);
+    if (!seriesOrder.has(k)) seriesOrder.set(k, new Map());
+    seriesOrder.get(k).set(String(e.id), Date.parse(e.start) || 0);
+  }
 }
 export function seriesGameNo(e) {
-  if (!e?.series?.games || !e.round) return 0;
-  return (seriesOrder.get(seriesKey(e))?.indexOf(String(e.id)) ?? -1) + 1;
+  const known = e?.series?.games && e.round ? seriesOrder.get(seriesKey(e)) : null;
+  if (!known?.has(String(e.id))) return 0;
+  return [...known].sort((a, b) => a[1] - b[1]).findIndex(([id]) => id === String(e.id)) + 1;
 }
 function numbered(e) {
   const n = seriesGameNo(e);
