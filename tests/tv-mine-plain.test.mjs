@@ -13,7 +13,7 @@ test('轉播 我的比賽 is drawn as .mine-list', () => {
 });
 
 test('a picked row in .mine-list has no grey fill', () => {
-  assert.match(css, /\n\.mine-list \.event-row\.picked \{ background: none; \}/);
+  assert.match(css, /:is\([^)]*\.mine-list[^)]*\) \.event-row\.picked \{ background: none; \}/);
 });
 
 test('a picked row elsewhere keeps its grey', () => {

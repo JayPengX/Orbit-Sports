@@ -23,7 +23,8 @@ test("賽事 shows a day's games once its 推薦 is known, never the pills after
   assert.match(body('isPickEvent'), /picksReady\(d\)/);
 });
 
-test('賽事 lights no row: every 推薦 one pill, as 轉播', () => {
-  assert.match(css, /:is\(\.tv-day, #panel-matches\) \.event-row\.picked \{ background: none; \}/);
+// (Jay 2026-11-26: 賽事 is where the grey is for, the one ELTA game among a day of NBA games: lit, every pick alike.)
+test('賽事 lights its picks, every one alike, each with its pill', () => {
+  assert.doesNotMatch(css, /#panel-matches\) \.event-row\.picked/);
   assert.match(css, /:is\(\.tv-day, #panel-matches\) \.row-mark\.fill \{/);
 });

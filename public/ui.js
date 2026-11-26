@@ -681,7 +681,7 @@ export const seriesText = e => {
 // their scores, then a line of tags: the league, the stage, ★ 推薦 for one of
 // today's picks, the channels it's on (or where it can be watched again).
 // A game picked for you (推薦): a graphite pill first on
-// its tags line (Jay 2026-11-03: "not obvious" as a small star); the row never greyed (11-26).
+// its tags line (Jay 2026-11-03: "not obvious" as a small star), the row grey where it's one of a few among all the games (styles.css, 11-26).
 const STAR = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 .8l1.6 3.4 3.7.4-2.8 2.5.8 3.7L6 8.9l-3.3 1.9.8-3.7L.7 4.6l3.7-.4z"/></svg>';
 // A game only 填滿空檔 put in: the same pill, outlined with a hollow star
 // and the row unlit, so a followed league's pick still reads first (Jay 2026-11-05).
