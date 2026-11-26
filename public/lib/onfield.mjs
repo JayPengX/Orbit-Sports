@@ -130,3 +130,20 @@ export function courtStop(plays) {
   }
   return { kind, on: [...on] };
 }
+
+// A footballer's minutes in a game (a player's 本場, Jay 2026-11-26: "quite empty"): from the kick-off or
+// when he came on, to when he went off, was sent off, or the game's minute now (90, or 120 after extra
+// time, once it's over). `rp`: his roster line (parseSummary's rosters). Null when it can't be told: on
+// and off in one game (ESPN gives one substitution's minute), or a clock not read.
+const minuteOf = s => {
+  const m = /(\d+)'?(?:\s*\+\s*(\d+))?/.exec(String(s || ''));
+  return m ? Number(m[1]) + (Number(m[2]) || 0) : null;
+};
+export function minutesPlayed(rp, status) {
+  if (!rp?.played || (rp.subbedIn && (rp.subbedOut || rp.sentOff))) return null;
+  const end = status?.state === 'post' ? (Number(status.period) > 2 ? 120 : 90) : status?.state === 'in' ? minuteOf(status.clock) : null;
+  const from = rp.subbedIn ? minuteOf(rp.subAt) : 0;
+  const to = rp.sentOff ? minuteOf(rp.sentAt) : rp.subbedOut ? minuteOf(rp.subAt) : end;
+  if (from == null || to == null) return null;
+  return Math.max(0, Math.min(to, end ?? to) - from);
+}
