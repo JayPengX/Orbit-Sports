@@ -205,7 +205,7 @@ function applyPrefs(payload, { save = true } = {}) {
   state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
   state.prefsLoaded = true;
   // (One followed before clubs were moved home, 11-26: moved now; its competition left followed, the person's own.)
-  for (const f of state.prefs.follows) rehome(f).catch(() => {});
+  if (typeof rehome === 'function') for (const f of state.prefs.follows) rehome(f).catch(() => {});
   // Leagues in: not a newcomer, whatever was shown before they came.
   if (state.prefs.leagues.length) state.home.picking = false;
   if (restored && save) savePrefs();
