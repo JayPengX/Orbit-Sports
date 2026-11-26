@@ -31,7 +31,9 @@ export function askTables({ teams = [], standings = {}, today = [], now = Date.n
   put(
     'mine',
     W('我的球隊排名', 'My teams in the table'),
-    teams.filter(x => x.pos).map(x => ({ key: `${x.league}:${x.id}`, label: x.name, logo: x.logo, sub: [x.leagueName, x.group].filter(Boolean).join(' · '), value: W(`第 ${x.pos} 名`, `#${x.pos}`), pos: x.pos, of: x.n || null }))
+    // (Every one: one with no place in a table read says so, never left out; a club there for a followed
+    // player says whose, Jay 11-26: three followed, two shown, Inter Miami with no word of Messi.)
+    teams.map(x => ({ key: `${x.league}:${x.id}`, label: x.name, logo: x.logo, sub: [x.leagueName, x.group, x.via ? W(`追蹤的${x.via}所屬`, `${x.via}'s club`) : ''].filter(Boolean).join(' · '), value: x.pos ? W(`第 ${x.pos} 名`, `#${x.pos}`) : W('沒有排名', 'No table'), pos: x.pos || null, of: x.n || null }))
   );
   // Their next game each, soonest first; and the last one each, newest first.
   const nextOf = x => (x.games || []).filter(e => e.status?.state === 'pre' && Date.parse(e.start) > now).sort((a, b) => Date.parse(a.start) - Date.parse(b.start))[0];

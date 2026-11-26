@@ -18,7 +18,7 @@ import * as kitUI from '#kit/ui.mjs';
 import * as kitEspn from '#kit/sports-espn.mjs';
 import { transition, pickFinals, gameHash, readGameHash, quieted } from './lib/notice.mjs';
 import { gameKey, matchOnly, endedFollows } from './lib/follows.mjs';
-import { STANDINGS, freshGame, sessionStatus, settleSeries, noteSeriesGames, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
+import { STANDINGS, freshGame, sessionStatus, settleSeries, noteSeriesGames, fixTime, fixTimes, summary, finalBox, sessionName, weekOf, localSide, fallbackLogo, scoreboard, standings, savedStandings, teamSchedule, seasonCalendar, seasonInfo, monthsBetween, yyyymmdd, settleField, seasonEvents, splitWeekend, feedStatus, dueToStart, usDayOf, onAir, asiaEvents, cpblPack, cpblSeeds, leagueForm, outcome, sideScore, sidesFor, athlete, athleteOverview, driverSeason, playerHome, clubHome, europeanClubs, clubOfPlayer, roundLabel, leagueLeaders, leaderList, cupBadges, leagueTeamStats, fotmobTeamList, SESSION_NAMES } from './lib/espn.mjs';
 import { hasLeaders, fotmobClubRows } from './lib/leaders.mjs';
 import { sideWords } from '#kit/sports-highlights.mjs';
 import { statName, injuryZh } from './lib/statnames.mjs';
@@ -204,6 +204,8 @@ function applyPrefs(payload, { save = true } = {}) {
   state.prefs.games = keptGames(state.prefs.games);
   state.prefs.follows = state.prefs.follows.filter(f => LEAGUES[f.league]).map(f => (f.league === 'nba' && !f.athlete ? { ...f, logo: teamLogo('nba', f.name) } : f));
   state.prefsLoaded = true;
+  // (One followed before clubs were moved home, 11-26: moved now; its competition left followed, the person's own.)
+  for (const f of state.prefs.follows) rehome(f).catch(() => {});
   // Leagues in: not a newcomer, whatever was shown before they came.
   if (state.prefs.leagues.length) state.home.picking = false;
   if (restored && save) savePrefs();
@@ -301,7 +303,8 @@ function isFollowed(league, id) {
 }
 // The teams whose games the person follows: the followed teams, and a
 // followed player's team.
-const followedTeams = () => state.prefs.follows.flatMap(f => (f.f1team === true ? [] : !f.athlete ? [f] : f.team ? [{ league: f.league, id: f.team.id, name: f.team.name }] : []));
+// (A followed player's club: `via` the player, so it's said why it's there: Inter Miami for Messi, 11-26.)
+const followedTeams = () => state.prefs.follows.flatMap(f => (f.f1team === true ? [] : !f.athlete ? [f] : f.team ? [{ league: f.league, id: f.team.id, name: f.team.name, via: f.name }] : []));
 // Single matches followed on their own (a game between two teams the person
 // doesn't follow): kept as they were when followed, the live copy laid over
 // them (freshGame), and let go once over (dropEnded), at most two days after the start.
@@ -480,14 +483,30 @@ function isFollowedEvent(e, { chosen = true } = {}) {
   const crews = state.prefs.follows.filter(f => f.f1team === true && f.league === e.league).map(f => f.name);
   return crews.length > 0 && people.some(p => p?.name && crews.includes(f1Driver(p.name).team));
 }
+// A club followed under a national sides' competition: moved to its own (clubHome), the league it was
+// found in left as the person had it before (never followed for it).
+async function rehome(f, hadLeague = true) {
+  if (f.athlete || !['nationsleague', 'worldcup'].includes(f.league)) return;
+  const home = await clubHome(f.league, f.id);
+  if (home === f.league || !LEAGUES[home]) return;
+  const p = state.prefs;
+  const was = f.league;
+  p.follows = p.follows.map(x => (x.league === was && String(x.id) === String(f.id) && !x.athlete ? { ...x, league: home } : x));
+  if (!p.leagues.includes(home)) p.leagues = [...p.leagues, home];
+  // (Followed only for this club, and none of the person's follows left in it: not followed.)
+  if (!hadLeague && !p.follows.some(x => x.league === was)) p.leagues = p.leagues.filter(k => k !== was);
+  changed();
+}
 function toggleFollow(league, side) {
   const p = state.prefs;
+  const hadLeague = p.leagues.includes(league);
   if (isFollowed(league, side.id)) p.follows = p.follows.filter(f => !(f.league === league && f.id === side.id));
   else {
     p.follows = [...p.follows, { league, id: side.id, name: side.en || side.name, logo: side.logo, ...(side.athlete ? { athlete: true } : {}), ...(side.team ? { team: side.team } : {}), ...(side.f1team === true ? { f1team: true } : {}) }];
     // Following a team follows its league too.
     if (!p.leagues.includes(league)) p.leagues = [...p.leagues, league];
     recordAffinity('match', [teamKey(league, side.en || side.name), `league:${leagueKey(league)}`], 4);
+    if (!side.athlete) rehome({ league, id: side.id }, hadLeague).catch(() => {});
   }
   changed();
 }
@@ -4432,7 +4451,9 @@ function askSource() {
   const nameOf = (league, side) => (!side ? '' : en ? side.short || side.name || '' : localSide(league, { name: side.name }).name || side.short || side.name || '');
   const mine = () => {
     const seen = new Set();
-    return followedTeams().filter(f => !f.athlete && !seen.has(`${f.league}:${f.id}`) && seen.add(`${f.league}:${f.id}`));
+    // (A team followed for itself before one there for a player: its own follow says it.)
+    const list = followedTeams().filter(f => !f.athlete);
+    return [...list.filter(f => !f.via), ...list.filter(f => f.via)].filter(f => !seen.has(`${f.league}:${f.id}`) && seen.add(`${f.league}:${f.id}`));
   };
   const todays = () => {
     const leagues = new Set(followedLeagues());
@@ -4444,7 +4465,7 @@ function askSource() {
     teams: () =>
       mine().slice(0, 8).map(f => {
         const r = state.home.tables[f.league]?.[f.id];
-        return { league: f.league, id: String(f.id), name: shownName(f), logo: f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), pos: r?.pos || null, n: r?.n || null, group: r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : '', leagueName: shortLeague(f.league), games: teamGames(f) || [] };
+        return { league: f.league, id: String(f.id), name: shownName(f), logo: f.logo || fallbackLogo(f.league, { id: f.id, name: f.name }), pos: r?.pos || null, n: r?.n || null, group: r?.group && !/\d{4}/.test(r.group) && r.group !== leagueName(f.league, locale) ? r.group : '', leagueName: shortLeague(f.league), games: teamGames(f) || [], ...(f.via ? { via: f.via } : {}) };
       }),
     // Each followed league's table (a league of groups: the groups my teams are in, else its first).
     standings: async () => {

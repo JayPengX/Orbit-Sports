@@ -1955,6 +1955,17 @@ export async function playerHome(league, id) {
   }
   return league;
 }
+// A club followed where it was found in a national sides' competition (Barcelona under the Nations League,
+// a friend's 追蹤 11-26: "歐國聯" on its card and the 歐國聯 followed with it): its own league when it's one
+// of ours, else the European cup it plays in; a national side (its home league that same competition) stays.
+const NATIONAL = new Set(['nationsleague', 'worldcup']);
+export async function clubHome(league, id, { home = homeLeague, cups = europeanClubs } = {}) {
+  if (!NATIONAL.has(league)) return league;
+  const { key, name } = await home(league, id).catch(() => ({ key: null, name: '' }));
+  if (key && key !== league) return key;
+  if (key === league || /nations|world cup|qualif|friendl/i.test(name || '')) return league;
+  return (await cups().catch(() => new Map())).get(String(id)) || league;
+}
 // The clubs in each European cup this season: a club's id → 'ucl' | 'uel'
 // | 'uecl' (the highest it plays in). Kept a day: a cup's clubs are set
 // before its league phase.

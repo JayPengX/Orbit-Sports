@@ -38,3 +38,17 @@ test("a league's table: its first eight and mine below them, the facts a line a 
 test('nothing followed: no tables', () => {
   assert.deepEqual(askTables({ now }), {});
 });
+
+// A friend's 問比賽 (Jay 11-26): Real Madrid, Barcelona and Messi followed; two teams shown, Barcelona (no place
+// read) left out, Inter Miami with no word that it was there for Messi.
+test("問比賽: every followed team, one with no table saying so, a player's club saying whose", () => {
+  const teams = [
+    { league: 'ucl', id: '86', name: '皇家馬德里', pos: 1, leagueName: '歐冠' },
+    { league: 'nationsleague', id: '83', name: '巴塞隆納', pos: null, leagueName: '歐國聯' },
+    { league: 'mls', id: '20232', name: '邁阿密國際', pos: 2, leagueName: '美職足', via: 'Lionel Messi' }
+  ];
+  const rows = askTables({ teams, now: 0 }).mine.rows;
+  assert.equal(rows.length, 3);
+  assert.equal(rows[1].value, '沒有排名');
+  assert.match(rows[2].sub, /追蹤的Lionel Messi所屬/);
+});
