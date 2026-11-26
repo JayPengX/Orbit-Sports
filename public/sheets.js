@@ -30,7 +30,7 @@ import { raceStory } from './lib/f1story.mjs';
 import { seasonRuns, seasonSums, mateDuel } from './lib/f1driver.mjs';
 import { h2hPieces, PIECE_EACH } from './lib/meetings.mjs';
 import { lapRate, readCar, stepCar, spread, behindLeader, placeTags } from './lib/carpace.mjs';
-import { fold, surname, esc } from './lib/text.mjs';
+import { fold, surname, esc, scoreName } from './lib/text.mjs';
 import { hoopsSeason, fig } from './lib/hoops.mjs';
 import { driverAbout, startingGrid, f1Official, f1Label, f1Value, finishOf, eventOfRace, raceResult, qualifyingResult, espnQualifying, liveTiming, keptTiming, qualiCut, feedOver, feedBreak, nextStartAt, weekendDrops, projectGrid, dropLabel, sessionTiming, sessionLaps, circuitMap, lapMs, practicePace, MIN_RUN, PRACTICE_SPAN, lapTicks, pitLaps, pushLaps, gapsBetween, closingRate, recentPace, neutralLaps, pointsFor, asItStands, standingAfter, teamsAt, settleScoring, liveLapEnds, liveRaceEvents, flagNow, birthPlaceOf, circuitFacts, lastPodium, weekendCircuit, circuitWeather } from './lib/f1.mjs';
 import { tvOf, watchLinkOf, replayOf, camKnownOf, camPlayerOf } from './lib/tv.mjs';
@@ -1141,8 +1141,10 @@ function linescore(sm, e) {
         ? `OT${i - regular ? i - regular + 1 : ''}`
         : String(i + 1);
   const head = Array.from({ length: n }, (_, i) => el('th', { text: colName(i) }));
-  // The sides by their Chinese names when they have them (a short one fits the column).
-  const tag = x => (L() !== 'en' && x.en && x.short && x.short.length <= 5 ? x.short : x.abbr || x.short);
+  // The sides by their Chinese names when both have them and they fit: a football game's two halves leave
+  // room for 新英格蘭革命 (Jay 11-26: "NE" beside 費城聯合, "why English short name when there's such a space");
+  // more columns, five characters. Both sides alike, never one in Chinese and one in letters.
+  const tag = scoreName([home, away], n, L());
   // Each side's logo beside its name.
   const row = x => el('tr', {}, [el('th', { class: 'ls-team' }, [teamTap(x, e.league, 'ls-who', [sideLogo(x, e.league, 'xs'), el('span', { text: tag(x) })])]), ...Array.from({ length: n }, (_, i) => el('td', { class: 'num', text: x.lines?.[i] ?? '' })), el('td', { class: 'num total', text: x.score })]);
   return el('div', { class: 'table-wrap' }, [el('table', { class: `linescore${n > 5 ? ' innings' : ''}` }, [el('thead', {}, [el('tr', {}, [el('th'), ...head, el('th', { text: sport === 'baseball' ? 'R' : en ? 'T' : '總分' })])]), el('tbody', {}, inOrder(e, [away, home]).map(row))])]);
