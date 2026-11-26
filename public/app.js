@@ -4187,7 +4187,8 @@ function openLeague(k, view = null) {
 function pickLeague(k, view = null) {
   const sc = state.scores;
   if (sc.league === k) return;
-  state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, season: null, date: sc.chosen || null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: view || (hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games') };
+  // (`asked`: chosen on purpose, out of season or not: never moved on to a league that's on.)
+  state.scores = { ...sc, sport: LEAGUES[k].sport, league: k, asked: k, season: null, date: sc.chosen || null, picked: false, byDay: null, days: [], extra: 0, stage: 'all', touched: true, view: view || (hasStandings(k) || sc.view === 'bracket' ? sc.view : 'games') };
   loadScores();
 }
 function scoresRail() {
@@ -4196,7 +4197,9 @@ function scoresRail() {
   // at stake and how watchable in Taiwan (leagues.mjs byStakes); the search
   // first of all, then 全部.
   const rest = shownSports().flatMap(sp => shownLeaguesOf(sp)).filter(k => !mine.has(k));
-  return inSeasonFirst([...state.prefs.leagues.filter(isActive), ...byStakes(rest, leagueBounds, today())]);
+  // (Their own leagues always, out of season too, at the rail's end: MLB followed in November could be
+  // found nowhere in 賽事, Jay 11-26. Another's off season stays off it: 搜尋 finds it.)
+  return inSeasonFirst([...state.prefs.leagues.filter(k => LEAGUES[k]), ...byStakes(rest, leagueBounds, today())]);
 }
 function renderScores() {
   if (!S) return void sheets().then(() => state.tab === 'matches' && renderScores(), () => {});

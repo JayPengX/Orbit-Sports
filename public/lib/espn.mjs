@@ -378,7 +378,7 @@ export async function scoreboard(league, dates, keep = 6 * 3_600_000, ahead = LI
   const events = parsed.flat().filter(e => !seen.has(e.id) && seen.add(e.id));
   if (league !== 'mlb') return said(noteLatest(settleSeries(events)).map(fixTime));
   const [live] = await Promise.all([withMlbLive(events), loadPostseason(events)]);
-  return said(noteLatest(byMlbPostseason(settleSeries(live))).map(fixTime));
+  return said(noteLatest(byMlbPostseason(settleSeries(await withMlbHours(live)))).map(fixTime));
 }
 
 // One game as its day's list has it, alone (ESPN's scoreboard/<id>: the same
@@ -393,7 +393,37 @@ export async function gameNow(league, id) {
   settleSeries(events);
   if (league !== 'mlb') return noteLatest(settleSeries(events)).map(fixTime)[0];
   const [live] = await Promise.all([withMlbLive(events), loadPostseason(events)]);
-  return noteLatest(byMlbPostseason(settleSeries(live))).map(fixTime)[0];
+  return noteLatest(byMlbPostseason(settleSeries(await withMlbHours(live)))).map(fixTime)[0];
+}
+
+// ---- MLB's hours where ESPN has none ---------------------------------------------------
+//
+// ESPN leaves an MLB game's hour unset (待定) months after MLB has set it: Opening Day's and the
+// spring's every game (Jay 11-26: "every single future MLB day has a lot of 待定"). MLB's own
+// schedule for that day (statsapi, read by date, kept 6 hours) gives each game's hour; one it
+// hasn't set either stays 待定. A game is its two clubs on that US date, a doubleheader's in order.
+const mlbDays = new Map();
+const clubIs = (name, side) => {
+  const n = String(name || '').toLowerCase();
+  return Boolean(n) && [side?.en, side?.full, side?.enName, side?.name].some(x => x && (String(x).toLowerCase() === n || n.endsWith(` ${String(x).toLowerCase().split(' ').pop()}`)));
+};
+export function mlbHours(events, days) {
+  const used = new Set();
+  return events.map(e => {
+    if (e?.league !== 'mlb' || !e.timeTbd || e.status?.state !== 'pre') return e;
+    const g = (days.get(mlbDate(e.start)) || []).find(x => !used.has(x.gamePk) && !x.status?.startTimeTBD && clubIs(x.teams?.home?.team?.name, e.home) && clubIs(x.teams?.away?.team?.name, e.away));
+    if (!g) return e;
+    used.add(g.gamePk);
+    return { ...e, start: g.gameDate, timeTbd: undefined, timeFrom: undefined };
+  });
+}
+export async function withMlbHours(events) {
+  const tbd = [...new Set(events.filter(e => e?.league === 'mlb' && e.timeTbd && e.status?.state === 'pre').map(e => mlbDate(e.start)))];
+  if (!tbd.length) return events;
+  for (const d of tbd)
+    if (!mlbDays.has(d)) mlbDays.set(d, getJson(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${d}`, { ttl: 6 * 3_600_000 }).then(x => x?.dates?.[0]?.games || [], () => (mlbDays.delete(d), [])));
+  const got = new Map(await Promise.all(tbd.map(async d => [d, await mlbDays.get(d)])));
+  return mlbHours(events, got);
 }
 
 // ---- MLB's postseason over the copies ------------------------------------------------
